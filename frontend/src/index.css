@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-brand-white text-brand-black antialiased;
+  }
+}
+
+@layer utilities {
+  .logo-img {
+    background: transparent;
+    mix-blend-mode: multiply;
+  }
+  .logo-img-dark {
+    background: transparent;
+    mix-blend-mode: luminosity;
+  }
+  .logo-no-bg {
+    /* removes white background from PNG logos with white fill */
+    mix-blend-mode: multiply;
+    background: transparent;
+  }
+}
