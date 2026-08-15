@@ -23,6 +23,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             'focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent',
             'transition-colors duration-150',
             error ? 'border-red-500' : 'border-gray-300',
+            props.disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : '',
             className,
           ].join(' ')}
           {...props}

@@ -12,6 +12,10 @@ import AdminSellerApplicationsPage from './pages/admin/AdminSellerApplicationsPa
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminActivityLogPage from './pages/admin/AdminActivityLogPage';
 import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
+import AdminOrdersPage from './pages/admin/AdminOrdersPage';
+import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
+import AdminDisputesPage from './pages/admin/AdminDisputesPage';
+import AdminReviewsPage from './pages/admin/AdminReviewsPage';
 import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
 import PrivacyPolicyPage from './pages/legal/PrivacyPolicyPage';
@@ -100,10 +104,10 @@ function AppRoutes() {
         <Route path="riders"              element={<AdminUsersPage />} />
         <Route path="categories"          element={<AdminPlaceholderPage title="Categories" />} />
         <Route path="products"            element={<AdminPlaceholderPage title="Products" />} />
-        <Route path="orders"              element={<AdminPlaceholderPage title="Orders" />} />
-        <Route path="payments"            element={<AdminPlaceholderPage title="Payments & Payouts" />} />
-        <Route path="disputes"            element={<AdminPlaceholderPage title="Disputes / Returns" />} />
-        <Route path="reviews"             element={<AdminPlaceholderPage title="Reviews" />} />
+        <Route path="orders"              element={<AdminOrdersPage />} />
+        <Route path="payments"            element={<AdminPaymentsPage />} />
+        <Route path="disputes"            element={<AdminDisputesPage />} />
+        <Route path="reviews"             element={<AdminReviewsPage />} />
         <Route path="reports"             element={<AdminPlaceholderPage title="Reports" />} />
         <Route path="settings"            element={<AdminPlaceholderPage title="Platform Settings" />} />
         <Route path="activity-log"        element={<AdminActivityLogPage />} />

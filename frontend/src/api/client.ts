@@ -8,6 +8,21 @@ import type {
   Order,
   AdminStats,
   ActivityLogEntry,
+  DashboardFeed,
+  AdminOrder,
+  AdminOrderStats,
+  AdminPayment,
+  AdminPaymentStats,
+  AdminDispute,
+  AdminDisputeStats,
+  AdminReview,
+  AdminReviewStats,
+  OrderStatus,
+  PaymentStatus,
+  DisputeStatus,
+  ModerationStatus,
+  Conversation,
+  ChatMessage,
 } from '../types';
 
 const http = axios.create({
@@ -74,6 +89,9 @@ export const resetPasswordApi = (data: {
 export const getAdminStatsApi = () =>
   http.get<{ data: AdminStats }>('/admin/stats').then((r) => r.data.data);
 
+export const getAdminDashboardFeedApi = () =>
+  http.get<{ data: DashboardFeed }>('/admin/dashboard-feed').then((r) => r.data.data);
+
 // Admin — users
 export const getAdminUsersApi = (params?: { role?: string; status?: string; search?: string; page?: number }) =>
   http.get<PaginatedResponse<User>>('/admin/users', { params }).then((r) => r.data);
@@ -123,3 +141,64 @@ export const setDefaultAddressApi = (id: number) =>
 // Orders
 export const getOrdersApi = (params?: { status?: string; search?: string }) =>
   http.get<{ data: Order[] }>('/orders', { params }).then((r) => r.data.data);
+
+// Admin — orders
+export const getAdminOrdersApi = (params?: { status?: OrderStatus; search?: string; page?: number }) =>
+  http.get<PaginatedResponse<AdminOrder>>('/admin/orders', { params }).then((r) => r.data);
+
+export const getAdminOrderApi = (id: number) =>
+  http.get<{ data: AdminOrder }>(`/admin/orders/${id}`).then((r) => r.data.data);
+
+export const updateAdminOrderStatusApi = (id: number, status: OrderStatus) =>
+  http.patch<{ data: AdminOrder }>(`/admin/orders/${id}/status`, { status }).then((r) => r.data.data);
+
+export const getAdminOrderStatsApi = () =>
+  http.get<{ data: AdminOrderStats }>('/admin/orders/stats').then((r) => r.data.data);
+
+// Admin — payments
+export const getAdminPaymentsApi = (params?: { status?: PaymentStatus; search?: string; page?: number }) =>
+  http.get<PaginatedResponse<AdminPayment>>('/admin/payments', { params }).then((r) => r.data);
+
+export const markPaymentPaidApi = (id: number, reference_number?: string) =>
+  http.patch<{ data: AdminPayment }>(`/admin/payments/${id}/mark-paid`, { reference_number }).then((r) => r.data.data);
+
+export const getAdminPaymentStatsApi = () =>
+  http.get<{ data: AdminPaymentStats }>('/admin/payments/stats').then((r) => r.data.data);
+
+// Admin — disputes
+export const getAdminDisputesApi = (params?: { status?: DisputeStatus; search?: string; page?: number }) =>
+  http.get<PaginatedResponse<AdminDispute>>('/admin/disputes', { params }).then((r) => r.data);
+
+export const getAdminDisputeApi = (id: number) =>
+  http.get<{ data: AdminDispute }>(`/admin/disputes/${id}`).then((r) => r.data.data);
+
+export const resolveDisputeApi = (id: number, status: 'resolved' | 'closed', resolution_note: string) =>
+  http.patch<{ data: AdminDispute }>(`/admin/disputes/${id}/resolve`, { status, resolution_note }).then((r) => r.data.data);
+
+export const getAdminDisputeStatsApi = () =>
+  http.get<{ data: AdminDisputeStats }>('/admin/disputes/stats').then((r) => r.data.data);
+
+// Admin — reviews
+export const getAdminReviewsApi = (params?: { moderation_status?: ModerationStatus; flagged?: boolean; search?: string; page?: number }) =>
+  http.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params: { ...params, flagged: params?.flagged ? 'true' : undefined } }).then((r) => r.data);
+
+export const moderateReviewApi = (id: number, moderation_status: ModerationStatus) =>
+  http.patch<{ data: AdminReview }>(`/admin/reviews/${id}/moderate`, { moderation_status }).then((r) => r.data.data);
+
+export const getAdminReviewStatsApi = () =>
+  http.get<{ data: AdminReviewStats }>('/admin/reviews/stats').then((r) => r.data.data);
+
+// Admin — conversations
+export const getConversationsApi = () =>
+  http.get<{ data: Conversation[] }>('/admin/conversations').then((r) => r.data.data);
+
+export const openConversationForSellerApi = (sellerId: number) =>
+  http.get<{ data: Conversation }>(`/admin/conversations/seller/${sellerId}`).then((r) => r.data.data);
+
+export const getConversationMessagesApi = (conversationId: number, since?: string) =>
+  http.get<{ data: ChatMessage[] }>(`/admin/conversations/${conversationId}/messages`, {
+    params: since ? { since } : undefined,
+  }).then((r) => r.data.data);
+
+export const sendConversationMessageApi = (conversationId: number, body: string) =>
+  http.post<{ data: ChatMessage }>(`/admin/conversations/${conversationId}/messages`, { body }).then((r) => r.data.data);
