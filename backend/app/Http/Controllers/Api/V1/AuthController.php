@@ -46,10 +46,9 @@ class AuthController extends Controller
     {
         $user = $this->registrationService->register(
             $request->validated(),
-            $request->file('government_id_image')
+            $request->file('government_id_image'),
+            $request->file('government_id_image_back'),
         );
-
-        Mail::to($user->email)->queue(new WelcomeMail($user));
 
         $token = $user->createToken('auth_token')->plainTextToken;
 

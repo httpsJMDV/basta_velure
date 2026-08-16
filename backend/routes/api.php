@@ -2,8 +2,13 @@
 
 use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AddressController;
+use App\Http\Controllers\Api\V1\AdminDisputeController;
+use App\Http\Controllers\Api\V1\AdminOrderController;
+use App\Http\Controllers\Api\V1\AdminPaymentController;
+use App\Http\Controllers\Api\V1\AdminReviewController;
 use App\Http\Controllers\Api\V1\AdminSellerApplicationController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\ConversationController;
 use App\Http\Controllers\Api\V1\GoogleAuthController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use Illuminate\Support\Facades\RateLimiter;
@@ -44,6 +49,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:admin')->prefix('admin')->group(function () {
             // Dashboard stats
             Route::get('/stats', [AdminController::class, 'stats']);
+            Route::get('/dashboard-feed', [AdminController::class, 'dashboardFeed']);
 
             // Users
             Route::get('/users', [AdminController::class, 'users']);
@@ -60,6 +66,53 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller-applications/{sellerProfile}/reject', [AdminSellerApplicationController::class, 'reject']);
             Route::get('/seller-applications/{sellerProfile}/id-image', [AdminSellerApplicationController::class, 'idImage'])
                 ->name('admin.seller-applications.id-image');
+
+            // Orders
+            Route::get('/orders', [AdminOrderController::class, 'index']);
+            Route::get('/orders/stats', [AdminOrderController::class, 'stats']);
+            Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
+            Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
+
+            // Payments
+            Route::get('/payments', [AdminPaymentController::class, 'index']);
+            Route::get('/payments/stats', [AdminPaymentController::class, 'stats']);
+            Route::patch('/payments/{payment}/mark-paid', [AdminPaymentController::class, 'markPaid']);
+
+            // Disputes
+            Route::get('/disputes', [AdminDisputeController::class, 'index']);
+            Route::get('/disputes/stats', [AdminDisputeController::class, 'stats']);
+            Route::get('/disputes/{dispute}', [AdminDisputeController::class, 'show']);
+            Route::patch('/disputes/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
+
+            // Reviews
+            Route::get('/reviews', [AdminReviewController::class, 'index']);
+            Route::get('/reviews/stats', [AdminReviewController::class, 'stats']);
+            Route::patch('/reviews/{review}/moderate', [AdminReviewController::class, 'moderate']);
+
+            // Conversations (admin side)
+            Route::get('/conversations', [ConversationController::class, 'index']);
+            Route::get('/conversations/seller/{seller}', [ConversationController::class, 'openForSeller']);
+            Route::get('/conversations/{conversation}/messages', [ConversationController::class, 'messages']);
+            Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'send']);
+        });
+
+        // Seller: own conversation with admin
+        Route::middleware('role:seller')->group(function () {
+            Route::get('/my-conversation', [ConversationController::class, 'mine']);
+            Route::get('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
+                $conv = \App\Models\Conversation::firstOrCreate(
+                    ['seller_id' => $req->user()->id],
+                    ['last_message_at' => now()]
+                );
+                return app(ConversationController::class)->messages($req, $conv);
+            });
+            Route::post('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
+                $conv = \App\Models\Conversation::firstOrCreate(
+                    ['seller_id' => $req->user()->id],
+                    ['last_message_at' => now()]
+                );
+                return app(ConversationController::class)->send($req, $conv);
+            });
         });
     });
 });

@@ -17,6 +17,14 @@ class AdminController extends Controller
 
     public function stats(): JsonResponse
     {
+        $now       = now();
+        $todayStart     = $now->copy()->startOfDay();
+        $yesterdayStart = $now->copy()->subDay()->startOfDay();
+        $yesterdayEnd   = $now->copy()->subDay()->endOfDay();
+        $weekStart      = $now->copy()->startOfWeek();
+        $lastWeekStart  = $now->copy()->subWeek()->startOfWeek();
+        $lastWeekEnd    = $now->copy()->subWeek()->endOfWeek();
+
         $pendingSellers = SellerProfile::where('application_status', 'pending')->count();
 
         $userCounts = User::selectRaw("role, count(*) as total")
@@ -24,15 +32,95 @@ class AdminController extends Controller
             ->groupBy('role')
             ->pluck('total', 'role');
 
+        // New buyers this week vs last week
+        $buyersThisWeek = User::where('role', 'buyer')
+            ->whereBetween('created_at', [$weekStart, $now])
+            ->count();
+        $buyersLastWeek = User::where('role', 'buyer')
+            ->whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])
+            ->count();
+
+        // Pending sellers this week vs last week (for trend)
+        $pendingSellersThisWeek = SellerProfile::where('application_status', 'pending')
+            ->whereBetween('submitted_at', [$weekStart, $now])
+            ->count();
+        $pendingSellersLastWeek = SellerProfile::where('application_status', 'pending')
+            ->whereBetween('submitted_at', [$lastWeekStart, $lastWeekEnd])
+            ->count();
+
         return response()->json([
             'data' => [
-                'pending_seller_applications' => $pendingSellers,
-                'pending_rider_applications'  => 0, // rider table not yet built
-                'total_buyers'                => $userCounts['buyer']  ?? 0,
-                'total_sellers'               => $userCounts['seller'] ?? 0,
-                'total_riders'                => $userCounts['rider']  ?? 0,
-                'orders_today'                => 0, // orders table not yet built
-                'open_disputes'               => 0, // disputes table not yet built
+                'pending_seller_applications'      => $pendingSellers,
+                'pending_rider_applications'       => 0,
+                'total_buyers'                     => $userCounts['buyer']  ?? 0,
+                'total_sellers'                    => $userCounts['seller'] ?? 0,
+                'total_riders'                     => $userCounts['rider']  ?? 0,
+                'orders_today'                     => 0,
+                'open_disputes'                    => 0,
+                'new_buyers_this_week'             => $buyersThisWeek,
+                'new_buyers_last_week'             => $buyersLastWeek,
+                'pending_sellers_this_week'        => $pendingSellersThisWeek,
+                'pending_sellers_last_week'        => $pendingSellersLastWeek,
+                'gmv_today'                        => 0,
+                'gmv_yesterday'                    => 0,
+                'orders_yesterday'                 => 0,
+            ],
+        ]);
+    }
+
+    // ── Dashboard feed (attention items + recent activity) ────────────────────
+
+    public function dashboardFeed(): JsonResponse
+    {
+        $now = now();
+        $threshold = $now->copy()->subHours(48);
+
+        // Pending seller applications — flag those older than 48h
+        $pendingApps = SellerProfile::with('user')
+            ->where('application_status', 'pending')
+            ->orderBy('submitted_at')
+            ->take(10)
+            ->get()
+            ->map(fn ($sp) => [
+                'type'       => 'seller_application',
+                'id'         => $sp->id,
+                'label'      => $sp->shop_name,
+                'sub'        => $sp->user->first_name . ' ' . $sp->user->last_name,
+                'waiting_since' => $sp->submitted_at,
+                'urgent'     => $sp->submitted_at->lt($threshold),
+                'link'       => '/admin/seller-applications',
+            ]);
+
+        // Recent activity — last 8 entries
+        $activity = AdminActivityLog::with('admin')
+            ->latest('created_at')
+            ->take(8)
+            ->get()
+            ->map(fn ($log) => [
+                'id'          => $log->id,
+                'action'      => $log->action,
+                'description' => $log->description,
+                'created_at'  => $log->created_at,
+                'admin'       => [
+                    'first_name' => $log->admin->first_name,
+                    'last_name'  => $log->admin->last_name,
+                ],
+            ]);
+
+        // Seller registrations per day — last 14 days for chart
+        $chartData = collect(range(13, 0))->map(function ($daysAgo) use ($now) {
+            $date = $now->copy()->subDays($daysAgo)->toDateString();
+            $count = User::where('role', 'seller')
+                ->whereDate('created_at', $date)
+                ->count();
+            return ['date' => $date, 'new_sellers' => $count, 'orders' => 0, 'gmv' => 0];
+        });
+
+        return response()->json([
+            'data' => [
+                'attention_items' => $pendingApps,
+                'recent_activity' => $activity,
+                'chart_data'      => $chartData,
             ],
         ]);
     }
