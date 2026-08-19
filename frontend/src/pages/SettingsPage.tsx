@@ -11,19 +11,20 @@ import {
 } from '../api/client';
 import CustomSelect from '../components/ui/CustomSelect';
 import PhoneInput from '../components/ui/PhoneInput';
-import Button from '../components/ui/Button';
 import UserAvatar from '../components/ui/UserAvatar';
 import AvatarCropModal from '../components/ui/AvatarCropModal';
 import { uploadAvatarApi } from '../api/client';
 import type { Address, AddressLabel, Order, OrderStatus } from '../types';
-import { PH_PROVINCES, PH_DISTRICTS } from '../data/ph-locations';
-import {
-  User, MapPin, Package, RotateCcw, XCircle,
-  Star, Heart, Store, ChevronRight, ArrowLeft, Pencil, Check, X,
-  Plus, Trash2, Home, Briefcase, Star as StarIcon,
-  Search, ShoppingBag, Camera,
-} from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
+  ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
+  Trash2, Search, ShoppingBag, ArrowLeft,
+} from 'lucide-react';
+
+const StarIcon = Star;
+
+interface PsgcItem { code: string; name: string; }
 
 // ─── Sidebar ────────────────────────────────────────────────────────────────
 
@@ -93,18 +94,7 @@ const MONTHS = [
   'July','August','September','October','November','December',
 ].map((m, i) => ({ value: String(i + 1).padStart(2, '0'), label: m }));
 
-const DAYS = Array.from({ length: 31 }, (_, i) => {
-  const d = String(i + 1).padStart(2, '0');
-  return { value: d, label: String(i + 1) };
-});
-
-const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 100 }, (_, i) => {
-  const y = String(currentYear - i);
-  return { value: y, label: y };
-});
-
-const GENDER_OPTIONS = [
+const SEX_OPTIONS = [
   { value: 'male',              label: 'Male' },
   { value: 'female',            label: 'Female' },
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
@@ -202,39 +192,47 @@ function AccountPanel() {
     }
   }
 
+  // Name edit state
+  const [editingName, setEditingName] = useState(false);
+  const [firstName, setFirstName] = useState(user?.first_name ?? '');
+  const [middleName, setMiddleName] = useState(user?.middle_name ?? '');
+  const [lastName, setLastName] = useState(user?.last_name ?? '');
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState('');
+
   // Phone edit state
   const [editingPhone, setEditingPhone] = useState(false);
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [phoneError, setPhoneError] = useState('');
   const [savingPhone, setSavingPhone] = useState(false);
 
-  // Birthday edit state
-  const splitDob = (dob: string | null) => {
-    if (!dob) return { month: '', day: '', year: '' };
-    const [y, m, d] = dob.split('-');
-    return { month: m, day: d, year: y };
-  };
-  const [editingDob, setEditingDob] = useState(false);
-  const [dob, setDob] = useState(splitDob(user?.date_of_birth ?? null));
-  const [savingDob, setSavingDob] = useState(false);
-
-  // Gender edit state
-  const [editingGender, setEditingGender] = useState(false);
-  const [gender, setGender] = useState(user?.gender ?? '');
-  const [savingGender, setSavingGender] = useState(false);
-
-  const formatDob = (d: typeof dob) =>
-    d.year && d.month && d.day ? `${d.year}-${d.month}-${d.day}` : '';
+  // Sex edit state
+  const [editingSex, setEditingSex] = useState(false);
+  const [sex, setSex] = useState(user?.sex ?? '');
+  const [savingSex, setSavingSex] = useState(false);
 
   const displayDob = () => {
-    if (!user?.date_of_birth) return '—';
-    const { month, day, year } = splitDob(user.date_of_birth);
-    const monthLabel = MONTHS.find((m) => m.value === month)?.label ?? month;
-    return `${monthLabel} ${parseInt(day)}, ${year}`;
+    if (!user?.date_of_birth) return '';
+    const [y, m, d] = user.date_of_birth.split('-');
+    const monthLabel = MONTHS.find((mo) => mo.value === m)?.label ?? m;
+    return `${monthLabel} ${parseInt(d)}, ${y}`;
   };
 
-  const displayGender = () =>
-    GENDER_OPTIONS.find((g) => g.value === user?.gender)?.label ?? '—';
+  const displaySex = () =>
+    SEX_OPTIONS.find((s) => s.value === user?.sex)?.label ?? '—';
+
+  async function saveName() {
+    if (!firstName.trim() || !lastName.trim()) { setNameError('First and last name are required.'); return; }
+    setNameError('');
+    setSavingName(true);
+    try {
+      const updated = await updateProfileApi({ first_name: firstName.trim(), middle_name: middleName.trim() || undefined, last_name: lastName.trim() });
+      setUser(updated);
+      setEditingName(false);
+    } finally {
+      setSavingName(false);
+    }
+  }
 
   async function savePhone() {
     setPhoneError('');
@@ -252,25 +250,14 @@ function AccountPanel() {
     }
   }
 
-  async function saveDob() {
-    setSavingDob(true);
+  async function saveSex() {
+    setSavingSex(true);
     try {
-      const updated = await updateProfileApi({ date_of_birth: formatDob(dob) });
+      const updated = await updateProfileApi({ sex });
       setUser(updated);
-      setEditingDob(false);
+      setEditingSex(false);
     } finally {
-      setSavingDob(false);
-    }
-  }
-
-  async function saveGender() {
-    setSavingGender(true);
-    try {
-      const updated = await updateProfileApi({ gender });
-      setUser(updated);
-      setEditingGender(false);
-    } finally {
-      setSavingGender(false);
+      setSavingSex(false);
     }
   }
 
@@ -330,13 +317,38 @@ function AccountPanel() {
           />
         )}
 
-        {/* Read-only fields */}
-        <div className="py-4 border-b border-gray-50">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Full Name</p>
-          <p className="text-sm text-brand-black font-medium">
-            {user?.first_name} {user?.middle_name ? user.middle_name + ' ' : ''}{user?.last_name}
-          </p>
-        </div>
+        {/* Editable: Name */}
+        <InfoRow
+          label="Full Name"
+          display={[user?.first_name, user?.middle_name, user?.last_name].filter(Boolean).join(' ')}
+          editing={editingName}
+          onEdit={() => { setFirstName(user?.first_name ?? ''); setMiddleName(user?.middle_name ?? ''); setLastName(user?.last_name ?? ''); setEditingName(true); }}
+          onCancel={() => { setEditingName(false); setNameError(''); }}
+          onSave={saveName}
+          saving={savingName}
+        >
+          <div className="flex flex-col gap-2">
+            <input
+              placeholder="First name *"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="min-h-[40px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
+            />
+            <input
+              placeholder="Middle name (optional)"
+              value={middleName}
+              onChange={(e) => setMiddleName(e.target.value)}
+              className="min-h-[40px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
+            />
+            <input
+              placeholder="Last name *"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="min-h-[40px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
+            />
+            {nameError && <p className="text-xs text-red-600">{nameError}</p>}
+          </div>
+        </InfoRow>
 
         <div className="py-4 border-b border-gray-50">
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Email</p>
@@ -356,53 +368,38 @@ function AccountPanel() {
           <PhoneInput value={phone} onChange={setPhone} error={phoneError} />
         </InfoRow>
 
-        {/* Editable: Birthday */}
-        <InfoRow
-          label="Birthday"
-          display={displayDob()}
-          editing={editingDob}
-          onEdit={() => { setDob(splitDob(user?.date_of_birth ?? null)); setEditingDob(true); }}
-          onCancel={() => setEditingDob(false)}
-          onSave={saveDob}
-          saving={savingDob}
-        >
-          <div className="grid grid-cols-3 gap-2">
-            <CustomSelect
-              value={dob.month}
-              onChange={(v) => setDob((d) => ({ ...d, month: v }))}
-              options={MONTHS}
-              placeholder="Month"
-            />
-            <CustomSelect
-              value={dob.day}
-              onChange={(v) => setDob((d) => ({ ...d, day: v }))}
-              options={DAYS}
-              placeholder="Day"
-            />
-            <CustomSelect
-              value={dob.year}
-              onChange={(v) => setDob((d) => ({ ...d, year: v }))}
-              options={YEARS}
-              placeholder="Year"
-            />
-          </div>
-        </InfoRow>
+        {/* Read-only: Birthday */}
+        <div className="py-4 border-b border-gray-50">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Birthday</p>
+          <p className="text-sm text-brand-black font-medium">{displayDob() || '—'}</p>
+          {user?.date_of_birth && (
+            <p className="text-xs text-gray-400 mt-0.5">Age: {(() => {
+              const today = new Date();
+              const birth = new Date(user.date_of_birth!);
+              let a = today.getFullYear() - birth.getFullYear();
+              const m = today.getMonth() - birth.getMonth();
+              if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) a--;
+              return a;
+            })()}</p>
+          )}
+          <p className="text-xs text-gray-300 mt-0.5">Birthday cannot be changed after registration.</p>
+        </div>
 
-        {/* Editable: Gender */}
+        {/* Editable: Sex */}
         <InfoRow
-          label="Gender"
-          display={displayGender()}
-          editing={editingGender}
-          onEdit={() => { setGender(user?.gender ?? ''); setEditingGender(true); }}
-          onCancel={() => setEditingGender(false)}
-          onSave={saveGender}
-          saving={savingGender}
+          label="Sex"
+          display={displaySex()}
+          editing={editingSex}
+          onEdit={() => { setSex(user?.sex ?? ''); setEditingSex(true); }}
+          onCancel={() => setEditingSex(false)}
+          onSave={saveSex}
+          saving={savingSex}
         >
           <CustomSelect
-            value={gender}
-            onChange={setGender}
-            options={GENDER_OPTIONS}
-            placeholder="Select gender"
+            value={sex}
+            onChange={setSex}
+            options={SEX_OPTIONS}
+            placeholder="Select sex"
           />
         </InfoRow>
       </div>
@@ -423,6 +420,18 @@ const EMPTY_FORM = {
   label: 'home' as AddressLabel,
 };
 
+// Internal form uses PSGC codes; initial may contain plain names (from saved addresses)
+interface AddressFormInternal {
+  full_name: string;
+  phone: string;
+  address: string;
+  floor_unit: string;
+  province: string;  // PSGC code while editing, plain name when saving
+  district: string;  // PSGC code while editing
+  ward: string;      // PSGC code while editing
+  label: AddressLabel;
+}
+
 function AddressForm({
   initial,
   onSave,
@@ -434,14 +443,111 @@ function AddressForm({
   onCancel: () => void;
   saving: boolean;
 }) {
-  const [form, setForm] = useState(initial);
-  const set = (k: keyof typeof EMPTY_FORM, v: string) =>
+  // Internal state uses PSGC codes for province/district/ward
+  const [form, setForm] = useState<AddressFormInternal>({
+    ...initial,
+    province: '',
+    district: '',
+    ward: '',
+  });
+  const set = (k: keyof AddressFormInternal, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const districtOptions = form.province ? (PH_DISTRICTS[form.province] ?? []) : [];
+  // PSGC cascading dropdowns
+  const [provinces, setProvinces] = useState<PsgcItem[]>([]);
+  const [cities, setCities] = useState<PsgcItem[]>([]);
+  const [barangays, setBarangays] = useState<PsgcItem[]>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
+  const [loadingBrgy, setLoadingBrgy] = useState(false);
+
+  // Load provinces, then resolve stored plain names → codes for pre-selection
+  useEffect(() => {
+    fetch('https://psgc.gitlab.io/api/provinces/')
+      .then((r) => r.json())
+      .then((data: PsgcItem[]) => {
+        const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
+        setProvinces(sorted);
+
+        if (!initial.province) return;
+        // Try to match stored name → code
+        const match = sorted.find(
+          (p) => p.name.toLowerCase() === initial.province.toLowerCase() || p.code === initial.province
+        );
+        if (!match) return;
+        setForm((f) => ({ ...f, province: match.code }));
+
+        // Pre-load cities
+        setLoadingCities(true);
+        fetch(`https://psgc.gitlab.io/api/provinces/${match.code}/cities-municipalities/`)
+          .then((r) => r.json())
+          .then((cityData: PsgcItem[]) => {
+            const sortedCities = [...cityData].sort((a, b) => a.name.localeCompare(b.name));
+            setCities(sortedCities);
+
+            if (!initial.district) return;
+            const cityMatch = sortedCities.find(
+              (c) => c.name.toLowerCase() === initial.district.toLowerCase() || c.code === initial.district
+            );
+            if (!cityMatch) return;
+            setForm((f) => ({ ...f, district: cityMatch.code }));
+
+            // Pre-load barangays
+            setLoadingBrgy(true);
+            fetch(`https://psgc.gitlab.io/api/cities-municipalities/${cityMatch.code}/barangays/`)
+              .then((r) => r.json())
+              .then((brgyData: PsgcItem[]) => {
+                const sortedBrgy = [...brgyData].sort((a, b) => a.name.localeCompare(b.name));
+                setBarangays(sortedBrgy);
+
+                if (!initial.ward) return;
+                const brgyMatch = sortedBrgy.find(
+                  (b) => b.name.toLowerCase() === initial.ward.toLowerCase() || b.code === initial.ward
+                );
+                if (brgyMatch) setForm((f) => ({ ...f, ward: brgyMatch.code }));
+              })
+              .catch(() => {})
+              .finally(() => setLoadingBrgy(false));
+          })
+          .catch(() => {})
+          .finally(() => setLoadingCities(false));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleProvince(v: string) {
-    setForm((f) => ({ ...f, province: v, district: '' }));
+    setForm((f) => ({ ...f, province: v, district: '', ward: '' }));
+    setCities([]);
+    setBarangays([]);
+    if (!v) return;
+    setLoadingCities(true);
+    fetch(`https://psgc.gitlab.io/api/provinces/${v}/cities-municipalities/`)
+      .then((r) => r.json())
+      .then((data: PsgcItem[]) => setCities([...data].sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {})
+      .finally(() => setLoadingCities(false));
+  }
+
+  function handleCity(v: string) {
+    setForm((f) => ({ ...f, district: v, ward: '' }));
+    setBarangays([]);
+    if (!v) return;
+    setLoadingBrgy(true);
+    fetch(`https://psgc.gitlab.io/api/cities-municipalities/${v}/barangays/`)
+      .then((r) => r.json())
+      .then((data: PsgcItem[]) => setBarangays([...data].sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {})
+      .finally(() => setLoadingBrgy(false));
+  }
+
+  // Resolve codes → names before saving
+  function handleSave() {
+    onSave({
+      ...form,
+      province: provinces.find((p) => p.code === form.province)?.name ?? form.province,
+      district: cities.find((c) => c.code === form.district)?.name ?? form.district,
+      ward:     barangays.find((b) => b.code === form.ward)?.name ?? form.ward,
+    });
   }
 
   const inputCls = [
@@ -487,43 +593,41 @@ function AddressForm({
         <input
           className={inputCls}
           placeholder="e.g. Unit 3B, 2nd Floor"
-          value={form.floor_unit}
+          value={form.floor_unit ?? ''}
           onChange={(e) => set('floor_unit', e.target.value)}
         />
       </div>
 
-      {/* Province + District */}
+      {/* Province + City + Barangay */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <CustomSelect
           label="Province"
           required
           value={form.province}
           onChange={handleProvince}
-          options={PH_PROVINCES}
-          placeholder="Select province"
+          options={provinces.map((p) => ({ value: p.code, label: p.name }))}
+          placeholder={provinces.length === 0 ? 'Loading…' : 'Select province'}
         />
         <CustomSelect
-          label="District / City"
+          label="City / Municipality"
           required
           value={form.district}
-          onChange={(v) => set('district', v)}
-          options={districtOptions}
-          placeholder={form.province ? 'Select district' : 'Select province first'}
-          disabled={!form.province}
+          onChange={handleCity}
+          options={cities.map((c) => ({ value: c.code, label: c.name }))}
+          placeholder={loadingCities ? 'Loading…' : form.province ? 'Select city/municipality' : 'Select province first'}
+          disabled={!form.province || loadingCities}
         />
       </div>
 
-      {/* Ward — free text */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Barangay / Ward <span className="text-brand-red">*</span></label>
-        <input
-          className={inputCls}
-          placeholder="e.g. Brgy. Poblacion II"
-          value={form.ward}
-          onChange={(e) => set('ward', e.target.value)}
-        />
-        <p className="text-xs text-gray-400">Type your barangay name (e.g. Brgy. San Antonio, Brgy. 123)</p>
-      </div>
+      <CustomSelect
+        label="Barangay"
+        required
+        value={form.ward}
+        onChange={(v) => set('ward', v)}
+        options={barangays.map((b) => ({ value: b.code, label: b.name }))}
+        placeholder={loadingBrgy ? 'Loading…' : form.district ? 'Select barangay' : 'Select city first'}
+        disabled={!form.district || loadingBrgy}
+      />
 
       {/* Label toggle */}
       <div className="flex flex-col gap-2">
@@ -552,7 +656,7 @@ function AddressForm({
       <div className="flex gap-2 pt-1">
         <button
           type="button"
-          onClick={() => onSave(form)}
+          onClick={() => handleSave()}
           disabled={saving || !form.full_name || !form.address || !form.province || !form.district || !form.ward}
           className="flex items-center gap-1.5 px-4 py-2 bg-brand-red text-white text-sm font-semibold rounded-xl hover:bg-brand-red-dark transition-colors disabled:opacity-40"
         >
@@ -582,8 +686,6 @@ function AddressCard({
   onDelete: () => void;
   onSetDefault: () => void;
 }) {
-  const provinceName = PH_PROVINCES.find((p) => p.value === addr.province)?.label ?? addr.province;
-  const districtName = (PH_DISTRICTS[addr.province] ?? []).find((d) => d.value === addr.district)?.label ?? addr.district;
 
   return (
     <div className={[
@@ -610,7 +712,7 @@ function AddressCard({
       <p className="text-sm text-gray-500 mt-0.5">{addr.phone}</p>
       <p className="text-sm text-gray-600 mt-1 leading-relaxed">
         {addr.address}{addr.floor_unit ? `, ${addr.floor_unit}` : ''}<br />
-        {addr.ward}, {districtName}, {provinceName}
+        {addr.ward}, {addr.district}, {addr.province}
       </p>
 
       <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">

@@ -65,6 +65,8 @@ export interface SellerProfileSummary {
 }
 
 export type Gender = 'male' | 'female' | 'prefer_not_to_say';
+export type Sex = 'male' | 'female';
+export type BuyerApplicationStatus = 'pending' | 'approved' | 'rejected';
 
 export interface User {
   id: number;
@@ -75,10 +77,33 @@ export interface User {
   phone: string;
   date_of_birth: string | null;
   gender: Gender | null;
+  sex: Sex | null;
+  buyer_application_status: BuyerApplicationStatus | null;
+  buyer_rejection_reason: string | null;
+  government_id_type: string | null;
+  government_id_image_url: string | null;
+  government_id_image_back_url: string | null;
+  default_address: {
+    province: string;
+    city_municipality: string;
+    barangay: string;
+    street_address: string | null;
+  } | null;
   role: Role;
   status: UserStatus;
   avatar_url: string | null;
+  created_at: string | null;
   seller_profile?: SellerProfileSummary;
+}
+
+export interface BuyerApplicationSummary {
+  pending_total: number;
+  today: number;
+  this_week: number;
+}
+
+export interface BuyerApplicationsResponse extends PaginatedResponse<User> {
+  summary: BuyerApplicationSummary;
 }
 
 export interface SellerApplication {
@@ -102,6 +127,8 @@ export interface PaginatedResponse<T> {
     last_page: number;
     per_page: number;
     total: number;
+    from: number | null;
+    to: number | null;
   };
 }
 

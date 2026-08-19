@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   getAdminStatsApi, getAdminDashboardFeedApi,
@@ -15,12 +15,54 @@ import {
   Users, TrendingUp, TrendingDown,
   ArrowRight, Activity, Minus,
   ShieldAlert, Star,
-  Gauge, PackageCheck, Wallet, Sparkles, AlertTriangle,
+  Gauge, PackageCheck, Wallet, AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer, XAxis, YAxis,
   CartesianGrid, Tooltip, Area, AreaChart,
+  PieChart, Pie, Cell,
 } from 'recharts';
+
+// ─── Count-up animation ──────────────────────────────────────────────────────
+
+function useCountUp(target: number, duration = 1000): number {
+  const [value, setValue] = useState(0);
+  const raf = useRef<number>(0);
+  useEffect(() => {
+    cancelAnimationFrame(raf.current);
+    if (target === 0) { setValue(0); return; }
+    const start = performance.now();
+    const from  = value;
+    const run = (now: number) => {
+      const p = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setValue(Math.round(from + (target - from) * eased));
+      if (p < 1) raf.current = requestAnimationFrame(run);
+    };
+    raf.current = requestAnimationFrame(run);
+    return () => cancelAnimationFrame(raf.current);
+  }, [target, duration]); // eslint-disable-line react-hooks/exhaustive-deps
+  return value;
+}
+
+// ─── Mount fade-slide animation ─────────────────────────────────────────────
+
+function useMountAnim() {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(18px)';
+    el.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
+    const id = requestAnimationFrame(() => {
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0)';
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return ref;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -96,19 +138,15 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
   const pendingTotal = stats
     ? stats.pending_seller_applications + stats.pending_rider_applications + stats.open_disputes
     : 0;
-
   const hasIssues = pendingTotal > 0;
+  const animatedGmv     = useCountUp(stats?.gmv_today ?? 0);
+  const animatedPending = useCountUp(pendingTotal);
 
   return (
     <div
       className="rounded-2xl px-7 py-6 flex items-center justify-between gap-6 min-h-[110px] overflow-hidden relative"
       style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
     >
-      {/* subtle grid texture */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{
-        backgroundImage: 'repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 40px)',
-      }} />
-
       <div className="relative z-10">
         <p className="text-[11px] font-semibold text-white/40 uppercase tracking-[0.15em] mb-1.5">
           {greeting()}
@@ -119,7 +157,7 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
           <p className="text-[12px] text-white/50 leading-snug">
             {stats
               ? hasIssues
-                ? `${pendingTotal} item${pendingTotal !== 1 ? 's' : ''} need your attention`
+                ? `${animatedPending} item${pendingTotal !== 1 ? 's' : ''} need your attention`
                 : 'All systems normal — platform is healthy'
               : 'Loading platform status…'}
           </p>
@@ -131,7 +169,7 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
           <div className="hidden sm:flex flex-col items-end gap-1">
             <p className="text-[11px] text-white/30 uppercase tracking-widest">Today's GMV</p>
             <p className="text-[22px] font-black text-white leading-none">
-              ₱{stats.gmv_today > 0 ? stats.gmv_today.toLocaleString('en-PH') : '0'}
+              ₱{animatedGmv > 0 ? animatedGmv.toLocaleString('en-PH') : '0'}
             </p>
           </div>
         )}
@@ -165,6 +203,7 @@ interface MetricCardProps {
   icon: React.ElementType;
   label: string;
   value: number | string;
+  prefix?: string;
   to?: string;
   iconBg: string;
   iconColor: string;
@@ -172,7 +211,12 @@ interface MetricCardProps {
   actionItem?: boolean;
 }
 
-function MetricCard({ icon: Icon, label, value, to, iconBg, iconColor, trend: trendEl, actionItem }: MetricCardProps) {
+function MetricCard({ icon: Icon, label, value, prefix, to, iconBg, iconColor, trend: trendEl, actionItem }: MetricCardProps) {
+  const numericTarget = typeof value === 'number' ? value : 0;
+  const animated = useCountUp(numericTarget);
+  const displayValue = typeof value === 'number'
+    ? (prefix ? `${prefix}${animated.toLocaleString('en-PH')}` : animated)
+    : value;
   const inner = (
     <div className={[
       'bg-white rounded-2xl p-4 flex flex-col gap-3 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 h-full',
@@ -194,7 +238,7 @@ function MetricCard({ icon: Icon, label, value, to, iconBg, iconColor, trend: tr
         <p className={`text-3xl font-black leading-none tracking-tight ${
           actionItem && Number(value) > 0 ? 'text-brand-red' : 'text-gray-900'
         }`}>
-          {value}
+          {displayValue}
         </p>
         <p className="text-[11px] text-gray-400 mt-1 leading-tight font-medium">{label}</p>
         {trendEl && <div className="mt-1.5">{trendEl}</div>}
@@ -223,6 +267,19 @@ function SectionHeader({ title, to, icon: Icon }: { title: string; to?: string; 
   );
 }
 
+// ─── Shared empty-state placeholder ─────────────────────────────────────────
+
+function ChartEmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
+      <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center">
+        <Activity className="w-4 h-4 text-gray-300" />
+      </div>
+      <p className="text-[12px] font-semibold text-gray-400">{message}</p>
+    </div>
+  );
+}
+
 // ─── Chart ────────────────────────────────────────────────────────────────────
 
 type ChartRange = '7d' | '14d';
@@ -234,6 +291,8 @@ function TrendChart({ data }: { data: DashboardChartPoint[] }) {
     const n = range === '7d' ? 7 : 14;
     return data.slice(-n).map((d) => ({ ...d, date: chartDateLabel(d.date) }));
   }, [data, range]);
+
+  const isEmpty = sliced.every(d => (d.new_sellers ?? 0) === 0);
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden h-full flex flex-col">
@@ -260,35 +319,45 @@ function TrendChart({ data }: { data: DashboardChartPoint[] }) {
           ))}
         </div>
       </div>
-      <div className="flex-1 px-2 pb-3">
-        <ResponsiveContainer width="100%" height={190}>
-          <AreaChart data={sliced} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"  stopColor="#A32D2D" stopOpacity={0.18} />
-                <stop offset="100%" stopColor="#A32D2D" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} allowDecimals={false} />
-            <Tooltip
-              contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-              labelStyle={{ fontWeight: 700, color: '#111' }}
-            />
-            <Area
-              type="monotone"
-              dataKey="new_sellers"
-              name="New Sellers"
-              stroke="#A32D2D"
-              strokeWidth={2.5}
-              fill="url(#chart-fill)"
-              dot={false}
-              activeDot={{ r: 5, fill: '#A32D2D', strokeWidth: 2, stroke: '#fff' }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      {isEmpty ? (
+        <ChartEmptyState message="No seller registrations yet" />
+      ) : (
+        <div className="flex-1 min-h-[190px] px-2 pb-3">
+          <ResponsiveContainer width="100%" height={190}>
+            <AreaChart data={sliced} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"  stopColor="#A32D2D" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="#A32D2D" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+              <YAxis
+                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+                domain={[0, (dataMax: number) => Math.max(dataMax, 4)]}
+              />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                labelStyle={{ fontWeight: 700, color: '#111' }}
+              />
+              <Area
+                type="monotone"
+                dataKey="new_sellers"
+                name="New Sellers"
+                stroke="#A32D2D"
+                strokeWidth={2.5}
+                fill="url(#chart-fill)"
+                dot={false}
+                activeDot={{ r: 5, fill: '#A32D2D', strokeWidth: 2, stroke: '#fff' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
@@ -360,38 +429,44 @@ function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
     { key: 'delivered',        label: 'Delivered',        hex: '#10B981' },
     { key: 'cancelled',        label: 'Cancelled',        hex: '#EF4444' },
   ];
-  const counts = rows.map(r => stats.by_status[r.key as never] ?? 0);
-  const total  = counts.reduce((a, b) => a + b, 0) || 1;
-  const max    = Math.max(...counts, 1);
+  const counts     = rows.map(r => stats.by_status[r.key as never] ?? 0);
+  const realTotal  = counts.reduce((a, b) => a + b, 0);
+  const max        = Math.max(...counts, 1);
+  const animatedTotal  = useCountUp(realTotal);
+  const animatedCounts = counts.map(c => useCountUp(c)); // eslint-disable-line react-hooks/rules-of-hooks
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em]">Orders by Status</p>
-        <span className="text-[11px] font-semibold text-gray-400">{total} total</span>
+        <span className="text-[11px] font-semibold text-gray-400">{animatedTotal} total</span>
       </div>
-      <div className="flex flex-col gap-3">
-        {rows.map((r, i) => {
-          const pct = Math.round((counts[i] / total) * 100);
-          return (
-            <div key={r.key}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-medium text-gray-600">{r.label}</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-bold text-gray-700">{counts[i]}</span>
-                  <span className="text-[10px] text-gray-400">{pct}%</span>
+      {realTotal === 0 ? (
+        <ChartEmptyState message="No orders yet" />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {rows.map((r, i) => {
+            const pct = Math.round((counts[i] / realTotal) * 100);
+            return (
+              <div key={r.key}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-medium text-gray-600">{r.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-gray-700">{animatedCounts[i]}</span>
+                    <span className="text-[10px] text-gray-400">{pct}%</span>
+                  </div>
+                </div>
+                <div className="h-[6px] bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${(counts[i] / max) * 100}%`, background: r.hex }}
+                  />
                 </div>
               </div>
-              <div className="h-[6px] bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${(counts[i] / max) * 100}%`, background: r.hex }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -454,54 +529,79 @@ function MiniCalendar({ activeDates }: { activeDates: Set<string> }) {
   );
 }
 
-// ─── Highlight stat card ──────────────────────────────────────────────────────
+// ─── User Distribution donut ─────────────────────────────────────────────────
 
-interface HighlightCardProps { stats: AdminStats; payStats: AdminPaymentStats | null; }
-function HighlightCard({ stats, payStats }: HighlightCardProps) {
-  const hasPayout = payStats && payStats.pending_payout_amount > 0;
-  const value = stats.gmv_today > 0
-    ? `₱${stats.gmv_today.toLocaleString('en-PH')}`
-    : hasPayout
-      ? `₱${payStats!.pending_payout_amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-      : `${stats.total_buyers.toLocaleString()}`;
-  const caption = stats.gmv_today > 0
-    ? 'Revenue generated today'
-    : hasPayout
-      ? 'Pending seller payout'
-      : 'Registered buyers';
-  const badge = stats.gmv_today > 0 ? "Today's GMV" : hasPayout ? 'Awaiting release' : 'Total buyers';
-  const badgeClass = hasPayout && stats.gmv_today === 0
-    ? 'text-amber-400 bg-amber-400/10 border-amber-400/20'
-    : 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+const DONUT_COLORS = [
+  { key: 'buyers',  label: 'Buyers',  hex: '#A32D2D' },
+  { key: 'sellers', label: 'Sellers', hex: '#F59E0B' },
+  { key: 'riders',  label: 'Riders',  hex: '#3B82F6' },
+];
+
+function UserDistributionCard({ stats }: { stats: AdminStats }) {
+  const counts = [
+    stats.total_buyers,
+    stats.total_sellers,
+    stats.total_riders,
+  ];
+  const realTotal = counts.reduce((a, b) => a + b, 0);
+  const data      = DONUT_COLORS.map((d, i) => ({ ...d, value: counts[i] }));
+  const animatedTotal = useCountUp(realTotal);
 
   return (
-    <Link
-      to={hasPayout && stats.gmv_today === 0 ? '/admin/payments' : stats.gmv_today > 0 ? '/admin/payments' : '/admin/buyers'}
-      className="rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-3 h-full relative overflow-hidden block hover:opacity-90 transition-opacity"
-      style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 100%)' }}
-    >
-      <div className="absolute inset-0 opacity-[0.04]" style={{
-        backgroundImage: 'radial-gradient(circle at 70% 20%, #fff 0%, transparent 60%)',
-      }} />
-      <div className="relative z-10 w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center">
-        {hasPayout && stats.gmv_today === 0
-          ? <Wallet className="w-6 h-6 text-amber-400" />
-          : <Sparkles className="w-6 h-6 text-emerald-400" />}
-      </div>
-      <div className="relative z-10">
-        <p className="text-[28px] font-black text-white leading-tight tracking-tight">{value}</p>
-        <p className="text-[11px] text-white/50 mt-1 leading-snug">{caption}</p>
-      </div>
-      <span className={`relative z-10 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide border ${badgeClass}`}>
-        {badge}
-      </span>
-    </Link>
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3">
+      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em]">User Distribution</p>
+
+      {realTotal === 0 ? (
+        <ChartEmptyState message="No users registered yet" />
+      ) : (
+        <>
+          <div className="relative w-full" style={{ height: 200, minHeight: 200 }}>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ zIndex: 0 }}>
+              <span className="text-[22px] font-black text-gray-900 leading-none">{animatedTotal.toLocaleString()}</span>
+              <span className="text-[10px] text-gray-400 font-medium mt-0.5">total users</span>
+            </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  cx="50%" cy="50%"
+                  innerRadius={58} outerRadius={82}
+                  dataKey="value"
+                  strokeWidth={3}
+                  stroke="#fff"
+                  startAngle={90} endAngle={-270}
+                >
+                  {data.map((entry) => (
+                    <Cell key={entry.key} fill={entry.hex} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: number, name: string) => [
+                    `${value} (${Math.round((value / realTotal) * 100)}%)`, name,
+                  ]}
+                  contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e5e7eb', zIndex: 50 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex justify-center gap-5 pb-1">
+            {data.map((d) => (
+              <div key={d.key} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.hex }} />
+                <span className="text-[11px] font-medium text-gray-500">{d.label}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
 // ─── Commerce summary cards ───────────────────────────────────────────────────
 
 function OrdersSummaryCard({ stats }: { stats: AdminOrderStats }) {
+  const animatedOrders = useCountUp(stats.orders_today);
   const statuses: Array<{ key: string; color: string }> = [
     { key: 'pending',   color: 'bg-amber-400' },
     { key: 'packed',    color: 'bg-blue-400' },
@@ -509,7 +609,7 @@ function OrdersSummaryCard({ stats }: { stats: AdminOrderStats }) {
     { key: 'delivered', color: 'bg-emerald-500' },
     { key: 'cancelled', color: 'bg-red-400' },
   ];
-  const total = statuses.reduce((s, { key }) => s + (stats.by_status[key as never] ?? 0), 0) || 1;
+  const realTotal = statuses.reduce((s, { key }) => s + (stats.by_status[key as never] ?? 0), 0);
 
   return (
     <Link to="/admin/orders" className="block bg-white border border-gray-100 rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
@@ -519,33 +619,40 @@ function OrdersSummaryCard({ stats }: { stats: AdminOrderStats }) {
         </div>
         <ArrowRight className="w-4 h-4 text-gray-200 mt-0.5" />
       </div>
-      <p className="text-3xl font-black text-gray-900 leading-none">{stats.orders_today}</p>
+      <p className="text-3xl font-black text-gray-900 leading-none">{animatedOrders}</p>
       <p className="text-[11px] text-gray-400 mt-1 font-medium">Orders today</p>
-      <div className="mt-3 flex rounded-full overflow-hidden h-1.5 gap-px">
-        {statuses.map(({ key, color }) => {
-          const count = stats.by_status[key as never] ?? 0;
-          const pct   = (count / total) * 100;
-          return pct > 0 ? (
-            <div key={key} className={`${color} h-full`} style={{ width: `${pct}%` }} title={`${key}: ${count}`} />
-          ) : null;
-        })}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5">
-        {statuses.map(({ key, color }) => {
-          const count = stats.by_status[key as never] ?? 0;
-          return (
-            <span key={key} className="flex items-center gap-1 text-[10px] text-gray-400">
-              <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
-              {key} {count}
-            </span>
-          );
-        })}
-      </div>
+      {realTotal > 0 ? (
+        <>
+          <div className="mt-3 flex rounded-full overflow-hidden h-1.5 gap-px">
+            {statuses.map(({ key, color }) => {
+              const count = stats.by_status[key as never] ?? 0;
+              const pct   = (count / realTotal) * 100;
+              return pct > 0 ? (
+                <div key={key} className={`${color} h-full`} style={{ width: `${pct}%` }} title={`${key}: ${count}`} />
+              ) : null;
+            })}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5">
+            {statuses.map(({ key, color }) => {
+              const count = stats.by_status[key as never] ?? 0;
+              return (
+                <span key={key} className="flex items-center gap-1 text-[10px] text-gray-400">
+                  <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
+                  {key} {count}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="text-[11px] text-gray-400 mt-3">No orders today</p>
+      )}
     </Link>
   );
 }
 
 function PaymentsSummaryCard({ stats }: { stats: AdminPaymentStats }) {
+  const animatedPayout = useCountUp(stats.pending_payout_amount);
   return (
     <Link to="/admin/payments" className="block bg-white border border-gray-100 rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
       <div className="flex items-start justify-between gap-1 mb-3">
@@ -557,7 +664,7 @@ function PaymentsSummaryCard({ stats }: { stats: AdminPaymentStats }) {
         )}
       </div>
       <p className="text-3xl font-black text-gray-900 leading-none">
-        ₱{stats.pending_payout_amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+        ₱{animatedPayout.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
       </p>
       <p className="text-[11px] text-gray-400 mt-1 font-medium">Pending payout</p>
       {stats.failed_count > 0 && (
@@ -569,6 +676,9 @@ function PaymentsSummaryCard({ stats }: { stats: AdminPaymentStats }) {
 
 function DisputesSummaryCard({ stats }: { stats: AdminDisputeStats }) {
   const total = stats.open + stats.in_progress;
+  const animatedTotal    = useCountUp(total);
+  const animatedOpen     = useCountUp(stats.open);
+  const animatedProgress = useCountUp(stats.in_progress);
   return (
     <Link to="/admin/disputes" className={[
       'block bg-white rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
@@ -582,17 +692,19 @@ function DisputesSummaryCard({ stats }: { stats: AdminDisputeStats }) {
           <span className="text-[9px] font-bold text-brand-red bg-red-50 px-2 py-0.5 rounded-full uppercase border border-red-100">Action</span>
         )}
       </div>
-      <p className={`text-3xl font-black leading-none ${total > 0 ? 'text-brand-red' : 'text-gray-900'}`}>{total}</p>
+      <p className={`text-3xl font-black leading-none ${total > 0 ? 'text-brand-red' : 'text-gray-900'}`}>{animatedTotal}</p>
       <p className="text-[11px] text-gray-400 mt-1 font-medium">Open disputes</p>
       <div className="mt-2 flex gap-3">
-        <span className="text-[10px] text-gray-400">{stats.open} unassigned</span>
-        <span className="text-[10px] text-gray-400">{stats.in_progress} in progress</span>
+        <span className="text-[10px] text-gray-400">{animatedOpen} unassigned</span>
+        <span className="text-[10px] text-gray-400">{animatedProgress} in progress</span>
       </div>
     </Link>
   );
 }
 
 function ReviewsSummaryCard({ stats }: { stats: AdminReviewStats }) {
+  const animatedFlagged = useCountUp(stats.flagged_pending);
+  const animatedPending = useCountUp(stats.pending_review);
   return (
     <Link to="/admin/reviews" className={[
       'block bg-white rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
@@ -607,11 +719,11 @@ function ReviewsSummaryCard({ stats }: { stats: AdminReviewStats }) {
         )}
       </div>
       <p className={`text-3xl font-black leading-none ${stats.flagged_pending > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
-        {stats.flagged_pending}
+        {animatedFlagged}
       </p>
       <p className="text-[11px] text-gray-400 mt-1 font-medium">Flagged reviews</p>
       {stats.pending_review > 0 && (
-        <p className="text-[10px] text-gray-400 mt-2">{stats.pending_review} awaiting moderation</p>
+        <p className="text-[10px] text-gray-400 mt-2">{animatedPending} awaiting moderation</p>
       )}
     </Link>
   );
@@ -629,6 +741,8 @@ export default function AdminDashboardPage() {
   const [dispStats, setDispStats]   = useState<AdminDisputeStats | null>(null);
   const [revStats, setRevStats]     = useState<AdminReviewStats | null>(null);
   const [loading, setLoading]       = useState(true);
+
+  const pageRef = useMountAnim();
 
   useEffect(() => {
     Promise.all([
@@ -655,8 +769,13 @@ export default function AdminDashboardPage() {
     </div>
   );
 
+  const pendingTaskCount = stats
+    ? stats.pending_seller_applications + stats.pending_rider_applications + stats.open_disputes
+    : 0;
+  const animatedPendingTasks = useCountUp(pendingTaskCount);
+
   return (
-    <div className="space-y-5">
+    <div ref={pageRef} className="space-y-5">
 
       {/* ── Hero band ── */}
       <HeroBand stats={stats} userName={userName} />
@@ -673,7 +792,8 @@ export default function AdminDashboardPage() {
               trend={<TrendBadge current={stats.orders_today} previous={stats.orders_yesterday} label="yesterday" />}
             />
             <MetricCard icon={Wallet}        label="GMV Today"
-              value={stats.gmv_today > 0 ? `₱${stats.gmv_today.toLocaleString('en-PH')}` : '₱0'}
+              value={stats.gmv_today}
+              prefix="₱"
               iconBg="bg-emerald-50" iconColor="text-emerald-600"
               trend={<TrendBadge current={stats.gmv_today} previous={stats.gmv_yesterday} label="yesterday" />}
             />
@@ -691,7 +811,7 @@ export default function AdminDashboardPage() {
         <div>
           <SectionHeader title="Needs Attention" icon={AlertTriangle} to="/admin/seller-applications" />
           {loading ? (
-            <div className="bg-white border border-gray-100 rounded-xl h-[260px] animate-pulse" />
+            <div className="bg-white border border-gray-100 rounded-xl h-[300px] animate-pulse" />
           ) : feed ? (
             <AttentionFeed items={feed.attention_items} />
           ) : null}
@@ -701,7 +821,7 @@ export default function AdminDashboardPage() {
         <div>
           <SectionHeader title="Registrations Trend" icon={TrendingUp} />
           {loading ? (
-            <div className="bg-white border border-gray-100 rounded-xl h-[260px] animate-pulse" />
+            <div className="bg-white border border-gray-100 rounded-xl h-[300px] animate-pulse" />
           ) : feed ? (
             <TrendChart data={feed.chart_data} />
           ) : null}
@@ -709,19 +829,25 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ── Three-column secondary grid ── */}
-      {!loading && orderStats && stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <OrdersBreakdownCard stats={orderStats} />
-          <MiniCalendar activeDates={
-            new Set(
-              (feed?.chart_data ?? [])
-                .filter(d => d.orders > 0)
-                .map(d => d.date.split('T')[0])
-            )
-          } />
-          <HighlightCard stats={stats} payStats={payStats} />
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-2xl h-[320px] animate-pulse" />
+          ))
+        ) : orderStats && stats ? (
+          <>
+            <OrdersBreakdownCard stats={orderStats} />
+            <MiniCalendar activeDates={
+              new Set(
+                (feed?.chart_data ?? [])
+                  .filter(d => d.orders > 0)
+                  .map(d => d.date.split('T')[0])
+              )
+            } />
+            <UserDistributionCard stats={stats} />
+          </>
+        ) : null}
+      </div>
 
       {/* ── Footer action bar ── */}
       {!loading && stats && (
@@ -729,18 +855,14 @@ export default function AdminDashboardPage() {
           className="rounded-2xl px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden"
           style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 100%)' }}
         >
-          <div className="absolute inset-0 opacity-[0.03]" style={{
-            backgroundImage: 'repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 40px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 40px)',
-          }} />
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-1">
               <span className={`w-2 h-2 rounded-full shrink-0 ${
-                stats.pending_seller_applications + stats.pending_rider_applications + stats.open_disputes > 0
-                  ? 'bg-amber-400' : 'bg-emerald-400'
+                pendingTaskCount > 0 ? 'bg-amber-400' : 'bg-emerald-400'
               }`} />
               <p className="text-[13px] font-bold text-white leading-tight">
-                {stats.pending_seller_applications + stats.pending_rider_applications + stats.open_disputes > 0
-                  ? `${stats.pending_seller_applications + stats.pending_rider_applications + stats.open_disputes} pending tasks need your attention`
+                {pendingTaskCount > 0
+                  ? `${animatedPendingTasks} pending tasks need your attention`
                   : 'All systems normal — no pending tasks'}
               </p>
             </div>

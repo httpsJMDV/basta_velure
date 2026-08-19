@@ -6,6 +6,7 @@ import type { User } from '../types';
 interface AuthContextValue {
   user: User | null;
   token: string | null;
+  suspended: boolean;
   setAuth: (user: User, token: string) => void;
   setUser: (user: User) => void;
   clearAuth: () => void;
@@ -15,22 +16,40 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [loading, setLoading] = useState(true);
+  const [user, setUser]           = useState<User | null>(null);
+  const [token, setToken]         = useState<string | null>(localStorage.getItem('token'));
+  const [loading, setLoading]     = useState(true);
+  const [suspended, setSuspended] = useState(false);
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
     getMeApi()
-      .then(setUser)
+      .then((u) => {
+        if (u.status === 'suspended') {
+          // Token still technically valid but account is suspended —
+          // wipe local auth and show the suspended banner.
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+          setSuspended(true);
+        } else {
+          setSuspended(false);
+          setUser(u);
+        }
+      })
       .catch(() => { localStorage.removeItem('token'); setToken(null); })
       .finally(() => setLoading(false));
   }, [token]);
 
   const setAuth = (u: User, t: string) => {
+    if (u.status === 'suspended') {
+      setSuspended(true);
+      return;
+    }
     localStorage.setItem('token', t);
     setToken(t);
     setUser(u);
+    setSuspended(false);
   };
 
   const updateUser = (u: User) => setUser(u);
@@ -39,10 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+    setSuspended(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, setAuth, setUser: updateUser, clearAuth, loading }}>
+    <AuthContext.Provider value={{ user, token, suspended, setAuth, setUser: updateUser, clearAuth, loading }}>
       {children}
     </AuthContext.Provider>
   );

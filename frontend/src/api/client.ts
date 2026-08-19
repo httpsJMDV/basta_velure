@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
   AuthResponse,
+  BuyerApplicationsResponse,
   PaginatedResponse,
   SellerApplication,
   User,
@@ -51,11 +52,13 @@ http.interceptors.response.use(
 export const loginApi = (email: string, password: string) =>
   http.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data);
 
-export const registerBuyerApi = (data: Record<string, string>) =>
-  http.post<AuthResponse>('/auth/register', data).then((r) => r.data);
+export const registerBuyerApi = (data: Record<string, string> | FormData) =>
+  http.post<AuthResponse>('/auth/register', data, {
+    headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
+  }).then((r) => r.data);
 
 export const googleAuthApi = (credential: string) =>
-  http.post<AuthResponse>('/auth/google', { credential }).then((r) => r.data);
+  http.post<AuthResponse & { profile_incomplete?: boolean; google_avatar_url?: string | null }>('/auth/google', { credential }).then((r) => r.data);
 
 export const registerSellerApi = (form: FormData) =>
   http.post<AuthResponse>('/auth/register/seller', form, {
@@ -67,7 +70,7 @@ export const logoutApi = () => http.post('/auth/logout');
 export const getMeApi = () =>
   http.get<{ data: User }>('/auth/me').then((r) => r.data.data);
 
-export const updateProfileApi = (data: { phone?: string; date_of_birth?: string; gender?: string }) =>
+export const updateProfileApi = (data: { first_name?: string; middle_name?: string; last_name?: string; phone?: string; date_of_birth?: string; sex?: string }) =>
   http.patch<{ data: User }>('/auth/profile', data).then((r) => r.data.data);
 
 export const uploadAvatarApi = (file: Blob) => {
@@ -77,6 +80,11 @@ export const uploadAvatarApi = (file: Blob) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data.data);
 };
+
+export const completeProfileApi = (form: FormData) =>
+  http.post<{ data: User }>('/auth/complete-profile', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data.data);
 
 export const forgotPasswordApi = (email: string) =>
   http.post('/auth/forgot-password', { email });
@@ -93,7 +101,7 @@ export const getAdminDashboardFeedApi = () =>
   http.get<{ data: DashboardFeed }>('/admin/dashboard-feed').then((r) => r.data.data);
 
 // Admin — users
-export const getAdminUsersApi = (params?: { role?: string; status?: string; search?: string; page?: number }) =>
+export const getAdminUsersApi = (params?: { role?: string; status?: string; search?: string; page?: number; per_page?: number }) =>
   http.get<PaginatedResponse<User>>('/admin/users', { params }).then((r) => r.data);
 
 export const suspendUserApi = (id: number) =>
@@ -105,6 +113,22 @@ export const reactivateUserApi = (id: number) =>
 // Admin — activity log
 export const getActivityLogApi = (params?: { action?: string; page?: number }) =>
   http.get<PaginatedResponse<ActivityLogEntry>>('/admin/activity-log', { params }).then((r) => r.data);
+
+// Admin — buyer applications
+export const getBuyerApplicationsApi = (params?: { status?: string; search?: string; sort?: string; page?: number; per_page?: number }) =>
+  http.get<BuyerApplicationsResponse>('/admin/buyer-applications', { params }).then((r) => r.data);
+
+export const approveBuyerApi = (id: number) =>
+  http.post(`/admin/buyer-applications/${id}/approve`);
+
+export const rejectBuyerApi = (id: number, reason: string) =>
+  http.post(`/admin/buyer-applications/${id}/reject`, { reason });
+
+export const getBuyerIdImageUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/buyer-applications/${id}/id-image`;
+
+export const getBuyerIdImageBackUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/buyer-applications/${id}/id-image-back`;
 
 // Admin — seller applications
 export const getSellerApplicationsApi = (status = 'pending', page = 1) =>

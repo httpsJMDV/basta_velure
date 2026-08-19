@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { getAdminStatsApi } from '../../api/client';
+import { getAdminStatsApi, getBuyerApplicationsApi } from '../../api/client';
 import {
   LayoutDashboard, Users, Store, ShoppingBag, CreditCard,
   ShieldAlert, Star, Flag, Settings, ScrollText,
@@ -22,6 +22,7 @@ export const useMessenger = () => useContext(MessengerContext);
 
 const ROUTE_LABELS: Record<string, string> = {
   '/admin':                        'Dashboard',
+  '/admin/buyer-applications':     'Buyer Applications',
   '/admin/seller-applications':    'Seller Applications',
   '/admin/rider-applications':     'Rider Applications',
   '/admin/sellers':                'Sellers',
@@ -53,12 +54,13 @@ function useBreadcrumb() {
 interface NavItem  { icon: React.ElementType; label: string; to: string; badge?: number; }
 interface NavGroup { heading: string; items: NavItem[]; }
 
-function buildNav(pendingSellers: number): NavGroup[] {
+function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
   return [
     { heading: 'Overview',  items: [{ icon: Gauge, label: 'Dashboard', to: '/admin' }] },
     {
       heading: 'People',
       items: [
+        { icon: UserCheck,   label: 'Buyer Applications',  to: '/admin/buyer-applications',  badge: pendingBuyers },
         { icon: UserCheck,   label: 'Seller Applications', to: '/admin/seller-applications', badge: pendingSellers },
         { icon: Bike,        label: 'Rider Applications',  to: '/admin/rider-applications' },
         { icon: Store,       label: 'Sellers',             to: '/admin/sellers' },
@@ -332,10 +334,10 @@ function PageTransition() {
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={location.pathname}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -4 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
       >
         <Outlet />
       </motion.div>
@@ -354,6 +356,7 @@ export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [chatOpen, setChatOpen]     = useState(false);
   const [pendingSellers, setPendingSellers] = useState(0);
+  const [pendingBuyers,  setPendingBuyers]  = useState(0);
   const [pendingConv, setPendingConv]       = useState<Conversation | null>(null);
 
   // Persist sidebar collapse state
@@ -374,9 +377,12 @@ export default function AdminLayout() {
     getAdminStatsApi()
       .then((s) => setPendingSellers(s.pending_seller_applications))
       .catch(() => {});
+    getBuyerApplicationsApi({ status: 'pending', per_page: 1 })
+      .then((r) => setPendingBuyers(r.summary?.pending_total ?? 0))
+      .catch(() => {});
   }, []);
 
-  const nav = buildNav(pendingSellers);
+  const nav = buildNav(pendingSellers, pendingBuyers);
 
   function openThread(c: Conversation) {
     setPendingConv(c);

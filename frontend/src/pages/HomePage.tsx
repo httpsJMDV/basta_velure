@@ -9,12 +9,14 @@ import CartModal from '../components/CartModal';
 import type { CartItem } from '../components/CartModal';
 
 const CATEGORIES = [
-  'Dresses & Skirts',
-  'Tops & Blouses',
-  'Activewear & Yoga Pants',
-  'Lingerie & Sleepwear',
-  'Jackets & Coats',
-  'Shoes & Accessories',
+  'Electronics',
+  'Fashion',
+  'Home & Living',
+  'Sports & Outdoors',
+  'Health & Beauty',
+  'Food & Grocery',
+  'Toys & Games',
+  'Books & Stationery',
 ];
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
@@ -163,7 +165,7 @@ export default function HomePage() {
           <div className="hidden sm:flex flex-1 max-w-2xl mx-auto">
             <input
               type="search"
-              placeholder="Search for dresses, tops, shoes…"
+              placeholder="Search products, brands, categories…"
               className="flex-1 h-10 px-4 text-sm rounded-l-lg border-0 focus:outline-none text-brand-black"
             />
             <button className="h-10 px-5 bg-brand-red-dark text-white text-sm font-semibold rounded-r-lg hover:bg-[#791F1F] transition-colors flex items-center gap-1">
@@ -216,7 +218,7 @@ export default function HomePage() {
             <div className="flex">
               <input
                 type="search"
-                placeholder="Search…"
+                placeholder="Search products…"
                 className="flex-1 h-10 px-4 text-sm rounded-l-lg border-0 focus:outline-none text-brand-black"
               />
               <button className="h-10 px-4 bg-brand-black text-white rounded-r-lg">
@@ -315,7 +317,7 @@ export default function HomePage() {
               <span className="text-white font-bold text-lg tracking-tight">Velure</span>
             </Link>
             <p className="text-white/50 text-sm leading-relaxed">
-              Women's fashion delivered to your door. Modern, curated, and made for every occasion.
+              Your one-stop online marketplace. Shop everything from fashion to electronics, delivered to your door.
             </p>
             <div className="flex gap-3 mt-1">
               <a href="#" className="w-9 h-9 rounded-full bg-white/10 hover:bg-brand-red flex items-center justify-center transition-colors">
@@ -334,7 +336,7 @@ export default function HomePage() {
           <div>
             <p className="text-white font-semibold text-sm mb-4 uppercase tracking-widest">Shop</p>
             <ul className="flex flex-col gap-2.5">
-              {['New Arrivals', 'Best Sellers', 'Sale', 'All Categories'].map((l) => (
+              {['New Arrivals', 'Best Sellers', 'Sale', 'All Products'].map((l) => (
                 <li key={l}><a href="#" className="text-white/50 text-sm hover:text-white transition-colors">{l}</a></li>
               ))}
             </ul>
@@ -344,7 +346,7 @@ export default function HomePage() {
           <div>
             <p className="text-white font-semibold text-sm mb-4 uppercase tracking-widest">Support</p>
             <ul className="flex flex-col gap-2.5">
-              {['Help Center', 'Track My Order', 'Returns & Exchanges', 'Size Guide'].map((l) => (
+              {['Help Center', 'Track My Order', 'Returns & Exchanges', 'Buyer Protection'].map((l) => (
                 <li key={l}><a href="#" className="text-white/50 text-sm hover:text-white transition-colors">{l}</a></li>
               ))}
             </ul>
@@ -370,7 +372,7 @@ export default function HomePage() {
         <div className="border-t border-white/10">
           <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
             <p className="text-white/30 text-xs">© {new Date().getFullYear()} Velure. All rights reserved.</p>
-            <p className="text-white/20 text-xs hidden sm:block">Wear Your Everyday Elegance</p>
+            <p className="text-white/20 text-xs hidden sm:block">Shop Everything, Delivered.</p>
           </div>
         </div>
       </footer>

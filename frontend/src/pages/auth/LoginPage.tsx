@@ -115,7 +115,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/70 to-transparent flex items-end p-12">
           <div>
             <p className="text-white text-4xl font-bold leading-tight">Velure</p>
-            <p className="text-white/70 text-lg mt-1">Fashion. Delivered.</p>
+            <p className="text-white/70 text-lg mt-1">Shop Everything, Delivered.</p>
           </div>
         </div>
       </div>
