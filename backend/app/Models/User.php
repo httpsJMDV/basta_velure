@@ -22,9 +22,14 @@ class User extends Authenticatable
         'phone',
         'password',
         'date_of_birth',
-        'gender',
+        'sex',
+        'government_id_type',
+        'government_id_image_path',
+        'government_id_image_back_path',
+        'buyer_application_status',
+        'buyer_rejection_reason',
         'avatar_path',
-        // role and status are intentionally excluded — set explicitly in code only
+        // role, status are intentionally excluded — set explicitly in code only
     ];
 
     protected $hidden = ['password', 'remember_token', 'verification_token', 'reset_token'];

@@ -38,11 +38,12 @@ class GoogleAuthController extends Controller
             return response()->json(['message' => 'Invalid Google token.'], 401);
         }
 
-        $payload   = $googleUser->json();
-        $email     = $payload['email'];
-        $firstName = $payload['given_name'] ?? 'User';
-        $lastName  = $payload['family_name'] ?? '';
-        $isNew     = false;
+        $payload      = $googleUser->json();
+        $email        = $payload['email'];
+        $firstName    = $payload['given_name'] ?? 'User';
+        $lastName     = $payload['family_name'] ?? '';
+        $googleAvatar = $payload['picture'] ?? null;
+        $isNew        = false;
 
         $user = User::withTrashed()->where('email', $email)->first();
 
@@ -51,9 +52,11 @@ class GoogleAuthController extends Controller
         }
 
         if (! $user) {
+            // New Google user — create a stub account; they must complete their profile
+            // (DOB, sex, address, gov ID) before buyer_application_status is set
             $user = User::create([
                 'first_name'        => $firstName,
-                'last_name'         => $lastName,
+                'last_name'         => $lastName ?: 'User',
                 'email'             => $email,
                 'phone'             => null,
                 'password'          => bcrypt(Str::random(32)),
@@ -75,9 +78,14 @@ class GoogleAuthController extends Controller
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // If the user has no DOB/sex/gov ID yet, signal the frontend to show the completion form
+        $profileIncomplete = empty($user->date_of_birth) || empty($user->sex) || empty($user->government_id_type);
+
         return response()->json([
-            'data'  => new UserResource($user->load('sellerProfile')),
-            'token' => $token,
+            'data'               => new UserResource($user->load('sellerProfile')),
+            'token'              => $token,
+            'profile_incomplete' => $profileIncomplete,
+            'google_avatar_url'  => ($profileIncomplete && $googleAvatar) ? $googleAvatar : null,
         ], $isNew ? 201 : 200);
     }
 }

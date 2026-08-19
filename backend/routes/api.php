@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AdminDisputeController;
 use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPaymentController;
 use App\Http\Controllers\Api\V1\AdminReviewController;
+use App\Http\Controllers\Api\V1\AdminBuyerApplicationController;
 use App\Http\Controllers\Api\V1\AdminSellerApplicationController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ConversationController;
@@ -37,6 +38,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
         Route::post('/auth/avatar', [AuthController::class, 'uploadAvatar'])->middleware('throttle:upload');
+        Route::post('/auth/complete-profile', [AuthController::class, 'completeProfile'])->middleware('throttle:upload');
 
         // Addresses
         Route::get('/addresses', [AddressController::class, 'index']);
@@ -58,6 +60,13 @@ Route::prefix('v1')->group(function () {
 
             // Activity log
             Route::get('/activity-log', [AdminController::class, 'activityLog']);
+
+            // Buyer applications
+            Route::get('/buyer-applications', [AdminBuyerApplicationController::class, 'index']);
+            Route::post('/buyer-applications/{user}/approve', [AdminBuyerApplicationController::class, 'approve']);
+            Route::post('/buyer-applications/{user}/reject',  [AdminBuyerApplicationController::class, 'reject']);
+            Route::get('/buyer-applications/{user}/id-image', [AdminBuyerApplicationController::class, 'idImage']);
+            Route::get('/buyer-applications/{user}/id-image-back', [AdminBuyerApplicationController::class, 'idImageBack']);
 
             // Seller applications
             Route::get('/seller-applications', [AdminSellerApplicationController::class, 'index']);

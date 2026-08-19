@@ -141,7 +141,8 @@ class AdminController extends Controller
             ->whereIn('role', ['buyer', 'seller', 'rider'])
             ->latest();
 
-        $users = $query->paginate(20);
+        $perPage = min((int) ($request->per_page ?? 30), 100);
+        $users = $query->paginate($perPage);
 
         return response()->json(UserResource::collection($users)->response()->getData(true));
     }
@@ -153,7 +154,9 @@ class AdminController extends Controller
         abort_if($user->role === 'admin', 403, 'Cannot suspend the admin account.');
 
         DB::transaction(function () use ($user, $request) {
-            $user->update(['status' => 'suspended']);
+            $user->tokens()->delete();
+            $user->status = 'suspended';
+            $user->save();
 
             AdminActivityLog::create([
                 'admin_id'    => $request->user()->id,
@@ -171,7 +174,8 @@ class AdminController extends Controller
     public function reactivate(Request $request, User $user): JsonResponse
     {
         DB::transaction(function () use ($user, $request) {
-            $user->update(['status' => 'active']);
+            $user->status = 'active';
+            $user->save();
 
             AdminActivityLog::create([
                 'admin_id'    => $request->user()->id,
