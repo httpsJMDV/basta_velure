@@ -18,11 +18,22 @@ Make sure you have all of these installed before starting:
 
 ---
 
-## Step 1 — Create the Database
+## Step 1 — Create and Import the Database
 
-1. Open **MySQL Workbench** or any MySQL tool you have
-2. Create a new database named exactly: `velure`
-3. Leave it empty — the system will fill it automatically
+1. Open **MySQL Workbench** (or any MySQL client)
+2. Run this query to create the database:
+   ```sql
+   CREATE DATABASE IF NOT EXISTS velure CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+3. Select the `velure` database, then go to **Server → Data Import**
+4. Choose **Import from Self-Contained File** and select the file:
+   ```
+   basta_velure/backend/database/velure.sql
+   ```
+5. Set **Default Target Schema** to `velure`
+6. Click **Start Import**
+
+> The SQL file already contains all tables, the admin account, and any seed data — no need to run migrations or seeders separately.
 
 ---
 
@@ -56,14 +67,9 @@ DB_PASSWORD=your_mysql_password
 php artisan key:generate
 ```
 
-**Run the database migrations (creates all tables):**
+**Create the storage symlink (for uploaded files like ID images):**
 ```bash
-php artisan migrate
-```
-
-**Run the seeders (creates the admin account and sample data):**
-```bash
-php artisan db:seed
+php artisan storage:link
 ```
 
 **Start the backend server:**
@@ -128,7 +134,7 @@ Password: Admin@1234
 |------|--------|---------|
 | Start backend | `backend/` | `php artisan serve` |
 | Start frontend | `frontend/` | `npm run dev` |
-| Re-run migrations | `backend/` | `php artisan migrate:fresh --seed` |
+| Re-link storage | `backend/` | `php artisan storage:link` |
 
 ---
 
@@ -137,6 +143,13 @@ Password: Admin@1234
 **"Could not connect to database"**
 - Make sure MySQL is running (check XAMPP control panel)
 - Double-check `DB_USERNAME` and `DB_PASSWORD` in `backend/.env`
+
+**"Table doesn't exist" or "Unknown column" errors**
+- The SQL import may have been incomplete — re-import `velure.sql` from scratch
+- Make sure you selected `velure` as the target schema before importing
+
+**"The storage/app/public" path is not accessible"**
+- Run `php artisan storage:link` inside the `backend/` folder
 
 **"npm: command not found"**
 - Node.js is not installed or not added to PATH — reinstall from https://nodejs.org
