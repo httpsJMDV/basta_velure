@@ -25,7 +25,6 @@ Route::prefix('v1')->group(function () {
     // Public auth routes
     Route::middleware('throttle:auth')->group(function () {
         Route::post('/auth/register', [AuthController::class, 'registerBuyer']);
-        Route::post('/auth/register/seller', [AuthController::class, 'registerSeller']);
         Route::post('/auth/login', [AuthController::class, 'login']);
         Route::post('/auth/forgot-password', [PasswordController::class, 'forgot']);
         Route::post('/auth/reset-password', [PasswordController::class, 'reset']);
@@ -39,6 +38,7 @@ Route::prefix('v1')->group(function () {
         Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
         Route::post('/auth/avatar', [AuthController::class, 'uploadAvatar'])->middleware('throttle:upload');
         Route::post('/auth/complete-profile', [AuthController::class, 'completeProfile'])->middleware('throttle:upload');
+        Route::post('/auth/apply-seller', [AuthController::class, 'applyAsSeller'])->middleware('throttle:upload');
 
         // Addresses
         Route::get('/addresses', [AddressController::class, 'index']);
@@ -75,6 +75,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller-applications/{sellerProfile}/reject', [AdminSellerApplicationController::class, 'reject']);
             Route::get('/seller-applications/{sellerProfile}/id-image', [AdminSellerApplicationController::class, 'idImage'])
                 ->name('admin.seller-applications.id-image');
+            Route::get('/seller-applications/{sellerProfile}/id-image-back', [AdminSellerApplicationController::class, 'idImageBack'])
+                ->name('admin.seller-applications.id-image-back');
+            Route::get('/seller-applications/{sellerProfile}/business-permit', [AdminSellerApplicationController::class, 'businessPermit'])
+                ->name('admin.seller-applications.business-permit');
 
             // Orders
             Route::get('/orders', [AdminOrderController::class, 'index']);
@@ -105,8 +109,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'send']);
         });
 
-        // Seller: own conversation with admin
-        Route::middleware('role:seller')->group(function () {
+        // Seller: own conversation with admin (any approved seller, regardless of role value)
+        Route::middleware('approved_seller')->group(function () {
             Route::get('/my-conversation', [ConversationController::class, 'mine']);
             Route::get('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
                 $conv = \App\Models\Conversation::firstOrCreate(

@@ -32,6 +32,10 @@ class AddressController extends Controller
 
         $user = $request->user();
 
+        if ($user->addresses()->count() >= 5) {
+            return response()->json(['message' => 'You can only save up to 5 addresses.'], 422);
+        }
+
         $address = DB::transaction(function () use ($user, $data) {
             if (!empty($data['is_default'])) {
                 $user->addresses()->update(['is_default' => false]);

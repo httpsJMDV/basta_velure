@@ -18,12 +18,28 @@ class AdminSellerApplicationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $status = $request->query('status', 'pending');
+        $status  = $request->query('status', 'pending');
+        $search  = $request->query('search');
+        $sort    = $request->query('sort', 'newest');
+        $perPage = min((int) $request->query('per_page', 30), 100);
 
-        $applications = SellerProfile::with('user')
-            ->where('application_status', $status)
-            ->latest('submitted_at')
-            ->paginate(20);
+        $query = SellerProfile::with('user')
+            ->where('application_status', $status);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('shop_name', 'like', "%{$search}%")
+                  ->orWhereHas('user', fn ($u) => $u
+                      ->where('first_name', 'like', "%{$search}%")
+                      ->orWhere('last_name',  'like', "%{$search}%")
+                      ->orWhere('email',      'like', "%{$search}%")
+                  );
+            });
+        }
+
+        $query->orderBy('submitted_at', $sort === 'oldest' ? 'asc' : 'desc');
+
+        $applications = $query->paginate($perPage);
 
         return response()->json(SellerApplicationResource::collection($applications)->response()->getData(true));
     }
@@ -55,6 +71,28 @@ class AdminSellerApplicationController extends Controller
 
         $contents = Storage::disk('ids')->get($sellerProfile->government_id_image_path);
         $mime     = Storage::disk('ids')->mimeType($sellerProfile->government_id_image_path);
+
+        return response($contents, 200)->header('Content-Type', $mime);
+    }
+
+    public function idImageBack(SellerProfile $sellerProfile): Response
+    {
+        abort_unless($sellerProfile->government_id_image_back_path, 404);
+        abort_unless(Storage::disk('ids')->exists($sellerProfile->government_id_image_back_path), 404);
+
+        $contents = Storage::disk('ids')->get($sellerProfile->government_id_image_back_path);
+        $mime     = Storage::disk('ids')->mimeType($sellerProfile->government_id_image_back_path);
+
+        return response($contents, 200)->header('Content-Type', $mime);
+    }
+
+    public function businessPermit(SellerProfile $sellerProfile): Response
+    {
+        abort_unless($sellerProfile->business_permit_path, 404);
+        abort_unless(Storage::disk('ids')->exists($sellerProfile->business_permit_path), 404);
+
+        $contents = Storage::disk('ids')->get($sellerProfile->business_permit_path);
+        $mime     = Storage::disk('ids')->mimeType($sellerProfile->business_permit_path);
 
         return response($contents, 200)->header('Content-Type', $mime);
     }

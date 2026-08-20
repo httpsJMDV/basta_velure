@@ -83,21 +83,27 @@ class AuthController extends Controller
         ], 201);
     }
 
-    public function registerSeller(SellerRegisterRequest $request): JsonResponse
+    public function applyAsSeller(SellerRegisterRequest $request): JsonResponse
     {
-        $user = $this->registrationService->register(
+        $user = $request->user();
+
+        // Prevent duplicate applications — one pending/approved profile per user
+        if ($user->sellerProfile) {
+            return response()->json([
+                'message'            => 'You already have a seller application.',
+                'application_status' => $user->sellerProfile->application_status,
+            ], 422);
+        }
+
+        $user = $this->registrationService->apply(
+            $user,
             $request->validated(),
             $request->file('government_id_image'),
             $request->file('government_id_image_back'),
             $request->file('business_permit'),
         );
 
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'data'  => new UserResource($user),
-            'token' => $token,
-        ], 201);
+        return response()->json(['data' => new UserResource($user)], 201);
     }
 
     public function login(LoginRequest $request): JsonResponse
@@ -158,7 +164,7 @@ class AuthController extends Controller
             'city_municipality'    => ['required', 'string', 'max:100'],
             'barangay'             => ['required', 'string', 'max:100'],
             'street_address'       => ['required', 'string', 'max:255'],
-            'government_id_type'   => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id'],
+            'government_id_type'   => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id,school_id'],
             'government_id_image'  => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
             'government_id_image_back' => [
                 \App\Http\Requests\Auth\BuyerRegisterRequest::requiresBack($request->input('government_id_type')) ? 'required' : 'nullable',

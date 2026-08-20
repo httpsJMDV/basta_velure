@@ -22,6 +22,7 @@ class SellerProfile extends Model
         'government_id_number_hash',
         'government_id_image_path',
         'government_id_image_back_path',
+        'business_permit_path',
         'payout_gcash_number',
         'application_status',
         'rejection_reason',

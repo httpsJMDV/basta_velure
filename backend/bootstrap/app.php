@@ -14,7 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role' => \App\Http\Middleware\EnsureRole::class,
+            'role'            => \App\Http\Middleware\EnsureRole::class,
+            'approved_seller' => \App\Http\Middleware\EnsureApprovedSeller::class,
         ]);
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
     })

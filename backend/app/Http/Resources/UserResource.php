@@ -46,9 +46,17 @@ class UserResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'seller_profile' => $this->whenLoaded('sellerProfile', fn () => [
                 'shop_name'          => $this->sellerProfile->shop_name,
+                'shop_category'      => $this->sellerProfile->shop_category,
+                'shop_description'   => $this->sellerProfile->shop_description,
                 'application_status' => $this->sellerProfile->application_status,
                 'rejection_reason'   => $this->sellerProfile->rejection_reason,
                 'submitted_at'       => $this->sellerProfile->submitted_at,
+                'address'            => [
+                    'province'  => $this->sellerProfile->address_province,
+                    'city'      => $this->sellerProfile->address_city,
+                    'barangay'  => $this->sellerProfile->address_barangay,
+                    'street'    => $this->sellerProfile->address_street,
+                ],
             ]),
         ];
     }

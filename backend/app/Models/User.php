@@ -58,7 +58,11 @@ class User extends Authenticatable
 
     public function isApprovedSeller(): bool
     {
-        return $this->role === 'seller'
-            && $this->sellerProfile?->application_status === 'approved';
+        return $this->sellerProfile?->application_status === 'approved';
+    }
+
+    public function sellerApplicationStatus(): ?string
+    {
+        return $this->sellerProfile?->application_status;
     }
 }

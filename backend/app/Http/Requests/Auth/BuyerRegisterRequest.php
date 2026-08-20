@@ -38,7 +38,7 @@ class BuyerRegisterRequest extends FormRequest
             'barangay'             => ['required', 'string', 'max:100'],
             'street_address'       => ['nullable', 'string', 'max:255'],
             // Government ID
-            'government_id_type'      => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id'],
+            'government_id_type'      => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id,school_id'],
             'government_id_image'     => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
             'government_id_image_back' => [
                 $this->requiresBack($this->input('government_id_type')) ? 'required' : 'nullable',
@@ -62,6 +62,6 @@ class BuyerRegisterRequest extends FormRequest
 
     public static function requiresBack(?string $idType): bool
     {
-        return in_array($idType, ['national_id', 'drivers_license', 'umid', 'sss_id', 'voters_id'], true);
+        return in_array($idType, ['drivers_license', 'umid', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id'], true);
     }
 }
