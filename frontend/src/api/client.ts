@@ -60,8 +60,8 @@ export const registerBuyerApi = (data: Record<string, string> | FormData) =>
 export const googleAuthApi = (credential: string) =>
   http.post<AuthResponse & { profile_incomplete?: boolean; google_avatar_url?: string | null }>('/auth/google', { credential }).then((r) => r.data);
 
-export const registerSellerApi = (form: FormData) =>
-  http.post<AuthResponse>('/auth/register/seller', form, {
+export const applyAsSellerApi = (form: FormData) =>
+  http.post<{ data: User }>('/auth/apply-seller', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 
@@ -130,12 +130,19 @@ export const getBuyerIdImageUrl = (id: number) =>
 export const getBuyerIdImageBackUrl = (id: number) =>
   `${http.defaults.baseURL}/admin/buyer-applications/${id}/id-image-back`;
 
+export const getSellerIdImageUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/seller-applications/${id}/id-image`;
+
+export const getSellerIdImageBackUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/seller-applications/${id}/id-image-back`;
+
+export const getSellerBusinessPermitUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/seller-applications/${id}/business-permit`;
+
 // Admin — seller applications
-export const getSellerApplicationsApi = (status = 'pending', page = 1) =>
+export const getSellerApplicationsApi = (params?: { status?: string; search?: string; sort?: string; page?: number; per_page?: number }) =>
   http
-    .get<PaginatedResponse<SellerApplication>>('/admin/seller-applications', {
-      params: { status, page },
-    })
+    .get<PaginatedResponse<SellerApplication>>('/admin/seller-applications', { params })
     .then((r) => r.data);
 
 export const approveSellerApi = (id: number) =>

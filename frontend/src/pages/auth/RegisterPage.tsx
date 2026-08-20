@@ -14,17 +14,18 @@ const SEX_OPTIONS = [
   { value: 'female', label: 'Female' },
 ];
 
-const REQUIRES_BACK = new Set(['national_id', 'drivers_license', 'umid', 'sss_id', 'voters_id']);
+const REQUIRES_BACK = new Set(['drivers_license', 'umid', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id']);
 
 const GOV_ID_OPTIONS = [
-  { value: 'national_id',    label: 'National ID (PhilSys)' },
+  { value: 'national_id',     label: 'National ID (PhilSys)' },
   { value: 'drivers_license', label: "Driver's License" },
-  { value: 'passport',       label: 'Passport' },
-  { value: 'umid',           label: 'UMID' },
-  { value: 'sss_id',         label: 'SSS ID' },
-  { value: 'philhealth_id',  label: 'PhilHealth ID' },
-  { value: 'voters_id',      label: "Voter's ID" },
-  { value: 'postal_id',      label: 'Postal ID' },
+  { value: 'passport',        label: 'Passport' },
+  { value: 'umid',            label: 'UMID' },
+  { value: 'sss_id',          label: 'SSS ID' },
+  { value: 'philhealth_id',   label: 'PhilHealth ID' },
+  { value: 'voters_id',       label: "Voter's ID" },
+  { value: 'postal_id',       label: 'Postal ID' },
+  { value: 'school_id',       label: 'School ID' },
 ];
 
 interface PsgcItem { code: string; name: string; }

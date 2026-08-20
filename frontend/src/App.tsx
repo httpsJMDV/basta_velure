@@ -41,6 +41,14 @@ function isProfileIncomplete(user: ReturnType<typeof useAuth>['user']) {
   return user?.role === 'buyer' && (!user.date_of_birth || !user.sex || !user.government_id_type);
 }
 
+function RequireApprovedSeller({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.seller_profile?.application_status !== 'approved') return <Navigate to="/register/seller" replace />;
+  return <>{children}</>;
+}
+
 function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading…</div>;
@@ -136,9 +144,9 @@ function AppRoutes() {
       <Route
         path="/seller/dashboard"
         element={
-          <RequireRole roles={['seller']}>
+          <RequireApprovedSeller>
             <SellerDashboard />
-          </RequireRole>
+          </RequireApprovedSeller>
         }
       />
       {/* Admin — nested layout, all routes role-gated */}

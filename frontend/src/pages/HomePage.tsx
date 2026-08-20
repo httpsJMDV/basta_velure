@@ -7,17 +7,7 @@ import { motion, useInView, AnimatePresence } from 'framer-motion';
 import HeroCarousel from '../components/HeroCarousel';
 import CartModal from '../components/CartModal';
 import type { CartItem } from '../components/CartModal';
-
-const CATEGORIES = [
-  'Electronics',
-  'Fashion',
-  'Home & Living',
-  'Sports & Outdoors',
-  'Health & Beauty',
-  'Food & Grocery',
-  'Toys & Games',
-  'Books & Stationery',
-];
+import { CATEGORIES } from '../data/categories';
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
 

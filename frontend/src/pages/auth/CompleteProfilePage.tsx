@@ -26,6 +26,7 @@ const GOV_ID_OPTIONS = [
   { value: 'philhealth_id',   label: 'PhilHealth ID' },
   { value: 'voters_id',       label: "Voter's ID" },
   { value: 'postal_id',       label: 'Postal ID' },
+  { value: 'school_id',       label: 'School ID' },
 ];
 
 interface PsgcItem { code: string; name: string; }
@@ -332,7 +333,7 @@ function Step2({
 
 // ─── ID types that require a back photo ─────────────────────────────────────
 
-const REQUIRES_BACK = new Set(['national_id', 'drivers_license', 'umid', 'sss_id', 'voters_id']);
+const REQUIRES_BACK = new Set(['drivers_license', 'umid', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id']);
 
 // ─── Reusable file upload zone ────────────────────────────────────────────────
 
@@ -406,14 +407,15 @@ function Step3({
   const [backFile,  setBackFile]  = useState<File | null>(null);
   const [frontError, setFrontError] = useState('');
   const [backError,  setBackError]  = useState('');
+  const [idType, setIdType] = useState(data.government_id_type);
 
-  const needsBack = REQUIRES_BACK.has(data.government_id_type);
+  const needsBack = REQUIRES_BACK.has(idType);
 
-  // Reset back file when ID type changes to one that doesn't need it
   function handleIdTypeChange(v: string) {
+    setIdType(v);
     onChange({ government_id_type: v });
-    if (!REQUIRES_BACK.has(v)) setBackFile(null);
-    setFrontError(''); setBackError('');
+    if (!REQUIRES_BACK.has(v)) { setBackFile(null); setBackError(''); }
+    setFrontError('');
   }
 
   function handleSubmit(e: FormEvent) {
@@ -429,18 +431,34 @@ function Step3({
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <CustomSelect
         label="ID Type" required
-        value={data.government_id_type} onChange={handleIdTypeChange}
+        value={idType} onChange={handleIdTypeChange}
         options={GOV_ID_OPTIONS} placeholder="Select ID type"
         error={errors.government_id_type}
       />
 
-      {data.government_id_type && (
-        <div className={`rounded-xl border px-4 py-3 text-xs leading-relaxed ${
-          needsBack ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-500'
+      {idType && (
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+          needsBack ? 'bg-blue-50/60 border-blue-200' : 'bg-gray-50 border-gray-200'
         }`}>
-          {needsBack
-            ? '📋 This ID requires both a front and back photo.'
-            : '📋 This ID only requires a single photo (front/main page).'}
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+            needsBack ? 'bg-blue-100' : 'bg-gray-100'
+          }`}>
+            <svg className={`w-3.5 h-3.5 ${needsBack ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              {needsBack
+                ? <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 7.5h19.5M2.25 16.5h19.5" />
+                : <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12h19.5" />}
+            </svg>
+          </div>
+          <div>
+            <p className={`text-xs font-bold ${needsBack ? 'text-blue-700' : 'text-gray-600'}`}>
+              {needsBack ? 'Front & back required' : 'Front only'}
+            </p>
+            <p className={`text-[11px] mt-0.5 ${needsBack ? 'text-blue-500' : 'text-gray-400'}`}>
+              {needsBack
+                ? 'This ID type requires a photo of both sides.'
+                : 'This ID only requires a single photo.'}
+            </p>
+          </div>
         </div>
       )}
 

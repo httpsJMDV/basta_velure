@@ -16,6 +16,10 @@ import { Search, X, ChevronLeft, ChevronRight, ZoomIn, Clock, CalendarDays, User
 
 const PER_PAGE_OPTIONS = [30, 50, 100];
 
+const REQUIRES_BACK_ID_TYPES = new Set([
+  'drivers_license', 'umid', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id',
+]);
+
 interface Meta {
   current_page: number;
   last_page: number;
@@ -359,9 +363,9 @@ function ReviewModal({
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [user.id]);
 
-  // Fetch back ID image (only if the user has one)
+  // Fetch back ID image (only if the ID type requires a back)
   useEffect(() => {
-    if (!user.government_id_image_back_url) { setBackBlobUrl(null); return; }
+    if (!REQUIRES_BACK_ID_TYPES.has(user.government_id_type ?? '')) { setBackBlobUrl(null); return; }
     const token = localStorage.getItem('token');
     let objectUrl: string;
     fetch(getBuyerIdImageBackUrl(user.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
@@ -369,7 +373,7 @@ function ReviewModal({
       .then((blob) => { objectUrl = URL.createObjectURL(blob); setBackBlobUrl(objectUrl); })
       .catch(() => setBackBlobUrl(null));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [user.id, user.government_id_image_back_url]);
+  }, [user.id, user.government_id_type]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !lightboxUrl && !dialog) onClose(); };
@@ -511,11 +515,11 @@ function ReviewModal({
                       onView={(url) => setLightboxUrl(url)}
                     />
 
-                    {/* Back — only shown when a back image exists */}
-                    {!!user.government_id_image_back_url && (
+                    {/* Back — shown when back url exists OR when the ID type requires a back */}
+                    {(!!user.government_id_image_back_url || REQUIRES_BACK_ID_TYPES.has(user.government_id_type ?? '')) && (
                       <IdImageRow
                         label="Back of ID"
-                        idType={null}
+                        idType={user.government_id_type}
                         blobUrl={backBlobUrl}
                         onView={(url) => setLightboxUrl(url)}
                       />

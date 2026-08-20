@@ -55,10 +55,12 @@ export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
 
 export type GovernmentIdType =
   | 'national_id' | 'drivers_license' | 'passport' | 'umid'
-  | 'sss_id' | 'philhealth_id' | 'voters_id' | 'postal_id';
+  | 'sss_id' | 'philhealth_id' | 'voters_id' | 'postal_id' | 'school_id';
 
 export interface SellerProfileSummary {
   shop_name: string;
+  shop_category: string | null;
+  shop_description: string | null;
   application_status: ApplicationStatus;
   rejection_reason: string | null;
   submitted_at: string;
@@ -110,9 +112,13 @@ export interface SellerApplication {
   id: number;
   application_status: ApplicationStatus;
   shop_name: string;
+  shop_category: string | null;
+  shop_description: string | null;
   date_of_birth: string;
   government_id_type: GovernmentIdType;
   government_id_image_url: string;
+  government_id_image_back_url: string | null;
+  business_permit_url: string | null;
   payout_gcash_number: string;
   rejection_reason: string | null;
   submitted_at: string;

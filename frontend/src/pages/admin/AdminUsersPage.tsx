@@ -6,12 +6,17 @@ import type { User, Role, UserStatus } from '../../types';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import CustomSelect from '../../components/ui/CustomSelect';
-import { Search, X, ChevronLeft, ChevronRight, ZoomIn, Users, ShieldOff } from 'lucide-react';
+import { Search, X, ChevronLeft, ChevronRight, ZoomIn, Users, ShieldOff, CalendarDays } from 'lucide-react';
+import { getBuyerIdImageUrl, getBuyerIdImageBackUrl } from '../../api/client';
 
 const STATUS_BADGE: Record<UserStatus, 'approved' | 'rejected'> = {
   active:    'approved',
   suspended: 'rejected',
 };
+
+const REQUIRES_BACK_ID_TYPES = new Set([
+  'drivers_license', 'umid', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id',
+]);
 
 const PER_PAGE_OPTIONS = [30, 50, 100];
 
@@ -186,20 +191,20 @@ function IdLightbox({ url, onClose }: { url: string; onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4"
       onClick={onClose}
     >
       <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
-          className="absolute -top-10 right-0 text-white/80 hover:text-white flex items-center gap-1.5 text-sm"
+          className="absolute -top-10 right-0 text-white/80 hover:text-white flex items-center gap-1.5 text-sm font-medium"
         >
           <X className="w-4 h-4" /> Close
         </button>
         <img
           src={url}
           alt="Government ID"
-          className="w-full rounded-xl object-contain max-h-[80vh] bg-white"
+          className="w-full rounded-xl object-contain max-h-[80vh] bg-white shadow-2xl"
         />
       </div>
     </div>
@@ -209,12 +214,14 @@ function IdLightbox({ url, onClose }: { url: string; onClose: () => void }) {
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
 
 function ConfirmDialog({
+  title,
   message,
   confirmLabel,
   confirmVariant,
   onConfirm,
   onCancel,
 }: {
+  title?: string;
   message: string;
   confirmLabel: string;
   confirmVariant: 'primary' | 'danger';
@@ -224,26 +231,23 @@ function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
-        <p className="text-sm text-gray-700 mb-5">{message}</p>
-        <div className="flex gap-3 justify-end">
-          <Button variant="ghost" className="!min-h-[38px] !px-4 text-sm" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant={confirmVariant} className="!min-h-[38px] !px-4 text-sm" onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
+        {title && <h3 className="text-base font-bold text-gray-900 mb-1">{title}</h3>}
+        <p className="text-sm text-gray-500 mb-4">{message}</p>
+        <div className="flex gap-3 justify-end mt-4">
+          <Button variant="ghost" className="!min-h-[38px] !px-4 text-sm" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} className="!min-h-[38px] !px-4 text-sm" onClick={onConfirm}>{confirmLabel}</Button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Buyer Details Modal ───────────────────────────────────────────────────────
+// ── Info helpers ──────────────────────────────────────────────────────────────
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
       <p className="text-sm text-gray-800 font-medium">{value || '—'}</p>
     </div>
   );
@@ -251,11 +255,59 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-xs font-semibold text-brand-red uppercase tracking-widest mb-3 mt-1">
+    <h3 className="text-[10px] font-bold text-brand-red uppercase tracking-[0.12em] mb-3 mt-1">
       {children}
     </h3>
   );
 }
+
+// ── ID Image Row ──────────────────────────────────────────────────────────────
+
+function IdImageRow({
+  label, idType, blobUrl, onView,
+}: {
+  label: string;
+  idType: string | null | undefined;
+  blobUrl: string | null | undefined;
+  onView: (url: string) => void;
+}) {
+  if (blobUrl === undefined) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 animate-pulse" />
+        <p className="text-xs text-gray-400 italic">Loading {label.toLowerCase()}…</p>
+      </div>
+    );
+  }
+  if (!blobUrl) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+        <p className="text-xs text-gray-400 italic">No {label.toLowerCase()} uploaded.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+          <ZoomIn className="w-4 h-4 text-green-600" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-gray-700">{label}</p>
+          {idType && <p className="text-[11px] text-gray-400">{formatIdType(idType)}</p>}
+        </div>
+      </div>
+      <button
+        onClick={() => onView(blobUrl)}
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-red border border-brand-red/30 bg-white hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+      >
+        <ZoomIn className="w-3.5 h-3.5" /> View
+      </button>
+    </div>
+  );
+}
+
+// ── Buyer Details Modal ───────────────────────────────────────────────────────
 
 function BuyerDetailsModal({
   user,
@@ -270,37 +322,58 @@ function BuyerDetailsModal({
   onActivate: (u: User) => void;
   acting: boolean;
 }) {
-  const [lightbox, setLightbox] = useState(false);
-  const [confirm, setConfirm] = useState<'suspend' | 'activate' | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [lightboxUrl,  setLightboxUrl]  = useState<string | null>(null);
+  const [confirm,      setConfirm]      = useState<'suspend' | 'activate' | null>(null);
+  const [frontBlobUrl, setFrontBlobUrl] = useState<string | null | undefined>(undefined);
+  const [backBlobUrl,  setBackBlobUrl]  = useState<string | null | undefined>(undefined);
+
+  // Fetch front ID image
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    let objectUrl: string;
+    fetch(getBuyerIdImageUrl(user.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then((blob) => { objectUrl = URL.createObjectURL(blob); setFrontBlobUrl(objectUrl); })
+      .catch(() => setFrontBlobUrl(null));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [user.id]);
+
+  // Fetch back ID image only if the ID type requires it
+  useEffect(() => {
+    if (!REQUIRES_BACK_ID_TYPES.has(user.government_id_type ?? '')) { setBackBlobUrl(null); return; }
+    const token = localStorage.getItem('token');
+    let objectUrl: string;
+    fetch(getBuyerIdImageBackUrl(user.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then((blob) => { objectUrl = URL.createObjectURL(blob); setBackBlobUrl(objectUrl); })
+      .catch(() => setBackBlobUrl(null));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [user.id, user.government_id_type]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !lightbox && !confirm) onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose, lightbox, confirm]);
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !lightboxUrl && !confirm) onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose, lightboxUrl, confirm]);
 
   const fullName = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(' ');
 
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col pointer-events-auto"
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">
             <div>
-              <h2 className="text-lg font-bold text-brand-black">Buyer Details</h2>
-              <p className="text-sm text-gray-400 mt-0.5">{fullName}</p>
+              <h2 className="text-lg font-bold text-gray-900">Buyer Details</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Registered account information</p>
             </div>
             <div className="flex items-center gap-3">
               <Badge
@@ -316,78 +389,121 @@ function BuyerDetailsModal({
             </div>
           </div>
 
-          {/* Scrollable body */}
-          <div ref={scrollRef} className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
-
-            {/* Personal Information */}
-            <div>
-              <SectionHeading>Personal Information</SectionHeading>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <InfoRow label="Last Name" value={user.last_name} />
-                <InfoRow label="First Name" value={user.first_name} />
-                <InfoRow label="Middle Name" value={user.middle_name} />
-                <InfoRow label="Sex" value={user.sex ? user.sex.charAt(0).toUpperCase() + user.sex.slice(1) : null} />
-                <InfoRow label="Birthday" value={formatDate(user.date_of_birth)} />
-                <InfoRow label="Age" value={user.date_of_birth ? calcAge(user.date_of_birth) : null} />
-              </div>
+          {/* Meta strip */}
+          <div className="px-6 py-3 bg-gray-50/70 border-b border-gray-100 flex items-center gap-4">
+            <p className="text-sm font-bold text-gray-800">{fullName}</p>
+            <span className="w-px h-4 bg-gray-300 shrink-0" />
+            <div className="flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span className="text-xs text-gray-500 font-medium">Registered</span>
+              <span className="text-xs font-semibold text-gray-700">
+                {new Date(user.created_at ?? '').toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
             </div>
+          </div>
 
-            <div className="border-t border-gray-100" />
+          {/* Body — two columns */}
+          <div className="overflow-y-auto flex-1 px-6 py-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* Contact Information */}
-            <div>
-              <SectionHeading>Contact Information</SectionHeading>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InfoRow label="Email" value={user.email} />
-                <InfoRow label="Contact Number" value={user.phone} />
-              </div>
-            </div>
-
-            <div className="border-t border-gray-100" />
-
-            {/* ID Verification */}
-            <div>
-              <SectionHeading>ID Verification</SectionHeading>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <InfoRow label="ID Type" value={formatIdType(user.government_id_type)} />
-              </div>
-
-              {user.government_id_image_url ? (
-                <div className="flex flex-col gap-2">
-                  <div className="relative w-full max-w-xs rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-                    <img
-                      src={user.government_id_image_url}
-                      alt="Government ID"
-                      className="w-full h-36 object-cover"
-                    />
+              {/* LEFT — Personal Info + Avatar */}
+              <div className="space-y-5">
+                <div>
+                  <SectionHeading>Personal Information</SectionHeading>
+                  <div className="grid grid-cols-2 gap-4">
+                    <InfoRow label="Last Name"      value={user.last_name} />
+                    <InfoRow label="First Name"     value={user.first_name} />
+                    <InfoRow label="Middle Initial" value={user.middle_name} />
+                    <InfoRow label="Sex"            value={user.sex ? user.sex.charAt(0).toUpperCase() + user.sex.slice(1) : null} />
+                    <InfoRow label="Birthday"       value={user.date_of_birth ? new Date(user.date_of_birth).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : null} />
+                    <InfoRow label="Age"            value={user.date_of_birth ? String(Math.floor((Date.now() - new Date(user.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 365.25))) : null} />
                   </div>
-                  <button
-                    onClick={() => setLightbox(true)}
-                    className="inline-flex items-center gap-1.5 text-sm text-brand-red font-medium hover:underline w-fit"
-                  >
-                    <ZoomIn className="w-3.5 h-3.5" />
-                    View Full ID
-                  </button>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-400 italic">No ID uploaded.</p>
-              )}
-            </div>
 
-            <div className="border-t border-gray-100" />
+                {/* Avatar */}
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Profile Photo</p>
+                  {user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={fullName}
+                      className="w-full aspect-square rounded-2xl object-cover border border-gray-200 shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-full aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex flex-col items-center justify-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-brand-red/10 flex items-center justify-center">
+                        <span className="text-3xl font-black text-brand-red">
+                          {user.first_name?.[0]?.toUpperCase() ?? '?'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 font-medium">No photo uploaded</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            {/* Account Information */}
-            <div>
-              <SectionHeading>Account Information</SectionHeading>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <InfoRow label="Account Status" value={user.status.charAt(0).toUpperCase() + user.status.slice(1)} />
-                <InfoRow label="Role" value={user.role.charAt(0).toUpperCase() + user.role.slice(1)} />
-                <InfoRow label="Registration Date" value={formatDate(user.created_at)} />
+              {/* RIGHT — Contact + Address + ID + Account */}
+              <div className="space-y-5">
+                <div>
+                  <SectionHeading>Contact Information</SectionHeading>
+                  <div className="grid grid-cols-1 gap-4">
+                    <InfoRow label="Email"          value={user.email} />
+                    <InfoRow label="Contact Number" value={user.phone} />
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                <div>
+                  <SectionHeading>Address</SectionHeading>
+                  {user.default_address ? (
+                    <div className="grid grid-cols-1 gap-4">
+                      <InfoRow label="Province"            value={user.default_address.province} />
+                      <InfoRow label="City / Municipality" value={user.default_address.city_municipality} />
+                      <InfoRow label="Barangay"            value={user.default_address.barangay} />
+                      <InfoRow label="Street Address"      value={user.default_address.street_address} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No address on file.</p>
+                  )}
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                <div>
+                  <SectionHeading>ID Verification</SectionHeading>
+                  <div className="space-y-3">
+                    <IdImageRow
+                      label="Front of ID"
+                      idType={user.government_id_type}
+                      blobUrl={frontBlobUrl}
+                      onView={(url) => setLightboxUrl(url)}
+                    />
+                    {REQUIRES_BACK_ID_TYPES.has(user.government_id_type ?? '') && (
+                      <IdImageRow
+                        label="Back of ID"
+                        idType={user.government_id_type}
+                        blobUrl={backBlobUrl}
+                        onView={(url) => setLightboxUrl(url)}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                <div>
+                  <SectionHeading>Account Information</SectionHeading>
+                  <div className="grid grid-cols-2 gap-4">
+                    <InfoRow label="Role"   value={user.role.charAt(0).toUpperCase() + user.role.slice(1)} />
+                    <InfoRow label="Status" value={user.status.charAt(0).toUpperCase() + user.status.slice(1)} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Footer actions */}
+          {/* Footer */}
           <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/60 rounded-b-2xl">
             <Button variant="ghost" className="!min-h-[38px] !px-5 text-sm" onClick={onClose}>
               Close
@@ -415,15 +531,14 @@ function BuyerDetailsModal({
         </div>
       </div>
 
-      {/* Lightbox */}
-      {lightbox && user.government_id_image_url && (
-        <IdLightbox url={user.government_id_image_url} onClose={() => setLightbox(false)} />
+      {lightboxUrl && (
+        <IdLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
       )}
 
-      {/* Confirm dialog */}
       {confirm === 'suspend' && (
         <ConfirmDialog
-          message={`Are you sure you want to suspend ${fullName}'s account? They will not be able to log in until reactivated.`}
+          title="Suspend Account?"
+          message={`${fullName}'s account will be suspended. They will not be able to log in until reactivated.`}
           confirmLabel="Suspend Account"
           confirmVariant="danger"
           onConfirm={() => { setConfirm(null); onSuspend(user); }}
@@ -432,7 +547,8 @@ function BuyerDetailsModal({
       )}
       {confirm === 'activate' && (
         <ConfirmDialog
-          message={`Are you sure you want to activate ${fullName}'s account?`}
+          title="Activate Account?"
+          message={`${fullName}'s account will be reactivated and they will be able to log in again.`}
           confirmLabel="Activate Account"
           confirmVariant="primary"
           onConfirm={() => { setConfirm(null); onActivate(user); }}
