@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class SellerRegisterRequest extends FormRequest
 {
@@ -15,13 +16,19 @@ class SellerRegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'shop_name'                    => ['required', 'string', 'max:100', 'unique:seller_profiles,shop_name'],
-            'line_of_business'             => ['required', 'string', 'max:100'],
+            'shop_name'                    => [
+                'required', 'string', 'max:100',
+                Rule::unique('seller_profiles', 'shop_name')
+                    ->whereNotIn('application_status', ['rejected']),
+            ],
             'shop_description'             => ['required', 'string', 'max:200'],
             'government_id_type'           => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id,school_id'],
             'government_id_image'          => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
             'government_id_image_back'     => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            'selfie_with_id'               => ['required', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
             'business_permit'              => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            'dti_sec_registration'         => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            'fda_lto'                      => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
             'address_province'             => ['required', 'string', 'max:100'],
             'address_city'                 => ['required', 'string', 'max:100'],
             'address_barangay'             => ['required', 'string', 'max:100'],

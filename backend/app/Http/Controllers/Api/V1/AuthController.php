@@ -87,11 +87,12 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        // Prevent duplicate applications — one pending/approved profile per user
-        if ($user->sellerProfile) {
+        // Block resubmission only if already pending or approved
+        $existing = $user->sellerProfile;
+        if ($existing && in_array($existing->application_status, ['pending', 'approved'])) {
             return response()->json([
                 'message'            => 'You already have a seller application.',
-                'application_status' => $user->sellerProfile->application_status,
+                'application_status' => $existing->application_status,
             ], 422);
         }
 
@@ -101,6 +102,9 @@ class AuthController extends Controller
             $request->file('government_id_image'),
             $request->file('government_id_image_back'),
             $request->file('business_permit'),
+            $request->file('dti_sec_registration'),
+            $request->file('fda_lto'),
+            $request->file('selfie_with_id'),
         );
 
         return response()->json(['data' => new UserResource($user)], 201);

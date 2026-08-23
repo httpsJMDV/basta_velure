@@ -43,7 +43,6 @@ class GoogleAuthController extends Controller
         $firstName    = $payload['given_name'] ?? 'User';
         $lastName     = $payload['family_name'] ?? '';
         $googleAvatar = $payload['picture'] ?? null;
-        $isNew        = false;
 
         $user = User::withTrashed()->where('email', $email)->first();
 
@@ -52,8 +51,9 @@ class GoogleAuthController extends Controller
         }
 
         if (! $user) {
-            // New Google user — create a stub account; they must complete their profile
-            // (DOB, sex, address, gov ID) before buyer_application_status is set
+            // New Google user — create a stub account. A token IS issued so the frontend
+            // can call the authenticated completeProfile endpoint. buyer_application_status
+            // stays null until completeProfile sets it to 'pending' after collecting all info.
             $user = User::create([
                 'first_name'        => $firstName,
                 'last_name'         => $lastName ?: 'User',
@@ -64,28 +64,56 @@ class GoogleAuthController extends Controller
             ]);
             $user->role = 'buyer';
             $user->save();
-            $isNew = true;
+
+            Mail::to($user->email)->queue(new WelcomeMail($user));
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'data'               => new UserResource($user->load('sellerProfile')),
+                'token'              => $token,
+                'profile_incomplete' => true,
+                'google_avatar_url'  => $googleAvatar,
+            ], 201);
         }
 
         if ($user->status === 'suspended') {
             return response()->json(['message' => 'Your account has been suspended.'], 403);
         }
 
-        if ($isNew) {
-            Mail::to($user->email)->queue(new WelcomeMail($user));
+        // Returning Google user whose profile is still incomplete — let them finish it
+        $profileIncomplete = empty($user->date_of_birth) || empty($user->sex) || empty($user->government_id_type);
+        if ($profileIncomplete) {
+            $user->update(['last_login_at' => now()]);
+            $token = $user->createToken('auth_token')->plainTextToken;
+            return response()->json([
+                'data'               => new UserResource($user->load('sellerProfile')),
+                'token'              => $token,
+                'profile_incomplete' => true,
+                'google_avatar_url'  => $googleAvatar,
+            ], 200);
+        }
+
+        // Block login if buyer application is not yet approved
+        if (in_array($user->buyer_application_status, ['pending', null], true)) {
+            return response()->json([
+                'pending_approval' => true,
+                'message'          => 'Your account is pending admin approval.',
+            ], 403);
+        }
+
+        if ($user->buyer_application_status === 'rejected') {
+            return response()->json([
+                'message' => 'Your account application was rejected. Please contact support.',
+            ], 403);
         }
 
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // If the user has no DOB/sex/gov ID yet, signal the frontend to show the completion form
-        $profileIncomplete = empty($user->date_of_birth) || empty($user->sex) || empty($user->government_id_type);
-
         return response()->json([
-            'data'               => new UserResource($user->load('sellerProfile')),
-            'token'              => $token,
-            'profile_incomplete' => $profileIncomplete,
-            'google_avatar_url'  => ($profileIncomplete && $googleAvatar) ? $googleAvatar : null,
-        ], $isNew ? 201 : 200);
+            'data'  => new UserResource($user->load('sellerProfile')),
+            'token' => $token,
+        ], 200);
     }
 }

@@ -77,8 +77,14 @@ Route::prefix('v1')->group(function () {
                 ->name('admin.seller-applications.id-image');
             Route::get('/seller-applications/{sellerProfile}/id-image-back', [AdminSellerApplicationController::class, 'idImageBack'])
                 ->name('admin.seller-applications.id-image-back');
+            Route::get('/seller-applications/{sellerProfile}/selfie', [AdminSellerApplicationController::class, 'selfieWithId'])
+                ->name('admin.seller-applications.selfie');
             Route::get('/seller-applications/{sellerProfile}/business-permit', [AdminSellerApplicationController::class, 'businessPermit'])
                 ->name('admin.seller-applications.business-permit');
+            Route::get('/seller-applications/{sellerProfile}/dti-sec-registration', [AdminSellerApplicationController::class, 'dtiSecRegistration'])
+                ->name('admin.seller-applications.dti-sec-registration');
+            Route::get('/seller-applications/{sellerProfile}/fda-lto', [AdminSellerApplicationController::class, 'fdaLto'])
+                ->name('admin.seller-applications.fda-lto');
 
             // Orders
             Route::get('/orders', [AdminOrderController::class, 'index']);

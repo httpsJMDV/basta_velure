@@ -75,6 +75,17 @@ class AdminSellerApplicationController extends Controller
         return response($contents, 200)->header('Content-Type', $mime);
     }
 
+    public function selfieWithId(SellerProfile $sellerProfile): Response
+    {
+        abort_unless($sellerProfile->selfie_with_id_path, 404);
+        abort_unless(Storage::disk('ids')->exists($sellerProfile->selfie_with_id_path), 404);
+
+        $contents = Storage::disk('ids')->get($sellerProfile->selfie_with_id_path);
+        $mime     = Storage::disk('ids')->mimeType($sellerProfile->selfie_with_id_path);
+
+        return response($contents, 200)->header('Content-Type', $mime);
+    }
+
     public function idImageBack(SellerProfile $sellerProfile): Response
     {
         abort_unless($sellerProfile->government_id_image_back_path, 404);
@@ -93,6 +104,28 @@ class AdminSellerApplicationController extends Controller
 
         $contents = Storage::disk('ids')->get($sellerProfile->business_permit_path);
         $mime     = Storage::disk('ids')->mimeType($sellerProfile->business_permit_path);
+
+        return response($contents, 200)->header('Content-Type', $mime);
+    }
+
+    public function dtiSecRegistration(SellerProfile $sellerProfile): Response
+    {
+        abort_unless($sellerProfile->dti_sec_registration_path, 404);
+        abort_unless(Storage::disk('ids')->exists($sellerProfile->dti_sec_registration_path), 404);
+
+        $contents = Storage::disk('ids')->get($sellerProfile->dti_sec_registration_path);
+        $mime     = Storage::disk('ids')->mimeType($sellerProfile->dti_sec_registration_path);
+
+        return response($contents, 200)->header('Content-Type', $mime);
+    }
+
+    public function fdaLto(SellerProfile $sellerProfile): Response
+    {
+        abort_unless($sellerProfile->fda_lto_path, 404);
+        abort_unless(Storage::disk('ids')->exists($sellerProfile->fda_lto_path), 404);
+
+        $contents = Storage::disk('ids')->get($sellerProfile->fda_lto_path);
+        $mime     = Storage::disk('ids')->mimeType($sellerProfile->fda_lto_path);
 
         return response($contents, 200)->header('Content-Type', $mime);
     }

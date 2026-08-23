@@ -22,11 +22,20 @@ class SellerApplicationResource extends JsonResource
             'government_id_image_back_url' => $this->government_id_image_back_path
                 ? route('admin.seller-applications.id-image-back', $this->id)
                 : null,
+            'selfie_with_id_url'           => $this->selfie_with_id_path
+                ? route('admin.seller-applications.selfie', $this->id)
+                : null,
             'business_permit_url'  => $this->business_permit_path
                 ? route('admin.seller-applications.business-permit', $this->id)
                 : null,
-            'payout_gcash_number'  => $this->payout_gcash_number,
+            'dti_sec_registration_url' => $this->dti_sec_registration_path
+                ? route('admin.seller-applications.dti-sec-registration', $this->id)
+                : null,
+            'fda_lto_url'          => $this->fda_lto_path
+                ? route('admin.seller-applications.fda-lto', $this->id)
+                : null,
             'rejection_reason'     => $this->rejection_reason,
+            // payout_gcash_number intentionally excluded — not shown to admin during application review
             'submitted_at'         => $this->submitted_at,
             'reviewed_at'          => $this->reviewed_at,
             'user'                 => new UserResource($this->whenLoaded('user')),

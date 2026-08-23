@@ -22,7 +22,7 @@ class UserResource extends JsonResource
             'buyer_rejection_reason'     => $this->buyer_rejection_reason,
             'role'                       => $this->role,
             'status'                     => $this->status,
-            'avatar_url'                 => $this->avatar_path
+            'avatar_url' => $this->avatar_path
                 ? \Illuminate\Support\Facades\Storage::disk('public')->url($this->avatar_path)
                 : null,
             'government_id_type'      => $this->government_id_type,
