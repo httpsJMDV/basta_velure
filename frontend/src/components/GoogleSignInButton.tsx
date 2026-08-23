@@ -24,20 +24,17 @@ export default function GoogleSignInButton({ label = 'Continue with Google' }: G
         const res = await googleAuthApi(tokenResponse.access_token);
         setAuth(res.data, res.token);
         const u = res.data;
-        const profileIncomplete = res.profile_incomplete ||
-          !u.phone || !u.date_of_birth || !u.sex || !u.government_id_type;
-        if (profileIncomplete) {
+        if (res.profile_incomplete) {
           navigate('/complete-profile', { state: { googleAvatarUrl: res.google_avatar_url ?? null } });
         } else {
           redirectByRole(u.role);
         }
       } catch (err: unknown) {
-        const status = (err as { response?: { status?: number; data?: { message?: string } } })?.response?.status;
-        const msg    = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        if (status === 403) {
-          setError(msg ?? 'Your account has been suspended.');
+        const data = (err as { response?: { data?: { message?: string; pending_approval?: boolean } } })?.response?.data;
+        if (data?.pending_approval) {
+          setError('Your account is pending admin approval. You will be notified by email once approved.');
         } else {
-          setError('Google sign-in failed. Please try again.');
+          setError(data?.message ?? 'Google sign-in failed. Please try again.');
         }
       } finally {
         setLoading(false);

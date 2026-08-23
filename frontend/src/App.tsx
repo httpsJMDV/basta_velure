@@ -6,20 +6,23 @@ import CompleteProfilePage from './pages/auth/CompleteProfilePage';
 import SellerRegisterPage from './pages/auth/SellerRegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+import SellerLayout from './pages/seller/SellerLayout';
 import SellerDashboard from './pages/seller/SellerDashboard';
+import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminBuyerApplicationsPage from './pages/admin/AdminBuyerApplicationsPage';
 import AdminSellerApplicationsPage from './pages/admin/AdminSellerApplicationsPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminActivityLogPage from './pages/admin/AdminActivityLogPage';
-import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
 import AdminDisputesPage from './pages/admin/AdminDisputesPage';
 import AdminReviewsPage from './pages/admin/AdminReviewsPage';
 import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
+import CatalogPage from './pages/CatalogPage';
+import ProductDetailPage from './pages/ProductDetailPage';
 import PrivacyPolicyPage from './pages/legal/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/legal/TermsOfServicePage';
 import CookiePolicyPage from './pages/legal/CookiePolicyPage';
@@ -104,6 +107,9 @@ function AppRoutes() {
         }
       />
       <Route path="/cart" element={<CartPage />} />
+      <Route path="/search" element={<CatalogPage />} />
+      <Route path="/category/:parentId" element={<CatalogPage />} />
+      <Route path="/products/:id" element={<ProductDetailPage />} />
 
       {/* Auth pages — redirect away if already logged in */}
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
@@ -140,15 +146,27 @@ function AppRoutes() {
         <Route path="wishlist"      element={<SettingsWishlist />} />
       </Route>
 
-      {/* Protected role routes */}
+      {/* Seller — nested layout, all routes approved-seller-gated */}
       <Route
-        path="/seller/dashboard"
+        path="/seller"
         element={
           <RequireApprovedSeller>
-            <SellerDashboard />
+            <SellerLayout />
           </RequireApprovedSeller>
         }
-      />
+      >
+        <Route index element={<SellerDashboard />} />
+        <Route path="products"     element={<AdminPlaceholderPage title="Products" />} />
+        <Route path="products/new" element={<AdminPlaceholderPage title="Add Product" />} />
+        <Route path="orders"       element={<AdminPlaceholderPage title="Orders" />} />
+        <Route path="inventory"    element={<AdminPlaceholderPage title="Inventory / Stock" />} />
+        <Route path="earnings"     element={<AdminPlaceholderPage title="Earnings & Payouts" />} />
+        <Route path="reports"      element={<AdminPlaceholderPage title="Sales Reports" />} />
+        <Route path="messages"     element={<AdminPlaceholderPage title="Messages" />} />
+        <Route path="reviews"      element={<AdminPlaceholderPage title="Reviews & Ratings" />} />
+        <Route path="shop-profile" element={<AdminPlaceholderPage title="Shop Profile" />} />
+        <Route path="account"      element={<AdminPlaceholderPage title="Account Settings" />} />
+      </Route>
       {/* Admin — nested layout, all routes role-gated */}
       <Route
         path="/admin"

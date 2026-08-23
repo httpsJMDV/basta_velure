@@ -7,7 +7,9 @@ import {
   rejectSellerApi,
   getSellerIdImageUrl,
   getSellerIdImageBackUrl,
+  getSellerSelfieUrl,
   getSellerBusinessPermitUrl,
+  getSellerDtiSecRegistrationUrl,
 } from '../../api/client';
 import type { ApplicationStatus, SellerApplication } from '../../types';
 import Button from '../../components/ui/Button';
@@ -348,7 +350,9 @@ function ReviewModal({
   const [acting,           setActing]           = useState(false);
   const [frontBlobUrl,     setFrontBlobUrl]     = useState<string | null | undefined>(undefined);
   const [backBlobUrl,      setBackBlobUrl]      = useState<string | null | undefined>(undefined);
+  const [selfieBlobUrl,    setSelfieBlobUrl]    = useState<string | null | undefined>(undefined);
   const [permitBlobUrl,    setPermitBlobUrl]    = useState<string | null | undefined>(undefined);
+  const [dtiSecBlobUrl,    setDtiSecBlobUrl]    = useState<string | null | undefined>(undefined);
 
   const isPending = app.application_status === 'pending';
 
@@ -362,6 +366,18 @@ function ReviewModal({
       .catch(() => setFrontBlobUrl(null));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [app.id]);
+
+  // Fetch selfie with ID
+  useEffect(() => {
+    if (!app.selfie_with_id_url) { setSelfieBlobUrl(null); return; }
+    const token = localStorage.getItem('token');
+    let objectUrl: string;
+    fetch(getSellerSelfieUrl(app.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then((blob) => { objectUrl = URL.createObjectURL(blob); setSelfieBlobUrl(objectUrl); })
+      .catch(() => setSelfieBlobUrl(null));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [app.id, app.selfie_with_id_url]);
 
   // Fetch back ID
   useEffect(() => {
@@ -386,6 +402,18 @@ function ReviewModal({
       .catch(() => setPermitBlobUrl(null));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [app.id, app.business_permit_url]);
+
+  // Fetch DTI/SEC registration
+  useEffect(() => {
+    if (!app.dti_sec_registration_url) { setDtiSecBlobUrl(null); return; }
+    const token = localStorage.getItem('token');
+    let objectUrl: string;
+    fetch(getSellerDtiSecRegistrationUrl(app.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then((blob) => { objectUrl = URL.createObjectURL(blob); setDtiSecBlobUrl(objectUrl); })
+      .catch(() => setDtiSecBlobUrl(null));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [app.id, app.dti_sec_registration_url]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !lightboxUrl && !dialog) onClose(); };
@@ -459,9 +487,8 @@ function ReviewModal({
                 <div>
                   <SectionHeading>Shop Information</SectionHeading>
                   <div className="grid grid-cols-1 gap-4">
-                    <InfoRow label="Shop Name"        value={app.shop_name} />
-                    <InfoRow label="Line of Business" value={app.shop_category} />
-                    <InfoRow label="Description"      value={app.shop_description} />
+                    <InfoRow label="Shop Name"   value={app.shop_name} />
+                    <InfoRow label="Description" value={app.shop_description} />
                   </div>
                 </div>
 
@@ -487,7 +514,6 @@ function ReviewModal({
                   <div className="grid grid-cols-1 gap-4">
                     <InfoRow label="Email"          value={app.user.email} />
                     <InfoRow label="Contact Number" value={app.user.phone} />
-                    <InfoRow label="GCash Number"   value={app.payout_gcash_number} />
                   </div>
                 </div>
 
@@ -505,13 +531,24 @@ function ReviewModal({
                     {!!app.government_id_image_back_url && (
                       <DocImageRow
                         label="Government ID (Back)"
+                        subtitle={formatIdType(app.government_id_type)}
                         blobUrl={backBlobUrl}
                         onView={(url) => setLightboxUrl(url)}
                       />
                     )}
                     <DocImageRow
-                      label="Business Permit"
+                      label="Selfie with ID"
+                      blobUrl={selfieBlobUrl}
+                      onView={(url) => setLightboxUrl(url)}
+                    />
+                    <DocImageRow
+                      label="Business Permit (LGU)"
                       blobUrl={permitBlobUrl}
+                      onView={(url) => setLightboxUrl(url)}
+                    />
+                    <DocImageRow
+                      label="DTI / SEC Business Registration"
+                      blobUrl={dtiSecBlobUrl}
                       onView={(url) => setLightboxUrl(url)}
                     />
                   </div>
@@ -790,7 +827,6 @@ export default function AdminSellerApplicationsPage() {
                       <p className="font-semibold text-gray-900 group-hover:text-brand-red transition-colors">
                         {app.shop_name}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">{app.shop_category || '—'}</p>
                     </td>
                     <td className="px-5 py-4 hidden sm:table-cell">
                       <p className="text-sm text-gray-700">{app.user.first_name} {app.user.last_name}</p>

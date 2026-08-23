@@ -24,6 +24,12 @@ import type {
   ModerationStatus,
   Conversation,
   ChatMessage,
+  ProductFilters,
+  CatalogResponse,
+  ProductDetail,
+  ProductReviewsResponse,
+  CatalogMeta,
+  Product,
 } from '../types';
 
 const http = axios.create({
@@ -135,9 +141,17 @@ export const getSellerIdImageUrl = (id: number) =>
 
 export const getSellerIdImageBackUrl = (id: number) =>
   `${http.defaults.baseURL}/admin/seller-applications/${id}/id-image-back`;
+export const getSellerSelfieUrl = (id: number): string =>
+  `${http.defaults.baseURL}/admin/seller-applications/${id}/selfie`;
 
 export const getSellerBusinessPermitUrl = (id: number) =>
   `${http.defaults.baseURL}/admin/seller-applications/${id}/business-permit`;
+
+export const getSellerDtiSecRegistrationUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/seller-applications/${id}/dti-sec-registration`;
+
+export const getSellerFdaLtoUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/seller-applications/${id}/fda-lto`;
 
 // Admin — seller applications
 export const getSellerApplicationsApi = (params?: { status?: string; search?: string; sort?: string; page?: number; per_page?: number }) =>
@@ -218,6 +232,43 @@ export const moderateReviewApi = (id: number, moderation_status: ModerationStatu
 
 export const getAdminReviewStatsApi = () =>
   http.get<{ data: AdminReviewStats }>('/admin/reviews/stats').then((r) => r.data.data);
+
+// Products — public catalog
+export const getProductsApi = (filters: ProductFilters = {}) => {
+  const params: Record<string, string | number | boolean> = {};
+  if (filters.q)                  params.q                  = filters.q;
+  if (filters.parent_category_id) params.parent_category_id = filters.parent_category_id;
+  if (filters.category_id)        params.category_id        = filters.category_id;
+  if (filters.seller_ids?.length) params.seller_ids         = filters.seller_ids.join(',');
+  if (filters.min_price != null)  params.min_price          = filters.min_price;
+  if (filters.max_price != null)  params.max_price          = filters.max_price;
+  if (filters.min_rating != null) params.min_rating         = filters.min_rating;
+  if (filters.free_shipping)      params.free_shipping      = true;
+  if (filters.cod)                params.cod                = true;
+  if (filters.on_sale)            params.on_sale            = true;
+  if (filters.new_arrivals)       params.new_arrivals       = true;
+  if (filters.provinces?.length)  params.provinces          = filters.provinces.join(',');
+  if (filters.sort)               params.sort               = filters.sort;
+  if (filters.page)               params.page               = filters.page;
+  if (filters.per_page)           params.per_page           = filters.per_page;
+  return http.get<CatalogResponse>('/products', { params }).then((r) => r.data);
+};
+
+// Products — detail & reviews
+export const getProductApi = (id: number) =>
+  http.get<{ data: ProductDetail }>(`/products/${id}`).then((r) => r.data.data);
+
+export const getProductReviewsApi = (id: number, params?: { rating?: number; sort?: 'recent' | 'relevance'; page?: number }) =>
+  http.get<ProductReviewsResponse>(`/products/${id}/reviews`, { params }).then((r) => r.data);
+
+export const getRelatedProductsApi = (id: number) =>
+  http.get<{ data: Product[]; meta: CatalogMeta }>(`/products/${id}/related`).then((r) => r.data);
+
+export const toggleWishlistApi = (productId: number) =>
+  http.post<{ wishlisted: boolean }>(`/wishlist/toggle`, { product_id: productId }).then((r) => r.data);
+
+export const addToCartApi = (variantId: number, quantity: number) =>
+  http.post('/cart/items', { variant_id: variantId, quantity });
 
 // Admin — conversations
 export const getConversationsApi = () =>

@@ -564,9 +564,11 @@ export default function CompleteProfilePage() {
       if (idBackFile) fd.append('government_id_image_back', idBackFile);
 
       const updated = await completeProfileApi(fd);
-      setUser(updated);
       completedRef.current = true;
-      navigate('/', { replace: true });
+      // Profile is complete — account is now pending admin approval.
+      // Clear auth so they land as a guest with the pending message.
+      clearAuth();
+      navigate('/', { replace: true, state: { pendingApproval: true } });
     } catch (err: unknown) {
       const resp = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
       if (resp?.errors) {

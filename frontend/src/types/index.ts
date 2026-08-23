@@ -52,6 +52,7 @@ export interface ActivityLogEntry {
 export type Role = 'admin' | 'buyer' | 'seller' | 'rider';
 export type UserStatus = 'active' | 'suspended';
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
+export type SellerStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
 export type GovernmentIdType =
   | 'national_id' | 'drivers_license' | 'passport' | 'umid'
@@ -59,7 +60,6 @@ export type GovernmentIdType =
 
 export interface SellerProfileSummary {
   shop_name: string;
-  shop_category: string | null;
   shop_description: string | null;
   application_status: ApplicationStatus;
   rejection_reason: string | null;
@@ -112,14 +112,14 @@ export interface SellerApplication {
   id: number;
   application_status: ApplicationStatus;
   shop_name: string;
-  shop_category: string | null;
   shop_description: string | null;
   date_of_birth: string;
   government_id_type: GovernmentIdType;
   government_id_image_url: string;
   government_id_image_back_url: string | null;
+  selfie_with_id_url: string | null;
   business_permit_url: string | null;
-  payout_gcash_number: string;
+  dti_sec_registration_url: string | null;
   rejection_reason: string | null;
   submitted_at: string;
   reviewed_at: string | null;
@@ -295,6 +295,239 @@ export interface ChatMessage {
   sender_role: Role;
   read_at: string | null;
   created_at: string;
+}
+
+// ─── Product Catalog ─────────────────────────────────────────────────────────
+
+export type ProductStatus = 'draft' | 'active' | 'archived';
+
+export interface ProductSeller {
+  id: number;
+  shop_name: string;
+  city: string | null;
+  province: string | null;
+}
+
+export interface ProductVariantSummary {
+  id: number;
+  price: number;
+  original_price: number | null;
+  stock_quantity: number;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  description: string | null;
+  category_id: string;          // leaf category ID from CATEGORY_TREE
+  status: ProductStatus;
+  thumbnail_url: string | null;
+  base_price: number;
+  original_price: number | null; // null = not on sale
+  units_sold: number;
+  avg_rating: number | null;
+  review_count: number;
+  seller: ProductSeller;
+  variants: ProductVariantSummary[];
+}
+
+// ─── Product Detail ─────────────────────────────────────────────────────────
+
+export interface ProductImage {
+  id: number;
+  url: string;
+  is_primary: boolean;
+  sort_order: number;
+}
+
+export interface ProductVariantOption {
+  id: number;
+  label: string;          // e.g. "Red", "XL", "Chocolate"
+  stock_quantity: number;
+  price: number;
+  original_price: number | null;
+  sku: string | null;
+}
+
+export interface ProductVariantGroup {
+  name: string;           // e.g. "Color", "Size", "Flavor"
+  options: ProductVariantOption[];
+}
+
+export interface ProductDetailSeller {
+  id: number;
+  shop_name: string;
+  avatar_url: string | null;
+  city: string | null;
+  province: string | null;
+  rating_pct: number | null;   // e.g. 97 = 97%
+  units_sold: number;
+  repurchase_rate: number | null; // e.g. 82 = 82%
+  response_rate: number | null;
+}
+
+export interface ProductDetailSpecs {
+  // Always present
+  description: string;
+  whats_in_box: string[] | null;
+  weight_grams: number | null;
+  dimensions_cm: string | null;  // e.g. "30 × 20 × 10"
+  sku: string | null;
+  // Food & Grocery
+  ingredients: string | null;
+  net_weight_volume: string | null;
+  storage_instructions: string | null;
+  expiry_best_before: string | null;
+  allergen_info: string | null;
+  fda_registration_number: string | null;
+  // Health & Beauty
+  key_ingredients: string | null;
+  skin_type_suitability: string | null;
+  // Electronics
+  battery_info: string | null;
+  ports_connectivity: string | null;
+  compatibility: string | null;
+  // Fashion
+  material: string | null;
+  care_instructions: string | null;
+  size_chart_url: string | null;
+}
+
+export interface ProductDetail extends Omit<Product, 'variants' | 'thumbnail_url'> {
+  images: ProductImage[];
+  variant_groups: ProductVariantGroup[];
+  specs: ProductDetailSpecs;
+  seller: ProductDetailSeller;
+  shipping_fee: number | null;
+  estimated_delivery_days_min: number;
+  estimated_delivery_days_max: number;
+  return_policy: string | null;
+  warranty: string | null;
+  is_wishlisted: boolean;
+}
+
+export interface ProductReview {
+  id: number;
+  rating: number;
+  comment: string | null;
+  verified_purchase: boolean;
+  created_at: string;
+  images: string[];
+  buyer: { first_name: string; last_name: string; avatar_url: string | null };
+}
+
+export interface ProductReviewsResponse {
+  data: ProductReview[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    total: number;
+    avg_rating: number | null;
+    rating_counts: Record<string, number>; // "1".."5" → count
+  };
+}
+
+export interface ProductFilters {
+  q?: string;                   // free-text search
+  parent_category_id?: string;  // parent node ID
+  category_id?: string;         // leaf node ID
+  seller_ids?: number[];
+  min_price?: number;
+  max_price?: number;
+  min_rating?: number;          // 3 | 4
+  free_shipping?: boolean;
+  cod?: boolean;
+  on_sale?: boolean;
+  new_arrivals?: boolean;
+  provinces?: string[];
+  sort?: 'best_match' | 'price_asc' | 'price_desc' | 'newest' | 'best_selling' | 'highest_rated';
+  page?: number;
+  per_page?: number;
+}
+
+export interface CatalogMeta {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+  from: number | null;
+  to: number | null;
+}
+
+export interface CatalogFacets {
+  sellers: { id: number; shop_name: string; count: number }[];
+  provinces: { name: string; count: number }[];
+}
+
+export interface CatalogResponse {
+  data: Product[];
+  meta: CatalogMeta;
+  facets: CatalogFacets;
+}
+
+// ─── Seller Balance & Payouts ────────────────────────────────────────────────
+
+export interface SellerBalance {
+  pending: number;      // revenue from unconfirmed delivered orders
+  available: number;    // ready to withdraw
+  total_paid_out: number;
+}
+
+export type PayoutStatus = 'requested' | 'approved' | 'sent' | 'rejected';
+
+export interface PayoutRequest {
+  id: number;
+  seller_id: number;
+  amount: number;
+  gcash_number: string;
+  status: PayoutStatus;
+  requested_at: string;
+  sent_at: string | null;
+  rejection_reason: string | null;
+}
+
+// ─── Seller Dashboard Stats ───────────────────────────────────────────────────
+
+export interface SellerDashboardStats {
+  today_sales: number;
+  orders_to_pack: number;
+  total_products: number;
+  low_stock_count: number;
+  balance: SellerBalance;
+}
+
+export interface SellerChartPoint {
+  date: string;
+  sales: number;
+  orders: number;
+}
+
+export interface SellerTopProduct {
+  id: number;
+  name: string;
+  thumbnail_url: string | null;
+  units_sold: number;
+  revenue: number;
+}
+
+export interface SellerAttentionItem {
+  type: 'new_order' | 'low_stock' | 'rejected_product' | 'unread_message';
+  id: number;
+  label: string;
+  sub: string;
+  link: string;
+}
+
+// ─── Seller Conversations ─────────────────────────────────────────────────────
+
+export interface SellerConversation {
+  id: number;
+  buyer_id: number;
+  buyer_name: string;
+  buyer_avatar_url: string | null;
+  last_message: { body: string; created_at: string } | null;
+  last_message_at: string | null;
+  unread: number;
 }
 
 export type AddressLabel = 'home' | 'office';

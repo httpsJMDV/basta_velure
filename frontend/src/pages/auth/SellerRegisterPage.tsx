@@ -9,8 +9,7 @@ import CustomSelect from '../../components/ui/CustomSelect';
 import AddressFields from '../../components/ui/AddressFields';
 import type { AddressValue } from '../../components/ui/AddressFields';
 import type { GovernmentIdType } from '../../types';
-import { CATEGORY_OPTIONS } from '../../data/categories';
-import { UploadCloud, FileText, X, Image as ImageIcon, CheckCircle, Clock, AlertCircle, Store } from 'lucide-react';
+import { UploadCloud, FileText, X, Image as ImageIcon, CheckCircle, AlertCircle, Store, Clock, FileCheck, Mail, ArrowRight, RotateCcw } from 'lucide-react';
 
 const ID_TYPES: { value: GovernmentIdType; label: string }[] = [
   { value: 'national_id',     label: 'National ID (PhilSys)' },
@@ -30,33 +29,33 @@ const REQUIRES_BACK: GovernmentIdType[] = [
 
 interface FormState {
   shop_name: string;
-  line_of_business: string;
-  line_of_business_custom: string;
   shop_description: string;
   government_id_type: GovernmentIdType | '';
   government_id_image: File | null;
   government_id_image_back: File | null;
+  selfie_with_id: File | null;
   business_permit: File | null;
+  dti_sec_registration: File | null;
   address: AddressValue;
 }
 
 const initial: FormState = {
   shop_name: '',
-  line_of_business: '',
-  line_of_business_custom: '',
   shop_description: '',
   government_id_type: '',
   government_id_image: null,
   government_id_image_back: null,
+  selfie_with_id: null,
   business_permit: null,
+  dti_sec_registration: null,
   address: { province: '', city_municipality: '', barangay: '', street_address: '' },
 };
 
 function IDUploadZone({
-  label, file, onChange, onClear, error,
+  label, file, onChange, onClear, error, accept = '.jpg,.jpeg,.png,.pdf', hint = 'JPG, PNG, or PDF — max 5MB',
 }: {
   label: string; file: File | null;
-  onChange: (f: File) => void; onClear: () => void; error?: string;
+  onChange: (f: File) => void; onClear: () => void; error?: string; accept?: string; hint?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -85,7 +84,7 @@ function IDUploadZone({
     <div className="flex flex-col gap-1">
       <label className="text-sm font-medium text-brand-gray-mid">
         {label} <span className="text-brand-red">*</span>
-        <span className="text-xs text-gray-400 font-normal ml-1">(JPG, PNG, or PDF — max 5MB)</span>
+        <span className="text-xs text-gray-400 font-normal ml-1">({hint})</span>
       </label>
       {!file ? (
         <div
@@ -101,8 +100,8 @@ function IDUploadZone({
         >
           <UploadCloud className={`w-8 h-8 ${dragging ? 'text-brand-red' : 'text-gray-300'}`} />
           <p className="text-sm font-semibold text-gray-500">Click to upload or drag & drop</p>
-          <p className="text-xs text-gray-400">JPG, PNG, PDF up to 5MB</p>
-          <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden"
+          <p className="text-xs text-gray-400">{hint}</p>
+          <input ref={inputRef} type="file" accept={accept} className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); }} />
         </div>
       ) : (
@@ -142,18 +141,81 @@ function IDUploadZone({
 // ─── Status screens ───────────────────────────────────────────────────────────
 
 function PendingScreen() {
+  const steps = [
+    { icon: FileCheck, label: 'Application submitted',  sub: 'Your documents are in the queue',   done: true  },
+    { icon: Clock,     label: 'Document verification',  sub: 'Admin reviews your ID & permits',   done: false },
+    { icon: Mail,      label: 'Decision via email',      sub: 'Approval or feedback sent to you',  done: false },
+    { icon: Store,     label: 'Start selling on Velure', sub: 'Access your seller dashboard',      done: false },
+  ];
+
   return (
-    <div className="flex flex-col items-center text-center gap-4 py-8">
-      <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center">
-        <Clock className="w-8 h-8 text-amber-500" />
+    <div className="flex flex-col gap-7">
+      {/* Hero block */}
+      <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-7 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 bg-amber-400/15 border border-amber-400/30 rounded-full px-3 py-1 mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-xs font-semibold text-amber-300 tracking-wide">Under Review</span>
+          </div>
+          <h2 className="text-xl font-bold text-white leading-snug">We're reviewing your<br />application</h2>
+          <p className="text-sm text-white/50 mt-1.5">
+            Typically takes 1–3 business days.
+          </p>
+        </div>
       </div>
-      <div>
-        <h2 className="text-xl font-bold text-brand-black">Application Under Review</h2>
-        <p className="text-sm text-gray-500 mt-1 max-w-xs">
-          Your seller application has been submitted. Our team will review it and notify you via email once a decision is made.
-        </p>
+
+      {/* Steps */}
+      <div className="flex flex-col gap-0">
+        {steps.map(({ icon: Icon, label, sub, done }, i) => (
+          <div key={label} className="flex gap-3">
+            {/* connector */}
+            <div className="flex flex-col items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors ${
+                done
+                  ? 'bg-green-500 border-green-500'
+                  : i === 1
+                  ? 'bg-white border-brand-red'
+                  : 'bg-white border-gray-200'
+              }`}>
+                {done
+                  ? <CheckCircle className="w-4 h-4 text-white" />
+                  : <Icon className={`w-3.5 h-3.5 ${i === 1 ? 'text-brand-red' : 'text-gray-300'}`} />
+                }
+              </div>
+              {i < steps.length - 1 && (
+                <div className={`w-px flex-1 my-1 ${ done ? 'bg-green-200' : 'bg-gray-100' }`} style={{ minHeight: 20 }} />
+              )}
+            </div>
+            {/* content */}
+            <div className="pb-5 pt-1 flex-1 min-w-0">
+              <p className={`text-sm font-semibold leading-none ${
+                done ? 'text-green-700' : i === 1 ? 'text-brand-black' : 'text-gray-400'
+              }`}>{label}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+            </div>
+            {done && (
+              <span className="mt-1 text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 h-fit shrink-0">
+                Done
+              </span>
+            )}
+            {i === 1 && (
+              <span className="mt-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 h-fit shrink-0">
+                In progress
+              </span>
+            )}
+          </div>
+        ))}
       </div>
-      <Link to="/" className="text-sm text-brand-red font-semibold hover:underline">Back to Shopping</Link>
+
+      {/* CTA */}
+      <Link
+        to="/"
+        className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors"
+      >
+        Continue Shopping <ArrowRight className="w-4 h-4" />
+      </Link>
     </div>
   );
 }
@@ -161,43 +223,69 @@ function PendingScreen() {
 function ApprovedScreen() {
   const navigate = useNavigate();
   return (
-    <div className="flex flex-col items-center text-center gap-4 py-8">
-      <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center">
-        <CheckCircle className="w-8 h-8 text-green-500" />
+    <div className="flex flex-col gap-7">
+      <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-7 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="relative">
+          <div className="w-10 h-10 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mb-4">
+            <CheckCircle className="w-5 h-5 text-green-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white leading-snug">You're approved!</h2>
+          <p className="text-sm text-white/50 mt-1.5">Your seller account is now active.</p>
+        </div>
       </div>
-      <div>
-        <h2 className="text-xl font-bold text-brand-black">You're a Velure Seller!</h2>
-        <p className="text-sm text-gray-500 mt-1 max-w-xs">
-          Your seller account is active. Head to your Seller Dashboard to manage your shop.
-        </p>
+
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm text-gray-600 leading-relaxed">
+        Head to your <span className="font-semibold text-brand-black">Seller Dashboard</span> to set up your shop, add products, and start selling.
       </div>
-      <Button onClick={() => navigate('/seller/dashboard')} className="min-w-[180px]">
-        Go to Seller Dashboard
-      </Button>
-      <Link to="/" className="text-sm text-gray-400 hover:underline">Back to Shopping</Link>
+
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={() => navigate('/seller/dashboard')}
+          className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors"
+        >
+          Go to Seller Dashboard <ArrowRight className="w-4 h-4" />
+        </button>
+        <Link to="/" className="flex items-center justify-center w-full min-h-[40px] rounded-xl text-sm font-semibold text-gray-500 hover:text-brand-black transition-colors">
+          Back to Shopping
+        </Link>
+      </div>
     </div>
   );
 }
 
 function RejectedScreen({ reason, onReapply }: { reason: string | null; onReapply: () => void }) {
   return (
-    <div className="flex flex-col items-center text-center gap-4 py-8">
-      <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center">
-        <AlertCircle className="w-8 h-8 text-brand-red" />
-      </div>
-      <div>
-        <h2 className="text-xl font-bold text-brand-black">Application Rejected</h2>
-        {reason && (
-          <div className="mt-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 text-left max-w-sm">
-            <span className="font-semibold">Reason: </span>{reason}
+    <div className="flex flex-col gap-7">
+      <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-7 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="relative">
+          <div className="w-10 h-10 rounded-full bg-brand-red/20 border border-brand-red/30 flex items-center justify-center mb-4">
+            <AlertCircle className="w-5 h-5 text-brand-red" />
           </div>
-        )}
-        <p className="text-sm text-gray-500 mt-3 max-w-xs">
-          You may correct the issues above and resubmit your application.
-        </p>
+          <h2 className="text-xl font-bold text-white leading-snug">Application not approved</h2>
+          <p className="text-sm text-white/50 mt-1.5">You can correct the issues and resubmit.</p>
+        </div>
       </div>
-      <Button onClick={onReapply} className="min-w-[180px]">Resubmit Application</Button>
-      <Link to="/" className="text-sm text-gray-400 hover:underline">Back to Shopping</Link>
+
+      {reason && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-1">Reason for rejection</p>
+          <p className="text-sm text-red-700 leading-relaxed">{reason}</p>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={onReapply}
+          className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors"
+        >
+          <RotateCcw className="w-4 h-4" /> Resubmit Application
+        </button>
+        <Link to="/" className="flex items-center justify-center w-full min-h-[40px] rounded-xl text-sm font-semibold text-gray-500 hover:text-brand-black transition-colors">
+          Back to Shopping
+        </Link>
+      </div>
     </div>
   );
 }
@@ -249,9 +337,6 @@ export default function SellerRegisterPage() {
     const errs: Partial<Record<keyof FormState, string>> = {};
     const addrErrs: Partial<Record<keyof AddressValue, string>> = {};
     if (!form.shop_name.trim())        errs.shop_name        = 'Shop name is required.';
-    if (!form.line_of_business)        errs.line_of_business = 'Please select a line of business.';
-    if (form.line_of_business === 'others' && !form.line_of_business_custom.trim())
-      errs.line_of_business_custom = 'Please specify your line of business.';
     if (!form.shop_description.trim()) errs.shop_description = 'Store description is required.';
     if (!form.address.province)          addrErrs.province          = 'Province is required.';
     if (!form.address.city_municipality) addrErrs.city_municipality = 'City / Municipality is required.';
@@ -274,12 +359,27 @@ export default function SellerRegisterPage() {
         errs.government_id_image_back = 'File must be 5MB or smaller.';
       }
     }
+    const selfieAllowed = ['image/jpeg', 'image/png'];
+    if (!form.selfie_with_id) {
+      errs.selfie_with_id = 'Please upload a selfie holding your ID.';
+    } else if (!selfieAllowed.includes(form.selfie_with_id.type)) {
+      errs.selfie_with_id = 'Only JPG or PNG files are allowed for selfies.';
+    } else if (form.selfie_with_id.size > 5 * 1024 * 1024) {
+      errs.selfie_with_id = 'File must be 5MB or smaller.';
+    }
     if (!form.business_permit) {
       errs.business_permit = 'Please upload your business permit.';
     } else if (!allowed.includes(form.business_permit.type)) {
       errs.business_permit = 'Only JPG, PNG, or PDF files are allowed.';
     } else if (form.business_permit.size > 5 * 1024 * 1024) {
       errs.business_permit = 'File must be 5MB or smaller.';
+    }
+    if (!form.dti_sec_registration) {
+      errs.dti_sec_registration = 'Please upload your DTI or SEC Business Registration.';
+    } else if (!allowed.includes(form.dti_sec_registration.type)) {
+      errs.dti_sec_registration = 'Only JPG, PNG, or PDF files are allowed.';
+    } else if (form.dti_sec_registration.size > 5 * 1024 * 1024) {
+      errs.dti_sec_registration = 'File must be 5MB or smaller.';
     }
     setErrors(errs);
     setAddressErrors(addrErrs);
@@ -294,21 +394,22 @@ export default function SellerRegisterPage() {
 
     const data = new FormData();
     data.append('shop_name', form.shop_name);
-    data.append('line_of_business', form.line_of_business === 'others' ? form.line_of_business_custom : form.line_of_business);
     data.append('shop_description', form.shop_description);
     data.append('address_province', form.address.province);
     data.append('address_city', form.address.city_municipality);
     data.append('address_barangay', form.address.barangay);
     if (form.address.street_address) data.append('address_street', form.address.street_address);
     data.append('government_id_type', form.government_id_type);
-    if (form.government_id_image)      data.append('government_id_image', form.government_id_image);
-    if (form.government_id_image_back) data.append('government_id_image_back', form.government_id_image_back);
-    if (form.business_permit)          data.append('business_permit', form.business_permit);
+    if (form.government_id_image)        data.append('government_id_image', form.government_id_image);
+    if (form.government_id_image_back)   data.append('government_id_image_back', form.government_id_image_back);
+    if (form.selfie_with_id)             data.append('selfie_with_id', form.selfie_with_id);
+    if (form.business_permit)            data.append('business_permit', form.business_permit);
+    if (form.dti_sec_registration)       data.append('dti_sec_registration', form.dti_sec_registration);
 
     try {
       const res = await applyAsSellerApi(data);
       setUser(res.data);
-      // setUser updates context; the status routing above will now show PendingScreen
+      setForceForm(false); // let status routing take over → shows PendingScreen
     } catch (err: unknown) {
       const resp = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
       if (resp?.errors) {
@@ -382,20 +483,6 @@ export default function SellerRegisterPage() {
         <Input label="Shop / Store Name" value={form.shop_name}
           onChange={(e) => set('shop_name', e.target.value)} error={errors.shop_name} required />
 
-        <CustomSelect
-          label="Line of Business (Category)" required
-          value={form.line_of_business}
-          onChange={(val) => { set('line_of_business', val); if (val !== 'others') set('line_of_business_custom', ''); }}
-          options={CATEGORY_OPTIONS} placeholder="Select a category…"
-          error={errors.line_of_business}
-        />
-
-        {form.line_of_business === 'others' && (
-          <Input label="Specify your line of business" value={form.line_of_business_custom}
-            onChange={(e) => set('line_of_business_custom', e.target.value)}
-            error={errors.line_of_business_custom} placeholder="e.g. Handmade Crafts" required />
-        )}
-
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-brand-gray-mid">
             Store Description <span className="text-brand-red">*</span>
@@ -460,15 +547,36 @@ export default function SellerRegisterPage() {
           />
         )}
 
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mt-2">Business Permit</p>
+        {form.government_id_type && (
+          <IDUploadZone
+            label="Selfie Holding Your ID"
+            accept=".jpg,.jpeg,.png"
+            hint="JPG or PNG only — max 5MB"
+            file={form.selfie_with_id}
+            onChange={(f) => { setForm((s) => ({ ...s, selfie_with_id: f })); setErrors((e) => ({ ...e, selfie_with_id: undefined })); }}
+            onClear={() => { setForm((s) => ({ ...s, selfie_with_id: null })); }}
+            error={errors.selfie_with_id}
+          />
+        )}
+
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mt-2">Business Documents</p>
         <IDUploadZone
-          label="Business Permit"
+          label="Business Permit (LGU)"
           file={form.business_permit}
           onChange={(f) => { setForm((s) => ({ ...s, business_permit: f })); setErrors((e) => ({ ...e, business_permit: undefined })); }}
           onClear={() => { setForm((s) => ({ ...s, business_permit: null })); }}
           error={errors.business_permit}
         />
-
+        <IDUploadZone
+          label="DTI or SEC Business Registration"
+          file={form.dti_sec_registration}
+          onChange={(f) => { setForm((s) => ({ ...s, dti_sec_registration: f })); setErrors((e) => ({ ...e, dti_sec_registration: undefined })); }}
+          onClear={() => { setForm((s) => ({ ...s, dti_sec_registration: null })); }}
+          error={errors.dti_sec_registration}
+        />
+        <p className="text-[11px] text-gray-400 -mt-2">
+          DTI registers sole proprietors; SEC registers corporations/partnerships. This is separate from your LGU Business Permit.
+        </p>
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-700 leading-relaxed">
           After submitting, please wait for the administrator's approval. You will be notified via email.
         </div>

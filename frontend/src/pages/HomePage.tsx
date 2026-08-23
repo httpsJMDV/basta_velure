@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import UserAvatar from '../components/ui/UserAvatar';
 import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, Settings, LogOut } from 'lucide-react';
@@ -7,7 +7,7 @@ import { motion, useInView, AnimatePresence } from 'framer-motion';
 import HeroCarousel from '../components/HeroCarousel';
 import CartModal from '../components/CartModal';
 import type { CartItem } from '../components/CartModal';
-import { CATEGORIES } from '../data/categories';
+import { CATEGORY_TREE } from '../data/categories';
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
 
@@ -40,15 +40,16 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const menuItems = [
-    { icon: User, label: 'Manage Account', to: '/settings' },
-    { icon: MapPin, label: 'Address Book', to: '/settings/addresses' },
-    { icon: Package, label: 'My Orders', to: '/settings/orders' },
-    { icon: RotateCcw, label: 'My Returns', to: '/settings/returns' },
-    { icon: XCircle, label: 'My Cancellations', to: '/settings/cancellations' },
-    { icon: Star, label: 'My Reviews', to: '/settings/reviews' },
-    { icon: Heart, label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
-    { icon: Store, label: 'Sell in Velure', to: '/register/seller', highlight: true },
+  const sellerStatus = user.seller_profile?.application_status ?? 'none';
+
+  const staticItems = [
+    { icon: User,      label: 'Manage Account',           to: '/settings' },
+    { icon: MapPin,    label: 'Address Book',              to: '/settings/addresses' },
+    { icon: Package,   label: 'My Orders',                 to: '/settings/orders' },
+    { icon: RotateCcw, label: 'My Returns',                to: '/settings/returns' },
+    { icon: XCircle,   label: 'My Cancellations',          to: '/settings/cancellations' },
+    { icon: Star,      label: 'My Reviews',                to: '/settings/reviews' },
+    { icon: Heart,     label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
   ];
 
   return (
@@ -84,20 +85,51 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
 
             {/* Menu items */}
             <div className="py-1.5">
-              {menuItems.map(({ icon: Icon, label, to, highlight }) => (
+              {staticItems.map(({ icon: Icon, label, to }) => (
                 <button
                   key={to}
                   onClick={() => { navigate(to); setOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                    highlight
-                      ? 'text-brand-red font-semibold hover:bg-red-50'
-                      : 'text-brand-gray-mid hover:bg-gray-50'
-                  }`}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-gray-mid hover:bg-gray-50 transition-colors"
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   {label}
                 </button>
               ))}
+
+              {/* Conditional seller item */}
+              {sellerStatus === 'none' && (
+                <button
+                  onClick={() => { navigate('/register/seller'); setOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors"
+                >
+                  <Store className="w-4 h-4 shrink-0" />
+                  Sell in Velure
+                </button>
+              )}
+              {sellerStatus === 'pending' && (
+                <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed select-none">
+                  <Store className="w-4 h-4 shrink-0" />
+                  <span>Seller Application Pending</span>
+                </div>
+              )}
+              {sellerStatus === 'rejected' && (
+                <button
+                  onClick={() => { navigate('/register/seller'); setOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors"
+                >
+                  <Store className="w-4 h-4 shrink-0" />
+                  Reapply as Seller
+                </button>
+              )}
+              {sellerStatus === 'approved' && (
+                <button
+                  onClick={() => { navigate('/seller'); setOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors"
+                >
+                  <Store className="w-4 h-4 shrink-0" />
+                  Check Your Sales
+                </button>
+              )}
             </div>
 
             <div className="border-t border-gray-100 py-1.5">
@@ -118,12 +150,31 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
 
 export default function HomePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [cartItems] = useState<CartItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const pendingApproval = (location.state as { pendingApproval?: boolean } | null)?.pendingApproval ?? false;
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (q) navigate(`/search?q=${encodeURIComponent(q)}`);
+  }
 
   return (
     <div className="min-h-screen bg-brand-gray-soft flex flex-col">
+
+      {/* ── Pending approval banner ── */}
+      {pendingApproval && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-center">
+          <p className="text-sm text-amber-800 font-medium">
+            ✅ Your registration is complete! Your account is pending admin approval — you'll be notified by email once it's reviewed.
+          </p>
+        </div>
+      )}
 
       {/* ── Top utility bar ── */}
       <div className="bg-brand-black text-white text-xs hidden sm:block">
@@ -152,16 +203,18 @@ export default function HomePage() {
           </Link>
 
           {/* Search bar — desktop */}
-          <div className="hidden sm:flex flex-1 max-w-2xl mx-auto">
+          <form onSubmit={handleSearch} className="hidden sm:flex flex-1 max-w-2xl mx-auto">
             <input
               type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search products, brands, categories…"
               className="flex-1 h-10 px-4 text-sm rounded-l-lg border-0 focus:outline-none text-brand-black"
             />
-            <button className="h-10 px-5 bg-brand-red-dark text-white text-sm font-semibold rounded-r-lg hover:bg-[#791F1F] transition-colors flex items-center gap-1">
+            <button type="submit" className="h-10 px-5 bg-brand-red-dark text-white text-sm font-semibold rounded-r-lg hover:bg-[#791F1F] transition-colors flex items-center gap-1">
               <Search className="w-4 h-4" />
             </button>
-          </div>
+          </form>
 
           {/* Right icons */}
           <div className="flex items-center gap-3 ml-auto sm:ml-0">
@@ -208,10 +261,12 @@ export default function HomePage() {
             <div className="flex">
               <input
                 type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products…"
                 className="flex-1 h-10 px-4 text-sm rounded-l-lg border-0 focus:outline-none text-brand-black"
               />
-              <button className="h-10 px-4 bg-brand-black text-white rounded-r-lg">
+              <button onClick={handleSearch} className="h-10 px-4 bg-brand-black text-white rounded-r-lg">
                 <Search className="w-4 h-4" />
               </button>
             </div>
@@ -253,17 +308,19 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto w-full px-4 py-10">
         <FadeInSection>
           <h2 className="text-lg font-bold text-brand-black mb-5">Shop by Category</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {CATEGORIES.map((cat, i) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+            {CATEGORY_TREE.map((cat, i) => (
               <motion.button
-                key={cat}
+                key={cat.id}
+                onClick={() => navigate(`/category/${cat.id}`)}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.4, delay: i * 0.07 }}
-                className="bg-white rounded-xl p-4 text-center text-sm font-medium text-brand-black hover:border-brand-red hover:border border border-transparent shadow-sm transition-all min-h-[44px]"
+                transition={{ duration: 0.4, delay: i * 0.05 }}
+                className="bg-white rounded-2xl p-4 text-center text-sm font-medium text-brand-black hover:border-brand-red hover:border border border-gray-100 shadow-sm transition-all min-h-[44px] flex flex-col items-center justify-center gap-1"
               >
-                {cat}
+                <span className="leading-snug">{cat.label}</span>
+                <span className="text-[10px] text-gray-400 font-normal">{cat.children.length} subcategories</span>
               </motion.button>
             ))}
           </div>
