@@ -70,7 +70,7 @@ class GoogleAuthController extends Controller
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
-                'data'               => new UserResource($user->load('sellerProfile')),
+                'data'               => new UserResource($user->load(['sellerProfile', 'addresses'])),
                 'token'              => $token,
                 'profile_incomplete' => true,
                 'google_avatar_url'  => $googleAvatar,
@@ -87,7 +87,7 @@ class GoogleAuthController extends Controller
             $user->update(['last_login_at' => now()]);
             $token = $user->createToken('auth_token')->plainTextToken;
             return response()->json([
-                'data'               => new UserResource($user->load('sellerProfile')),
+                'data'               => new UserResource($user->load(['sellerProfile', 'addresses'])),
                 'token'              => $token,
                 'profile_incomplete' => true,
                 'google_avatar_url'  => $googleAvatar,
@@ -112,7 +112,7 @@ class GoogleAuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'data'  => new UserResource($user->load('sellerProfile')),
+            'data'  => new UserResource($user->load(['sellerProfile', 'addresses'])),
             'token' => $token,
         ], 200);
     }

@@ -32,9 +32,10 @@ class UserResource extends JsonResource
             'government_id_image_back_url' => $this->government_id_image_back_path
                 ? url("/api/v1/admin/buyer-applications/{$this->id}/id-image-back")
                 : null,
-            'default_address' => $this->whenLoaded('addresses', function () {
-                $addr = $this->addresses->firstWhere('is_default', true)
-                    ?? $this->addresses->first();
+            'default_address' => call_user_func(function () {
+                $addr = $this->relationLoaded('addresses')
+                    ? ($this->addresses->firstWhere('is_default', true) ?? $this->addresses->first())
+                    : ($this->addresses()->where('is_default', true)->first() ?? $this->addresses()->first());
                 if (! $addr) return null;
                 return [
                     'province'          => $addr->province,
@@ -43,6 +44,7 @@ class UserResource extends JsonResource
                     'street_address'    => $addr->address ?: null,
                 ];
             }),
+            'has_password'  => ! is_null($this->password),
             'created_at' => $this->created_at?->toIso8601String(),
             'seller_profile' => $this->whenLoaded('sellerProfile', fn () => [
                 'shop_name'          => $this->sellerProfile->shop_name,

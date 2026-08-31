@@ -143,7 +143,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'data' => new UserResource($request->user()->load('sellerProfile')),
+            'data' => new UserResource($request->user()->load(['sellerProfile', 'addresses'])),
         ]);
     }
 
@@ -153,7 +153,7 @@ class AuthController extends Controller
 
         // Only needed if profile is still incomplete
         if ($user->date_of_birth && $user->sex && $user->government_id_type) {
-            return response()->json(['data' => new UserResource($user->load('sellerProfile'))]);
+            return response()->json(['data' => new UserResource($user->load(['sellerProfile', 'addresses']))]);
         }
 
         $validated = $request->validate([

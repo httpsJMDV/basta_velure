@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\AdminDisputeController;
 use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPaymentController;
+use App\Http\Controllers\Api\V1\AdminProductController;
 use App\Http\Controllers\Api\V1\AdminReviewController;
 use App\Http\Controllers\Api\V1\AdminBuyerApplicationController;
 use App\Http\Controllers\Api\V1\AdminSellerApplicationController;
@@ -12,6 +13,11 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ConversationController;
 use App\Http\Controllers\Api\V1\GoogleAuthController;
 use App\Http\Controllers\Api\V1\PasswordController;
+use App\Http\Controllers\Api\V1\SellerProductController;
+use App\Http\Controllers\Api\V1\PublicProductController;
+use App\Http\Controllers\Api\V1\PublicShopController;
+use App\Http\Controllers\Api\V1\SellerShopProfileController;
+use App\Http\Controllers\Api\V1\WishlistController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -21,6 +27,17 @@ RateLimiter::for('auth', fn (Request $request) => \Illuminate\Cache\RateLimiting
 RateLimiter::for('upload', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by($request->ip()));
 
 Route::prefix('v1')->group(function () {
+
+    // Public product catalog (no auth required)
+    Route::get('/products',                    [PublicProductController::class, 'index']);
+    Route::get('/products/{product}',          [PublicProductController::class, 'show']);
+    Route::get('/products/{product}/related',  [PublicProductController::class, 'related']);
+
+    // Public shop profile & reviews (no auth required)
+    Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);
+    Route::get('/shops/{shop}/reviews',        [PublicShopController::class, 'reviews']);
+    Route::get('/stores/{shop}',               [PublicShopController::class, 'show']);
+    Route::get('/stores/{shop}/reviews',       [PublicShopController::class, 'reviews']);
 
     // Public auth routes
     Route::middleware('throttle:auth')->group(function () {
@@ -39,6 +56,14 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/avatar', [AuthController::class, 'uploadAvatar'])->middleware('throttle:upload');
         Route::post('/auth/complete-profile', [AuthController::class, 'completeProfile'])->middleware('throttle:upload');
         Route::post('/auth/apply-seller', [AuthController::class, 'applyAsSeller'])->middleware('throttle:upload');
+
+        // Wishlist
+        Route::get('/wishlist', [WishlistController::class, 'index']);
+        Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
+
+        // Store follows
+        Route::get('/store-follows', [WishlistController::class, 'followedStores']);
+        Route::post('/store-follows/toggle', [WishlistController::class, 'toggleFollow']);
 
         // Addresses
         Route::get('/addresses', [AddressController::class, 'index']);
@@ -108,6 +133,17 @@ Route::prefix('v1')->group(function () {
             Route::get('/reviews/stats', [AdminReviewController::class, 'stats']);
             Route::patch('/reviews/{review}/moderate', [AdminReviewController::class, 'moderate']);
 
+            // Products (admin review)
+            Route::get('/products', [AdminProductController::class, 'index']);
+            Route::get('/products/stats', [AdminProductController::class, 'stats']);
+            Route::get('/products/{product}', [AdminProductController::class, 'show']);
+            Route::post('/products/{product}/approve', [AdminProductController::class, 'approve']);
+            Route::post('/products/{product}/reject',  [AdminProductController::class, 'reject']);
+            Route::post('/products/{product}/archive',     [AdminProductController::class, 'archive']);
+            Route::post('/products/{product}/reactivate',  [AdminProductController::class, 'reactivate']);
+            Route::get('/products/{product}/fda-lto',      [AdminProductController::class, 'fdaLto']);
+            Route::get('/products/{product}/fda-cpr',      [AdminProductController::class, 'fdaCpr']);
+
             // Conversations (admin side)
             Route::get('/conversations', [ConversationController::class, 'index']);
             Route::get('/conversations/seller/{seller}', [ConversationController::class, 'openForSeller']);
@@ -117,6 +153,20 @@ Route::prefix('v1')->group(function () {
 
         // Seller: own conversation with admin (any approved seller, regardless of role value)
         Route::middleware('approved_seller')->group(function () {
+            // Seller products
+            Route::get('/seller/products', [SellerProductController::class, 'index']);
+            Route::post('/seller/products', [SellerProductController::class, 'store'])->middleware('throttle:upload');
+            Route::get('/seller/products/{product}', [SellerProductController::class, 'show']);
+            Route::post('/seller/products/{product}', [SellerProductController::class, 'update'])->middleware('throttle:upload');
+            Route::patch('/seller/products/{product}/stock', [SellerProductController::class, 'updateStock']);
+            Route::patch('/seller/products/{product}/price', [SellerProductController::class, 'updatePrice']);
+            Route::patch('/seller/products/{product}/status', [SellerProductController::class, 'updateStatus']);
+            Route::delete('/seller/products/{product}', [SellerProductController::class, 'destroy']);
+
+            // Seller shop profile
+            Route::get('/seller/shop-profile', [SellerShopProfileController::class, 'show']);
+            Route::post('/seller/shop-profile', [SellerShopProfileController::class, 'update'])->middleware('throttle:upload');
+
             Route::get('/my-conversation', [ConversationController::class, 'mine']);
             Route::get('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
                 $conv = \App\Models\Conversation::firstOrCreate(

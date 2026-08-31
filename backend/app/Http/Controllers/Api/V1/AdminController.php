@@ -130,7 +130,10 @@ class AdminController extends Controller
     public function users(Request $request): JsonResponse
     {
         $query = User::query()
-            ->when($request->role,   fn ($q) => $q->where('role', $request->role))
+            ->when($request->role === 'seller', fn ($q) => $q
+                ->whereHas('sellerProfile', fn ($sp) => $sp->where('application_status', 'approved'))
+            )
+            ->when($request->role && $request->role !== 'seller', fn ($q) => $q->where('role', $request->role))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->search, fn ($q) => $q->where(function ($q2) use ($request) {
                 $q2->where('first_name', 'like', "%{$request->search}%")
@@ -139,6 +142,7 @@ class AdminController extends Controller
                    ->orWhere('phone',      'like', "%{$request->search}%");
             }))
             ->whereIn('role', ['buyer', 'seller', 'rider'])
+            ->with('sellerProfile')
             ->latest();
 
         $perPage = min((int) ($request->per_page ?? 30), 100);
