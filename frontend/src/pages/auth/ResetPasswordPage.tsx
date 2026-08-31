@@ -106,8 +106,8 @@ export default function ResetPasswordPage() {
 
       <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black">
         <img
-          src="https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=1200&q=80"
-          alt="Velure fashion"
+          src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200&q=80"
+          alt="Velure marketplace"
           className="absolute inset-0 w-full h-full object-cover opacity-70"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent flex items-end p-12">

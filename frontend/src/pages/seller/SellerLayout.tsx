@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  LayoutDashboard, Package, PackagePlus, ShoppingCart, Boxes,
+  LayoutDashboard, Package, PackagePlus, ShoppingCart,
   Wallet, BarChart2, MessageSquare, Star, Store, Settings,
   LogOut, Menu, X, ChevronRight, Bell, ShoppingBag,
 } from 'lucide-react';
@@ -24,8 +24,7 @@ function buildSellerNav(badges: { pendingReview: number; newOrders: number; unre
       items: [
         { icon: Package,     label: 'Products',        to: '/seller/products',  badge: badges.pendingReview },
         { icon: PackagePlus, label: 'Add Product',      to: '/seller/products/new' },
-        { icon: ShoppingCart,label: 'Orders',           to: '/seller/orders',   badge: badges.newOrders },
-        { icon: Boxes,       label: 'Inventory / Stock',to: '/seller/inventory' },
+        { icon: ShoppingCart, label: 'Orders', to: '/seller/orders', badge: badges.newOrders },
       ],
     },
     {
@@ -165,7 +164,6 @@ const ROUTE_LABELS: Record<string, string> = {
   '/seller/products':   'Products',
   '/seller/products/new': 'Add Product',
   '/seller/orders':     'Orders',
-  '/seller/inventory':  'Inventory / Stock',
   '/seller/earnings':   'Earnings & Payouts',
   '/seller/reports':    'Sales Reports',
   '/seller/messages':   'Messages',

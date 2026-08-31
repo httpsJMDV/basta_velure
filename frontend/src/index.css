@@ -23,4 +23,20 @@
     mix-blend-mode: multiply;
     background: transparent;
   }
+  /* Rich text editor placeholder */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+  }
+
+  /* Remove number input spinners */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
 }

@@ -5,6 +5,7 @@ import Button from './ui/Button';
 
 export interface CartItem {
   id: number;
+  productId?: number;
   name: string;
   variant: string;
   price: number;
@@ -59,13 +60,13 @@ export default function CartModal({ open, onClose, items }: CartModalProps) {
               </div>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Items */}
+            {/* Item list */}
             <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
               {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
@@ -82,20 +83,35 @@ export default function CartModal({ open, onClose, items }: CartModalProps) {
               ) : (
                 items.map((item) => (
                   <div key={item.id} className="flex gap-3">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-16 h-20 object-cover rounded-xl bg-gray-100 shrink-0"
-                    />
+                    <Link
+                      to={`/products/${item.productId ?? item.id}`}
+                      onClick={onClose}
+                      className="shrink-0 group"
+                    >
+                      <img
+                        src={item.image || '/placeholder.png'}
+                        alt={item.name}
+                        className="w-16 h-20 object-cover rounded-xl bg-gray-100 shrink-0 group-hover:opacity-90 transition-opacity"
+                      />
+                    </Link>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-brand-black truncate">{item.name}</p>
+                      <Link
+                        to={`/products/${item.productId ?? item.id}`}
+                        onClick={onClose}
+                        className="text-sm font-semibold text-brand-black hover:text-brand-red transition-colors truncate block"
+                      >
+                        {item.name}
+                      </Link>
                       <p className="text-xs text-gray-400 mt-0.5">{item.variant}</p>
                       <p className="text-sm font-bold text-brand-red mt-1">
                         ₱{(item.price * item.quantity).toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
                     </div>
-                    <button className="self-start p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-brand-red transition-colors">
+                    <button
+                      onClick={() => onRemove(item.id)}
+                      className="self-start p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-brand-red transition-colors"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

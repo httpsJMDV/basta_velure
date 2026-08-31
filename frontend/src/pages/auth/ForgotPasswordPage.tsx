@@ -127,8 +127,8 @@ export default function ForgotPasswordPage() {
       {/* Image column */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black">
         <img
-          src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=1200&q=80"
-          alt="Velure fashion"
+          src="https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1200&q=80"
+          alt="Velure marketplace"
           className="absolute inset-0 w-full h-full object-cover opacity-70"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent flex items-end p-12">

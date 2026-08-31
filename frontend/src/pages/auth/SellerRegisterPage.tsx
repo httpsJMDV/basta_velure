@@ -607,8 +607,8 @@ function PageShell({ children }: { children: React.ReactNode }) {
       </div>
       <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black sticky top-0 h-screen">
         <img
-          src="https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=1200&q=80"
-          alt="Velure fashion store"
+          src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&q=80"
+          alt="Velure marketplace sellers"
           className="absolute inset-0 w-full h-full object-cover opacity-75"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent flex items-end p-12">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import CustomSelect from './CustomSelect';
 import Input from './Input';
+import { NCR_PROVINCE_CODE } from '../../utils/psgc';
 
 interface PsgcItem { code: string; name: string; }
 
@@ -29,16 +30,22 @@ export default function AddressFields({ value, onChange, errors = {}, streetLabe
   useEffect(() => {
     fetch('https://psgc.gitlab.io/api/provinces/')
       .then((r) => r.json())
-      .then((data: PsgcItem[]) => setProvinces([...data].sort((a, b) => a.name.localeCompare(b.name))))
+      .then((data: PsgcItem[]) => {
+        const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
+        // Inject NCR at the top
+        setProvinces([{ code: NCR_PROVINCE_CODE, name: 'Metro Manila (NCR)' }, ...sorted]);
+      })
       .catch(() => {});
   }, []);
 
-  // When editing an existing value, pre-load cities/barangays
   useEffect(() => {
     if (!value.province || provinces.length === 0) return;
-    // Only fetch if cities not yet loaded for this province
+    const isNCR = value.province === NCR_PROVINCE_CODE;
+    const url = isNCR
+      ? `https://psgc.gitlab.io/api/regions/${NCR_PROVINCE_CODE}/cities-municipalities/`
+      : `https://psgc.gitlab.io/api/provinces/${value.province}/cities-municipalities/`;
     setLoadingCities(true);
-    fetch(`https://psgc.gitlab.io/api/provinces/${value.province}/cities-municipalities/`)
+    fetch(url)
       .then((r) => r.json())
       .then((data: PsgcItem[]) => setCities([...data].sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => {})

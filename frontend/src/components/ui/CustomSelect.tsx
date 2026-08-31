@@ -32,6 +32,7 @@ export default function CustomSelect({
   disabled = false,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -53,9 +54,10 @@ export default function CustomSelect({
       width: rect.width,
       zIndex: 9999,
       ...(openUpward
-        ? { bottom: window.innerHeight - rect.top + 4 }
+        ? { bottom: window.innerHeight - rect.top }
         : { top: rect.bottom + 4 }),
     });
+    setOpenUpward(openUpward);
   }, [options.length]);
 
   const toggle = () => {
@@ -102,9 +104,10 @@ export default function CustomSelect({
           disabled={disabled}
           onClick={toggle}
           className={[
-            'min-h-[44px] w-full px-4 py-2.5 rounded-lg text-sm',
+            'min-h-[44px] w-full px-4 py-2.5 text-sm',
             'focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent',
             'text-left flex items-center justify-between transition-colors duration-150',
+            'rounded-xl',
             disabled
               ? 'bg-gray-50 border border-gray-200 cursor-not-allowed'
               : 'bg-white cursor-pointer',

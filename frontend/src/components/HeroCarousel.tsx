@@ -1,31 +1,39 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 
 const SLIDES = [
   {
-    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80',
-    tag: 'New Season',
-    heading: 'Fashion that moves\nwith you.',
-    sub: "Discover the latest women's apparel — dresses, activewear, and more.",
+    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1400&q=80',
+    tag: 'Welcome to Velure',
+    heading: 'Everything you need,\nall in one place.',
+    sub: 'Thousands of products across every category — from home essentials to gadgets, fashion, and more.',
+    cta: 'Shop Now',
+    to: '/search',
   },
   {
-    image: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=1400&q=80',
-    tag: 'Best Sellers',
-    heading: 'Effortless style,\nevery day.',
-    sub: 'Shop our most-loved pieces trusted by thousands of women.',
+    image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1400&q=80',
+    tag: 'This Week Only',
+    heading: 'Big Discounts\nThis Week.',
+    sub: 'Unbeatable deals across all categories — limited time only.',
+    cta: 'See Sale Items',
+    to: '/search?on_sale=true',
   },
   {
-    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=1400&q=80',
-    tag: 'Sale',
-    heading: 'Up to 50% off\nselected styles.',
-    sub: 'Limited time only — refresh your wardrobe for less.',
+    image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1400&q=80',
+    tag: 'Trusted Platform',
+    heading: 'Shop with\nVerified Sellers.',
+    sub: 'Every seller on Velure is reviewed and approved. Fast, secure delivery nationwide.',
+    cta: 'Browse Products',
+    to: '/search',
   },
 ];
 
 const INTERVAL = 5000;
 
 export default function HeroCarousel() {
+  const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(1);
 
@@ -100,8 +108,11 @@ export default function HeroCarousel() {
             {slide.heading}
           </h1>
           <p className="text-white/70 text-base max-w-sm">{slide.sub}</p>
-          <button className="mt-2 min-h-[44px] px-8 bg-brand-red text-white font-semibold rounded-lg hover:bg-brand-red-dark transition-colors flex items-center gap-2 w-fit">
-            <ShoppingBag className="w-4 h-4" /> Shop Now
+          <button
+            onClick={() => navigate(slide.to)}
+            className="mt-2 min-h-[44px] px-8 bg-brand-red text-white font-semibold rounded-lg hover:bg-brand-red-dark transition-colors flex items-center gap-2 w-fit"
+          >
+            <ShoppingBag className="w-4 h-4" /> {slide.cta}
           </button>
         </motion.div>
       </AnimatePresence>

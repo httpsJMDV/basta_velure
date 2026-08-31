@@ -108,14 +108,15 @@ export default function LoginPage() {
       {/* Lifestyle image column — hidden on mobile */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black">
         <img
-          src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&q=80"
-          alt="Velure fashion"
-          className="absolute inset-0 w-full h-full object-cover opacity-80"
+          src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200&q=80"
+          alt="Velure marketplace"
+          className="absolute inset-0 w-full h-full object-cover opacity-75"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-black/70 to-transparent flex items-end p-12">
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 via-brand-black/30 to-transparent flex items-end p-12">
           <div>
-            <p className="text-white text-4xl font-bold leading-tight">Velure</p>
-            <p className="text-white/70 text-lg mt-1">Shop Everything, Delivered.</p>
+            <p className="text-white text-4xl font-bold leading-tight">Everything you need,</p>
+            <p className="text-white text-4xl font-bold leading-tight">all in one place.</p>
+            <p className="text-white/60 text-base mt-2">Fashion, gadgets, groceries, home & more.</p>
           </div>
         </div>
       </div>

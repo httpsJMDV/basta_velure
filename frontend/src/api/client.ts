@@ -30,6 +30,15 @@ import type {
   ProductReviewsResponse,
   CatalogMeta,
   Product,
+  SellerProduct,
+  SellerDashboardStats,
+  SellerChartPoint,
+  SellerAttentionItem,
+  SellerTopProduct,
+  WishlistItem,
+  FollowedStore,
+  PublicShopProfile,
+  PublicShopReview,
 } from '../types';
 
 const http = axios.create({
@@ -246,6 +255,7 @@ export const getProductsApi = (filters: ProductFilters = {}) => {
   if (filters.free_shipping)      params.free_shipping      = true;
   if (filters.cod)                params.cod                = true;
   if (filters.on_sale)            params.on_sale            = true;
+  if (filters.has_voucher)        params.has_voucher        = true;
   if (filters.new_arrivals)       params.new_arrivals       = true;
   if (filters.provinces?.length)  params.provinces          = filters.provinces.join(',');
   if (filters.sort)               params.sort               = filters.sort;
@@ -269,6 +279,143 @@ export const toggleWishlistApi = (productId: number) =>
 
 export const addToCartApi = (variantId: number, quantity: number) =>
   http.post('/cart/items', { variant_id: variantId, quantity });
+
+// Wishlist
+export const getWishlistApi = (params?: { sort?: string; page?: number }) =>
+  http.get<{ data: WishlistItem[]; meta: { current_page: number; last_page: number; total: number } }>('/wishlist', { params }).then((r) => r.data);
+
+export const removeFromWishlistApi = (productId: number) =>
+  http.post<{ wishlisted: boolean }>('/wishlist/toggle', { product_id: productId }).then((r) => r.data);
+
+// Store follows
+export const getFollowedStoresApi = (params?: { sort?: string; page?: number }) =>
+  http.get<{ data: FollowedStore[]; meta: { current_page: number; last_page: number; total: number } }>('/store-follows', { params }).then((r) => r.data);
+
+export const toggleStoreFollowApi = (sellerId: number) =>
+  http.post<{ following: boolean }>('/store-follows/toggle', { seller_id: sellerId }).then((r) => r.data);
+
+// Public Shop Profile & Reviews
+export const getPublicShopProfileApi = (slugOrId: string | number) =>
+  http.get<{ data: PublicShopProfile }>(`/shops/${slugOrId}`).then((r) => r.data.data);
+
+export const getShopReviewsApi = (slugOrId: string | number, params?: { rating?: number; page?: number }) =>
+  http.get<{ data: PublicShopReview[]; meta: { current_page: number; last_page: number; total: number } }>(`/shops/${slugOrId}/reviews`, { params }).then((r) => r.data);
+
+// Seller — dashboard
+export const getSellerDashboardStatsApi = () =>
+  http.get<{ data: SellerDashboardStats }>('/seller/dashboard/stats').then((r) => r.data.data);
+
+export const getSellerDashboardChartApi = (range: '7d' | '14d') =>
+  http.get<{ data: SellerChartPoint[] }>('/seller/dashboard/chart', { params: { range } }).then((r) => r.data.data);
+
+export const getSellerDashboardAttentionApi = () =>
+  http.get<{ data: SellerAttentionItem[] }>('/seller/dashboard/attention').then((r) => r.data.data);
+
+export const getSellerTopProductsApi = () =>
+  http.get<{ data: SellerTopProduct[] }>('/seller/dashboard/top-products').then((r) => r.data.data);
+
+// Seller — shop profile
+export interface SellerShopProfile {
+  shop_name: string;
+  shop_slug: string;
+  shop_category: string | null;
+  shop_description: string | null;
+  address_province: string | null;
+  address_city: string | null;
+  address_barangay: string | null;
+  address_street: string | null;
+  shop_contact_number: string | null;
+  return_policy: string | null;
+  shipping_policy: string | null;
+  business_hours: string | null;
+  response_time: string | null;
+  logo_url: string | null;
+  banner_url: string | null;
+  application_status: string;
+  submitted_at: string;
+  reviewed_at: string | null;
+  created_at: string | null;
+  avg_rating: number | null;
+  total_products: number;
+  shop_bio: string | null;
+  follower_count: number;
+}
+
+export const getSellerShopProfileApi = () =>
+  http.get<{ data: SellerShopProfile }>('/seller/shop-profile').then((r) => r.data.data);
+
+export const updateSellerShopProfileApi = (form: FormData) =>
+  http.post<{ data: SellerShopProfile }>('/seller/shop-profile', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data.data);
+
+// Seller — products
+export const getSellerProductsApi = () =>
+  http.get<{ data: SellerProduct[] }>('/seller/products').then((r) => r.data.data);
+
+export const getSellerProductApi = (id: number) =>
+  http.get<{ data: SellerProduct }>(`/seller/products/${id}`).then((r) => r.data.data);
+
+export const createSellerProductApi = (form: FormData) =>
+  http.post<{ data: SellerProduct }>('/seller/products', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data.data);
+
+export const updateSellerProductApi = (id: number, form: FormData) =>
+  http.post<{ data: SellerProduct }>(`/seller/products/${id}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data.data);
+
+export const updateSellerProductStockApi = (id: number, stock: number) =>
+  http.patch(`/seller/products/${id}/stock`, { stock });
+
+export const updateSellerProductPriceApi = (id: number, price: number) =>
+  http.patch(`/seller/products/${id}/price`, { price });
+
+export const archiveSellerProductApi = (id: number, status: 'active' | 'archived') =>
+  http.patch<{ data: SellerProduct }>(`/seller/products/${id}/status`, { status }).then((r) => r.data.data);
+
+export const submitSellerProductForReviewApi = (id: number) =>
+  http.patch<{ data: SellerProduct }>(`/seller/products/${id}/status`, { status: 'pending_review' }).then((r) => r.data.data);
+
+export const deleteSellerProductApi = (id: number) =>
+  http.delete(`/seller/products/${id}`);
+
+// Admin — products
+export interface AdminProduct {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  rejection_reason: string | null;
+  archive_reason: string | null;
+  archived_by: 'admin' | 'seller' | null;
+  base_price: number;
+  units_sold: number;
+  thumbnail_url: string | null;
+  images: { id: number; url: string; is_primary: boolean; sort_order: number }[];
+  variants: { id: number; label: string; sku: string | null; price: number; stock_quantity: number }[];
+  seller: { id: number; full_name: string; email: string } | null;
+  created_at: string;
+}
+
+export const reactivateAdminProductApi = (id: number) =>
+  http.post<{ data: AdminProduct }>(`/admin/products/${id}/reactivate`).then((r) => r.data.data);
+
+export const getAdminProductsApi = (params?: { status?: string; search?: string; seller_id?: number; page?: number; per_page?: number }) =>
+  http.get<PaginatedResponse<AdminProduct>>('/admin/products', { params }).then((r) => r.data);
+
+export const getAdminProductStatsApi = () =>
+  http.get<{ data: { pending_review: number; active: number; rejected: number; archived: number } }>('/admin/products/stats').then((r) => r.data.data);
+
+export const archiveAdminProductApi = (id: number, reason: string) =>
+  http.post<{ data: AdminProduct }>(`/admin/products/${id}/archive`, { reason }).then((r) => r.data.data);
+
+export const approveAdminProductApi = (id: number) =>
+  http.post<{ data: AdminProduct }>(`/admin/products/${id}/approve`).then((r) => r.data.data);
+
+export const rejectAdminProductApi = (id: number, reason: string) =>
+  http.post<{ data: AdminProduct }>(`/admin/products/${id}/reject`, { reason }).then((r) => r.data.data);
 
 // Admin — conversations
 export const getConversationsApi = () =>

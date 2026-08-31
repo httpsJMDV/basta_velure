@@ -237,10 +237,15 @@ function Step2({
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingBrgy,   setLoadingBrgy]   = useState(false);
 
+  const NCR_CODE = '130000000';
+
   useEffect(() => {
     fetch('https://psgc.gitlab.io/api/provinces/')
       .then((r) => r.json())
-      .then((d: PsgcItem[]) => setProvinces([...d].sort((a, b) => a.name.localeCompare(b.name))))
+      .then((d: PsgcItem[]) => {
+        const sorted = [...d].sort((a, b) => a.name.localeCompare(b.name));
+        setProvinces([{ code: NCR_CODE, name: 'Metro Manila (NCR)' }, ...sorted]);
+      })
       .catch(() => {});
   }, []);
 
@@ -248,8 +253,12 @@ function Step2({
     onChange({ province: code, city_municipality: '', barangay: '' });
     setCities([]); setBarangays([]);
     if (!code) return;
+    const isNCR = code === NCR_CODE;
+    const url = isNCR
+      ? `https://psgc.gitlab.io/api/regions/${NCR_CODE}/cities-municipalities/`
+      : `https://psgc.gitlab.io/api/provinces/${code}/cities-municipalities/`;
     setLoadingCities(true);
-    fetch(`https://psgc.gitlab.io/api/provinces/${code}/cities-municipalities/`)
+    fetch(url)
       .then((r) => r.json())
       .then((d: PsgcItem[]) => setCities([...d].sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => {})

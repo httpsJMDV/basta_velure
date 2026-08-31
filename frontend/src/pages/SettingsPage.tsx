@@ -8,18 +8,23 @@ import {
   deleteAddressApi,
   setDefaultAddressApi,
   getOrdersApi,
+  getWishlistApi,
+  removeFromWishlistApi,
+  getFollowedStoresApi,
+  toggleStoreFollowApi,
+  addToCartApi,
 } from '../api/client';
 import CustomSelect from '../components/ui/CustomSelect';
 import PhoneInput from '../components/ui/PhoneInput';
 import UserAvatar from '../components/ui/UserAvatar';
 import AvatarCropModal from '../components/ui/AvatarCropModal';
 import { uploadAvatarApi } from '../api/client';
-import type { Address, AddressLabel, Order, OrderStatus } from '../types';
+import type { Address, AddressLabel, Order, OrderStatus, WishlistItem, FollowedStore } from '../types';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
-  Trash2, Search, ShoppingBag, ArrowLeft,
+  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart,
 } from 'lucide-react';
 
 const StarIcon = Star;
@@ -1061,6 +1066,285 @@ function OrdersPanel() {
   );
 }
 
+// ─── Wishlist & Followed Stores ──────────────────────────────────────────────
+
+const WISHLIST_SORT_OPTIONS = [
+  { value: 'recent',     label: 'Recently Added' },
+  { value: 'price_asc',  label: 'Price: Low to High' },
+  { value: 'price_desc', label: 'Price: High to Low' },
+];
+
+const STORE_SORT_OPTIONS = [
+  { value: 'recent',        label: 'Recently Followed' },
+  { value: 'highest_rated', label: 'Highest Rated' },
+];
+
+function fmtPrice(n: number) {
+  return '\u20b1' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function WishlistTabContent() {
+  const navigate = useNavigate();
+  const [items, setItems]       = useState<WishlistItem[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [sort, setSort]         = useState('recent');
+  const [page, setPage]         = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal]       = useState(0);
+  const [removing, setRemoving] = useState<Set<number>>(new Set());
+  const [addingCart, setAddingCart] = useState<Set<number>>(new Set());
+  const [toast, setToast]       = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    getWishlistApi({ sort, page })
+      .then((res) => { setItems(res.data); setLastPage(res.meta.last_page); setTotal(res.meta.total); })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [sort, page]);
+
+  async function handleRemove(productId: number, itemId: number) {
+    setRemoving((s) => new Set(s).add(itemId));
+    try {
+      await removeFromWishlistApi(productId);
+      setItems((prev) => prev.filter((i) => i.wishlist_item_id !== itemId));
+      setTotal((t) => t - 1);
+    } finally {
+      setRemoving((s) => { const n = new Set(s); n.delete(itemId); return n; });
+    }
+  }
+
+  async function handleAddToCart(productId: number) {
+    setAddingCart((s) => new Set(s).add(productId));
+    try {
+      await addToCartApi(productId, 1);
+      setToast('Added to cart!');
+    } catch {
+      setToast('Could not add to cart.');
+    } finally {
+      setAddingCart((s) => { const n = new Set(s); n.delete(productId); return n; });
+      setTimeout(() => setToast(''), 2500);
+    }
+  }
+
+  return (
+    <div>
+      {(items.length > 0 || !loading) && (
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <p className="text-sm text-gray-400">{total} item{total !== 1 ? 's' : ''}</p>
+          <div className="w-52">
+            <CustomSelect value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={WISHLIST_SORT_OPTIONS} />
+          </div>
+        </div>
+      )}
+
+      {loading && <div className="py-16 flex justify-center"><div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /></div>}
+
+      {!loading && items.length === 0 && (
+        <div className="py-16 flex flex-col items-center gap-4 text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center"><Heart className="w-7 h-7 text-gray-300" /></div>
+          <p className="font-semibold text-brand-black">Your wishlist is empty</p>
+          <p className="text-sm text-gray-400">Save items you love and find them here.</p>
+          <button onClick={() => navigate('/search')} className="mt-1 px-5 py-2.5 bg-brand-red text-white text-sm font-semibold rounded-xl hover:bg-brand-red-dark transition-colors">Browse Products</button>
+        </div>
+      )}
+
+      {!loading && items.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {items.map((item) => {
+              const p = item.product;
+              const outOfStock = p.total_stock === 0 || p.status !== 'active';
+              const isOnSale   = p.original_price != null && p.original_price > p.base_price;
+              const discount   = isOnSale ? Math.round((1 - p.base_price / p.original_price!) * 100) : 0;
+              return (
+                <div key={item.wishlist_item_id} className={['relative flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all', outOfStock ? 'opacity-60' : 'hover:shadow-md hover:-translate-y-0.5'].join(' ')}>
+                  <Link to={`/products/${p.id}`} className="relative aspect-square bg-gray-100 block overflow-hidden">
+                    {p.thumbnail_url
+                      ? <img src={p.thumbnail_url} alt={p.name} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-gray-300" /></div>
+                    }
+                    {outOfStock && (
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <span className="bg-gray-800/70 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">Out of Stock</span>
+                      </span>
+                    )}
+                    {isOnSale && !outOfStock && <span className="absolute top-2 left-2 bg-brand-red text-white text-[10px] font-bold px-2 py-0.5 rounded-full">-{discount}%</span>}
+                    <button
+                      onClick={(e) => { e.preventDefault(); handleRemove(p.id, item.wishlist_item_id); }}
+                      disabled={removing.has(item.wishlist_item_id)}
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow-sm hover:bg-white transition-colors disabled:opacity-50"
+                    >
+                      {removing.has(item.wishlist_item_id)
+                        ? <div className="w-3.5 h-3.5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+                        : <Heart className="w-4 h-4 fill-brand-red text-brand-red" />}
+                    </button>
+                  </Link>
+                  <div className="p-3 flex flex-col gap-1.5 flex-1">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{p.name}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{p.seller.shop_name}</p>
+                    <div className="flex items-baseline gap-1.5 flex-wrap mt-auto">
+                      <span className="text-base font-black text-brand-red">{fmtPrice(p.base_price)}</span>
+                      {isOnSale && <span className="text-xs text-gray-400 line-through">{fmtPrice(p.original_price!)}</span>}
+                    </div>
+                    <button
+                      onClick={() => handleAddToCart(p.id)}
+                      disabled={outOfStock || addingCart.has(p.id)}
+                      className={['mt-1 w-full min-h-[36px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-colors', outOfStock ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-brand-red text-white hover:bg-brand-red-dark'].join(' ')}
+                    >
+                      {addingCart.has(p.id)
+                        ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <><ShoppingCart className="w-3.5 h-3.5" /> Add to Cart</>}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {lastPage > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Previous</button>
+              <span className="text-sm text-gray-500">{page} / {lastPage}</span>
+              <button onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page === lastPage} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Next</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl">{toast}</div>}
+    </div>
+  );
+}
+
+function FollowedStoresTabContent() {
+  const navigate = useNavigate();
+  const [stores, setStores]     = useState<FollowedStore[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [sort, setSort]         = useState('recent');
+  const [page, setPage]         = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal]       = useState(0);
+  const [unfollowing, setUnfollowing] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setLoading(true);
+    getFollowedStoresApi({ sort, page })
+      .then((res) => { setStores(res.data); setLastPage(res.meta.last_page); setTotal(res.meta.total); })
+      .catch(() => setStores([]))
+      .finally(() => setLoading(false));
+  }, [sort, page]);
+
+  async function handleUnfollow(followId: number, sellerId: number) {
+    setUnfollowing((s) => new Set(s).add(followId));
+    try {
+      await toggleStoreFollowApi(sellerId);
+      setStores((prev) => prev.filter((f) => f.follow_id !== followId));
+      setTotal((t) => t - 1);
+    } finally {
+      setUnfollowing((s) => { const n = new Set(s); n.delete(followId); return n; });
+    }
+  }
+
+  return (
+    <div>
+      {(stores.length > 0 || !loading) && (
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <p className="text-sm text-gray-400">{total} store{total !== 1 ? 's' : ''}</p>
+          <div className="w-52">
+            <CustomSelect value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={STORE_SORT_OPTIONS} />
+          </div>
+        </div>
+      )}
+
+      {loading && <div className="py-16 flex justify-center"><div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /></div>}
+
+      {!loading && stores.length === 0 && (
+        <div className="py-16 flex flex-col items-center gap-4 text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center"><Store className="w-7 h-7 text-gray-300" /></div>
+          <p className="font-semibold text-brand-black">You're not following any stores yet</p>
+          <p className="text-sm text-gray-400">Follow stores to stay updated on their latest products.</p>
+          <button onClick={() => navigate('/search')} className="mt-1 px-5 py-2.5 bg-brand-red text-white text-sm font-semibold rounded-xl hover:bg-brand-red-dark transition-colors">Explore Sellers</button>
+        </div>
+      )}
+
+      {!loading && stores.length > 0 && (
+        <>
+          <div className="flex flex-col gap-3">
+            {stores.map((f) => {
+              const s = f.seller;
+              const stars = s.avg_rating ? Math.round(s.avg_rating) : 0;
+              return (
+                <div key={f.follow_id} className="flex items-center gap-4 bg-white border border-gray-100 rounded-2xl p-4 hover:border-gray-200 hover:shadow-sm transition-all">
+                  <div className="w-14 h-14 shrink-0 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                    {s.logo_url ? <img src={s.logo_url} alt={s.shop_name} className="w-full h-full object-cover" /> : <Store className="w-6 h-6 text-gray-300" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-brand-black text-sm truncate">{s.shop_name}</p>
+                      {s.has_sale && <span className="text-[10px] font-bold bg-orange-50 text-orange-500 px-2 py-0.5 rounded-full whitespace-nowrap">🔥 On Sale</span>}
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {[1,2,3,4,5].map((i) => <Star key={i} className={`w-3 h-3 ${i <= stars ? 'fill-amber-400 text-amber-400' : 'fill-gray-200 text-gray-200'}`} />)}
+                      <span className="text-[11px] text-gray-400 ml-1">{s.avg_rating ? s.avg_rating.toFixed(1) : 'No rating'} &middot; {s.product_count} product{s.product_count !== 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link to={`/search?seller_ids=${s.id}`} className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:border-brand-red hover:text-brand-red transition-colors">Visit Store</Link>
+                    <button
+                      onClick={() => handleUnfollow(f.follow_id, s.id)}
+                      disabled={unfollowing.has(f.follow_id)}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-brand-red border-2 border-brand-red rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
+                      {unfollowing.has(f.follow_id) ? <div className="w-3.5 h-3.5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /> : 'Following'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {lastPage > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Previous</button>
+              <span className="text-sm text-gray-500">{page} / {lastPage}</span>
+              <button onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page === lastPage} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Next</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+type ActiveWishlistTab = 'wishlist' | 'stores';
+
+function WishlistPanel() {
+  const [tab, setTab] = useState<ActiveWishlistTab>('wishlist');
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="px-6 py-5 border-b border-gray-100">
+        <h2 className="font-bold text-brand-black text-lg">Wishlist & Followed Stores</h2>
+        <p className="text-xs text-gray-400 mt-0.5">Your saved products and followed stores</p>
+      </div>
+      <div className="px-6 pt-4">
+        <div className="flex border-b border-gray-100">
+          {(['wishlist', 'stores'] as ActiveWishlistTab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={['pb-3 px-1 mr-6 text-sm font-semibold border-b-2 transition-all', tab === t ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-400 hover:text-brand-black'].join(' ')}
+            >
+              {t === 'wishlist' ? 'Wishlist' : 'Followed Stores'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="px-6 py-5">
+        {tab === 'wishlist' ? <WishlistTabContent /> : <FollowedStoresTabContent />}
+      </div>
+    </div>
+  );
+}
+
 // ─── Coming soon placeholder ─────────────────────────────────────────────────
 
 function ComingSoon({ label }: { label: string }) {
@@ -1119,4 +1403,4 @@ export function SettingsOrders()        { return <OrdersPanel />; }
 export function SettingsReturns()       { return <ComingSoon label="My Returns" />; }
 export function SettingsCancellations() { return <ComingSoon label="My Cancellations" />; }
 export function SettingsReviews()       { return <ComingSoon label="My Reviews" />; }
-export function SettingsWishlist()      { return <ComingSoon label="Wishlist & Followed Stores" />; }
+export function SettingsWishlist()      { return <WishlistPanel />; }

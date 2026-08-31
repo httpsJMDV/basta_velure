@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { CartProvider } from './hooks/useCart';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import CompleteProfilePage from './pages/auth/CompleteProfilePage';
@@ -8,6 +9,10 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import SellerLayout from './pages/seller/SellerLayout';
 import SellerDashboard from './pages/seller/SellerDashboard';
+import SellerProductsPage from './pages/seller/SellerProductsPage';
+import SellerAddProductPage from './pages/seller/SellerAddProductPage';
+import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
+import SellerAccountSettingsPage from './pages/seller/SellerAccountSettingsPage';
 import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
@@ -19,10 +24,12 @@ import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
 import AdminDisputesPage from './pages/admin/AdminDisputesPage';
 import AdminReviewsPage from './pages/admin/AdminReviewsPage';
+import AdminProductsPage from './pages/admin/AdminProductsPage';
 import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
 import CatalogPage from './pages/CatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import ShopProfilePage from './pages/ShopProfilePage';
 import PrivacyPolicyPage from './pages/legal/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/legal/TermsOfServicePage';
 import CookiePolicyPage from './pages/legal/CookiePolicyPage';
@@ -110,6 +117,8 @@ function AppRoutes() {
       <Route path="/search" element={<CatalogPage />} />
       <Route path="/category/:parentId" element={<CatalogPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
+      <Route path="/shop/:slug" element={<ShopProfilePage />} />
+      <Route path="/store/:id" element={<ShopProfilePage />} />
 
       {/* Auth pages — redirect away if already logged in */}
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
@@ -156,16 +165,17 @@ function AppRoutes() {
         }
       >
         <Route index element={<SellerDashboard />} />
-        <Route path="products"     element={<AdminPlaceholderPage title="Products" />} />
-        <Route path="products/new" element={<AdminPlaceholderPage title="Add Product" />} />
+        <Route path="products"         element={<SellerProductsPage />} />
+        <Route path="products/new"      element={<SellerAddProductPage />} />
+        <Route path="products/:id/edit" element={<SellerAddProductPage />} />
         <Route path="orders"       element={<AdminPlaceholderPage title="Orders" />} />
         <Route path="inventory"    element={<AdminPlaceholderPage title="Inventory / Stock" />} />
         <Route path="earnings"     element={<AdminPlaceholderPage title="Earnings & Payouts" />} />
         <Route path="reports"      element={<AdminPlaceholderPage title="Sales Reports" />} />
         <Route path="messages"     element={<AdminPlaceholderPage title="Messages" />} />
         <Route path="reviews"      element={<AdminPlaceholderPage title="Reviews & Ratings" />} />
-        <Route path="shop-profile" element={<AdminPlaceholderPage title="Shop Profile" />} />
-        <Route path="account"      element={<AdminPlaceholderPage title="Account Settings" />} />
+        <Route path="shop-profile" element={<SellerShopProfilePage />} />
+        <Route path="account"      element={<SellerAccountSettingsPage />} />
       </Route>
       {/* Admin — nested layout, all routes role-gated */}
       <Route
@@ -184,7 +194,7 @@ function AppRoutes() {
         <Route path="buyers"              element={<AdminUsersPage />} />
         <Route path="riders"              element={<AdminUsersPage />} />
         <Route path="categories"          element={<AdminPlaceholderPage title="Categories" />} />
-        <Route path="products"            element={<AdminPlaceholderPage title="Products" />} />
+        <Route path="products"            element={<AdminProductsPage />} />
         <Route path="orders"              element={<AdminOrdersPage />} />
         <Route path="payments"            element={<AdminPaymentsPage />} />
         <Route path="disputes"            element={<AdminDisputesPage />} />
@@ -207,8 +217,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ScrollToTop />
-        <AppRoutes />
+        <CartProvider>
+          <ScrollToTop />
+          <AppRoutes />
+        </CartProvider>
       </AuthProvider>
     </BrowserRouter>
   );

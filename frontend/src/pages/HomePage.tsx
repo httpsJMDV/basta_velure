@@ -1,15 +1,157 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import UserAvatar from '../components/ui/UserAvatar';
-import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, Settings, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Truck, Banknote, ShieldCheck, BadgeCheck } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { motion, useInView, AnimatePresence } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import HeroCarousel from '../components/HeroCarousel';
-import CartModal from '../components/CartModal';
-import type { CartItem } from '../components/CartModal';
+import SiteHeader from '../components/SiteHeader';
+import ProductCard from '../components/ui/ProductCard';
 import { CATEGORY_TREE } from '../data/categories';
+import { getProductsApi } from '../api/client';
+import type { Product } from '../types';
 
-const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
+const TRUST_ITEMS = [
+  { icon: Truck,       label: 'Free Shipping',     sub: 'On orders over ₱500' },
+  { icon: Banknote,    label: 'Cash on Delivery',  sub: 'Pay when it arrives' },
+  { icon: ShieldCheck, label: 'Buyer Protection',  sub: '100% secure checkout' },
+  { icon: BadgeCheck,  label: 'Verified Sellers',  sub: 'Admin-approved only' },
+];
+
+function TrustStrip() {
+  return (
+    <section className="bg-white border-y border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {TRUST_ITEMS.map(({ icon: Icon, label, sub }) => (
+          <div key={label} className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+              <Icon className="w-5 h-5 text-brand-red" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-brand-black">{label}</p>
+              <p className="text-xs text-gray-400">{sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProductSkeleton({ index }: { index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay: index * 0.06 }}
+      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100"
+    >
+      <div className="aspect-square bg-gray-100 animate-pulse" />
+      <div className="p-3 flex flex-col gap-1">
+        <div className="h-3 bg-gray-100 rounded animate-pulse w-3/4" />
+        <div className="h-3 bg-gray-100 rounded animate-pulse w-1/2" />
+        <div className="h-4 bg-gray-100 rounded animate-pulse w-1/3 mt-1" />
+      </div>
+    </motion.div>
+  );
+}
+
+function FeaturedProducts() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getProductsApi({ sort: 'best_selling' as never, per_page: 8, page: 1 })
+      .then((res) => setProducts(res.data.slice(0, 8)))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <section className="max-w-7xl mx-auto w-full px-4 pt-10 pb-4">
+      <FadeInSection delay={0.05}>
+        <h2 className="text-lg font-bold text-brand-black mb-5">Featured Products</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {loading
+            ? Array.from({ length: 8 }).map((_, i) => <ProductSkeleton key={i} index={i} />)
+            : products.map((p, i) => (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.45, delay: i * 0.06 }}
+                >
+                  <ProductCard product={p} />
+                </motion.div>
+              ))
+          }
+        </div>
+      </FadeInSection>
+    </section>
+  );
+}
+
+function DailyDiscoveries() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    getProductsApi({ sort: 'random' as never, per_page: 48, page: 1 })
+      .then((res) => { setProducts(res.data); setLastPage(res.meta.last_page); })
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function loadMore() {
+    const next = page + 1;
+    setLoadingMore(true);
+    getProductsApi({ sort: 'random' as never, per_page: 48, page: next })
+      .then((res) => { setProducts((prev) => [...prev, ...res.data]); setPage(next); })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }
+
+  const atEnd = page >= lastPage;
+
+  return (
+    <section className="max-w-7xl mx-auto w-full px-4 pb-6">
+      <FadeInSection delay={0.05}>
+        <h2 className="text-lg font-bold text-brand-black mb-5">Daily Discoveries</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {loading
+            ? Array.from({ length: 12 }).map((_, i) => <ProductSkeleton key={i} index={i} />)
+            : products.map((p, i) => (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.45, delay: Math.min(i * 0.03, 0.3) }}
+                >
+                  <ProductCard product={p} />
+                </motion.div>
+              ))
+          }
+          {loadingMore && Array.from({ length: 6 }).map((_, i) => <ProductSkeleton key={`more-${i}`} index={i} />)}
+        </div>
+
+        {!loading && !atEnd && (
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="min-h-[44px] px-8 bg-white border border-gray-200 text-brand-black text-sm font-semibold rounded-lg hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading...' : 'Load More'}
+            </button>
+          </div>
+        )}
+      </FadeInSection>
+    </section>
+  );
+}
 
 function FadeInSection({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   const ref = useRef(null);
@@ -26,280 +168,12 @@ function FadeInSection({ children, delay = 0 }: { children: React.ReactNode; del
   );
 }
 
-function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const { clearAuth } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const sellerStatus = user.seller_profile?.application_status ?? 'none';
-
-  const staticItems = [
-    { icon: User,      label: 'Manage Account',           to: '/settings' },
-    { icon: MapPin,    label: 'Address Book',              to: '/settings/addresses' },
-    { icon: Package,   label: 'My Orders',                 to: '/settings/orders' },
-    { icon: RotateCcw, label: 'My Returns',                to: '/settings/returns' },
-    { icon: XCircle,   label: 'My Cancellations',          to: '/settings/cancellations' },
-    { icon: Star,      label: 'My Reviews',                to: '/settings/reviews' },
-    { icon: Heart,     label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
-  ];
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-white/90 hover:text-white transition-colors text-sm font-medium"
-      >
-        <UserAvatar
-          firstName={user.first_name}
-          lastName={user.last_name}
-          avatarUrl={user.avatar_url}
-          size="sm"
-        />
-        <span className="hidden sm:block max-w-[120px] truncate">{user.first_name} {user.last_name}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
-          >
-            {/* Profile header */}
-            <div className="px-4 py-3.5 bg-gradient-to-br from-brand-red to-brand-red-dark">
-              <p className="text-white font-semibold text-sm">{user.first_name} {user.last_name}</p>
-              <p className="text-white/70 text-xs truncate mt-0.5">{user.email}</p>
-            </div>
-
-            {/* Menu items */}
-            <div className="py-1.5">
-              {staticItems.map(({ icon: Icon, label, to }) => (
-                <button
-                  key={to}
-                  onClick={() => { navigate(to); setOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-gray-mid hover:bg-gray-50 transition-colors"
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {label}
-                </button>
-              ))}
-
-              {/* Conditional seller item */}
-              {sellerStatus === 'none' && (
-                <button
-                  onClick={() => { navigate('/register/seller'); setOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors"
-                >
-                  <Store className="w-4 h-4 shrink-0" />
-                  Sell in Velure
-                </button>
-              )}
-              {sellerStatus === 'pending' && (
-                <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed select-none">
-                  <Store className="w-4 h-4 shrink-0" />
-                  <span>Seller Application Pending</span>
-                </div>
-              )}
-              {sellerStatus === 'rejected' && (
-                <button
-                  onClick={() => { navigate('/register/seller'); setOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors"
-                >
-                  <Store className="w-4 h-4 shrink-0" />
-                  Reapply as Seller
-                </button>
-              )}
-              {sellerStatus === 'approved' && (
-                <button
-                  onClick={() => { navigate('/seller'); setOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors"
-                >
-                  <Store className="w-4 h-4 shrink-0" />
-                  Check Your Sales
-                </button>
-              )}
-            </div>
-
-            <div className="border-t border-gray-100 py-1.5">
-              <button
-                onClick={() => { clearAuth(); setOpen(false); navigate('/'); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                Log Out
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 export default function HomePage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [cartOpen, setCartOpen] = useState(false);
-  const [cartItems] = useState<CartItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const pendingApproval = (location.state as { pendingApproval?: boolean } | null)?.pendingApproval ?? false;
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const q = searchQuery.trim();
-    if (q) navigate(`/search?q=${encodeURIComponent(q)}`);
-  }
 
   return (
     <div className="min-h-screen bg-brand-gray-soft flex flex-col">
-
-      {/* ── Pending approval banner ── */}
-      {pendingApproval && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-center">
-          <p className="text-sm text-amber-800 font-medium">
-            ✅ Your registration is complete! Your account is pending admin approval — you'll be notified by email once it's reviewed.
-          </p>
-        </div>
-      )}
-
-      {/* ── Top utility bar ── */}
-      <div className="bg-brand-black text-white text-xs hidden sm:block">
-        <div className="max-w-7xl mx-auto px-4 flex justify-end items-center h-8 gap-4">
-          <span className="text-white/50">Help &amp; Support</span>
-          {user ? (
-            <span className="text-white/80">Hi, {user.first_name}</span>
-          ) : (
-            <>
-              <Link to="/register" className="text-white/80 hover:text-white transition-colors">Sign Up</Link>
-              <span className="text-white/20">|</span>
-              <Link to="/login" className="text-white/80 hover:text-white transition-colors">Login</Link>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* ── Main header ── */}
-      <header className="bg-brand-red shadow-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-4">
-
-          {/* Logo + wordmark */}
-          <Link to="/" className="flex items-center gap-2.5 shrink-0">
-            <img src="/logo1.png" alt="Velure logo" className="w-9 h-9 rounded-full object-cover logo-img-dark" />
-            <span className="text-white font-bold text-xl tracking-tight">Velure</span>
-          </Link>
-
-          {/* Search bar — desktop */}
-          <form onSubmit={handleSearch} className="hidden sm:flex flex-1 max-w-2xl mx-auto">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search products, brands, categories…"
-              className="flex-1 h-10 px-4 text-sm rounded-l-lg border-0 focus:outline-none text-brand-black"
-            />
-            <button type="submit" className="h-10 px-5 bg-brand-red-dark text-white text-sm font-semibold rounded-r-lg hover:bg-[#791F1F] transition-colors flex items-center gap-1">
-              <Search className="w-4 h-4" />
-            </button>
-          </form>
-
-          {/* Right icons */}
-          <div className="flex items-center gap-3 ml-auto sm:ml-0">
-            {/* User dropdown (desktop) */}
-            {user && (
-              <div className="hidden sm:block">
-                <UserDropdown user={user} />
-              </div>
-            )}
-            <button
-              onClick={() => setCartOpen(true)}
-              className="text-white p-1 min-h-[44px] min-w-[44px] flex items-center justify-center relative"
-            >
-              <ShoppingCart className="w-6 h-6" />
-              {cartItems.length > 0 && (
-                <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-white text-brand-red text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {cartItems.length}
-                </span>
-              )}
-            </button>
-            <button
-              className="sm:hidden text-white p-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Shortcut row — desktop */}
-        <div className="hidden sm:block bg-brand-red-dark">
-          <div className="max-w-7xl mx-auto px-4 flex gap-6 h-9 items-center">
-            {SHORTCUTS.map((s) => (
-              <button key={s} className="text-white/90 text-xs font-medium hover:text-white transition-colors whitespace-nowrap">
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {menuOpen && (
-          <div className="sm:hidden bg-brand-red-dark px-4 py-4 flex flex-col gap-3 border-t border-white/10">
-            <div className="flex">
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products…"
-                className="flex-1 h-10 px-4 text-sm rounded-l-lg border-0 focus:outline-none text-brand-black"
-              />
-              <button onClick={handleSearch} className="h-10 px-4 bg-brand-black text-white rounded-r-lg">
-                <Search className="w-4 h-4" />
-              </button>
-            </div>
-            {SHORTCUTS.map((s) => (
-              <button key={s} className="text-white/90 text-sm text-left py-1">{s}</button>
-            ))}
-            <div className="border-t border-white/10 pt-3 flex flex-col gap-2">
-              {user ? (
-                <>
-                  <div className="flex items-center gap-2.5 px-1">
-                    <UserAvatar
-                      firstName={user.first_name}
-                      lastName={user.last_name}
-                      avatarUrl={user.avatar_url}
-                      size="sm"
-                    />
-                    <div>
-                      <p className="text-white text-sm font-semibold">{user.first_name} {user.last_name}</p>
-                      <p className="text-white/60 text-xs">{user.email}</p>
-                    </div>
-                  </div>
-                  <Link to="/settings" className="text-white/80 text-sm py-1" onClick={() => setMenuOpen(false)}>Settings</Link>
-                </>
-              ) : (
-                <>
-                  <Link to="/login" className="text-white text-sm font-semibold" onClick={() => setMenuOpen(false)}>Login</Link>
-                  <Link to="/register" className="text-white text-sm font-semibold" onClick={() => setMenuOpen(false)}>Sign Up</Link>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </header>
+      <SiteHeader />
 
       {/* ── Hero Carousel ── */}
       <HeroCarousel />
@@ -317,41 +191,35 @@ export default function HomePage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.4, delay: i * 0.05 }}
-                className="bg-white rounded-2xl p-4 text-center text-sm font-medium text-brand-black hover:border-brand-red hover:border border border-gray-100 shadow-sm transition-all min-h-[44px] flex flex-col items-center justify-center gap-1"
+                className="bg-white rounded-2xl p-4 text-center text-sm font-medium text-brand-black hover:border-brand-red hover:border border border-gray-100 shadow-sm transition-all min-h-[44px] flex items-center justify-center"
               >
                 <span className="leading-snug">{cat.label}</span>
-                <span className="text-[10px] text-gray-400 font-normal">{cat.children.length} subcategories</span>
               </motion.button>
             ))}
           </div>
         </FadeInSection>
       </section>
 
+      {/* ── Trust Strip ── */}
+      <TrustStrip />
+
       {/* ── Featured Products ── */}
-      <section className="max-w-7xl mx-auto w-full px-4 pb-16">
-        <FadeInSection delay={0.05}>
-          <h2 className="text-lg font-bold text-brand-black mb-5">Featured Products</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.45, delay: i * 0.06 }}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100"
-              >
-                <div className="aspect-[3/4] bg-gray-100 animate-pulse" />
-                <div className="p-3 flex flex-col gap-1">
-                  <div className="h-3 bg-gray-100 rounded animate-pulse w-3/4" />
-                  <div className="h-3 bg-gray-100 rounded animate-pulse w-1/2" />
-                  <div className="h-4 bg-gray-100 rounded animate-pulse w-1/3 mt-1" />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </FadeInSection>
-      </section>
+      <FeaturedProducts />
+
+      {/* ── Daily Discoveries ── */}
+      <DailyDiscoveries />
+
+      {/* ── Wanna See More ── */}
+      <div className="max-w-7xl mx-auto w-full px-4 pb-16 text-center">
+        <p className="text-base font-semibold text-brand-black">Wanna See More?</p>
+        <p className="text-sm text-gray-400 mt-1">Explore thousands of products across all categories.</p>
+        <button
+          onClick={() => navigate('/search')}
+          className="mt-4 min-h-[44px] px-8 bg-brand-red text-white text-sm font-semibold rounded-lg hover:bg-brand-red-dark transition-colors"
+        >
+          Browse All Products
+        </button>
+      </div>
 
       {/* ── Footer ── */}
       <footer className="bg-brand-black text-white mt-auto">
@@ -364,7 +232,7 @@ export default function HomePage() {
               <span className="text-white font-bold text-lg tracking-tight">Velure</span>
             </Link>
             <p className="text-white/50 text-sm leading-relaxed">
-              Your one-stop online marketplace. Shop everything from fashion to electronics, delivered to your door.
+              Your one-stop marketplace for everything you need, delivered to your door.
             </p>
             <div className="flex gap-3 mt-1">
               <a href="#" className="w-9 h-9 rounded-full bg-white/10 hover:bg-brand-red flex items-center justify-center transition-colors">
@@ -423,13 +291,6 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-
-      <CartModal
-        open={cartOpen}
-        onClose={() => setCartOpen(false)}
-        items={cartItems}
-        onRemove={() => {}}
-      />
 
     </div>
   );

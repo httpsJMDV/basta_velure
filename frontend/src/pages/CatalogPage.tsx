@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, SlidersHorizontal, X, Star, MapPin, ChevronDown,
+  Search, SlidersHorizontal, X, Star, ChevronDown,
   ChevronUp, LayoutGrid, List, Package, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { getProductsApi } from '../api/client';
 import { CATEGORY_TREE, LEAF_PARENT_MAP, LEAF_MAP } from '../data/categories';
+import ProductCard from '../components/ui/ProductCard';
 import type { Product, ProductFilters, CatalogFacets, CatalogMeta } from '../types';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -22,10 +23,7 @@ const SORT_OPTIONS = [
 
 type SortValue = typeof SORT_OPTIONS[number]['value'];
 
-const RATING_OPTIONS = [
-  { value: 4, label: '4★ & up' },
-  { value: 3, label: '3★ & up' },
-];
+const RATING_OPTIONS = [5, 4, 3, 2, 1];
 
 const PER_PAGE = 28;
 
@@ -33,21 +31,6 @@ const PER_PAGE = 28;
 
 function formatPrice(n: number) {
   return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function StarRow({ rating, count }: { rating: number | null; count: number }) {
-  const r = rating ?? 0;
-  return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          className={`w-3 h-3 ${i <= Math.round(r) ? 'fill-amber-400 text-amber-400' : 'text-gray-200 fill-gray-200'}`}
-        />
-      ))}
-      <span className="text-[11px] text-gray-400 ml-0.5">({count})</span>
-    </div>
-  );
 }
 
 // ── Filter state derived from URL params ──────────────────────────────────────
@@ -65,6 +48,7 @@ function useFiltersFromUrl(parentIdFromRoute?: string) {
     free_shipping:     searchParams.get('free_shipping') === '1' || undefined,
     cod:               searchParams.get('cod')            === '1' || undefined,
     on_sale:           searchParams.get('on_sale')        === '1' || undefined,
+    has_voucher:       searchParams.get('has_voucher')    === '1' || undefined,
     new_arrivals:      searchParams.get('new_arrivals')   === '1' || undefined,
     seller_ids:        searchParams.get('sellers') ? searchParams.get('sellers')!.split(',').map(Number) : undefined,
     provinces:         searchParams.get('provinces') ? searchParams.get('provinces')!.split(',') : undefined,
@@ -84,6 +68,7 @@ function useFiltersFromUrl(parentIdFromRoute?: string) {
     if ('free_shipping'     in updates) set('free_shipping', updates.free_shipping ? '1' : undefined);
     if ('cod'               in updates) set('cod',           updates.cod ? '1' : undefined);
     if ('on_sale'           in updates) set('on_sale',       updates.on_sale ? '1' : undefined);
+    if ('has_voucher'       in updates) set('has_voucher',   updates.has_voucher ? '1' : undefined);
     if ('new_arrivals'      in updates) set('new_arrivals',  updates.new_arrivals ? '1' : undefined);
     if ('seller_ids'        in updates) set('sellers',       updates.seller_ids?.length ? updates.seller_ids.join(',') : undefined);
     if ('provinces'         in updates) set('provinces',     updates.provinces?.length ? updates.provinces.join(',') : undefined);
@@ -127,6 +112,7 @@ function ActiveChips({
   if (filters.free_shipping) chips.push({ label: 'Free Shipping', onRemove: () => onRemove('free_shipping') });
   if (filters.cod)           chips.push({ label: 'Cash on Delivery', onRemove: () => onRemove('cod') });
   if (filters.on_sale)       chips.push({ label: 'On Sale', onRemove: () => onRemove('on_sale') });
+  if (filters.has_voucher)   chips.push({ label: 'Has Voucher', onRemove: () => onRemove('has_voucher') });
   if (filters.new_arrivals)  chips.push({ label: 'New Arrivals', onRemove: () => onRemove('new_arrivals') });
   filters.seller_ids?.forEach((id) => chips.push({ label: `Seller #${id}`, onRemove: () => onRemove('seller_ids', id) }));
   filters.provinces?.forEach((p) => chips.push({ label: p, onRemove: () => onRemove('provinces', p) }));
@@ -204,7 +190,7 @@ function FilterSidebar({
   const hasActiveFilters = !!(
     filters.category_id || filters.min_price != null || filters.max_price != null ||
     filters.min_rating || filters.free_shipping || filters.cod || filters.on_sale ||
-    filters.new_arrivals || filters.seller_ids?.length || filters.provinces?.length
+    filters.has_voucher || filters.new_arrivals || filters.seller_ids?.length || filters.provinces?.length
   );
 
   function applyPrice() {
@@ -299,19 +285,19 @@ function FilterSidebar({
       {/* Rating */}
       <FilterSection title="Rating">
         <div className="flex flex-col gap-1 mt-1">
-          {RATING_OPTIONS.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2.5 cursor-pointer group">
+          {RATING_OPTIONS.map((stars) => (
+            <label key={stars} className="flex items-center gap-2.5 cursor-pointer group">
               <input
                 type="radio" name="rating"
-                checked={filters.min_rating === opt.value}
-                onChange={() => onFilter({ min_rating: filters.min_rating === opt.value ? undefined : opt.value })}
+                checked={filters.min_rating === stars}
+                onChange={() => onFilter({ min_rating: filters.min_rating === stars ? undefined : stars })}
                 className="accent-brand-red w-4 h-4"
               />
               <span className="flex items-center gap-1 text-sm text-gray-600 group-hover:text-brand-red transition-colors">
                 {[1,2,3,4,5].map((i) => (
-                  <Star key={i} className={`w-3.5 h-3.5 ${i <= opt.value ? 'fill-amber-400 text-amber-400' : 'text-gray-200 fill-gray-200'}`} />
+                  <Star key={i} className={`w-3.5 h-3.5 ${i <= stars ? 'fill-amber-400 text-amber-400' : 'text-gray-200 fill-gray-200'}`} />
                 ))}
-                <span className="ml-0.5">&amp; up</span>
+                <span className="ml-0.5 text-xs">&amp; up</span>
               </span>
             </label>
           ))}
@@ -325,6 +311,7 @@ function FilterSidebar({
             { key: 'free_shipping', label: 'Free Shipping' },
             { key: 'cod',           label: 'Cash on Delivery' },
             { key: 'on_sale',       label: 'On Sale' },
+            { key: 'has_voucher',   label: 'Has Voucher' },
             { key: 'new_arrivals',  label: 'New Arrivals' },
           ] as const).map(({ key, label }) => (
             <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
@@ -400,93 +387,6 @@ function FilterSidebar({
         </FilterSection>
       )}
     </div>
-  );
-}
-
-// ── Product Card ──────────────────────────────────────────────────────────────
-
-function ProductCard({ product, list }: { product: Product; list: boolean }) {
-  const isOnSale = product.original_price != null && product.original_price > product.base_price;
-  const discount = isOnSale
-    ? Math.round((1 - product.base_price / product.original_price!) * 100)
-    : 0;
-
-  if (list) {
-    return (
-      <Link
-        to={`/products/${product.id}`}
-        className="flex gap-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden p-3"
-      >
-        <div className="w-28 h-28 shrink-0 rounded-xl bg-gray-100 overflow-hidden">
-          {product.thumbnail_url
-            ? <img src={product.thumbnail_url} alt={product.name} className="w-full h-full object-cover" />
-            : <div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-gray-300" /></div>
-          }
-        </div>
-        <div className="flex flex-col justify-between flex-1 min-w-0 py-1">
-          <div>
-            <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{product.name}</p>
-            <StarRow rating={product.avg_rating} count={product.review_count} />
-          </div>
-          <div className="flex items-end justify-between gap-2 flex-wrap">
-            <div>
-              <span className="text-base font-black text-brand-red">{formatPrice(product.base_price)}</span>
-              {isOnSale && (
-                <span className="ml-2 text-xs text-gray-400 line-through">{formatPrice(product.original_price!)}</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1 text-xs text-gray-400">
-              <MapPin className="w-3 h-3" />
-              {product.seller.city ?? product.seller.province ?? '—'}
-            </div>
-          </div>
-        </div>
-      </Link>
-    );
-  }
-
-  return (
-    <Link
-      to={`/products/${product.id}`}
-      className="group flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-    >
-      <div className="relative aspect-square bg-gray-100 overflow-hidden">
-        {product.thumbnail_url
-          ? <img
-              src={product.thumbnail_url}
-              alt={product.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          : <div className="w-full h-full flex items-center justify-center">
-              <Package className="w-10 h-10 text-gray-300" />
-            </div>
-        }
-        {isOnSale && (
-          <span className="absolute top-2 left-2 bg-brand-red text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-            -{discount}%
-          </span>
-        )}
-      </div>
-      <div className="p-3 flex flex-col gap-1.5 flex-1">
-        <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{product.name}</p>
-        <div className="mt-auto flex flex-col gap-1">
-          <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-base font-black text-brand-red">{formatPrice(product.base_price)}</span>
-            {isOnSale && (
-              <span className="text-xs text-gray-400 line-through">{formatPrice(product.original_price!)}</span>
-            )}
-          </div>
-          <StarRow rating={product.avg_rating} count={product.review_count} />
-          <div className="flex items-center justify-between text-[11px] text-gray-400 mt-0.5">
-            <span>{product.units_sold > 0 ? `${product.units_sold.toLocaleString()} sold` : 'New'}</span>
-            <span className="flex items-center gap-0.5 truncate max-w-[50%]">
-              <MapPin className="w-3 h-3 shrink-0" />
-              {product.seller.city ?? product.seller.province ?? '—'}
-            </span>
-          </div>
-        </div>
-      </div>
-    </Link>
   );
 }
 
@@ -629,7 +529,15 @@ export default function CatalogPage() {
   const [listView,    setListView]    = useState(false);
   const [drawerOpen,  setDrawerOpen]  = useState(false);
   const [sortOpen,    setSortOpen]    = useState(false);
+  const [searchInput, setSearchInput] = useState(filters.q ?? '');
   const sortRef = useRef<HTMLDivElement>(null);
+
+  // Sync searchInput when URL q param changes externally (e.g. nav from header)
+  useEffect(() => { setSearchInput(filters.q ?? ''); }, [filters.q]);
+
+  function submitSearch() {
+    setFilter({ q: searchInput.trim() || undefined });
+  }
 
   // Derive page title
   const parentNode = parentId ? CATEGORY_TREE.find((p) => p.id === parentId) : null;
@@ -708,14 +616,44 @@ export default function CatalogPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
 
-        {/* ── Title + result count ── */}
-        <div className="mb-5">
-          <h1 className="text-xl font-black text-gray-900">{pageTitle}</h1>
-          {meta && (
-            <p className="text-sm text-gray-400 mt-0.5">
-              {meta.total.toLocaleString()} {meta.total === 1 ? 'item' : 'items'} found
-            </p>
-          )}
+        {/* ── Title + search bar + result count ── */}
+        <div className="mb-5 space-y-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-black text-gray-900 shrink-0">{pageTitle}</h1>
+            {meta && (
+              <p className="text-sm text-gray-400">
+                {meta.total.toLocaleString()} {meta.total === 1 ? 'item' : 'items'}
+              </p>
+            )}
+          </div>
+          {/* Search bar */}
+          <div className="flex items-center gap-2 max-w-xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
+                placeholder="Search products, brands, and categories"
+                className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:border-brand-red focus:ring-2 focus:ring-red-100 transition-all"
+              />
+              {searchInput && (
+                <button
+                  onClick={() => { setSearchInput(''); setFilter({ q: undefined }); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={submitSearch}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand-red text-white text-sm font-semibold hover:bg-brand-red-dark transition-colors min-h-[44px] shrink-0"
+            >
+              <Search className="w-4 h-4" />
+              <span className="hidden sm:inline">Search</span>
+            </button>
+          </div>
         </div>
 
         {/* ── Active chips ── */}

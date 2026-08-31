@@ -94,6 +94,7 @@ export interface User {
   role: Role;
   status: UserStatus;
   avatar_url: string | null;
+  has_password: boolean;
   created_at: string | null;
   seller_profile?: SellerProfileSummary;
 }
@@ -310,9 +311,11 @@ export interface ProductSeller {
 
 export interface ProductVariantSummary {
   id: number;
+  label?: string;
   price: number;
   original_price: number | null;
   stock_quantity: number;
+  sku?: string | null;
 }
 
 export interface Product {
@@ -395,6 +398,7 @@ export interface ProductDetailSpecs {
 
 export interface ProductDetail extends Omit<Product, 'variants' | 'thumbnail_url'> {
   images: ProductImage[];
+  variants: ProductVariantSummary[];
   variant_groups: ProductVariantGroup[];
   specs: ProductDetailSpecs;
   seller: ProductDetailSeller;
@@ -434,10 +438,11 @@ export interface ProductFilters {
   seller_ids?: number[];
   min_price?: number;
   max_price?: number;
-  min_rating?: number;          // 3 | 4
+  min_rating?: number;          // 1 | 2 | 3 | 4 | 5
   free_shipping?: boolean;
   cod?: boolean;
   on_sale?: boolean;
+  has_voucher?: boolean;
   new_arrivals?: boolean;
   provinces?: string[];
   sort?: 'best_match' | 'price_asc' | 'price_desc' | 'newest' | 'best_selling' | 'highest_rated';
@@ -490,6 +495,7 @@ export interface PayoutRequest {
 
 export interface SellerDashboardStats {
   today_sales: number;
+  yesterday_sales: number;
   orders_to_pack: number;
   total_products: number;
   low_stock_count: number;
@@ -530,6 +536,151 @@ export interface SellerConversation {
   unread: number;
 }
 
+// ─── Seller Products ─────────────────────────────────────────────────────────
+
+export type SellerProductStatus = 'draft' | 'active' | 'pending_review' | 'rejected' | 'out_of_stock' | 'archived';
+
+export interface SellerProductVariant {
+  id: number;
+  label: string;          // e.g. "Red / M"
+  sku: string | null;
+  stock_quantity: number;
+  price: number;
+}
+
+export interface SellerProduct {
+  id: number;
+  name: string;
+  description: string | null;
+  category_id: string;
+  thumbnail_url: string | null;
+  images: ProductImage[];
+  base_price: number;
+  status: SellerProductStatus;
+  units_sold: number;
+  rejection_reason: string | null;
+  archive_reason: string | null;
+  archived_by: 'admin' | 'seller' | null;
+  created_at: string;
+  variants: SellerProductVariant[];
+  total_stock: number;
+  weight_kg: number | null;
+  dimension_l_cm: number | null;
+  dimension_w_cm: number | null;
+  dimension_h_cm: number | null;
+  sku: string | null;
+  net_weight_volume: string | null;
+  expiry_best_before: string | null;
+  ingredients: string | null;
+  storage_instructions: string | null;
+  allergen_info: string | null;
+  fda_lto_on_file: boolean;
+  fda_cpr_on_file: boolean;
+}
+
+export interface SellerProductCounts {
+  all: number;
+  active: number;
+  pending_review: number;
+  rejected: number;
+  out_of_stock: number;
+  archived: number;
+}
+
+// ─── Add Product Form ────────────────────────────────────────────────────────
+
+export interface ProductFormVariantRow {
+  /** Combination label, e.g. "Red / M" */
+  combination: string;
+  /** Map of variantTypeIndex → optionValue */
+  options: Record<number, string>;
+  price: string;
+  stock: string;
+  /** Resolved preview URL for this row (from optionImages or main image fallback) */
+  imagePreview?: string;
+}
+
+export interface ProductFormVariantType {
+  name: string;     // e.g. "Color"
+  options: string[]; // e.g. ["Red", "Blue"]
+  /** Map of option value → picked product image id */
+  optionImages?: Record<string, string>;
+}
+
+export interface ProductFormImage {
+  id: string;       // local uuid for key/reorder
+  file: File;
+  preview: string;  // object URL
+}
+
+export interface AddProductFormState {
+  // Basic Info
+  name: string;
+  description: string;
+  images: ProductFormImage[];
+  /** Server images already saved (edit mode only) */
+  existingImages: ProductImage[];
+  deletedImageIds: number[];
+  // Category
+  parentCategoryId: string;
+  leafCategoryId: string;
+  // Variants
+  hasVariants: boolean;
+  variantTypes: ProductFormVariantType[];
+  variantRows: ProductFormVariantRow[];
+  // Simple price/stock (no variants)
+  price: string;
+  stock: string;
+  // Shipping
+  weightValue: string;
+  weightUnit: 'kg' | 'g';
+  dimensionL: string;
+  dimensionW: string;
+  dimensionH: string;
+  sku: string;
+  // FDA
+  fdaLtoFile: File | null;
+  fdaLtoOnFile: boolean;
+  fdaCprFile: File | null;
+  ingredients: string;
+  netWeight: string;
+  storageInstructions: string;
+  expiryDate: string;
+  allergenInfo: string;
+}
+
+// ─── Wishlist & Store Follows ────────────────────────────────────────────────
+
+export interface WishlistProduct {
+  id: number;
+  name: string;
+  thumbnail_url: string | null;
+  base_price: number;
+  original_price: number | null;
+  status: string;
+  total_stock: number;
+  seller: { id: number; shop_name: string };
+}
+
+export interface WishlistItem {
+  wishlist_item_id: number;
+  added_at: string;
+  product: WishlistProduct;
+}
+
+export interface FollowedStore {
+  follow_id: number;
+  followed_at: string;
+  seller: {
+    id: number;
+    shop_name: string;
+    logo_url: string | null;
+    avg_rating: number | null;
+    product_count: number;
+    has_sale: boolean;
+  };
+}
+
 export type AddressLabel = 'home' | 'office';
 
 export interface Address {
@@ -543,4 +694,52 @@ export interface Address {
   ward: string;
   label: AddressLabel;
   is_default: boolean;
+}
+
+export interface PublicShopProfile {
+  id: number;
+  seller_id: number;
+  seller_name: string;
+  shop_name: string;
+  shop_slug: string;
+  shop_category: string | null;
+  shop_description: string | null;
+  shop_bio: string | null;
+  address_province: string | null;
+  address_city: string | null;
+  address_barangay: string | null;
+  shop_contact_number: string | null;
+  return_policy: string | null;
+  shipping_policy: string | null;
+  business_hours: string | null;
+  response_time: string | null;
+  logo_url: string | null;
+  banner_url: string | null;
+  application_status: string;
+  joined_date: string | null;
+  avg_rating: number | null;
+  total_reviews: number;
+  total_products: number;
+  follower_count: number;
+  is_following: boolean;
+  rating_breakdown?: Record<number, number>;
+  categories?: { category_id: string; category_name: string; count: number }[];
+}
+
+export interface PublicShopReview {
+  id: number;
+  rating: number;
+  comment: string | null;
+  verified_purchase: boolean;
+  created_at: string;
+  buyer: {
+    id: number;
+    name: string;
+    avatar_url: string | null;
+  };
+  product: {
+    id: number;
+    name: string;
+    thumbnail_url: string | null;
+  };
 }

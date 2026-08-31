@@ -1,15 +1,10 @@
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
 import Button from '../components/ui/Button';
-
-// Placeholder — will be replaced with real cart state/context
-const MOCK_ITEMS = [
-  { id: 1, name: 'Floral Wrap Dress', variant: 'Size M · Red', price: 1299, quantity: 1, image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&q=80' },
-  { id: 2, name: 'Linen Blouse', variant: 'Size S · White', price: 799, quantity: 2, image: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400&q=80' },
-];
+import { useCart } from '../hooks/useCart';
 
 export default function CartPage() {
-  const items = MOCK_ITEMS;
+  const { items, removeItem, updateQty } = useCart();
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const shipping = subtotal > 0 ? 99 : 0;
   const total = subtotal + shipping;
@@ -50,27 +45,43 @@ export default function CartPage() {
               </h1>
 
               {items.map((item) => (
-                <div key={item.id} className="bg-white rounded-2xl p-4 flex gap-4 shadow-sm border border-gray-100">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="w-24 h-32 object-cover rounded-xl bg-gray-100 shrink-0"
-                  />
+                <div key={item.variantId} className="bg-white rounded-2xl p-4 flex gap-4 shadow-sm border border-gray-100">
+                  <Link to={`/products/${item.productId}`} className="shrink-0 group">
+                    <img
+                      src={item.image || '/placeholder.png'}
+                      alt={item.name}
+                      className="w-24 h-32 object-cover rounded-xl bg-gray-100 shrink-0 group-hover:opacity-90 transition-opacity"
+                    />
+                  </Link>
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>
-                      <p className="font-semibold text-brand-black">{item.name}</p>
-                      <p className="text-sm text-gray-400 mt-0.5">{item.variant}</p>
+                      <Link
+                        to={`/products/${item.productId}`}
+                        className="font-semibold text-brand-black hover:text-brand-red transition-colors line-clamp-2 block"
+                      >
+                        {item.name}
+                      </Link>
+                      {item.variant && <p className="text-sm text-gray-400 mt-0.5">{item.variant}</p>}
                     </div>
                     <div className="flex items-center justify-between mt-3">
                       {/* Quantity */}
                       <div className="flex items-center gap-2 border border-gray-200 rounded-lg overflow-hidden">
-                        <button className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors font-bold">−</button>
+                        <button
+                          onClick={() => updateQty(item.variantId, item.quantity - 1)}
+                          className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors font-bold select-none"
+                        >−</button>
                         <span className="text-sm font-semibold w-6 text-center">{item.quantity}</span>
-                        <button className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors font-bold">+</button>
+                        <button
+                          onClick={() => updateQty(item.variantId, item.quantity + 1)}
+                          className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors font-bold select-none"
+                        >+</button>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-bold text-brand-red">₱{(item.price * item.quantity).toLocaleString()}</span>
-                        <button className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-brand-red transition-colors">
+                        <button
+                          onClick={() => removeItem(item.variantId)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-brand-red transition-colors"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>

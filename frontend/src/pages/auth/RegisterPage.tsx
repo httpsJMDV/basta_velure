@@ -30,6 +30,8 @@ const GOV_ID_OPTIONS = [
 
 interface PsgcItem { code: string; name: string; }
 
+const NCR_CODE = '130000000';
+
 function calcAge(dob: string): number | null {
   if (!dob) return null;
   const today = new Date();
@@ -82,9 +84,10 @@ export default function RegisterPage() {
   useEffect(() => {
     fetch('https://psgc.gitlab.io/api/provinces/')
       .then((r) => r.json())
-      .then((data: PsgcItem[]) =>
-        setProvinces([...data].sort((a, b) => a.name.localeCompare(b.name)))
-      )
+      .then((data: PsgcItem[]) => {
+        const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
+        setProvinces([{ code: NCR_CODE, name: 'Metro Manila (NCR)' }, ...sorted]);
+      })
       .catch(() => {});
   }, []);
 
@@ -93,8 +96,12 @@ export default function RegisterPage() {
     setCities([]);
     setBarangays([]);
     if (!code) return;
+    const isNCR = code === NCR_CODE;
+    const url = isNCR
+      ? `https://psgc.gitlab.io/api/regions/${NCR_CODE}/cities-municipalities/`
+      : `https://psgc.gitlab.io/api/provinces/${code}/cities-municipalities/`;
     setLoadingCities(true);
-    fetch(`https://psgc.gitlab.io/api/provinces/${code}/cities-municipalities/`)
+    fetch(url)
       .then((r) => r.json())
       .then((data: PsgcItem[]) =>
         setCities([...data].sort((a, b) => a.name.localeCompare(b.name)))
@@ -468,14 +475,15 @@ export default function RegisterPage() {
       {/* Lifestyle image — hidden on mobile */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black">
         <img
-          src="https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=1200&q=80"
-          alt="Velure fashion"
+          src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200&q=80"
+          alt="Velure marketplace"
           className="absolute inset-0 w-full h-full object-cover opacity-75"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-black/70 to-transparent flex items-end p-12">
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 via-brand-black/30 to-transparent flex items-end p-12">
           <div>
-            <p className="text-white text-4xl font-bold leading-tight">Velure</p>
-            <p className="text-white/70 text-lg mt-1">Shop Everything, Delivered.</p>
+            <p className="text-white text-4xl font-bold leading-tight">Millions of products.</p>
+            <p className="text-white text-4xl font-bold leading-tight">One account.</p>
+            <p className="text-white/60 text-base mt-2">Join thousands of shoppers on Velure.</p>
           </div>
         </div>
       </div>
