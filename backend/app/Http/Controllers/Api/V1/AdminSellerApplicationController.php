@@ -65,68 +65,49 @@ class AdminSellerApplicationController extends Controller
     /**
      * Serve the government ID image via a short-lived signed URL — never a direct path.
      */
-    public function idImage(SellerProfile $sellerProfile): Response
+    public function idImage(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless(Storage::disk('ids')->exists($sellerProfile->government_id_image_path), 404);
-
-        $contents = Storage::disk('ids')->get($sellerProfile->government_id_image_path);
-        $mime     = Storage::disk('ids')->mimeType($sellerProfile->government_id_image_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('ids')->path($sellerProfile->government_id_image_path));
     }
 
-    public function selfieWithId(SellerProfile $sellerProfile): Response
+    public function selfieWithId(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($sellerProfile->selfie_with_id_path, 404);
         abort_unless(Storage::disk('ids')->exists($sellerProfile->selfie_with_id_path), 404);
 
-        $contents = Storage::disk('ids')->get($sellerProfile->selfie_with_id_path);
-        $mime     = Storage::disk('ids')->mimeType($sellerProfile->selfie_with_id_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('ids')->path($sellerProfile->selfie_with_id_path));
     }
 
-    public function idImageBack(SellerProfile $sellerProfile): Response
+    public function idImageBack(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($sellerProfile->government_id_image_back_path, 404);
         abort_unless(Storage::disk('ids')->exists($sellerProfile->government_id_image_back_path), 404);
 
-        $contents = Storage::disk('ids')->get($sellerProfile->government_id_image_back_path);
-        $mime     = Storage::disk('ids')->mimeType($sellerProfile->government_id_image_back_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('ids')->path($sellerProfile->government_id_image_back_path));
     }
 
-    public function businessPermit(SellerProfile $sellerProfile): Response
+    public function businessPermit(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($sellerProfile->business_permit_path, 404);
         abort_unless(Storage::disk('ids')->exists($sellerProfile->business_permit_path), 404);
 
-        $contents = Storage::disk('ids')->get($sellerProfile->business_permit_path);
-        $mime     = Storage::disk('ids')->mimeType($sellerProfile->business_permit_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('ids')->path($sellerProfile->business_permit_path));
     }
 
-    public function dtiSecRegistration(SellerProfile $sellerProfile): Response
+    public function dtiSecRegistration(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($sellerProfile->dti_sec_registration_path, 404);
         abort_unless(Storage::disk('ids')->exists($sellerProfile->dti_sec_registration_path), 404);
 
-        $contents = Storage::disk('ids')->get($sellerProfile->dti_sec_registration_path);
-        $mime     = Storage::disk('ids')->mimeType($sellerProfile->dti_sec_registration_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('ids')->path($sellerProfile->dti_sec_registration_path));
     }
 
-    public function fdaLto(SellerProfile $sellerProfile): Response
+    public function fdaLto(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($sellerProfile->fda_lto_path, 404);
         abort_unless(Storage::disk('ids')->exists($sellerProfile->fda_lto_path), 404);
 
-        $contents = Storage::disk('ids')->get($sellerProfile->fda_lto_path);
-        $mime     = Storage::disk('ids')->mimeType($sellerProfile->fda_lto_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('ids')->path($sellerProfile->fda_lto_path));
     }
 }

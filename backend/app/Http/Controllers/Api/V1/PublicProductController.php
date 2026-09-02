@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Review;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,30 +20,33 @@ class PublicProductController extends Controller
             ->whereHas('seller.sellerProfile', fn ($q) => $q->where('application_status', 'approved'));
 
         // Free-text search
-        if ($s = $request->q) {
+        if ($request->filled('q')) {
+            $s = (string) $request->input('q');
             $like = "%{$s}%";
-            $query->where(fn ($q) => $q
-                ->where('name', 'like', $like)
-                ->orWhere('description', 'like', $like)
-                ->orWhereHas('seller.sellerProfile', fn ($sq) => $sq->where('shop_name', 'like', $like))
-            );
+            $query->where(function ($q) use ($like) {
+                $q->where('name', 'like', $like)
+                  ->orWhere('description', 'like', $like)
+                  ->orWhereHas('seller.sellerProfile', function ($sq) use ($like) {
+                      $sq->where('shop_name', 'like', $like);
+                  });
+            });
         }
 
         // Category filters
-        if ($request->category_id) {
-            $query->where('category_id', $request->category_id);
-        } elseif ($request->parent_category_id) {
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
+        } elseif ($request->filled('parent_category_id')) {
             // parent_category_id is a string slug — match against category_id prefix
-            $query->where('category_id', 'like', $request->parent_category_id . '%');
+            $query->where('category_id', 'like', $request->input('parent_category_id') . '%');
         }
 
         // Price range
-        if ($request->filled('min_price')) $query->where('base_price', '>=', (float) $request->min_price);
-        if ($request->filled('max_price')) $query->where('base_price', '<=', (float) $request->max_price);
+        if ($request->filled('min_price')) $query->where('base_price', '>=', (float) $request->input('min_price'));
+        if ($request->filled('max_price')) $query->where('base_price', '<=', (float) $request->input('max_price'));
 
         // Rating
         if ($request->filled('min_rating')) {
-            $query->where('avg_rating', '>=', (float) $request->min_rating);
+            $query->where('avg_rating', '>=', (float) $request->input('min_rating'));
         }
 
         // Promotions
@@ -52,20 +56,54 @@ class PublicProductController extends Controller
         if ($request->boolean('new_arrivals')) {
             $query->where('created_at', '>=', now()->subDays(30));
         }
-        if ($request->boolean('has_voucher')) {
-            $query->whereHas('vouchers', fn ($q) => $q->where('is_active', true)->where('expires_at', '>', now()));
-        }
 
         // Seller filter
-        if ($request->seller_ids) {
-            $ids = array_map('intval', explode(',', $request->seller_ids));
+        if ($request->filled('seller_ids')) {
+            $ids = array_map('intval', explode(',', (string) $request->input('seller_ids')));
             $query->whereIn('seller_id', $ids);
         }
 
-        // Province filter (via seller profile)
-        if ($request->provinces) {
-            $provinces = explode(',', $request->provinces);
-            $query->whereHas('seller.sellerProfile', fn ($q) => $q->whereIn('address_province', $provinces));
+        // Shipped From / Location filter (macro-regions & provinces)
+        $locationParam = $request->shipped_from ?? $request->provinces;
+        if ($locationParam) {
+            $locations = array_filter(array_map('trim', explode(',', $locationParam)));
+            $query->whereHas('seller.sellerProfile', function ($q) use ($locations) {
+                $q->where(function ($inner) use ($locations) {
+                    foreach ($locations as $loc) {
+                        $locLower = strtolower(str_replace([' ', '-'], '_', $loc));
+                        if ($locLower === 'domestic') {
+                            $inner->orWhereNotNull('address_province');
+                        } elseif (in_array($locLower, ['metro_manila', 'ncr', '13', '130000000'])) {
+                            $inner->orWhere('address_province', 'like', '13%')
+                                  ->orWhere('address_province', 'like', '%Manila%')
+                                  ->orWhere('address_province', 'like', '%NCR%');
+                        } elseif (in_array($locLower, ['north_luzon', 'luzon_north'])) {
+                            $inner->orWhere('address_province', 'like', '01%')
+                                  ->orWhere('address_province', 'like', '02%')
+                                  ->orWhere('address_province', 'like', '03%')
+                                  ->orWhere('address_province', 'like', '14%');
+                        } elseif (in_array($locLower, ['south_luzon', 'luzon_south'])) {
+                            $inner->orWhere('address_province', 'like', '04%')
+                                  ->orWhere('address_province', 'like', '17%')
+                                  ->orWhere('address_province', 'like', '05%');
+                        } elseif ($locLower === 'visayas') {
+                            $inner->orWhere('address_province', 'like', '06%')
+                                  ->orWhere('address_province', 'like', '07%')
+                                  ->orWhere('address_province', 'like', '08%')
+                                  ->orWhere('address_province', 'like', '18%');
+                        } elseif ($locLower === 'mindanao') {
+                            $inner->orWhere('address_province', 'like', '09%')
+                                  ->orWhere('address_province', 'like', '10%')
+                                  ->orWhere('address_province', 'like', '11%')
+                                  ->orWhere('address_province', 'like', '12%')
+                                  ->orWhere('address_province', 'like', '16%')
+                                  ->orWhere('address_province', 'like', '19%');
+                        } else {
+                            $inner->orWhere('address_province', $loc);
+                        }
+                    }
+                });
+            });
         }
 
         // Sorting
@@ -82,12 +120,19 @@ class PublicProductController extends Controller
         $perPage   = min((int) $request->input('per_page', 28), 100);
         $paginated = $query->paginate($perPage);
 
-        // Facets — sellers and provinces from the unfiltered active set
+        // Facets — sellers and location macro-regions
         $facets = $this->buildFacets($request);
 
+        // Related shops (when user searched a keyword)
+        $relatedShops = [];
+        if ($request->filled('q')) {
+            $relatedShops = $this->buildRelatedShops((string) $request->input('q'));
+        }
+
         return response()->json([
-            'data'   => collect($paginated->items())->map(fn ($p) => $this->formatProduct($p)),
-            'meta'   => [
+            'data'          => collect($paginated->items())->map(fn ($p) => $this->formatProduct($p)),
+            'related_shops' => $relatedShops,
+            'meta'          => [
                 'current_page' => $paginated->currentPage(),
                 'last_page'    => $paginated->lastPage(),
                 'per_page'     => $paginated->perPage(),
@@ -128,7 +173,114 @@ class PublicProductController extends Controller
         ]);
     }
 
+    /** GET /products/{product}/reviews */
+    public function reviews(Product $product, Request $request): JsonResponse
+    {
+        $query = Review::with(['buyer'])
+            ->where('product_id', $product->id)
+            ->where('moderation_status', 'approved');
+
+        if ($request->filled('rating')) {
+            $query->where('rating', (int) $request->input('rating'));
+        }
+
+        if ($request->input('sort') === 'recent') {
+            $query->latest();
+        } else {
+            $query->orderByDesc('rating')->latest();
+        }
+
+        $paginated = $query->paginate(10);
+
+        // Rating distribution counts
+        $allApproved = Review::where('product_id', $product->id)->where('moderation_status', 'approved')->get();
+        $ratingCounts = [
+            '1' => $allApproved->where('rating', 1)->count(),
+            '2' => $allApproved->where('rating', 2)->count(),
+            '3' => $allApproved->where('rating', 3)->count(),
+            '4' => $allApproved->where('rating', 4)->count(),
+            '5' => $allApproved->where('rating', 5)->count(),
+        ];
+        $avgRating = $allApproved->avg('rating');
+
+        return response()->json([
+            'data' => collect($paginated->items())->map(fn ($r) => [
+                'id'                => $r->id,
+                'rating'            => (int) $r->rating,
+                'comment'           => $r->comment,
+                'verified_purchase' => (bool) $r->verified_purchase,
+                'created_at'        => $r->created_at?->toIso8601String(),
+                'buyer'             => [
+                    'id'         => $r->buyer?->id,
+                    'name'       => $r->buyer ? trim($r->buyer->first_name . ' ' . $r->buyer->last_name) : 'Anonymous Buyer',
+                    'avatar_url' => $r->buyer?->avatar_path ? asset('storage/' . $r->buyer->avatar_path) : null,
+                ],
+            ]),
+            'meta' => [
+                'current_page'  => $paginated->currentPage(),
+                'last_page'     => $paginated->lastPage(),
+                'total'         => $paginated->total(),
+                'avg_rating'    => $avgRating ? round((float) $avgRating, 1) : null,
+                'rating_counts' => $ratingCounts,
+            ],
+        ]);
+    }
+
     // ─── Private helpers ──────────────────────────────────────────────────────
+
+    private function buildRelatedShops(string $q): array
+    {
+        $like = "%{$q}%";
+
+        // Find approved sellers whose shop name, bio, description, category or active product names match $q
+        $profiles = \App\Models\SellerProfile::with(['user'])
+            ->where('application_status', 'approved')
+            ->whereHas('user', fn ($uq) => $uq->where('status', 'active'))
+            ->where(function ($sub) use ($like) {
+                $sub->where('shop_name', 'like', $like)
+                    ->orWhere('shop_bio', 'like', $like)
+                    ->orWhere('shop_description', 'like', $like)
+                    ->orWhere('shop_category', 'like', $like)
+                    ->orWhereHas('user.products', fn ($pq) => $pq->where('status', 'active')->where('name', 'like', $like));
+            })
+            ->limit(3)
+            ->get();
+
+        return $profiles->map(function ($profile) {
+            $seller = $profile->user;
+            $activeProducts = Product::with(['images'])
+                ->where('seller_id', $seller->id)
+                ->where('status', 'active')
+                ->latest()
+                ->limit(4)
+                ->get();
+
+            $avgRating = \App\Models\Review::whereHas('product', fn ($rq) => $rq->where('seller_id', $seller->id))->avg('rating');
+            $followerCount = \App\Models\StoreFollow::where('seller_id', $seller->id)->count();
+            $slug = \Illuminate\Support\Str::slug($profile->shop_name ?? ('shop-' . $seller->id));
+
+            return [
+                'id'               => $profile->id,
+                'seller_id'        => $seller->id,
+                'shop_name'        => $profile->shop_name ?? ($seller->first_name . "'s Shop"),
+                'shop_slug'        => $slug,
+                'shop_category'    => $profile->shop_category ?? 'General Marketplace',
+                'shop_bio'         => $profile->shop_bio,
+                'logo_url'         => $profile->logo_path ? asset('storage/' . $profile->logo_path) : ($seller->avatar_path ? asset('storage/' . $seller->avatar_path) : null),
+                'avg_rating'       => $avgRating ? round((float) $avgRating, 1) : 5.0,
+                'total_products'   => Product::where('seller_id', $seller->id)->where('status', 'active')->count(),
+                'follower_count'   => $followerCount,
+                'rating_pct'       => $avgRating ? round(((float) $avgRating / 5) * 100) : 98,
+                'response_rate'    => $profile->response_time ?? 'Within 1 hour',
+                'preview_products' => $activeProducts->map(fn ($p) => [
+                    'id'            => $p->id,
+                    'name'          => $p->name,
+                    'base_price'    => (float) $p->base_price,
+                    'thumbnail_url' => ($p->images->firstWhere('is_primary', true) ?? $p->images->first()) ? asset('storage/' . ($p->images->firstWhere('is_primary', true) ?? $p->images->first())->path) : null,
+                ]),
+            ];
+        })->toArray();
+    }
 
     private function buildFacets(Request $request): array
     {
@@ -156,16 +308,46 @@ class PublicProductController extends Controller
             ];
         })->values()->filter(fn ($s) => $s['id'])->sortByDesc('count')->values();
 
-        // Provinces facet
-        $provinces = $products->groupBy(fn ($p) => $p->seller?->sellerProfile?->address_province)
-            ->filter(fn ($g, $k) => $k !== null)
-            ->map(fn ($g, $k) => ['name' => $k, 'count' => $g->count()])
-            ->sortByDesc('count')
-            ->values();
+        // Macro-regions counts
+        $cDomestic    = 0;
+        $cMetroManila = 0;
+        $cNorthLuzon  = 0;
+        $cSouthLuzon  = 0;
+        $cVisayas     = 0;
+        $cMindanao    = 0;
+
+        foreach ($products as $p) {
+            $prov = $p->seller?->sellerProfile?->address_province;
+            if (!$prov) continue;
+            $cDomestic++;
+
+            $prefix2 = substr($prov, 0, 2);
+            if ($prefix2 === '13' || stripos($prov, 'manila') !== false || stripos($prov, 'ncr') !== false) {
+                $cMetroManila++;
+            } elseif (in_array($prefix2, ['01', '02', '03', '14'])) {
+                $cNorthLuzon++;
+            } elseif (in_array($prefix2, ['04', '17', '05'])) {
+                $cSouthLuzon++;
+            } elseif (in_array($prefix2, ['06', '07', '08', '18'])) {
+                $cVisayas++;
+            } elseif (in_array($prefix2, ['09', '10', '11', '12', '16', '19'])) {
+                $cMindanao++;
+            }
+        }
+
+        $locations = [
+            ['key' => 'Domestic',     'name' => 'Domestic',     'count' => $cDomestic],
+            ['key' => 'Metro Manila', 'name' => 'Metro Manila', 'count' => $cMetroManila],
+            ['key' => 'North Luzon',  'name' => 'North Luzon',  'count' => $cNorthLuzon],
+            ['key' => 'South Luzon',  'name' => 'South Luzon',  'count' => $cSouthLuzon],
+            ['key' => 'Visayas',      'name' => 'Visayas',      'count' => $cVisayas],
+            ['key' => 'Mindanao',     'name' => 'Mindanao',     'count' => $cMindanao],
+        ];
 
         return [
             'sellers'   => $sellers->toArray(),
-            'provinces' => $provinces->toArray(),
+            'locations' => $locations,
+            'provinces' => $locations, // alias for backwards compatibility
         ];
     }
 
@@ -180,7 +362,7 @@ class PublicProductController extends Controller
             'description'    => $product->description,
             'category_id'    => $product->category_id,
             'status'         => $product->status,
-            'thumbnail_url'  => $primary ? url(Storage::url($primary->path)) : null,
+            'thumbnail_url'  => $primary ? asset('storage/' . $primary->path) : null,
             'base_price'     => (float) $product->base_price,
             'original_price' => $product->original_price ? (float) $product->original_price : null,
             'units_sold'     => (int) $product->units_sold,
@@ -290,7 +472,7 @@ class PublicProductController extends Controller
         return array_merge($base, [
             'images' => $product->images->map(fn ($img) => [
                 'id'         => $img->id,
-                'url'        => url(Storage::url($img->path)),
+                'url'        => asset('storage/' . $img->path),
                 'is_primary' => (bool) $img->is_primary,
                 'sort_order' => $img->sort_order,
             ]),
@@ -321,18 +503,21 @@ class PublicProductController extends Controller
             'seller' => [
                 'id'              => $product->seller?->id,
                 'shop_name'       => $profile?->shop_name ?? '',
-                'avatar_url'      => $profile?->logo_path ? url(Storage::url($profile->logo_path)) : null,
+                'avatar_url'      => $profile?->logo_path ? asset('storage/' . $profile->logo_path) : null,
                 'city'            => $profile?->address_city ?? null,
                 'province'        => $profile?->address_province ?? null,
                 'rating_pct'      => null,
                 'units_sold'      => (int) Product::where('seller_id', $product->seller_id)->sum('units_sold'),
                 'repurchase_rate' => null,
                 'response_rate'   => null,
+                'return_policy'   => $profile?->return_policy ?? null,
+                'shipping_policy' => $profile?->shipping_policy ?? null,
             ],
             'shipping_fee'                  => null,
             'estimated_delivery_days_min'   => 3,
             'estimated_delivery_days_max'   => 7,
             'return_policy'                 => $profile?->return_policy ?? null,
+            'shipping_policy'               => $profile?->shipping_policy ?? null,
             'warranty'                      => null,
             'is_wishlisted'                 => false,
         ]);

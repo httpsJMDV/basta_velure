@@ -13,7 +13,7 @@ class AdminProductController extends Controller
     /** GET /admin/products */
     public function index(Request $request): JsonResponse
     {
-        $query = Product::with(['variants', 'images', 'seller'])
+        $query = Product::with(['variants', 'images', 'seller.sellerProfile', 'category'])
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->search, function ($q) use ($request) {
                 $s = "%{$request->search}%";
@@ -67,7 +67,7 @@ class AdminProductController extends Controller
     /** GET /admin/products/{product} */
     public function show(Product $product): JsonResponse
     {
-        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller']))]);
+        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile', 'category']))]);
     }
 
     /** POST /admin/products/{product}/approve */
@@ -130,21 +130,17 @@ class AdminProductController extends Controller
     }
 
     /** GET /admin/products/{product}/fda-lto */
-    public function fdaLto(Product $product): \Illuminate\Http\Response
+    public function fdaLto(Product $product): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($product->fda_lto_path && Storage::disk('local')->exists($product->fda_lto_path), 404);
-        $contents = Storage::disk('local')->get($product->fda_lto_path);
-        $mime     = Storage::disk('local')->mimeType($product->fda_lto_path);
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('local')->path($product->fda_lto_path));
     }
 
     /** GET /admin/products/{product}/fda-cpr */
-    public function fdaCpr(Product $product): \Illuminate\Http\Response
+    public function fdaCpr(Product $product): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($product->fda_cpr_path && Storage::disk('local')->exists($product->fda_cpr_path), 404);
-        $contents = Storage::disk('local')->get($product->fda_cpr_path);
-        $mime     = Storage::disk('local')->mimeType($product->fda_cpr_path);
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('local')->path($product->fda_cpr_path));
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
@@ -163,11 +159,21 @@ class AdminProductController extends Controller
             'archived_by'          => $product->archived_by,
             'base_price'           => (float) $product->base_price,
             'units_sold'           => $product->units_sold,
-            'thumbnail_url'        => $primaryImage ? url(Storage::url($primaryImage->path)) : null,
+            'weight_kg'            => $product->weight_kg ? (float) $product->weight_kg : null,
+            'dimension_l_cm'       => $product->dimension_l_cm ? (float) $product->dimension_l_cm : null,
+            'dimension_w_cm'       => $product->dimension_w_cm ? (float) $product->dimension_w_cm : null,
+            'dimension_h_cm'       => $product->dimension_h_cm ? (float) $product->dimension_h_cm : null,
+            'sku'                  => $product->sku,
+            'category'             => $product->category ? [
+                'id'   => $product->category->id,
+                'name' => $product->category->name,
+                'slug' => $product->category->slug,
+            ] : null,
+            'thumbnail_url'        => $primaryImage ? asset('storage/' . $primaryImage->path) : null,
             'images'               => $product->images->map(fn ($img) => [
                 'id'         => $img->id,
-                'url'        => url(Storage::url($img->path)),
-                'is_primary' => $img->is_primary,
+                'url'        => asset('storage/' . $img->path),
+                'is_primary' => (bool) $img->is_primary,
                 'sort_order' => $img->sort_order,
             ]),
             'variants'             => $product->variants->map(fn ($v) => [
@@ -178,14 +184,20 @@ class AdminProductController extends Controller
                 'stock_quantity' => $v->stock_quantity,
             ]),
             'seller'               => $product->seller ? [
-                'id'        => $product->seller->id,
-                'full_name' => $product->seller->first_name . ' ' . $product->seller->last_name,
-                'email'     => $product->seller->email,
+                'id'         => $product->seller->id,
+                'full_name'  => $product->seller->first_name . ' ' . $product->seller->last_name,
+                'email'      => $product->seller->email,
+                'phone'      => $product->seller->phone,
+                'shop_name'  => $product->seller->sellerProfile?->shop_name,
+                'shop_slug'  => $product->seller->sellerProfile?->shop_slug,
+                'avatar_url' => $product->seller->avatar_path ? asset('storage/' . $product->seller->avatar_path) : null,
             ] : null,
             'created_at'           => $product->created_at,
             // FDA / food compliance
             'fda_lto_on_file'      => !empty($product->fda_lto_path),
             'fda_cpr_on_file'      => !empty($product->fda_cpr_path),
+            'fda_lto_url'          => !empty($product->fda_lto_path) ? url("/api/v1/admin/products/{$product->id}/fda-lto") : null,
+            'fda_cpr_url'          => !empty($product->fda_cpr_path) ? url("/api/v1/admin/products/{$product->id}/fda-cpr") : null,
             'net_weight_volume'    => $product->net_weight_volume,
             'expiry_best_before'   => $product->expiry_best_before,
             'ingredients'          => $product->ingredients,

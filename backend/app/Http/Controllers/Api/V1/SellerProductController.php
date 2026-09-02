@@ -40,7 +40,7 @@ class SellerProductController extends Controller
 
         $data = $request->validate([
             'name'                => 'required|string|max:255',
-            'description'         => 'nullable|string|max:5000',
+            'description'         => 'nullable|string|max:1500',
             'category_slug'       => 'nullable|string|max:100',
             'base_price'          => 'nullable|numeric|min:0',
             'weight_kg'           => 'nullable|numeric|min:0',
@@ -150,7 +150,7 @@ class SellerProductController extends Controller
     {
         $data = $request->validate([
             'name'                => 'required|string|max:255',
-            'description'         => 'nullable|string|max:5000',
+            'description'         => 'nullable|string|max:1500',
             'category_slug'       => 'nullable|string|max:100',
             'base_price'          => 'nullable|numeric|min:0',
             'weight_kg'           => 'nullable|numeric|min:0',
@@ -338,7 +338,7 @@ class SellerProductController extends Controller
             'name'                 => $product->name,
             'description'          => $product->description,
             'category_id'          => $product->category?->slug ?? '',
-            'thumbnail_url'        => $primaryImage ? Storage::disk('public')->url($primaryImage->path) : null,
+            'thumbnail_url'        => $primaryImage ? asset('storage/' . $primaryImage->path) : null,
             'base_price'           => (float) $product->base_price,
             'status'               => $product->status,
             'units_sold'           => $product->units_sold,
@@ -361,7 +361,7 @@ class SellerProductController extends Controller
             'fda_cpr_on_file'      => !empty($product->fda_cpr_path),
             'images'               => $product->images->sortBy('sort_order')->map(fn ($img) => [
                 'id'         => $img->id,
-                'url'        => Storage::disk('public')->url($img->path),
+                'url'        => asset('storage/' . $img->path),
                 'is_primary' => (bool) $img->is_primary,
                 'sort_order' => $img->sort_order,
             ])->values(),
@@ -373,5 +373,18 @@ class SellerProductController extends Controller
                 'price'          => (float) $v->price,
             ])->values(),
         ];
+    }
+
+    /** POST /seller/products/description-image */
+    public function uploadDescriptionImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => 'required|image|max:5120',
+        ]);
+
+        $path = $request->file('image')->store('products/descriptions', 'public');
+        $url  = asset('storage/' . $path);
+
+        return response()->json(['url' => $url]);
     }
 }

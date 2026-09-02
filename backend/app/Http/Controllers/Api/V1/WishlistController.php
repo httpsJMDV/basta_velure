@@ -126,7 +126,7 @@ class WishlistController extends Controller
             'product'          => [
                 'id'             => $product->id,
                 'name'           => $product->name,
-                'thumbnail_url'  => $primary ? url(Storage::url($primary->path)) : null,
+                'thumbnail_url'  => $primary ? asset('storage/' . $primary->path) : null,
                 'base_price'     => (float) $product->base_price,
                 'original_price' => $product->original_price ? (float) $product->original_price : null,
                 'status'         => $product->status,
@@ -154,7 +154,7 @@ class WishlistController extends Controller
             'seller'        => [
                 'id'            => $seller?->id,
                 'shop_name'     => $profile?->shop_name ?? ($seller?->first_name . ' ' . $seller?->last_name),
-                'logo_url'      => $profile?->logo_path ? url(Storage::url($profile->logo_path)) : null,
+                'logo_url'      => $profile?->logo_path ? asset('storage/' . $profile->logo_path) : null,
                 'avg_rating'    => $profile?->avg_rating ? (float) $profile->avg_rating : null,
                 'product_count' => $productCount,
                 'has_sale'      => Product::where('seller_id', $seller?->id)

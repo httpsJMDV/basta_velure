@@ -24,6 +24,8 @@ class AdminBuyerApplicationController extends Controller
 
         $query = User::with('addresses')->where('role', 'buyer')
             ->where('buyer_application_status', $status)
+            ->whereNotNull('government_id_type')
+            ->whereNotNull('government_id_image_path')
             ->when($search, fn ($q) => $q->where(function ($q2) use ($search) {
                 $q2->where('first_name', 'like', "%{$search}%")
                    ->orWhere('last_name',  'like', "%{$search}%")
@@ -35,11 +37,14 @@ class AdminBuyerApplicationController extends Controller
         $perPage = min((int) ($request->per_page ?? 30), 100);
         $users   = $query->paginate($perPage);
 
-        // Summary counts (always for pending regardless of current filter)
-        $pendingTotal   = User::where('role', 'buyer')->where('buyer_application_status', 'pending')->count();
+        // Summary counts (always for pending with complete application regardless of current filter)
+        $pendingTotal   = User::where('role', 'buyer')->where('buyer_application_status', 'pending')
+                              ->whereNotNull('government_id_type')->whereNotNull('government_id_image_path')->count();
         $todayCount     = User::where('role', 'buyer')->where('buyer_application_status', 'pending')
+                              ->whereNotNull('government_id_type')->whereNotNull('government_id_image_path')
                               ->whereDate('created_at', $now->toDateString())->count();
         $weekCount      = User::where('role', 'buyer')->where('buyer_application_status', 'pending')
+                              ->whereNotNull('government_id_type')->whereNotNull('government_id_image_path')
                               ->whereBetween('created_at', [$now->copy()->startOfWeek(), $now])->count();
 
         $paginated = UserResource::collection($users)->response()->getData(true);
@@ -112,25 +117,19 @@ class AdminBuyerApplicationController extends Controller
     /**
      * Serve the buyer's government ID from the private disk — never a direct path.
      */
-    public function idImage(User $user): Response
+    public function idImage(User $user): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_if(! $user->government_id_image_path, 404);
         abort_unless(Storage::disk('local')->exists($user->government_id_image_path), 404);
 
-        $contents = Storage::disk('local')->get($user->government_id_image_path);
-        $mime     = Storage::disk('local')->mimeType($user->government_id_image_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('local')->path($user->government_id_image_path));
     }
 
-    public function idImageBack(User $user): Response
+    public function idImageBack(User $user): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_if(! $user->government_id_image_back_path, 404);
         abort_unless(Storage::disk('local')->exists($user->government_id_image_back_path), 404);
 
-        $contents = Storage::disk('local')->get($user->government_id_image_back_path);
-        $mime     = Storage::disk('local')->mimeType($user->government_id_image_back_path);
-
-        return response($contents, 200)->header('Content-Type', $mime);
+        return response()->file(Storage::disk('local')->path($user->government_id_image_back_path));
     }
 }

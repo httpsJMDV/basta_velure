@@ -81,8 +81,8 @@ class PublicShopController extends Controller
                 'shipping_policy'     => $profile->shipping_policy,
                 'business_hours'      => $profile->business_hours,
                 'response_time'       => $profile->response_time,
-                'logo_url'            => $profile->logo_path ? Storage::disk('public')->url($profile->logo_path) : ($seller->avatar_path ? Storage::disk('public')->url($seller->avatar_path) : null),
-                'banner_url'          => $profile->banner_path ? Storage::disk('public')->url($profile->banner_path) : null,
+                'logo_url'            => $profile->logo_path ? asset('storage/' . $profile->logo_path) : ($seller->avatar_path ? asset('storage/' . $seller->avatar_path) : null),
+                'banner_url'          => $profile->banner_path ? asset('storage/' . $profile->banner_path) : null,
                 'application_status'  => $profile->application_status,
                 'joined_date'         => $profile->created_at?->toIso8601String() ?? $seller->created_at?->toIso8601String(),
                 'avg_rating'          => $avgRating ? round($avgRating, 1) : null,
@@ -126,13 +126,13 @@ class PublicShopController extends Controller
                 'buyer' => [
                     'id'         => $r->buyer?->id,
                     'name'       => $r->buyer ? trim($r->buyer->first_name . ' ' . $r->buyer->last_name) : 'Anonymous Buyer',
-                    'avatar_url' => $r->buyer?->avatar_path ? Storage::disk('public')->url($r->buyer->avatar_path) : null,
+                    'avatar_url' => $r->buyer?->avatar_path ? asset('storage/' . $r->buyer->avatar_path) : null,
                 ],
                 'product' => [
                     'id'            => $r->product?->id,
                     'name'          => $r->product?->name,
-                    'thumbnail_url' => $r->product?->images?->first()?->image_path
-                        ? Storage::disk('public')->url($r->product->images->first()->image_path)
+                    'thumbnail_url' => $r->product?->images?->first()?->path
+                        ? asset('storage/' . $r->product->images->first()->path)
                         : null,
                 ],
             ]),

@@ -46,6 +46,13 @@ class User extends Authenticatable
         ];
     }
 
+    protected $appends = ['avatar_url'];
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->avatar_path ? asset('storage/' . $this->avatar_path) : null;
+    }
+
     public function sellerProfile(): HasOne
     {
         return $this->hasOne(SellerProfile::class);
@@ -54,6 +61,11 @@ class User extends Authenticatable
     public function addresses(): HasMany
     {
         return $this->hasMany(Address::class);
+    }
+
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class, 'seller_id');
     }
 
     public function isApprovedSeller(): bool

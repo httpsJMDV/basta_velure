@@ -58,6 +58,18 @@ class SellerProfile extends Model
         ];
     }
 
+    protected $appends = ['logo_url', 'banner_url'];
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        return $this->logo_path ? asset('storage/' . $this->logo_path) : null;
+    }
+
+    public function getBannerUrlAttribute(): ?string
+    {
+        return $this->banner_path ? asset('storage/' . $this->banner_path) : null;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

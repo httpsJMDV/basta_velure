@@ -3,126 +3,189 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use App\Models\Category;
 use Illuminate\Support\Facades\DB;
 
 class CategorySeeder extends Seeder
 {
     public function run(): void
     {
-        $tree = [
-            ['slug' => 'mobile-gadgets-computers', 'name' => 'Mobile, Gadgets & Computers', 'children' => [
-                ['slug' => 'smartphones',       'name' => 'Smartphones'],
-                ['slug' => 'laptops',            'name' => 'Laptops'],
-                ['slug' => 'earphones-audio',    'name' => 'Earphones & Audio'],
-                ['slug' => 'chargers-powerbanks','name' => 'Chargers & Powerbanks'],
-                ['slug' => 'phone-accessories',  'name' => 'Phone Accessories'],
-            ]],
-            ['slug' => 'home-appliances', 'name' => 'Home Appliances', 'children' => [
-                ['slug' => 'refrigerators',          'name' => 'Refrigerators'],
-                ['slug' => 'electric-fans',           'name' => 'Electric Fans'],
-                ['slug' => 'air-conditioners',        'name' => 'Air Conditioners'],
-                ['slug' => 'washing-machines',        'name' => 'Washing Machines'],
-                ['slug' => 'rice-cookers-kitchen',    'name' => 'Rice Cookers & Kitchen Appliances'],
-            ]],
-            ['slug' => 'home-living', 'name' => 'Home & Living', 'children' => [
-                ['slug' => 'furniture',            'name' => 'Furniture'],
-                ['slug' => 'home-decor',           'name' => 'Home Decor'],
-                ['slug' => 'bedding-linens',       'name' => 'Bedding & Linens'],
-                ['slug' => 'kitchenware',          'name' => 'Kitchenware'],
-                ['slug' => 'storage-organization', 'name' => 'Storage & Organization'],
-            ]],
-            ['slug' => 'home-improvement-tools', 'name' => 'Home Improvement & Tools', 'children' => [
-                ['slug' => 'hand-tools',       'name' => 'Hand Tools'],
-                ['slug' => 'power-tools',      'name' => 'Power Tools'],
-                ['slug' => 'hardware',         'name' => 'Hardware'],
-                ['slug' => 'lighting',         'name' => 'Lighting'],
-                ['slug' => 'plumbing-supplies','name' => 'Plumbing Supplies'],
-            ]],
-            ['slug' => 'automotive-motorcycle', 'name' => 'Automotive & Motorcycle', 'children' => [
-                ['slug' => 'car-accessories',   'name' => 'Car Accessories'],
-                ['slug' => 'motorcycle-parts',  'name' => 'Motorcycle Parts'],
-                ['slug' => 'helmets',           'name' => 'Helmets'],
-                ['slug' => 'car-care',          'name' => 'Car Care'],
-            ]],
-            ['slug' => 'womens-fashion', 'name' => "Women's Fashion", 'children' => [
-                ['slug' => 'womens-tops',      'name' => 'Tops'],
-                ['slug' => 'dresses',          'name' => 'Dresses'],
-                ['slug' => 'womens-bottoms',   'name' => 'Bottoms'],
-                ['slug' => 'womens-outerwear', 'name' => 'Outerwear'],
-                ['slug' => 'womens-footwear',  'name' => 'Footwear'],
-            ]],
-            ['slug' => 'mens-fashion', 'name' => "Men's Fashion", 'children' => [
-                ['slug' => 'shirts',         'name' => 'Shirts'],
-                ['slug' => 'pants',          'name' => 'Pants'],
-                ['slug' => 'mens-outerwear', 'name' => 'Outerwear'],
-                ['slug' => 'mens-footwear',  'name' => 'Footwear'],
-            ]],
-            ['slug' => 'bags-accessories', 'name' => 'Bags & Accessories', 'children' => [
-                ['slug' => 'bags-wallets', 'name' => 'Bags & Wallets'],
-                ['slug' => 'jewelry',      'name' => 'Jewelry'],
-                ['slug' => 'watches',      'name' => 'Watches'],
-                ['slug' => 'sunglasses',   'name' => 'Sunglasses'],
-            ]],
-            ['slug' => 'health-beauty', 'name' => 'Health & Beauty', 'children' => [
-                ['slug' => 'skincare',      'name' => 'Skincare'],
-                ['slug' => 'makeup',        'name' => 'Makeup'],
-                ['slug' => 'personal-care', 'name' => 'Personal Care'],
-                ['slug' => 'supplements',   'name' => 'Supplements'],
-            ]],
-            ['slug' => 'sports-outdoors', 'name' => 'Sports & Outdoors', 'children' => [
-                ['slug' => 'fitness-equipment', 'name' => 'Fitness Equipment'],
-                ['slug' => 'outdoor-gear',      'name' => 'Outdoor Gear'],
-                ['slug' => 'sportswear',        'name' => 'Sportswear'],
-                ['slug' => 'bicycles',          'name' => 'Bicycles'],
-            ]],
-            ['slug' => 'food-grocery', 'name' => 'Food & Grocery', 'children' => [
-                ['slug' => 'snacks',         'name' => 'Snacks'],
-                ['slug' => 'beverages',      'name' => 'Beverages'],
-                ['slug' => 'fresh-produce',  'name' => 'Fresh Produce'],
-                ['slug' => 'instant-meals',  'name' => 'Instant Meals'],
-                ['slug' => 'pantry-staples', 'name' => 'Pantry Staples'],
-            ]],
-            ['slug' => 'baby-kids', 'name' => 'Baby & Kids', 'children' => [
-                ['slug' => 'baby-gear',       'name' => 'Baby Gear'],
-                ['slug' => 'kids-clothing',   'name' => "Kids' Clothing"],
-                ['slug' => 'feeding-nursing', 'name' => 'Feeding & Nursing'],
-                ['slug' => 'diapers',         'name' => 'Diapers'],
-            ]],
-            ['slug' => 'toys-hobbies-books', 'name' => 'Toys, Hobbies & Books', 'children' => [
-                ['slug' => 'toys',                 'name' => 'Toys'],
-                ['slug' => 'collectibles-hobbies', 'name' => 'Collectibles & Hobbies'],
-                ['slug' => 'books',                'name' => 'Books'],
-                ['slug' => 'stationery',           'name' => 'Stationery'],
-            ]],
-            ['slug' => 'pet-supplies', 'name' => 'Pet Supplies', 'children' => [
-                ['slug' => 'pet-food',             'name' => 'Pet Food'],
-                ['slug' => 'pet-accessories',      'name' => 'Pet Accessories'],
-                ['slug' => 'pet-health-grooming',  'name' => 'Pet Health & Grooming'],
-            ]],
+        $taxonomy = [
+            [
+                'id' => 'mobile-gadgets-computers',
+                'name' => 'Mobile, Gadgets & Computers',
+                'children' => [
+                    ['id' => 'smartphones', 'name' => 'Smartphones'],
+                    ['id' => 'laptops', 'name' => 'Laptops'],
+                    ['id' => 'earphones-audio', 'name' => 'Earphones & Audio'],
+                    ['id' => 'chargers-powerbanks', 'name' => 'Chargers & Powerbanks'],
+                    ['id' => 'phone-accessories', 'name' => 'Phone Accessories'],
+                ],
+            ],
+            [
+                'id' => 'food-grocery',
+                'name' => 'Food & Grocery',
+                'children' => [
+                    ['id' => 'snacks', 'name' => 'Snacks', 'requires_fda' => true, 'commission_rate' => 8.0],
+                    ['id' => 'beverages', 'name' => 'Beverages', 'requires_fda' => true, 'commission_rate' => 8.0],
+                    ['id' => 'fresh-produce', 'name' => 'Fresh Produce', 'requires_fda' => true, 'commission_rate' => 8.0],
+                    ['id' => 'instant-meals', 'name' => 'Instant Meals', 'requires_fda' => true, 'commission_rate' => 8.0],
+                    ['id' => 'pantry-staples', 'name' => 'Pantry Staples', 'requires_fda' => true, 'commission_rate' => 8.0],
+                ],
+            ],
+            [
+                'id' => 'home-appliances',
+                'name' => 'Home Appliances',
+                'children' => [
+                    ['id' => 'refrigerators', 'name' => 'Refrigerators'],
+                    ['id' => 'electric-fans', 'name' => 'Electric Fans'],
+                    ['id' => 'air-conditioners', 'name' => 'Air Conditioners'],
+                    ['id' => 'washing-machines', 'name' => 'Washing Machines'],
+                    ['id' => 'rice-cookers-kitchen', 'name' => 'Rice Cookers & Kitchen Appliances'],
+                ],
+            ],
+            [
+                'id' => 'home-living',
+                'name' => 'Home & Living',
+                'children' => [
+                    ['id' => 'furniture', 'name' => 'Furniture'],
+                    ['id' => 'home-decor', 'name' => 'Home Decor'],
+                    ['id' => 'bedding-linens', 'name' => 'Bedding & Linens'],
+                    ['id' => 'kitchenware', 'name' => 'Kitchenware'],
+                    ['id' => 'storage-organization', 'name' => 'Storage & Organization'],
+                ],
+            ],
+            [
+                'id' => 'home-improvement-tools',
+                'name' => 'Home Improvement & Tools',
+                'children' => [
+                    ['id' => 'hand-tools', 'name' => 'Hand Tools'],
+                    ['id' => 'power-tools', 'name' => 'Power Tools'],
+                    ['id' => 'hardware', 'name' => 'Hardware'],
+                    ['id' => 'lighting', 'name' => 'Lighting'],
+                    ['id' => 'plumbing-supplies', 'name' => 'Plumbing Supplies'],
+                ],
+            ],
+            [
+                'id' => 'womens-fashion',
+                'name' => "Women's Fashion",
+                'children' => [
+                    ['id' => 'womens-tops', 'name' => 'Tops'],
+                    ['id' => 'dresses', 'name' => 'Dresses'],
+                    ['id' => 'womens-bottoms', 'name' => 'Bottoms'],
+                    ['id' => 'womens-outerwear', 'name' => 'Outerwear'],
+                    ['id' => 'womens-footwear', 'name' => 'Footwear'],
+                ],
+            ],
+            [
+                'id' => 'mens-fashion',
+                'name' => "Men's Fashion",
+                'children' => [
+                    ['id' => 'shirts', 'name' => 'Shirts'],
+                    ['id' => 'pants', 'name' => 'Pants'],
+                    ['id' => 'mens-outerwear', 'name' => 'Outerwear'],
+                    ['id' => 'mens-footwear', 'name' => 'Footwear'],
+                ],
+            ],
+            [
+                'id' => 'bags-accessories',
+                'name' => 'Bags & Accessories',
+                'children' => [
+                    ['id' => 'bags-wallets', 'name' => 'Bags & Wallets'],
+                    ['id' => 'jewelry', 'name' => 'Jewelry'],
+                    ['id' => 'watches', 'name' => 'Watches'],
+                    ['id' => 'sunglasses', 'name' => 'Sunglasses'],
+                ],
+            ],
+            [
+                'id' => 'health-beauty',
+                'name' => 'Health & Beauty',
+                'children' => [
+                    ['id' => 'skincare', 'name' => 'Skincare'],
+                    ['id' => 'makeup', 'name' => 'Makeup'],
+                    ['id' => 'personal-care', 'name' => 'Personal Care'],
+                    ['id' => 'supplements', 'name' => 'Supplements'],
+                ],
+            ],
+            [
+                'id' => 'sports-outdoors',
+                'name' => 'Sports & Outdoors',
+                'children' => [
+                    ['id' => 'fitness-equipment', 'name' => 'Fitness Equipment'],
+                    ['id' => 'outdoor-gear', 'name' => 'Outdoor Gear'],
+                    ['id' => 'sportswear', 'name' => 'Sportswear'],
+                    ['id' => 'bicycles', 'name' => 'Bicycles'],
+                ],
+            ],
+            [
+                'id' => 'automotive-motorcycle',
+                'name' => 'Automotive & Motorcycle',
+                'children' => [
+                    ['id' => 'car-accessories', 'name' => 'Car Accessories'],
+                    ['id' => 'motorcycle-parts', 'name' => 'Motorcycle Parts'],
+                    ['id' => 'helmets', 'name' => 'Helmets'],
+                    ['id' => 'car-care', 'name' => 'Car Care'],
+                ],
+            ],
+            [
+                'id' => 'baby-kids',
+                'name' => 'Baby & Kids',
+                'children' => [
+                    ['id' => 'baby-gear', 'name' => 'Baby Gear'],
+                    ['id' => 'kids-clothing', 'name' => "Kids' Clothing"],
+                    ['id' => 'feeding-nursing', 'name' => 'Feeding & Nursing'],
+                    ['id' => 'diapers', 'name' => 'Diapers'],
+                ],
+            ],
+            [
+                'id' => 'toys-hobbies-books',
+                'name' => 'Toys, Hobbies & Books',
+                'children' => [
+                    ['id' => 'toys', 'name' => 'Toys'],
+                    ['id' => 'collectibles-hobbies', 'name' => 'Collectibles & Hobbies'],
+                    ['id' => 'books', 'name' => 'Books'],
+                    ['id' => 'stationery', 'name' => 'Stationery'],
+                ],
+            ],
+            [
+                'id' => 'pet-supplies',
+                'name' => 'Pet Supplies',
+                'children' => [
+                    ['id' => 'pet-food', 'name' => 'Pet Food'],
+                    ['id' => 'pet-accessories', 'name' => 'Pet Accessories'],
+                    ['id' => 'pet-health-grooming', 'name' => 'Pet Health & Grooming'],
+                ],
+            ],
         ];
 
-        $now = now();
+        DB::transaction(function () use ($taxonomy) {
+            foreach ($taxonomy as $pIdx => $parentData) {
+                $parent = Category::updateOrCreate(
+                    ['slug' => $parentData['id']],
+                    [
+                        'name'            => $parentData['name'],
+                        'parent_id'       => null,
+                        'sort_order'      => $pIdx + 1,
+                        'is_active'       => true,
+                        'requires_fda'    => false,
+                        'commission_rate' => null,
+                    ]
+                );
 
-        foreach ($tree as $sort => $parent) {
-            $parentId = DB::table('categories')->insertGetId([
-                'slug'       => $parent['slug'],
-                'name'       => $parent['name'],
-                'parent_id'  => null,
-                'sort_order' => $sort,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            foreach ($parent['children'] as $childSort => $child) {
-                DB::table('categories')->insert([
-                    'slug'       => $child['slug'],
-                    'name'       => $child['name'],
-                    'parent_id'  => $parentId,
-                    'sort_order' => $childSort,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                foreach ($parentData['children'] as $cIdx => $childData) {
+                    Category::updateOrCreate(
+                        ['slug' => $childData['id']],
+                        [
+                            'name'            => $childData['name'],
+                            'parent_id'       => $parent->id,
+                            'sort_order'      => $cIdx + 1,
+                            'is_active'       => true,
+                            'requires_fda'    => $childData['requires_fda'] ?? false,
+                            'commission_rate' => $childData['commission_rate'] ?? null,
+                        ]
+                    );
+                }
             }
-        }
+        });
     }
 }

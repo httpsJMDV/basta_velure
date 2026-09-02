@@ -55,12 +55,13 @@ class GoogleAuthController extends Controller
             // can call the authenticated completeProfile endpoint. buyer_application_status
             // stays null until completeProfile sets it to 'pending' after collecting all info.
             $user = User::create([
-                'first_name'        => $firstName,
-                'last_name'         => $lastName ?: 'User',
-                'email'             => $email,
-                'phone'             => null,
-                'password'          => bcrypt(Str::random(32)),
-                'email_verified_at' => now(),
+                'first_name'               => $firstName,
+                'last_name'                => $lastName ?: 'User',
+                'email'                    => $email,
+                'phone'                    => null,
+                'password'                 => bcrypt(Str::random(32)),
+                'email_verified_at'        => now(),
+                'buyer_application_status' => null,
             ]);
             $user->role = 'buyer';
             $user->save();
