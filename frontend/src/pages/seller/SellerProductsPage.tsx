@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import SellerEditProductModal from './SellerEditProductModal';
 import {
   Plus, Search, Package, Pencil, Archive,
-  AlertTriangle, ChevronRight, RotateCcw,
+  AlertTriangle, ChevronRight, RotateCcw, Trash2,
 } from 'lucide-react';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { CATEGORY_TREE, LEAF_MAP, LEAF_PARENT_MAP } from '../../data/categories';
@@ -215,7 +215,7 @@ function StockCell({
 
 // ─── StockCell ────────────────────────────────────────────────────────────────
 
-function DeleteModal({
+export function DeleteModal({
   name,
   onConfirm,
   onCancel,

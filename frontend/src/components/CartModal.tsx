@@ -20,7 +20,7 @@ interface CartModalProps {
   onRemove: (id: number) => void;
 }
 
-export default function CartModal({ open, onClose, items }: CartModalProps) {
+export default function CartModal({ open, onClose, items, onRemove }: CartModalProps) {
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   return (

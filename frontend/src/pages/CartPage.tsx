@@ -109,9 +109,11 @@ export default function CartPage() {
                     <span className="text-brand-red">₱{total.toLocaleString()}</span>
                   </div>
                 </div>
-                <Button className="w-full mt-5 flex items-center justify-center gap-2">
-                  Proceed to Checkout <ArrowRight className="w-4 h-4" />
-                </Button>
+                <Link to="/checkout" className="block w-full mt-5">
+                  <Button className="w-full flex items-center justify-center gap-2">
+                    Proceed to Checkout <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
                 <p className="text-xs text-center text-gray-400 mt-3">GCash & Cash on Delivery accepted</p>
               </div>
             </div>

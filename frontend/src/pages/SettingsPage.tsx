@@ -24,7 +24,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
-  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart,
+  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart, MessageSquare,
 } from 'lucide-react';
 
 const StarIcon = Star;
@@ -34,14 +34,15 @@ interface PsgcItem { code: string; name: string; }
 // ─── Sidebar ────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { icon: User,      label: 'Manage Account',            to: '/settings' },
-  { icon: MapPin,    label: 'Address Book',               to: '/settings/addresses' },
-  { icon: Package,   label: 'My Orders',                  to: '/settings/orders' },
-  { icon: RotateCcw, label: 'My Returns',                 to: '/settings/returns' },
-  { icon: XCircle,   label: 'My Cancellations',           to: '/settings/cancellations' },
-  { icon: Star,      label: 'My Reviews',                 to: '/settings/reviews' },
-  { icon: Heart,     label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
-  { icon: Store,     label: 'Sell in Velure',             to: '/register/seller', highlight: true },
+  { icon: User,          label: 'Manage Account',            to: '/settings' },
+  { icon: MessageSquare, label: 'Messages & Inquiries',      to: '/settings/messages' },
+  { icon: MapPin,        label: 'Address Book',               to: '/settings/addresses' },
+  { icon: Package,       label: 'My Orders',                  to: '/settings/orders' },
+  { icon: RotateCcw,     label: 'My Returns',                 to: '/settings/returns' },
+  { icon: XCircle,       label: 'My Cancellations',           to: '/settings/cancellations' },
+  { icon: Star,          label: 'My Reviews',                 to: '/settings/reviews' },
+  { icon: Heart,         label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
+  { icon: Store,         label: 'Sell in Velure',             to: '/register/seller', highlight: true },
 ];
 
 function Sidebar() {
@@ -760,14 +761,14 @@ function AddressBookPanel() {
 
   function addrToForm(a: Address): typeof EMPTY_FORM {
     return {
-      full_name: a.full_name,
-      phone: a.phone,
-      address: a.address,
+      full_name: a.full_name || a.recipient_name || '',
+      phone: a.phone || a.phone_number || '',
+      address: a.address || a.street_address || '',
       floor_unit: a.floor_unit ?? '',
-      province: a.province,
-      district: a.district,
-      ward: a.ward,
-      label: a.label,
+      province: a.province || a.province_name || a.province_code || '',
+      district: a.district || a.city_name || a.city_code || '',
+      ward: a.ward || a.barangay_name || a.barangay_code || '',
+      label: a.label || 'home',
     };
   }
 
@@ -912,9 +913,12 @@ const STATUS_BADGE: Record<OrderStatus, { label: string; cls: string }> = {
 };
 
 function OrderCard({ order }: { order: Order }) {
-  const badge = STATUS_BADGE[order.status];
+  const badge = STATUS_BADGE[order.status] || { label: order.status, cls: 'bg-gray-100 text-gray-700' };
   const firstItem = order.items[0];
   const extraCount = order.items.length - 1;
+
+  const isGcashPending = order.payment_method === 'gcash' && order.payment_status === 'pending_verification';
+  const isFailed = order.payment_status === 'verification_failed';
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-200 hover:shadow-sm transition-all">
@@ -923,12 +927,26 @@ function OrderCard({ order }: { order: Order }) {
           <span className="text-xs font-bold text-brand-black tracking-wide">{order.order_number}</span>
           <span className="text-gray-300">·</span>
           <span className="text-xs text-gray-400">
-            {new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+            {order.created_at ? new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
           </span>
         </div>
-        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${badge.cls}`}>
-          {badge.label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {isGcashPending && (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+              Verifying GCash
+            </span>
+          )}
+          {isFailed && (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
+              Payment Not Received
+            </span>
+          )}
+          {!isGcashPending && !isFailed && (
+            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${badge.cls}`}>
+              {badge.label}
+            </span>
+          )}
+        </div>
       </div>
 
       {firstItem && (
@@ -941,7 +959,9 @@ function OrderCard({ order }: { order: Order }) {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-brand-black truncate">{firstItem.product_name}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{firstItem.variant_label} · x{firstItem.quantity}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {firstItem.variant_label ? `${firstItem.variant_label} · ` : ''}x{firstItem.quantity}
+            </p>
             {extraCount > 0 && (
               <p className="text-xs text-gray-400 mt-0.5">+{extraCount} more item{extraCount > 1 ? 's' : ''}</p>
             )}
@@ -949,9 +969,19 @@ function OrderCard({ order }: { order: Order }) {
         </div>
       )}
 
+      {isFailed && order.rejection_reason && (
+        <div className="mb-3 p-2.5 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
+          <span className="font-semibold">Seller note: </span>{order.rejection_reason}
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-3 border-t border-gray-50">
         <span className="text-xs text-gray-400">
-          {order.payment_method === 'gcash' ? 'GCash' : 'Cash on Delivery'}
+          {order.payment_method === 'gcash' ? (
+            <span>GCash {order.payment_reference ? `(Ref: ${order.payment_reference})` : ''}</span>
+          ) : (
+            'Cash on Delivery'
+          )}
         </span>
         <span className="text-sm font-bold text-brand-black">
           ₱{order.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}

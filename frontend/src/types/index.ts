@@ -1,6 +1,8 @@
 export interface AdminStats {
   pending_seller_applications: number;
+  pending_buyer_applications?: number;
   pending_rider_applications: number;
+  pending_products?: number;
   total_buyers: number;
   total_sellers: number;
   total_riders: number;
@@ -13,6 +15,16 @@ export interface AdminStats {
   pending_sellers_last_week: number;
   gmv_today: number;
   gmv_yesterday: number;
+  commission_today?: number;
+  commission_this_week?: number;
+  commission_this_month?: number;
+  commission_lifetime?: number;
+  gcash_orders_count?: number;
+  cod_orders_count?: number;
+  gcash_volume?: number;
+  cod_volume?: number;
+  pending_payment_verifications?: number;
+  pending_payout_requests?: number;
 }
 
 export interface DashboardAttentionItem {
@@ -23,6 +35,7 @@ export interface DashboardAttentionItem {
   waiting_since: string;
   urgent: boolean;
   link: string;
+  avatar_url?: string | null;
 }
 
 export interface DashboardChartPoint {
@@ -149,15 +162,21 @@ export type OrderStatus =
   | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
 
 export type PaymentMethod = 'gcash' | 'cod';
-export type PaymentStatus = 'pending' | 'paid' | 'failed';
+export type PaymentStatus = 'pending' | 'pending_verification' | 'paid' | 'failed' | 'cod' | 'verification_failed' | 'refunded';
 
 export interface OrderItem {
   id: number;
+  seller_id?: number;
+  shop_name?: string;
   product_name: string;
-  variant_label: string;   // e.g. "Red / M"
+  variant_label: string | null;   // e.g. "Red / M"
   quantity: number;
   unit_price: number;
   subtotal: number;
+  commission_rate?: number;
+  commission_amount?: number;
+  seller_earnings?: number;
+  payout_status?: string;
   image_url: string | null;
 }
 
@@ -167,11 +186,114 @@ export interface Order {
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
+  payment_reference?: string | null;
+  payment_proof_url?: string | null;
+  payment_verified_at?: string | null;
+  rejection_reason?: string | null;
   subtotal: number;
   shipping_fee: number;
   total: number;
+  shipping_name?: string | null;
+  shipping_phone?: string | null;
+  shipping_address?: string | null;
+  shipping_province?: string | null;
+  shipping_city?: string | null;
+  shipping_barangay?: string | null;
+  notes?: string | null;
   created_at: string;
   items: OrderItem[];
+}
+
+export interface SellerOrderItem {
+  id: number;
+  product_name: string;
+  variant_label: string | null;
+  unit_price: number;
+  quantity: number;
+  subtotal: number;
+  commission_rate: number;
+  commission_amount: number;
+  seller_earnings: number;
+  payout_status: string;
+  image_url: string | null;
+}
+
+export interface SellerOrder {
+  id: number;
+  order_number: string;
+  status: OrderStatus;
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
+  payment_reference: string | null;
+  payment_proof_url: string | null;
+  payment_verified_at: string | null;
+  rejection_reason: string | null;
+  order_total: number;
+  shipping_fee: number;
+  seller_subtotal: number;
+  seller_commission: number;
+  seller_earnings: number;
+  shipping_name: string | null;
+  shipping_phone: string | null;
+  shipping_address: string | null;
+  shipping_province: string | null;
+  shipping_city: string | null;
+  shipping_barangay: string | null;
+  notes: string | null;
+  created_at: string;
+  buyer: {
+    id: number;
+    name: string;
+    email: string;
+    phone: string | null;
+  } | null;
+  items: SellerOrderItem[];
+}
+
+export interface SellerEarningsSummary {
+  available_balance: number;
+  pending_balance: number;
+  total_paid_out: number;
+  lifetime_earnings: number;
+  total_commission_paid: number;
+}
+
+export interface SellerOrderEarningsItem {
+  id: number;
+  order_id: number;
+  order_number: string;
+  order_status: OrderStatus;
+  payment_status: PaymentStatus;
+  product_name: string;
+  variant_label: string | null;
+  quantity: number;
+  item_subtotal: number;
+  commission_rate: number;
+  commission_pct: number;
+  commission_amount: number;
+  seller_earnings: number;
+  payout_status: string;
+  order_date: string;
+  delivered_date: string | null;
+}
+
+export interface PayoutRequest {
+  id: number;
+  reference_code: string;
+  amount: number;
+  gcash_number: string;
+  gcash_name: string;
+  status: 'pending' | 'processing' | 'completed' | 'rejected';
+  rejection_reason?: string | null;
+  admin_notes?: string | null;
+  processed_at?: string | null;
+  created_at: string;
+  seller?: {
+    id: number;
+    name: string;
+    shop_name: string;
+    email: string;
+  };
 }
 
 // ─── Admin Orders ────────────────────────────────────────────────────────────
@@ -277,23 +399,96 @@ export interface AdminReviewStats {
   hidden: number;
 }
 
-// ─── Messenger ───────────────────────────────────────────────────────────────
+// ─── Messaging & Chat ────────────────────────────────────────────────────────
+
+export type ConversationType = 'buyer_seller' | 'buyer_admin' | 'seller_admin';
+export type ConversationStatus = 'open' | 'resolved';
+
+export interface ProductContext {
+  id: number;
+  name: string;
+  price: number;
+  image?: string | null;
+  category?: string | null;
+}
+
+export interface OrderContext {
+  id: number;
+  order_number: string;
+  total: number;
+  status: OrderStatus | string;
+  items_count?: number;
+}
+
+export interface ConversationRecipient {
+  id?: number | null;
+  name: string;
+  role: 'buyer' | 'seller' | 'admin';
+  avatar?: string | null;
+  email?: string | null;
+  subtext?: string;
+  buyer_name?: string | null;
+  buyer_email?: string | null;
+  buyer_avatar?: string | null;
+  shop_name?: string | null;
+  seller_name?: string | null;
+  seller_email?: string | null;
+  seller_avatar?: string | null;
+}
 
 export interface Conversation {
   id: number;
-  seller_id: number;
-  shop_name: string;
-  seller_name: string | null;
-  last_message: { body: string; created_at: string } | null;
+  type: ConversationType;
+  status: ConversationStatus;
+  subject?: string | null;
+  buyer_id?: number | null;
+  seller_id?: number | null;
+  recipient?: ConversationRecipient | null;
+  buyer?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+    avatar_url?: string | null;
+  } | null;
+  seller?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+    avatar_url?: string | null;
+    shop_name?: string | null;
+    shop_logo?: string | null;
+    owner_name?: string | null;
+  } | null;
+  product?: ProductContext | null;
+  order?: OrderContext | null;
+  last_message?: {
+    id: number;
+    body: string;
+    sender_id: number;
+    created_at: string;
+  } | null;
   last_message_at: string | null;
   unread: number;
+  created_at: string;
+  // Backward compatibility fields
+  shop_name?: string;
+  seller_name?: string | null;
 }
 
 export interface ChatMessage {
   id: number;
+  conversation_id: number;
   body: string;
   sender_id: number;
-  sender_role: Role;
+  sender_role?: Role | string;
+  sender_name?: string;
+  sender_shop_name?: string | null;
+  sender_owner_name?: string | null;
+  sender_avatar?: string | null;
+  attachment_type?: 'product_card' | 'order_card' | 'image' | string | null;
+  attachment_data?: any;
   read_at: string | null;
   created_at: string;
 }
@@ -367,6 +562,8 @@ export interface ProductDetailSeller {
   units_sold: number;
   repurchase_rate: number | null; // e.g. 82 = 82%
   response_rate: number | null;
+  return_policy?: string | null;
+  shipping_policy?: string | null;
 }
 
 export interface ProductDetailSpecs {
@@ -444,6 +641,7 @@ export interface ProductFilters {
   on_sale?: boolean;
   has_voucher?: boolean;
   new_arrivals?: boolean;
+  shipped_from?: string[];
   provinces?: string[];
   sort?: 'best_match' | 'price_asc' | 'price_desc' | 'newest' | 'best_selling' | 'highest_rated';
   page?: number;
@@ -459,13 +657,36 @@ export interface CatalogMeta {
   to: number | null;
 }
 
+export interface RelatedShop {
+  id: number;
+  seller_id: number;
+  shop_name: string;
+  shop_slug: string;
+  shop_category: string;
+  shop_bio?: string | null;
+  logo_url: string | null;
+  avg_rating: number;
+  total_products: number;
+  follower_count: number;
+  rating_pct: number;
+  response_rate: string;
+  preview_products: {
+    id: number;
+    name: string;
+    base_price: number;
+    thumbnail_url: string | null;
+  }[];
+}
+
 export interface CatalogFacets {
   sellers: { id: number; shop_name: string; count: number }[];
+  locations?: { key: string; name: string; count: number }[];
   provinces: { name: string; count: number }[];
 }
 
 export interface CatalogResponse {
   data: Product[];
+  related_shops?: RelatedShop[];
   meta: CatalogMeta;
   facets: CatalogFacets;
 }
@@ -476,19 +697,6 @@ export interface SellerBalance {
   pending: number;      // revenue from unconfirmed delivered orders
   available: number;    // ready to withdraw
   total_paid_out: number;
-}
-
-export type PayoutStatus = 'requested' | 'approved' | 'sent' | 'rejected';
-
-export interface PayoutRequest {
-  id: number;
-  seller_id: number;
-  amount: number;
-  gcash_number: string;
-  status: PayoutStatus;
-  requested_at: string;
-  sent_at: string | null;
-  rejection_reason: string | null;
 }
 
 // ─── Seller Dashboard Stats ───────────────────────────────────────────────────
@@ -509,11 +717,15 @@ export interface SellerChartPoint {
 }
 
 export interface SellerTopProduct {
-  id: number;
+  id?: number;
+  product_id?: number;
   name: string;
-  thumbnail_url: string | null;
+  thumbnail_url?: string | null;
+  category?: string;
   units_sold: number;
-  revenue: number;
+  revenue?: number;
+  gross_sales?: number;
+  net_earnings?: number;
 }
 
 export interface SellerAttentionItem {
@@ -685,14 +897,23 @@ export type AddressLabel = 'home' | 'office';
 
 export interface Address {
   id: number;
-  full_name: string;
-  phone: string;
-  address: string;
-  floor_unit: string | null;
-  province: string;
-  district: string;
-  ward: string;
-  label: AddressLabel;
+  full_name?: string;
+  recipient_name?: string;
+  phone?: string;
+  phone_number?: string;
+  address?: string;
+  street_address?: string;
+  floor_unit?: string | null;
+  province?: string;
+  province_name?: string;
+  province_code?: string;
+  district?: string;
+  city_name?: string;
+  city_code?: string;
+  ward?: string;
+  barangay_name?: string;
+  barangay_code?: string;
+  label?: AddressLabel;
   is_default: boolean;
 }
 
@@ -743,3 +964,160 @@ export interface PublicShopReview {
     thumbnail_url: string | null;
   };
 }
+
+// ─── Reporting & Analytics ───────────────────────────────────────────────────
+
+export interface AdminReportSummary {
+  total_gmv: number;
+  total_commission: number;
+  total_seller_earnings: number;
+  total_orders: number;
+  total_units_sold: number;
+  avg_commission_rate: number;
+}
+
+export interface AdminRevenueChartPoint {
+  date: string;
+  iso_date?: string;
+  gmv: number;
+  commission: number;
+  orders_count: number;
+}
+
+export interface CategoryBreakdownItem {
+  category: string;
+  gross_sales: number;
+  units_sold: number;
+  orders_count: number;
+  commission_rate: number;
+  commission_earned: number;
+}
+
+export interface TopSellerItem {
+  seller_id: number;
+  seller_name: string;
+  shop_name: string;
+  email: string;
+  gross_sales: number;
+  orders_count: number;
+  units_sold: number;
+  commission_generated: number;
+  net_payout_credited: number;
+  avg_order_value: number;
+}
+
+export interface PaymentMethodSplit {
+  gcash: { count: number; volume: number };
+  cod: { count: number; volume: number };
+  total_orders: number;
+  total_volume: number;
+}
+
+export interface SellerReportSummary {
+  gross_sales: number;
+  net_earnings: number;
+  commission_paid: number;
+  total_orders: number;
+  delivered_orders: number;
+  units_sold: number;
+}
+
+export interface SellerRevenueChartPoint {
+  date: string;
+  iso_date?: string;
+  gross_sales: number;
+  net_earnings: number;
+  commission: number;
+}
+
+export interface CategoryCommissionOverride {
+  category_key: string;
+  category_name: string;
+  rate_percent: number;
+}
+
+export interface CommissionSettings {
+  base_rate_percent: number;
+  overrides: CategoryCommissionOverride[];
+}
+
+export interface AdminPaymentListItem {
+  id: number;
+  order_number: string;
+  payment_method: 'gcash' | 'cod';
+  payment_status: PaymentStatus;
+  payment_reference: string | null;
+  payment_proof_url: string | null;
+  amount: number;
+  order_status: OrderStatus;
+  created_at: string;
+  payment_verified_at: string | null;
+  rejection_reason: string | null;
+  buyer: {
+    id: number;
+    name: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string | null;
+  } | null;
+  seller: {
+    id: number;
+    name: string;
+    shop_name: string;
+  } | null;
+  items_count: number;
+  items: {
+    id: number;
+    product_name: string;
+    quantity: number;
+    price: number;
+    subtotal: number;
+  }[];
+}
+
+export interface AdminCategoryLeaf {
+  id: number;
+  slug: string;
+  name: string;
+  parent_id: number;
+  sort_order: number;
+  is_active: boolean;
+  requires_fda: boolean;
+  commission_rate: number | null;
+  products_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AdminCategoryParent {
+  id: number;
+  slug: string;
+  name: string;
+  parent_id: null;
+  sort_order: number;
+  is_active: boolean;
+  requires_fda: boolean;
+  commission_rate: null;
+  children: AdminCategoryLeaf[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AdminCategoryMetrics {
+  total_parents: number;
+  total_leaves: number;
+  total_products: number;
+  fda_regulated_leaves: number;
+}
+
+export interface CategoryPayload {
+  name: string;
+  slug?: string;
+  parent_id?: number | null;
+  sort_order?: number;
+  is_active?: boolean;
+  requires_fda?: boolean;
+  commission_rate?: number | null;
+}
+

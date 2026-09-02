@@ -11,6 +11,8 @@ import SellerLayout from './pages/seller/SellerLayout';
 import SellerDashboard from './pages/seller/SellerDashboard';
 import SellerProductsPage from './pages/seller/SellerProductsPage';
 import SellerAddProductPage from './pages/seller/SellerAddProductPage';
+import SellerOrdersPage from './pages/seller/SellerOrdersPage';
+import SellerEarningsPage from './pages/seller/SellerEarningsPage';
 import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
 import SellerAccountSettingsPage from './pages/seller/SellerAccountSettingsPage';
 import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
@@ -25,14 +27,26 @@ import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
 import AdminDisputesPage from './pages/admin/AdminDisputesPage';
 import AdminReviewsPage from './pages/admin/AdminReviewsPage';
 import AdminProductsPage from './pages/admin/AdminProductsPage';
+import AdminProductReviewPage from './pages/admin/AdminProductReviewPage';
+import AdminMessagesPage from './pages/admin/AdminMessagesPage';
+import AdminReportsPage from './pages/admin/AdminReportsPage';
+import AdminPlatformSettingsPage from './pages/admin/AdminPlatformSettingsPage';
+import AdminCategoriesPage from './pages/admin/AdminCategoriesPage';
+import SellerReportsPage from './pages/seller/SellerReportsPage';
+import SellerMessagesPage from './pages/seller/SellerMessagesPage';
+import BuyerMessagesPage from './pages/buyer/BuyerMessagesPage';
+import BuyerFloatingChat from './components/chat/BuyerFloatingChat';
+import { ChatProvider } from './hooks/useChat';
 import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
 import CatalogPage from './pages/CatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ShopProfilePage from './pages/ShopProfilePage';
 import PrivacyPolicyPage from './pages/legal/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/legal/TermsOfServicePage';
 import CookiePolicyPage from './pages/legal/CookiePolicyPage';
+import SafetyHelpPage from './pages/help/SafetyHelpPage';
 import {
   SettingsLayout,
   SettingsAccount,
@@ -114,6 +128,16 @@ function AppRoutes() {
         }
       />
       <Route path="/cart" element={<CartPage />} />
+      <Route
+        path="/checkout"
+        element={
+          !user ? (
+            <Navigate to="/login" replace />
+          ) : (
+            <CheckoutPage />
+          )
+        }
+      />
       <Route path="/search" element={<CatalogPage />} />
       <Route path="/category/:parentId" element={<CatalogPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
@@ -147,6 +171,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<SettingsAccount />} />
+        <Route path="messages"      element={<BuyerMessagesPage />} />
         <Route path="addresses"     element={<SettingsAddresses />} />
         <Route path="orders"        element={<SettingsOrders />} />
         <Route path="returns"       element={<SettingsReturns />} />
@@ -168,14 +193,15 @@ function AppRoutes() {
         <Route path="products"         element={<SellerProductsPage />} />
         <Route path="products/new"      element={<SellerAddProductPage />} />
         <Route path="products/:id/edit" element={<SellerAddProductPage />} />
-        <Route path="orders"       element={<AdminPlaceholderPage title="Orders" />} />
-        <Route path="inventory"    element={<AdminPlaceholderPage title="Inventory / Stock" />} />
-        <Route path="earnings"     element={<AdminPlaceholderPage title="Earnings & Payouts" />} />
-        <Route path="reports"      element={<AdminPlaceholderPage title="Sales Reports" />} />
-        <Route path="messages"     element={<AdminPlaceholderPage title="Messages" />} />
-        <Route path="reviews"      element={<AdminPlaceholderPage title="Reviews & Ratings" />} />
-        <Route path="shop-profile" element={<SellerShopProfilePage />} />
-        <Route path="account"      element={<SellerAccountSettingsPage />} />
+        <Route path="orders"            element={<SellerOrdersPage />} />
+        <Route path="inventory"         element={<AdminPlaceholderPage title="Inventory / Stock" />} />
+        <Route path="earnings"          element={<SellerEarningsPage />} />
+        <Route path="payouts"           element={<SellerEarningsPage />} />
+        <Route path="reports"           element={<SellerReportsPage />} />
+        <Route path="messages"          element={<SellerMessagesPage />} />
+        <Route path="reviews"           element={<AdminPlaceholderPage title="Reviews & Ratings" />} />
+        <Route path="shop-profile"      element={<SellerShopProfilePage />} />
+        <Route path="account"           element={<SellerAccountSettingsPage />} />
       </Route>
       {/* Admin — nested layout, all routes role-gated */}
       <Route
@@ -187,26 +213,30 @@ function AppRoutes() {
         }
       >
         <Route index element={<AdminDashboardPage />} />
+        <Route path="messages"            element={<AdminMessagesPage />} />
         <Route path="buyer-applications"  element={<AdminBuyerApplicationsPage />} />
         <Route path="seller-applications" element={<AdminSellerApplicationsPage />} />
         <Route path="rider-applications"  element={<AdminPlaceholderPage title="Rider Applications" />} />
         <Route path="sellers"             element={<AdminUsersPage />} />
         <Route path="buyers"              element={<AdminUsersPage />} />
         <Route path="riders"              element={<AdminUsersPage />} />
-        <Route path="categories"          element={<AdminPlaceholderPage title="Categories" />} />
+        <Route path="categories"          element={<AdminCategoriesPage />} />
         <Route path="products"            element={<AdminProductsPage />} />
+        <Route path="products/:id"        element={<AdminProductReviewPage />} />
+        <Route path="products/:id/review" element={<AdminProductReviewPage />} />
         <Route path="orders"              element={<AdminOrdersPage />} />
         <Route path="payments"            element={<AdminPaymentsPage />} />
         <Route path="disputes"            element={<AdminDisputesPage />} />
         <Route path="reviews"             element={<AdminReviewsPage />} />
-        <Route path="reports"             element={<AdminPlaceholderPage title="Reports" />} />
-        <Route path="settings"            element={<AdminPlaceholderPage title="Platform Settings" />} />
+        <Route path="reports"             element={<AdminReportsPage />} />
+        <Route path="settings"            element={<AdminPlatformSettingsPage />} />
         <Route path="activity-log"        element={<AdminActivityLogPage />} />
       </Route>
 
       <Route path="/privacy-policy"   element={<PrivacyPolicyPage />} />
       <Route path="/terms-of-service"  element={<TermsOfServicePage />} />
       <Route path="/cookie-policy"     element={<CookiePolicyPage />} />
+      <Route path="/help/safety"       element={<SafetyHelpPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -218,8 +248,11 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <CartProvider>
-          <ScrollToTop />
-          <AppRoutes />
+          <ChatProvider>
+            <ScrollToTop />
+            <AppRoutes />
+            <BuyerFloatingChat />
+          </ChatProvider>
         </CartProvider>
       </AuthProvider>
     </BrowserRouter>

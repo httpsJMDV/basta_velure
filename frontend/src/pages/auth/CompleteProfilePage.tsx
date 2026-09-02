@@ -520,7 +520,7 @@ function Step3({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CompleteProfilePage() {
-  const { user, setUser, clearAuth } = useAuth();
+  const { user, clearAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const completedRef = useRef(false);
@@ -572,7 +572,7 @@ export default function CompleteProfilePage() {
       fd.append('government_id_image', idFile);
       if (idBackFile) fd.append('government_id_image_back', idBackFile);
 
-      const updated = await completeProfileApi(fd);
+      await completeProfileApi(fd);
       completedRef.current = true;
       // Profile is complete — account is now pending admin approval.
       // Clear auth so they land as a guest with the pending message.

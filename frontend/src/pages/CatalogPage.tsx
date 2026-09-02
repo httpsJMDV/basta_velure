@@ -4,11 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, SlidersHorizontal, X, Star, ChevronDown,
   ChevronUp, LayoutGrid, List, Package, ChevronLeft, ChevronRight,
+  Store, ExternalLink,
 } from 'lucide-react';
 import { getProductsApi } from '../api/client';
-import { CATEGORY_TREE, LEAF_PARENT_MAP, LEAF_MAP } from '../data/categories';
+import { CATEGORY_TREE, LEAF_MAP } from '../data/categories';
 import ProductCard from '../components/ui/ProductCard';
-import type { Product, ProductFilters, CatalogFacets, CatalogMeta } from '../types';
+import SiteHeader from '../components/SiteHeader';
+import type { Product, ProductFilters, CatalogFacets, CatalogMeta, RelatedShop } from '../types';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -27,11 +29,14 @@ const RATING_OPTIONS = [5, 4, 3, 2, 1];
 
 const PER_PAGE = 28;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatPrice(n: number) {
-  return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+const SHIPPED_FROM_OPTIONS = [
+  { key: 'Domestic',     name: 'Domestic' },
+  { key: 'Metro Manila', name: 'Metro Manila' },
+  { key: 'North Luzon',  name: 'North Luzon' },
+  { key: 'South Luzon',  name: 'South Luzon' },
+  { key: 'Visayas',      name: 'Visayas' },
+  { key: 'Mindanao',     name: 'Mindanao' },
+];
 
 // ── Filter state derived from URL params ──────────────────────────────────────
 
@@ -39,41 +44,49 @@ function useFiltersFromUrl(parentIdFromRoute?: string) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters: ProductFilters = {
-    q:                 searchParams.get('q')                 ?? undefined,
+    q:                  searchParams.get('q')                  ?? undefined,
     parent_category_id: parentIdFromRoute ?? searchParams.get('parent') ?? undefined,
-    category_id:       searchParams.get('cat')              ?? undefined,
-    min_price:         searchParams.get('min_price') ? Number(searchParams.get('min_price')) : undefined,
-    max_price:         searchParams.get('max_price') ? Number(searchParams.get('max_price')) : undefined,
-    min_rating:        searchParams.get('rating')    ? Number(searchParams.get('rating'))    : undefined,
-    free_shipping:     searchParams.get('free_shipping') === '1' || undefined,
-    cod:               searchParams.get('cod')            === '1' || undefined,
-    on_sale:           searchParams.get('on_sale')        === '1' || undefined,
-    has_voucher:       searchParams.get('has_voucher')    === '1' || undefined,
-    new_arrivals:      searchParams.get('new_arrivals')   === '1' || undefined,
-    seller_ids:        searchParams.get('sellers') ? searchParams.get('sellers')!.split(',').map(Number) : undefined,
-    provinces:         searchParams.get('provinces') ? searchParams.get('provinces')!.split(',') : undefined,
-    sort:              (searchParams.get('sort') as SortValue) ?? 'best_match',
-    page:              searchParams.get('page') ? Number(searchParams.get('page')) : 1,
-    per_page:          PER_PAGE,
+    category_id:        searchParams.get('cat')                ?? undefined,
+    min_price:          searchParams.get('min_price') ? Number(searchParams.get('min_price')) : undefined,
+    max_price:          searchParams.get('max_price') ? Number(searchParams.get('max_price')) : undefined,
+    min_rating:         searchParams.get('rating')    ? Number(searchParams.get('rating'))    : undefined,
+    free_shipping:      searchParams.get('free_shipping') === '1' || undefined,
+    cod:                searchParams.get('cod')            === '1' || undefined,
+    on_sale:            searchParams.get('on_sale')        === '1' || undefined,
+    has_voucher:        searchParams.get('has_voucher')    === '1' || undefined,
+    new_arrivals:       searchParams.get('new_arrivals')   === '1' || undefined,
+    seller_ids:         searchParams.get('sellers') ? searchParams.get('sellers')!.split(',').map(Number) : undefined,
+    shipped_from:       searchParams.get('shipped_from') ? searchParams.get('shipped_from')!.split(',') : searchParams.get('provinces') ? searchParams.get('provinces')!.split(',') : undefined,
+    provinces:          searchParams.get('shipped_from') ? searchParams.get('shipped_from')!.split(',') : searchParams.get('provinces') ? searchParams.get('provinces')!.split(',') : undefined,
+    sort:               (searchParams.get('sort') as SortValue) ?? 'best_match',
+    page:               searchParams.get('page') ? Number(searchParams.get('page')) : 1,
+    per_page:           PER_PAGE,
   };
 
   function setFilter(updates: Partial<ProductFilters>) {
     const next = new URLSearchParams(searchParams);
     const set = (k: string, v: string | undefined) => v ? next.set(k, v) : next.delete(k);
-    if ('q'                 in updates) set('q',             updates.q);
-    if ('category_id'       in updates) set('cat',           updates.category_id);
-    if ('min_price'         in updates) set('min_price',     updates.min_price != null ? String(updates.min_price) : undefined);
-    if ('max_price'         in updates) set('max_price',     updates.max_price != null ? String(updates.max_price) : undefined);
-    if ('min_rating'        in updates) set('rating',        updates.min_rating != null ? String(updates.min_rating) : undefined);
-    if ('free_shipping'     in updates) set('free_shipping', updates.free_shipping ? '1' : undefined);
-    if ('cod'               in updates) set('cod',           updates.cod ? '1' : undefined);
-    if ('on_sale'           in updates) set('on_sale',       updates.on_sale ? '1' : undefined);
-    if ('has_voucher'       in updates) set('has_voucher',   updates.has_voucher ? '1' : undefined);
-    if ('new_arrivals'      in updates) set('new_arrivals',  updates.new_arrivals ? '1' : undefined);
-    if ('seller_ids'        in updates) set('sellers',       updates.seller_ids?.length ? updates.seller_ids.join(',') : undefined);
-    if ('provinces'         in updates) set('provinces',     updates.provinces?.length ? updates.provinces.join(',') : undefined);
-    if ('sort'              in updates) set('sort',          updates.sort);
-    if ('page'              in updates) set('page',          updates.page && updates.page > 1 ? String(updates.page) : undefined);
+    if ('q'                  in updates) set('q',             updates.q);
+    if ('category_id'        in updates) set('cat',           updates.category_id);
+    if ('min_price'          in updates) set('min_price',     updates.min_price != null ? String(updates.min_price) : undefined);
+    if ('max_price'          in updates) set('max_price',     updates.max_price != null ? String(updates.max_price) : undefined);
+    if ('min_rating'         in updates) set('rating',        updates.min_rating != null ? String(updates.min_rating) : undefined);
+    if ('free_shipping'      in updates) set('free_shipping', updates.free_shipping ? '1' : undefined);
+    if ('cod'                in updates) set('cod',           updates.cod ? '1' : undefined);
+    if ('on_sale'            in updates) set('on_sale',       updates.on_sale ? '1' : undefined);
+    if ('has_voucher'        in updates) set('has_voucher',   updates.has_voucher ? '1' : undefined);
+    if ('new_arrivals'       in updates) set('new_arrivals',  updates.new_arrivals ? '1' : undefined);
+    if ('seller_ids'         in updates) set('sellers',       updates.seller_ids?.length ? updates.seller_ids.join(',') : undefined);
+    if ('shipped_from'       in updates) {
+      set('shipped_from', updates.shipped_from?.length ? updates.shipped_from.join(',') : undefined);
+      next.delete('provinces');
+    }
+    if ('provinces'          in updates && !('shipped_from' in updates)) {
+      set('shipped_from', updates.provinces?.length ? updates.provinces.join(',') : undefined);
+      next.delete('provinces');
+    }
+    if ('sort'               in updates) set('sort',          updates.sort);
+    if ('page'               in updates) set('page',          updates.page && updates.page > 1 ? String(updates.page) : undefined);
     else next.delete('page'); // reset page on any filter change
     setSearchParams(next, { replace: true });
   }
@@ -115,7 +128,7 @@ function ActiveChips({
   if (filters.has_voucher)   chips.push({ label: 'Has Voucher', onRemove: () => onRemove('has_voucher') });
   if (filters.new_arrivals)  chips.push({ label: 'New Arrivals', onRemove: () => onRemove('new_arrivals') });
   filters.seller_ids?.forEach((id) => chips.push({ label: `Seller #${id}`, onRemove: () => onRemove('seller_ids', id) }));
-  filters.provinces?.forEach((p) => chips.push({ label: p, onRemove: () => onRemove('provinces', p) }));
+  (filters.shipped_from ?? filters.provinces)?.forEach((p) => chips.push({ label: `Shipped from: ${p}`, onRemove: () => onRemove('shipped_from', p) }));
 
   if (!chips.length) return null;
 
@@ -183,7 +196,6 @@ function FilterSidebar({
   const [minInput, setMinInput] = useState(filters.min_price != null ? String(filters.min_price) : '');
   const [maxInput, setMaxInput] = useState(filters.max_price != null ? String(filters.max_price) : '');
   const [showMoreSellers, setShowMoreSellers] = useState(false);
-  const [showMoreProvinces, setShowMoreProvinces] = useState(false);
 
   const parentNode = parentId ? CATEGORY_TREE.find((p) => p.id === parentId) : null;
 
@@ -205,16 +217,14 @@ function FilterSidebar({
     onFilter({ seller_ids: next.length ? next : undefined });
   }
 
-  function toggleProvince(name: string) {
-    const current = filters.provinces ?? [];
+  function toggleLocation(name: string) {
+    const current = filters.shipped_from ?? filters.provinces ?? [];
     const next = current.includes(name) ? current.filter((p) => p !== name) : [...current, name];
-    onFilter({ provinces: next.length ? next : undefined });
+    onFilter({ shipped_from: next.length ? next : undefined, provinces: next.length ? next : undefined });
   }
 
   const sellers = facets?.sellers ?? [];
-  const provinces = facets?.provinces ?? [];
   const visibleSellers = showMoreSellers ? sellers : sellers.slice(0, 5);
-  const visibleProvinces = showMoreProvinces ? provinces : provinces.slice(0, 5);
 
   return (
     <div className="flex flex-col gap-0">
@@ -258,6 +268,35 @@ function FilterSidebar({
           </div>
         </FilterSection>
       )}
+
+      {/* Shipped From (Macro-regions) */}
+      <FilterSection title="Shipped From" defaultOpen={true}>
+        <div className="flex flex-col gap-2 mt-1">
+          {SHIPPED_FROM_OPTIONS.map((loc) => {
+            const locFacet = facets?.locations?.find(
+              (l) => l.name.toLowerCase() === loc.name.toLowerCase() || l.key.toLowerCase() === loc.key.toLowerCase()
+            );
+            const count = locFacet?.count;
+            const checked = (filters.shipped_from ?? filters.provinces)?.includes(loc.name) || (filters.shipped_from ?? filters.provinces)?.includes(loc.key);
+            return (
+              <label key={loc.key} className="flex items-center gap-2.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={!!checked}
+                  onChange={() => toggleLocation(loc.name)}
+                  className="accent-brand-red w-4 h-4 rounded"
+                />
+                <span className="text-sm text-gray-600 group-hover:text-brand-red transition-colors flex-1 truncate">
+                  {loc.name}
+                </span>
+                {count !== undefined && count > 0 && (
+                  <span className="text-xs text-gray-400">({count})</span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+      </FilterSection>
 
       {/* Price range */}
       <FilterSection title="Price Range">
@@ -356,36 +395,109 @@ function FilterSidebar({
           </div>
         </FilterSection>
       )}
+    </div>
+  );
+}
 
-      {/* Location */}
-      {provinces.length > 0 && (
-        <FilterSection title="Ships From" defaultOpen={false}>
-          <div className="flex flex-col gap-2 mt-1">
-            {visibleProvinces.map((p) => (
-              <label key={p.name} className="flex items-center gap-2.5 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={filters.provinces?.includes(p.name) ?? false}
-                  onChange={() => toggleProvince(p.name)}
-                  className="accent-brand-red w-4 h-4 rounded"
-                />
-                <span className="text-sm text-gray-600 group-hover:text-brand-red transition-colors flex-1 truncate">
-                  {p.name}
-                </span>
-                <span className="text-xs text-gray-400">({p.count})</span>
-              </label>
-            ))}
-            {provinces.length > 5 && (
-              <button
-                onClick={() => setShowMoreProvinces(!showMoreProvinces)}
-                className="text-xs text-brand-red font-semibold hover:underline text-left mt-1"
-              >
-                {showMoreProvinces ? 'View Less' : `View ${provinces.length - 5} More`}
-              </button>
-            )}
+// ── Related Shops Section (Shopee-Style Search Banner) ─────────────────────────
+
+function RelatedShopsSection({ query, shops }: { query: string; shops: RelatedShop[] }) {
+  if (!shops || shops.length === 0) return null;
+
+  return (
+    <div className="mb-6 bg-white rounded-2xl border border-gray-100 p-5 shadow-xs space-y-4">
+      <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-red-50 text-brand-red flex items-center justify-center">
+            <Store className="w-4 h-4" />
           </div>
-        </FilterSection>
-      )}
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">
+              Shops related to <span className="text-brand-red font-black">"{query}"</span>
+            </h2>
+            <p className="text-[11px] text-gray-400">Verified official storefronts matching your search</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {shops.map((shop) => (
+          <div
+            key={shop.id}
+            className="flex flex-col justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:border-brand-red/30 hover:shadow-md transition-all duration-200 group"
+          >
+            {/* Shop Identity */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-red to-brand-red-dark text-white font-bold flex items-center justify-center text-sm shrink-0 overflow-hidden shadow-2xs">
+                  {shop.logo_url ? (
+                    <img src={shop.logo_url} alt={shop.shop_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{shop.shop_name[0]?.toUpperCase() ?? 'S'}</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className="font-bold text-gray-900 text-sm truncate group-hover:text-brand-red transition-colors">
+                      {shop.shop_name}
+                    </h3>
+                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-50 text-brand-red border border-red-100 shrink-0">
+                      Verified
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 truncate mt-0.5">
+                    {shop.shop_category || 'General Marketplace'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1 font-semibold text-amber-600">
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      {shop.avg_rating.toFixed(1)}
+                    </span>
+                    <span>·</span>
+                    <span>{shop.total_products} Products</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mini products preview */}
+              {shop.preview_products && shop.preview_products.length > 0 && (
+                <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-gray-100">
+                  {shop.preview_products.slice(0, 4).map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/products/${p.id}`}
+                      className="group/p aspect-square rounded-lg bg-white border border-gray-100 overflow-hidden relative"
+                      title={p.name}
+                    >
+                      {p.thumbnail_url ? (
+                        <img src={p.thumbnail_url} alt="" className="w-full h-full object-cover group-hover/p:scale-105 transition-transform" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                          <Package className="w-3 h-3" />
+                        </div>
+                      )}
+                      <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] font-bold text-center py-0.2 truncate px-0.5">
+                        ₱{Math.round(p.base_price)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Visit Shop button */}
+            <div className="mt-3 pt-2">
+              <Link
+                to={`/shop/${shop.shop_slug}`}
+                className="w-full py-2 px-3 rounded-lg bg-white border border-gray-200 text-gray-700 text-xs font-bold hover:bg-brand-red hover:text-white hover:border-brand-red transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+              >
+                <span>Visit Store</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -522,14 +634,15 @@ export default function CatalogPage() {
   const { parentId } = useParams<{ parentId?: string }>();
   const { filters, setFilter, clearAll } = useFiltersFromUrl(parentId);
 
-  const [products,    setProducts]    = useState<Product[]>([]);
-  const [meta,        setMeta]        = useState<CatalogMeta | null>(null);
-  const [facets,      setFacets]      = useState<CatalogFacets | null>(null);
-  const [loading,     setLoading]     = useState(true);
-  const [listView,    setListView]    = useState(false);
-  const [drawerOpen,  setDrawerOpen]  = useState(false);
-  const [sortOpen,    setSortOpen]    = useState(false);
-  const [searchInput, setSearchInput] = useState(filters.q ?? '');
+  const [products,     setProducts]     = useState<Product[]>([]);
+  const [relatedShops, setRelatedShops] = useState<RelatedShop[]>([]);
+  const [meta,         setMeta]         = useState<CatalogMeta | null>(null);
+  const [facets,       setFacets]       = useState<CatalogFacets | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [listView,     setListView]     = useState(false);
+  const [drawerOpen,   setDrawerOpen]   = useState(false);
+  const [sortOpen,     setSortOpen]     = useState(false);
+  const [searchInput,  setSearchInput]  = useState(filters.q ?? '');
   const sortRef = useRef<HTMLDivElement>(null);
 
   // Sync searchInput when URL q param changes externally (e.g. nav from header)
@@ -549,10 +662,12 @@ export default function CatalogPage() {
     try {
       const res = await getProductsApi(filters);
       setProducts(res.data);
+      setRelatedShops(res.related_shops ?? []);
       setMeta(res.meta);
       setFacets(res.facets);
     } catch {
       setProducts([]);
+      setRelatedShops([]);
       setMeta(null);
     } finally {
       setLoading(false);
@@ -573,8 +688,11 @@ export default function CatalogPage() {
   function handleRemoveChip(key: keyof ProductFilters, value?: string | number) {
     if (key === 'seller_ids' && value != null) {
       setFilter({ seller_ids: filters.seller_ids?.filter((id) => id !== value) });
-    } else if (key === 'provinces' && value != null) {
-      setFilter({ provinces: filters.provinces?.filter((p) => p !== value) });
+    } else if ((key === 'shipped_from' || key === 'provinces') && value != null) {
+      setFilter({
+        shipped_from: (filters.shipped_from ?? filters.provinces)?.filter((p) => p !== value),
+        provinces: undefined,
+      });
     } else {
       setFilter({ [key]: undefined });
     }
@@ -593,28 +711,38 @@ export default function CatalogPage() {
   );
 
   return (
-    <div className="min-h-screen bg-brand-gray-soft">
+    <div className="min-h-screen bg-brand-gray-soft flex flex-col">
+      {/* ── Global Site Header ── */}
+      <SiteHeader />
 
-      {/* ── Page header bar ── */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link to="/" className="text-brand-red font-bold text-lg tracking-tight shrink-0">Velure</Link>
+      {/* ── Breadcrumb bar ── */}
+      <div className="bg-white border-b border-gray-100 sticky top-14 z-20 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 h-11 flex items-center gap-2.5 text-xs">
+          <Link to="/" className="text-gray-500 hover:text-brand-red font-medium transition-colors">Home</Link>
           <span className="text-gray-300">/</span>
           {parentNode && (
             <>
-              <Link to={`/category/${parentNode.id}`} className="text-sm text-gray-500 hover:text-brand-red transition-colors truncate">
+              <Link to={`/category/${parentNode.id}`} className="text-gray-500 hover:text-brand-red transition-colors truncate">
                 {parentNode.label}
               </Link>
-              {leafNode && <><span className="text-gray-300">/</span><span className="text-sm text-gray-700 font-medium truncate">{leafNode.label}</span></>}
+              {leafNode && (
+                <>
+                  <span className="text-gray-300">/</span>
+                  <span className="text-gray-900 font-semibold truncate">{leafNode.label}</span>
+                </>
+              )}
             </>
           )}
           {!parentNode && filters.q && (
-            <span className="text-sm text-gray-700 font-medium truncate">Search: {filters.q}</span>
+            <span className="text-gray-900 font-semibold truncate">Search: "{filters.q}"</span>
+          )}
+          {!parentNode && !filters.q && (
+            <span className="text-gray-900 font-semibold truncate">Catalog</span>
           )}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
 
         {/* ── Title + search bar + result count ── */}
         <div className="mb-5 space-y-3">
@@ -663,13 +791,18 @@ export default function CatalogPage() {
 
           {/* ── Desktop sidebar ── */}
           <aside className="hidden lg:block w-56 xl:w-64 shrink-0">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sticky top-20">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sticky top-28">
               {sidebarContent}
             </div>
           </aside>
 
           {/* ── Results column ── */}
           <div className="flex-1 min-w-0">
+
+            {/* ── Shopee-style Related Shops Banner ── */}
+            {filters.q && relatedShops.length > 0 && (
+              <RelatedShopsSection query={filters.q} shops={relatedShops} />
+            )}
 
             {/* Toolbar */}
             <div className="flex items-center justify-between gap-3 mb-4">

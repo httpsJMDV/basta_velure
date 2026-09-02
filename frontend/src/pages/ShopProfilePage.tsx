@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Store, CheckCircle2, ShieldCheck, MapPin, Phone, Clock,
+  Store, CheckCircle2, ShieldCheck, Shield, MapPin, Phone, Clock,
   RotateCcw, Truck, MessageCircle, UserPlus, UserCheck,
   Star, Package, Users, Copy, Check, X,
   ChevronRight, Flag, ChevronLeft,
@@ -12,6 +12,7 @@ import ProductCard from '../components/ui/ProductCard';
 import CustomSelect from '../components/ui/CustomSelect';
 import Button from '../components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
+import { useChat } from '../hooks/useChat';
 import { resolveShortLocation } from '../utils/psgc';
 import {
   getPublicShopProfileApi,
@@ -123,26 +124,26 @@ function ReportShopModal({
             initial={{ opacity: 0, scale: 0.95, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 16 }}
-            className="relative bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-gray-100 z-10"
+            className="relative z-10 w-full max-w-md p-6 bg-white border border-gray-100 shadow-2xl rounded-3xl"
           >
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <div className="flex items-center gap-2 text-brand-red">
                 <Flag className="w-5 h-5" />
-                <h3 className="font-bold text-gray-900 text-base">Report {shopName}</h3>
+                <h3 className="text-base font-bold text-gray-900">Report {shopName}</h3>
               </div>
-              <button onClick={onClose} className="p-1 rounded-xl text-gray-400 hover:bg-gray-100">
+              <button onClick={onClose} className="p-1 text-gray-400 rounded-xl hover:bg-gray-100">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {submitted ? (
-              <div className="py-8 text-center flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <CheckCircle2 className="w-12 h-12 text-emerald-500" />
-                <p className="font-bold text-gray-900 text-base">Report Submitted</p>
+                <p className="text-base font-bold text-gray-900">Report Submitted</p>
                 <p className="text-xs text-gray-500">Thank you. Our moderation team will investigate this shop.</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">
                     Reason for Report
@@ -162,7 +163,7 @@ function ReportShopModal({
                           name="reportReason"
                           checked={reason === r}
                           onChange={() => setReason(r)}
-                          className="accent-brand-red w-4 h-4"
+                          className="w-4 h-4 accent-brand-red"
                         />
                         <span>{r}</span>
                       </label>
@@ -179,7 +180,7 @@ function ReportShopModal({
                     value={details}
                     onChange={(e) => setDetails(e.target.value)}
                     placeholder="Provide any additional context or proof..."
-                    className="w-full text-xs p-3 border border-gray-200 rounded-xl outline-none focus:border-brand-red focus:ring-1 focus:ring-brand-red"
+                    className="w-full p-3 text-xs border border-gray-200 outline-none rounded-xl focus:border-brand-red focus:ring-1 focus:ring-brand-red"
                   />
                 </div>
 
@@ -211,6 +212,7 @@ export default function ShopProfilePage() {
   const shopIdentifier = slug || id || '';
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { openChatWithSeller } = useChat();
 
   // Shop state
   const [profile, setProfile] = useState<PublicShopProfile | null>(null);
@@ -245,7 +247,7 @@ export default function ShopProfilePage() {
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewRatingFilter, setReviewRatingFilter] = useState<number | undefined>(undefined);
   const [reviewPage, setReviewPage] = useState(1);
-  const [totalReviews, setTotalReviews] = useState(0);
+  const [, setTotalReviews] = useState(0);
   const [lastReviewPage, setLastReviewPage] = useState(1);
 
   // Load shop profile
@@ -282,8 +284,8 @@ export default function ShopProfilePage() {
     try {
       const res = await getProductsApi({
         seller_ids: [profile.seller_id],
-        category_id: selectedCategory === 'all' ? undefined : Number(selectedCategory),
-        sort: sortOption,
+        category_id: selectedCategory === 'all' ? undefined : String(selectedCategory),
+        sort: sortOption as any,
         page: productPage,
         per_page: 12,
       });
@@ -360,16 +362,16 @@ export default function ShopProfilePage() {
     return (
       <div className="min-h-screen bg-brand-gray-soft">
         <SiteHeader />
-        <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col gap-6">
+        <div className="flex flex-col gap-6 px-4 py-8 mx-auto max-w-7xl">
           <div className="h-64 bg-gray-200 rounded-3xl animate-pulse" />
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="h-20 bg-gray-200 rounded-2xl animate-pulse" />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="h-96 bg-gray-200 rounded-2xl animate-pulse" />
-            <div className="lg:col-span-2 h-96 bg-gray-200 rounded-2xl animate-pulse" />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="bg-gray-200 h-96 rounded-2xl animate-pulse" />
+            <div className="bg-gray-200 lg:col-span-2 h-96 rounded-2xl animate-pulse" />
           </div>
         </div>
       </div>
@@ -380,12 +382,12 @@ export default function ShopProfilePage() {
     return (
       <div className="min-h-screen bg-brand-gray-soft">
         <SiteHeader />
-        <div className="max-w-7xl mx-auto px-4 py-32 text-center">
-          <div className="w-16 h-16 bg-red-50 text-brand-red rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="px-4 py-32 mx-auto text-center max-w-7xl">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-50 text-brand-red">
             <Store className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Shop Not Found</h2>
-          <p className="text-gray-500 text-sm mb-6 max-w-sm mx-auto">
+          <h2 className="mb-2 text-2xl font-bold text-gray-900">Shop Not Found</h2>
+          <p className="max-w-sm mx-auto mb-6 text-sm text-gray-500">
             The shop you are looking for does not exist or is currently unavailable.
           </p>
           <Link to="/">
@@ -405,13 +407,13 @@ export default function ShopProfilePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-brand-gray-soft flex flex-col">
+    <div className="flex flex-col min-h-screen bg-brand-gray-soft">
       <SiteHeader />
 
       {/* Breadcrumb */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 h-12 flex items-center gap-2 text-sm">
-          <Link to="/" className="text-gray-500 hover:text-brand-red transition-colors">Home</Link>
+        <div className="flex items-center h-12 gap-2 px-4 mx-auto text-sm max-w-7xl">
+          <Link to="/" className="text-gray-500 transition-colors hover:text-brand-red">Home</Link>
           <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
           <span className="text-gray-500">Shops</span>
           <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
@@ -419,34 +421,34 @@ export default function ShopProfilePage() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 w-full flex-1 flex flex-col gap-6">
+      <main className="flex flex-col flex-1 w-full gap-6 px-4 py-6 mx-auto max-w-7xl">
 
         {/* ── 1. Header Card (Banner + Pinned Overlapping Avatar + Unobstructed Identity Block) ── */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-3xl">
           {/* Banner Container with Pinned Avatar */}
-          <div className="relative h-48 sm:h-64 w-full bg-gradient-to-r from-gray-800 via-gray-900 to-black">
+          <div className="relative w-full h-48 sm:h-64 bg-gradient-to-r from-gray-800 via-gray-900 to-black">
             {profile.banner_url ? (
               <img
                 src={profile.banner_url}
                 alt={profile.shop_name}
-                className="w-full h-full object-cover"
+                className="object-cover w-full h-full"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-r from-rose-950 via-zinc-900 to-neutral-900 flex items-center justify-center">
+              <div className="flex items-center justify-center w-full h-full bg-gradient-to-r from-rose-950 via-zinc-900 to-neutral-900">
                 <Store className="w-20 h-20 text-white/10" />
               </div>
             )}
 
             {/* Pinned Avatar (half overlapping banner bottom, z-index 10) */}
-            <div className="absolute -bottom-12 left-6 sm:left-8 w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-xl bg-white overflow-hidden z-10 flex items-center justify-center">
+            <div className="absolute z-10 flex items-center justify-center overflow-hidden bg-white border-4 border-white rounded-full shadow-xl -bottom-12 left-6 sm:left-8 w-28 h-28 sm:w-32 sm:h-32">
               {profile.logo_url ? (
                 <img
                   src={profile.logo_url}
                   alt={profile.shop_name}
-                  className="w-full h-full object-cover"
+                  className="object-cover w-full h-full"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-brand-red to-brand-red-dark text-white flex items-center justify-center font-black text-2xl sm:text-3xl">
+                <div className="flex items-center justify-center w-full h-full text-2xl font-black text-white bg-gradient-to-br from-brand-red to-brand-red-dark sm:text-3xl">
                   {initials(profile.shop_name)}
                 </div>
               )}
@@ -454,12 +456,12 @@ export default function ShopProfilePage() {
           </div>
 
           {/* Identity block (pt-16 ensures name/details are never covered) */}
-          <div className="px-6 sm:px-8 pt-16 pb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="px-6 pt-16 pb-6 sm:px-8">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
               {/* Shop Title & Badges */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight">
+                  <h1 className="text-2xl font-black leading-tight text-gray-900 sm:text-3xl">
                     {profile.shop_name}
                   </h1>
                   {profile.application_status === 'approved' && (
@@ -468,9 +470,13 @@ export default function ShopProfilePage() {
                       Verified Seller
                     </span>
                   )}
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Active Now
+                  </span>
                 </div>
                 {profile.shop_category && (
-                  <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-wide">
+                  <p className="mt-1 text-xs font-bold tracking-wide text-gray-400 uppercase">
                     {profile.shop_category}
                   </p>
                 )}
@@ -500,13 +506,20 @@ export default function ShopProfilePage() {
                   )}
                 </button>
 
-                <Link
-                  to={`/messages?seller=${profile.seller_id}`}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      navigate('/login');
+                      return;
+                    }
+                    openChatWithSeller(profile.seller_id);
+                  }}
                   className="min-h-[42px] px-4 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm flex items-center gap-2 hover:border-brand-red hover:text-brand-red transition-colors bg-white shadow-xs"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>Chat</span>
-                </Link>
+                </button>
 
                 <button
                   onClick={() => setReportOpen(true)}
@@ -520,7 +533,7 @@ export default function ShopProfilePage() {
 
             {/* Shop Bio */}
             {profile.shop_bio && (
-              <p className="text-sm text-gray-600 mt-3 leading-relaxed">
+              <p className="mt-3 text-sm leading-relaxed text-gray-600">
                 {profile.shop_bio}
               </p>
             )}
@@ -528,7 +541,7 @@ export default function ShopProfilePage() {
             {/* Store Link with Copy Button */}
             <div className="mt-4 pt-3.5 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2">
-                <span className="text-gray-400 font-medium">Store link:</span>
+                <span className="font-medium text-gray-400">Store link:</span>
                 <button
                   onClick={handleCopyUrl}
                   className="flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 font-mono font-medium transition-colors"
@@ -546,50 +559,50 @@ export default function ShopProfilePage() {
         </div>
 
         {/* ── 2. Stats Row (Neutral Gray Icons, Amber Star) ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {/* Rating */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-50 text-amber-600 shrink-0">
               <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Rating</p>
+              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Rating</p>
               <p className="text-base font-black text-gray-900">
                 {profile.avg_rating != null ? profile.avg_rating.toFixed(1) : 'New'}
-                <span className="text-xs font-normal text-gray-400 ml-1">({profile.total_reviews})</span>
+                <span className="ml-1 text-xs font-normal text-gray-400">({profile.total_reviews})</span>
               </p>
             </div>
           </div>
 
           {/* Followers */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Followers</p>
+              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Followers</p>
               <p className="text-base font-black text-gray-900">{followerCount.toLocaleString()}</p>
             </div>
           </div>
 
           {/* Products */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Products</p>
+              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Products</p>
               <p className="text-base font-black text-gray-900">{profile.total_products}</p>
             </div>
           </div>
 
           {/* Response Time */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Response</p>
+              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Response</p>
               <p className="text-sm font-black text-gray-900 truncate">
                 {formatResponseTime(profile.response_time)}
               </p>
@@ -597,65 +610,81 @@ export default function ShopProfilePage() {
           </div>
 
           {/* Member Since */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 col-span-2 sm:col-span-1">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+          <div className="flex items-center col-span-2 gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl sm:col-span-1">
+            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
               <Store className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Member Since</p>
+              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Member Since</p>
               <p className="text-sm font-black text-gray-900">{formatJoinDate(profile.joined_date)}</p>
             </div>
           </div>
         </div>
 
         {/* ── Main Two-Column Balanced Content (35% Left / 65% Right) ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid items-start grid-cols-1 gap-6 lg:grid-cols-12">
 
           {/* ── Left Column: Shop Info, Policies, Contact ── */}
-          <div className="lg:col-span-4 flex flex-col gap-5">
+          <div className="flex flex-col gap-5 lg:col-span-4">
 
             {/* 3. About Section */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
-              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <div className="flex flex-col gap-3 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
+              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
                 <Store className="w-4 h-4 text-brand-red" /> About the Shop
               </h2>
-              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">
+              <p className="text-xs leading-relaxed text-gray-600 whitespace-pre-line">
                 {profile.shop_description || 'No detailed description provided by this seller yet.'}
               </p>
             </div>
 
-            {/* 4. Shop Policies */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-4">
-              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Shop Policies
+            {/* 4. Shop Policies (Hybrid Model) */}
+            <div className="flex flex-col gap-3.5 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
+              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
+                <ShieldCheck className="w-4 h-4 text-brand-red" /> Policies &amp; Guarantees
               </h2>
 
-              {/* Return Policy */}
-              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
-                <RotateCcw className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
+              {/* Platform Guaranteed Policy Badge */}
+              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-50/60 border border-brand-red/20">
+                <Shield className="w-4 h-4 text-brand-red mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-800">Return &amp; Refund Policy</p>
-                  <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed">
-                    {profile.return_policy || 'Standard 7-day return policy applies for eligible items.'}
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-gray-900">Velure 7-Day Guaranteed Return</p>
+                    <span className="text-[9px] font-bold bg-brand-red text-white px-2 py-0.5 rounded-full">Platform Policy</span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">
+                    Standard 7-day return window upon delivery for eligible items in original condition. Protected by Velure Dispute Mediation. (Perishable foods &amp; custom items excluded).
                   </p>
                 </div>
               </div>
+
+              {/* Seller Additional Return Terms */}
+              {profile.return_policy && (
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                  <RotateCcw className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-gray-800">Additional Store Return Terms</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed">
+                      {profile.return_policy}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Shipping Policy */}
               <div className="flex items-start gap-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
                 <Truck className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-800">Shipping Policy</p>
+                  <p className="text-xs font-bold text-gray-800">Shipping Details</p>
                   <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed">
-                    {profile.shipping_policy || 'Orders are processed within 24-48 business hours with verified courier partners.'}
+                    {profile.shipping_policy || 'Orders are processed within 24–48 business hours with verified courier partners.'}
                   </p>
                 </div>
               </div>
             </div>
 
             {/* 5. Business Hours & Response Time (Formatted without underscores) */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
-              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <div className="flex flex-col gap-3 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
+              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
                 <Clock className="w-4 h-4 text-brand-red" /> Business Hours
               </h2>
               <div className="space-y-2 text-xs">
@@ -671,8 +700,8 @@ export default function ShopProfilePage() {
             </div>
 
             {/* 6. Contact & Location (City/Province words only for privacy) */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
-              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <div className="flex flex-col gap-3 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
+              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
                 <MapPin className="w-4 h-4 text-brand-red" /> Contact &amp; Location
               </h2>
               <div className="space-y-2 text-xs">
@@ -692,12 +721,12 @@ export default function ShopProfilePage() {
           </div>
 
           {/* ── Right Column: Shop Products & Shop Reviews ── */}
-          <div className="lg:col-span-8 flex flex-col gap-6">
+          <div className="flex flex-col gap-6 lg:col-span-8">
 
             {/* ── 7. Shop Products Section ── */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
+            <div className="flex flex-col gap-5 p-6 bg-white border border-gray-100 shadow-sm rounded-3xl">
               {/* Section Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+              <div className="flex flex-col justify-between gap-4 pb-4 border-b border-gray-100 sm:flex-row sm:items-center">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">Shop Products</h2>
                   <p className="text-xs text-gray-400 mt-0.5">{totalProducts} active items in store</p>
@@ -715,7 +744,7 @@ export default function ShopProfilePage() {
 
               {/* Category Filter Tabs */}
               {profile.categories && profile.categories.length > 0 && (
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+                <div className="flex items-center gap-2 pb-1 overflow-x-auto scrollbar-hide">
                   <button
                     onClick={() => { setSelectedCategory('all'); setProductPage(1); }}
                     className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${
@@ -747,19 +776,19 @@ export default function ShopProfilePage() {
 
               {/* Products Grid */}
               {productsLoading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 py-8">
+                <div className="grid grid-cols-2 gap-4 py-8 sm:grid-cols-3">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="aspect-square bg-gray-100 rounded-2xl animate-pulse" />
+                    <div key={i} className="bg-gray-100 aspect-square rounded-2xl animate-pulse" />
                   ))}
                 </div>
               ) : products.length === 0 ? (
-                <div className="py-16 text-center flex flex-col items-center gap-3">
+                <div className="flex flex-col items-center gap-3 py-16 text-center">
                   <Package className="w-12 h-12 text-gray-300" />
                   <p className="text-sm font-semibold text-gray-600">No active products found in this category</p>
                   <p className="text-xs text-gray-400">Select "All Products" to browse all available items.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                   {products.map((p) => (
                     <ProductCard key={p.id} product={p} />
                   ))}
@@ -772,17 +801,17 @@ export default function ShopProfilePage() {
                   <button
                     onClick={() => setProductPage((p) => Math.max(1, p - 1))}
                     disabled={productPage === 1}
-                    className="p-2 rounded-xl border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50"
+                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="text-xs font-semibold text-gray-600 px-3">
+                  <span className="px-3 text-xs font-semibold text-gray-600">
                     Page {productPage} of {lastProductPage}
                   </span>
                   <button
                     onClick={() => setProductPage((p) => Math.min(lastProductPage, p + 1))}
                     disabled={productPage === lastProductPage}
-                    className="p-2 rounded-xl border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50"
+                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -791,7 +820,7 @@ export default function ShopProfilePage() {
             </div>
 
             {/* ── 8. Shop Reviews Section ── */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
+            <div className="flex flex-col gap-5 p-6 bg-white border border-gray-100 shadow-sm rounded-3xl">
               <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">Shop Reviews</h2>
@@ -802,25 +831,25 @@ export default function ShopProfilePage() {
                   <span className="text-sm font-black text-amber-800">
                     {profile.avg_rating != null ? profile.avg_rating.toFixed(1) : 'New'}
                   </span>
-                  <span className="text-xs text-amber-600 font-medium">/ 5.0</span>
+                  <span className="text-xs font-medium text-amber-600">/ 5.0</span>
                 </div>
               </div>
 
               {/* Rating Breakdown Bar Chart */}
               {profile.rating_breakdown && (
-                <div className="bg-gray-50 rounded-2xl p-4 flex flex-col gap-2">
+                <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl">
                   {[5, 4, 3, 2, 1].map((stars) => {
                     const count = profile.rating_breakdown?.[stars] ?? 0;
                     const pct = profile.total_reviews > 0 ? (count / profile.total_reviews) * 100 : 0;
                     return (
                       <div key={stars} className="flex items-center gap-3 text-xs">
-                        <div className="w-12 flex items-center gap-1 font-semibold text-gray-600 shrink-0">
+                        <div className="flex items-center w-12 gap-1 font-semibold text-gray-600 shrink-0">
                           <span>{stars}</span>
                           <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                         </div>
-                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="flex-1 h-2 overflow-hidden bg-gray-200 rounded-full">
                           <div
-                            className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                            className="h-full transition-all duration-300 rounded-full bg-amber-400"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -834,7 +863,7 @@ export default function ShopProfilePage() {
               )}
 
               {/* Star Rating Filters */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => { setReviewRatingFilter(undefined); setReviewPage(1); }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
@@ -869,18 +898,18 @@ export default function ShopProfilePage() {
                   ))}
                 </div>
               ) : reviews.length === 0 ? (
-                <div className="py-10 text-center text-xs text-gray-400">
+                <div className="py-10 text-xs text-center text-gray-400">
                   No reviews found for this filter.
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
                   {reviews.map((r) => (
                     <div key={r.id} className="p-4 rounded-2xl border border-gray-100 bg-white flex flex-col gap-2.5">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center text-xs font-bold text-gray-700 shrink-0">
+                          <div className="flex items-center justify-center w-8 h-8 overflow-hidden text-xs font-bold text-gray-700 bg-gray-100 rounded-full shrink-0">
                             {r.buyer.avatar_url ? (
-                              <img src={r.buyer.avatar_url} alt={r.buyer.name} className="w-full h-full object-cover" />
+                              <img src={r.buyer.avatar_url} alt={r.buyer.name} className="object-cover w-full h-full" />
                             ) : (
                               initials(r.buyer.name)
                             )}
@@ -902,7 +931,7 @@ export default function ShopProfilePage() {
 
                       {/* Comment */}
                       {r.comment && (
-                        <p className="text-xs text-gray-700 leading-relaxed">{r.comment}</p>
+                        <p className="text-xs leading-relaxed text-gray-700">{r.comment}</p>
                       )}
 
                       {/* Purchased product thumbnail link */}
@@ -915,7 +944,7 @@ export default function ShopProfilePage() {
                             <img
                               src={r.product.thumbnail_url}
                               alt={r.product.name}
-                              className="w-5 h-5 rounded object-cover"
+                              className="object-cover w-5 h-5 rounded"
                             />
                           )}
                           <span className="text-[11px] text-gray-500 font-medium truncate max-w-[200px]">
@@ -934,17 +963,17 @@ export default function ShopProfilePage() {
                   <button
                     onClick={() => setReviewPage((p) => Math.max(1, p - 1))}
                     disabled={reviewPage === 1}
-                    className="p-2 rounded-xl border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50"
+                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="text-xs font-semibold text-gray-600 px-3">
+                  <span className="px-3 text-xs font-semibold text-gray-600">
                     Page {reviewPage} of {lastReviewPage}
                   </span>
                   <button
                     onClick={() => setReviewPage((p) => Math.min(lastReviewPage, p + 1))}
                     disabled={reviewPage === lastReviewPage}
-                    className="p-2 rounded-xl border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50"
+                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -975,25 +1004,25 @@ export default function ShopProfilePage() {
 
 function SiteFooter() {
   return (
-    <footer className="bg-brand-black text-white mt-12 border-t border-gray-800">
-      <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+    <footer className="mt-12 text-white border-t border-gray-800 bg-brand-black">
+      <div className="grid grid-cols-1 gap-10 px-4 py-12 mx-auto max-w-7xl sm:grid-cols-2 lg:grid-cols-4">
         {/* Brand */}
         <div className="flex flex-col gap-4">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo1.png" alt="Velure" className="w-8 h-8 rounded-full object-cover logo-img-dark" />
-            <span className="text-white font-bold text-lg tracking-tight">Velure</span>
+            <img src="/logo1.png" alt="Velure" className="object-cover w-8 h-8 rounded-full logo-img-dark" />
+            <span className="text-lg font-bold tracking-tight text-white">Velure</span>
           </Link>
-          <p className="text-gray-400 text-xs leading-relaxed">
+          <p className="text-xs leading-relaxed text-gray-400">
             The Philippines&apos; premium online marketplace. Discover authentic fashion, beauty, electronics, and lifestyle essentials from verified local sellers.
           </p>
           <div className="flex items-center gap-3 text-gray-400">
-            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand-red transition-colors" aria-label="Facebook">
+            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-brand-red" aria-label="Facebook">
               <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
             </a>
-            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand-red transition-colors" aria-label="Instagram">
+            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-brand-red" aria-label="Instagram">
               <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
             </a>
-            <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand-red transition-colors" aria-label="X (Twitter)">
+            <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-brand-red" aria-label="X (Twitter)">
               <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
             </a>
           </div>
@@ -1001,33 +1030,33 @@ function SiteFooter() {
 
         {/* Column 1 */}
         <div className="flex flex-col gap-3">
-          <h4 className="text-white font-bold text-xs uppercase tracking-wider">Customer Service</h4>
+          <h4 className="text-xs font-bold tracking-wider text-white uppercase">Customer Service</h4>
           <ul className="flex flex-col gap-2 text-xs text-gray-400">
-            <li><Link to="/help" className="hover:text-white transition-colors">Help Center</Link></li>
-            <li><Link to="/orders" className="hover:text-white transition-colors">Track Order</Link></li>
-            <li><Link to="/returns" className="hover:text-white transition-colors">Return &amp; Refund</Link></li>
-            <li><Link to="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
+            <li><Link to="/help" className="transition-colors hover:text-white">Help Center</Link></li>
+            <li><Link to="/orders" className="transition-colors hover:text-white">Track Order</Link></li>
+            <li><Link to="/returns" className="transition-colors hover:text-white">Return &amp; Refund</Link></li>
+            <li><Link to="/contact" className="transition-colors hover:text-white">Contact Us</Link></li>
           </ul>
         </div>
 
         {/* Column 2 */}
         <div className="flex flex-col gap-3">
-          <h4 className="text-white font-bold text-xs uppercase tracking-wider">About Velure</h4>
+          <h4 className="text-xs font-bold tracking-wider text-white uppercase">About Velure</h4>
           <ul className="flex flex-col gap-2 text-xs text-gray-400">
-            <li><Link to="/about" className="hover:text-white transition-colors">About Us</Link></li>
-            <li><Link to="/register/seller" className="hover:text-white transition-colors">Sell on Velure</Link></li>
-            <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-            <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+            <li><Link to="/about" className="transition-colors hover:text-white">About Us</Link></li>
+            <li><Link to="/register/seller" className="transition-colors hover:text-white">Sell on Velure</Link></li>
+            <li><Link to="/privacy" className="transition-colors hover:text-white">Privacy Policy</Link></li>
+            <li><Link to="/terms" className="transition-colors hover:text-white">Terms of Service</Link></li>
           </ul>
         </div>
 
         {/* Column 3 */}
         <div className="flex flex-col gap-3">
-          <h4 className="text-white font-bold text-xs uppercase tracking-wider">Payment &amp; Delivery</h4>
-          <p className="text-xs text-gray-400 leading-relaxed">
+          <h4 className="text-xs font-bold tracking-wider text-white uppercase">Payment &amp; Delivery</h4>
+          <p className="text-xs leading-relaxed text-gray-400">
             We support GCash, Maya, Major Credit Cards, and Cash on Delivery (COD) nationwide.
           </p>
-          <div className="flex items-center gap-2 text-xs text-gray-400 pt-2 border-t border-gray-800">
+          <div className="flex items-center gap-2 pt-2 text-xs text-gray-400 border-t border-gray-800">
             <span>&copy; {new Date().getFullYear()} Velure Philippines. All rights reserved.</span>
           </div>
         </div>

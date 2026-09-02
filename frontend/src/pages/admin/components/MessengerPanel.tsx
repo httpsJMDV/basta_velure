@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getConversationsApi,
   getConversationMessagesApi,
@@ -161,18 +161,7 @@ function ThreadView({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const poll = useCallback(async () => {
-    const newMsgs = await getConversationMessagesApi(conversation.id, latestCreatedAt.current);
-    if (newMsgs.length > 0) {
-      setMessages((prev) => [...prev, ...newMsgs]);
-      latestCreatedAt.current = newMsgs[newMsgs.length - 1].created_at;
-    }
-  }, [conversation.id]);
 
-  useEffect(() => {
-    const id = setInterval(poll, 3000);
-    return () => clearInterval(id);
-  }, [poll]);
 
   async function handleSend() {
     const trimmed = body.trim();
@@ -204,12 +193,16 @@ function ThreadView({
           <ArrowLeft className="w-3.5 h-3.5" />
         </button>
         <div className="w-6 h-6 rounded-full bg-brand-red flex items-center justify-center text-white text-[9px] font-bold shrink-0">
-          {initials(conversation.shop_name)}
+          {initials(conversation.shop_name || conversation.seller?.shop_name || 'Store')}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-semibold text-white truncate leading-tight">{conversation.shop_name}</p>
-          {conversation.seller_name && (
-            <p className="text-[9px] text-gray-500 truncate">{conversation.seller_name}</p>
+          <p className="text-[11px] font-semibold text-white truncate leading-tight">
+            {conversation.shop_name || conversation.seller?.shop_name || 'Store'}
+          </p>
+          {(conversation.seller_name || conversation.seller?.first_name) && (
+            <p className="text-[9px] text-gray-500 truncate">
+              {conversation.seller_name || `${conversation.seller?.first_name} ${conversation.seller?.last_name}`}
+            </p>
           )}
         </div>
       </div>

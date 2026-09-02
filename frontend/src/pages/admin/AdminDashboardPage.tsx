@@ -12,16 +12,17 @@ import type {
   AdminOrderStats, AdminPaymentStats, AdminDisputeStats, AdminReviewStats,
 } from '../../types';
 import {
-  UserCheck, Bike, ShoppingBag,
+  UserPlus, Package,
   Users, TrendingUp, TrendingDown,
   ArrowRight, Activity, Minus,
-  ShieldAlert, Star,
-  Gauge, PackageCheck, Wallet, AlertTriangle,
+  ShieldAlert,
+  Gauge, PackageCheck, Wallet,
+  Coins, QrCode, Truck, Clock,
+  CheckCircle2, Store, ShieldCheck
 } from 'lucide-react';
 import {
   ResponsiveContainer, XAxis, YAxis,
   CartesianGrid, Tooltip, Area, AreaChart,
-  PieChart, Pie, Cell,
 } from 'recharts';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -40,8 +41,6 @@ function chartDateLabel(iso: string) {
   return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }
 
-// ─── Greeting ────────────────────────────────────────────────────────────────
-
 function greeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -49,177 +48,235 @@ function greeting() {
   return 'Good evening';
 }
 
-// ─── GMV ring ─────────────────────────────────────────────────────────────────
-// Shows weekly GMV as a circular progress ring. Goal is a rough target
-// (₱50 000/week placeholder) — replace with a real config value once
-// platform settings are wired up.
-
 const WEEKLY_GMV_GOAL = 50_000;
 
-function GmvRing({ gmvToday }: { gmvToday: number }) {
-  const pct  = Math.min(Math.round((gmvToday / WEEKLY_GMV_GOAL) * 100), 100);
-  const r    = 28;
-  const circ = 2 * Math.PI * r;
-  const dash = (pct / 100) * circ;
-
-  return (
-    <div className="flex flex-col items-center gap-2 shrink-0">
-      <div className="relative w-[72px] h-[72px]">
-        <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-          <defs>
-            <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#ff6b6b" />
-              <stop offset="100%" stopColor="#A32D2D" />
-            </linearGradient>
-          </defs>
-          <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
-          <circle
-            cx="32" cy="32" r={r}
-            fill="none"
-            stroke="url(#ring-grad)"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${circ}`}
-            style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1)' }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[14px] font-black text-white leading-none">{pct}%</span>
-        </div>
-      </div>
-      <p className="text-[10px] text-white/50 text-center leading-tight tracking-wide uppercase">GMV Goal</p>
-    </div>
-  );
-}
-
-// ─── Hero band ────────────────────────────────────────────────────────────────
+// ─── Compact Hero Band ────────────────────────────────────────────────────────
 
 function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: string }) {
   const pendingTotal = stats
-    ? stats.pending_seller_applications + stats.pending_rider_applications + stats.open_disputes
+    ? (stats.pending_seller_applications || 0) +
+      (stats.pending_buyer_applications || 0) +
+      (stats.pending_products || 0) +
+      (stats.open_disputes || 0) +
+      (stats.pending_payment_verifications || 0) +
+      (stats.pending_payout_requests || 0)
     : 0;
   const hasIssues = pendingTotal > 0;
-  const animatedGmv     = useCountUp(stats?.gmv_today ?? 0);
-  const animatedPending = useCountUp(pendingTotal);
+  const animatedGmv        = useCountUp(stats?.gmv_today ?? 0);
+  const animatedCommission = useCountUp(stats?.commission_today ?? 0);
+  const animatedOrders     = useCountUp(stats?.orders_today ?? 0);
+  const animatedPending    = useCountUp(pendingTotal);
+  const gmvGoalPct         = Math.min(Math.round(((stats?.gmv_today ?? 0) / WEEKLY_GMV_GOAL) * 100), 100);
 
   return (
     <div
-      className="rounded-2xl px-7 py-6 flex items-center justify-between gap-6 min-h-[110px] overflow-hidden relative"
+      className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
       style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
     >
-      <div className="relative z-10">
-        <p className="text-[11px] font-semibold text-white/40 uppercase tracking-[0.15em] mb-1.5">
-          {greeting()}
-        </p>
-        <p className="text-[26px] font-black text-white leading-tight tracking-tight">{userName}</p>
-        <div className="flex items-center gap-2 mt-2">
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasIssues ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-          <p className="text-[12px] text-white/50 leading-snug">
-            {stats
-              ? hasIssues
-                ? `${animatedPending} item${pendingTotal !== 1 ? 's' : ''} need your attention`
-                : 'All systems normal — platform is healthy'
-              : 'Loading platform status…'}
-          </p>
+      {/* Left: Greeting + Status Pill + Action Chips inline */}
+      <div className="flex flex-wrap items-center min-w-0 gap-2 sm:gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold tracking-tight text-white sm:text-sm whitespace-nowrap">
+            {greeting()}, {userName || 'Administrator'}
+          </span>
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+            hasIssues ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${hasIssues ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+            {hasIssues ? `${animatedPending} Tasks Pending` : 'All Systems Healthy'}
+          </span>
+        </div>
+
+        {/* Inline Quick Action Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          <Link
+            to="/admin/seller-applications"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-red hover:bg-[#8e2424] text-white text-[11px] font-bold transition-all whitespace-nowrap active:scale-95 shadow-xs"
+          >
+            <Store className="w-3 h-3" />
+            Sellers ({stats?.pending_seller_applications ?? 0})
+          </Link>
+          <Link
+            to="/admin/buyer-applications"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
+          >
+            <UserPlus className="w-3 h-3" />
+            Buyer IDs ({stats?.pending_buyer_applications ?? 0})
+          </Link>
+          <Link
+            to="/admin/product-reviews"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
+          >
+            <Package className="w-3 h-3" />
+            Products ({stats?.pending_products ?? 0})
+          </Link>
+          <Link
+            to="/admin/disputes"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
+          >
+            <ShieldAlert className="w-3 h-3" />
+            Disputes ({stats?.open_disputes ?? 0})
+          </Link>
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center gap-5">
-        {stats && (
-          <div className="hidden sm:flex flex-col items-end gap-1">
-            <p className="text-[11px] text-white/30 uppercase tracking-widest">Today's GMV</p>
-            <p className="text-[22px] font-black text-white leading-none">
-              ₱{animatedGmv > 0 ? animatedGmv.toLocaleString('en-PH') : '0'}
-            </p>
+      {/* Right: Inline Today's Key Performance Numbers */}
+      {stats && (
+        <div className="flex items-center self-end justify-between w-full gap-3 pt-1 text-xs border-t sm:gap-4 shrink-0 md:self-auto md:pt-0 md:border-t-0 border-neutral-800/80 md:w-auto md:justify-end">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-bold text-neutral-400">GMV Today</span>
+            <span className="text-xs font-black text-white sm:text-sm">₱{animatedGmv.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-neutral-300 ml-0.5" title="Weekly GMV Target Progress">
+              {gmvGoalPct}% Goal
+            </span>
           </div>
-        )}
-        {stats && <GmvRing gmvToday={stats.gmv_today} />}
-      </div>
+
+          <div className="w-px h-4 bg-neutral-800" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-bold text-neutral-400">Net Commission</span>
+            <span className="text-xs font-bold text-emerald-400 sm:text-sm">₱{animatedCommission.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          <div className="w-px h-4 bg-neutral-800" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-bold text-neutral-400">Orders</span>
+            <span className="text-xs font-bold text-violet-300 sm:text-sm">{animatedOrders}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Trend badge ──────────────────────────────────────────────────────────────
+// ─── Trend Badge ──────────────────────────────────────────────────────────────
 
 function TrendBadge({ current, previous, label }: { current: number; previous: number; label: string }) {
   const { pct, dir } = trend(current, previous);
-  if (dir === 'flat') return (
-    <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-      <Minus className="w-2.5 h-2.5" /> No change vs {label}
-    </span>
-  );
+  if (dir === 'flat') {
+    return (
+      <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+        <Minus className="w-2.5 h-2.5" /> No change vs {label}
+      </span>
+    );
+  }
   const up = dir === 'up';
   return (
-    <span className={`text-[10px] flex items-center gap-0.5 font-semibold ${up ? 'text-emerald-600' : 'text-red-500'}`}>
+    <span className={`text-[10px] flex items-center gap-0.5 font-bold ${up ? 'text-emerald-600' : 'text-rose-500'}`}>
       {up ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-      {up ? '↑' : '↓'} {pct}% vs {label}
+      {up ? '+' : '-'}{pct}% vs {label}
     </span>
   );
 }
 
-// ─── Metric card ──────────────────────────────────────────────────────────────
+// ─── Compact Action Queue Metric Card ─────────────────────────────────────────
 
-interface MetricCardProps {
+interface ActionCardProps {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+  to: string;
+  badgeLabel: string;
+  iconBg: string;
+  iconColor: string;
+  accentBorder: string;
+  description: string;
+}
+
+function ActionCard({
+  icon: Icon, label, value, to, badgeLabel, iconBg, iconColor, accentBorder, description
+}: ActionCardProps) {
+  const animated = useCountUp(value);
+  const hasItems = value > 0;
+
+  return (
+    <Link
+      to={to}
+      className={`group relative bg-white rounded-xl p-3.5 border transition-all duration-150 hover:shadow-sm hover:border-gray-300 flex flex-col justify-between ${
+        hasItems ? `${accentBorder} shadow-xs` : 'border-gray-200/80'
+      }`}
+    >
+      <div>
+        <div className="flex items-center justify-between gap-1.5 mb-2">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+            <Icon className="w-3.5 h-3.5" />
+          </div>
+          {hasItems ? (
+            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-50 text-brand-red border border-rose-100 animate-pulse">
+              {badgeLabel}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
+              <CheckCircle2 className="w-2.5 h-2.5" /> Clear
+            </span>
+          )}
+        </div>
+
+        <p className={`text-xl sm:text-2xl font-black tracking-tight leading-none ${hasItems ? 'text-gray-900' : 'text-gray-700'}`}>
+          {animated}
+        </p>
+        <p className="mt-1 text-xs font-bold text-gray-800">{label}</p>
+        <p className="text-[11px] text-gray-400 truncate mt-0.5">{description}</p>
+      </div>
+
+      <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] font-bold text-brand-red group-hover:text-[#801f1f]">
+        <span>Review Queue</span>
+        <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+      </div>
+    </Link>
+  );
+}
+
+// ─── Compact Financial / Velocity Metric Card ─────────────────────────────────
+
+interface StatCardProps {
   icon: React.ElementType;
   label: string;
   value: number | string;
+  subtext?: string;
   prefix?: string;
-  to?: string;
+  trendEl?: React.ReactNode;
   iconBg: string;
   iconColor: string;
-  trend?: React.ReactNode;
-  actionItem?: boolean;
 }
 
-function MetricCard({ icon: Icon, label, value, prefix, to, iconBg, iconColor, trend: trendEl, actionItem }: MetricCardProps) {
+function StatCard({ icon: Icon, label, value, subtext, prefix, trendEl, iconBg, iconColor }: StatCardProps) {
   const numericTarget = typeof value === 'number' ? value : 0;
   const animated = useCountUp(numericTarget);
   const displayValue = typeof value === 'number'
-    ? (prefix ? `${prefix}${animated.toLocaleString('en-PH')}` : animated)
+    ? (prefix ? `${prefix}${animated.toLocaleString('en-PH', { minimumFractionDigits: prefix ? 2 : 0 })}` : animated.toLocaleString())
     : value;
-  const inner = (
-    <div className={[
-      'bg-white rounded-2xl p-4 flex flex-col gap-3 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 h-full',
-      actionItem && Number(value) > 0
-        ? 'border border-red-100 shadow-sm shadow-red-50'
-        : 'border border-gray-100',
-    ].join(' ')}>
-      <div className="flex items-start justify-between gap-1">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
-          <Icon className={`w-[18px] h-[18px] ${iconColor}`} />
-        </div>
-        {actionItem && Number(value) > 0 && (
-          <span className="text-[9px] font-bold text-brand-red bg-red-50 px-2 py-0.5 rounded-full uppercase tracking-wide leading-none border border-red-100">
-            Action
-          </span>
-        )}
-      </div>
+
+  return (
+    <div className="flex flex-col justify-between p-3.5 bg-white border shadow-xs rounded-xl border-gray-200/80">
       <div>
-        <p className={`text-3xl font-black leading-none tracking-tight ${
-          actionItem && Number(value) > 0 ? 'text-brand-red' : 'text-gray-900'
-        }`}>
-          {displayValue}
-        </p>
-        <p className="text-[11px] text-gray-400 mt-1 leading-tight font-medium">{label}</p>
-        {trendEl && <div className="mt-1.5">{trendEl}</div>}
+        <div className="flex items-center justify-between mb-2">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+            <Icon className="w-3.5 h-3.5" />
+          </div>
+          {trendEl && <div>{trendEl}</div>}
+        </div>
+        <p className="text-xl font-black leading-none tracking-tight text-gray-900 sm:text-2xl">{displayValue}</p>
+        <p className="mt-1 text-xs font-bold text-gray-800">{label}</p>
+        {subtext && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{subtext}</p>}
       </div>
     </div>
   );
-  return to ? <Link to={to} className="block h-full">{inner}</Link> : inner;
 }
 
-// ─── Section header ───────────────────────────────────────────────────────────
+// ─── Compact Section Header ───────────────────────────────────────────────────
 
 function SectionHeader({ title, to, icon: Icon }: { title: string; to?: string; icon?: React.ElementType }) {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2.5">
-        <div className="w-[3px] h-4 rounded-full bg-brand-red" />
-        {Icon && <Icon className="w-3.5 h-3.5 text-gray-400" />}
-        <h2 className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em]">{title}</h2>
+    <div className="flex items-center justify-between mb-2.5">
+      <div className="flex items-center gap-2">
+        <div className="w-1 h-3.5 rounded-full bg-brand-red" />
+        {Icon && <Icon className="w-3.5 h-3.5 text-gray-500" />}
+        <h2 className="text-[11px] font-bold tracking-wider text-gray-800 uppercase">{title}</h2>
       </div>
       {to && (
-        <Link to={to} className="text-[11px] font-semibold text-brand-red hover:underline flex items-center gap-1">
+        <Link to={to} className="text-[11px] font-bold text-brand-red hover:text-[#801f1f] flex items-center gap-1 transition-colors">
           View all <ArrowRight className="w-3 h-3" />
         </Link>
       )}
@@ -227,68 +284,129 @@ function SectionHeader({ title, to, icon: Icon }: { title: string; to?: string; 
   );
 }
 
-// ─── Shared empty-state placeholder ─────────────────────────────────────────
+// ─── Compact Shared Empty State ───────────────────────────────────────────────
 
 function ChartEmptyState({ message }: { message: string }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
-      <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center">
+    <div className="flex flex-col items-center justify-center flex-1 gap-1.5 py-8 text-center">
+      <div className="flex items-center justify-center w-8 h-8 border border-gray-100 rounded-xl bg-gray-50">
         <Activity className="w-4 h-4 text-gray-300" />
       </div>
-      <p className="text-[12px] font-semibold text-gray-400">{message}</p>
+      <p className="text-[11px] font-semibold text-gray-400">{message}</p>
     </div>
   );
 }
 
-// ─── Chart ────────────────────────────────────────────────────────────────────
+// ─── Compact Multi-Metric Analytics Chart ─────────────────────────────────────
 
 type ChartRange = '7d' | '14d';
+type MetricView = 'gmv' | 'orders' | 'new_sellers';
 
-function TrendChart({ data }: { data: DashboardChartPoint[] }) {
+function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
   const [range, setRange] = useState<ChartRange>('14d');
+  const [metric, setMetric] = useState<MetricView>('gmv');
 
   const sliced = useMemo(() => {
     const n = range === '7d' ? 7 : 14;
     return data.slice(-n).map((d) => ({ ...d, date: chartDateLabel(d.date) }));
   }, [data, range]);
 
-  const isEmpty = sliced.every(d => (d.new_sellers ?? 0) === 0);
+  const metricConfig = {
+    gmv: {
+      label: 'Gross Sales (GMV ₱)',
+      sub: 'Daily platform sales volume',
+      color: '#A32D2D',
+      dataKey: 'gmv',
+      formatter: (v: number) => `₱${Number(v || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+    },
+    orders: {
+      label: 'Orders Processed',
+      sub: 'Daily completed order volume',
+      color: '#7C3AED',
+      dataKey: 'orders',
+      formatter: (v: number) => `${Number(v || 0).toLocaleString()} orders`,
+    },
+    new_sellers: {
+      label: 'Store Partner Registrations',
+      sub: 'Daily merchant partner signups',
+      color: '#059669',
+      dataKey: 'new_sellers',
+      formatter: (v: number) => `${Number(v || 0).toLocaleString()} stores`,
+    },
+  }[metric];
+
+  const totalPeriod = useMemo(() => {
+    return sliced.reduce((acc, curr) => acc + (Number((curr as any)[metricConfig.dataKey]) || 0), 0);
+  }, [sliced, metricConfig.dataKey]);
+
+  const isEmpty = sliced.every((d) => ((d as any)[metricConfig.dataKey] ?? 0) === 0);
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden h-full flex flex-col">
-      {/* header band */}
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+    <div className="flex flex-col h-full overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      {/* Header with Metric & Range Controls */}
+      <div className="flex flex-col justify-between gap-2.5 p-3.5 border-b border-gray-100 sm:p-4 sm:flex-row sm:items-center">
         <div>
-          <p className="text-[13px] font-bold text-gray-800">Seller Registrations</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Daily new seller trend</p>
+          <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">{metricConfig.label}</h3>
+          <p className="text-[11px] text-gray-400">{metricConfig.sub}</p>
         </div>
-        <div className="flex gap-1 bg-gray-50 p-1 rounded-xl border border-gray-100">
-          {(['7d', '14d'] as ChartRange[]).map((r) => (
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Metric Selector */}
+          <div className="flex p-0.5 text-[11px] font-bold border bg-gray-100/80 rounded-lg border-gray-200/50">
             <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={[
-                'px-3 py-1 text-[11px] font-bold rounded-lg transition-all',
-                range === r
-                  ? 'bg-white text-brand-red shadow-sm border border-gray-100'
-                  : 'text-gray-400 hover:text-gray-700',
-              ].join(' ')}
+              onClick={() => setMetric('gmv')}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                metric === 'gmv' ? 'bg-white text-brand-red shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
             >
-              {r}
+              GMV (₱)
             </button>
-          ))}
+            <button
+              onClick={() => setMetric('orders')}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                metric === 'orders' ? 'bg-white text-violet-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Orders
+            </button>
+            <button
+              onClick={() => setMetric('new_sellers')}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                metric === 'new_sellers' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Sellers
+            </button>
+          </div>
+
+          {/* Timeframe Selector */}
+          <div className="flex p-0.5 text-[11px] font-bold border bg-gray-100/80 rounded-lg border-gray-200/50">
+            {(['7d', '14d'] as ChartRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`px-2 py-1 rounded-md transition-all ${
+                  range === r ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-400 hover:text-gray-800'
+                }`}
+              >
+                {r.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Chart Area */}
       {isEmpty ? (
-        <ChartEmptyState message="No seller registrations yet" />
+        <ChartEmptyState message={`No ${metricConfig.label.toLowerCase()} recorded in this window`} />
       ) : (
-        <div className="flex-1 min-h-[190px] px-2 pb-3">
-          <ResponsiveContainer width="100%" height={190}>
-            <AreaChart data={sliced} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+        <div className="flex-1 min-h-[205px] p-3.5 [&_.recharts-surface]:outline-none [&_svg]:outline-none [&_.recharts-wrapper]:outline-none focus:outline-none select-none">
+          <ResponsiveContainer width="100%" height={205} style={{ outline: 'none' }}>
+            <AreaChart data={sliced} margin={{ top: 8, right: 8, left: -15, bottom: 0 }} style={{ outline: 'none' }}>
               <defs>
-                <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"  stopColor="#A32D2D" stopOpacity={0.18} />
-                  <stop offset="100%" stopColor="#A32D2D" stopOpacity={0} />
+                <linearGradient id={`grad-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={metricConfig.color} stopOpacity={0.22} />
+                  <stop offset="100%" stopColor={metricConfig.color} stopOpacity={0.0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
@@ -297,129 +415,344 @@ function TrendChart({ data }: { data: DashboardChartPoint[] }) {
                 tick={{ fontSize: 10, fill: '#9ca3af' }}
                 tickLine={false}
                 axisLine={false}
-                allowDecimals={false}
-                domain={[0, (dataMax: number) => Math.max(dataMax, 4)]}
+                tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)}
               />
               <Tooltip
-                contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                labelStyle={{ fontWeight: 700, color: '#111' }}
+                contentStyle={{
+                  fontSize: 11,
+                  borderRadius: 10,
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                  backgroundColor: '#ffffff',
+                }}
+                labelStyle={{ fontWeight: 700, color: '#111827' }}
+                formatter={(val: any) => [metricConfig.formatter(Number(val)), metricConfig.label]}
               />
               <Area
                 type="monotone"
-                dataKey="new_sellers"
-                name="New Sellers"
-                stroke="#A32D2D"
+                dataKey={metricConfig.dataKey}
+                name={metricConfig.label}
+                stroke={metricConfig.color}
                 strokeWidth={2.5}
-                fill="url(#chart-fill)"
+                fill={`url(#grad-${metric})`}
                 dot={false}
-                activeDot={{ r: 5, fill: '#A32D2D', strokeWidth: 2, stroke: '#fff' }}
+                activeDot={{ r: 5, fill: metricConfig.color, strokeWidth: 1.5, stroke: '#fff' }}
               />
             </AreaChart>
           </ResponsiveContainer>
+
+          {/* Period Summary Footprint */}
+          <div className="flex items-center justify-between pt-2 mt-2 text-[11px] text-gray-500 border-t border-gray-100">
+            <span>Period Aggregate ({range}):</span>
+            <span className="font-bold text-gray-900">{metricConfig.formatter(totalPeriod)}</span>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Attention feed ───────────────────────────────────────────────────────────
+function getInitials(name: string): string {
+  if (!name) return '??';
+  const clean = name.replace(/^(Dispute on #|Store App|Buyer ID)/i, '').trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-function AttentionFeed({ items }: { items: DashboardFeed['attention_items'] }) {
+function formatWaitingTime(iso: string): string {
+  if (!iso) return 'Pending';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (isNaN(diffMs) || diffMs < 0) return 'Just now';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${mins}m waiting`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h waiting`;
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  if (remainingHours > 0) return `${days}d ${remainingHours}h waiting`;
+  return `${days}d waiting`;
+}
+
+// ─── Compact Attention Feed Hub ────────────────────────────────────────────────
+
+function AttentionFeedHub({ items }: { items: DashboardFeed['attention_items'] }) {
   if (items.length === 0) {
     return (
-      <div className="bg-white border border-gray-100 rounded-2xl px-5 py-8 flex flex-col items-center gap-2 text-center">
-        <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center">
-          <Activity className="w-5 h-5 text-emerald-500" />
+      <div className="flex flex-col items-center justify-center h-full gap-2 p-6 text-center bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+        <div className="flex items-center justify-center border w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border-emerald-100">
+          <ShieldCheck className="w-5 h-5" />
         </div>
-        <p className="text-sm font-bold text-gray-800 mt-1">All clear</p>
-        <p className="text-xs text-gray-400">No pending items need your attention.</p>
+        <h3 className="text-xs font-bold text-gray-900">All Clear &amp; Processed</h3>
+        <p className="max-w-xs text-[11px] text-gray-400">No pending store applications, buyer ID checks, or customer dispute cases.</p>
       </div>
     );
   }
 
-  const TYPE_META: Record<string, { label: string; bg: string; text: string }> = {
-    seller_application: { label: 'Seller',  bg: 'bg-violet-50',  text: 'text-violet-600' },
-    rider_application:  { label: 'Rider',   bg: 'bg-sky-50',     text: 'text-sky-600' },
-    dispute:            { label: 'Dispute', bg: 'bg-red-50',     text: 'text-red-600' },
+  const TYPE_META: Record<string, { label: string; bg: string; text: string; initialBg: string }> = {
+    seller_application: { label: 'Store App', bg: 'bg-rose-50', text: 'text-brand-red', initialBg: 'bg-rose-600 text-white' },
+    buyer_application:  { label: 'Buyer ID',  bg: 'bg-[#FFC107]/20 border border-[#FFC107]/40', text: 'text-[#854d0e]', initialBg: 'bg-[#d97706] text-white' }, // Mikado Gold
+    product_approval:   { label: 'Product',   bg: 'bg-amber-50', text: 'text-amber-700', initialBg: 'bg-amber-600 text-white' },
+    dispute:            { label: 'Dispute',   bg: 'bg-red-50',   text: 'text-red-600', initialBg: 'bg-red-600 text-white' },
   };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden divide-y divide-gray-50">
-      {items.map((item) => {
-        const meta = TYPE_META[item.type] ?? { label: item.type, bg: 'bg-gray-50', text: 'text-gray-500' };
-        return (
-          <Link
-            key={`${item.type}-${item.id}`}
-            to={item.link}
-            className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/80 transition-colors group"
-          >
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${meta.bg}`}>
-              <AlertTriangle className={`w-3.5 h-3.5 ${meta.text}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md ${meta.bg} ${meta.text}`}>
-                  {meta.label}
-                </span>
-                {item.urgent && (
-                  <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100">
-                    &gt;48h
-                  </span>
-                )}
+    <div className="flex flex-col justify-between h-full overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Priority Attention Queue</h3>
+        <span className="text-[10px] font-bold text-brand-red bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
+          {items.length} Action{items.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="divide-y divide-gray-100 overflow-y-auto max-h-[265px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((item) => {
+          const meta = TYPE_META[item.type] ?? { label: item.type, bg: 'bg-gray-50', text: 'text-gray-500', initialBg: 'bg-gray-600 text-white' };
+
+          return (
+            <Link
+              key={`${item.type}-${item.id}`}
+              to={item.link}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-gray-50/80 transition-colors group"
+            >
+              {item.avatar_url ? (
+                <img
+                  src={item.avatar_url}
+                  alt={item.label}
+                  className="w-7 h-7 rounded-lg object-cover shrink-0 border border-gray-200/80 shadow-2xs"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                    if (e.currentTarget.nextElementSibling) {
+                      (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                    }
+                  }}
+                />
+              ) : null}
+              <div
+                className={`w-7 h-7 rounded-lg items-center justify-center font-bold text-[10px] tracking-tight shrink-0 shadow-2xs ${
+                  item.avatar_url ? 'hidden' : 'flex'
+                } ${meta.initialBg}`}
+              >
+                {getInitials(item.label)}
               </div>
-              <p className="text-[13px] font-semibold text-gray-800 truncate leading-tight">{item.label}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">{item.sub} · {formatDate(item.waiting_since)}</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-gray-200 group-hover:text-brand-red transition-colors shrink-0" />
-          </Link>
-        );
-      })}
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${meta.bg} ${meta.text}`}>
+                    {meta.label}
+                  </span>
+                  {item.urgent && (
+                    <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-100 flex items-center gap-0.5">
+                      <Clock className="w-2.5 h-2.5" /> {formatWaitingTime(item.waiting_since)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-bold leading-tight text-gray-900 truncate transition-colors group-hover:text-brand-red">
+                  {item.label}
+                </p>
+                <p className="text-[10px] text-gray-400 truncate mt-0.5">{item.sub} · {formatDate(item.waiting_since)}</p>
+              </div>
+
+              <div className="flex items-center justify-center w-6 h-6 text-gray-400 transition-all rounded-md bg-gray-50 group-hover:bg-brand-red group-hover:text-white shrink-0">
+                <ArrowRight className="w-3 h-3" />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="px-3.5 py-2 bg-gray-50/60 border-t border-gray-100 text-center">
+        <span className="text-[10px] text-gray-400">Respond within 24–48 hours to maintain marketplace SLA</span>
+      </div>
+    </div>
+  );
+}
+// ─── Compact Commission Revenue Breakdown Card ────────────────────────────────
+
+export function CommissionRevenueCard({ stats }: { stats: AdminStats }) {
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'lifetime'>('month');
+
+  const value = period === 'today'
+    ? (stats.commission_today ?? 0)
+    : period === 'week'
+    ? (stats.commission_this_week ?? 0)
+    : period === 'month'
+    ? (stats.commission_this_month ?? 0)
+    : (stats.commission_lifetime ?? 0);
+
+  const animated = useCountUp(value);
+
+  return (
+    <div className="flex flex-col justify-between h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex flex-col justify-between gap-2.5 pb-3 border-b border-gray-100 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center font-bold border rounded-lg text-emerald-600 border-emerald-100 w-7 h-7 bg-emerald-50 shrink-0">
+            <Coins className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Platform Commission Net</h3>
+            <p className="text-[11px] text-gray-400">Net revenue captured from completed orders</p>
+          </div>
+        </div>
+
+        <div className="flex items-center self-start gap-1 p-0.5 text-[11px] font-bold bg-gray-100/80 border rounded-lg sm:self-auto border-gray-200/50">
+          {(['today', 'week', 'month', 'lifetime'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-2.5 py-1 rounded-md capitalize transition-all ${
+                period === p ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              {p === 'lifetime' ? 'All Time' : p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col justify-between gap-3 pt-3 sm:flex-row sm:items-end">
+        <div>
+          <span className="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">
+            {period === 'today' ? "Today's Net" : period === 'week' ? "This Week's Net" : period === 'month' ? "This Month's Net" : "Lifetime Net Platform Fees"}
+          </span>
+          <p className="mt-0.5 text-2xl font-black tracking-tight text-gray-900">
+            ₱{animated.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 p-2 text-xs border border-gray-100 bg-gray-50/70 rounded-xl">
+          <div>
+            <span className="text-[9px] text-gray-400 block font-bold uppercase">Today</span>
+            <span className="text-xs font-bold text-gray-900">₱{(stats.commission_today ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div>
+            <span className="text-[9px] text-gray-400 block font-bold uppercase">Lifetime</span>
+            <span className="text-xs font-bold text-brand-red">₱{(stats.commission_lifetime ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Orders by status bar chart ─────────────────────────────────────────────
+// ─── Compact Payment Split & Liquidity Card ───────────────────────────────────
+
+export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
+  const gcashVol   = stats.gcash_volume ?? 0;
+  const codVol     = stats.cod_volume ?? 0;
+  const totalVol   = gcashVol + codVol;
+  const gcashCount = stats.gcash_orders_count ?? 0;
+  const codCount   = stats.cod_orders_count ?? 0;
+  const totalCount = gcashCount + codCount;
+
+  const gcashPct = totalVol > 0 ? Math.round((gcashVol / totalVol) * 100) : 0;
+  const codPct   = totalVol > 0 ? 100 - gcashPct : 0;
+
+  return (
+    <div className="flex flex-col justify-between h-full gap-3 p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center font-bold text-blue-600 border border-blue-100 rounded-lg w-7 h-7 bg-blue-50 shrink-0">
+            <QrCode className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Payment Breakdown</h3>
+            <p className="text-[11px] text-gray-400">GCash Direct Scan vs Cash on Delivery (COD)</p>
+          </div>
+        </div>
+        <span className="px-2 py-0.5 text-[10px] font-bold text-gray-500 bg-gray-100 rounded-md">
+          {totalCount} Total
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {/* Progress distribution bar */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-bold">
+            <span className="flex items-center gap-1 text-blue-600"><QrCode className="w-3 h-3" /> GCash ({gcashPct}%)</span>
+            <span className="flex items-center gap-1 text-emerald-700"><Truck className="w-3 h-3" /> COD ({codPct}%)</span>
+          </div>
+          <div className="flex w-full h-2 overflow-hidden bg-gray-100 rounded-full">
+            <div className="h-full transition-all duration-700 bg-blue-600" style={{ width: `${gcashPct}%` }} />
+            <div className="h-full transition-all duration-700 bg-emerald-500" style={{ width: `${codPct}%` }} />
+          </div>
+        </div>
+
+        {/* Breakdown Metric Pills */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100">
+            <div className="flex items-center justify-between mb-0.5 text-xs">
+              <span className="font-bold text-blue-700 text-[11px]">GCash</span>
+              <span className="text-[10px] text-gray-500">{gcashCount} orders</span>
+            </div>
+            <p className="text-sm font-black text-gray-900 sm:text-base">
+              ₱{gcashVol.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+
+          <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
+            <div className="flex items-center justify-between mb-0.5 text-xs">
+              <span className="font-bold text-emerald-700 text-[11px]">Cash on Delivery</span>
+              <span className="text-[10px] text-gray-500">{codCount} orders</span>
+            </div>
+            <p className="text-sm font-black text-gray-900 sm:text-base">
+              ₱{codVol.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Compact Orders Fulfillment Status Pipeline ───────────────────────────────
 
 function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
   const rows: Array<{ key: string; label: string; hex: string }> = [
-    { key: 'pending',          label: 'Pending',          hex: '#F59E0B' },
-    { key: 'packed',           label: 'Packed',           hex: '#3B82F6' },
-    { key: 'shipped',          label: 'Shipped',          hex: '#8B5CF6' },
-    { key: 'out_for_delivery', label: 'Out for delivery', hex: '#F97316' },
-    { key: 'delivered',        label: 'Delivered',        hex: '#10B981' },
-    { key: 'cancelled',        label: 'Cancelled',        hex: '#EF4444' },
+    { key: 'pending',          label: 'Pending Confirmation', hex: '#F59E0B' },
+    { key: 'packed',           label: 'Packed by Seller',     hex: '#3B82F6' },
+    { key: 'shipped',          label: 'In Transit / Shipped', hex: '#8B5CF6' },
+    { key: 'out_for_delivery', label: 'Out for Delivery',     hex: '#F97316' },
+    { key: 'delivered',        label: 'Successfully Delivered',hex: '#10B981' },
+    { key: 'cancelled',        label: 'Cancelled / Returned', hex: '#EF4444' },
   ];
   const counts     = rows.map(r => stats.by_status[r.key as never] ?? 0);
   const realTotal  = counts.reduce((a, b) => a + b, 0);
   const max        = Math.max(...counts, 1);
-  const animatedTotal  = useCountUp(realTotal);
-  const animatedCounts = counts.map(c => useCountUp(c)); // eslint-disable-line react-hooks/rules-of-hooks
+  const animatedTotal = useCountUp(realTotal);
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4">
+    <div className="flex flex-col justify-between h-full gap-3 p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em]">Orders by Status</p>
-        <span className="text-[11px] font-semibold text-gray-400">{animatedTotal} total</span>
+        <div>
+          <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Fulfillment Pipeline</h3>
+          <p className="text-[11px] text-gray-400">Live order state distribution</p>
+        </div>
+        <span className="px-2 py-0.5 text-[10px] font-bold text-gray-700 bg-gray-100 rounded-md">
+          {animatedTotal} Total
+        </span>
       </div>
+
       {realTotal === 0 ? (
-        <ChartEmptyState message="No orders yet" />
+        <ChartEmptyState message="No orders recorded yet" />
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="space-y-2">
           {rows.map((r, i) => {
-            const pct = Math.round((counts[i] / realTotal) * 100);
+            const count = counts[i];
+            const pct = Math.round((count / realTotal) * 100);
             return (
-              <div key={r.key}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-medium text-gray-600">{r.label}</span>
+              <div key={r.key} className="space-y-0.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-medium text-gray-700">{r.label}</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-bold text-gray-700">{animatedCounts[i]}</span>
-                    <span className="text-[10px] text-gray-400">{pct}%</span>
+                    <span className="font-bold text-gray-900">{count}</span>
+                    <span className="text-[10px] text-gray-400 font-medium w-6 text-right">{pct}%</span>
                   </div>
                 </div>
-                <div className="h-[6px] bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-1.5 overflow-hidden bg-gray-100 rounded-full">
                   <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${(counts[i] / max) * 100}%`, background: r.hex }}
+                    className="h-full transition-all duration-700 rounded-full"
+                    style={{ width: `${(count / max) * 100}%`, background: r.hex }}
                   />
                 </div>
               </div>
@@ -431,265 +764,52 @@ function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
   );
 }
 
-// ─── Mini calendar ────────────────────────────────────────────────────────────
+// ─── Compact Recent Admin Activity Stream ─────────────────────────────────────
 
-function MiniCalendar({ activeDates }: { activeDates: Set<string> }) {
-  const now         = new Date();
-  const year        = now.getFullYear();
-  const month       = now.getMonth();
-  const firstDay    = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayStr    = now.toISOString().split('T')[0];
-  const monthName   = now.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
-  const dayLabels   = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+function RecentActivityStream({ activities }: { activities: DashboardFeed['recent_activity'] }) {
+  if (!activities || activities.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-1.5 p-6 text-center bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+        <Activity className="w-6 h-6 text-gray-300" />
+        <p className="text-[11px] text-gray-400">No activity logs registered yet.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em]">Activity</p>
-        <p className="text-[11px] font-semibold text-gray-400">{monthName}</p>
-      </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {dayLabels.map(d => (
-          <div key={d} className="text-[9px] font-bold text-gray-300 text-center pb-1">{d}</div>
-        ))}
-        {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
-        {Array.from({ length: daysInMonth }).map((_, i) => {
-          const day     = i + 1;
-          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const isToday  = dateStr === todayStr;
-          const hasOrder = activeDates.has(dateStr);
-          return (
-            <div
-              key={day}
-              className="w-[24px] h-[24px] rounded-[5px] flex items-center justify-center text-[10px] mx-auto transition-all"
-              style={{
-                background: isToday ? '#A32D2D' : hasOrder ? '#dcfce7' : '#f9fafb',
-                color:      isToday ? '#fff'    : hasOrder ? '#15803d' : '#6b7280',
-                fontWeight: isToday || hasOrder ? 700 : 400,
-                boxShadow:  isToday ? '0 2px 8px rgba(163,45,45,0.35)' : 'none',
-              }}
-            >
-              {day}
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-50">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-[#dcfce7]" />
-          <span className="text-[10px] text-gray-400">Has orders</span>
+    <div className="flex flex-col justify-between h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
+        <div>
+          <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Audit &amp; Activity Log</h3>
+          <p className="text-[11px] text-gray-400">Recent administrative operations</p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-brand-red" />
-          <span className="text-[10px] text-gray-400">Today</span>
-        </div>
+        <Link to="/admin/activity-log" className="flex items-center gap-1 text-[11px] font-bold text-brand-red hover:underline">
+          Full Log <ArrowRight className="w-3 h-3" />
+        </Link>
       </div>
-    </div>
-  );
-}
 
-// ─── User Distribution donut ─────────────────────────────────────────────────
-
-const DONUT_COLORS = [
-  { key: 'buyers',  label: 'Buyers',  hex: '#A32D2D' },
-  { key: 'sellers', label: 'Sellers', hex: '#F59E0B' },
-  { key: 'riders',  label: 'Riders',  hex: '#3B82F6' },
-];
-
-function UserDistributionCard({ stats }: { stats: AdminStats }) {
-  const counts = [
-    stats.total_buyers,
-    stats.total_sellers,
-    stats.total_riders,
-  ];
-  const realTotal = counts.reduce((a, b) => a + b, 0);
-  const data      = DONUT_COLORS.map((d, i) => ({ ...d, value: counts[i] }));
-  const animatedTotal = useCountUp(realTotal);
-
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3">
-      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em]">User Distribution</p>
-
-      {realTotal === 0 ? (
-        <ChartEmptyState message="No users registered yet" />
-      ) : (
-        <>
-          <div className="relative w-full" style={{ height: 200, minHeight: 200 }}>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ zIndex: 0 }}>
-              <span className="text-[22px] font-black text-gray-900 leading-none">{animatedTotal.toLocaleString()}</span>
-              <span className="text-[10px] text-gray-400 font-medium mt-0.5">total users</span>
+      <div className="divide-y divide-gray-100 overflow-y-auto max-h-[220px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {activities.map((act) => (
+          <div key={act.id} className="flex items-start gap-2.5 py-2">
+            <div className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-gray-600 shrink-0 mt-0.5">
+              <Activity className="w-3 h-3" />
             </div>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data}
-                  cx="50%" cy="50%"
-                  innerRadius={58} outerRadius={82}
-                  dataKey="value"
-                  strokeWidth={3}
-                  stroke="#fff"
-                  startAngle={90} endAngle={-270}
-                >
-                  {data.map((entry) => (
-                    <Cell key={entry.key} fill={entry.hex} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number, name: string) => [
-                    `${value} (${Math.round((value / realTotal) * 100)}%)`, name,
-                  ]}
-                  contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e5e7eb', zIndex: 50 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-center gap-5 pb-1">
-            {data.map((d) => (
-              <div key={d.key} className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.hex }} />
-                <span className="text-[11px] font-medium text-gray-500">{d.label}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold leading-snug text-gray-900">{act.description}</p>
+              <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400">
+                <span className="font-semibold text-gray-600">{act.admin.first_name} {act.admin.last_name}</span>
+                <span>•</span>
+                <span>{formatDate(act.created_at)}</span>
               </div>
-            ))}
+            </div>
           </div>
-        </>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
 
-// ─── Commerce summary cards ───────────────────────────────────────────────────
-
-function OrdersSummaryCard({ stats }: { stats: AdminOrderStats }) {
-  const animatedOrders = useCountUp(stats.orders_today);
-  const statuses: Array<{ key: string; color: string }> = [
-    { key: 'pending',   color: 'bg-amber-400' },
-    { key: 'packed',    color: 'bg-blue-400' },
-    { key: 'shipped',   color: 'bg-violet-400' },
-    { key: 'delivered', color: 'bg-emerald-500' },
-    { key: 'cancelled', color: 'bg-red-400' },
-  ];
-  const realTotal = statuses.reduce((s, { key }) => s + (stats.by_status[key as never] ?? 0), 0);
-
-  return (
-    <Link to="/admin/orders" className="block bg-white border border-gray-100 rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-      <div className="flex items-start justify-between gap-1 mb-3">
-        <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-          <PackageCheck className="w-[18px] h-[18px] text-violet-500" />
-        </div>
-        <ArrowRight className="w-4 h-4 text-gray-200 mt-0.5" />
-      </div>
-      <p className="text-3xl font-black text-gray-900 leading-none">{animatedOrders}</p>
-      <p className="text-[11px] text-gray-400 mt-1 font-medium">Orders today</p>
-      {realTotal > 0 ? (
-        <>
-          <div className="mt-3 flex rounded-full overflow-hidden h-1.5 gap-px">
-            {statuses.map(({ key, color }) => {
-              const count = stats.by_status[key as never] ?? 0;
-              const pct   = (count / realTotal) * 100;
-              return pct > 0 ? (
-                <div key={key} className={`${color} h-full`} style={{ width: `${pct}%` }} title={`${key}: ${count}`} />
-              ) : null;
-            })}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5">
-            {statuses.map(({ key, color }) => {
-              const count = stats.by_status[key as never] ?? 0;
-              return (
-                <span key={key} className="flex items-center gap-1 text-[10px] text-gray-400">
-                  <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
-                  {key} {count}
-                </span>
-              );
-            })}
-          </div>
-        </>
-      ) : (
-        <p className="text-[11px] text-gray-400 mt-3">No orders today</p>
-      )}
-    </Link>
-  );
-}
-
-function PaymentsSummaryCard({ stats }: { stats: AdminPaymentStats }) {
-  const animatedPayout = useCountUp(stats.pending_payout_amount);
-  return (
-    <Link to="/admin/payments" className="block bg-white border border-gray-100 rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-      <div className="flex items-start justify-between gap-1 mb-3">
-        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-          <Wallet className="w-[18px] h-[18px] text-emerald-600" />
-        </div>
-        {stats.failed_count > 0 && (
-          <span className="text-[9px] font-bold text-brand-red bg-red-50 px-2 py-0.5 rounded-full uppercase border border-red-100">Action</span>
-        )}
-      </div>
-      <p className="text-3xl font-black text-gray-900 leading-none">
-        ₱{animatedPayout.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-      </p>
-      <p className="text-[11px] text-gray-400 mt-1 font-medium">Pending payout</p>
-      {stats.failed_count > 0 && (
-        <p className="text-[11px] text-brand-red mt-2 font-semibold">{stats.failed_count} failed payment{stats.failed_count !== 1 ? 's' : ''}</p>
-      )}
-    </Link>
-  );
-}
-
-function DisputesSummaryCard({ stats }: { stats: AdminDisputeStats }) {
-  const total = stats.open + stats.in_progress;
-  const animatedTotal    = useCountUp(total);
-  const animatedOpen     = useCountUp(stats.open);
-  const animatedProgress = useCountUp(stats.in_progress);
-  return (
-    <Link to="/admin/disputes" className={[
-      'block bg-white rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
-      total > 0 ? 'border border-red-100' : 'border border-gray-100',
-    ].join(' ')}>
-      <div className="flex items-start justify-between gap-1 mb-3">
-        <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-          <ShieldAlert className="w-[18px] h-[18px] text-red-500" />
-        </div>
-        {total > 0 && (
-          <span className="text-[9px] font-bold text-brand-red bg-red-50 px-2 py-0.5 rounded-full uppercase border border-red-100">Action</span>
-        )}
-      </div>
-      <p className={`text-3xl font-black leading-none ${total > 0 ? 'text-brand-red' : 'text-gray-900'}`}>{animatedTotal}</p>
-      <p className="text-[11px] text-gray-400 mt-1 font-medium">Open disputes</p>
-      <div className="mt-2 flex gap-3">
-        <span className="text-[10px] text-gray-400">{animatedOpen} unassigned</span>
-        <span className="text-[10px] text-gray-400">{animatedProgress} in progress</span>
-      </div>
-    </Link>
-  );
-}
-
-function ReviewsSummaryCard({ stats }: { stats: AdminReviewStats }) {
-  const animatedFlagged = useCountUp(stats.flagged_pending);
-  const animatedPending = useCountUp(stats.pending_review);
-  return (
-    <Link to="/admin/reviews" className={[
-      'block bg-white rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200',
-      stats.flagged_pending > 0 ? 'border border-amber-100' : 'border border-gray-100',
-    ].join(' ')}>
-      <div className="flex items-start justify-between gap-1 mb-3">
-        <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-          <Star className="w-[18px] h-[18px] text-amber-500" />
-        </div>
-        {stats.flagged_pending > 0 && (
-          <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase border border-amber-100">Action</span>
-        )}
-      </div>
-      <p className={`text-3xl font-black leading-none ${stats.flagged_pending > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
-        {animatedFlagged}
-      </p>
-      <p className="text-[11px] text-gray-400 mt-1 font-medium">Flagged reviews</p>
-      {stats.pending_review > 0 && (
-        <p className="text-[10px] text-gray-400 mt-2">{animatedPending} awaiting moderation</p>
-      )}
-    </Link>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Main Admin Dashboard Page Component ──────────────────────────────────────
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
@@ -697,9 +817,9 @@ export default function AdminDashboardPage() {
   const [stats, setStats]           = useState<AdminStats | null>(null);
   const [feed, setFeed]             = useState<DashboardFeed | null>(null);
   const [orderStats, setOrderStats] = useState<AdminOrderStats | null>(null);
-  const [payStats, setPayStats]     = useState<AdminPaymentStats | null>(null);
-  const [dispStats, setDispStats]   = useState<AdminDisputeStats | null>(null);
-  const [revStats, setRevStats]     = useState<AdminReviewStats | null>(null);
+  const [, setPayStats]             = useState<AdminPaymentStats | null>(null);
+  const [, setDispStats]            = useState<AdminDisputeStats | null>(null);
+  const [, setRevStats]             = useState<AdminReviewStats | null>(null);
   const [loading, setLoading]       = useState(true);
 
   const pageRef = useMountAnim();
@@ -721,138 +841,179 @@ export default function AdminDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const skeletonRow = (cols: number) => (
-    <div className={`grid grid-cols-${cols} gap-2`}>
-      {Array.from({ length: cols }).map((_, i) => (
-        <div key={i} className="bg-white border border-gray-100 rounded-lg p-3 h-[80px] animate-pulse" />
-      ))}
+  const skeletonCard = (key: number) => (
+    <div key={key} className="bg-white border border-gray-200/80 rounded-xl p-3.5 h-[96px] animate-pulse flex flex-col justify-between">
+      <div className="flex items-center justify-between">
+        <div className="w-7 h-7 bg-gray-100 rounded-lg" />
+        <div className="w-12 h-3.5 bg-gray-100 rounded" />
+      </div>
+      <div className="space-y-1.5">
+        <div className="w-20 h-5 bg-gray-200 rounded" />
+        <div className="w-28 h-2.5 bg-gray-100 rounded" />
+      </div>
     </div>
   );
 
-  const pendingTaskCount = stats
-    ? stats.pending_seller_applications + stats.pending_rider_applications + stats.open_disputes
-    : 0;
-  const animatedPendingTasks = useCountUp(pendingTaskCount);
-
   return (
-    <div ref={pageRef} className="space-y-5">
+    <div ref={pageRef} className="pb-8 space-y-4">
 
-      {/* ── Hero band ── */}
+      {/* ── 1. Compact Executive Hero Header ── */}
       <HeroBand stats={stats} userName={userName} />
 
-      {/* ── Platform Overview ── */}
+      {/* ── 2. Moderation Action Center (Top Priority) ── */}
       <div>
-        <SectionHeader title="Platform Overview" icon={Gauge} />
-        {loading ? skeletonRow(6) : stats ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <MetricCard icon={UserCheck}    label="Pending Sellers"   value={stats.pending_seller_applications} to="/admin/seller-applications" iconBg="bg-rose-50"    iconColor="text-rose-500"    actionItem />
-            <MetricCard icon={Bike}          label="Pending Riders"    value={stats.pending_rider_applications}  to="/admin/rider-applications"  iconBg="bg-sky-50"     iconColor="text-sky-500"     actionItem />
-            <MetricCard icon={ShieldAlert}   label="Open Disputes"     value={stats.open_disputes}               to="/admin/disputes"            iconBg="bg-red-50"     iconColor="text-red-500"     actionItem />
-            <MetricCard icon={PackageCheck}  label="Orders Today"      value={stats.orders_today}                iconBg="bg-violet-50"  iconColor="text-violet-500"
-              trend={<TrendBadge current={stats.orders_today} previous={stats.orders_yesterday} label="yesterday" />}
+        <SectionHeader
+          title="Moderation &amp; Action Hub"
+          icon={Gauge}
+        />
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[1, 2, 3, 4].map(skeletonCard)}
+          </div>
+        ) : stats ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <ActionCard
+              icon={Store}
+              label="Seller Applications"
+              value={stats.pending_seller_applications}
+              to="/admin/seller-applications"
+              badgeLabel="Review"
+              iconBg="bg-rose-50"
+              iconColor="text-brand-red"
+              accentBorder="border-rose-200 shadow-rose-50"
+              description="Store approval &amp; permits"
             />
-            <MetricCard icon={Wallet}        label="GMV Today"
+            <ActionCard
+              icon={UserPlus}
+              label="Buyer ID Verifications"
+              value={stats.pending_buyer_applications ?? 0}
+              to="/admin/buyer-applications"
+              badgeLabel="Verify"
+              iconBg="bg-blue-50"
+              iconColor="text-blue-600"
+              accentBorder="border-blue-200 shadow-blue-50"
+              description="Gov ID &amp; selfie checks"
+            />
+            <ActionCard
+              icon={Package}
+              label="Product Reviews"
+              value={stats.pending_products ?? 0}
+              to="/admin/product-reviews"
+              badgeLabel="Review"
+              iconBg="bg-amber-50"
+              iconColor="text-amber-600"
+              accentBorder="border-amber-200 shadow-amber-50"
+              description="FDA permit &amp; compliance"
+            />
+            <ActionCard
+              icon={ShieldAlert}
+              label="Open Disputes"
+              value={stats.open_disputes}
+              to="/admin/disputes"
+              badgeLabel="Mediate"
+              iconBg="bg-red-50"
+              iconColor="text-red-600"
+              accentBorder="border-red-200 shadow-red-50"
+              description="Returns &amp; refunds"
+            />
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── 3. Marketplace Velocity & Core Performance ── */}
+      <div>
+        <SectionHeader
+          title="Marketplace Performance"
+          icon={Activity}
+        />
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[1, 2, 3, 4].map(skeletonCard)}
+          </div>
+        ) : stats ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              icon={Wallet}
+              label="Gross Sales (GMV Today)"
               value={stats.gmv_today}
               prefix="₱"
-              iconBg="bg-emerald-50" iconColor="text-emerald-600"
-              trend={<TrendBadge current={stats.gmv_today} previous={stats.gmv_yesterday} label="yesterday" />}
+              subtext="Total marketplace sales"
+              iconBg="bg-rose-50"
+              iconColor="text-brand-red"
+              trendEl={<TrendBadge current={stats.gmv_today} previous={stats.gmv_yesterday} label="yesterday" />}
             />
-            <MetricCard icon={Users}         label="New Buyers / Week" value={stats.new_buyers_this_week} to="/admin/buyers" iconBg="bg-indigo-50" iconColor="text-indigo-500"
-              trend={<TrendBadge current={stats.new_buyers_this_week} previous={stats.new_buyers_last_week} label="last week" />}
+            <StatCard
+              icon={Coins}
+              label="Platform Net Commission"
+              value={stats.commission_today ?? 0}
+              prefix="₱"
+              subtext="Take-rate fees captured"
+              iconBg="bg-emerald-50"
+              iconColor="text-emerald-600"
+            />
+            <StatCard
+              icon={PackageCheck}
+              label="Orders Processed Today"
+              value={stats.orders_today}
+              subtext="Confirmed and fulfilled"
+              iconBg="bg-violet-50"
+              iconColor="text-violet-600"
+              trendEl={<TrendBadge current={stats.orders_today} previous={stats.orders_yesterday} label="yesterday" />}
+            />
+            <StatCard
+              icon={Users}
+              label="Active Marketplace Users"
+              value={`${stats.total_buyers.toLocaleString()} Buyers · ${stats.total_sellers.toLocaleString()} Sellers`}
+              subtext="Total registered accounts"
+              iconBg="bg-indigo-50"
+              iconColor="text-indigo-600"
             />
           </div>
         ) : null}
       </div>
 
-      {/* ── Recent Attention + Trend Chart (2-col) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-        {/* Left: Needs Attention feed */}
-        <div>
-          <SectionHeader title="Needs Attention" icon={AlertTriangle} to="/admin/seller-applications" />
-          {loading ? (
-            <div className="bg-white border border-gray-100 rounded-xl h-[300px] animate-pulse" />
-          ) : feed ? (
-            <AttentionFeed items={feed.attention_items} />
-          ) : null}
+      {/* ── 4. Main Analytics Chart & Urgent Attention Feed (2-Column) ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 animate-pulse">
+          <div className="lg:col-span-7 bg-white border border-gray-200/80 rounded-2xl h-[310px]" />
+          <div className="lg:col-span-5 bg-white border border-gray-200/80 rounded-2xl h-[310px]" />
         </div>
-
-        {/* Right: Trend chart */}
-        <div>
-          <SectionHeader title="Registrations Trend" icon={TrendingUp} />
-          {loading ? (
-            <div className="bg-white border border-gray-100 rounded-xl h-[300px] animate-pulse" />
-          ) : feed ? (
-            <TrendChart data={feed.chart_data} />
-          ) : null}
-        </div>
-      </div>
-
-      {/* ── Three-column secondary grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {loading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-white border border-gray-100 rounded-2xl h-[320px] animate-pulse" />
-          ))
-        ) : orderStats && stats ? (
-          <>
-            <OrdersBreakdownCard stats={orderStats} />
-            <MiniCalendar activeDates={
-              new Set(
-                (feed?.chart_data ?? [])
-                  .filter(d => d.orders > 0)
-                  .map(d => d.date.split('T')[0])
-              )
-            } />
-            <UserDistributionCard stats={stats} />
-          </>
-        ) : null}
-      </div>
-
-      {/* ── Footer action bar ── */}
-      {!loading && stats && (
-        <div
-          className="rounded-2xl px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 100%)' }}
-        >
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${
-                pendingTaskCount > 0 ? 'bg-amber-400' : 'bg-emerald-400'
-              }`} />
-              <p className="text-[13px] font-bold text-white leading-tight">
-                {pendingTaskCount > 0
-                  ? `${animatedPendingTasks} pending tasks need your attention`
-                  : 'All systems normal — no pending tasks'}
-              </p>
-            </div>
-            <p className="text-[11px] text-white/40 ml-4">Consistency beats perfection — keep the platform healthy.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <AnalyticsTrendChart data={feed?.chart_data ?? []} />
           </div>
-          <div className="relative z-10 flex items-center gap-2 shrink-0 flex-wrap">
-            <Link
-              to="/admin/seller-applications"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-red text-white text-[12px] font-bold hover:bg-[#8a2424] transition-colors"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              Review Applications
-            </Link>
-            <Link
-              to="/admin/buyers"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-[12px] font-semibold hover:bg-white/15 transition-colors border border-white/10"
-            >
-              <Users className="w-3.5 h-3.5" />
-              Manage Users
-            </Link>
-            <Link
-              to="/admin/activity-log"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-[12px] font-semibold hover:bg-white/15 transition-colors border border-white/10"
-            >
-              <Activity className="w-3.5 h-3.5" />
-              View Reports
-            </Link>
+          <div className="lg:col-span-5">
+            <AttentionFeedHub items={feed?.attention_items ?? []} />
           </div>
         </div>
       )}
+
+      {/* ── 5. Revenue & Payment Liquidity (2-Column) ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 animate-pulse">
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
+        </div>
+      ) : stats ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <CommissionRevenueCard stats={stats} />
+          <PaymentSplitCard stats={stats} />
+        </div>
+      ) : null}
+
+      {/* ── 6. Order Fulfillment Pipeline & Admin Audit Stream (2-Column) ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 animate-pulse">
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
+        </div>
+      ) : orderStats && feed ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <OrdersBreakdownCard stats={orderStats} />
+          <RecentActivityStream activities={feed.recent_activity} />
+        </div>
+      ) : null}
 
     </div>
   );

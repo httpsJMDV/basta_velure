@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { resolveBarangayName, resolveCityName, resolveProvinceName } from '../../utils/psgc';
 import {
-  Camera, Store, MapPin, FileText, CheckCircle2, AlertTriangle,
+  Camera, Store, MapPin, CheckCircle2, AlertTriangle,
   Loader2, Pencil, X, Phone, Clock, Shield, Copy, Check,
   Star, Package, Users, MessageCircle, ExternalLink,
 } from 'lucide-react';
@@ -100,8 +100,12 @@ function Toast({ type, message, onDismiss }: {
 
 // ─── Inline-edit textarea card (About / Policies) ─────────────────────────────
 
-function EditableTextCard({ icon: Icon, title, value, onChange, placeholder, maxLen, error, rows = 4 }: {
-  icon?: React.ElementType; title: string; value: string;
+function EditableTextCard({
+  icon: Icon, title, subtitle, value,
+  onChange, placeholder,
+  maxLen, error, rows = 4,
+}: {
+  icon?: React.ElementType; title: string; subtitle?: string; value: string;
   onChange: (v: string) => void; placeholder: string;
   maxLen: number; error?: string; rows?: number;
 }) {
@@ -119,7 +123,8 @@ function EditableTextCard({ icon: Icon, title, value, onChange, placeholder, max
           </button>
         }
       />
-      <div className="px-6 py-5">
+      <div className="px-6 py-5 space-y-2">
+        {subtitle && <p className="text-[12px] text-gray-500 leading-relaxed">{subtitle}</p>}
         {editing ? (
           <div className="relative">
             <textarea
@@ -544,24 +549,37 @@ export default function SellerShopProfilePage() {
 
         {/* ── Shop Policies ── */}
         <Card>
-          <CardHeader icon={Shield} title="Shop Policies" />
+          <CardHeader icon={Shield} title="Shop Policies & Returns" />
           <div className="px-6 py-5 space-y-5">
+            {/* Platform Baseline Policy Banner */}
+            <div className="p-4 bg-rose-50/60 border border-brand-red/20 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-brand-red">
+                <Shield className="w-4 h-4 text-brand-red" />
+                <span>Velure Guaranteed Platform Policy (Active & Platform-Enforced)</span>
+              </div>
+              <p className="text-[12px] text-gray-600 leading-relaxed">
+                All shops operate under Velure's 7-day standard return baseline for eligible items upon delivery (exceptions: Food & Groceries and custom-made items). Velure provides binding dispute mediation if returns are contested.
+              </p>
+            </div>
+
             <EditableTextCard
               icon={undefined}
-              title="Return & Refund Policy"
+              title="Additional Return Terms"
+              subtitle="Add extra terms specific to your shop (e.g. original packaging requirements, inspection notes). Note: These supplement and cannot override Velure's baseline return window."
               value={returnPolicy}
               onChange={setReturnPolicy}
-              placeholder="Describe your return and refund policy…"
+              placeholder="e.g. Items must be returned in original branded box with all accessories intact..."
               maxLen={500}
               error={errors.return_policy}
               rows={3}
             />
             <EditableTextCard
               icon={undefined}
-              title="Shipping Policy"
+              title="Shipping Details"
+              subtitle="Specify your dispatch handling time, preferred couriers, or local pickup guidelines."
               value={shippingPolicy}
               onChange={setShippingPolicy}
-              placeholder="Describe your shipping methods, timelines, and fees…"
+              placeholder="e.g. Orders placed before 2PM ship the same day via standard logistics..."
               maxLen={500}
               error={errors.shipping_policy}
               rows={3}

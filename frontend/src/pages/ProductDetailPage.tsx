@@ -14,6 +14,7 @@ import {
 } from '../api/client';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
+import { useChat } from '../hooks/useChat';
 import { resolveShortLocation } from '../utils/psgc';
 import SiteHeader from '../components/SiteHeader';
 import { LEAF_MAP, LEAF_PARENT_MAP } from '../data/categories';
@@ -190,6 +191,7 @@ function BuyBox({
   const displayPrice = resolvedVariant?.price ?? product.base_price;
   const displayOriginal = resolvedVariant?.original_price ?? product.original_price;
   const isOnSale = displayOriginal != null && displayOriginal > displayPrice;
+  const discount = displayOriginal ? Math.round(((displayOriginal - displayPrice) / displayOriginal) * 100) : 0;
   const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock_quantity ?? 0), 0) ?? null;
   const stock = resolvedVariant?.stock_quantity ?? totalStock;
 
@@ -488,13 +490,29 @@ function DeliveryCard({ product }: { product: ProductDetail }) {
 
 // ── Seller Card ───────────────────────────────────────────────────────────────
 
-function SellerCard({ seller }: { seller: ProductDetail['seller'] }) {
+function SellerCard({ seller, product }: { seller: ProductDetail['seller']; product: ProductDetail }) {
+  const { user } = useAuth();
+  const { openChatWithSeller } = useChat();
+  const navigate = useNavigate();
   const [sellerLocation, setSellerLocation] = useState<string>('');
 
   useEffect(() => {
     resolveShortLocation(seller.province, seller.city)
       .then((loc) => setSellerLocation(loc || 'Philippines'));
   }, [seller.province, seller.city]);
+
+  const handleChat = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    openChatWithSeller(seller.id, {
+      id: product.id,
+      name: product.name,
+      price: product.base_price,
+      image: product.images[0]?.url,
+    });
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-4">
@@ -541,12 +559,13 @@ function SellerCard({ seller }: { seller: ProductDetail['seller'] }) {
         >
           <Store className="w-4 h-4" /> Go to Store
         </Link>
-        <Link
-          to={`/messages?seller=${seller.id}`}
+        <button
+          type="button"
+          onClick={handleChat}
           className="flex-1 min-h-[44px] rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold flex items-center justify-center gap-1.5 hover:border-brand-red hover:text-brand-red transition-colors"
         >
           <MessageCircle className="w-4 h-4" /> Chat
-        </Link>
+        </button>
       </div>
     </div>
   );
@@ -911,13 +930,74 @@ function RecommendationsTab({ productId }: { productId: number }) {
   );
 }
 
+// ── Shipping & Returns Tab ───────────────────────────────────────────────────
+
+function ShippingReturnsTab({ product }: { product: ProductDetail }) {
+  const isFood = String(product.category_id || '').toLowerCase().includes('food');
+
+  return (
+    <div className="flex flex-col gap-6 max-w-3xl">
+      {/* Velure Platform Baseline Return Policy */}
+      <div className="p-5 bg-rose-50/60 border border-brand-red/20 rounded-2xl space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-brand-red shrink-0" />
+            <h4 className="text-sm font-bold text-gray-900">Velure 7-Day Guaranteed Return Policy</h4>
+          </div>
+          <span className="text-[10px] font-bold uppercase bg-brand-red text-white px-2.5 py-0.5 rounded-full">
+            Platform Protection
+          </span>
+        </div>
+        <p className="text-xs text-gray-600 leading-relaxed">
+          This product is protected under Velure's standard 7-day buyer guarantee from the date of confirmed delivery.
+          If the received item is damaged, defective, materially different from the listing, or incomplete, you can file a Return &amp; Refund request directly from your orders dashboard.
+        </p>
+
+        {isFood && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+            <strong>Food &amp; Grocery Policy:</strong> Perishable food items are non-returnable once opened or delivered in good condition for health and hygiene safety, but remain eligible for full refund or resolution if damaged, spoiled, or expired upon arrival.
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-brand-red/10 flex items-center gap-2 text-xs font-semibold text-brand-red">
+          <span>✓ Protected by Velure Dispute Mediation (48h automatic escalation if contested)</span>
+        </div>
+      </div>
+
+      {/* Seller Additional Terms */}
+      {product.seller.return_policy && (
+        <div className="p-5 bg-white border border-gray-100 rounded-2xl shadow-xs space-y-2">
+          <h4 className="text-sm font-bold text-gray-900">Store Additional Return Terms</h4>
+          <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">
+            {product.seller.return_policy}
+          </p>
+        </div>
+      )}
+
+      {/* Shipping Details */}
+      <div className="p-5 bg-white border border-gray-100 rounded-2xl shadow-xs space-y-2">
+        <h4 className="text-sm font-bold text-gray-900">Shipping &amp; Delivery Information</h4>
+        <p className="text-xs text-gray-600 leading-relaxed">
+          {product.seller.shipping_policy || 'Standard nationwide shipping with trusted logistics partners. Orders are securely packed and dispatched within 24–48 business hours.'}
+        </p>
+        {product.shipping_fee === 0 && (
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold mt-2">
+            <span>Free Delivery Available on This Item</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type TabId = 'reviews' | 'details' | 'recommendations';
+type TabId = 'reviews' | 'details' | 'shipping_returns' | 'recommendations';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'reviews', label: 'Reviews' },
   { id: 'details', label: 'Product Details' },
+  { id: 'shipping_returns', label: 'Shipping & Returns' },
   { id: 'recommendations', label: 'You May Also Like' },
 ];
 
@@ -1080,7 +1160,7 @@ export default function ProductDetailPage() {
               />
             </div>
             <DeliveryCard product={product} />
-            <SellerCard seller={product.seller} />
+            <SellerCard seller={product.seller} product={product} />
           </motion.div>
         </div>
 
@@ -1125,6 +1205,7 @@ export default function ProductDetailPage() {
                   <ReviewsTab productId={product.id} avgRating={product.avg_rating} reviewCount={product.review_count} />
                 )}
                 {activeTab === 'details' && <ProductDetailsTab product={product} />}
+                {activeTab === 'shipping_returns' && <ShippingReturnsTab product={product} />}
                 {activeTab === 'recommendations' && <RecommendationsTab productId={product.id} />}
               </motion.div>
             </AnimatePresence>

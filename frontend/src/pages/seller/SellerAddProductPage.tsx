@@ -7,12 +7,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   ImagePlus, X, GripVertical, Plus, Trash2,
   Info, CheckCircle2, Upload, AlertTriangle, Package, ChevronLeft, ChevronRight,
-  Bold, List, ListOrdered, Image as ImageIcon,
+  Bold, List, ListOrdered, Image as ImageIcon, Loader2,
 } from 'lucide-react';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { CATEGORY_TREE, leafRequiresFda } from '../../data/categories';
-import { createSellerProductApi, getSellerProductApi, updateSellerProductApi } from '../../api/client';
+import {
+  createSellerProductApi,
+  getSellerProductApi,
+  updateSellerProductApi,
+  uploadDescriptionImageApi,
+} from '../../api/client';
 import type {
   AddProductFormState, ProductFormImage,
   ProductFormVariantType, ProductFormVariantRow,
@@ -83,7 +88,7 @@ function buildVariantRows(
       }
     }
     return {
-      combination: filled.map((t, ti) => opts[ti]).join(' / '),
+      combination: filled.map((_, ti) => opts[ti]).join(' / '),
       options: opts,
       price: '',
       stock: '',
@@ -96,7 +101,12 @@ function validate(form: AddProductFormState): { errors: FieldErrors; firstSectio
   const errors: FieldErrors = {};
 
   if (!form.name.trim()) errors.name = 'Product name is required.';
-  if (!form.description.replace(/<[^>]*>/g, '').trim()) errors.description = 'Description is required.';
+  const descText = form.description.replace(/<[^>]*>/g, '').trim();
+  if (!descText && !form.description.includes('<img')) {
+    errors.description = 'Description is required.';
+  } else if (descText.length > 1500) {
+    errors.description = 'Description must not exceed 1,500 characters.';
+  }
   if (form.images.length === 0 && form.existingImages.length === 0) errors.images = 'At least one product image is required.';
 
   if (!form.leafCategoryId) errors.leafCategoryId = 'Please select a category.';
@@ -785,7 +795,7 @@ function FdaFileInput({
 // ─── Rich Text Editor ─────────────────────────────────────────────────────────
 
 function RichTextEditor({
-  value, onChange, error, maxLength = 5000,
+  value, onChange, error, maxLength = 1500,
 }: {
   value: string;
   onChange: (html: string) => void;
@@ -795,6 +805,7 @@ function RichTextEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isInitialized = useRef(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -814,16 +825,22 @@ function RichTextEditor({
     if (editorRef.current) onChange(editorRef.current.innerHTML);
   };
 
-  const insertImage = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const src = e.target?.result as string;
+  const insertImage = async (file: File) => {
+    try {
+      setUploadingImage(true);
+      const { url } = await uploadDescriptionImageApi(file);
       editorRef.current?.focus();
-      document.execCommand('insertHTML', false,
-        `<img src="${src}" style="max-width:100%;border-radius:8px;margin:4px 0;" alt="" />`);
+      document.execCommand(
+        'insertHTML',
+        false,
+        `<img src="${url}" style="max-width:100%;border-radius:8px;margin:8px 0;display:block;" alt="Product image" />`
+      );
       syncContent();
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      // ignore
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const onPaste = (e: React.ClipboardEvent) => {
@@ -871,11 +888,16 @@ function RichTextEditor({
         <div className="w-px h-4 bg-gray-200 mx-1" />
         <button
           type="button"
+          disabled={uploadingImage}
           onMouseDown={(e) => { e.preventDefault(); fileInputRef.current?.click(); }}
           title="Insert image"
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors"
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors disabled:opacity-50"
         >
-          <ImageIcon className="w-3.5 h-3.5" />
+          {uploadingImage ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-red" />
+          ) : (
+            <ImageIcon className="w-3.5 h-3.5" />
+          )}
         </button>
         <input
           ref={fileInputRef}
@@ -888,7 +910,9 @@ function RichTextEditor({
             e.target.value = '';
           }}
         />
-        <span className="ml-auto text-[11px] text-gray-400">{charCount}/{maxLength}</span>
+        <span className={`ml-auto text-[11px] font-medium ${charCount > maxLength ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+          {charCount}/{maxLength}
+        </span>
       </div>
       <div
         ref={editorRef}
@@ -1161,7 +1185,7 @@ export default function SellerAddProductPage() {
 
         <FieldWrap
           label="Description" required error={errors.description}
-          hint={`This appears in the Product Details tab. Supports bold, bullet points, and embedded images. (${form.description.replace(/<[^>]*>/g, '').length}/5000)`}
+          hint={`This appears in the Product Details tab. Supports bold, bullet points, and embedded images. (${form.description.replace(/<[^>]*>/g, '').length}/1500)`}
         >
           <RichTextEditor
             value={form.description}

@@ -134,7 +134,11 @@ export default function RegisterPage() {
 
   function set(field: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
-    setErrors((e) => ({ ...e, [field]: undefined }));
+    setErrors((e) => {
+      const copy = { ...e };
+      delete copy[field];
+      return copy;
+    });
   }
 
   function handleIdFile(e: ChangeEvent<HTMLInputElement>) {

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { createPortal } from 'react-dom';
 import {
@@ -8,7 +9,7 @@ import {
   type AdminProduct,
 } from '../../api/client';
 import type { PaginatedResponse } from '../../types';
-import { Search, ChevronLeft, ChevronRight, Package, CheckCircle2, XCircle, Eye, X, Clock, ShieldCheck, Ban, Archive, RotateCcw, FileEdit } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Package, CheckCircle2, XCircle, Eye, X, Clock, ShieldCheck, Ban, Archive, RotateCcw } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -300,9 +301,10 @@ function ProductViewModal({
                 {product.description && (
                   <div>
                     <p className="text-[10px] font-bold text-brand-red uppercase tracking-[0.12em] mb-2">Description</p>
-                    <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-line bg-gray-50 rounded-xl p-3">
-                      {product.description}
-                    </p>
+                    <div
+                      className="text-[13px] text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-3 prose prose-sm max-w-none [&_img]:rounded-xl [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                      dangerouslySetInnerHTML={{ __html: product.description }}
+                    />
                   </div>
                 )}
 
@@ -409,8 +411,9 @@ function ProductViewModal({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminProductsPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<PaginatedResponse<AdminProduct> | null>(null);
-  const [stats, setStats] = useState<{ pending_review: number; active: number; rejected: number; archived: number; draft: number } | null>(null);
+  const [stats, setStats] = useState<{ pending_review: number; active: number; rejected: number; archived: number; draft?: number } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<AdminProduct | null>(null);
   const [loading, setLoading]   = useState(false);
   const [search, setSearch]     = useState('');
@@ -639,7 +642,11 @@ export default function AdminProductsPage() {
                 </tr>
               )}
               {!loading && products.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={p.id}
+                  onClick={() => navigate(`/admin/products/${p.id}/review`)}
+                  className="hover:bg-gray-50/80 transition-colors cursor-pointer"
+                >
                   <td className="px-4 py-3">
                     <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden border border-gray-100 shrink-0">
                       {p.thumbnail_url
@@ -649,7 +656,7 @@ export default function AdminProductsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <p className="font-semibold text-gray-800 truncate max-w-[180px] mx-auto">{p.name}</p>
+                    <p className="font-semibold text-gray-800 hover:text-brand-red transition-colors truncate max-w-[180px] mx-auto">{p.name}</p>
                     <p className="text-[11px] text-gray-400">{p.variants.length} variant{p.variants.length !== 1 ? 's' : ''}</p>
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-center hidden sm:table-cell">
@@ -658,13 +665,18 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-3 font-semibold text-gray-700 text-center hidden md:table-cell">{fmt(p.base_price)}</td>
                   <td className="px-4 py-3 text-center"><StatusBadge status={p.status} /></td>
                   <td className="px-4 py-3 text-gray-400 text-center hidden lg:table-cell">{fmtDate(p.created_at)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5 justify-end">
                       <button
-                        onClick={() => setSelected(p)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+                        onClick={() => navigate(`/admin/products/${p.id}/review`)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                          p.status === 'pending_review'
+                            ? 'bg-brand-red text-white hover:bg-brand-red-dark'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
                       >
-                        <Eye className="w-3.5 h-3.5" /> View
+                        <Eye className="w-3.5 h-3.5" />
+                        {p.status === 'pending_review' ? 'Review' : 'View'}
                       </button>
                       {p.status === 'pending_review' && (
                         <>

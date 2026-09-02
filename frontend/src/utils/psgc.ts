@@ -58,17 +58,25 @@ async function fetchPsgc(code: string, preferredType: 'provinces' | 'cities-muni
 
   if (cache.has(trimmed)) return cache.get(trimmed)!;
 
-  const endpoints = preferredType === 'provinces'
-    ? [
-        `https://psgc.gitlab.io/api/provinces/${trimmed}/`,
-        `https://psgc.gitlab.io/api/cities-municipalities/${trimmed}/`,
-        `https://psgc.gitlab.io/api/regions/${trimmed}/`,
-      ]
-    : [
-        `https://psgc.gitlab.io/api/cities-municipalities/${trimmed}/`,
-        `https://psgc.gitlab.io/api/provinces/${trimmed}/`,
-        `https://psgc.gitlab.io/api/barangays/${trimmed}/`,
-      ];
+  let endpoints: string[];
+  if (preferredType === 'barangays') {
+    endpoints = [
+      `https://psgc.gitlab.io/api/barangays/${trimmed}/`,
+      `https://psgc.gitlab.io/api/cities-municipalities/${trimmed}/`,
+    ];
+  } else if (preferredType === 'cities-municipalities') {
+    endpoints = [
+      `https://psgc.gitlab.io/api/cities-municipalities/${trimmed}/`,
+      `https://psgc.gitlab.io/api/provinces/${trimmed}/`,
+      `https://psgc.gitlab.io/api/barangays/${trimmed}/`,
+    ];
+  } else {
+    endpoints = [
+      `https://psgc.gitlab.io/api/provinces/${trimmed}/`,
+      `https://psgc.gitlab.io/api/regions/${trimmed}/`,
+      `https://psgc.gitlab.io/api/cities-municipalities/${trimmed}/`,
+    ];
+  }
 
   for (const url of endpoints) {
     try {

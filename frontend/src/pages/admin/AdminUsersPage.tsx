@@ -38,7 +38,7 @@ function formatDate(iso: string | null | undefined): string {
   });
 }
 
-function calcAge(dob: string | null): string {
+export function calcAge(dob: string | null): string {
   if (!dob) return '—';
   const diff = Date.now() - new Date(dob).getTime();
   return String(Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));

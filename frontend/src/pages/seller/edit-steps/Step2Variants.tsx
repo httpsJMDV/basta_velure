@@ -7,7 +7,7 @@ const VARIANT_TYPE_OPTIONS = ['Color', 'Size', 'Flavor', 'Style', 'Material', 'S
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function uid() { return Math.random().toString(36).slice(2); }
+export function uid() { return Math.random().toString(36).slice(2); }
 
 type FlatImage = { id: string; preview: string };
 

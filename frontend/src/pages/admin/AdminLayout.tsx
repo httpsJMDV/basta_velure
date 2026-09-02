@@ -2,14 +2,13 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { getAdminStatsApi, getBuyerApplicationsApi } from '../../api/client';
 import {
-  LayoutDashboard, Users, Store, ShoppingBag, CreditCard,
+  Users, Store, ShoppingBag,
   ShieldAlert, Star, Flag, Settings, ScrollText,
-  Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, X, ChevronRight,
+  Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, ChevronRight,
   Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge,
 } from 'lucide-react';
 import { useState, useEffect, createContext, useContext } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import MessengerPanel from './components/MessengerPanel';
 import type { Conversation } from '../../types';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -22,6 +21,7 @@ export const useMessenger = () => useContext(MessengerContext);
 
 const ROUTE_LABELS: Record<string, string> = {
   '/admin':                        'Dashboard',
+  '/admin/messages':               'Messages',
   '/admin/buyer-applications':     'Buyer Applications',
   '/admin/seller-applications':    'Seller Applications',
   '/admin/rider-applications':     'Rider Applications',
@@ -56,7 +56,13 @@ interface NavGroup { heading: string; items: NavItem[]; }
 
 function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
   return [
-    { heading: 'Overview',  items: [{ icon: Gauge, label: 'Dashboard', to: '/admin' }] },
+    {
+      heading: 'Overview',
+      items: [
+        { icon: Gauge, label: 'Dashboard', to: '/admin' },
+        { icon: MessageSquare, label: 'Messages', to: '/admin/messages' },
+      ],
+    },
     {
       heading: 'People',
       items: [
@@ -81,13 +87,13 @@ function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
         { icon: PackageCheck, label: 'Orders',             to: '/admin/orders' },
         { icon: Wallet,       label: 'Payments & Payouts', to: '/admin/payments' },
         { icon: ShieldAlert,  label: 'Disputes / Returns', to: '/admin/disputes' },
+        { icon: Flag,         label: 'Analytics & Reports',to: '/admin/reports' },
       ],
     },
     {
       heading: 'Trust & Safety',
       items: [
         { icon: Star, label: 'Reviews', to: '/admin/reviews' },
-        { icon: Flag, label: 'Reports', to: '/admin/reports' },
       ],
     },
     {
@@ -240,88 +246,323 @@ function Sidebar({
 
 // ─── Top bar ──────────────────────────────────────────────────────────────────
 
-function TopBar({
-  collapsed,
-  onToggleSidebar,
-  onOpenMobile,
-  onOpenChat,
-}: {
-  collapsed: boolean;
-  onToggleSidebar: () => void;
-  onOpenMobile: () => void;
-  onOpenChat: () => void;
-}) {
-  const { user } = useAuth();
-  const pageLabel = useBreadcrumb();
-  const userInitials = `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`;
+// ─── Top bar Search Modal ───────────────────────────────────────────────────
+
+function AdminSearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+
+  const searchItems = [
+    { label: 'Dashboard Overview', to: '/admin', group: 'Navigation', icon: Gauge },
+    { label: 'Messages & Inquiries', to: '/admin/messages', group: 'Navigation', icon: MessageSquare },
+    { label: 'Buyer Verification Applications', to: '/admin/buyer-applications', group: 'People', icon: UserCheck },
+    { label: 'Seller Store Applications', to: '/admin/seller-applications', group: 'People', icon: UserCheck },
+    { label: 'Rider Applications', to: '/admin/rider-applications', group: 'People', icon: Bike },
+    { label: 'Manage Sellers Directory', to: '/admin/sellers', group: 'People', icon: Store },
+    { label: 'Manage Buyers Directory', to: '/admin/buyers', group: 'People', icon: Users },
+    { label: 'Product Catalog & Reviews', to: '/admin/products', group: 'Catalog', icon: ShoppingBag },
+    { label: 'Categories Management', to: '/admin/categories', group: 'Catalog', icon: Tag },
+    { label: 'Orders & Fulfillment', to: '/admin/orders', group: 'Commerce', icon: PackageCheck },
+    { label: 'Payments & Seller Payouts', to: '/admin/payments', group: 'Commerce', icon: Wallet },
+    { label: 'Disputes & Return Mediation', to: '/admin/disputes', group: 'Trust & Safety', icon: ShieldAlert },
+    { label: 'Customer Reviews Moderation', to: '/admin/reviews', group: 'Trust & Safety', icon: Star },
+    { label: 'Platform & Return Policy Settings', to: '/admin/settings', group: 'Settings', icon: Settings },
+    { label: 'System Activity Logs', to: '/admin/activity-log', group: 'Settings', icon: ScrollText },
+  ];
+
+  const filtered = query.trim()
+    ? searchItems.filter((i) => i.label.toLowerCase().includes(query.toLowerCase()) || i.group.toLowerCase().includes(query.toLowerCase()))
+    : searchItems;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
 
   return (
-    <div
-      className="h-14 shrink-0 flex items-center gap-3 px-5 border-b border-white/10 sticky top-0 z-20"
-      style={SIDEBAR_BG}
-    >
-      {/* Hamburger */}
-      <button
-        onClick={onToggleSidebar}
-        className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-      >
-        <PanelLeft className="w-[18px] h-[18px]" />
-      </button>
-      <button
-        onClick={onOpenMobile}
-        className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-      >
-        <Menu className="w-[18px] h-[18px]" />
-      </button>
-
-      {/* Breadcrumb + page title */}
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-white/30 text-[13px] truncate hidden sm:block">Velure Admin</span>
-        <ChevronRight className="w-3 h-3 text-white/20 shrink-0 hidden sm:block" />
-        <span className="text-white font-bold text-[16px] truncate">{pageLabel}</span>
-      </div>
-
-      {/* Center: search bar */}
-      <div className="hidden md:flex flex-1 max-w-sm mx-auto">
-        <div className="w-full flex items-center gap-2 bg-white/[0.06] border border-white/[0.08] rounded-xl px-3.5 py-2">
-          <svg className="w-4 h-4 text-white/25 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-20 px-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-xl bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10">
+          <svg className="w-5 h-5 text-white/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
           </svg>
           <input
             type="text"
-            placeholder="Search users, orders, sellers..."
-            className="bg-transparent text-[13px] text-white/50 placeholder-white/20 outline-none w-full"
-            readOnly
+            placeholder="Search pages, actions, tools (e.g. Products, Disputes, Settings)..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+            className="flex-1 bg-transparent text-sm text-white placeholder-white/30 outline-none"
           />
-          <span className="text-[10px] text-white/20 font-mono border border-white/10 rounded px-1 py-0.5 shrink-0">⌘K</span>
+          <button onClick={onClose} className="text-white/40 hover:text-white text-xs px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+            ESC
+          </button>
         </div>
-      </div>
 
-      {/* Right: bell + chat + admin info */}
-      <div className="ml-auto flex items-center gap-1.5 shrink-0">
-        <button className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative">
-          <Bell className="w-[17px] h-[17px]" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-brand-red rounded-full" />
-        </button>
-        <button
-          onClick={onOpenChat}
-          className="xl:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-        >
-          <MessageSquare className="w-[17px] h-[17px]" />
-        </button>
-        <div className="hidden sm:flex items-center gap-2.5 ml-1 pl-3 border-l border-white/10">
-          <div className="text-right">
-            <p className="text-[10px] text-white/25 uppercase tracking-widest leading-none">Admin</p>
-            <p className="text-[13px] font-semibold text-white/85 leading-tight mt-0.5">
-              {user?.first_name} {user?.last_name}
-            </p>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-2 ring-white/10">
-            {userInitials}
-          </div>
+        <div className="max-h-80 overflow-y-auto p-2 space-y-1">
+          {filtered.length === 0 ? (
+            <p className="text-center py-8 text-xs text-white/40">No matching admin pages found</p>
+          ) : (
+            filtered.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.to}
+                  onClick={() => {
+                    navigate(item.to);
+                    onClose();
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/10 text-left transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-brand-red group-hover:text-white transition-colors">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-white group-hover:text-white">{item.label}</p>
+                      <p className="text-[10px] text-white/40">{item.group}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors" />
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Top bar ──────────────────────────────────────────────────────────────────
+
+function TopBar({
+  collapsed: _collapsed,
+  onToggleSidebar,
+  onOpenMobile,
+  pendingSellers,
+  pendingBuyers,
+}: {
+  collapsed?: boolean;
+  onToggleSidebar: () => void;
+  onOpenMobile: () => void;
+  pendingSellers: number;
+  pendingBuyers: number;
+}) {
+  const { user, clearAuth } = useAuth();
+  const navigate = useNavigate();
+  const pageLabel = useBreadcrumb();
+  const userInitials = `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`;
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Keyboard shortcut for ⌘K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const totalAlerts = pendingSellers + pendingBuyers;
+
+  return (
+    <>
+      <div
+        className="h-14 shrink-0 flex items-center gap-3 px-5 border-b border-white/10 sticky top-0 z-20"
+        style={SIDEBAR_BG}
+      >
+        {/* Hamburger */}
+        <button
+          onClick={onToggleSidebar}
+          className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+        >
+          <PanelLeft className="w-[18px] h-[18px]" />
+        </button>
+        <button
+          onClick={onOpenMobile}
+          className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+        >
+          <Menu className="w-[18px] h-[18px]" />
+        </button>
+
+        {/* Breadcrumb + page title */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-white/30 text-[13px] truncate hidden sm:block">Velure Admin</span>
+          <ChevronRight className="w-3 h-3 text-white/20 shrink-0 hidden sm:block" />
+          <span className="text-white font-bold text-[16px] truncate">{pageLabel}</span>
+        </div>
+
+        {/* Center: search bar */}
+        <div className="hidden md:flex flex-1 max-w-sm mx-auto">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="w-full flex items-center justify-between bg-white/[0.06] hover:bg-white/[0.09] border border-white/[0.08] rounded-xl px-3.5 py-2 transition-colors text-left group"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-white/30 group-hover:text-white/60 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+              <span className="text-[13px] text-white/40 group-hover:text-white/60 transition-colors">
+                Search users, orders, sellers...
+              </span>
+            </div>
+            <span className="text-[10px] text-white/30 font-mono border border-white/10 rounded px-1.5 py-0.5 shrink-0">⌘K</span>
+          </button>
+        </div>
+
+        {/* Right: bell + chat + admin info */}
+        <div className="ml-auto flex items-center gap-1.5 shrink-0 relative">
+          {/* Notification Button */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setNotifOpen((v) => !v);
+                setUserMenuOpen(false);
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
+              title="Notifications"
+            >
+              <Bell className="w-[17px] h-[17px]" />
+              {totalAlerts > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-brand-red rounded-full ring-2 ring-[#111111]" />
+              )}
+            </button>
+
+            {/* Notification Popover */}
+            {notifOpen && (
+              <div className="absolute right-0 top-11 w-80 bg-[#1c1c1c] border border-white/10 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                  <span className="text-xs font-bold text-white">Notifications</span>
+                  <span className="text-[10px] bg-brand-red/20 text-red-300 font-bold px-2 py-0.5 rounded-full border border-brand-red/30">
+                    {totalAlerts} Action{totalAlerts === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="py-2 space-y-2 max-h-64 overflow-y-auto">
+                  {pendingSellers > 0 && (
+                    <Link
+                      to="/admin/seller-applications"
+                      onClick={() => setNotifOpen(false)}
+                      className="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-white/5 transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0 mt-0.5">
+                        <Store className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white leading-tight">{pendingSellers} Seller Application{pendingSellers > 1 ? 's' : ''}</p>
+                        <p className="text-[10px] text-white/50">Pending document verification</p>
+                      </div>
+                    </Link>
+                  )}
+                  {pendingBuyers > 0 && (
+                    <Link
+                      to="/admin/buyer-applications"
+                      onClick={() => setNotifOpen(false)}
+                      className="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-white/5 transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-300 flex items-center justify-center shrink-0 mt-0.5">
+                        <UserCheck className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white leading-tight">{pendingBuyers} Buyer Verification{pendingBuyers > 1 ? 's' : ''}</p>
+                        <p className="text-[10px] text-white/50">Awaiting ID review</p>
+                      </div>
+                    </Link>
+                  )}
+                  {totalAlerts === 0 && (
+                    <p className="text-center py-6 text-xs text-white/40">No pending administrative alerts</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Link
+            to="/admin/messages"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Messages"
+          >
+            <MessageSquare className="w-[17px] h-[17px]" />
+          </Link>
+
+          {/* Admin user dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setUserMenuOpen((v) => !v);
+                setNotifOpen(false);
+              }}
+              className="flex items-center gap-2.5 ml-1 pl-3 border-l border-white/10 hover:opacity-90 transition-opacity"
+            >
+              <div className="text-right hidden sm:block">
+                <p className="text-[10px] text-white/25 uppercase tracking-widest leading-none">Admin</p>
+                <p className="text-[13px] font-semibold text-white/85 leading-tight mt-0.5 truncate max-w-[120px]">
+                  {user?.first_name} {user?.last_name}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-2 ring-white/10">
+                {userInitials}
+              </div>
+            </button>
+
+            {userMenuOpen && (
+              <div className="absolute right-0 top-11 w-52 bg-[#1c1c1c] border border-white/10 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-3 py-2 border-b border-white/10 mb-1">
+                  <p className="text-xs font-bold text-white truncate">{user?.first_name} {user?.last_name}</p>
+                  <p className="text-[10px] text-white/40 truncate">{user?.email}</p>
+                </div>
+                <Link
+                  to="/admin/settings"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+                >
+                  <Settings className="w-3.5 h-3.5" /> Platform Settings
+                </Link>
+                <Link
+                  to="/admin/activity-log"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+                >
+                  <ScrollText className="w-3.5 h-3.5" /> Activity Log
+                </Link>
+                <button
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    clearAuth();
+                    navigate('/login');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors mt-1 border-t border-white/10"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Log Out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <AdminSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+    </>
   );
 }
 
@@ -353,11 +594,10 @@ const ML_EXPANDED         = 'lg:ml-60';
 const ML_COLLAPSED        = 'lg:ml-16';
 
 export default function AdminLayout() {
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [chatOpen, setChatOpen]     = useState(false);
   const [pendingSellers, setPendingSellers] = useState(0);
   const [pendingBuyers,  setPendingBuyers]  = useState(0);
-  const [pendingConv, setPendingConv]       = useState<Conversation | null>(null);
 
   // Persist sidebar collapse state
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -385,8 +625,7 @@ export default function AdminLayout() {
   const nav = buildNav(pendingSellers, pendingBuyers);
 
   function openThread(c: Conversation) {
-    setPendingConv(c);
-    setChatOpen(true);
+    navigate(`/admin/messages?seller=${c.seller_id}`);
   }
 
   const sidebarW  = collapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
@@ -415,55 +654,18 @@ export default function AdminLayout() {
         )}
 
         {/* ── Centre: top bar + main content ── */}
-        <div className={`flex-1 ${mainML} xl:mr-80 flex flex-col min-h-screen transition-all duration-200`}>
+        <div className={`flex-1 ${mainML} flex flex-col min-h-screen transition-all duration-200`}>
           <TopBar
             collapsed={collapsed}
             onToggleSidebar={toggleCollapse}
             onOpenMobile={() => setMobileOpen(true)}
-            onOpenChat={() => setChatOpen((o) => !o)}
+            pendingSellers={pendingSellers}
+            pendingBuyers={pendingBuyers}
           />
           <main className="flex-1 p-4 lg:p-6">
             <PageTransition />
           </main>
         </div>
-
-        {/* ── Right panel: messenger (desktop ≥ xl) ── */}
-        <aside
-          className="hidden xl:flex flex-col w-80 shrink-0 fixed inset-y-0 right-0 z-30 border-l border-white/10"
-          style={SIDEBAR_BG}
-        >
-          <MessengerPanel
-            openConversationId={pendingConv?.id}
-            openConversation={pendingConv}
-          />
-        </aside>
-
-        {/* ── Right panel: messenger (mobile/tablet slide-in) ── */}
-        {chatOpen && (
-          <div className="xl:hidden fixed inset-0 z-40 flex justify-end">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setChatOpen(false)} />
-            <aside
-              className="relative w-72 max-w-[90vw] flex flex-col h-full z-50 border-l border-white/10"
-              style={SIDEBAR_BG}
-            >
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">Messages</p>
-                <button
-                  onClick={() => setChatOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-hidden min-h-0">
-                <MessengerPanel
-                  openConversationId={pendingConv?.id}
-                  openConversation={pendingConv}
-                />
-              </div>
-            </aside>
-          </div>
-        )}
 
       </div>
     </MessengerContext.Provider>

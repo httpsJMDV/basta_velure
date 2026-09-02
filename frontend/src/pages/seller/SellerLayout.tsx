@@ -1,16 +1,17 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  LayoutDashboard, Package, PackagePlus, ShoppingCart,
+  LayoutDashboard, Package, ShoppingCart,
   Wallet, BarChart2, MessageSquare, Star, Store, Settings,
-  LogOut, Menu, X, ChevronRight, Bell, ShoppingBag,
+  LogOut, Menu, X, ChevronRight, Bell, ShoppingBag, Plus,
 } from 'lucide-react';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
-interface NavItem  { icon: React.ElementType; label: string; to: string; badge?: number; }
+interface NavAction { label: string; to: string; }
+interface NavItem  { icon: React.ElementType; label: string; to: string; badge?: number; action?: NavAction; }
 interface NavGroup { heading: string; items: NavItem[]; }
 
 function buildSellerNav(badges: { pendingReview: number; newOrders: number; unreadMessages: number }): NavGroup[] {
@@ -22,8 +23,13 @@ function buildSellerNav(badges: { pendingReview: number; newOrders: number; unre
     {
       heading: 'Selling',
       items: [
-        { icon: Package,     label: 'Products',        to: '/seller/products',  badge: badges.pendingReview },
-        { icon: PackagePlus, label: 'Add Product',      to: '/seller/products/new' },
+        {
+          icon: Package,
+          label: 'Products',
+          to: '/seller/products',
+          badge: badges.pendingReview,
+          action: { label: 'Add', to: '/seller/products/new' },
+        },
         { icon: ShoppingCart, label: 'Orders', to: '/seller/orders', badge: badges.newOrders },
       ],
     },
@@ -55,8 +61,16 @@ function buildSellerNav(badges: { pendingReview: number; newOrders: number; unre
 
 function NavItems({ nav, onNavigate }: { nav: NavGroup[]; onNavigate?: () => void }) {
   const location = useLocation();
-  const isActive = (to: string) =>
-    to === '/seller' ? location.pathname === '/seller' : location.pathname.startsWith(to);
+
+  const isActive = (to: string) => {
+    if (to === '/seller') {
+      return location.pathname === '/seller';
+    }
+    if (to === '/seller/products') {
+      return location.pathname === '/seller/products' || location.pathname.startsWith('/seller/products/');
+    }
+    return location.pathname === to || location.pathname.startsWith(`${to}/`);
+  };
 
   return (
     <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
@@ -65,31 +79,53 @@ function NavItems({ nav, onNavigate }: { nav: NavGroup[]; onNavigate?: () => voi
           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-400 px-2 mb-1.5">
             {group.heading}
           </p>
-          {group.items.map(({ icon: Icon, label, to, badge }) => {
+          {group.items.map(({ icon: Icon, label, to, badge, action }) => {
             const active = isActive(to);
             return (
-              <Link
+              <div
                 key={to}
-                to={to}
-                onClick={onNavigate}
                 className={[
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all duration-150 mb-0.5',
+                  'group flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[13.5px] font-medium transition-all duration-150 mb-0.5',
                   active
-                    ? 'bg-brand-red text-white shadow-sm'
+                    ? 'bg-red-50 text-brand-red font-semibold'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100',
                 ].join(' ')}
               >
-                <Icon className="w-[17px] h-[17px] shrink-0" />
-                <span className="flex-1 truncate">{label}</span>
-                {badge !== undefined && badge > 0 && (
-                  <span className={[
-                    'min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center leading-none',
-                    active ? 'bg-white text-brand-red' : 'bg-brand-red text-white',
-                  ].join(' ')}>
-                    {badge > 99 ? '99+' : badge}
-                  </span>
-                )}
-              </Link>
+                <Link
+                  to={to}
+                  onClick={onNavigate}
+                  className="flex items-center gap-3 flex-1 min-w-0 py-0.5"
+                >
+                  <Icon className={`w-[17px] h-[17px] shrink-0 transition-colors ${active ? 'text-brand-red' : 'text-gray-500 group-hover:text-gray-700'}`} />
+                  <span className="truncate">{label}</span>
+                </Link>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {badge !== undefined && badge > 0 && (
+                    <span className="min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center leading-none bg-brand-red text-white">
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  )}
+                  {action && (
+                    <Link
+                      to={action.to}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigate?.();
+                      }}
+                      className={`inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-bold rounded-lg border transition-all ${
+                        location.pathname === action.to
+                          ? 'bg-brand-red text-white border-brand-red shadow-xs'
+                          : 'bg-white text-brand-red border-red-200 hover:bg-brand-red hover:text-white hover:border-brand-red shadow-xs'
+                      }`}
+                      title="Add Product"
+                    >
+                      <Plus className="w-3 h-3 stroke-[2.5]" />
+                      <span>{action.label}</span>
+                    </Link>
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>

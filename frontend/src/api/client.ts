@@ -39,6 +39,23 @@ import type {
   FollowedStore,
   PublicShopProfile,
   PublicShopReview,
+  SellerOrder,
+  SellerEarningsSummary,
+  SellerOrderEarningsItem,
+  PayoutRequest,
+  AdminPaymentListItem,
+  AdminReportSummary,
+  AdminRevenueChartPoint,
+  CategoryBreakdownItem,
+  TopSellerItem,
+  PaymentMethodSplit,
+  CommissionSettings,
+  CategoryCommissionOverride,
+  SellerReportSummary,
+  SellerRevenueChartPoint,
+  AdminCategoryParent,
+  AdminCategoryMetrics,
+  CategoryPayload,
 } from '../types';
 
 const http = axios.create({
@@ -126,7 +143,7 @@ export const reactivateUserApi = (id: number) =>
   http.patch<{ data: User }>(`/admin/users/${id}/reactivate`).then((r) => r.data.data);
 
 // Admin — activity log
-export const getActivityLogApi = (params?: { action?: string; page?: number }) =>
+export const getActivityLogApi = (params?: { action?: string; page?: number; per_page?: number }) =>
   http.get<PaginatedResponse<ActivityLogEntry>>('/admin/activity-log', { params }).then((r) => r.data);
 
 // Admin — buyer applications
@@ -194,7 +211,9 @@ export const setDefaultAddressApi = (id: number) =>
 
 // Orders
 export const getOrdersApi = (params?: { status?: string; search?: string }) =>
-  http.get<{ data: Order[] }>('/orders', { params }).then((r) => r.data.data);
+  http.get<{ data: Order[] } | PaginatedResponse<Order>>('/buyer/orders', { params }).then((r) =>
+    Array.isArray(r.data.data) ? r.data.data : []
+  );
 
 // Admin — orders
 export const getAdminOrdersApi = (params?: { status?: OrderStatus; search?: string; page?: number }) =>
@@ -305,7 +324,7 @@ export const getShopReviewsApi = (slugOrId: string | number, params?: { rating?:
 export const getSellerDashboardStatsApi = () =>
   http.get<{ data: SellerDashboardStats }>('/seller/dashboard/stats').then((r) => r.data.data);
 
-export const getSellerDashboardChartApi = (range: '7d' | '14d') =>
+export const getSellerDashboardChartApi = (range: '7d' | '14d' = '14d') =>
   http.get<{ data: SellerChartPoint[] }>('/seller/dashboard/chart', { params: { range } }).then((r) => r.data.data);
 
 export const getSellerDashboardAttentionApi = () =>
@@ -361,6 +380,14 @@ export const createSellerProductApi = (form: FormData) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data.data);
 
+export const uploadDescriptionImageApi = (file: File) => {
+  const fd = new FormData();
+  fd.append('image', file);
+  return http.post<{ url: string }>('/seller/products/description-image', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
 export const updateSellerProductApi = (id: number, form: FormData) =>
   http.post<{ data: SellerProduct }>(`/seller/products/${id}`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -392,12 +419,47 @@ export interface AdminProduct {
   archived_by: 'admin' | 'seller' | null;
   base_price: number;
   units_sold: number;
+  weight_kg?: number | null;
+  dimension_l_cm?: number | null;
+  dimension_w_cm?: number | null;
+  dimension_h_cm?: number | null;
+  sku?: string | null;
+  category?: { id: number; name: string; slug: string } | null;
   thumbnail_url: string | null;
   images: { id: number; url: string; is_primary: boolean; sort_order: number }[];
   variants: { id: number; label: string; sku: string | null; price: number; stock_quantity: number }[];
-  seller: { id: number; full_name: string; email: string } | null;
+  seller: {
+    id: number;
+    full_name: string;
+    email: string;
+    phone?: string | null;
+    shop_name?: string | null;
+    shop_slug?: string | null;
+    avatar_url?: string | null;
+  } | null;
   created_at: string;
+  fda_lto_on_file?: boolean;
+  fda_cpr_on_file?: boolean;
+  fda_lto_url?: string | null;
+  fda_cpr_url?: string | null;
+  net_weight_volume?: string | null;
+  expiry_best_before?: string | null;
+  ingredients?: string | null;
+  storage_instructions?: string | null;
+  allergen_info?: string | null;
 }
+
+export const getAdminProductApi = (id: number) =>
+  http.get<{ data: AdminProduct }>(`/admin/products/${id}`).then((r) => r.data.data);
+
+export const getAdminProductDocBlobUrl = async (productId: number, docType: 'fda-lto' | 'fda-cpr') => {
+  const res = await http.get(`/admin/products/${productId}/${docType}`, { responseType: 'blob' });
+  const blob = res.data as Blob;
+  return {
+    url: URL.createObjectURL(blob),
+    type: blob.type,
+  };
+};
 
 export const reactivateAdminProductApi = (id: number) =>
   http.post<{ data: AdminProduct }>(`/admin/products/${id}/reactivate`).then((r) => r.data.data);
@@ -417,17 +479,200 @@ export const approveAdminProductApi = (id: number) =>
 export const rejectAdminProductApi = (id: number, reason: string) =>
   http.post<{ data: AdminProduct }>(`/admin/products/${id}/reject`, { reason }).then((r) => r.data.data);
 
-// Admin — conversations
-export const getConversationsApi = () =>
-  http.get<{ data: Conversation[] }>('/admin/conversations').then((r) => r.data.data);
+// ─── Messaging & Chat (Buyer, Seller, Admin) ───────────────────────────────────
 
-export const openConversationForSellerApi = (sellerId: number) =>
-  http.get<{ data: Conversation }>(`/admin/conversations/seller/${sellerId}`).then((r) => r.data.data);
+export const getConversationsApi = (params?: {
+  type?: string;
+  status?: string;
+  unread_only?: boolean;
+  search?: string;
+}) =>
+  http.get<{ data: Conversation[] }>('/conversations', { params }).then((r) => r.data.data);
+
+export const getUnreadMessagesCountApi = () =>
+  http.get<{ data: { unread_count: number } }>('/conversations/unread-count').then((r) => r.data.data.unread_count);
+
+export const startConversationApi = (payload: {
+  type: 'buyer_seller' | 'buyer_admin' | 'seller_admin';
+  seller_id?: number;
+  product_id?: number;
+  order_id?: number;
+  subject?: string;
+  initial_message?: string;
+}) =>
+  http.post<{ data: Conversation }>('/conversations/start', payload).then((r) => r.data.data);
+
+export const getConversationDetailsApi = (conversationId: number) =>
+  http.get<{ data: Conversation }>(`/conversations/${conversationId}`).then((r) => r.data.data);
 
 export const getConversationMessagesApi = (conversationId: number, since?: string) =>
-  http.get<{ data: ChatMessage[] }>(`/admin/conversations/${conversationId}/messages`, {
+  http.get<{ data: ChatMessage[] }>(`/conversations/${conversationId}/messages`, {
     params: since ? { since } : undefined,
   }).then((r) => r.data.data);
 
-export const sendConversationMessageApi = (conversationId: number, body: string) =>
-  http.post<{ data: ChatMessage }>(`/admin/conversations/${conversationId}/messages`, { body }).then((r) => r.data.data);
+export const sendConversationMessageApi = (
+  conversationId: number,
+  payload: string | FormData | { body?: string; attachment_type?: string; attachment_data?: any }
+) => {
+  if (payload instanceof FormData) {
+    return http.post<{ data: ChatMessage }>(`/conversations/${conversationId}/messages`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data.data);
+  }
+  const body = typeof payload === 'string' ? { body: payload } : payload;
+  return http.post<{ data: ChatMessage }>(`/conversations/${conversationId}/messages`, body).then((r) => r.data.data);
+};
+
+export const getAttachableProductsApi = (conversationId: number) =>
+  http.get<{ data: any[] }>(`/conversations/${conversationId}/attachable-products`).then((r) => r.data.data);
+
+export const getAttachableOrdersApi = (conversationId: number) =>
+  http.get<{ data: any[] }>(`/conversations/${conversationId}/attachable-orders`).then((r) => r.data.data);
+
+export const updateConversationStatusApi = (conversationId: number, status: 'open' | 'resolved') =>
+  http.patch<{ message: string; data: Conversation }>(`/conversations/${conversationId}/status`, { status }).then((r) => r.data);
+
+export const openConversationForSellerApi = (sellerId: number) =>
+  startConversationApi({ type: 'seller_admin', seller_id: sellerId });
+
+export const searchAdminContactsApi = (query: string) =>
+  http.get<{ data: Array<{ id: number; role: 'seller' | 'buyer'; name: string; email: string; avatar_url: string | null; shop_name?: string; shop_logo?: string }> }>(
+    '/admin/contacts/search',
+    { params: { query } }
+  ).then((r) => r.data.data);
+
+// ─── Buyer Checkout & Orders ──────────────────────────────────────────────────
+
+export const placeOrderApi = (formData: FormData) =>
+  http.post<{ message: string; data: Order }>('/checkout/place-order', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+
+export const getBuyerOrdersApi = (params?: { status?: string; page?: number }) =>
+  http.get<PaginatedResponse<Order>>('/buyer/orders', { params }).then((r) => r.data);
+
+export const getBuyerOrderApi = (id: number) =>
+  http.get<{ data: Order }>(`/buyer/orders/${id}`).then((r) => r.data.data);
+
+export const requestBuyerOrderReturnApi = (orderId: number, payload: { reason: string; description: string }) =>
+  http.post<{ message: string; data: Order }>(`/buyer/orders/${orderId}/request-return`, payload).then((r) => r.data);
+
+// ─── Platform Policies (Hybrid Model) ──────────────────────────────────────────
+
+export const getPlatformPoliciesApi = () =>
+  http.get<{ data: { return_policy: any } }>('/platform/policies').then((r) => r.data.data);
+
+export const getAdminReturnPolicySettingsApi = () =>
+  http.get<{ data: any }>('/admin/settings/return-policy').then((r) => r.data.data);
+
+export const updateAdminReturnPolicySettingsApi = (payload: any) =>
+  http.post<{ message: string; data: any }>('/admin/settings/return-policy', payload).then((r) => r.data);
+
+// ─── Seller Orders & Payment Verification ─────────────────────────────────────
+
+export const getSellerOrdersApi = (params?: { status?: string; search?: string; page?: number }) =>
+  http.get<PaginatedResponse<SellerOrder> & { counts?: { pending_verification: number; to_ship: number } }>(
+    '/seller/orders',
+    { params }
+  ).then((r) => r.data);
+
+export const getSellerOrderApi = (id: number) =>
+  http.get<{ data: SellerOrder }>(`/seller/orders/${id}`).then((r) => r.data.data);
+
+export const confirmSellerOrderPaymentApi = (orderId: number) =>
+  http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/confirm-payment`).then((r) => r.data);
+
+export const rejectSellerOrderPaymentApi = (orderId: number, reason: string) =>
+  http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/reject-payment`, { reason }).then((r) => r.data);
+
+export const respondSellerOrderReturnApi = (orderId: number, payload: { action: 'accept' | 'reject' | 'partial_refund'; reason?: string; partial_amount?: number }) =>
+  http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/respond-return`, payload).then((r) => r.data);
+
+export const updateSellerOrderStatusApi = (orderId: number, status: string) =>
+  http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/status`, { status }).then((r) => r.data);
+
+// ─── Seller Earnings & Payouts ─────────────────────────────────────────────────
+
+export const getSellerEarningsSummaryApi = () =>
+  http.get<{ data: SellerEarningsSummary }>('/seller/earnings').then((r) => r.data.data);
+
+export const getSellerOrderEarningsApi = (params?: { page?: number }) =>
+  http.get<PaginatedResponse<SellerOrderEarningsItem>>('/seller/earnings/orders', { params }).then((r) => r.data);
+
+export const getSellerPayoutsApi = (params?: { page?: number }) =>
+  http.get<PaginatedResponse<PayoutRequest>>('/seller/payouts', { params }).then((r) => r.data);
+
+export const requestSellerPayoutApi = (payload: { amount: number; gcash_number: string; gcash_name: string }) =>
+  http.post<{ message: string; data: PayoutRequest }>('/seller/payouts/request', payload).then((r) => r.data);
+
+// ─── Admin Payouts ─────────────────────────────────────────────────────────────
+
+export const getAdminPayoutsApi = (params?: { status?: string; search?: string; page?: number }) =>
+  http.get<PaginatedResponse<PayoutRequest>>('/admin/payouts', { params }).then((r) => r.data);
+
+export const markAdminPayoutSentApi = (id: number, admin_notes?: string) =>
+  http.post<{ message: string }>(`/admin/payouts/${id}/mark-sent`, { admin_notes }).then((r) => r.data);
+
+export const completeAdminPayoutApi = (id: number, admin_notes?: string) =>
+  http.post<{ message: string }>(`/admin/payouts/${id}/complete`, { admin_notes }).then((r) => r.data);
+
+export const rejectAdminPayoutApi = (id: number, reason: string) =>
+  http.post<{ message: string }>(`/admin/payouts/${id}/reject`, { reason }).then((r) => r.data);
+
+export const getAdminPaymentListApi = (params?: { status?: string; method?: string; search?: string; page?: number }) =>
+  http.get<PaginatedResponse<AdminPaymentListItem> & { stats?: Record<string, number> }>('/admin/payments', { params }).then((r) => r.data);
+
+// ─── Admin Reports ─────────────────────────────────────────────────────────────
+
+export const getAdminReportSummaryApi = (range?: string) =>
+  http.get<{ data: AdminReportSummary }>('/admin/reports/summary', { params: { range } }).then((r) => r.data.data);
+
+export const getAdminRevenueChartApi = (params?: { range?: string; interval?: string }) =>
+  http.get<{ data: AdminRevenueChartPoint[] }>('/admin/reports/revenue-chart', { params }).then((r) => r.data.data);
+
+export const getAdminCategoryBreakdownApi = (range?: string) =>
+  http.get<{ data: CategoryBreakdownItem[] }>('/admin/reports/category-breakdown', { params: { range } }).then((r) => r.data.data);
+
+export const getAdminTopSellersApi = (range?: string) =>
+  http.get<{ data: TopSellerItem[] }>('/admin/reports/top-sellers', { params: { range } }).then((r) => r.data.data);
+
+export const getAdminPaymentSplitApi = (range?: string) =>
+  http.get<{ data: PaymentMethodSplit }>('/admin/reports/payment-method-split', { params: { range } }).then((r) => r.data.data);
+
+// ─── Admin Commission Settings ────────────────────────────────────────────────
+
+export const getAdminCommissionSettingsApi = () =>
+  http.get<{ data: CommissionSettings }>('/admin/settings/commission').then((r) => r.data.data);
+
+export const updateAdminCommissionSettingsApi = (payload: { base_rate_percent: number; overrides: CategoryCommissionOverride[] }) =>
+  http.post<{ message: string; data: CommissionSettings }>('/admin/settings/commission', payload).then((r) => r.data);
+
+// ─── Seller Reports ────────────────────────────────────────────────────────────
+
+export const getSellerReportSummaryApi = (range?: string) =>
+  http.get<{ data: SellerReportSummary }>('/seller/reports/summary', { params: { range } }).then((r) => r.data.data);
+
+export const getSellerRevenueChartApi = (params?: { range?: string; interval?: string }) =>
+  http.get<{ data: SellerRevenueChartPoint[] }>('/seller/reports/revenue-chart', { params }).then((r) => r.data.data);
+
+export const getSellerPaymentMethodsApi = (range?: string) =>
+  http.get<{ data: PaymentMethodSplit }>('/seller/reports/payment-methods', { params: { range } }).then((r) => r.data.data);
+
+export const getSellerReportTopProductsApi = (range?: string) =>
+  http.get<{ data: SellerTopProduct[] }>('/seller/reports/top-products', { params: { range } }).then((r) => r.data.data);
+
+// ─── Admin Categories Management ──────────────────────────────────────────────
+
+export const getAdminCategoriesApi = () =>
+  http.get<{ data: AdminCategoryParent[]; metrics: AdminCategoryMetrics }>('/admin/categories').then((r) => r.data);
+
+export const createAdminCategoryApi = (payload: CategoryPayload) =>
+  http.post<{ message: string; data: any }>('/admin/categories', payload).then((r) => r.data);
+
+export const updateAdminCategoryApi = (id: number, payload: Partial<CategoryPayload>) =>
+  http.put<{ message: string; data: any }>(`/admin/categories/${id}`, payload).then((r) => r.data);
+
+export const deleteAdminCategoryApi = (id: number) =>
+  http.delete<{ message: string }>(`/admin/categories/${id}`).then((r) => r.data);
+
+
