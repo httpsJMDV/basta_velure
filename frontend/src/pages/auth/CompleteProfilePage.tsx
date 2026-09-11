@@ -7,6 +7,7 @@ import CustomSelect from '../../components/ui/CustomSelect';
 import PhoneInput from '../../components/ui/PhoneInput';
 import Input from '../../components/ui/Input';
 import DatePicker from '../../components/ui/DatePicker';
+import LovedItLogo from '../../components/LovedItLogo';
 import { ArrowLeft, Check, ChevronRight, Upload, X } from 'lucide-react';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -618,9 +619,8 @@ export default function CompleteProfilePage() {
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
-            <Link to="/" onClick={clearAuth} className="flex items-center gap-2">
-              <img src="/logo1.png" alt="Velure" className="w-7 h-7 rounded-full logo-img" />
-              <span className="text-brand-red font-bold text-lg tracking-tight">Velure</span>
+            <Link to="/" onClick={clearAuth} className="flex items-center shrink-0">
+              <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
             </Link>
           </div>
           <span className="text-xs text-gray-400 font-medium">Step {step + 1} of {STEPS.length}</span>

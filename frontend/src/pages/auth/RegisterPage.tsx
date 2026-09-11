@@ -7,6 +7,7 @@ import Input from '../../components/ui/Input';
 import PhoneInput from '../../components/ui/PhoneInput';
 import CustomSelect from '../../components/ui/CustomSelect';
 import GoogleSignInButton from '../../components/GoogleSignInButton';
+import LovedItLogo from '../../components/LovedItLogo';
 import { registerBuyerApi } from '../../api/client';
 
 const SEX_OPTIONS = [
@@ -220,9 +221,8 @@ export default function RegisterPage() {
       <div className="flex flex-col w-full md:w-1/2 px-6 py-12 sm:px-12 lg:px-16 bg-white overflow-y-auto">
         <div className="max-w-sm w-full mx-auto">
 
-          <Link to="/" className="flex items-center gap-2 mb-6">
-            <img src="/logo1.png" alt="Velure" className="w-8 h-8 rounded-full logo-img" />
-            <span className="text-brand-red font-bold text-xl tracking-tight">Velure</span>
+          <Link to="/" className="inline-block mb-6 group">
+            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-12 sm:h-14 object-contain group-hover:opacity-95 transition-opacity" />
           </Link>
 
           {/* Step indicator */}
@@ -243,7 +243,7 @@ export default function RegisterPage() {
           {step === 1 ? (
             <>
               <h1 className="text-3xl font-bold text-brand-black mb-1">Create account</h1>
-              <p className="text-sm text-gray-500 mb-8">Join Velure and start shopping today.</p>
+              <p className="text-sm text-gray-500 mb-8">Join Loved-IT and start shopping today.</p>
 
               {serverError && (
                 <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -480,14 +480,14 @@ export default function RegisterPage() {
       <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black">
         <img
           src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200&q=80"
-          alt="Velure marketplace"
+          alt="Loved-IT marketplace"
           className="absolute inset-0 w-full h-full object-cover opacity-75"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 via-brand-black/30 to-transparent flex items-end p-12">
           <div>
             <p className="text-white text-4xl font-bold leading-tight">Millions of products.</p>
             <p className="text-white text-4xl font-bold leading-tight">One account.</p>
-            <p className="text-white/60 text-base mt-2">Join thousands of shoppers on Velure.</p>
+            <p className="text-white/60 text-base mt-2">Join thousands of shoppers on Loved-IT.</p>
           </div>
         </div>
       </div>

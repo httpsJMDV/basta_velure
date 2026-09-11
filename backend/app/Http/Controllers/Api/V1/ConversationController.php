@@ -380,8 +380,9 @@ class ConversationController extends Controller
         // Validate product_card attachment
         if ($attachmentType === 'product_card') {
             $prodId = $attachmentData['id'] ?? $request->input('product_id');
-            $prod = Product::with(['images', 'category'])->find($prodId);
-            if (!$prod) {
+            /** @var Product|null $prod */
+            $prod = Product::with(['images', 'category'])->where('id', $prodId)->first();
+            if (!$prod instanceof Product) {
                 return response()->json(['message' => 'Product not found.'], 422);
             }
             if ($conversation->seller_id && $prod->seller_id !== $conversation->seller_id && $user->role !== 'admin') {
@@ -402,23 +403,29 @@ class ConversationController extends Controller
         // Validate order_card attachment
         if ($attachmentType === 'order_card') {
             $ordId = $attachmentData['id'] ?? $request->input('order_id');
-            $ord = Order::with('items')->find($ordId);
-            if (!$ord) {
+            /** @var Order|null $ord */
+            $ord = Order::with('items')->where('id', $ordId)->first();
+            if (!$ord instanceof Order) {
                 return response()->json(['message' => 'Order not found.'], 422);
             }
-            if ($user->role === 'seller' && $ord->seller_id !== $user->id) {
+            $items = $ord->items;
+            if ($user->role === 'seller' && !$items->contains('seller_id', $user->id)) {
                 return response()->json(['message' => 'You cannot attach orders from other sellers.'], 403);
             }
             if ($user->role === 'buyer' && $ord->buyer_id !== $user->id) {
                 return response()->json(['message' => 'You cannot attach orders belonging to other buyers.'], 403);
             }
+            $itemsSummary = ($items && $items->isNotEmpty())
+                ? $items->pluck('product_name')->filter()->take(2)->implode(', ')
+                : ($attachmentData['items_summary'] ?? ('Order #' . $ord->order_number));
+
             $attachmentData = [
-                'id'           => $ord->id,
-                'order_number' => $ord->order_number,
-                'total'        => (float) $ord->total,
-                'status'       => $ord->status,
-                'items_count'  => $ord->items->count(),
-                'items_summary'=> $ord->items->pluck('product_name')->take(2)->implode(', '),
+                'id'            => $ord->id,
+                'order_number'  => $ord->order_number,
+                'total'         => (float) $ord->total,
+                'status'        => $ord->status,
+                'items_count'   => $items ? $items->count() : ($attachmentData['items_count'] ?? 1),
+                'items_summary' => $itemsSummary,
             ];
             if (empty($body)) {
                 $body = 'Shared Order #' . $ord->order_number;
@@ -676,7 +683,7 @@ class ConversationController extends Controller
             if ($c->type === 'buyer_admin') {
                 $recipient = [
                     'id'        => null,
-                    'name'      => 'Velure Customer Support',
+                    'name'      => 'Loved-IT Customer Support',
                     'role'      => 'admin',
                     'avatar'    => null,
                     'subtext'   => 'Official Platform Support',
@@ -694,7 +701,7 @@ class ConversationController extends Controller
             if ($c->type === 'seller_admin') {
                 $recipient = [
                     'id'        => null,
-                    'name'      => 'Velure Partner Support',
+                    'name'      => 'Loved-IT Partner Support',
                     'role'      => 'admin',
                     'avatar'    => null,
                     'subtext'   => 'Admin Support Team',
@@ -802,7 +809,7 @@ class ConversationController extends Controller
                 || $sellerProfile !== null;
 
             if ($senderRole === 'admin') {
-                $senderName = 'Velure Customer Support';
+                $senderName = 'Loved-IT Customer Support';
                 $senderAvatar = null;
             } elseif ($isSellerInContext && $sellerProfile) {
                 $senderRole = 'seller';

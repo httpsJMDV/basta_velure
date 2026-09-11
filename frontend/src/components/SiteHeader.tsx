@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut } from 'lucide-react';
+import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
+import { useChat } from '../hooks/useChat';
 import UserAvatar from './ui/UserAvatar';
 import CartModal from './CartModal';
 import type { CartItem as ModalCartItem } from './CartModal';
+import LovedItLogo from './LovedItLogo';
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
 
@@ -73,7 +75,7 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
               ))}
               {sellerStatus === 'none' && (
                 <button onClick={() => { navigate('/register/seller'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors">
-                  <Store className="w-4 h-4 shrink-0" /> Sell in Velure
+                  <Store className="w-4 h-4 shrink-0" /> Sell on Loved-IT
                 </button>
               )}
               {sellerStatus === 'pending' && (
@@ -109,7 +111,8 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
 
 export default function SiteHeader() {
   const { user } = useAuth();
-  const { items, cartOpen, openCart, closeCart, removeItem } = useCart();
+  const { items, cartOpen, openCart, closeCart, removeItem, updateQty, clearCart } = useCart();
+  const { openChat, openChatWithSupport } = useChat();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,6 +122,14 @@ export default function SiteHeader() {
     const q = searchQuery.trim();
     if (q) navigate(`/search?q=${encodeURIComponent(q)}`);
   }
+
+  const handleSupportChat = () => {
+    if (openChatWithSupport) {
+      openChatWithSupport();
+    } else if (openChat) {
+      openChat();
+    }
+  };
 
   // Map cart items to CartModal shape
   const modalItems: ModalCartItem[] = items.map((i) => ({
@@ -135,66 +146,121 @@ export default function SiteHeader() {
 
   return (
     <>
-      {/* Top utility bar */}
-      <div className="hidden text-xs text-white bg-brand-black sm:block">
-        <div className="flex items-center justify-end h-8 gap-4 px-4 mx-auto max-w-7xl">
-          <span className="text-white/50">Help &amp; Support</span>
-          {user ? (
-            <span className="text-white/80">Hi, {user.first_name}</span>
-          ) : (
-            <>
-              <Link to="/register" className="transition-colors text-white/80 hover:text-white">Sign Up</Link>
-              <span className="text-white/20">|</span>
-              <Link to="/login" className="transition-colors text-white/80 hover:text-white">Login</Link>
-            </>
-          )}
+      {/* ── Top Utility Bar ── */}
+      <div className="hidden sm:block text-xs bg-[#121212] border-b border-neutral-800 text-neutral-300">
+        <div className="flex items-center justify-between h-8 px-4 sm:px-8 lg:px-12 max-w-[1536px] mx-auto">
+          <div className="flex items-center gap-4">
+            <Link
+              to="/help/safety"
+              className="flex items-center gap-1.5 text-neutral-300 hover:text-white transition-colors group"
+              title="Trust & Safety Center"
+            >
+              <Headphones className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
+              <span className="group-hover:underline">Help &amp; Support</span>
+            </Link>
+          </div>
+          <div className="flex items-center gap-4 text-xs">
+            <button
+              onClick={handleSupportChat}
+              className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer group"
+              title="Open Live Chat"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-neutral-400 group-hover:text-brand-red transition-colors" />
+              <span className="group-hover:underline">Need help? Chat with us</span>
+            </button>
+            <span className="text-neutral-700">|</span>
+            <div className="flex items-center gap-1.5 text-neutral-400 font-medium select-none" title="Official Customer Care Hotline">
+              <Phone className="w-3.5 h-3.5 text-neutral-500" />
+              <span className="text-neutral-300">+63 2 8123 5678</span>
+            </div>
+            <span className="text-neutral-700">|</span>
+            {user ? (
+              <span className="font-semibold text-white">Hi, {user.first_name}</span>
+            ) : (
+              <div className="flex items-center gap-1.5 font-medium">
+                <Link to="/login" className="hover:text-white transition-colors">Sign In</Link>
+                <span className="text-neutral-700">/</span>
+                <Link to="/register" className="hover:text-white transition-colors">Register</Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Main header */}
-      <header className="sticky top-0 z-40 shadow-md bg-brand-red">
-        <div className="flex items-center h-16 gap-4 px-4 mx-auto max-w-7xl">
-          <Link to="/" className="flex items-center gap-2.5 shrink-0">
-            <img src="/logo1.png" alt="Velure logo" className="object-cover rounded-full w-9 h-9 logo-img-dark" />
-            <span className="text-xl font-bold tracking-tight text-white">Velure</span>
+      {/* ── Primary Navigation (Crimson Header) ── */}
+      <header className="sticky top-0 z-40 shadow-sm bg-brand-red">
+        <div className="flex items-center h-16 sm:h-[70px] gap-3 sm:gap-6 px-4 sm:px-8 lg:px-12 max-w-[1536px] mx-auto">
+          <Link to="/" className="flex items-center shrink-0 py-1" title="Loved-IT">
+            <LovedItLogo
+              variant="dark"
+              type="full"
+              size="custom"
+              imgClassName="h-9 sm:h-11 object-contain hover:opacity-95 transition-opacity"
+            />
           </Link>
 
-          {/* Search — desktop */}
-          <form onSubmit={handleSearch} className="flex-1 hidden max-w-2xl mx-auto sm:flex">
+          {/* Large Pill Search Field */}
+          <form onSubmit={handleSearch} className="flex-1 max-w-2xl mx-auto relative">
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search products, brands, categories…"
-              className="flex-1 h-10 px-4 text-sm border-0 rounded-l-lg focus:outline-none text-brand-black"
+              placeholder="Search for products, brands and more"
+              className="w-full h-10 sm:h-11 pl-5 pr-11 text-xs sm:text-sm rounded-full bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-xs"
             />
-            <button type="submit" className="h-10 px-5 bg-brand-red-dark text-white text-sm font-semibold rounded-r-lg hover:bg-[#791F1F] transition-colors flex items-center gap-1">
-              <Search className="w-4 h-4" />
+            <button
+              type="submit"
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-red hover:bg-gray-100 transition-colors"
+              title="Search"
+            >
+              <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </button>
           </form>
 
-          <div className="flex items-center gap-3 ml-auto sm:ml-0">
-            {user && <div className="hidden sm:block"><UserDropdown user={user} /></div>}
-            {!user && (
-              <div className="items-center hidden gap-2 sm:flex">
-                <Link to="/login" className="text-sm font-medium transition-colors text-white/90 hover:text-white">Login</Link>
-                <span className="text-white/30">|</span>
-                <Link to="/register" className="text-sm font-medium transition-colors text-white/90 hover:text-white">Sign Up</Link>
+          {/* Right utility items */}
+          <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+            {user ? (
+              <div className="hidden sm:block">
+                <UserDropdown user={user} />
               </div>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden sm:flex items-center gap-2 text-white hover:text-white/90 transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <div className="text-left text-xs leading-tight">
+                  <span className="block font-bold">My Account</span>
+                  <span className="block text-[10.5px] text-white/70">Sign In / Register</span>
+                </div>
+              </Link>
             )}
+
+            {/* Cart Button */}
             <button
               onClick={openCart}
-              className="text-white p-1 min-h-[44px] min-w-[44px] flex items-center justify-center relative"
+              className="flex items-center gap-2 text-white hover:text-white/90 transition-colors py-1 px-1.5 rounded-xl group"
+              title="View Cart"
             >
-              <ShoppingCart className="w-6 h-6" />
-              {totalCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-white text-brand-red text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {totalCount > 99 ? '99+' : totalCount}
-                </span>
-              )}
+              <div className="relative">
+                <ShoppingCart className="w-6 h-6 group-hover:scale-105 transition-transform" />
+                {totalCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 bg-amber-400 text-brand-black text-[10px] font-black rounded-full flex items-center justify-center shadow-xs">
+                    {totalCount > 99 ? '99+' : totalCount}
+                  </span>
+                )}
+              </div>
+              <div className="hidden sm:block text-left text-xs leading-tight">
+                <span className="block font-bold">My Cart</span>
+                <span className="block text-[10.5px] text-amber-300 font-semibold">{totalCount} item{totalCount === 1 ? '' : 's'}</span>
+              </div>
             </button>
+
+            {/* Mobile hamburger */}
             <button
-              className="sm:hidden text-white p-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="sm:hidden text-white p-1 min-h-[40px] min-w-[40px] flex items-center justify-center"
               onClick={() => setMenuOpen(!menuOpen)}
             >
               {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -202,14 +268,37 @@ export default function SiteHeader() {
           </div>
         </div>
 
-        {/* Shortcut row — desktop */}
-        <div className="hidden sm:block bg-brand-red-dark">
-          <div className="flex items-center gap-6 px-4 mx-auto max-w-7xl h-9">
-            {SHORTCUTS.map((s) => (
-              <button key={s} className="text-xs font-medium transition-colors text-white/90 hover:text-white whitespace-nowrap">
-                {s}
-              </button>
-            ))}
+        {/* ── Secondary Navigation (Clean White Row) ── */}
+        <div className="hidden sm:block bg-white border-b border-gray-100 shadow-2xs">
+          <div className="flex items-center justify-center gap-8 md:gap-14 px-4 sm:px-8 lg:px-12 mx-auto max-w-[1536px] h-10">
+            <Link
+              to="/search?sort=newest"
+              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
+            >
+              <Star className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
+              <span>New Arrivals</span>
+            </Link>
+            <Link
+              to="/search?sort=best_selling"
+              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
+            >
+              <Flame className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
+              <span>Best Sellers</span>
+            </Link>
+            <Link
+              to="/search?on_sale=true"
+              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
+            >
+              <Tag className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
+              <span>Sale</span>
+            </Link>
+            <Link
+              to="/settings/orders"
+              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
+            >
+              <Truck className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
+              <span>Track Order</span>
+            </Link>
           </div>
         </div>
 
@@ -259,6 +348,8 @@ export default function SiteHeader() {
         onClose={closeCart}
         items={modalItems}
         onRemove={removeItem}
+        onUpdateQty={updateQty}
+        onClear={clearCart}
       />
     </>
   );

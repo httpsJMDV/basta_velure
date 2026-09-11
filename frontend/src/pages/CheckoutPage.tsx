@@ -15,6 +15,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
+import LovedItLogo from '../components/LovedItLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import { getAddressesApi, placeOrderApi } from '../api/client';
@@ -55,7 +56,7 @@ export default function CheckoutPage() {
   const total = subtotal + shippingFee;
 
   const GCASH_NUMBER = '0917-835-8731';
-  const GCASH_NAME = 'VELURE OFFICIAL';
+  const GCASH_NAME = 'LOVED-IT OFFICIAL';
 
   // Load buyer's addresses
   useEffect(() => {
@@ -237,9 +238,8 @@ export default function CheckoutPage() {
       <div className="bg-white border-b border-gray-100 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2">
-              <img src="/logo1.png" alt="Velure" className="w-7 h-7 rounded-full logo-img" />
-              <span className="text-brand-red font-bold text-lg tracking-tight">Velure</span>
+            <Link to="/" className="flex items-center shrink-0">
+              <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
             </Link>
             <span className="text-gray-300 text-lg">/</span>
             <span className="text-sm font-semibold text-brand-black">Secure Checkout</span>
@@ -465,7 +465,7 @@ export default function CheckoutPage() {
                             <div className="flex-1 space-y-2 text-center sm:text-left">
                               <div>
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block">
-                                  Velure Official Account
+                                  Loved-IT Official Account
                                 </span>
                                 <span className="font-bold text-gray-900 text-sm">{GCASH_NAME}</span>
                               </div>
@@ -653,7 +653,7 @@ export default function CheckoutPage() {
 
                 <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400 mt-4 text-center">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>Velure Buyer Protection & Safe Escrow Guarantee</span>
+                  <span>Loved-IT Buyer Protection & Safe Escrow Guarantee</span>
                 </div>
               </div>
             </div>

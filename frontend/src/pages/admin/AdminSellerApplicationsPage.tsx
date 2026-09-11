@@ -107,32 +107,54 @@ function useCountUp(target: number, duration = 900): number {
   return value;
 }
 
-// ── Summary Cards ─────────────────────────────────────────────────────────────
-
 function SummaryCards({ counts }: { counts: { pending: number; approved: number; rejected: number } }) {
   const pending  = useCountUp(counts.pending);
   const approved = useCountUp(counts.approved);
   const rejected = useCountUp(counts.rejected);
 
-  const cards = [
-    { label: 'Pending Review',  value: pending,  icon: Clock,        color: 'text-amber-500',  bg: 'bg-amber-50'  },
-    { label: 'Approved',        value: approved, icon: CheckCircle,  color: 'text-green-500',  bg: 'bg-green-50'  },
-    { label: 'Active Sellers',  value: rejected, icon: Store,        color: 'text-violet-500', bg: 'bg-violet-50' },
-  ];
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {cards.map(({ label, value, icon: Icon, color, bg }) => (
-        <div key={label} className="bg-white border border-gray-100 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
-            <Icon className={`w-5 h-5 ${color}`} />
-          </div>
-          <div>
-            <p className="text-[22px] font-black text-gray-900 leading-none">{value}</p>
-            <p className="text-xs text-gray-400 mt-0.5 font-medium">{label}</p>
-          </div>
+      {/* Card 1 */}
+      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Pending Review</span>
+          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{pending}</p>
+          <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-1 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Awaiting approval
+          </p>
         </div>
-      ))}
+        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100 shadow-2xs">
+          <Clock className="w-6 h-6" />
+        </div>
+      </div>
+
+      {/* Card 2 */}
+      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Approved Merchants</span>
+          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{approved}</p>
+          <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active verified shops
+          </p>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 shadow-2xs">
+          <CheckCircle className="w-6 h-6" />
+        </div>
+      </div>
+
+      {/* Card 3 */}
+      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Rejected Applications</span>
+          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{rejected}</p>
+          <p className="text-[11px] text-stone-500 font-semibold flex items-center gap-1 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-stone-400" /> Requires resubmission
+          </p>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-600 flex items-center justify-center shrink-0 border border-stone-200 shadow-2xs">
+          <Store className="w-6 h-6" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -823,14 +845,22 @@ export default function AdminSellerApplicationsPage() {
                     onClick={() => setSelected(app)}
                     className="hover:bg-red-50/40 transition-colors cursor-pointer group"
                   >
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-gray-900 group-hover:text-brand-red transition-colors">
-                        {app.shop_name}
-                      </p>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-100 text-brand-red flex items-center justify-center shrink-0 shadow-2xs">
+                          <Store className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-stone-900 group-hover:text-brand-red transition-colors text-sm">
+                            {app.shop_name}
+                          </p>
+                          <p className="text-[11px] text-stone-400">Merchant Store</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-5 py-4 hidden sm:table-cell">
-                      <p className="text-sm text-gray-700">{app.user.first_name} {app.user.last_name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{app.user.email}</p>
+                    <td className="px-5 py-3.5 hidden sm:table-cell">
+                      <p className="text-xs font-semibold text-stone-800">{app.user.first_name} {app.user.last_name}</p>
+                      <p className="text-[11px] text-stone-400 mt-0.5">{app.user.email}</p>
                     </td>
                     <td className="px-5 py-4 hidden md:table-cell">
                       <p className="text-sm text-gray-700">{formatDate(app.submitted_at)}</p>

@@ -8,6 +8,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property int $buyer_id
+ * @property string $order_number
+ * @property float|string $subtotal
+ * @property float|string $shipping_fee
+ * @property float|string $total
+ * @property string $status
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\OrderItem> $items
+ */
 class Order extends Model
 {
     use SoftDeletes;

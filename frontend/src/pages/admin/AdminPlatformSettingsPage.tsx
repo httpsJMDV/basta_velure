@@ -53,7 +53,7 @@ export default function AdminPlatformSettingsPage() {
     '7-day standard return window upon delivery for eligible items in original, unused condition with complete packaging and tags.'
   );
   const [mediationTerms, setMediationTerms] = useState<string>(
-    'If the seller rejects your return or does not respond within 48 hours, your request is automatically escalated to Velure Platform Mediation for binding review.'
+    'If the seller rejects your return or does not respond within 48 hours, your request is automatically escalated to Loved-IT Platform Mediation for binding review.'
   );
   const [savingPolicy, setSavingPolicy] = useState<boolean>(false);
 
@@ -484,7 +484,7 @@ export default function AdminPlatformSettingsPage() {
                   <div>
                     <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Baseline Return &amp; Refund Policy</h2>
                     <p className="text-[11px] text-gray-400">
-                      Standard terms applied across all Velure seller storefronts
+                      Standard terms applied across all Loved-IT seller storefronts
                     </p>
                   </div>
                 </div>
@@ -631,7 +631,7 @@ export default function AdminPlatformSettingsPage() {
                 Active Payment Gateways
               </div>
               <p className="text-[11px] text-gray-500 leading-relaxed">
-                Velure marketplace operates strictly with <strong>GCash</strong> and <strong>Cash on Delivery (COD)</strong>.
+                Loved-IT marketplace operates strictly with <strong>GCash</strong> and <strong>Cash on Delivery (COD)</strong>.
               </p>
               <div className="space-y-1.5 pt-1">
                 <div className="p-2 bg-gray-50 rounded-lg text-xs flex items-center justify-between">

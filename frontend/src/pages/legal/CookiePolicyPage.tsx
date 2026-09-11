@@ -1,84 +1,77 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Cookie } from 'lucide-react';
+import LovedItLogo from '../../components/LovedItLogo';
+import Footer from '../../components/Footer';
 
 const COOKIE_TYPES = [
   {
-    name: 'Strictly Necessary',
+    name: 'Strictly Necessary Cookies',
     badge: 'Always Active',
-    badgeCls: 'bg-green-50 text-green-600',
-    description:
-      'These cookies are essential for the platform to function. They enable core features like staying logged in, keeping items in your cart, and navigating between pages securely. You cannot opt out of these cookies.',
-    examples: ['Session authentication token', 'Cart contents', 'CSRF security token'],
+    badgeCls: 'bg-green-50 text-green-700 border border-green-200',
+    description: 'Essential for the website to function. They enable core features like logging in, shopping cart persistence, and checkout security. You cannot opt out of these cookies.',
+    examples: ['Authentication session token', 'Cart item state', 'CSRF protection token'],
   },
   {
-    name: 'Functional',
+    name: 'Performance & Analytics Cookies',
     badge: 'Optional',
-    badgeCls: 'bg-blue-50 text-blue-600',
-    description:
-      'Functional cookies remember your preferences to give you a more personalized experience. For example, they remember your selected language, your last-viewed category, and whether you have dismissed certain notices.',
-    examples: ['Language preference', 'Recently viewed products', 'Dismissed banners'],
+    badgeCls: 'bg-gray-100 text-gray-600',
+    description: 'Help us understand how visitors interact with Loved-IT by collecting aggregated, anonymous data on pages visited, time spent, and errors encountered.',
+    examples: ['Google Analytics', 'Page view metrics', 'Error logging'],
   },
   {
-    name: 'Analytics',
+    name: 'Functional Cookies',
     badge: 'Optional',
-    badgeCls: 'bg-amber-50 text-amber-600',
-    description:
-      'Analytics cookies help us understand how visitors interact with Velure. The data collected is aggregated and anonymized — it tells us which pages are most visited and where users drop off, so we can improve the experience.',
-    examples: ['Page view counts', 'Session duration', 'Click-through rates'],
+    badgeCls: 'bg-gray-100 text-gray-600',
+    description: 'Remember your choices to provide a more personalized experience, such as your preferred delivery address, recently viewed items, and display preferences.',
+    examples: ['Recently viewed products', 'Dismissed notice flags', 'UI preference settings'],
   },
   {
-    name: 'Marketing',
+    name: 'Targeting & Advertising Cookies',
     badge: 'Optional',
-    badgeCls: 'bg-purple-50 text-purple-600',
-    description:
-      'Marketing cookies track your browsing activity to show you relevant advertisements on other websites and platforms. We only use these with your explicit consent. You can withdraw consent at any time from your account settings.',
-    examples: ['Ad targeting identifiers', 'Conversion tracking', 'Retargeting pixels'],
+    badgeCls: 'bg-gray-100 text-gray-600',
+    description: 'May be set through our site by advertising partners to build a profile of your interests and show you relevant ads on other sites. They do not store personal details directly.',
+    examples: ['Ad retargeting pixels', 'Campaign attribution tags'],
   },
 ];
 
 const SECTIONS = [
   {
     title: 'What Are Cookies?',
-    text: 'Cookies are small text files that are placed on your device when you visit a website. They are widely used to make websites work efficiently, remember your preferences, and provide information to site owners. Cookies set by Velure are called "first-party cookies." Cookies set by our partners (such as analytics providers) are called "third-party cookies."',
+    text: 'Cookies are small text files placed on your computer or mobile device when you visit a website. They are widely used to make websites work efficiently, provide a smoother browsing experience, and give website operators insight into how their site is used.',
   },
   {
-    title: 'How Long Do Cookies Last?',
-    text: 'Cookies can be either "session cookies" or "persistent cookies." Session cookies are temporary and are deleted when you close your browser. Persistent cookies remain on your device for a set period — typically between 30 days and 2 years depending on their purpose — or until you delete them manually.',
+    title: 'How Loved-IT Uses Cookies',
+    text: 'Loved-IT uses first-party cookies (set by us) for essential site operation, session management, and remembering your shopping cart. We also use third-party cookies from trusted partners such as Google for aggregated site analytics and fraud prevention.',
   },
   {
-    title: 'Managing Your Cookie Preferences',
-    text: 'You can control and manage cookies in several ways. Most browsers allow you to view, block, or delete cookies through their settings menu. You can also opt out of optional cookie categories at any time by visiting your account settings on Velure. Note that blocking strictly necessary cookies will prevent the platform from functioning correctly — for example, you will not be able to stay logged in or complete a purchase.',
+    title: 'How Long Cookies Stay on Your Device',
+    text: 'Session cookies are temporary and expire when you close your browser. Persistent cookies remain on your device until they expire (typically between 30 days and 2 years) or until you manually delete them through your browser settings.',
   },
   {
-    title: 'Browser-Level Controls',
-    text: 'Each browser handles cookie management differently. You can find instructions for the most common browsers at their respective help centers: Chrome (support.google.com/chrome), Firefox (support.mozilla.org), Safari (support.apple.com), and Edge (support.microsoft.com). On mobile, you can manage cookies through your device\'s browser settings under Privacy or Site Settings.',
-  },
-  {
-    title: 'Third-Party Cookies',
-    text: 'Some features on Velure — such as embedded maps, social sharing buttons, or payment widgets — may set third-party cookies. These are governed by the privacy policies of the respective third parties, not by this Cookie Policy. We recommend reviewing the privacy policies of any third-party services you interact with.',
+    title: 'Managing and Disabling Cookies',
+    text: 'Most web browsers allow you to manage your cookie preferences through their settings menu. You can block all cookies, accept only first-party cookies, or delete existing cookies. Please note that blocking strictly necessary cookies will prevent you from logging in, adding items to your cart, or checking out on Loved-IT.',
   },
   {
     title: 'Updates to This Policy',
-    text: 'We may update this Cookie Policy from time to time as we add new features or as regulations change. When we make significant changes, we will notify you via a notice on the platform or by email. The "Last updated" date at the top of this page reflects the most recent revision.',
+    text: 'We may update this Cookie Policy from time to time to reflect changes in our practices or applicable law. Any updates will be posted here with an updated "Last updated" date. We encourage you to review this page periodically.',
   },
 ];
 
 export default function CookiePolicyPage() {
   return (
-    <div className="min-h-screen bg-brand-gray-soft">
+    <div className="min-h-screen flex flex-col bg-brand-gray-soft">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/logo1.png" alt="Velure" className="w-7 h-7 rounded-full logo-img" />
-            <span className="text-brand-red font-bold text-lg tracking-tight">Velure</span>
+          <Link to="/" className="flex items-center shrink-0">
+            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
           </Link>
           <span className="text-gray-300 text-lg">/</span>
           <span className="text-sm font-semibold text-brand-black">Cookie Policy</span>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-10">
+      <div className="max-w-4xl mx-auto px-4 py-10 flex-1 w-full">
         <Link
           to="/"
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-black transition-colors mb-8"
@@ -95,7 +88,7 @@ export default function CookiePolicyPage() {
             <h1 className="text-2xl font-bold text-white">Cookie Policy</h1>
             <p className="text-white/70 text-sm mt-1">Last updated: August 1, 2026</p>
             <p className="text-white/85 text-sm mt-3 leading-relaxed max-w-2xl">
-              This policy explains how Velure uses cookies and similar technologies, what types of cookies
+              This policy explains how Loved-IT uses cookies and similar technologies, what types of cookies
               we use, and how you can control them. We believe in being transparent about the data we collect.
             </p>
           </div>
@@ -150,10 +143,10 @@ export default function CookiePolicyPage() {
           <p className="text-sm font-semibold text-brand-black mb-1">Questions about cookies?</p>
           <p className="text-sm text-gray-500">
             Contact us at{' '}
-            <a href="mailto:privacy@velure.ph" className="text-brand-red hover:underline font-medium">
-              privacy@velure.ph
+            <a href="mailto:privacy@loved-it.ph" className="text-brand-red hover:underline font-medium">
+              privacy@loved-it.ph
             </a>
-            {' '}or write to us at: Velure Inc., Makati City, Metro Manila, Philippines.
+            {' '}or write to us at: Loved-IT Inc., Makati City, Metro Manila, Philippines.
           </p>
         </div>
 
@@ -175,11 +168,9 @@ export default function CookiePolicyPage() {
             </Link>
           </div>
         </div>
-
-        <p className="text-center text-xs text-gray-400 mt-8">
-          © {new Date().getFullYear()} Velure. All rights reserved.
-        </p>
       </div>
+
+      <Footer />
     </div>
   );
 }

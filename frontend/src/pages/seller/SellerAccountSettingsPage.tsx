@@ -205,7 +205,7 @@ function ProfileTab() {
 
       {/* Personal info card */}
       <SectionCard>
-        <SectionHeader title="Personal Information" subtitle="Your identity details as registered on Velure." />
+        <SectionHeader title="Personal Information" subtitle="Your identity details as registered on Loved-IT." />
         <div className="divide-y divide-gray-50">
 
           {/* Full Name */}
@@ -513,7 +513,7 @@ function SecurityTab({ onToast }: { onToast: (t: { type: 'success' | 'error'; me
             <p className="text-[13px] font-bold text-gray-900">Account Security Tips</p>
             <ul className="mt-2 space-y-1.5">
               {[
-                'Never share your password with anyone, including Velure staff.',
+                'Never share your password with anyone, including Loved-IT staff.',
                 'Use a unique password not used on other websites.',
                 'Enable a strong password with uppercase, numbers, and symbols.',
               ].map((tip) => (
@@ -541,7 +541,7 @@ const DEFAULT_PREFS: NotifPref[] = [
   { key: 'low_stock',       label: 'Low Stock Alerts',     description: 'Get notified when a product variant is running low on stock.',  enabled: true },
   { key: 'payout_update',   label: 'Payout Updates',       description: 'Get notified when your payout request status changes.',        enabled: true },
   { key: 'new_message',     label: 'New Messages',         description: 'Get notified when you receive a new message from a buyer.',    enabled: true },
-  { key: 'promotions',      label: 'Platform Announcements', description: 'Receive announcements and updates from Velure.',             enabled: false },
+  { key: 'promotions',      label: 'Platform Announcements', description: 'Receive announcements and updates from Loved-IT.',             enabled: false },
 ];
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {

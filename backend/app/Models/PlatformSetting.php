@@ -65,7 +65,7 @@ class PlatformSetting extends Model
                 'Personalized & Custom Items' => 'Custom-made, engraved, or customized orders are non-returnable unless defective or incorrect.',
                 'Personal Care & Undergarments' => 'Hygiene, cosmetics, intimate apparel, and personal care products with opened protective seals.',
             ],
-            'mediation_terms'       => 'If the seller rejects your return or does not respond within 48 hours, your request is automatically escalated to Velure Platform Mediation for binding review.',
+            'mediation_terms'       => 'If the seller rejects your return or does not respond within 48 hours, your request is automatically escalated to Loved-IT Platform Mediation for binding review.',
         ]);
     }
 }

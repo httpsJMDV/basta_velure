@@ -167,7 +167,7 @@ class SellerOrderController extends Controller
         } elseif ($data['action'] === 'reject') {
             $dispute->update([
                 'status'          => 'in_progress',
-                'resolution_note' => "Seller rejected return: {$data['reason']}. Escalated to Velure Mediation.",
+                'resolution_note' => "Seller rejected return: {$data['reason']}. Escalated to Loved-IT Mediation.",
             ]);
         } elseif ($data['action'] === 'partial_refund') {
             $dispute->update([

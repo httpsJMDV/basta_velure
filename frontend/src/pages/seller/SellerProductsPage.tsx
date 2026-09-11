@@ -288,7 +288,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
       <p className="text-[13px] text-gray-400 max-w-xs">
         {filtered
           ? 'Try adjusting your search or filter criteria.'
-          : 'List your first product to start selling on Velure.'}
+          : 'List your first product to start selling on Loved-IT.'}
       </p>
       {!filtered && (
         <Link

@@ -1,6 +1,6 @@
 <x-mail::message>
 <div style="text-align:center; padding-bottom: 8px;">
-  <span style="font-size: 28px; font-weight: 700; color: #A32D2D; letter-spacing: -0.5px;">Velure</span>
+  <span style="font-size: 28px; font-weight: 700; color: #A32D2D; letter-spacing: -0.5px;">Loved-IT</span>
 </div>
 
 <div style="text-align:center; padding-bottom: 24px;">
@@ -9,7 +9,7 @@
 
 # Application Received, {{ $firstName }}!
 
-Thank you for applying to become a seller on **Velure**. We've successfully received your application for **{{ $shopName }}** and it is now under review.
+Thank you for applying to become a seller on **Loved-IT**. We've successfully received your application for **{{ $shopName }}** and it is now under review.
 
 ---
 
@@ -32,9 +32,9 @@ View My Application Status
 If you have any questions or need to update your submitted information, please contact our support team.
 
 Warm regards,
-**The Velure Team**
+**The Loved-IT Team**
 
 ---
 
-<small style="color: #999;">You received this email because a seller application was submitted using this email address on Velure. If this wasn't you, please contact us immediately.</small>
+<small style="color: #999;">You received this email because a seller application was submitted using this email address on Loved-IT. If this wasn't you, please contact us immediately.</small>
 </x-mail::message>

@@ -28,7 +28,7 @@ const CartContext = createContext<CartContextValue | null>(null);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('velure_cart');
+      const saved = localStorage.getItem('loved_it_cart') || localStorage.getItem('velure_cart');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -38,7 +38,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem('velure_cart', JSON.stringify(items));
+      localStorage.setItem('loved_it_cart', JSON.stringify(items));
     } catch {
       // ignore quota / private mode errors
     }

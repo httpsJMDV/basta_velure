@@ -39,4 +39,54 @@
   input[type='number'] {
     -moz-appearance: textfield;
   }
+
+  /* Shopee-style image protection: prevent holding, dragging, and saving images */
+  .no-save, .protected-image, img.protected-image, .protect-img img {
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Soft horizontal marquee animation */
+  @keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+  .animate-marquee {
+    display: flex;
+    width: max-content;
+    animation: marquee 35s linear infinite;
+  }
+  .animate-marquee:hover {
+    animation-play-state: paused;
+  }
+  .animate-marquee-slow {
+    display: flex;
+    width: max-content;
+    animation: marquee 45s linear infinite;
+  }
+  .animate-marquee-slow:hover {
+    animation-play-state: paused;
+  }
+
+  /* Modern scrollbar-none: completely removes visible scrollbars across all browsers */
+  .scrollbar-none::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  .scrollbar-none,
+  .no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
 }
+

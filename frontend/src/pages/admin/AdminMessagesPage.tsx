@@ -841,7 +841,7 @@ export default function AdminMessagesPage() {
               <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center gap-2 overflow-x-auto no-scrollbar">
                 <span className="text-[10px] font-bold uppercase text-gray-400 shrink-0">Quick Responses:</span>
                 <button
-                  onClick={() => handleTemplate('Hello! Velure Support has received your inquiry. We are reviewing this and will update you shortly.')}
+                  onClick={() => handleTemplate('Hello! Loved-IT Support has received your inquiry. We are reviewing this and will update you shortly.')}
                   className="px-3 py-1 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-xs font-medium rounded-full border border-gray-200 shrink-0 transition-colors"
                 >
                   ⏳ Reviewing Inquiry
@@ -853,7 +853,7 @@ export default function AdminMessagesPage() {
                   ✅ Processed
                 </button>
                 <button
-                  onClick={() => handleTemplate('Thank you for contacting Velure Support. Have a wonderful day!')}
+                  onClick={() => handleTemplate('Thank you for contacting Loved-IT Support. Have a wonderful day!')}
                   className="px-3 py-1 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-xs font-medium rounded-full border border-gray-200 shrink-0 transition-colors"
                 >
                   🙏 Sign-off
@@ -1007,6 +1007,7 @@ function AdminNewChatModal({
             <div>
               <h3 className="text-sm font-bold text-gray-900">Start New Conversation</h3>
               <p className="text-[11px] text-gray-400">Search any Buyer or Store Partner in Velure</p>
+              <p className="text-[11px] text-gray-400">Search any Buyer or Store Partner in Loved-IT</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400">

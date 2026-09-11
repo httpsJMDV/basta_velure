@@ -22,8 +22,8 @@ class BuyerApplicationMail extends Mailable
     public function envelope(): Envelope
     {
         $subject = $this->decision === 'approved'
-            ? 'Your Velure Account Has Been Approved'
-            : 'Update on Your Velure Account Application';
+            ? 'Your Loved-IT Account Has Been Approved'
+            : 'Update on Your Loved-IT Account Application';
 
         return new Envelope(subject: $subject);
     }

@@ -17,7 +17,7 @@ class WelcomeMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Welcome to Velure!');
+        return new Envelope(subject: 'Welcome to Loved-IT!');
     }
 
     public function content(): Content

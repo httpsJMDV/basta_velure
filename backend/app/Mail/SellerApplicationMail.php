@@ -17,7 +17,7 @@ class SellerApplicationMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Your Velure Seller Application Has Been Received');
+        return new Envelope(subject: 'Your Loved-IT Seller Application Has Been Received');
     }
 
     public function content(): Content

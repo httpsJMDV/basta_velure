@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import CustomSelect from '../../components/ui/CustomSelect';
 import AddressFields from '../../components/ui/AddressFields';
+import LovedItLogo from '../../components/LovedItLogo';
 import type { AddressValue } from '../../components/ui/AddressFields';
 import type { GovernmentIdType } from '../../types';
 import { UploadCloud, FileText, X, Image as ImageIcon, CheckCircle, AlertCircle, Store, Clock, FileCheck, Mail, ArrowRight, RotateCcw } from 'lucide-react';
@@ -145,7 +146,7 @@ function PendingScreen() {
     { icon: FileCheck, label: 'Application submitted',  sub: 'Your documents are in the queue',   done: true  },
     { icon: Clock,     label: 'Document verification',  sub: 'Admin reviews your ID & permits',   done: false },
     { icon: Mail,      label: 'Decision via email',      sub: 'Approval or feedback sent to you',  done: false },
-    { icon: Store,     label: 'Start selling on Velure', sub: 'Access your seller dashboard',      done: false },
+    { icon: Store,     label: 'Start selling on Loved-IT', sub: 'Access your seller dashboard',      done: false },
   ];
 
   return (
@@ -592,9 +593,8 @@ function PageShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex">
       <div className="flex flex-col w-full md:w-1/2 px-6 py-12 sm:px-12 lg:px-16 bg-white overflow-y-auto">
         <div className="max-w-sm w-full mx-auto">
-          <Link to="/" className="flex items-center gap-2 mb-6">
-            <img src="/logo1.png" alt="Velure" className="w-8 h-8 rounded-full logo-img" />
-            <span className="text-brand-red font-bold text-xl tracking-tight">Velure</span>
+          <Link to="/" className="inline-block mb-6 group">
+            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-12 sm:h-14 object-contain group-hover:opacity-95 transition-opacity" />
           </Link>
           <div className="flex items-center gap-2 mb-6">
             <div className="w-8 h-8 rounded-full bg-brand-red/10 flex items-center justify-center">
@@ -608,12 +608,12 @@ function PageShell({ children }: { children: React.ReactNode }) {
       <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black sticky top-0 h-screen">
         <img
           src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&q=80"
-          alt="Velure marketplace sellers"
+          alt="Loved-IT marketplace sellers"
           className="absolute inset-0 w-full h-full object-cover opacity-75"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent flex items-end p-12">
           <div>
-            <p className="text-brand-white text-3xl font-bold">Start selling on Velure</p>
+            <p className="text-brand-white text-3xl font-bold">Start selling on Loved-IT</p>
             <p className="text-brand-white/70 mt-2 text-base">Reach thousands of shoppers across the Philippines.</p>
           </div>
         </div>

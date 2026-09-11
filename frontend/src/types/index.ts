@@ -73,6 +73,7 @@ export type GovernmentIdType =
 
 export interface SellerProfileSummary {
   shop_name: string;
+  shop_slug?: string | null;
   shop_description: string | null;
   application_status: ApplicationStatus;
   rejection_reason: string | null;

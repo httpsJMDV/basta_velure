@@ -19,7 +19,7 @@ class PasswordResetMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Reset Your Velure Password');
+        return new Envelope(subject: 'Reset Your Loved-IT Password');
     }
 
     public function content(): Content

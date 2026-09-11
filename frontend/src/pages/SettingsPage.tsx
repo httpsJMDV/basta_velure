@@ -18,6 +18,7 @@ import CustomSelect from '../components/ui/CustomSelect';
 import PhoneInput from '../components/ui/PhoneInput';
 import UserAvatar from '../components/ui/UserAvatar';
 import AvatarCropModal from '../components/ui/AvatarCropModal';
+import LovedItLogo from '../components/LovedItLogo';
 import { uploadAvatarApi } from '../api/client';
 import type { Address, AddressLabel, Order, OrderStatus, WishlistItem, FollowedStore } from '../types';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -42,7 +43,7 @@ const NAV_ITEMS = [
   { icon: XCircle,       label: 'My Cancellations',           to: '/settings/cancellations' },
   { icon: Star,          label: 'My Reviews',                 to: '/settings/reviews' },
   { icon: Heart,         label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
-  { icon: Store,         label: 'Sell in Velure',             to: '/register/seller', highlight: true },
+  { icon: Store,         label: 'Sell in Loved-IT',           to: '/register/seller', highlight: true },
 ];
 
 function Sidebar() {
@@ -1397,9 +1398,8 @@ export function SettingsLayout() {
     <div className="min-h-screen bg-brand-gray-soft">
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/logo1.png" alt="Velure" className="w-7 h-7 rounded-full logo-img" />
-            <span className="text-brand-red font-bold text-lg tracking-tight">Velure</span>
+          <Link to="/" className="flex items-center shrink-0">
+            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
           </Link>
           <span className="text-gray-300 text-lg">/</span>
           <span className="text-sm font-semibold text-brand-black">My Account</span>

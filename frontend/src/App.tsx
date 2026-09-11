@@ -47,6 +47,7 @@ import PrivacyPolicyPage from './pages/legal/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/legal/TermsOfServicePage';
 import CookiePolicyPage from './pages/legal/CookiePolicyPage';
 import SafetyHelpPage from './pages/help/SafetyHelpPage';
+import AboutUsPage from './pages/AboutUsPage';
 import {
   SettingsLayout,
   SettingsAccount,
@@ -233,6 +234,8 @@ function AppRoutes() {
         <Route path="activity-log"        element={<AdminActivityLogPage />} />
       </Route>
 
+      <Route path="/about"             element={<AboutUsPage />} />
+      <Route path="/company"           element={<Navigate to="/about" replace />} />
       <Route path="/privacy-policy"   element={<PrivacyPolicyPage />} />
       <Route path="/terms-of-service"  element={<TermsOfServicePage />} />
       <Route path="/cookie-policy"     element={<CookiePolicyPage />} />

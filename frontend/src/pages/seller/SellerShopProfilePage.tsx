@@ -393,7 +393,7 @@ export default function SellerShopProfilePage() {
 
   const handleCopySlug = () => {
     const slug = profile?.shop_slug ?? '';
-    navigator.clipboard.writeText(`velure.com/shop/${slug}`);
+    navigator.clipboard.writeText(`loved-it.com/shop/${slug}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -485,7 +485,7 @@ export default function SellerShopProfilePage() {
             <InlineBio value={shopBio} onChange={setShopBio} />
             {profile?.shop_slug && (
               <div className="flex items-center gap-1.5 mt-2">
-                <span className="text-[11px] text-gray-400 truncate">velure.com/shop/{profile.shop_slug}</span>
+                <span className="text-[11px] text-gray-400 truncate">loved-it.com/shop/{profile.shop_slug}</span>
                 <button type="button" onClick={handleCopySlug} className="text-gray-300 hover:text-brand-red transition-colors shrink-0">
                   {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                 </button>
@@ -555,17 +555,17 @@ export default function SellerShopProfilePage() {
             <div className="p-4 bg-rose-50/60 border border-brand-red/20 rounded-2xl space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-brand-red">
                 <Shield className="w-4 h-4 text-brand-red" />
-                <span>Velure Guaranteed Platform Policy (Active & Platform-Enforced)</span>
+                <span>Loved-IT Guaranteed Platform Policy (Active & Platform-Enforced)</span>
               </div>
               <p className="text-[12px] text-gray-600 leading-relaxed">
-                All shops operate under Velure's 7-day standard return baseline for eligible items upon delivery (exceptions: Food & Groceries and custom-made items). Velure provides binding dispute mediation if returns are contested.
+                All shops operate under Loved-IT's 7-day standard return baseline for eligible items upon delivery (exceptions: Food & Groceries and custom-made items). Loved-IT provides binding dispute mediation if returns are contested.
               </p>
             </div>
 
             <EditableTextCard
               icon={undefined}
               title="Additional Return Terms"
-              subtitle="Add extra terms specific to your shop (e.g. original packaging requirements, inspection notes). Note: These supplement and cannot override Velure's baseline return window."
+              subtitle="Add extra terms specific to your shop (e.g. original packaging requirements, inspection notes). Note: These supplement and cannot override Loved-IT's baseline return window."
               value={returnPolicy}
               onChange={setReturnPolicy}
               placeholder="e.g. Items must be returned in original branded box with all accessories intact..."

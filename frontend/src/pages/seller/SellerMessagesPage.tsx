@@ -380,7 +380,7 @@ export default function SellerMessagesPage() {
             )}
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            Respond promptly to customer questions about products, shipping schedules, and communicate with Velure Support.
+            Respond promptly to customer questions about products, shipping schedules, and communicate with Loved-IT Support.
           </p>
         </div>
 
@@ -446,7 +446,7 @@ export default function SellerMessagesPage() {
               conversations.map((c) => {
                 const isSupport = c.type === 'seller_admin';
                 const buyerName = isSupport
-                  ? 'Velure Partner Support'
+                  ? 'Loved-IT Partner Support'
                   : c.buyer
                   ? `${c.buyer.first_name} ${c.buyer.last_name}`
                   : 'Customer';
@@ -458,9 +458,9 @@ export default function SellerMessagesPage() {
                   <button
                     key={c.id}
                     onClick={() => setSelectedConversation(c)}
-                    className={`w-full p-3.5 rounded-2xl flex items-start gap-3 text-left transition-all ${
+                    className={`w-full p-3 rounded-2xl flex items-start gap-3 text-left transition-all ${
                       isSelected
-                        ? 'bg-rose-50/80 border border-rose-200 shadow-2xs'
+                        ? 'bg-rose-50/80 border border-rose-200/80 shadow-2xs'
                         : 'hover:bg-white'
                     }`}
                   >
@@ -469,7 +469,8 @@ export default function SellerMessagesPage() {
                         src={avatar}
                         alt={buyerName}
                         role={isSupport ? 'admin' : 'buyer'}
-                        className="w-11 h-11 rounded-2xl shrink-0 border border-gray-100 shadow-2xs"
+                        fallbackInitials={isSupport ? 'CS' : buyerName}
+                        className="w-11 h-11 rounded-2xl"
                       />
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white absolute -bottom-0.5 -right-0.5" />
                     </div>
@@ -484,7 +485,7 @@ export default function SellerMessagesPage() {
                         <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${
                           isSupport ? 'bg-rose-50 text-brand-red border border-rose-100' : 'bg-gray-100 text-gray-700'
                         }`}>
-                          {isSupport ? 'Velure Support' : 'Buyer Inquiry'}
+                          {isSupport ? 'Loved-IT Support' : 'Buyer Inquiry'}
                         </span>
                         {c.status === 'resolved' && (
                           <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-emerald-50 text-emerald-700">
@@ -549,7 +550,7 @@ export default function SellerMessagesPage() {
                     }
                     alt={
                       selectedConversation.type === 'seller_admin'
-                        ? 'Velure Partner Support'
+                        ? 'Loved-IT Partner Support'
                         : selectedConversation.buyer
                         ? `${selectedConversation.buyer.first_name} ${selectedConversation.buyer.last_name}`
                         : 'Customer'
@@ -561,7 +562,7 @@ export default function SellerMessagesPage() {
                   <div className="min-w-0">
                     <h3 className="text-sm font-bold text-gray-900 truncate">
                       {selectedConversation.type === 'seller_admin'
-                        ? 'Velure Partner Support'
+                        ? 'Loved-IT Partner Support'
                         : selectedConversation.buyer
                         ? `${selectedConversation.buyer.first_name} ${selectedConversation.buyer.last_name}`
                         : 'Customer'}

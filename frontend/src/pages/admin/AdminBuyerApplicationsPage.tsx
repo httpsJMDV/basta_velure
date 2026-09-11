@@ -115,25 +115,49 @@ function SummaryCards({ summary }: { summary: BuyerApplicationSummary }) {
   const today   = useCountUp(summary.today);
   const week    = useCountUp(summary.this_week);
 
-  const cards = [
-    { label: 'Pending Applications', value: pending, icon: Clock,        color: 'text-amber-500',  bg: 'bg-amber-50'  },
-    { label: 'Submitted Today',       value: today,   icon: CalendarDays, color: 'text-sky-500',    bg: 'bg-sky-50'    },
-    { label: 'Submitted This Week',   value: week,    icon: Users,        color: 'text-violet-500', bg: 'bg-violet-50' },
-  ];
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {cards.map(({ label, value, icon: Icon, color, bg }) => (
-        <div key={label} className="bg-white border border-gray-100 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
-            <Icon className={`w-5 h-5 ${color}`} />
-          </div>
-          <div>
-            <p className="text-[22px] font-black text-gray-900 leading-none">{value}</p>
-            <p className="text-xs text-gray-400 mt-0.5 font-medium">{label}</p>
-          </div>
+      {/* Card 1 */}
+      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Pending Review</span>
+          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{pending}</p>
+          <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-1 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Requires verification
+          </p>
         </div>
-      ))}
+        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100 shadow-2xs">
+          <Clock className="w-6 h-6" />
+        </div>
+      </div>
+
+      {/* Card 2 */}
+      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Submitted Today</span>
+          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{today}</p>
+          <p className="text-[11px] text-sky-600 font-semibold flex items-center gap-1 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> New submissions today
+          </p>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-100 shadow-2xs">
+          <CalendarDays className="w-6 h-6" />
+        </div>
+      </div>
+
+      {/* Card 3 */}
+      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Submitted This Week</span>
+          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{week}</p>
+          <p className="text-[11px] text-violet-600 font-semibold flex items-center gap-1 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-violet-500" /> Rolling 7-day intake
+          </p>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 border border-violet-100 shadow-2xs">
+          <Users className="w-6 h-6" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -753,18 +777,25 @@ export default function AdminBuyerApplicationsPage() {
                     onClick={() => setSelected(user)}
                     className="hover:bg-red-50/40 transition-colors cursor-pointer group"
                   >
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-gray-900 group-hover:text-brand-red transition-colors">
-                        {user.first_name} {user.last_name}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">{user.email}</p>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs">
+                          {user.first_name?.[0]?.toUpperCase() ?? 'U'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-stone-900 group-hover:text-brand-red transition-colors text-sm truncate">
+                            {user.first_name} {user.last_name}
+                          </p>
+                          <p className="text-xs text-stone-400 mt-0.5 truncate">{user.email}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-5 py-4 hidden sm:table-cell text-gray-500 text-sm">
+                    <td className="px-5 py-3.5 hidden sm:table-cell text-stone-600 text-xs font-medium">
                       {user.phone || '—'}
                     </td>
-                    <td className="px-5 py-4 hidden md:table-cell">
-                      <p className="text-sm text-gray-700">{formatDate(user.created_at)}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{relativeTime(user.created_at)}</p>
+                    <td className="px-5 py-3.5 hidden md:table-cell">
+                      <p className="text-xs font-semibold text-stone-800">{formatDate(user.created_at)}</p>
+                      <p className="text-[11px] text-stone-400 mt-0.5">{relativeTime(user.created_at)}</p>
                     </td>
                     <td className="px-5 py-4">
                       <Badge label="Pending" variant="pending" />

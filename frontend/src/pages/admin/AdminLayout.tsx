@@ -5,10 +5,11 @@ import {
   Users, Store, ShoppingBag,
   ShieldAlert, Star, Flag, Settings, ScrollText,
   Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, ChevronRight,
-  Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge,
+  Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X,
 } from 'lucide-react';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import LovedItLogo from '../../components/LovedItLogo';
 import type { Conversation } from '../../types';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -183,20 +184,25 @@ function Sidebar({
 }) {
   const { user, clearAuth } = useAuth();
   const navigate = useNavigate();
-  const userInitials = `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`;
+  const isVelure = !user?.first_name || user.first_name.toLowerCase() === 'velure' || user.first_name.toUpperCase() === 'LOVED-IT';
+  const adminFullName = isVelure ? 'LOVED-IT Admin' : `${user.first_name} ${user.last_name}`;
+  const userInitials = isVelure ? 'LI' : `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`;
 
   return (
     <div className="flex flex-col h-full" style={SIDEBAR_BG}>
       {/* Brand */}
-      <div className={`border-b border-white/10 shrink-0 ${collapsed ? 'px-0 py-5 flex justify-center' : 'px-5 py-5'}`}>
-        <Link to="/admin" onClick={onNavigate} className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-            <img src="/logo1.png" alt="Velure" className="w-full h-full object-cover rounded-xl" />
+      <div className={`border-b border-white/10 shrink-0 ${collapsed ? 'px-0 py-3 flex justify-center' : 'px-4 py-3'}`}>
+        <Link to="/admin" onClick={onNavigate} className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'}`}>
+          <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center p-0.5 shrink-0 shadow-xs hover:scale-105 transition-transform">
+            <LovedItLogo variant="dark" type="icon" size="custom" showText={false} imgClassName="w-5 h-5 object-contain" />
           </div>
           {!collapsed && (
-            <div>
-              <p className="text-white font-bold text-[15px] tracking-tight leading-none">Velure</p>
-              <p className="text-white/35 text-[10px] uppercase tracking-[0.1em] mt-0.5">Admin Panel</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-white font-black text-[14px] tracking-tight leading-none">Loved-IT</span>
+                <span className="text-[8.5px] font-black uppercase tracking-wider bg-brand-red text-white px-1.5 py-0.5 rounded">Admin</span>
+              </div>
+              <p className="text-white/40 text-[9.5px] uppercase tracking-[0.08em] font-semibold mt-0.5">Management Console</p>
             </div>
           )}
         </Link>
@@ -226,7 +232,7 @@ function Sidebar({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-[12px] font-semibold truncate leading-tight">
-                {user?.first_name} {user?.last_name}
+                {adminFullName}
               </p>
               <p className="text-white/40 text-[10px] truncate">{user?.email}</p>
             </div>
@@ -246,13 +252,17 @@ function Sidebar({
 
 // ─── Top bar ──────────────────────────────────────────────────────────────────
 
-// ─── Top bar Search Modal ───────────────────────────────────────────────────
+// ─── Top bar Inline Search Bar with Dropdown Popover ──────────────────────────
 
-function AdminSearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+function AdminSearchBar() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const searchItems = [
+  const searchItems = useMemo(() => [
     { label: 'Dashboard Overview', to: '/admin', group: 'Navigation', icon: Gauge },
     { label: 'Messages & Inquiries', to: '/admin/messages', group: 'Navigation', icon: MessageSquare },
     { label: 'Buyer Verification Applications', to: '/admin/buyer-applications', group: 'People', icon: UserCheck },
@@ -268,81 +278,151 @@ function AdminSearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
     { label: 'Customer Reviews Moderation', to: '/admin/reviews', group: 'Trust & Safety', icon: Star },
     { label: 'Platform & Return Policy Settings', to: '/admin/settings', group: 'Settings', icon: Settings },
     { label: 'System Activity Logs', to: '/admin/activity-log', group: 'Settings', icon: ScrollText },
-  ];
+  ], []);
 
-  const filtered = query.trim()
-    ? searchItems.filter((i) => i.label.toLowerCase().includes(query.toLowerCase()) || i.group.toLowerCase().includes(query.toLowerCase()))
-    : searchItems;
+  const filtered = useMemo(() => {
+    if (!query.trim()) return searchItems.slice(0, 6);
+    const q = query.toLowerCase();
+    return searchItems.filter((i) => i.label.toLowerCase().includes(q) || i.group.toLowerCase().includes(q));
+  }, [query, searchItems]);
 
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filtered]);
+
+  // Global ⌘K / Ctrl+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        onClose();
-      } else if (e.key === 'Escape') {
-        onClose();
+        inputRef.current?.focus();
+        setIsOpen(true);
       }
     };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isOpen, onClose]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
-  if (!isOpen) return null;
+  // Dismiss on outside click
+  useEffect(() => {
+    const handlePointerDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
+  const handleSelect = (to: string) => {
+    navigate(to);
+    setIsOpen(false);
+    setQuery('');
+    inputRef.current?.blur();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIsOpen(true);
+      setSelectedIndex((prev) => (prev + 1) % (filtered.length || 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIsOpen(true);
+      setSelectedIndex((prev) => (prev - 1 + (filtered.length || 1)) % (filtered.length || 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filtered[selectedIndex]) {
+        handleSelect(filtered[selectedIndex].to);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      inputRef.current?.blur();
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-20 px-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10">
-          <svg className="w-5 h-5 text-white/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search pages, actions, tools (e.g. Products, Disputes, Settings)..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-            className="flex-1 bg-transparent text-sm text-white placeholder-white/30 outline-none"
-          />
-          <button onClick={onClose} className="text-white/40 hover:text-white text-xs px-2 py-1 bg-white/5 rounded-lg border border-white/10">
-            ESC
+    <div ref={containerRef} className="relative w-full max-w-sm mx-auto hidden md:block">
+      <div className={`flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.09] border ${
+        isOpen ? 'border-brand-red/60 ring-2 ring-brand-red/20 bg-white/[0.09]' : 'border-white/[0.08]'
+      } rounded-xl px-3 py-1.5 transition-all`}>
+        <Search className="w-4 h-4 text-white/40 shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search admin console..."
+          className="flex-1 bg-transparent text-xs text-white placeholder-white/40 outline-none"
+        />
+        {query ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery('');
+              inputRef.current?.focus();
+            }}
+            className="p-0.5 text-white/40 hover:text-white rounded"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
-        </div>
-
-        <div className="max-h-80 overflow-y-auto p-2 space-y-1">
-          {filtered.length === 0 ? (
-            <p className="text-center py-8 text-xs text-white/40">No matching admin pages found</p>
-          ) : (
-            filtered.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.to}
-                  onClick={() => {
-                    navigate(item.to);
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/10 text-left transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-brand-red group-hover:text-white transition-colors">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white group-hover:text-white">{item.label}</p>
-                      <p className="text-[10px] text-white/40">{item.group}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors" />
-                </button>
-              );
-            })
-          )}
-        </div>
+        ) : (
+          <span className="text-[10px] text-white/30 font-mono border border-white/10 rounded px-1.5 py-0.5 shrink-0">
+            ⌘K
+          </span>
+        )}
       </div>
+
+      {/* Attached Dropdown Popover */}
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="max-h-72 overflow-y-auto p-1.5 space-y-0.5" style={{ scrollbarWidth: 'none' }}>
+            {filtered.length > 0 ? (
+              filtered.map((item, idx) => {
+                const Icon = item.icon;
+                const isSelected = idx === selectedIndex;
+                return (
+                  <button
+                    key={item.to}
+                    type="button"
+                    onClick={() => handleSelect(item.to)}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors ${
+                      isSelected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-brand-red text-white' : 'bg-white/5 text-white/60'
+                      }`}>
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-medium truncate">{item.label}</span>
+                    </div>
+                    <span className="text-[10px] text-white/30 uppercase tracking-wider font-semibold shrink-0 ml-2">
+                      {item.group}
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="py-6 text-center text-xs text-white/40">
+                No matching pages for "{query}"
+              </div>
+            )}
+          </div>
+          <div className="px-3 py-1.5 bg-black/30 border-t border-white/5 flex items-center justify-between text-[10px] text-white/30">
+            <span>↑↓ to navigate</span>
+            <span>↵ to select</span>
+            <span>esc to dismiss</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -365,23 +445,21 @@ function TopBar({
   const { user, clearAuth } = useAuth();
   const navigate = useNavigate();
   const pageLabel = useBreadcrumb();
-  const userInitials = `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`;
+  const isVelure = !user?.first_name || user.first_name.toLowerCase() === 'velure' || user.first_name.toUpperCase() === 'LOVED-IT';
+  const adminFullName = isVelure ? 'LOVED-IT Admin' : `${user.first_name} ${user.last_name}`;
+  const userInitials = isVelure ? 'LI' : `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`;
 
-  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    if (user && user.first_name?.toLowerCase() === 'velure') {
+      try {
+        const u = { ...user, first_name: 'LOVED-IT' };
+        localStorage.setItem('user', JSON.stringify(u));
+      } catch {}
+    }
+  }, [user]);
+
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-
-  // Keyboard shortcut for ⌘K
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setSearchOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   const totalAlerts = pendingSellers + pendingBuyers;
 
@@ -407,29 +485,13 @@ function TopBar({
 
         {/* Breadcrumb + page title */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-white/30 text-[13px] truncate hidden sm:block">Velure Admin</span>
+          <span className="text-white/30 text-[13px] truncate hidden sm:block">Loved-IT Admin</span>
           <ChevronRight className="w-3 h-3 text-white/20 shrink-0 hidden sm:block" />
           <span className="text-white font-bold text-[16px] truncate">{pageLabel}</span>
         </div>
 
         {/* Center: search bar */}
-        <div className="hidden md:flex flex-1 max-w-sm mx-auto">
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            className="w-full flex items-center justify-between bg-white/[0.06] hover:bg-white/[0.09] border border-white/[0.08] rounded-xl px-3.5 py-2 transition-colors text-left group"
-          >
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-white/30 group-hover:text-white/60 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-              </svg>
-              <span className="text-[13px] text-white/40 group-hover:text-white/60 transition-colors">
-                Search users, orders, sellers...
-              </span>
-            </div>
-            <span className="text-[10px] text-white/30 font-mono border border-white/10 rounded px-1.5 py-0.5 shrink-0">⌘K</span>
-          </button>
-        </div>
+        <AdminSearchBar />
 
         {/* Right: bell + chat + admin info */}
         <div className="ml-auto flex items-center gap-1.5 shrink-0 relative">
@@ -516,8 +578,8 @@ function TopBar({
             >
               <div className="text-right hidden sm:block">
                 <p className="text-[10px] text-white/25 uppercase tracking-widest leading-none">Admin</p>
-                <p className="text-[13px] font-semibold text-white/85 leading-tight mt-0.5 truncate max-w-[120px]">
-                  {user?.first_name} {user?.last_name}
+                <p className="text-[13px] font-semibold text-white/85 leading-tight mt-0.5 truncate max-w-[140px]">
+                  {adminFullName}
                 </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-2 ring-white/10">
@@ -528,7 +590,7 @@ function TopBar({
             {userMenuOpen && (
               <div className="absolute right-0 top-11 w-52 bg-[#1c1c1c] border border-white/10 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-3 py-2 border-b border-white/10 mb-1">
-                  <p className="text-xs font-bold text-white truncate">{user?.first_name} {user?.last_name}</p>
+                  <p className="text-xs font-bold text-white truncate">{adminFullName}</p>
                   <p className="text-[10px] text-white/40 truncate">{user?.email}</p>
                 </div>
                 <Link
@@ -560,8 +622,6 @@ function TopBar({
           </div>
         </div>
       </div>
-
-      <AdminSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );
 }

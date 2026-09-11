@@ -45,14 +45,17 @@ export default function BuyerMessagesPage() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [safetyDismissed, setSafetyDismissed] = useState(() => {
-    return localStorage.getItem('velure_dismissed_safety_notice') === 'true';
+    return (
+      localStorage.getItem('loved_it_dismissed_safety_notice') === 'true' ||
+      localStorage.getItem('velure_dismissed_safety_notice') === 'true'
+    );
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDismissSafety = () => {
     setSafetyDismissed(true);
-    localStorage.setItem('velure_dismissed_safety_notice', 'true');
+    localStorage.setItem('loved_it_dismissed_safety_notice', 'true');
   };
 
   useEffect(() => {
@@ -256,7 +259,7 @@ export default function BuyerMessagesPage() {
           ) : (
             filteredConversations.map((c) => {
               const isSupport = c.type === 'buyer_admin';
-              const name = isSupport ? 'Velure Customer Support' : c.seller?.shop_name || 'Store Merchant';
+              const name = isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
               const avatar = isSupport ? null : c.seller?.shop_logo || c.seller?.avatar_url;
               const isSelected = activeConversation?.id === c.id;
               const hasUnread = c.unread > 0;
@@ -348,7 +351,7 @@ export default function BuyerMessagesPage() {
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-gray-900 truncate">
                     {activeConversation.type === 'buyer_admin'
-                      ? 'Velure Customer Support'
+                      ? 'Loved-IT Customer Support'
                       : activeConversation.seller?.shop_name || 'Store Merchant'}
                   </h3>
                   <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
@@ -374,7 +377,7 @@ export default function BuyerMessagesPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
                   <p className="text-[11.5px] leading-snug truncate sm:whitespace-normal">
-                    <span className="font-bold">Safety Tip:</span> Stay safe! Only transact within the Velure app. Avoid sellers who ask you to deal or send payments outside the platform.{' '}
+                    <span className="font-bold">Safety Tip:</span> Stay safe! Only transact within the Loved-IT app. Avoid sellers who ask you to deal or send payments outside the platform.{' '}
                     <Link to="/help/safety" className="font-bold text-amber-800 underline hover:text-amber-950 ml-1">
                       Learn More
                     </Link>

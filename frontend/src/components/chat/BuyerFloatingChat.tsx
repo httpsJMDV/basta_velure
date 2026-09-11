@@ -300,13 +300,13 @@ export default function BuyerFloatingChat() {
                       onClick={() => openChatWithSupport()}
                       className="px-3.5 py-1.5 bg-brand-red text-white text-xs font-bold rounded-xl"
                     >
-                      Contact Velure Support
+                      Contact Loved-IT Support
                     </button>
                   </div>
                 ) : (
                   filteredConversations.map((c) => {
                     const isSupport = c.type === 'buyer_admin';
-                    const name = isSupport ? 'Velure Customer Support' : c.seller?.shop_name || 'Store Merchant';
+                    const name = isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
                     const avatar = isSupport ? null : c.seller?.shop_logo || c.seller?.avatar_url;
                     const hasUnread = c.unread > 0;
 
@@ -384,7 +384,7 @@ export default function BuyerFloatingChat() {
                   <div className="min-w-0">
                     <p className="text-xs font-bold truncate leading-tight">
                       {activeConversation.type === 'buyer_admin'
-                        ? 'Velure Customer Support'
+                        ? 'Loved-IT Customer Support'
                         : activeConversation.seller?.shop_name || 'Store Merchant'}
                     </p>
                     <p className="text-[10px] text-white/80 flex items-center gap-1">
@@ -691,7 +691,7 @@ export default function BuyerFloatingChat() {
       <button
         onClick={toggleChat}
         className="pointer-events-auto group relative w-14 h-14 rounded-full bg-brand-red hover:bg-[#8a2424] text-white shadow-xl shadow-red-900/20 flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
-        aria-label="Open Velure Chat"
+        aria-label="Open Loved-IT Chat"
       >
         {isChatOpen ? (
           <X className="w-6 h-6 transition-transform duration-200 rotate-0 group-hover:rotate-90" />

@@ -1,11 +1,11 @@
 <x-mail::message>
 <div style="text-align:center; padding-bottom: 24px;">
-  <span style="font-size: 28px; font-weight: 700; color: #A32D2D; letter-spacing: -0.5px;">Velure</span>
+  <span style="font-size: 28px; font-weight: 700; color: #A32D2D; letter-spacing: -0.5px;">Loved-IT</span>
 </div>
 
 # Reset your password, {{ $name }}
 
-We received a request to reset the password for your Velure account. Click the button below to choose a new password.
+We received a request to reset the password for your Loved-IT account. Click the button below to choose a new password.
 
 <x-mail::button :url="$resetUrl" color="red">
 Reset Password
@@ -15,7 +15,7 @@ This link will expire in **60 minutes**. If you didn't request a password reset,
 
 For your security, never share this link with anyone.
 
-— The Velure Team
+— The Loved-IT Team
 
 ---
 

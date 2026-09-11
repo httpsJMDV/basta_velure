@@ -80,7 +80,7 @@ class AdminCategoryController extends Controller
             $parentCat = Category::find($parentId);
             if ($parentCat && $parentCat->parent_id !== null) {
                 return response()->json([
-                    'message' => 'Velure operates on a strict 2-level category hierarchy. Sub-categories cannot have nested children.',
+                    'message' => 'Loved-IT operates on a strict 2-level category hierarchy. Sub-categories cannot have nested children.',
                     'errors' => ['parent_id' => ['Target parent is already a subcategory.']],
                 ], 422);
             }

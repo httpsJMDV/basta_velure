@@ -752,26 +752,35 @@ export default function AdminUsersPage() {
                     onClick={() => setSelected(user)}
                     className="hover:bg-red-50/40 transition-colors cursor-pointer group"
                   >
-                    <td className="px-5 py-4">
-                      <p className="font-medium text-brand-black group-hover:text-brand-red transition-colors">
-                        {user.first_name} {user.last_name}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">{user.email}</p>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-neutral-800 to-neutral-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                          {user.first_name?.[0]?.toUpperCase() ?? 'U'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-stone-900 group-hover:text-brand-red transition-colors text-sm truncate">
+                            {user.first_name} {user.last_name}
+                          </p>
+                          <p className="text-xs text-stone-400 mt-0.5 truncate">{user.email}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <span className="capitalize text-gray-600">{user.role}</span>
+                    <td className="px-5 py-3.5">
+                      <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-semibold bg-stone-100 text-stone-700 capitalize">
+                        {user.role}
+                      </span>
                       {user.seller_profile && (
-                        <p className="text-xs text-gray-400 mt-0.5">{user.seller_profile.shop_name}</p>
+                        <p className="text-[11px] text-stone-400 mt-0.5 font-medium truncate max-w-[140px]">{user.seller_profile.shop_name}</p>
                       )}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-3.5">
                       <Badge
                         label={user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                         variant={STATUS_BADGE[user.status]}
                       />
                     </td>
-                    <td className="px-5 py-4 hidden md:table-cell text-gray-500">{user.phone || '—'}</td>
-                    <td className="px-5 py-4 hidden lg:table-cell text-gray-500 text-xs">
+                    <td className="px-5 py-3.5 hidden md:table-cell text-stone-600 text-xs font-medium">{user.phone || '—'}</td>
+                    <td className="px-5 py-3.5 hidden lg:table-cell text-stone-500 text-xs">
                       {formatDate(user.created_at)}
                     </td>
                     <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>

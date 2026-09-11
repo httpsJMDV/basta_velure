@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Shield } from 'lucide-react';
+import LovedItLogo from '../../components/LovedItLogo';
+import Footer from '../../components/Footer';
 
 const SECTIONS = [
   {
@@ -11,7 +13,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Information Collected Automatically',
-        text: 'When you browse Velure, we automatically collect certain technical data including your IP address, browser type, device information, pages visited, and time spent on the platform. This data is collected through cookies and similar tracking technologies.',
+        text: 'When you browse Loved-IT, we automatically collect certain technical data including your IP address, browser type, device information, pages visited, and time spent on the platform. This data is collected through cookies and similar tracking technologies.',
       },
       {
         subtitle: 'Transaction Information',
@@ -28,7 +30,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'To Improve the Platform',
-        text: 'Aggregated and anonymized usage data helps us understand how shoppers interact with Velure, which allows us to improve product discovery, fix issues, and develop new features.',
+        text: 'Aggregated and anonymized usage data helps us understand how shoppers interact with Loved-IT, which allows us to improve product discovery, fix issues, and develop new features.',
       },
       {
         subtitle: 'Marketing Communications',
@@ -53,20 +55,20 @@ const SECTIONS = [
       },
       {
         subtitle: 'Legal Requirements',
-        text: 'We may disclose your information if required by law, court order, or government authority, or if we believe disclosure is necessary to protect the rights, property, or safety of Velure, our users, or the public.',
+        text: 'We may disclose your information if required by law, court order, or government authority, or if we believe disclosure is necessary to protect the rights, property, or safety of Loved-IT, our users, or the public.',
       },
     ],
   },
   {
-    title: 'Data Security',
+    title: 'Data Retention and Security',
     content: [
       {
-        subtitle: 'How We Protect Your Data',
-        text: 'We implement industry-standard security measures including encryption at rest for sensitive fields such as government ID numbers and payout details, HTTPS for all data in transit, and strict access controls that limit who within our organization can view your personal information.',
+        subtitle: 'How Long We Keep Your Data',
+        text: 'We retain your personal information for as long as your account is active or as needed to provide you services, comply with legal obligations, resolve disputes, and enforce our agreements. Government ID images uploaded for seller verification are retained securely in accordance with Philippine regulations.',
       },
       {
-        subtitle: 'Your Responsibility',
-        text: 'You are responsible for keeping your account password confidential. We recommend using a strong, unique password. Notify us immediately at support@velure.ph if you suspect unauthorized access to your account.',
+        subtitle: 'Security Measures',
+        text: 'We implement technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no internet transmission is 100% secure, and we cannot guarantee absolute security.',
       },
     ],
   },
@@ -75,37 +77,11 @@ const SECTIONS = [
     content: [
       {
         subtitle: 'Access and Correction',
-        text: 'You have the right to access the personal information we hold about you and to request corrections if any details are inaccurate. You can update most of your information directly from your account settings page.',
+        text: 'You have the right to access and update your personal information at any time through your account settings. If you need assistance, please contact our support team.',
       },
       {
-        subtitle: 'Data Deletion',
-        text: 'You may request deletion of your account and associated personal data by contacting us at privacy@velure.ph. Note that we may retain certain information as required by law or for legitimate business purposes such as fraud prevention and order dispute resolution.',
-      },
-      {
-        subtitle: 'Data Portability',
-        text: 'You may request a copy of your personal data in a structured, machine-readable format. Submit your request to privacy@velure.ph and we will respond within 30 days.',
-      },
-    ],
-  },
-  {
-    title: 'Cookies',
-    content: [
-      {
-        subtitle: 'What We Use Cookies For',
-        text: 'We use cookies to keep you logged in, remember your cart contents, and understand how you use the platform. Some cookies are strictly necessary for the site to function; others are used for analytics and personalization.',
-      },
-      {
-        subtitle: 'Managing Cookies',
-        text: 'You can control cookies through your browser settings. Disabling certain cookies may affect functionality such as staying logged in or retaining your cart between sessions. See our Cookie Policy for full details.',
-      },
-    ],
-  },
-  {
-    title: 'Changes to This Policy',
-    content: [
-      {
-        subtitle: 'Policy Updates',
-        text: 'We may update this Privacy Policy from time to time to reflect changes in our practices or applicable law. When we make material changes, we will notify you by email or by displaying a prominent notice on the platform. The date at the top of this page always reflects when the policy was last revised.',
+        subtitle: 'Account Deletion',
+        text: 'You may request deletion of your account and personal data by contacting us. We will process your request in accordance with applicable laws, subject to retention requirements for pending orders or legal obligations.',
       },
     ],
   },
@@ -113,20 +89,19 @@ const SECTIONS = [
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-brand-gray-soft">
+    <div className="min-h-screen flex flex-col bg-brand-gray-soft">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/logo1.png" alt="Velure" className="w-7 h-7 rounded-full logo-img" />
-            <span className="text-brand-red font-bold text-lg tracking-tight">Velure</span>
+          <Link to="/" className="flex items-center shrink-0">
+            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
           </Link>
           <span className="text-gray-300 text-lg">/</span>
           <span className="text-sm font-semibold text-brand-black">Privacy Policy</span>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-10">
+      <div className="max-w-4xl mx-auto px-4 py-10 flex-1 w-full">
         <Link
           to="/"
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-black transition-colors mb-8"
@@ -143,8 +118,8 @@ export default function PrivacyPolicyPage() {
             <h1 className="text-2xl font-bold text-white">Privacy Policy</h1>
             <p className="text-white/70 text-sm mt-1">Last updated: August 1, 2026</p>
             <p className="text-white/85 text-sm mt-3 leading-relaxed max-w-2xl">
-              At Velure, your privacy matters. This policy explains what personal information we collect,
-              how we use it, and the choices you have. By using Velure, you agree to the practices described here.
+              At Loved-IT, your privacy matters. This policy explains what personal information we collect,
+              how we use it, and the choices you have. By using Loved-IT, you agree to the practices described here.
             </p>
           </div>
         </div>
@@ -176,17 +151,15 @@ export default function PrivacyPolicyPage() {
           <p className="text-sm font-semibold text-brand-black mb-1">Questions about this policy?</p>
           <p className="text-sm text-gray-500">
             Contact our Data Privacy Officer at{' '}
-            <a href="mailto:privacy@velure.ph" className="text-brand-red hover:underline font-medium">
-              privacy@velure.ph
+            <a href="mailto:privacy@loved-it.ph" className="text-brand-red hover:underline font-medium">
+              privacy@loved-it.ph
             </a>
-            {' '}or write to us at: Velure Inc., Makati City, Metro Manila, Philippines.
+            {' '}or write to us at: Loved-IT Inc., Makati City, Metro Manila, Philippines.
           </p>
         </div>
-
-        <p className="text-center text-xs text-gray-400 mt-8">
-          © {new Date().getFullYear()} Velure. All rights reserved.
-        </p>
       </div>
+
+      <Footer />
     </div>
   );
 }

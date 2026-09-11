@@ -1,6 +1,6 @@
-# Velure — Backend API
+# Loved-IT — Backend API
 
-Laravel REST API backend for **Velure**, a women's apparel e-commerce platform. This powers the React + TypeScript frontend via a versioned API (`/api/v1/...`).
+Laravel REST API backend for **Loved-IT**, an e-commerce platform. This powers the React + TypeScript frontend via a versioned API (`/api/v1/...`).
 
 ---
 
@@ -173,8 +173,8 @@ MAIL_HOST=sandbox.smtp.mailtrap.io
 MAIL_PORT=2525
 MAIL_USERNAME=your_mailtrap_user
 MAIL_PASSWORD=your_mailtrap_pass
-MAIL_FROM_ADDRESS=noreply@velure.com
-MAIL_FROM_NAME="Velure"
+MAIL_FROM_ADDRESS=noreply@loved-it.ph
+MAIL_FROM_NAME="Loved-IT"
 ```
 
 Frontend URL (for CORS and password reset links):
