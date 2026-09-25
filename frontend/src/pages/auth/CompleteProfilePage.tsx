@@ -546,6 +546,7 @@ export default function CompleteProfilePage() {
   const [errors, setErrors]           = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
   const [loading, setLoading]         = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // If profile is already complete, redirect away
   useEffect(() => {
@@ -575,10 +576,7 @@ export default function CompleteProfilePage() {
 
       await completeProfileApi(fd);
       completedRef.current = true;
-      // Profile is complete — account is now pending admin approval.
-      // Clear auth so they land as a guest with the pending message.
-      clearAuth();
-      navigate('/', { replace: true, state: { pendingApproval: true } });
+      setShowSuccessModal(true);
     } catch (err: unknown) {
       const resp = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
       if (resp?.errors) {
@@ -626,6 +624,29 @@ export default function CompleteProfilePage() {
           <span className="text-xs text-gray-400 font-medium">Step {step + 1} of {STEPS.length}</span>
         </div>
       </header>
+
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center mx-auto mb-5">
+              <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-black text-brand-black mb-2">Application Submitted!</h2>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              Thank you for completing your profile. Your account information is currently being reviewed and verified by our team.
+              You will be notified via email once your account has been approved.
+            </p>
+            <button
+              onClick={() => { setShowSuccessModal(false); clearAuth(); navigate('/login', { replace: true }); }}
+              className="w-full py-3 rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-red-dark transition-colors"
+            >
+              Got it, go to login
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 flex items-start justify-center px-4 py-10">
         <div className="w-full max-w-lg">

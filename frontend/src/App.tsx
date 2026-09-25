@@ -61,6 +61,7 @@ import {
 import type { ReactNode } from 'react';
 import type { Role } from './types';
 import ScrollToTop from './components/ScrollToTop';
+import { ToastProvider } from './components/ui/Toast';
 
 function isProfileIncomplete(user: ReturnType<typeof useAuth>['user']) {
   return user?.role === 'buyer' && (!user.date_of_birth || !user.sex || !user.government_id_type);
@@ -252,9 +253,11 @@ export default function App() {
       <AuthProvider>
         <CartProvider>
           <ChatProvider>
-            <ScrollToTop />
-            <AppRoutes />
-            <BuyerFloatingChat />
+            <ToastProvider>
+              <ScrollToTop />
+              <AppRoutes />
+              <BuyerFloatingChat />
+            </ToastProvider>
           </ChatProvider>
         </CartProvider>
       </AuthProvider>

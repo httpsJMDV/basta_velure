@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import GoogleSignInButton from '../../components/GoogleSignInButton';
 import LovedItLogo from '../../components/LovedItLogo';
+import { useToast } from '../../components/ui/Toast';
 
 export default function LoginPage() {
   const { setAuth } = useAuth();
@@ -16,6 +17,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const { showToast } = useToast();
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -23,6 +26,7 @@ export default function LoginPage() {
     try {
       const res = await loginApi(email, password);
       setAuth(res.data, res.token);
+      showToast(`Welcome back, ${res.data.first_name}!`);
       const role = res.data.role;
       if (role === 'admin') navigate('/admin');
       else if (role === 'seller') navigate('/seller/dashboard');

@@ -9,6 +9,7 @@ import UserAvatar from './ui/UserAvatar';
 import CartModal from './CartModal';
 import type { CartItem as ModalCartItem } from './CartModal';
 import LovedItLogo from './LovedItLogo';
+import { useToast } from './ui/Toast';
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
 
@@ -17,6 +18,7 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
   const ref = useRef<HTMLDivElement>(null);
   const { clearAuth } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -96,7 +98,7 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
             </div>
             <div className="border-t border-gray-100 py-1.5">
               <button
-                onClick={() => { clearAuth(); setOpen(false); navigate('/'); }}
+                onClick={() => { showToast('You have been logged out.', 'success'); clearAuth(); setOpen(false); navigate('/'); }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
               >
                 <LogOut className="w-4 h-4" /> Log Out
