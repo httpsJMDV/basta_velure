@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class GoogleAuthController extends Controller
@@ -111,6 +112,19 @@ class GoogleAuthController extends Controller
 
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        // Save Google avatar if user doesn't have one yet
+        if (! $user->avatar_path && $googleAvatar) {
+            try {
+                $client2 = app()->environment('local') ? Http::withoutVerifying() : Http::withOptions([]);
+                $imgContents = $client2->timeout(10)->get($googleAvatar)->body();
+                $name = 'avatars/' . \Illuminate\Support\Str::uuid() . '.jpg';
+                \Illuminate\Support\Facades\Storage::disk('public')->put($name, $imgContents);
+                $user->update(['avatar_path' => $name]);
+            } catch (\Throwable) {
+                // Non-fatal
+            }
+        }
 
         return response()->json([
             'data'  => new UserResource($user->load(['sellerProfile', 'addresses'])),

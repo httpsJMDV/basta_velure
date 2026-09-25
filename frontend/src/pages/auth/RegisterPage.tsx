@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent, ChangeEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import PhoneInput from '../../components/ui/PhoneInput';
@@ -44,7 +43,6 @@ function calcAge(dob: string): number | null {
 }
 
 export default function RegisterPage() {
-  const { setAuth } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -132,6 +130,7 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   function set(field: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -195,9 +194,8 @@ export default function RegisterPage() {
       fd.append('government_id_image', idFile);
       if (needsBack && idBackFile) fd.append('government_id_image_back', idBackFile);
       if (avatarFile) fd.append('avatar', avatarFile);
-      const res = await registerBuyerApi(fd as unknown as Record<string, string>);
-      setAuth(res.data, res.token);
-      navigate('/');
+      await registerBuyerApi(fd as unknown as Record<string, string>);
+      setShowSuccessModal(true);
     } catch (err: unknown) {
       const resp = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
       if (resp?.errors) {
@@ -217,6 +215,29 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex">
+      {/* Registration success modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center mx-auto mb-5">
+              <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-black text-brand-black mb-2">Account Submitted!</h2>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              Thank you for registering. Your account information is currently being reviewed and verified by our team.
+              You will be notified via email once your account has been approved.
+            </p>
+            <button
+              onClick={() => { setShowSuccessModal(false); navigate('/login'); }}
+              className="w-full py-3 rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-red-dark transition-colors"
+            >
+              Got it, go to login
+            </button>
+          </div>
+        </div>
+      )}
       {/* Form column */}
       <div className="flex flex-col w-full md:w-1/2 px-6 py-12 sm:px-12 lg:px-16 bg-white overflow-y-auto">
         <div className="max-w-sm w-full mx-auto">
