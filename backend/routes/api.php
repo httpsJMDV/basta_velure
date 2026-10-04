@@ -32,6 +32,8 @@ use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
 use App\Http\Controllers\Api\V1\SortingCenterDashboardController;
 use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
+use App\Http\Controllers\Api\V1\HubRiderController;
+use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -294,6 +296,21 @@ Route::prefix('v1')->group(function () {
         // Logistics / Sorting Center Hub (approved hubs only)
         Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
             Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
+            Route::get('/coverage-options',  [HubRiderController::class, 'coverageOptions']);
+
+            // Hub rider vetting
+            Route::get('/riders',                         [HubRiderController::class, 'index']);
+            Route::get('/riders/{rider}',                 [HubRiderController::class, 'show']);
+            Route::post('/riders/{rider}/approve',        [HubRiderController::class, 'approve']);
+            Route::post('/riders/{rider}/disapprove',     [HubRiderController::class, 'disapprove']);
+            Route::get('/riders/{rider}/or-cr',           [HubRiderController::class, 'orCrDocument']);
+            Route::get('/riders/{rider}/license',         [HubRiderController::class, 'licenseDocument']);
+
+            // Rider area assignments
+            Route::get('/riders/{rider}/areas',           [HubRiderAreaAssignmentController::class, 'index']);
+            Route::post('/riders/{rider}/areas',          [HubRiderAreaAssignmentController::class, 'store']);
+            Route::put('/riders/{rider}/areas/{area}',    [HubRiderAreaAssignmentController::class, 'update']);
+            Route::delete('/riders/{rider}/areas/{area}', [HubRiderAreaAssignmentController::class, 'destroy']);
         });
     });
 });
