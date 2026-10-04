@@ -112,17 +112,34 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        if (! Auth::attempt($request->only('email', 'password'))) {
+        if (! Auth::guard('web')->attempt($request->only('email', 'password'))) {
             return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
-        $user = Auth::user();
+        $user = Auth::guard('web')->user();
 
         if ($user->status === 'suspended') {
-            Auth::logout();
+            Auth::guard('web')->logout();
             return response()->json([
                 'message' => 'Your account has been suspended due to a violation of our platform rules or policies. If you believe this is a mistake, please contact our support team for assistance.',
             ], 403);
+        }
+
+        if ($user->sortingCenter) {
+            $hubStatus = $user->sortingCenter->status;
+            if ($hubStatus === \App\Models\SortingCenter::STATUS_PENDING) {
+                Auth::guard('web')->logout();
+                return response()->json([
+                    'message' => 'Your sorting center application is currently pending administrative approval. You will receive an email notification once reviewed.',
+                ], 403);
+            }
+
+            if ($hubStatus === \App\Models\SortingCenter::STATUS_REJECTED) {
+                Auth::guard('web')->logout();
+                return response()->json([
+                    'message' => 'Your sorting center application was not approved. Please check your email for details or contact support.',
+                ], 403);
+            }
         }
 
         $user->update(['last_login_at' => now()]);
