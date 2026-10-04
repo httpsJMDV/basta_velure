@@ -5,6 +5,8 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import CompleteProfilePage from './pages/auth/CompleteProfilePage';
 import SellerRegisterPage from './pages/auth/SellerRegisterPage';
+import HubRegisterPage from './pages/auth/HubRegisterPage';
+import HubPendingPage from './pages/auth/HubPendingPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import SellerLayout from './pages/seller/SellerLayout';
@@ -72,6 +74,14 @@ function RequireApprovedSeller({ children }: { children: ReactNode }) {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.seller_profile?.application_status !== 'approved') return <Navigate to="/register/seller" replace />;
+  return <>{children}</>;
+}
+
+function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.sorting_center?.status !== 'APPROVED') return <Navigate to="/register/hub" replace />;
   return <>{children}</>;
 }
 
@@ -150,6 +160,9 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
       <Route path="/register/seller" element={<SellerRegisterPage />} />
+      <Route path="/register/hub" element={<HubRegisterPage />} />
+      <Route path="/register/hub/pending" element={<HubPendingPage />} />
+      <Route path="/register/sorting-center" element={<Navigate to="/register/hub" replace />} />
       <Route
         path="/complete-profile"
         element={
@@ -234,6 +247,16 @@ function AppRoutes() {
         <Route path="settings"            element={<AdminPlatformSettingsPage />} />
         <Route path="activity-log"        element={<AdminActivityLogPage />} />
       </Route>
+
+      {/* Sorting Center Hub Portal — all routes gated by RequireApprovedSortingCenter */}
+      <Route
+        path="/hub/*"
+        element={
+          <RequireApprovedSortingCenter>
+            <AdminPlaceholderPage title="Sorting Center Operations Portal" />
+          </RequireApprovedSortingCenter>
+        }
+      />
 
       <Route path="/about"             element={<AboutUsPage />} />
       <Route path="/company"           element={<Navigate to="/about" replace />} />
