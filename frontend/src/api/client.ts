@@ -57,6 +57,8 @@ import type {
   AdminCategoryMetrics,
   CategoryPayload,
   SortingCenterRegistrationResponse,
+  SortingCenterApplicationSummaryItem,
+  SortingCenterApplicationDetail,
 } from '../types';
 
 const http = axios.create({
@@ -196,6 +198,32 @@ export const approveSellerApi = (id: number) =>
 
 export const rejectSellerApi = (id: number, reason: string) =>
   http.post(`/admin/seller-applications/${id}/reject`, { reason });
+
+// Admin — sorting center applications
+export const getSortingCenterApplicationsApi = (params?: { status?: string; search?: string; sort?: string; page?: number; per_page?: number }) =>
+  http
+    .get<PaginatedResponse<SortingCenterApplicationSummaryItem>>('/admin/sorting-center-applications', { params })
+    .then((r) => r.data);
+
+export const getSortingCenterApplicationDetailApi = (id: number) =>
+  http
+    .get<{ data: SortingCenterApplicationDetail }>(`/admin/sorting-center-applications/${id}`)
+    .then((r) => r.data.data);
+
+export const approveSortingCenterApplicationApi = (id: number) =>
+  http.post<{ message: string }>(`/admin/sorting-center-applications/${id}/approve`).then((r) => r.data);
+
+export const rejectSortingCenterApplicationApi = (id: number, reason: string) =>
+  http.post<{ message: string }>(`/admin/sorting-center-applications/${id}/reject`, { reason }).then((r) => r.data);
+
+export const getSortingCenterDtiPermitUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/sorting-center-applications/${id}/dti-permit`;
+
+export const getSortingCenterIdImageUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/sorting-center-applications/${id}/id-image`;
+
+export const getSortingCenterIdImageBackUrl = (id: number) =>
+  `${http.defaults.baseURL}/admin/sorting-center-applications/${id}/id-image-back`;
 
 export default http;
 

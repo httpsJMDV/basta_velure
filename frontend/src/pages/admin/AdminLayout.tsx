@@ -6,6 +6,7 @@ import {
   ShieldAlert, Star, Flag, Settings, ScrollText,
   Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, ChevronRight,
   Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X,
+  Warehouse,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -21,11 +22,12 @@ export const useMessenger = () => useContext(MessengerContext);
 // ─── Breadcrumb map ───────────────────────────────────────────────────────────
 
 const ROUTE_LABELS: Record<string, string> = {
-  '/admin':                        'Dashboard',
-  '/admin/messages':               'Messages',
-  '/admin/buyer-applications':     'Buyer Applications',
-  '/admin/seller-applications':    'Seller Applications',
-  '/admin/rider-applications':     'Rider Applications',
+  '/admin':                             'Dashboard',
+  '/admin/messages':                    'Messages',
+  '/admin/buyer-applications':          'Buyer Applications',
+  '/admin/seller-applications':         'Seller Applications',
+  '/admin/sorting-center-applications': 'Hub Applications',
+  '/admin/rider-applications':          'Rider Applications',
   '/admin/sellers':                'Sellers',
   '/admin/buyers':                 'Buyers',
   '/admin/riders':                 'Riders',
@@ -69,6 +71,7 @@ function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
       items: [
         { icon: UserCheck,   label: 'Buyer Applications',  to: '/admin/buyer-applications',  badge: pendingBuyers },
         { icon: UserCheck,   label: 'Seller Applications', to: '/admin/seller-applications', badge: pendingSellers },
+        { icon: Warehouse,   label: 'Hub Applications',    to: '/admin/sorting-center-applications' },
         { icon: Bike,        label: 'Rider Applications',  to: '/admin/rider-applications' },
         { icon: Store,       label: 'Sellers',             to: '/admin/sellers' },
         { icon: Users,       label: 'Buyers',              to: '/admin/buyers' },
