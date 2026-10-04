@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { googleAuthApi } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from './ui/Toast';
 
 // ─── Main button ─────────────────────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ interface GoogleSignInButtonProps {
 export default function GoogleSignInButton({ label = 'Continue with Google' }: GoogleSignInButtonProps) {
   const { setAuth } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,6 +29,7 @@ export default function GoogleSignInButton({ label = 'Continue with Google' }: G
         if (res.profile_incomplete) {
           navigate('/complete-profile', { state: { googleAvatarUrl: res.google_avatar_url ?? null } });
         } else {
+          showToast(`Welcome back, ${u.first_name}!`);
           redirectByRole(u.role);
         }
       } catch (err: unknown) {
