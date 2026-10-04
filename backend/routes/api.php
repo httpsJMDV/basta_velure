@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\SellerReportController;
 use App\Http\Controllers\Api\V1\SellerShopProfileController;
 use App\Http\Controllers\Api\V1\WishlistController;
 use App\Http\Controllers\Api\V1\SortingCenterRegistrationController;
+use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -148,6 +149,18 @@ Route::prefix('v1')->group(function () {
                 ->name('admin.seller-applications.dti-sec-registration');
             Route::get('/seller-applications/{sellerProfile}/fda-lto', [AdminSellerApplicationController::class, 'fdaLto'])
                 ->name('admin.seller-applications.fda-lto');
+
+            // Sorting Center (Logistics Hub) applications
+            Route::get('/sorting-center-applications', [AdminSortingCenterApplicationController::class, 'index']);
+            Route::get('/sorting-center-applications/{sortingCenter}', [AdminSortingCenterApplicationController::class, 'show']);
+            Route::post('/sorting-center-applications/{sortingCenter}/approve', [AdminSortingCenterApplicationController::class, 'approve']);
+            Route::post('/sorting-center-applications/{sortingCenter}/reject', [AdminSortingCenterApplicationController::class, 'reject']);
+            Route::get('/sorting-center-applications/{sortingCenter}/dti-permit', [AdminSortingCenterApplicationController::class, 'dtiPermit'])
+                ->name('admin.sorting-center-applications.dti-permit');
+            Route::get('/sorting-center-applications/{sortingCenter}/id-image', [AdminSortingCenterApplicationController::class, 'idImage'])
+                ->name('admin.sorting-center-applications.id-image');
+            Route::get('/sorting-center-applications/{sortingCenter}/id-image-back', [AdminSortingCenterApplicationController::class, 'idImageBack'])
+                ->name('admin.sorting-center-applications.id-image-back');
 
             // Orders
             Route::get('/orders', [AdminOrderController::class, 'index']);
