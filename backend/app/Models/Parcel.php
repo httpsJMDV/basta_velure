@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -79,21 +80,23 @@ class Parcel extends Model
         return $this->belongsTo(Order::class, 'order_id');
     }
 
-    /**
-     * @return BelongsTo
-     * TODO(2.1): Relates to App\Models\Rider once created in Task 2.1
-     */
     public function assignedRider(): BelongsTo
     {
-        return $this->belongsTo('App\Models\Rider', 'assigned_rider_id');
+        return $this->belongsTo(Rider::class, 'assigned_rider_id');
     }
 
-    /**
-     * @return BelongsTo
-     * TODO(2.1): Relates to App\Models\Rider once created in Task 2.1
-     */
     public function pickupRider(): BelongsTo
     {
-        return $this->belongsTo('App\Models\Rider', 'pickup_rider_id');
+        return $this->belongsTo(Rider::class, 'pickup_rider_id');
+    }
+
+    public function deliveryLogs(): HasMany
+    {
+        return $this->hasMany(DeliveryLog::class, 'parcel_id');
+    }
+
+    public function earnings(): HasMany
+    {
+        return $this->hasMany(RiderEarning::class, 'parcel_id');
     }
 }

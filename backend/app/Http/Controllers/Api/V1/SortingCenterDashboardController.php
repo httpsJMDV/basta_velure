@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Parcel;
+use App\Models\Rider;
 use App\Models\SortingCenter;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -41,8 +42,13 @@ class SortingCenterDashboardController extends Controller
             ->where('status', Parcel::STATUS_AT_SORTING_CENTER)
             ->count();
 
-        // TODO(2.1): Return active riders once rider table and area assignments exist in Feature 2.1.
-        $activeRiders = 0;
+        // Count active riders assigned to this sorting center with active area assignments
+        $activeRiders = Rider::where('status', Rider::STATUS_ACTIVE)
+            ->whereHas('areaAssignments', function ($query) use ($sortingCenter) {
+                $query->where('sorting_center_id', $sortingCenter->id)
+                    ->where('is_active', true);
+            })
+            ->count();
 
         return response()->json([
             'data' => [

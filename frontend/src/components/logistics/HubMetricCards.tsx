@@ -103,7 +103,7 @@ export default function HubMetricCards({ metrics, loading }: HubMetricCardsProps
             <Bike className="w-4 h-4" />
           </div>
           <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-            <Info className="w-2.5 h-2.5" /> Fleet (2.1)
+            <Info className="w-2.5 h-2.5" /> Active Fleet
           </span>
         </div>
         <div>
@@ -116,7 +116,7 @@ export default function HubMetricCards({ metrics, loading }: HubMetricCardsProps
           <p className="text-xs font-bold text-gray-800 mt-2">Active Riders</p>
           <p className="text-[11px] text-gray-500 mt-0.5">
             {activeRiders === 0
-              ? 'Rider management module arriving in 2.1'
+              ? 'No active couriers currently on duty'
               : 'Couriers dispatched on active delivery routes'}
           </p>
         </div>

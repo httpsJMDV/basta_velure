@@ -32,8 +32,8 @@ Retrieves real-time operational metrics for the authenticated hub.
    - Strictly scoped to the authenticated hub (`sorting_center_id`).
 
 3. **`active_riders`** (`integer`):
-   - Number of delivery riders currently marked as `ACTIVE` assigned to this hub.
-   - *Note (Feature 2.1 Dependency)*: The rider table and assignments are introduced in Feature 2.1. This metric currently returns `0` until 2.1 is completed.
+   - Number of delivery couriers with `ACTIVE` status who have an active area assignment (`is_active = true`) under the authenticated hub.
+   - Strictly scoped to the authenticated hub.
 
 4. **`hub`** (`object`):
    - Metadata about the authenticated hub, including `id`, `hub_name`, `status`, structured address (`address_province`, `address_city`, `address_barangay`, `address_street`), and `coverage_barangays_count`.
