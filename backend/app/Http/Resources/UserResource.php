@@ -72,6 +72,16 @@ class UserResource extends JsonResource
                 'rejection_reason'   => $this->sortingCenter->rejection_reason,
                 'created_at'         => $this->sortingCenter->created_at?->toIso8601String(),
             ]),
+            'rider' => $this->whenLoaded('rider', fn () => [
+                'id'                => $this->rider->id,
+                'status'            => $this->rider->status,
+                'vehicle_type'      => $this->rider->vehicle_type,
+                'plate_number'      => $this->rider->plate_number,
+                'sorting_center_id' => $this->rider->sorting_center_id,
+                'hub_name'          => $this->rider->sortingCenter?->hub_name,
+                'submitted_at'      => $this->rider->submitted_at?->toIso8601String(),
+                'created_at'        => $this->rider->created_at?->toIso8601String(),
+            ]),
         ];
     }
 }

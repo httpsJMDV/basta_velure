@@ -30,6 +30,8 @@ use App\Http\Controllers\Api\V1\WishlistController;
 use App\Http\Controllers\Api\V1\SortingCenterRegistrationController;
 use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
 use App\Http\Controllers\Api\V1\SortingCenterDashboardController;
+use App\Http\Controllers\Api\V1\PublicSortingCenterController;
+use App\Http\Controllers\Api\V1\RiderRegistrationController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -55,12 +57,15 @@ Route::prefix('v1')->group(function () {
     Route::get('/stores/{shop}',               [PublicShopController::class, 'show']);
     // Public platform policies
     Route::get('/platform/policies',           [AdminPlatformSettingController::class, 'getPublicPlatformPolicies']);
+    // Public logistics hubs
+    Route::get('/logistics/hubs',              [PublicSortingCenterController::class, 'index']);
 
     // Public auth routes
     Route::middleware('throttle:auth')->group(function () {
         Route::post('/auth/register', [AuthController::class, 'registerBuyer']);
         Route::post('/auth/register-sorting-center', [SortingCenterRegistrationController::class, 'register'])->middleware('throttle:upload');
         Route::post('/auth/logistics/register', [SortingCenterRegistrationController::class, 'register'])->middleware('throttle:upload');
+        Route::post('/auth/register-rider', [RiderRegistrationController::class, 'register'])->middleware('throttle:upload');
         Route::post('/auth/login', [AuthController::class, 'login']);
         Route::post('/auth/forgot-password', [PasswordController::class, 'forgot']);
         Route::post('/auth/reset-password', [PasswordController::class, 'reset']);
