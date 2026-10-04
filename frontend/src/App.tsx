@@ -13,6 +13,7 @@ import RiderPlaceholderPage from './pages/rider/RiderPlaceholderPage';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
+import HubRidersPage from './pages/hub/HubRidersPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import SellerLayout from './pages/seller/SellerLayout';
@@ -356,15 +357,7 @@ function AppRoutes() {
             />
           }
         />
-        <Route
-          path="riders"
-          element={
-            <HubPlaceholderPage
-              title="Riders & Fleet"
-              subtitle="Active courier assignments, attendance, and area coverage."
-            />
-          }
-        />
+        <Route path="riders" element={<HubRidersPage />} />
         <Route
           path="reports"
           element={
