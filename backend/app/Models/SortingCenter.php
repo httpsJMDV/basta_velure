@@ -40,11 +40,13 @@ class SortingCenter extends Model
     public const STATUS_PENDING = 'PENDING';
     public const STATUS_APPROVED = 'APPROVED';
     public const STATUS_REJECTED = 'REJECTED';
+    public const STATUS_SUSPENDED = 'SUSPENDED';
 
     public const STATUSES = [
         self::STATUS_PENDING,
         self::STATUS_APPROVED,
         self::STATUS_REJECTED,
+        self::STATUS_SUSPENDED,
     ];
 
     protected $fillable = [
