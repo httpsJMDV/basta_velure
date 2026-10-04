@@ -5,6 +5,10 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin \App\Models\User
+ * @property-read ?string $avatar_url
+ */
 class UserResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -22,10 +26,8 @@ class UserResource extends JsonResource
             'buyer_rejection_reason'     => $this->buyer_rejection_reason,
             'role'                       => $this->role,
             'status'                     => $this->status,
-            'avatar_url' => $this->avatar_path
-                ? \Illuminate\Support\Facades\Storage::disk('public')->url($this->avatar_path)
-                : null,
-            'government_id_type'      => $this->government_id_type,
+            'avatar_url'                 => $this->avatar_url,
+            'government_id_type'         => $this->government_id_type,
             'government_id_image_url' => $this->government_id_image_path
                 ? url("/api/v1/admin/buyer-applications/{$this->id}/id-image")
                 : null,

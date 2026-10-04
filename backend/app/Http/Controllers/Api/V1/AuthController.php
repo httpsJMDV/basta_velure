@@ -116,6 +116,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
+        /** @var \App\Models\User $user */
         $user = Auth::guard('web')->user();
 
         if ($user->status === 'suspended') {
@@ -177,14 +178,18 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $user->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out.']);
     }
 
     public function me(Request $request): JsonResponse
     {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
         return response()->json([
-            'data' => new UserResource($request->user()->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses'])),
+            'data' => new UserResource($user->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses'])),
         ]);
     }
 
