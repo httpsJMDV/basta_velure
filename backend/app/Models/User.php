@@ -58,6 +58,11 @@ class User extends Authenticatable
         return $this->hasOne(SellerProfile::class);
     }
 
+    public function sortingCenter(): HasOne
+    {
+        return $this->hasOne(SortingCenter::class);
+    }
+
     public function addresses(): HasMany
     {
         return $this->hasMany(Address::class);
