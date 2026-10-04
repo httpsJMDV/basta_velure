@@ -102,4 +102,9 @@ class SortingCenter extends Model
     {
         return $this->hasMany(RiderAreaAssignment::class, 'sorting_center_id');
     }
+
+    public function riders(): HasMany
+    {
+        return $this->hasMany(Rider::class, 'sorting_center_id');
+    }
 }

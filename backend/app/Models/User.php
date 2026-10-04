@@ -63,6 +63,11 @@ class User extends Authenticatable
         return $this->hasOne(SortingCenter::class);
     }
 
+    public function rider(): HasOne
+    {
+        return $this->hasOne(Rider::class);
+    }
+
     public function addresses(): HasMany
     {
         return $this->hasMany(Address::class);
