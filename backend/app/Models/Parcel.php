@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -95,5 +96,15 @@ class Parcel extends Model
     public function pickupRider(): BelongsTo
     {
         return $this->belongsTo('App\Models\Rider', 'pickup_rider_id');
+    }
+
+    public function deliveryLogs(): HasMany
+    {
+        return $this->hasMany(DeliveryLog::class, 'parcel_id');
+    }
+
+    public function earnings(): HasMany
+    {
+        return $this->hasMany(RiderEarning::class, 'parcel_id');
     }
 }
