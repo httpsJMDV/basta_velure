@@ -22,6 +22,7 @@ import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminBuyerApplicationsPage from './pages/admin/AdminBuyerApplicationsPage';
 import AdminSellerApplicationsPage from './pages/admin/AdminSellerApplicationsPage';
+import AdminSortingCenterApplicationsPage from './pages/admin/AdminSortingCenterApplicationsPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminActivityLogPage from './pages/admin/AdminActivityLogPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
@@ -229,9 +230,10 @@ function AppRoutes() {
       >
         <Route index element={<AdminDashboardPage />} />
         <Route path="messages"            element={<AdminMessagesPage />} />
-        <Route path="buyer-applications"  element={<AdminBuyerApplicationsPage />} />
-        <Route path="seller-applications" element={<AdminSellerApplicationsPage />} />
-        <Route path="rider-applications"  element={<AdminPlaceholderPage title="Rider Applications" />} />
+        <Route path="buyer-applications"          element={<AdminBuyerApplicationsPage />} />
+        <Route path="seller-applications"         element={<AdminSellerApplicationsPage />} />
+        <Route path="sorting-center-applications" element={<AdminSortingCenterApplicationsPage />} />
+        <Route path="rider-applications"          element={<AdminPlaceholderPage title="Rider Applications" />} />
         <Route path="sellers"             element={<AdminUsersPage />} />
         <Route path="buyers"              element={<AdminUsersPage />} />
         <Route path="riders"              element={<AdminUsersPage />} />
