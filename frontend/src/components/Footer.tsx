@@ -42,6 +42,16 @@ export const Footer: React.FC = () => {
                 Sell on Loved-IT
               </Link>
             </li>
+            <li>
+              <Link to="/register/hub" className="text-white/70 text-sm hover:text-white transition-colors">
+                Logistics Hub Partner
+              </Link>
+            </li>
+            <li>
+              <Link to="/register/rider" className="text-white/70 text-sm hover:text-white transition-colors">
+                Be a Delivery Rider
+              </Link>
+            </li>
           </ul>
         </div>
 

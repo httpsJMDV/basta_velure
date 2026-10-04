@@ -112,6 +112,42 @@ export interface User {
   created_at: string | null;
   seller_profile?: SellerProfileSummary;
   sorting_center?: SortingCenterSummary;
+  rider?: RiderSummary;
+}
+
+export type RiderStatus = 'PENDING' | 'ACTIVE' | 'DISAPPROVED';
+export type RiderVehicleType = 'Motorcycle' | 'Tricycle' | 'Car' | 'Van';
+
+export interface RiderSummary {
+  id: number;
+  status: RiderStatus;
+  vehicle_type: RiderVehicleType;
+  plate_number: string;
+  sorting_center_id: number;
+  hub_name?: string | null;
+  submitted_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface PublicApprovedHub {
+  id: number;
+  hub_name: string;
+  address_city: string;
+  address_province: string;
+}
+
+export interface RiderRegistrationResponse {
+  message: string;
+  data: {
+    user: {
+      id: number;
+      first_name: string;
+      last_name: string;
+      email: string;
+      role: Role;
+    };
+    rider: RiderSummary;
+  };
 }
 
 export type SortingCenterStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
