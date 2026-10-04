@@ -59,6 +59,7 @@ import type {
   SortingCenterRegistrationResponse,
   SortingCenterApplicationSummaryItem,
   SortingCenterApplicationDetail,
+  HubDashboardMetrics,
 } from '../types';
 
 const http = axios.create({
@@ -708,5 +709,11 @@ export const updateAdminCategoryApi = (id: number, payload: Partial<CategoryPayl
 
 export const deleteAdminCategoryApi = (id: number) =>
   http.delete<{ message: string }>(`/admin/categories/${id}`).then((r) => r.data);
+
+// ─── Logistics / Sorting Center Hub Dashboard ───────────────────────────────────
+
+export const getHubDashboardMetricsApi = () =>
+  http.get<{ data: HubDashboardMetrics }>('/hub/dashboard/metrics').then((r) => r.data.data);
+
 
 

@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\SellerShopProfileController;
 use App\Http\Controllers\Api\V1\WishlistController;
 use App\Http\Controllers\Api\V1\SortingCenterRegistrationController;
 use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
+use App\Http\Controllers\Api\V1\SortingCenterDashboardController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -283,6 +284,11 @@ Route::prefix('v1')->group(function () {
                 );
                 return app(ConversationController::class)->send($req, $conv);
             });
+        });
+
+        // Logistics / Sorting Center Hub (approved hubs only)
+        Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
+            Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
         });
     });
 });

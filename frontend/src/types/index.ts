@@ -138,6 +138,26 @@ export interface SortingCenterRegistrationResponse {
   };
 }
 
+export interface HubDashboardMetrics {
+  inbound_today: number;
+  in_sorting: number;
+  active_riders: number;
+  hub: {
+    id: number;
+    hub_name: string;
+    status: SortingCenterStatus;
+    address_province: string;
+    address_city: string;
+    address_barangay: string;
+    address_street: string;
+    coverage_barangays_count: number;
+  };
+}
+
+export interface HubDashboardMetricsResponse {
+  data: HubDashboardMetrics;
+}
+
 export interface SortingCenterApplicationSummaryItem {
   id: number;
   hub_name: string;

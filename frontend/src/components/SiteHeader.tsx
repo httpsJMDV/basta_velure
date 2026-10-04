@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck } from 'lucide-react';
+import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck, Warehouse } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
@@ -93,6 +93,16 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
               {sellerStatus === 'approved' && (
                 <button onClick={() => { navigate('/seller'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors">
                   <Store className="w-4 h-4 shrink-0" /> Check Your Sales
+                </button>
+              )}
+              {user.sorting_center?.status === 'APPROVED' && (
+                <button onClick={() => { navigate('/hub/dashboard'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-emerald-600 font-semibold hover:bg-emerald-50 transition-colors">
+                  <Warehouse className="w-4 h-4 shrink-0" /> Hub Command Dashboard
+                </button>
+              )}
+              {user.sorting_center?.status === 'PENDING' && (
+                <button onClick={() => { navigate('/register/hub/pending'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
+                  <Warehouse className="w-4 h-4 shrink-0" /> Hub Status (Pending)
                 </button>
               )}
             </div>

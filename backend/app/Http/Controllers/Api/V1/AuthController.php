@@ -140,13 +140,20 @@ class AuthController extends Controller
                     'message' => 'Your sorting center application was not approved. Please check your email for details or contact support.',
                 ], 403);
             }
+
+            if ($hubStatus === \App\Models\SortingCenter::STATUS_SUSPENDED) {
+                Auth::guard('web')->logout();
+                return response()->json([
+                    'message' => 'Your sorting center hub account has been suspended. Please contact platform administration.',
+                ], 403);
+            }
         }
 
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'data'  => new UserResource($user->load('sellerProfile')),
+            'data'  => new UserResource($user->load(['sellerProfile', 'sortingCenter'])),
             'token' => $token,
         ]);
     }
@@ -160,7 +167,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'data' => new UserResource($request->user()->load(['sellerProfile', 'addresses'])),
+            'data' => new UserResource($request->user()->load(['sellerProfile', 'sortingCenter', 'addresses'])),
         ]);
     }
 

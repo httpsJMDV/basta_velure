@@ -60,6 +60,18 @@ class UserResource extends JsonResource
                     'street'    => $this->sellerProfile->address_street,
                 ],
             ]),
+            'sorting_center' => $this->whenLoaded('sortingCenter', fn () => [
+                'id'                 => $this->sortingCenter->id,
+                'hub_name'           => $this->sortingCenter->hub_name,
+                'status'             => $this->sortingCenter->status,
+                'address_province'   => $this->sortingCenter->address_province,
+                'address_city'       => $this->sortingCenter->address_city,
+                'address_barangay'   => $this->sortingCenter->address_barangay,
+                'address_street'     => $this->sortingCenter->address_street,
+                'coverage_barangays' => $this->sortingCenter->coverage_barangays ?? [],
+                'rejection_reason'   => $this->sortingCenter->rejection_reason,
+                'created_at'         => $this->sortingCenter->created_at?->toIso8601String(),
+            ]),
         ];
     }
 }
