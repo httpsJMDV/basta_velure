@@ -59,12 +59,15 @@ class SortingCenter extends Model
         'coverage_barangays',
         'status',
         'rejection_reason',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
     protected function casts(): array
     {
         return [
             'coverage_barangays' => 'array',
+            'reviewed_at'        => 'datetime',
         ];
     }
 
@@ -81,6 +84,11 @@ class SortingCenter extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 
     public function parcels(): HasMany
