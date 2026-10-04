@@ -7,6 +7,9 @@ import CompleteProfilePage from './pages/auth/CompleteProfilePage';
 import SellerRegisterPage from './pages/auth/SellerRegisterPage';
 import HubRegisterPage from './pages/auth/HubRegisterPage';
 import HubPendingPage from './pages/auth/HubPendingPage';
+import HubLayout from './pages/hub/HubLayout';
+import HubDashboardPage from './pages/hub/HubDashboardPage';
+import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import SellerLayout from './pages/seller/SellerLayout';
@@ -79,10 +82,36 @@ function RequireApprovedSeller({ children }: { children: ReactNode }) {
 }
 
 function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, clearAuth } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (user.sorting_center?.status !== 'APPROVED') return <Navigate to="/register/hub" replace />;
+  if (!user.sorting_center) return <Navigate to="/register/hub" replace />;
+  if (user.sorting_center.status === 'PENDING') return <Navigate to="/register/hub/pending" replace />;
+  if (user.sorting_center.status === 'REJECTED') return <Navigate to="/register/hub" replace />;
+  if (user.sorting_center.status === 'SUSPENDED') {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-6 bg-gray-50">
+        <div className="w-full max-w-md p-8 text-center bg-white border border-red-200 shadow-xl rounded-2xl">
+          <div className="flex items-center justify-center mx-auto mb-4 w-14 h-14 rounded-2xl bg-red-50 text-brand-red">
+            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <h1 className="mb-2 text-xl font-black text-gray-900">Hub Account Suspended</h1>
+          <p className="mb-6 text-sm text-gray-500">
+            Your sorting center hub account has been suspended by platform administration. Please contact support for assistance.
+          </p>
+          <button
+            onClick={() => { clearAuth(); window.location.href = '/login'; }}
+            className="w-full py-2.5 px-4 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl transition-colors"
+          >
+            Log Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (user.sorting_center.status !== 'APPROVED') return <Navigate to="/register/hub" replace />;
   return <>{children}</>;
 }
 
@@ -250,15 +279,63 @@ function AppRoutes() {
         <Route path="activity-log"        element={<AdminActivityLogPage />} />
       </Route>
 
-      {/* Sorting Center Hub Portal — all routes gated by RequireApprovedSortingCenter */}
+      {/* Logistics / Sorting Center Hub Portal */}
       <Route
-        path="/hub/*"
+        path="/hub"
         element={
           <RequireApprovedSortingCenter>
-            <AdminPlaceholderPage title="Sorting Center Operations Portal" />
+            <HubLayout />
           </RequireApprovedSortingCenter>
         }
-      />
+      >
+        <Route index element={<Navigate to="/hub/dashboard" replace />} />
+        <Route path="dashboard" element={<HubDashboardPage />} />
+        <Route
+          path="intake"
+          element={
+            <HubPlaceholderPage
+              title="Parcel Intake"
+              subtitle="Barcode and QR intake scanning for arriving merchant packages."
+            />
+          }
+        />
+        <Route
+          path="sorting"
+          element={
+            <HubPlaceholderPage
+              title="Package Sorting"
+              subtitle="Destination sorting into designated city and barangay distribution bins."
+            />
+          }
+        />
+        <Route
+          path="dispatch"
+          element={
+            <HubPlaceholderPage
+              title="Delivery Dispatch"
+              subtitle="Rider bag handover and dispatch tracking."
+            />
+          }
+        />
+        <Route
+          path="riders"
+          element={
+            <HubPlaceholderPage
+              title="Riders & Fleet"
+              subtitle="Active courier assignments, attendance, and area coverage."
+            />
+          }
+        />
+        <Route
+          path="reports"
+          element={
+            <HubPlaceholderPage
+              title="Hub Reports"
+              subtitle="Operational turnaround times, fulfillment SLAs, and throughput analytics."
+            />
+          }
+        />
+      </Route>
 
       <Route path="/about"             element={<AboutUsPage />} />
       <Route path="/company"           element={<Navigate to="/about" replace />} />
