@@ -46,4 +46,5 @@ class Order extends Model
     public function items(): HasMany        { return $this->hasMany(OrderItem::class); }
     public function payment(): HasOne       { return $this->hasOne(Payment::class); }
     public function dispute(): HasOne       { return $this->hasOne(Dispute::class); }
+    public function parcel(): HasOne        { return $this->hasOne(Parcel::class); }
 }
