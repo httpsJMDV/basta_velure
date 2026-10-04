@@ -114,10 +114,12 @@ export interface User {
   sorting_center?: SortingCenterSummary;
 }
 
+export type SortingCenterStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+
 export interface SortingCenterSummary {
   id: number;
   hub_name: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: SortingCenterStatus;
   address_province: string;
   address_city: string;
   address_barangay: string;
@@ -132,8 +134,55 @@ export interface SortingCenterRegistrationResponse {
   data: {
     user: User;
     sorting_center: SortingCenterSummary;
-    hub_status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    hub_status: SortingCenterStatus;
   };
+}
+
+export interface SortingCenterApplicationSummaryItem {
+  id: number;
+  hub_name: string;
+  address_city: string;
+  address_province: string;
+  city_province: string;
+  applicant_name: string | null;
+  applicant_email: string | null;
+  submitted_date: string | null;
+  created_at: string | null;
+  status: SortingCenterStatus;
+}
+
+export interface SortingCenterApplicant {
+  id: number;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  email: string;
+  phone: string;
+  sex: string | null;
+  date_of_birth: string | null;
+  status: string;
+  government_id_type: string | null;
+  government_id_image_url: string | null;
+  government_id_image_back_url: string | null;
+}
+
+export interface SortingCenterApplicationDetail {
+  id: number;
+  hub_name: string;
+  status: SortingCenterStatus;
+  address_province: string;
+  address_city: string;
+  address_barangay: string;
+  address_street: string;
+  coverage_barangays: string[];
+  coverage_count: number;
+  rejection_reason: string | null;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  dti_permit_url: string | null;
+  applicant: SortingCenterApplicant | null;
 }
 
 export interface BuyerApplicationSummary {
