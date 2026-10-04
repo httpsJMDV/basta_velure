@@ -66,6 +66,7 @@ import type {
   HubRiderDetailItem,
   RiderAreaAssignmentItem,
   HubCoverageOptions,
+  RiderProfileData,
 } from '../types';
 
 const http = axios.create({
@@ -773,6 +774,11 @@ export const updateHubRiderAreaApi = (
 
 export const deactivateHubRiderAreaApi = (riderId: number, areaId: number) =>
   http.delete<{ message: string; data: RiderAreaAssignmentItem }>(`/hub/riders/${riderId}/areas/${areaId}`).then((r) => r.data);
+
+// ─── Courier / Rider Workstation ──────────────────────────────────────────────
+
+export const getRiderMeApi = () =>
+  http.get<{ data: RiderProfileData }>('/rider/me').then((r) => r.data.data);
 
 
 

@@ -9,6 +9,7 @@ import HubRegisterPage from './pages/auth/HubRegisterPage';
 import HubPendingPage from './pages/auth/HubPendingPage';
 import RiderRegisterPage from './pages/auth/RiderRegisterPage';
 import RiderPendingPage from './pages/auth/RiderPendingPage';
+import RiderLoginPage from './pages/auth/RiderLoginPage';
 import RiderPlaceholderPage from './pages/rider/RiderPlaceholderPage';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
@@ -122,7 +123,7 @@ function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
 function RequireActiveRider({ children }: { children: ReactNode }) {
   const { user, loading, clearAuth } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/rider/login" replace />;
   if (!user.rider) return <Navigate to="/register/rider" replace />;
   if (user.rider.status === 'PENDING') return <Navigate to="/register/rider/pending" replace />;
   if (user.rider.status === 'DISAPPROVED') {
@@ -233,6 +234,7 @@ function AppRoutes() {
       <Route path="/register/rider" element={<RiderRegisterPage />} />
       <Route path="/register/rider/pending" element={<RiderPendingPage />} />
       <Route path="/register/courier" element={<Navigate to="/register/rider" replace />} />
+      <Route path="/rider/login" element={<RiderLoginPage />} />
       <Route
         path="/complete-profile"
         element={

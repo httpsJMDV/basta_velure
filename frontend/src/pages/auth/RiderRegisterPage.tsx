@@ -335,7 +335,7 @@ export default function RiderRegisterPage() {
 
           <div className="text-sm text-gray-500">
             Already have an account?{' '}
-            <Link to="/login" className="text-brand-red font-semibold hover:underline">
+            <Link to="/rider/login" className="text-brand-red font-semibold hover:underline">
               Sign In
             </Link>
           </div>
