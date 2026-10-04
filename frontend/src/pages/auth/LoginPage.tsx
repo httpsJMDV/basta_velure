@@ -106,6 +106,16 @@ export default function LoginPage() {
               Register
             </Link>
           </p>
+
+          <div className="mt-5 pt-4 border-t border-gray-100 text-center">
+            <Link
+              to="/rider/login"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              <span>Are you a delivery courier? Courier Sign In</span>
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </div>
         </div>
       </div>
 

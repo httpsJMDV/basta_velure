@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
 use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
+use App\Http\Controllers\Api\V1\RiderController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -311,6 +312,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/riders/{rider}/areas',          [HubRiderAreaAssignmentController::class, 'store']);
             Route::put('/riders/{rider}/areas/{area}',    [HubRiderAreaAssignmentController::class, 'update']);
             Route::delete('/riders/{rider}/areas/{area}', [HubRiderAreaAssignmentController::class, 'destroy']);
+        });
+
+        // Rider / Courier (approved riders only)
+        Route::middleware('approved_rider')->prefix('rider')->group(function () {
+            Route::get('/me', [RiderController::class, 'me']);
         });
     });
 });

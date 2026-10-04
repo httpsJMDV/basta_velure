@@ -9,7 +9,11 @@ import HubRegisterPage from './pages/auth/HubRegisterPage';
 import HubPendingPage from './pages/auth/HubPendingPage';
 import RiderRegisterPage from './pages/auth/RiderRegisterPage';
 import RiderPendingPage from './pages/auth/RiderPendingPage';
+import RiderLoginPage from './pages/auth/RiderLoginPage';
+import RiderLayout from './pages/rider/RiderLayout';
+import RiderDashboardPage from './pages/rider/RiderDashboardPage';
 import RiderPlaceholderPage from './pages/rider/RiderPlaceholderPage';
+import { PackagePlus, Truck, Wallet, User as UserIcon } from 'lucide-react';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
@@ -122,7 +126,7 @@ function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
 function RequireActiveRider({ children }: { children: ReactNode }) {
   const { user, loading, clearAuth } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/rider/login" replace />;
   if (!user.rider) return <Navigate to="/register/rider" replace />;
   if (user.rider.status === 'PENDING') return <Navigate to="/register/rider/pending" replace />;
   if (user.rider.status === 'DISAPPROVED') {
@@ -233,6 +237,7 @@ function AppRoutes() {
       <Route path="/register/rider" element={<RiderRegisterPage />} />
       <Route path="/register/rider/pending" element={<RiderPendingPage />} />
       <Route path="/register/courier" element={<Navigate to="/register/rider" replace />} />
+      <Route path="/rider/login" element={<RiderLoginPage />} />
       <Route
         path="/complete-profile"
         element={
@@ -372,13 +377,59 @@ function AppRoutes() {
       {/* Rider / Courier Station — gated */}
       <Route path="/rider" element={<Navigate to="/rider/dashboard" replace />} />
       <Route
-        path="/rider/dashboard"
+        path="/rider"
         element={
           <RequireActiveRider>
-            <RiderPlaceholderPage />
+            <RiderLayout />
           </RequireActiveRider>
         }
-      />
+      >
+        <Route path="dashboard" element={<RiderDashboardPage />} />
+        <Route
+          path="pickups"
+          element={
+            <RiderPlaceholderPage
+              inLayout
+              title="Merchant Pickups"
+              subtitle="Collection assignments and pickup route optimization will be available in Feature 2.4."
+              icon={PackagePlus}
+            />
+          }
+        />
+        <Route
+          path="deliveries"
+          element={
+            <RiderPlaceholderPage
+              inLayout
+              title="Active Deliveries"
+              subtitle="Recipient delivery dispatch, signature confirmation, and drop-off fulfillment in Feature 2.5."
+              icon={Truck}
+            />
+          }
+        />
+        <Route
+          path="earnings"
+          element={
+            <RiderPlaceholderPage
+              inLayout
+              title="Courier Earnings"
+              subtitle="Delivery compensation, tip breakdown, and payout remittance history in Feature 2.6."
+              icon={Wallet}
+            />
+          }
+        />
+        <Route
+          path="account"
+          element={
+            <RiderPlaceholderPage
+              inLayout
+              title="Courier Account"
+              subtitle="Driver license verification, vehicle specs, and account security management."
+              icon={UserIcon}
+            />
+          }
+        />
+      </Route>
 
       <Route path="/about"             element={<AboutUsPage />} />
       <Route path="/company"           element={<Navigate to="/about" replace />} />

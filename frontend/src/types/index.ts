@@ -241,6 +241,36 @@ export interface HubRidersListResponse {
   };
 }
 
+export interface RiderActiveAreaItem {
+  id: number;
+  area_label: string;
+  barangays_count: number;
+  coverage_barangays: string[];
+}
+
+export interface RiderProfileData {
+  id: number;
+  user_id: number;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  status: RiderStatus;
+  vehicle_type: RiderVehicleType;
+  plate_number: string;
+  hub: {
+    id: number;
+    hub_name: string;
+    address_city: string;
+    address_province: string;
+  } | null;
+  active_areas: RiderActiveAreaItem[];
+  active_areas_count: number;
+  submitted_at: string | null;
+  created_at: string | null;
+}
+
 export type SortingCenterStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
 export interface SortingCenterSummary {
