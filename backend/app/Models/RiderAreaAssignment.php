@@ -72,12 +72,8 @@ class RiderAreaAssignment extends Model
         return $this->belongsTo(SortingCenter::class, 'sorting_center_id');
     }
 
-    /**
-     * @return BelongsTo
-     * TODO(2.1): Relates to App\Models\Rider once created in Task 2.1
-     */
     public function rider(): BelongsTo
     {
-        return $this->belongsTo('App\Models\Rider', 'rider_id');
+        return $this->belongsTo(Rider::class, 'rider_id');
     }
 }
