@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role'                    => \App\Http\Middleware\EnsureRole::class,
             'approved_seller'         => \App\Http\Middleware\EnsureApprovedSeller::class,
             'approved_sorting_center' => \App\Http\Middleware\EnsureApprovedSortingCenter::class,
+            'approved_rider'          => \App\Http\Middleware\EnsureApprovedRider::class,
         ]);
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
     })
