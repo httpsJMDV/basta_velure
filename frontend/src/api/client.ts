@@ -62,6 +62,8 @@ import type {
   HubDashboardMetrics,
   PublicApprovedHub,
   RiderRegistrationResponse,
+  HubRidersListResponse,
+  HubRiderDetailItem,
 } from '../types';
 
 const http = axios.create({
@@ -724,6 +726,29 @@ export const deleteAdminCategoryApi = (id: number) =>
 
 export const getHubDashboardMetricsApi = () =>
   http.get<{ data: HubDashboardMetrics }>('/hub/dashboard/metrics').then((r) => r.data.data);
+
+// ─── Logistics / Sorting Center Hub Courier Vetting & Area Mapping ─────────────
+
+export const getHubRidersApi = (params?: {
+  status?: string;
+  search?: string;
+  sort?: string;
+  page?: number;
+  per_page?: number;
+}) =>
+  http.get<HubRidersListResponse>('/hub/riders', { params }).then((r) => r.data);
+
+export const getHubRiderDetailApi = (riderId: number) =>
+  http.get<{ data: HubRiderDetailItem }>(`/hub/riders/${riderId}`).then((r) => r.data.data);
+
+export const approveHubRiderApi = (
+  riderId: number,
+  payload?: { area_label?: string; coverage_barangays?: string[] }
+) =>
+  http.post<{ message: string; data: HubRiderDetailItem }>(`/hub/riders/${riderId}/approve`, payload).then((r) => r.data);
+
+export const disapproveHubRiderApi = (riderId: number, reason: string) =>
+  http.post<{ message: string; data: HubRiderDetailItem }>(`/hub/riders/${riderId}/disapprove`, { reason }).then((r) => r.data);
 
 
 

@@ -150,6 +150,97 @@ export interface RiderRegistrationResponse {
   };
 }
 
+export interface HubRiderSummaryItem {
+  id: number;
+  user: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  };
+  vehicle_type: RiderVehicleType;
+  plate_number: string;
+  status: RiderStatus;
+  submitted_at: string | null;
+  active_areas_count: number;
+  created_at: string | null;
+}
+
+export interface HubRiderDetailAddress {
+  province: string;
+  city: string;
+  barangay: string;
+  street: string | null;
+}
+
+export interface RiderAreaAssignmentItem {
+  id: number;
+  rider_id: number;
+  sorting_center_id: number;
+  area_label: string;
+  coverage_barangays: string[];
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface HubRiderDetailItem {
+  id: number;
+  user: {
+    id: number;
+    first_name: string;
+    middle_name: string | null;
+    last_name: string;
+    email: string;
+    phone: string;
+    date_of_birth: string | null;
+    sex: string | null;
+    created_at: string | null;
+  };
+  address: HubRiderDetailAddress | null;
+  vehicle_type: RiderVehicleType;
+  plate_number: string;
+  status: RiderStatus;
+  rejection_reason: string | null;
+  reviewed_by: number | null;
+  reviewer_name: string | null;
+  reviewed_at: string | null;
+  submitted_at: string | null;
+  created_at: string | null;
+  documents: {
+    or_cr_url: string | null;
+    drivers_license_url: string | null;
+  };
+  area_assignments: RiderAreaAssignmentItem[];
+}
+
+export interface HubCoverageOptions {
+  hub_id: number;
+  hub_name: string;
+  address_city: string;
+  address_province: string;
+  coverage_barangays: string[];
+}
+
+export interface HubRidersListResponse {
+  data: HubRiderSummaryItem[];
+  counts: {
+    pending: number;
+    active: number;
+    disapproved: number;
+    all: number;
+  };
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+  };
+}
+
 export type SortingCenterStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
 export interface SortingCenterSummary {
