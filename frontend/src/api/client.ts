@@ -56,6 +56,7 @@ import type {
   AdminCategoryParent,
   AdminCategoryMetrics,
   CategoryPayload,
+  SortingCenterRegistrationResponse,
 } from '../types';
 
 const http = axios.create({
@@ -94,6 +95,11 @@ export const googleAuthApi = (credential: string) =>
 
 export const applyAsSellerApi = (form: FormData) =>
   http.post<{ data: User }>('/auth/apply-seller', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+
+export const registerSortingCenterApi = (form: FormData) =>
+  http.post<SortingCenterRegistrationResponse>('/auth/register-sorting-center', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 

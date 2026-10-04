@@ -111,6 +111,29 @@ export interface User {
   has_password: boolean;
   created_at: string | null;
   seller_profile?: SellerProfileSummary;
+  sorting_center?: SortingCenterSummary;
+}
+
+export interface SortingCenterSummary {
+  id: number;
+  hub_name: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  address_province: string;
+  address_city: string;
+  address_barangay: string;
+  address_street: string;
+  coverage_barangays: string[];
+  rejection_reason?: string | null;
+  created_at?: string | null;
+}
+
+export interface SortingCenterRegistrationResponse {
+  message: string;
+  data: {
+    user: User;
+    sorting_center: SortingCenterSummary;
+    hub_status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  };
 }
 
 export interface BuyerApplicationSummary {
