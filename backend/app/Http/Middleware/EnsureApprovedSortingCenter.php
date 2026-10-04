@@ -19,3 +19,4 @@ class EnsureApprovedSortingCenter
         return $next($request);
     }
 }
+

@@ -161,3 +161,4 @@ class RegisterSortingCenterRequest extends FormRequest
         ];
     }
 }
+
