@@ -53,6 +53,18 @@ class Rider extends Model
         self::STATUS_DISAPPROVED,
     ];
 
+    public const VEHICLE_MOTORCYCLE = 'Motorcycle';
+    public const VEHICLE_TRICYCLE   = 'Tricycle';
+    public const VEHICLE_CAR        = 'Car';
+    public const VEHICLE_VAN        = 'Van';
+
+    public const VEHICLE_TYPES = [
+        self::VEHICLE_MOTORCYCLE,
+        self::VEHICLE_TRICYCLE,
+        self::VEHICLE_CAR,
+        self::VEHICLE_VAN,
+    ];
+
     protected $fillable = [
         'user_id',
         'sorting_center_id',

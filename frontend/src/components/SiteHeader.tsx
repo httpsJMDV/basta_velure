@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck, Warehouse } from 'lucide-react';
+import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck, Warehouse, Bike } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
@@ -103,6 +103,16 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
               {user.sorting_center?.status === 'PENDING' && (
                 <button onClick={() => { navigate('/register/hub/pending'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
                   <Warehouse className="w-4 h-4 shrink-0" /> Hub Status (Pending)
+                </button>
+              )}
+              {user.rider?.status === 'ACTIVE' && (
+                <button onClick={() => { navigate('/rider/dashboard'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-blue-600 font-semibold hover:bg-blue-50 transition-colors">
+                  <Bike className="w-4 h-4 shrink-0" /> Courier Station
+                </button>
+              )}
+              {user.rider?.status === 'PENDING' && (
+                <button onClick={() => { navigate('/register/rider/pending'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
+                  <Bike className="w-4 h-4 shrink-0" /> Courier Status (Pending)
                 </button>
               )}
             </div>

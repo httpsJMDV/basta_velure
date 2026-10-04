@@ -60,6 +60,8 @@ import type {
   SortingCenterApplicationSummaryItem,
   SortingCenterApplicationDetail,
   HubDashboardMetrics,
+  PublicApprovedHub,
+  RiderRegistrationResponse,
 } from '../types';
 
 const http = axios.create({
@@ -105,6 +107,14 @@ export const registerSortingCenterApi = (form: FormData) =>
   http.post<SortingCenterRegistrationResponse>('/auth/register-sorting-center', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
+
+export const registerRiderApi = (form: FormData) =>
+  http.post<RiderRegistrationResponse>('/auth/register-rider', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+
+export const getPublicApprovedHubsApi = (params?: { search?: string; limit?: number }) =>
+  http.get<{ data: PublicApprovedHub[] }>('/logistics/hubs', { params }).then((r) => r.data.data);
 
 export const logoutApi = () => http.post('/auth/logout');
 

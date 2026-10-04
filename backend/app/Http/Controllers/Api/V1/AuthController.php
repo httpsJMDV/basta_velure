@@ -116,6 +116,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
+        /** @var \App\Models\User $user */
         $user = Auth::guard('web')->user();
 
         if ($user->status === 'suspended') {
@@ -149,25 +150,49 @@ class AuthController extends Controller
             }
         }
 
+        if ($user->rider) {
+            $riderStatus = $user->rider->status;
+            if ($riderStatus === \App\Models\Rider::STATUS_PENDING) {
+                Auth::guard('web')->logout();
+                return response()->json([
+                    'message' => 'Your rider application is currently pending hub approval. You will receive an email notification once reviewed.',
+                ], 403);
+            }
+
+            if ($riderStatus === \App\Models\Rider::STATUS_DISAPPROVED) {
+                Auth::guard('web')->logout();
+                return response()->json([
+                    'message' => 'Your rider application was not approved. Please check your email for details or contact support.',
+                ], 403);
+            }
+        }
+
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'data'  => new UserResource($user->load(['sellerProfile', 'sortingCenter'])),
+            'data'  => new UserResource($user->load(['sellerProfile', 'sortingCenter', 'rider'])),
             'token' => $token,
         ]);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        /** @var \Laravel\Sanctum\PersonalAccessToken|null $token */
+        $token = $user->currentAccessToken();
+        $token?->delete();
+
         return response()->json(['message' => 'Logged out.']);
     }
 
     public function me(Request $request): JsonResponse
     {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
         return response()->json([
-            'data' => new UserResource($request->user()->load(['sellerProfile', 'sortingCenter', 'addresses'])),
+            'data' => new UserResource($user->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses'])),
         ]);
     }
 
