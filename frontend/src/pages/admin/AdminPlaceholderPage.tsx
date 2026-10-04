@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Construction, Bike, ShieldCheck, Clock, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Bike, ShieldCheck, Clock, ArrowRight } from 'lucide-react';
 
 export default function AdminPlaceholderPage({ title }: { title: string }) {
   const isRiders = title.toLowerCase().includes('rider');

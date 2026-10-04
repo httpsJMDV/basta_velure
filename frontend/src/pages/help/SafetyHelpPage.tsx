@@ -8,21 +8,14 @@ import {
   ArrowLeft,
   Headphones,
   FileCheck,
-  Truck,
-  RotateCcw,
   Eye,
   BadgeAlert,
   ArrowRight,
-  HelpCircle,
   Clock,
-  Sparkles,
-  PhoneCall,
-  Mail,
   Scale,
 } from 'lucide-react';
 import SiteHeader from '../../components/SiteHeader';
 import Footer from '../../components/Footer';
-import LovedItLogo from '../../components/LovedItLogo';
 import { useChat } from '../../hooks/useChat';
 
 const SAFETY_PILLARS = [
