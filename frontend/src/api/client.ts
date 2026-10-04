@@ -64,6 +64,8 @@ import type {
   RiderRegistrationResponse,
   HubRidersListResponse,
   HubRiderDetailItem,
+  RiderAreaAssignmentItem,
+  HubCoverageOptions,
 } from '../types';
 
 const http = axios.create({
@@ -749,6 +751,28 @@ export const approveHubRiderApi = (
 
 export const disapproveHubRiderApi = (riderId: number, reason: string) =>
   http.post<{ message: string; data: HubRiderDetailItem }>(`/hub/riders/${riderId}/disapprove`, { reason }).then((r) => r.data);
+
+export const getHubCoverageOptionsApi = () =>
+  http.get<{ data: HubCoverageOptions }>('/hub/coverage-options').then((r) => r.data.data);
+
+export const getHubRiderAreasApi = (riderId: number) =>
+  http.get<{ data: RiderAreaAssignmentItem[] }>(`/hub/riders/${riderId}/areas`).then((r) => r.data.data);
+
+export const createHubRiderAreaApi = (
+  riderId: number,
+  payload: { area_label: string; coverage_barangays: string[] }
+) =>
+  http.post<{ message: string; data: RiderAreaAssignmentItem }>(`/hub/riders/${riderId}/areas`, payload).then((r) => r.data);
+
+export const updateHubRiderAreaApi = (
+  riderId: number,
+  areaId: number,
+  payload: { area_label?: string; coverage_barangays?: string[]; is_active?: boolean }
+) =>
+  http.put<{ message: string; data: RiderAreaAssignmentItem }>(`/hub/riders/${riderId}/areas/${areaId}`, payload).then((r) => r.data);
+
+export const deactivateHubRiderAreaApi = (riderId: number, areaId: number) =>
+  http.delete<{ message: string; data: RiderAreaAssignmentItem }>(`/hub/riders/${riderId}/areas/${areaId}`).then((r) => r.data);
 
 
 

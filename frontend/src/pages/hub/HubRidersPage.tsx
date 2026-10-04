@@ -5,11 +5,17 @@ import {
   getHubRiderDetailApi,
   approveHubRiderApi,
   disapproveHubRiderApi,
+  getHubCoverageOptionsApi,
+  createHubRiderAreaApi,
+  updateHubRiderAreaApi,
+  deactivateHubRiderAreaApi,
 } from '../../api/client';
 import type {
   RiderStatus,
   HubRiderSummaryItem,
   HubRiderDetailItem,
+  RiderAreaAssignmentItem,
+  HubCoverageOptions,
 } from '../../types';
 import Button from '../../components/ui/Button';
 import { useToast } from '../../components/ui/Toast';
@@ -21,10 +27,14 @@ import {
   XCircle,
   AlertCircle,
   Clock,
+  MapPin,
   Layers,
   Search,
   RefreshCw,
   Eye,
+  Plus,
+  Edit2,
+  Trash2,
   X,
   ChevronRight,
   ChevronLeft,
@@ -35,6 +45,14 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import axios from 'axios';
+
+const PRESET_AREA_LABELS = [
+  'Area A - Central District',
+  'Area B - North Sector',
+  'Area C - South Sector',
+  'Area D - East Sector',
+  'Area E - Commercial Bins',
+];
 
 interface Meta {
   current_page: number;
@@ -336,12 +354,32 @@ export default function HubRidersPage() {
 
   // Action Modals State
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
+  const [approveAreaLabel, setApproveAreaLabel] = useState('');
+  const [approveSelectedBarangays, setApproveSelectedBarangays] = useState<string[]>([]);
   const [approving, setApproving] = useState(false);
 
   const [disapproveModalOpen, setDisapproveModalOpen] = useState(false);
   const [disapproveReason, setDisapproveReason] = useState('');
   const [disapproving, setDisapproving] = useState(false);
   const [disapproveError, setDisapproveError] = useState<string | null>(null);
+
+  // Area Mapping Modal State (for ACTIVE riders)
+  const [areaModalOpen, setAreaModalOpen] = useState(false);
+  const [editingArea, setEditingArea] = useState<RiderAreaAssignmentItem | null>(null);
+  const [areaFormLabel, setAreaFormLabel] = useState('');
+  const [areaFormBarangays, setAreaFormBarangays] = useState<string[]>([]);
+  const [savingArea, setSavingArea] = useState(false);
+  const [areaFormError, setAreaFormError] = useState<string | null>(null);
+
+  // Hub Coverage Options
+  const [hubCoverage, setHubCoverage] = useState<HubCoverageOptions | null>(null);
+
+  // Fetch Hub Coverage Options once
+  useEffect(() => {
+    getHubCoverageOptionsApi()
+      .then(setHubCoverage)
+      .catch((err) => console.error('Failed to load hub coverage options:', err));
+  }, []);
 
   // Fetch riders list
   const fetchRiders = useCallback(() => {
@@ -422,6 +460,7 @@ export default function HubRidersPage() {
     setDetailData(null);
     setApproveConfirmOpen(false);
     setDisapproveModalOpen(false);
+    setAreaModalOpen(false);
   }
 
   // ─── Approve Action ────────────────────────────────────────────────────────
@@ -429,8 +468,12 @@ export default function HubRidersPage() {
     if (!detailData) return;
     setApproving(true);
 
+    const payload = approveAreaLabel.trim() && approveSelectedBarangays.length > 0
+      ? { area_label: approveAreaLabel.trim(), coverage_barangays: approveSelectedBarangays }
+      : undefined;
+
     try {
-      const res = await approveHubRiderApi(detailData.id);
+      const res = await approveHubRiderApi(detailData.id, payload);
       showToast(res.message || 'Courier application approved.', 'success');
       setApproveConfirmOpen(false);
       setDetailData(res.data);
@@ -477,6 +520,101 @@ export default function HubRidersPage() {
     } finally {
       setDisapproving(false);
     }
+  }
+
+  // ─── Area Assignment Actions ───────────────────────────────────────────────
+  function openCreateAreaModal() {
+    setEditingArea(null);
+    setAreaFormLabel('Area A - Central District');
+    setAreaFormBarangays([]);
+    setAreaFormError(null);
+    setAreaModalOpen(true);
+  }
+
+  function openEditAreaModal(area: RiderAreaAssignmentItem) {
+    setEditingArea(area);
+    setAreaFormLabel(area.area_label);
+    setAreaFormBarangays(area.coverage_barangays || []);
+    setAreaFormError(null);
+    setAreaModalOpen(true);
+  }
+
+  async function handleSaveArea() {
+    if (!detailData) return;
+    setAreaFormError(null);
+
+    if (!areaFormLabel.trim()) {
+      setAreaFormError('Area label is required.');
+      return;
+    }
+
+    if (areaFormBarangays.length === 0) {
+      setAreaFormError('Please select at least one barangay for this delivery area.');
+      return;
+    }
+
+    setSavingArea(true);
+
+    try {
+      if (editingArea) {
+        await updateHubRiderAreaApi(detailData.id, editingArea.id, {
+          area_label: areaFormLabel.trim(),
+          coverage_barangays: areaFormBarangays,
+        });
+        showToast('Area assignment updated successfully.', 'success');
+      } else {
+        await createHubRiderAreaApi(detailData.id, {
+          area_label: areaFormLabel.trim(),
+          coverage_barangays: areaFormBarangays,
+        });
+        showToast('New delivery area assigned successfully.', 'success');
+      }
+
+      // Refresh rider detail and table list
+      const freshDetail = await getHubRiderDetailApi(detailData.id);
+      setDetailData(freshDetail);
+      setAreaModalOpen(false);
+      fetchRiders();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        const msg = errors.area_label?.[0] || errors.coverage_barangays?.[0] || err.response.data.message;
+        setAreaFormError(msg);
+      } else {
+        setAreaFormError('Failed to save area assignment.');
+      }
+    } finally {
+      setSavingArea(false);
+    }
+  }
+
+  async function handleDeactivateArea(areaId: number) {
+    if (!detailData) return;
+    if (!confirm('Are you sure you want to deactivate this delivery area assignment?')) return;
+
+    try {
+      await deactivateHubRiderAreaApi(detailData.id, areaId);
+      showToast('Area assignment deactivated.', 'success');
+      const freshDetail = await getHubRiderDetailApi(detailData.id);
+      setDetailData(freshDetail);
+      fetchRiders();
+    } catch (err) {
+      console.error('Failed to deactivate area:', err);
+      showToast('Could not deactivate area assignment.', 'error');
+    }
+  }
+
+  // Toggle barangay in area selector
+  function toggleBarangay(code: string) {
+    setAreaFormBarangays((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  }
+
+  function toggleApproveBarangay(code: string) {
+    setApproveSelectedBarangays((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
   }
 
   return (
@@ -993,12 +1131,21 @@ export default function HubRidersPage() {
                   </div>
                 </div>
 
-                {/* Section 4: Delivery Area Assignments */}
+                {/* Section 4: Delivery Area Assignments (For ACTIVE or PENDING) */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5" /> Delivery Area Coverage
                     </h3>
+                    {detailData.status === 'ACTIVE' && (
+                      <button
+                        type="button"
+                        onClick={openCreateAreaModal}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Assign Delivery Area
+                      </button>
+                    )}
                   </div>
 
                   {detailData.area_assignments && detailData.area_assignments.length > 0 ? (
@@ -1034,13 +1181,34 @@ export default function HubRidersPage() {
                               ))}
                             </div>
                           </div>
+
+                          {detailData.status === 'ACTIVE' && area.is_active && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => openEditAreaModal(area)}
+                                className="p-1.5 text-gray-500 hover:text-blue-600 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Edit Area"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeactivateArea(area.id)}
+                                className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Deactivate Area"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center text-xs text-gray-400">
                       {detailData.status === 'ACTIVE'
-                        ? 'No delivery areas assigned yet.'
+                        ? 'No delivery areas assigned yet. Click "Assign Delivery Area" to designate coverage.'
                         : 'Areas will be designated upon or after application approval.'}
                     </div>
                   )}
@@ -1066,6 +1234,8 @@ export default function HubRidersPage() {
                       type="button"
                       disabled={approving || disapproving}
                       onClick={() => {
+                        setApproveAreaLabel('Area A - Central District');
+                        setApproveSelectedBarangays([]);
                         setApproveConfirmOpen(true);
                       }}
                       className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
@@ -1081,16 +1251,16 @@ export default function HubRidersPage() {
         </div>
       )}
 
-      {/* ─── Approve Confirmation Modal ─────────────────────────────── */}
+      {/* ─── Approve Confirmation Modal (With Optional Initial Area) ─ */}
       {approveConfirmOpen && detailData && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150 overflow-y-auto"
           onClick={() => !approving && setApproveConfirmOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
@@ -1108,6 +1278,56 @@ export default function HubRidersPage() {
             <p className="text-xs text-gray-600 leading-relaxed">
               Authorizing this courier will change their status to <strong>ACTIVE</strong> and send an official approval email. They will gain immediate access to report for dispatch.
             </p>
+
+            {/* Optional Initial Area Assignment */}
+            <div className="p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-900 flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5" /> Initial Area Assignment (Optional)
+                </span>
+                <span className="text-[10px] text-blue-700">Can also be added later</span>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">
+                  Area Label
+                </label>
+                <input
+                  type="text"
+                  value={approveAreaLabel}
+                  onChange={(e) => setApproveAreaLabel(e.target.value)}
+                  placeholder="e.g. Area A - Central District"
+                  className="w-full h-8 px-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-gray-900"
+                />
+              </div>
+
+              {hubCoverage && hubCoverage.coverage_barangays.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">
+                    Select Barangays within Hub Jurisdiction ({hubCoverage.coverage_barangays.length} available)
+                  </label>
+                  <div className="max-h-28 overflow-y-auto p-2 bg-white border border-gray-200 rounded-lg flex flex-wrap gap-1.5">
+                    {hubCoverage.coverage_barangays.map((bgy) => {
+                      const selected = approveSelectedBarangays.includes(bgy);
+                      return (
+                        <button
+                          key={bgy}
+                          type="button"
+                          onClick={() => toggleApproveBarangay(bgy)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-medium transition-all ${
+                            selected
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {bgy} {selected && '✓'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
               <button
@@ -1204,6 +1424,156 @@ export default function HubRidersPage() {
                   </>
                 ) : (
                   <span>Send Disapproval</span>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Area Assignment Edit/Create Modal (Part 3) ─────────────── */}
+      {areaModalOpen && detailData && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[65] flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150 overflow-y-auto"
+          onClick={() => !savingArea && setAreaModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900">
+                    {editingArea ? 'Edit Delivery Area' : 'Assign Delivery Area'}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Courier: {detailData.user.first_name} {detailData.user.last_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAreaModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {areaFormError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <span>{areaFormError}</span>
+              </div>
+            )}
+
+            {/* Area Label Field */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-700">Area Label / Sector Name</label>
+              <input
+                type="text"
+                value={areaFormLabel}
+                onChange={(e) => setAreaFormLabel(e.target.value)}
+                placeholder="e.g. Area A - Central District"
+                className="w-full h-9 px-3 text-xs bg-white border border-gray-200 rounded-xl outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+              />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="text-[10px] text-gray-400 self-center">Presets:</span>
+                {PRESET_AREA_LABELS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setAreaFormLabel(preset)}
+                    className="text-[10px] px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Barangay Multi-Select Chips */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-700">
+                  Designated Barangays ({areaFormBarangays.length} selected)
+                </label>
+                {hubCoverage && (
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setAreaFormBarangays(hubCoverage.coverage_barangays)}
+                      className="text-blue-600 hover:underline font-semibold"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-gray-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setAreaFormBarangays([])}
+                      className="text-gray-500 hover:underline font-semibold"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {hubCoverage && hubCoverage.coverage_barangays.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto p-2.5 bg-gray-50 border border-gray-200 rounded-xl flex flex-wrap gap-1.5">
+                  {hubCoverage.coverage_barangays.map((code) => {
+                    const isSelected = areaFormBarangays.includes(code);
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => toggleBarangay(code)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all ${
+                          isSelected
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        {code} {isSelected && '✓'}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No hub coverage barangays found.</p>
+              )}
+              <p className="text-[11px] text-gray-400">
+                Only barangays officially assigned to this sorting center hub jurisdiction can be dispatched.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={savingArea}
+                onClick={() => setAreaModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <Button
+                disabled={savingArea}
+                onClick={handleSaveArea}
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold"
+              >
+                {savingArea ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving Area…</span>
+                  </>
+                ) : (
+                  <span>Save Area Assignment</span>
                 )}
               </Button>
             </div>
