@@ -280,4 +280,113 @@ class SortingCenterDashboardTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_active_riders_metric_calculates_assigned_active_riders_accurately(): void
+    {
+        // Hub B
+        $hubBOwner = User::forceCreate([
+            'first_name' => 'HubB',
+            'last_name'  => 'Owner',
+            'email'      => 'hub.b.' . uniqid() . '@example.com',
+            'password'   => Hash::make('Pass123!'),
+            'role'       => 'buyer',
+            'status'     => 'active',
+        ]);
+        $hubB = \App\Models\SortingCenter::create([
+            'user_id'          => $hubBOwner->id,
+            'hub_name'         => 'Hub B',
+            'address_province' => 'Rizal',
+            'address_city'     => 'Antipolo',
+            'status'           => \App\Models\SortingCenter::STATUS_APPROVED,
+        ]);
+
+        // Helper to create rider user & profile
+        $createRider = function (string $status) {
+            $user = User::forceCreate([
+                'first_name' => 'Rider',
+                'last_name'  => uniqid(),
+                'email'      => 'rider.' . uniqid() . '@example.com',
+                'password'   => Hash::make('Pass123!'),
+                'role'       => 'rider',
+                'status'     => 'active',
+            ]);
+            return \App\Models\Rider::create([
+                'user_id'      => $user->id,
+                'vehicle_type' => 'motorcycle',
+                'status'       => $status,
+            ]);
+        };
+
+        // Rider 1: ACTIVE, active assignment under Hub A -> COUNTED
+        $rider1 = $createRider(\App\Models\Rider::STATUS_ACTIVE);
+        \App\Models\RiderAreaAssignment::create([
+            'rider_id'          => $rider1->id,
+            'sorting_center_id' => $this->hub->id,
+            'area_label'        => 'North Zone',
+            'is_active'         => true,
+        ]);
+
+        // Rider 2: ACTIVE, 2 active assignments under Hub A -> COUNTED ONCE
+        $rider2 = $createRider(\App\Models\Rider::STATUS_ACTIVE);
+        \App\Models\RiderAreaAssignment::create([
+            'rider_id'          => $rider2->id,
+            'sorting_center_id' => $this->hub->id,
+            'area_label'        => 'South Zone 1',
+            'is_active'         => true,
+        ]);
+        \App\Models\RiderAreaAssignment::create([
+            'rider_id'          => $rider2->id,
+            'sorting_center_id' => $this->hub->id,
+            'area_label'        => 'South Zone 2',
+            'is_active'         => true,
+        ]);
+
+        // Rider 3: ACTIVE, but assignment is inactive -> NOT COUNTED
+        $rider3 = $createRider(\App\Models\Rider::STATUS_ACTIVE);
+        \App\Models\RiderAreaAssignment::create([
+            'rider_id'          => $rider3->id,
+            'sorting_center_id' => $this->hub->id,
+            'area_label'        => 'East Zone',
+            'is_active'         => false,
+        ]);
+
+        // Rider 4: PENDING, active assignment -> NOT COUNTED
+        $rider4 = $createRider(\App\Models\Rider::STATUS_PENDING);
+        \App\Models\RiderAreaAssignment::create([
+            'rider_id'          => $rider4->id,
+            'sorting_center_id' => $this->hub->id,
+            'area_label'        => 'West Zone',
+            'is_active'         => true,
+        ]);
+
+        // Rider 5: DISAPPROVED, active assignment -> NOT COUNTED
+        $rider5 = $createRider(\App\Models\Rider::STATUS_DISAPPROVED);
+        \App\Models\RiderAreaAssignment::create([
+            'rider_id'          => $rider5->id,
+            'sorting_center_id' => $this->hub->id,
+            'area_label'        => 'Central Zone',
+            'is_active'         => true,
+        ]);
+
+        // Rider 6: ACTIVE, active assignment under Hub B -> COUNTED FOR HUB B, NOT HUB A
+        $rider6 = $createRider(\App\Models\Rider::STATUS_ACTIVE);
+        \App\Models\RiderAreaAssignment::create([
+            'rider_id'          => $rider6->id,
+            'sorting_center_id' => $hubB->id,
+            'area_label'        => 'Hub B Zone',
+            'is_active'         => true,
+        ]);
+
+        // Test Hub A metrics
+        Sanctum::actingAs($this->hubOwner);
+        $resA = $this->getJson('/api/v1/hub/dashboard/metrics');
+        $resA->assertStatus(200);
+        $this->assertEquals(2, $resA->json('data.active_riders')); // rider1 and rider2 only
+
+        // Test Hub B metrics
+        Sanctum::actingAs($hubBOwner);
+        $resB = $this->getJson('/api/v1/hub/dashboard/metrics');
+        $resB->assertStatus(200);
+        $this->assertEquals(1, $resB->json('data.active_riders')); // rider6 only
+    }
 }
