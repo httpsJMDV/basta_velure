@@ -72,7 +72,7 @@ function isProfileIncomplete(user: ReturnType<typeof useAuth>['user']) {
 
 function RequireApprovedSeller({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.seller_profile?.application_status !== 'approved') return <Navigate to="/register/seller" replace />;
   return <>{children}</>;
@@ -80,7 +80,7 @@ function RequireApprovedSeller({ children }: { children: ReactNode }) {
 
 function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.sorting_center?.status !== 'APPROVED') return <Navigate to="/register/hub" replace />;
   return <>{children}</>;
@@ -88,7 +88,7 @@ function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
 
 function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading…</div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (isProfileIncomplete(user)) return <Navigate to="/complete-profile" replace />;
   if (!roles.includes(user.role)) return <Navigate to="/" replace />;
@@ -98,15 +98,15 @@ function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }
 function SuspendedScreen() {
   const { clearAuth } = useAuth();
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-      <div className="bg-white rounded-2xl shadow-xl border border-red-100 max-w-md w-full p-8 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+    <div className="flex items-center justify-center min-h-screen p-6 bg-gray-50">
+      <div className="w-full max-w-md p-8 text-center bg-white border border-red-100 shadow-xl rounded-2xl">
+        <div className="flex items-center justify-center mx-auto mb-4 w-14 h-14 rounded-2xl bg-red-50">
           <svg className="w-7 h-7 text-brand-red" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
           </svg>
         </div>
-        <h1 className="text-xl font-black text-gray-900 mb-2">Account Suspended</h1>
-        <p className="text-sm text-gray-500 mb-6">
+        <h1 className="mb-2 text-xl font-black text-gray-900">Account Suspended</h1>
+        <p className="mb-6 text-sm text-gray-500">
           Your account has been suspended due to a violation of our platform
           rules or policies. If you believe this is a mistake, please contact
           our support team for assistance.
