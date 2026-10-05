@@ -78,6 +78,7 @@ export interface SellerProfileSummary {
   application_status: ApplicationStatus;
   rejection_reason: string | null;
   submitted_at: string;
+  address_needs_update?: boolean;
 }
 
 export type Gender = 'male' | 'female' | 'prefer_not_to_say';
@@ -474,6 +475,9 @@ export interface Order {
   shipping_province?: string | null;
   shipping_city?: string | null;
   shipping_barangay?: string | null;
+  shipping_province_code?: string | null;
+  shipping_city_code?: string | null;
+  shipping_barangay_code?: string | null;
   notes?: string | null;
   created_at: string;
   items: OrderItem[];
@@ -519,6 +523,9 @@ export interface SellerOrder {
   shipping_province: string | null;
   shipping_city: string | null;
   shipping_barangay: string | null;
+  shipping_province_code?: string | null;
+  shipping_city_code?: string | null;
+  shipping_barangay_code?: string | null;
   notes: string | null;
   created_at: string;
   buyer: {
@@ -545,7 +552,9 @@ export interface WaybillData {
     status: string;
     ready_at: string | null;
     pickup_barangay: string | null;
+    pickup_barangay_code?: string | null;
     destination_barangay: string | null;
+    destination_barangay_code?: string | null;
     cod_amount: number | null;
   };
   sender: {
@@ -1249,6 +1258,7 @@ export interface Address {
   ward?: string;
   barangay_name?: string;
   barangay_code?: string;
+  address_needs_update?: boolean;
   label?: AddressLabel;
   is_default: boolean;
 }
@@ -1265,6 +1275,11 @@ export interface PublicShopProfile {
   address_province: string | null;
   address_city: string | null;
   address_barangay: string | null;
+  address_street?: string | null;
+  address_province_code?: string | null;
+  address_city_code?: string | null;
+  address_barangay_code?: string | null;
+  address_needs_update?: boolean;
   shop_contact_number: string | null;
   return_policy: string | null;
   shipping_policy: string | null;

@@ -27,7 +27,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
-  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart, MessageSquare,
+  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart, MessageSquare, AlertTriangle,
 } from 'lucide-react';
 
 const StarIcon = Star;
@@ -426,6 +426,9 @@ const EMPTY_FORM = {
   province: '',
   district: '',
   ward: '',
+  province_code: '',
+  city_code: '',
+  barangay_code: '',
   label: 'home' as AddressLabel,
 };
 
@@ -435,9 +438,12 @@ interface AddressFormInternal {
   phone: string;
   address: string;
   floor_unit: string;
-  province: string;  // PSGC code while editing, plain name when saving
+  province: string;  // PSGC code while editing
   district: string;  // PSGC code while editing
   ward: string;      // PSGC code while editing
+  province_code: string;
+  city_code: string;
+  barangay_code: string;
   label: AddressLabel;
 }
 
@@ -455,9 +461,12 @@ function AddressForm({
   // Internal state uses PSGC codes for province/district/ward
   const [form, setForm] = useState<AddressFormInternal>({
     ...initial,
-    province: '',
-    district: '',
-    ward: '',
+    province: initial.province_code || '',
+    district: initial.city_code || '',
+    ward: initial.barangay_code || '',
+    province_code: initial.province_code || '',
+    city_code: initial.city_code || '',
+    barangay_code: initial.barangay_code || '',
   });
   const set = (k: keyof AddressFormInternal, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -469,7 +478,7 @@ function AddressForm({
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingBrgy, setLoadingBrgy] = useState(false);
 
-  // Load provinces, then resolve stored plain names → codes for pre-selection
+  // Load provinces, then resolve stored plain names or codes for pre-selection
   useEffect(() => {
     fetch('https://psgc.gitlab.io/api/provinces/')
       .then((r) => r.json())
@@ -477,13 +486,14 @@ function AddressForm({
         const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
         setProvinces(sorted);
 
-        if (!initial.province) return;
-        // Try to match stored name → code
+        const targetProvince = initial.province_code || initial.province;
+        if (!targetProvince) return;
+        // Try to match stored code or name
         const match = sorted.find(
-          (p) => p.name.toLowerCase() === initial.province.toLowerCase() || p.code === initial.province
+          (p) => p.code === targetProvince || p.name.toLowerCase() === targetProvince.toLowerCase()
         );
         if (!match) return;
-        setForm((f) => ({ ...f, province: match.code }));
+        setForm((f) => ({ ...f, province: match.code, province_code: match.code }));
 
         // Pre-load cities
         setLoadingCities(true);
@@ -493,12 +503,13 @@ function AddressForm({
             const sortedCities = [...cityData].sort((a, b) => a.name.localeCompare(b.name));
             setCities(sortedCities);
 
-            if (!initial.district) return;
+            const targetCity = initial.city_code || initial.district;
+            if (!targetCity) return;
             const cityMatch = sortedCities.find(
-              (c) => c.name.toLowerCase() === initial.district.toLowerCase() || c.code === initial.district
+              (c) => c.code === targetCity || c.name.toLowerCase() === targetCity.toLowerCase()
             );
             if (!cityMatch) return;
-            setForm((f) => ({ ...f, district: cityMatch.code }));
+            setForm((f) => ({ ...f, district: cityMatch.code, city_code: cityMatch.code }));
 
             // Pre-load barangays
             setLoadingBrgy(true);
@@ -508,11 +519,12 @@ function AddressForm({
                 const sortedBrgy = [...brgyData].sort((a, b) => a.name.localeCompare(b.name));
                 setBarangays(sortedBrgy);
 
-                if (!initial.ward) return;
+                const targetWard = initial.barangay_code || initial.ward;
+                if (!targetWard) return;
                 const brgyMatch = sortedBrgy.find(
-                  (b) => b.name.toLowerCase() === initial.ward.toLowerCase() || b.code === initial.ward
+                  (b) => b.code === targetWard || b.name.toLowerCase() === targetWard.toLowerCase()
                 );
-                if (brgyMatch) setForm((f) => ({ ...f, ward: brgyMatch.code }));
+                if (brgyMatch) setForm((f) => ({ ...f, ward: brgyMatch.code, barangay_code: brgyMatch.code }));
               })
               .catch(() => {})
               .finally(() => setLoadingBrgy(false));
@@ -525,7 +537,15 @@ function AddressForm({
   }, []);
 
   function handleProvince(v: string) {
-    setForm((f) => ({ ...f, province: v, district: '', ward: '' }));
+    setForm((f) => ({
+      ...f,
+      province: v,
+      province_code: v,
+      district: '',
+      city_code: '',
+      ward: '',
+      barangay_code: '',
+    }));
     setCities([]);
     setBarangays([]);
     if (!v) return;
@@ -538,7 +558,13 @@ function AddressForm({
   }
 
   function handleCity(v: string) {
-    setForm((f) => ({ ...f, district: v, ward: '' }));
+    setForm((f) => ({
+      ...f,
+      district: v,
+      city_code: v,
+      ward: '',
+      barangay_code: '',
+    }));
     setBarangays([]);
     if (!v) return;
     setLoadingBrgy(true);
@@ -556,6 +582,9 @@ function AddressForm({
       province: provinces.find((p) => p.code === form.province)?.name ?? form.province,
       district: cities.find((c) => c.code === form.district)?.name ?? form.district,
       ward:     barangays.find((b) => b.code === form.ward)?.name ?? form.ward,
+      province_code: form.province,
+      city_code: form.district,
+      barangay_code: form.ward,
     });
   }
 
@@ -695,11 +724,16 @@ function AddressCard({
   onDelete: () => void;
   onSetDefault: () => void;
 }) {
+  const needsUpdate = addr.address_needs_update ?? (!addr.barangay_code);
 
   return (
     <div className={[
       'relative rounded-2xl border-2 p-5 transition-all',
-      addr.is_default ? 'border-brand-red bg-red-50/40' : 'border-gray-100 bg-white',
+      addr.is_default
+        ? 'border-brand-red bg-red-50/40'
+        : needsUpdate
+        ? 'border-amber-200 bg-amber-50/20'
+        : 'border-gray-100 bg-white',
     ].join(' ')}>
       {addr.is_default && (
         <span className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold text-brand-red bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
@@ -715,7 +749,24 @@ function AddressCard({
           {addr.label === 'home' ? <Home className="w-3 h-3" /> : <Briefcase className="w-3 h-3" />}
           {addr.label === 'home' ? 'Home' : 'Office'}
         </span>
+        {needsUpdate && (
+          <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+            <AlertTriangle className="w-2.5 h-2.5" /> Needs Update
+          </span>
+        )}
       </div>
+
+      {needsUpdate && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+          <div>
+            <p className="font-semibold">Standard area codes missing</p>
+            <p className="text-amber-700 mt-0.5">
+              Please click <strong>Edit</strong> to re-select your province, city, and barangay with standard PSGC codes so riders and hubs can deliver to you.
+            </p>
+          </div>
+        </div>
+      )}
 
       <p className="font-semibold text-brand-black text-sm">{addr.full_name}</p>
       <p className="text-sm text-gray-500 mt-0.5">{addr.phone}</p>
@@ -768,9 +819,12 @@ function AddressBookPanel() {
       phone: a.phone || a.phone_number || '',
       address: a.address || a.street_address || '',
       floor_unit: a.floor_unit ?? '',
-      province: a.province || a.province_name || a.province_code || '',
-      district: a.district || a.city_name || a.city_code || '',
-      ward: a.ward || a.barangay_name || a.barangay_code || '',
+      province: a.province || a.province_name || '',
+      district: a.district || a.city_name || '',
+      ward: a.ward || a.barangay_name || '',
+      province_code: a.province_code || '',
+      city_code: a.city_code || '',
+      barangay_code: a.barangay_code || '',
       label: a.label || 'home',
     };
   }

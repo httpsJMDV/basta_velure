@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { resolveBarangayName, resolveCityName, resolveProvinceName } from '../../utils/psgc';
 import {
   Camera, Store, MapPin, CheckCircle2, AlertTriangle,
   Loader2, Pencil, X, Phone, Clock, Shield, Copy, Check,
@@ -12,7 +11,7 @@ import {
   updateSellerShopProfileApi,
   type SellerShopProfile,
 } from '../../api/client';
-import AddressFields, { type AddressValue } from '../../components/ui/AddressFields';
+import PsgcCascadingAddress, { type HubAddressValue } from '../../components/logistics/PsgcCascadingAddress';
 import CustomSelect from '../../components/ui/CustomSelect';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -243,22 +242,9 @@ const RESPONSE_TIME_OPTIONS = [
 
 // ─── Location display (resolves PSGC codes to names) ────────────────────────
 
-function LocationDisplay({ address }: { address: AddressValue }) {
-  const [label, setLabel] = useState('');
-
-  useEffect(() => {
-    if (!address.province && !address.city_municipality && !address.barangay) {
-      setLabel('');
-      return;
-    }
-    Promise.all([
-      address.barangay ? resolveBarangayName(address.barangay) : Promise.resolve(''),
-      address.city_municipality ? resolveCityName(address.city_municipality) : Promise.resolve(''),
-      address.province ? resolveProvinceName(address.province) : Promise.resolve(''),
-    ]).then(([brgy, city, prov]) => {
-      setLabel([brgy, city, prov].filter(Boolean).join(', '));
-    });
-  }, [address.province, address.city_municipality, address.barangay]);
+function LocationDisplay({ address }: { address: HubAddressValue }) {
+  const parts = [address.barangayName, address.cityName, address.provinceName].filter(Boolean);
+  const label = parts.length > 0 ? parts.join(', ') : [address.barangay, address.city, address.province].filter(Boolean).join(', ');
 
   return (
     <div className="flex-1 min-w-0">
@@ -266,8 +252,8 @@ function LocationDisplay({ address }: { address: AddressValue }) {
       <p className="text-[13px] text-gray-700 font-medium truncate">
         {label || <span className="text-gray-400 italic">Not set</span>}
       </p>
-      {address.street_address && (
-        <p className="text-[12px] text-gray-400 truncate">{address.street_address}</p>
+      {address.street && (
+        <p className="text-[12px] text-gray-400 truncate">{address.street}</p>
       )}
     </div>
   );
@@ -300,8 +286,16 @@ export default function SellerShopProfilePage() {
   const [shippingPolicy, setShippingPolicy] = useState('');
   const [businessHours, setBusinessHours] = useState('');
   const [responseTime, setResponseTime] = useState('');
-  const [address, setAddress] = useState<AddressValue>({
-    province: '', city_municipality: '', barangay: '', street_address: '',
+  const [psgcAddress, setPsgcAddress] = useState<HubAddressValue>({
+    region: '',
+    regionName: '',
+    province: '',
+    provinceName: '',
+    city: '',
+    cityName: '',
+    barangay: '',
+    barangayName: '',
+    street: '',
   });
 
   // image state
@@ -327,11 +321,16 @@ export default function SellerShopProfilePage() {
         setShippingPolicy(p.shipping_policy ?? '');
         setBusinessHours(p.business_hours ?? '');
         setResponseTime(p.response_time ?? '');
-        setAddress({
-          province: p.address_province ?? '',
-          city_municipality: p.address_city ?? '',
-          barangay: p.address_barangay ?? '',
-          street_address: p.address_street ?? '',
+        setPsgcAddress({
+          region: '',
+          regionName: '',
+          province: p.address_province_code ?? '',
+          provinceName: p.address_province ?? '',
+          city: p.address_city_code ?? '',
+          cityName: p.address_city ?? '',
+          barangay: p.address_barangay_code ?? '',
+          barangayName: p.address_barangay ?? '',
+          street: p.address_street ?? '',
         });
       })
       .catch(() => setToast({ type: 'error', message: 'Failed to load shop profile.' }))
@@ -363,10 +362,13 @@ export default function SellerShopProfilePage() {
     form.append('shipping_policy', shippingPolicy.trim());
     form.append('business_hours', businessHours.trim());
     form.append('response_time', responseTime);
-    form.append('address_province', address.province);
-    form.append('address_city', address.city_municipality);
-    form.append('address_barangay', address.barangay);
-    form.append('address_street', address.street_address.trim());
+    form.append('address_province', psgcAddress.provinceName || psgcAddress.province);
+    form.append('address_city', psgcAddress.cityName || psgcAddress.city);
+    form.append('address_barangay', psgcAddress.barangayName || psgcAddress.barangay);
+    form.append('address_street', psgcAddress.street.trim());
+    if (psgcAddress.province) form.append('address_province_code', psgcAddress.province);
+    if (psgcAddress.city) form.append('address_city_code', psgcAddress.city);
+    if (psgcAddress.barangay) form.append('address_barangay_code', psgcAddress.barangay);
     if (logoFile) form.append('logo', logoFile);
     if (bannerFile) form.append('banner', bannerFile);
 
@@ -421,6 +423,26 @@ export default function SellerShopProfilePage() {
         onChange={(e) => handleImagePick(e, setLogoFile, setLogoPreview)} />
       <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => handleImagePick(e, setBannerFile, setBannerPreview)} />
+
+      {/* Address update needed warning banner */}
+      {profile?.address_needs_update && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-900">Pickup Address Update Required</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Re-select your shop address so couriers can match your pickup area.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditingLocation(true)}
+            className="text-xs font-semibold text-brand-red hover:underline shrink-0"
+          >
+            Edit Address &rarr;
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -683,18 +705,44 @@ export default function SellerShopProfilePage() {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <AddressFields value={address} onChange={setAddress} errors={errors} />
+                <PsgcCascadingAddress
+                  value={psgcAddress}
+                  onChange={setPsgcAddress}
+                  errors={{
+                    province: errors.address_province || errors.address_province_code,
+                    city: errors.address_city || errors.address_city_code,
+                    barangay: errors.address_barangay || errors.address_barangay_code,
+                    street: errors.address_street,
+                  }}
+                />
               </div>
             ) : (
-              <div className="flex items-center gap-3 group">
-                <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 group">
+                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                  </div>
+                  <LocationDisplay address={psgcAddress} />
+                  <button type="button" onClick={() => setEditingLocation(true)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-brand-red">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <LocationDisplay address={address} />
-                <button type="button" onClick={() => setEditingLocation(true)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-brand-red">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
+                {profile?.address_needs_update && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Re-select your shop address so couriers can match your pickup area.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingLocation(true)}
+                      className="font-semibold text-brand-red hover:underline shrink-0 ml-2"
+                    >
+                      Update
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

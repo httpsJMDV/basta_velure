@@ -37,6 +37,9 @@ export default function CheckoutPage() {
   const [shippingProvince, setShippingProvince] = useState('');
   const [shippingCity, setShippingCity] = useState('');
   const [shippingBarangay, setShippingBarangay] = useState('');
+  const [shippingProvinceCode, setShippingProvinceCode] = useState('');
+  const [shippingCityCode, setShippingCityCode] = useState('');
+  const [shippingBarangayCode, setShippingBarangayCode] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
 
   // Payment method: 'gcash' | 'cod'
@@ -50,6 +53,23 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successOrders, setSuccessOrders] = useState<Order[] | null>(null);
+
+  const selectedAddress = useMemo(
+    () => addresses.find((a) => a.id === selectedAddressId),
+    [addresses, selectedAddressId]
+  );
+
+  const selectedAddressNeedsUpdate = useMemo(() => {
+    if (selectedAddress) {
+      return Boolean(
+        selectedAddress.address_needs_update ||
+        !selectedAddress.barangay_code ||
+        !selectedAddress.city_code ||
+        !selectedAddress.province_code
+      );
+    }
+    return !shippingBarangayCode || !shippingCityCode || !shippingProvinceCode;
+  }, [selectedAddress, shippingBarangayCode, shippingCityCode, shippingProvinceCode]);
 
   // Group items by shop for checkout
   const shopGroups = useMemo(() => {
@@ -97,9 +117,12 @@ export default function CheckoutPage() {
           setShippingName(def.recipient_name || def.full_name || '');
           setShippingPhone(def.phone_number || def.phone || '');
           setShippingAddress(def.street_address || def.address || '');
-          setShippingProvince(def.province_name || def.province_code || def.province || '');
-          setShippingCity(def.city_name || def.city_code || def.district || '');
-          setShippingBarangay(def.barangay_name || def.barangay_code || def.ward || '');
+          setShippingProvince(def.province_name || def.province || '');
+          setShippingCity(def.city_name || def.district || '');
+          setShippingBarangay(def.barangay_name || def.ward || '');
+          setShippingProvinceCode(def.province_code || '');
+          setShippingCityCode(def.city_code || '');
+          setShippingBarangayCode(def.barangay_code || '');
         }
       })
       .catch(() => {});
@@ -110,9 +133,12 @@ export default function CheckoutPage() {
     setShippingName(addr.recipient_name || addr.full_name || '');
     setShippingPhone(addr.phone_number || addr.phone || '');
     setShippingAddress(addr.street_address || addr.address || '');
-    setShippingProvince(addr.province_name || addr.province_code || addr.province || '');
-    setShippingCity(addr.city_name || addr.city_code || addr.district || '');
-    setShippingBarangay(addr.barangay_name || addr.barangay_code || addr.ward || '');
+    setShippingProvince(addr.province_name || addr.province || '');
+    setShippingCity(addr.city_name || addr.district || '');
+    setShippingBarangay(addr.barangay_name || addr.ward || '');
+    setShippingProvinceCode(addr.province_code || '');
+    setShippingCityCode(addr.city_code || '');
+    setShippingBarangayCode(addr.barangay_code || '');
   };
 
   const handleCopyNumber = () => {
@@ -154,6 +180,11 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (selectedAddressNeedsUpdate || !shippingProvinceCode || !shippingCityCode || !shippingBarangayCode) {
+      setErrorMsg('Selected delivery address is missing standard area codes. Please update or select a valid address in your Address Book.');
+      return;
+    }
+
     if (paymentMethod === 'gcash') {
       if (!gcashReference.trim()) {
         setErrorMsg('Please enter your GCash Reference Number from your payment receipt.');
@@ -176,6 +207,9 @@ export default function CheckoutPage() {
       if (shippingProvince) formData.append('shipping_province', shippingProvince.trim());
       if (shippingCity) formData.append('shipping_city', shippingCity.trim());
       if (shippingBarangay) formData.append('shipping_barangay', shippingBarangay.trim());
+      formData.append('shipping_province_code', shippingProvinceCode.trim());
+      formData.append('shipping_city_code', shippingCityCode.trim());
+      formData.append('shipping_barangay_code', shippingBarangayCode.trim());
       if (orderNotes) formData.append('notes', orderNotes.trim());
 
       if (paymentMethod === 'gcash') {
@@ -332,40 +366,85 @@ export default function CheckoutPage() {
                 {/* Saved Address Selector */}
                 {addresses.length > 0 && (
                   <div className="mb-4">
-                    <label className="block text-xs font-semibold text-gray-600 mb-2">Saved Addresses</label>
-                    <div className="grid grid-cols-1 gap-2">
-                      {addresses.map((addr) => (
-                        <div
-                          key={addr.id}
-                          onClick={() => handleSelectAddress(addr)}
-                          className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-start justify-between ${
-                            selectedAddressId === addr.id
-                              ? 'border-brand-red bg-red-50/20 shadow-xs'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-gray-900">{addr.recipient_name || addr.full_name}</span>
-                              <span className="text-gray-400">({addr.phone_number || addr.phone})</span>
-                              {addr.is_default && (
-                                <span className="bg-red-50 text-brand-red text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                                  Default
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-gray-600 mt-1 leading-relaxed">
-                              {addr.street_address || addr.address}, {addr.barangay_name || addr.barangay_code || addr.ward}, {addr.city_name || addr.city_code || addr.district}, {addr.province_name || addr.province_code || addr.province}
-                            </p>
-                          </div>
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 ${
-                            selectedAddressId === addr.id ? 'border-brand-red bg-brand-red text-white' : 'border-gray-300'
-                          }`}>
-                            {selectedAddressId === addr.id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-gray-600">Saved Addresses</label>
+                      <Link
+                        to="/settings/addresses"
+                        className="text-xs font-semibold text-brand-red hover:text-brand-red-dark transition-colors"
+                      >
+                        Manage Addresses
+                      </Link>
                     </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {addresses.map((addr) => {
+                        const addrNeedsUpdate = Boolean(addr.address_needs_update || !addr.barangay_code);
+                        return (
+                          <div
+                            key={addr.id}
+                            onClick={() => handleSelectAddress(addr)}
+                            className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-start justify-between ${
+                              selectedAddressId === addr.id
+                                ? addrNeedsUpdate
+                                  ? 'border-amber-400 bg-amber-50/30 shadow-xs'
+                                  : 'border-brand-red bg-red-50/20 shadow-xs'
+                                : addrNeedsUpdate
+                                ? 'border-amber-200 bg-amber-50/10 hover:border-amber-300'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-gray-900">{addr.recipient_name || addr.full_name}</span>
+                                <span className="text-gray-400">({addr.phone_number || addr.phone})</span>
+                                {addr.is_default && (
+                                  <span className="bg-red-50 text-brand-red text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                    Default
+                                  </span>
+                                )}
+                                {addrNeedsUpdate && (
+                                  <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                                    <AlertCircle className="w-2.5 h-2.5" /> Needs Update
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-gray-600 mt-1 leading-relaxed">
+                                {addr.street_address || addr.address}, {addr.barangay_name || addr.ward}, {addr.city_name || addr.district}, {addr.province_name || addr.province}
+                              </p>
+                            </div>
+                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 ${
+                              selectedAddressId === addr.id
+                                ? addrNeedsUpdate
+                                  ? 'border-amber-500 bg-amber-500 text-white'
+                                  : 'border-brand-red bg-brand-red text-white'
+                                : 'border-gray-300'
+                            }`}>
+                              {selectedAddressId === addr.id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Warning banner when selected address needs PSGC update */}
+                {selectedAddressNeedsUpdate && (
+                  <div className="mb-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-900">Standard Delivery Area Codes Missing</p>
+                        <p className="text-amber-800 mt-0.5 leading-relaxed">
+                          This delivery address needs to be updated with standard Philippine PSGC area codes. Please update it before placing your order.
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/settings/addresses"
+                      className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-colors shadow-xs"
+                    >
+                      Edit Address
+                    </Link>
                   </div>
                 )}
 
@@ -709,12 +788,32 @@ export default function CheckoutPage() {
                 )}
 
                 {/* Submit CTA */}
+                {selectedAddressNeedsUpdate && (
+                  <div className="mt-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-amber-900">Delivery address needs standard area codes</p>
+                      <p className="text-amber-700 mt-0.5">
+                        Please update your delivery address in your{' '}
+                        <Link to="/settings/addresses" className="font-bold underline text-amber-800 hover:text-amber-950">
+                          Address Book
+                        </Link>{' '}
+                        to proceed with checkout.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || selectedAddressNeedsUpdate}
                   className="w-full mt-6 py-3 text-sm font-bold shadow-md flex items-center justify-center gap-2"
                 >
-                  {submitting ? 'Placing Order...' : `Place Order (₱${total.toLocaleString()})`}
+                  {submitting
+                    ? 'Placing Order...'
+                    : selectedAddressNeedsUpdate
+                    ? 'Address Update Required'
+                    : `Place Order (₱${total.toLocaleString()})`}
                 </Button>
 
                 <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400 mt-4 text-center">
