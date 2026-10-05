@@ -189,3 +189,23 @@ As an order advances through logistics stages (`PICKED_UP`, `AT_SORTING_CENTER`,
 - Waybill endpoint: `GET /api/v1/seller/orders/{order}/waybill` (requires seller ownership or admin role).
 - Waybill page: `/seller/orders/:id/waybill` formatted for standard A6 thermal shipping labels (`105mm x 148mm`) with Code 128 barcode rendered via `jsbarcode`.
 
+---
+
+## 7. Courier Pickup Assignment & Claim Lifecycle (Feature 2.4)
+
+### Pickup Requests & Area Matching
+When an order enters `READY_FOR_PICKUP`, its parcel becomes an available pickup request for couriers whose active delivery area assignments (`rider_area_assignments`) contain the parcel's `pickup_barangay_code`.
+
+### Claiming Without Status Change
+- Accepting a pickup (`POST /api/v1/rider/pickups/sellers/{seller}/accept`) claims the available parcels by setting:
+  - `parcels.pickup_rider_id = rider.id`
+  - `parcels.sorting_center_id = rider.sorting_center_id`
+  - `parcels.pickup_accepted_at = now()`
+- **No Status Change**: Accepting a pickup does **NOT** advance order or parcel status. Both remain in `READY_FOR_PICKUP`. The status only advances to `PICKED_UP` upon physical courier handover and barcode scan confirmation in Feature 2.5.
+- **Hub Intake Association**: Setting `sorting_center_id` binds the parcel to the claiming courier's affiliated sorting center hub. Hub intake (Feature 1.6) will validate the parcel's hub against `sorting_center_id`.
+
+### Courier Decline & Release
+- **Decline** (`POST /api/v1/rider/pickups/sellers/{seller}/decline`): Inserts rows into `rider_pickup_declines` for currently visible parcels. This hides those parcels from that courier's dashboard only; other couriers covering the area still see them. Any subsequent parcels that become ready for the same seller will appear normally.
+- **Release** (`POST /api/v1/rider/pickups/sellers/{seller}/release`): Clears `pickup_rider_id`, `sorting_center_id`, and `pickup_accepted_at` back to `null`, safely returning the parcels to the pool of available pickups for other couriers.
+
+

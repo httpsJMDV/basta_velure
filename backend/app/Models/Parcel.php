@@ -73,6 +73,7 @@ class Parcel extends Model
         'recipient_snapshot',
         'cod_amount',
         'ready_at',
+        'pickup_accepted_at',
         'scanned_in_at',
     ];
 
@@ -81,10 +82,38 @@ class Parcel extends Model
         return [
             'scanned_in_at'           => 'datetime',
             'ready_at'                => 'datetime',
+            'pickup_accepted_at'      => 'datetime',
             'pickup_address_snapshot' => 'array',
             'recipient_snapshot'      => 'array',
             'cod_amount'              => 'decimal:2',
         ];
+    }
+
+    public function declines(): HasMany
+    {
+        return $this->hasMany(RiderPickupDecline::class, 'parcel_id');
+    }
+
+    /**
+     * Scope a query to only include parcels available for pickup by a specific rider.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param \App\Models\Rider $rider
+     * @param array<string> $activeBarangayCodes
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeAvailableForRider($query, Rider $rider, array $activeBarangayCodes)
+    {
+        if (empty($activeBarangayCodes)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where('status', self::STATUS_READY_FOR_PICKUP)
+            ->whereNull('pickup_rider_id')
+            ->whereIn('pickup_barangay_code', $activeBarangayCodes)
+            ->whereDoesntHave('declines', function ($sub) use ($rider) {
+                $sub->where('rider_id', $rider->id);
+            });
     }
 
     public function seller(): BelongsTo
