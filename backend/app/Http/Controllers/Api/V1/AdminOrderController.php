@@ -17,7 +17,7 @@ class AdminOrderController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $orders = Order::with(['buyer', 'items'])
+        $orders = Order::with(['buyer', 'items', 'parcel'])
             ->when($request->status, function ($q, $status) {
                 $mapped = match (strtolower($status)) {
                     'pending'   => OrderStatus::PLACED->value,
@@ -60,7 +60,7 @@ class AdminOrderController extends Controller
 
     public function show(Order $order): JsonResponse
     {
-        $order->load(['buyer', 'items', 'payment', 'dispute', 'statusHistories']);
+        $order->load(['buyer', 'items', 'payment', 'dispute', 'statusHistories', 'parcel']);
         return response()->json(['data' => $this->formatOrder($order, detail: true)]);
     }
 
@@ -97,7 +97,7 @@ class AdminOrderController extends Controller
             $request->note ?? 'Admin status update'
         );
 
-        return response()->json(['data' => $this->formatOrder($order->fresh(['buyer', 'items', 'statusHistories']))]);
+        return response()->json(['data' => $this->formatOrder($order->fresh(['buyer', 'items', 'statusHistories', 'parcel']))]);
     }
 
     public function stats(): JsonResponse
@@ -123,9 +123,10 @@ class AdminOrderController extends Controller
         $statusStr = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
 
         $base = [
-            'id'             => $o->id,
-            'order_number'   => $o->order_number,
-            'status'         => $statusStr,
+            'id'              => $o->id,
+            'order_number'    => $o->order_number,
+            'tracking_number' => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
+            'status'          => $statusStr,
             'payment_method' => $o->payment_method,
             'payment_status' => $o->payment_status,
             'subtotal'       => (float) $o->subtotal,

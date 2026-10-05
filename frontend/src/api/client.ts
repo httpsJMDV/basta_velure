@@ -40,6 +40,7 @@ import type {
   PublicShopProfile,
   PublicShopReview,
   SellerOrder,
+  WaybillData,
   SellerEarningsSummary,
   SellerOrderEarningsItem,
   PayoutRequest,
@@ -628,6 +629,9 @@ export const getSellerOrdersApi = (params?: { status?: string; search?: string; 
 
 export const getSellerOrderApi = (id: number) =>
   http.get<{ data: SellerOrder }>(`/seller/orders/${id}`).then((r) => r.data.data);
+
+export const getSellerOrderWaybillApi = (id: number) =>
+  http.get<{ data: WaybillData }>(`/seller/orders/${id}/waybill`).then((r) => r.data.data);
 
 export const confirmSellerOrderPaymentApi = (orderId: number) =>
   http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/confirm-payment`).then((r) => r.data);

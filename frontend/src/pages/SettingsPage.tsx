@@ -951,6 +951,11 @@ function OrderCard({ order, onUpdated, isPartOfMultiShopCheckout }: { order: Ord
           <span className="text-xs text-gray-400">
             {order.created_at ? new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
           </span>
+          {order.tracking_number && (
+            <span className="text-[10px] font-mono font-medium text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
+              Track: {order.tracking_number}
+            </span>
+          )}
           {isPartOfMultiShopCheckout && (
             <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
               Part of a multi-shop checkout

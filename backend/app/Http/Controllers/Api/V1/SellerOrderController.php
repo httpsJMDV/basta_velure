@@ -26,7 +26,7 @@ class SellerOrderController extends Controller
     {
         $sellerId = $request->user()->id;
 
-        $orders = Order::with(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment'])
+        $orders = Order::with(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'parcel'])
             ->whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
             ->when($request->status, function ($q, $status) {
                 if ($status === 'pending_verification') {
@@ -139,10 +139,72 @@ class SellerOrderController extends Controller
         $sellerId = $request->user()->id;
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
-        $order->load(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'dispute', 'statusHistories']);
+        $order->load(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'dispute', 'statusHistories', 'parcel']);
 
         return response()->json([
             'data' => $this->formatOrder($order, $sellerId, detail: true),
+        ]);
+    }
+
+    /**
+     * GET /api/v1/seller/orders/{order}/waybill
+     */
+    public function waybill(Request $request, Order $order): JsonResponse
+    {
+        $user = $request->user();
+        $isOwner = $order->items()->where('seller_id', $user->id)->exists();
+        $isAdmin = $user->role === 'admin';
+        abort_unless($isOwner || $isAdmin, 403, 'Unauthorized to access waybill for this order.');
+
+        $parcel = $order->parcel()->first();
+        if (! $parcel) {
+            return response()->json([
+                'message' => 'Waybill cannot be generated: parcel has not been created yet. Mark the order as Ready for Pickup first.',
+            ], 409);
+        }
+
+        $order->loadMissing(['items.seller.sellerProfile', 'buyer']);
+        $sellerItems = $isAdmin
+            ? $order->items
+            : $order->items->where('seller_id', $user->id);
+
+        return response()->json([
+            'data' => [
+                'order' => [
+                    'id'             => $order->id,
+                    'order_number'   => $order->order_number,
+                    'created_at'     => $order->created_at?->toIso8601String(),
+                    'payment_method' => $order->payment_method,
+                    'total'          => (float) $order->total,
+                ],
+                'parcel' => [
+                    'id'                   => $parcel->id,
+                    'tracking_number'      => $parcel->tracking_number,
+                    'status'               => $parcel->status,
+                    'ready_at'             => $parcel->ready_at?->toIso8601String(),
+                    'pickup_barangay'      => $parcel->pickup_barangay,
+                    'destination_barangay' => $parcel->destination_barangay,
+                    'cod_amount'           => $parcel->cod_amount !== null ? (float) $parcel->cod_amount : null,
+                ],
+                'sender' => $parcel->pickup_address_snapshot,
+                'recipient' => $parcel->recipient_snapshot,
+                'items' => $sellerItems->map(fn ($i) => [
+                    'id'            => $i->id,
+                    'product_name'  => $i->product_name,
+                    'variant_label' => $i->variant_label,
+                    'quantity'      => $i->quantity,
+                    'unit_price'    => (float) $i->unit_price,
+                    'subtotal'      => (float) $i->subtotal,
+                ])->values(),
+                'cod' => [
+                    'is_cod' => $order->payment_method === 'cod',
+                    'amount' => $order->payment_method === 'cod' ? (float) ($parcel->cod_amount ?? $order->total) : 0.00,
+                ],
+                'barcode' => [
+                    'format' => 'CODE128',
+                    'value'  => $parcel->tracking_number,
+                ],
+            ],
         ]);
     }
 
@@ -358,6 +420,7 @@ class SellerOrderController extends Controller
             'checkout_group_total'  => $checkoutGroupTotal,
             'checkout_orders_count' => $checkoutOrdersCount,
             'order_number'          => $o->order_number,
+            'tracking_number'       => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
             'status'                => $statusStr,
             'payment_method'        => $o->payment_method,
             'payment_status'        => $o->payment_status,

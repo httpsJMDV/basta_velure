@@ -215,7 +215,7 @@ class BuyerOrderController extends Controller
     {
         $user = $request->user();
 
-        $orders = Order::with(['items.seller.sellerProfile', 'payment'])
+        $orders = Order::with(['items.seller.sellerProfile', 'payment', 'parcel'])
             ->where('buyer_id', $user->id)
             ->when($request->status, function ($q, $status) {
                 if ($status === 'pending_verification') {
@@ -261,7 +261,7 @@ class BuyerOrderController extends Controller
     {
         abort_if($order->buyer_id !== $request->user()->id, 403);
 
-        $order->load(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories']);
+        $order->load(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories', 'parcel']);
 
         return response()->json([
             'data' => $this->formatOrder($order, detail: true),
@@ -313,6 +313,7 @@ class BuyerOrderController extends Controller
             'id'                  => $o->id,
             'checkout_group_id'   => $o->checkout_group_id,
             'order_number'        => $o->order_number,
+            'tracking_number'     => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
             'status'              => $statusStr,
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,

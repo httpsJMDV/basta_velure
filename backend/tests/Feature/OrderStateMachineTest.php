@@ -44,6 +44,24 @@ class OrderStateMachineTest extends TestCase
             'status'     => 'active',
         ]);
 
+        \App\Models\SellerProfile::create([
+            'user_id'                    => $this->seller->id,
+            'shop_name'                  => 'SM Shop ' . uniqid(),
+            'shop_category'              => 'Clothing',
+            'date_of_birth'              => '1995-01-01',
+            'government_id_type'         => 'national_id',
+            'government_id_number'       => '1234-5678-9012',
+            'government_id_number_hash'  => hash('sha256', '1234-5678-9012-' . uniqid()),
+            'government_id_image_path'   => 'uploads/test.jpg',
+            'payout_gcash_number'        => '09171234567',
+            'application_status'         => 'approved',
+            'address_province'           => 'Metro Manila',
+            'address_city'               => 'Manila',
+            'address_barangay'           => 'Barangay 659',
+            'address_street'             => '123 Seller St',
+            'shop_contact_number'        => '09171234567',
+        ]);
+
         $this->rider = User::forceCreate([
             'first_name' => 'SM',
             'last_name'  => 'Rider',
@@ -68,14 +86,20 @@ class OrderStateMachineTest extends TestCase
     private function createTestOrder(OrderStatus $status = OrderStatus::PLACED): Order
     {
         $order = Order::create([
-            'buyer_id'       => $this->buyer->id,
-            'order_number'   => 'ORD-' . substr(uniqid(), -10),
-            'subtotal'       => 500.00,
-            'shipping_fee'   => 50.00,
-            'total'          => 550.00,
-            'payment_method' => 'cod',
-            'payment_status' => 'pending',
-            'status'         => $status,
+            'buyer_id'          => $this->buyer->id,
+            'order_number'      => 'ORD-' . substr(uniqid(), -10),
+            'subtotal'          => 500.00,
+            'shipping_fee'      => 50.00,
+            'total'             => 550.00,
+            'payment_method'    => 'cod',
+            'payment_status'    => 'pending',
+            'status'            => $status,
+            'shipping_name'     => 'Buyer Name',
+            'shipping_phone'    => '09171234567',
+            'shipping_address'  => '123 Buyer St',
+            'shipping_province' => 'Metro Manila',
+            'shipping_city'     => 'Manila',
+            'shipping_barangay' => 'Barangay 1',
         ]);
 
         OrderItem::create([

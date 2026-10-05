@@ -155,3 +155,36 @@ For buyer order tracking (`SettingsPage.tsx`), individual statuses map to user-f
    - `DELIVERED`, `COMPLETED`
 6. **Failed or Returned / Disputed**:
    - `DELIVERY_FAILED`, `RETURNED`, `CANCELLED`, `DISPUTED`
+
+---
+
+## 6. Parcel Creation, Tracking Number & Waybill (Bridge B)
+
+### Automated Parcel Creation
+When an order transitions to `READY_FOR_PICKUP`:
+1. `OrderStateMachine` checks if a `Parcel` record already exists for the order. If not, it generates a unique tracking number and inserts the parcel inside the transaction.
+2. **Guards**:
+   - The seller must have an approved profile and a valid `address_barangay`.
+   - The order must have complete recipient details (`shipping_name`, `shipping_phone`, `shipping_address`, `shipping_barangay`).
+   - If guards fail, the transition aborts with `422 Unprocessable Entity` and the order remains in `PREPARING`.
+3. **Snapshots**:
+   - `pickup_address_snapshot`: Stores shop name, seller phone, street, barangay, city, province.
+   - `recipient_snapshot`: Stores buyer recipient name, phone, street, barangay, city, province.
+4. **COD Handling**:
+   - For COD orders, `cod_amount` is set to the order total.
+   - For GCash orders, `cod_amount` is `null`.
+
+### Tracking Number Standard
+Tracking numbers follow the pattern `LIT-YYMMDD-XXXXXX`:
+- `LIT-`: Loved-IT express shipping prefix.
+- `YYMMDD`: Date of generation.
+- `XXXXXX`: 6 characters chosen from unambiguous character set `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (omits 0, 1, I, O to prevent misreading by couriers and sorting center operators).
+- Handled by `App\Services\TrackingNumberGenerator` with collision retry.
+
+### Parcel Status Synchronization
+As an order advances through logistics stages (`PICKED_UP`, `AT_SORTING_CENTER`, `SORTED`, `ASSIGNED_TO_RIDER`, `OUT_FOR_DELIVERY`, `DELIVERED`, `DELIVERY_FAILED`, `RETURNED`), `OrderStateMachine` updates the parcel's `status` column to match.
+
+### Printable Waybill
+- Waybill endpoint: `GET /api/v1/seller/orders/{order}/waybill` (requires seller ownership or admin role).
+- Waybill page: `/seller/orders/:id/waybill` formatted for standard A6 thermal shipping labels (`105mm x 148mm`) with Code 128 barcode rendered via `jsbarcode`.
+

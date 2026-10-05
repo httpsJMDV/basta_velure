@@ -457,6 +457,7 @@ export interface Order {
   id: number;
   checkout_group_id?: string | null;
   order_number: string;
+  tracking_number?: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -499,6 +500,7 @@ export interface SellerOrder {
   checkout_group_total?: number | null;
   checkout_orders_count?: number | null;
   order_number: string;
+  tracking_number?: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -527,6 +529,59 @@ export interface SellerOrder {
   } | null;
   items: SellerOrderItem[];
   status_history?: OrderStatusHistory[];
+}
+
+export interface WaybillData {
+  order: {
+    id: number;
+    order_number: string;
+    created_at: string;
+    payment_method: PaymentMethod;
+    total: number;
+  };
+  parcel: {
+    id: number;
+    tracking_number: string;
+    status: string;
+    ready_at: string | null;
+    pickup_barangay: string | null;
+    destination_barangay: string | null;
+    cod_amount: number | null;
+  };
+  sender: {
+    shop_name?: string;
+    contact_phone?: string;
+    street?: string;
+    barangay?: string;
+    city?: string;
+    province?: string;
+    full_address?: string;
+  };
+  recipient: {
+    name?: string;
+    phone?: string;
+    street?: string;
+    barangay?: string;
+    city?: string;
+    province?: string;
+    full_address?: string;
+  };
+  items: Array<{
+    id: number;
+    product_name: string;
+    variant_label: string | null;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+  }>;
+  cod: {
+    is_cod: boolean;
+    amount: number;
+  };
+  barcode: {
+    format: string;
+    value: string;
+  };
 }
 
 export interface SellerEarningsSummary {
@@ -580,6 +635,7 @@ export interface PayoutRequest {
 export interface AdminOrder {
   id: number;
   order_number: string;
+  tracking_number?: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;

@@ -6,11 +6,18 @@ use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
+use App\Models\Parcel;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class OrderStateMachine
 {
+    public function __construct(
+        protected ?TrackingNumberGenerator $trackingNumberGenerator = null
+    ) {
+        $this->trackingNumberGenerator ??= app(TrackingNumberGenerator::class);
+    }
+
     /**
      * Complete transition map defining allowed target statuses and authorized actor roles.
      * Actors: 'seller', 'rider', 'hub', 'buyer', 'admin', 'system'
@@ -194,7 +201,87 @@ class OrderStateMachine
         ?int $actorId,
         array $meta
     ): void {
-        // Escrow trigger:
+        // 1. Entering READY_FOR_PICKUP: create logistics parcel if it does not exist yet (idempotent)
+        if ($toStatus === OrderStatus::READY_FOR_PICKUP->value) {
+            $existingParcel = Parcel::where('order_id', $order->id)->first();
+            if (! $existingParcel) {
+                $seller = $order->seller ?? $order->items()->first()?->seller;
+                $profile = $seller?->sellerProfile;
+
+                if (! $profile) {
+                    abort(422, 'Cannot mark order ready for pickup: seller profile not found.');
+                }
+
+                $pickupBarangay = trim((string) ($profile->address_barangay ?? ''));
+                if ($pickupBarangay === '') {
+                    abort(422, 'Cannot mark order ready for pickup: seller pickup address/barangay is required.');
+                }
+
+                $recipientName = trim((string) ($order->shipping_name ?? ''));
+                $recipientPhone = trim((string) ($order->shipping_phone ?? ''));
+                $recipientAddress = trim((string) ($order->shipping_address ?? ''));
+                $destinationBarangay = trim((string) ($order->shipping_barangay ?? ''));
+
+                if ($recipientName === '' || $recipientPhone === '' || $recipientAddress === '' || $destinationBarangay === '') {
+                    abort(422, 'Cannot mark order ready for pickup: recipient details and destination barangay are required.');
+                }
+
+                $pickupSnapshot = [
+                    'shop_name'     => $profile->shop_name ?? ($seller->first_name . "'s Shop"),
+                    'contact_phone' => $profile->shop_contact_number ?? $seller->phone ?? '',
+                    'street'        => $profile->address_street ?? '',
+                    'barangay'      => $pickupBarangay,
+                    'city'          => $profile->address_city ?? '',
+                    'province'      => $profile->address_province ?? '',
+                    'full_address'  => implode(', ', array_filter([
+                        $profile->address_street,
+                        $pickupBarangay,
+                        $profile->address_city,
+                        $profile->address_province,
+                    ])),
+                ];
+
+                $recipientSnapshot = [
+                    'name'         => $recipientName,
+                    'phone'        => $recipientPhone,
+                    'street'       => $recipientAddress,
+                    'barangay'     => $destinationBarangay,
+                    'city'         => $order->shipping_city ?? '',
+                    'province'     => $order->shipping_province ?? '',
+                    'full_address' => implode(', ', array_filter([
+                        $recipientAddress,
+                        $destinationBarangay,
+                        $order->shipping_city,
+                        $order->shipping_province,
+                    ])),
+                ];
+
+                $codAmount = $order->payment_method === 'cod' ? (float) $order->total : null;
+                $trackingNumber = $this->trackingNumberGenerator->generate();
+
+                Parcel::create([
+                    'tracking_number'         => $trackingNumber,
+                    'order_id'                => $order->id,
+                    'seller_id'               => $seller->id,
+                    'status'                  => Parcel::STATUS_READY_FOR_PICKUP,
+                    'destination_barangay'    => $destinationBarangay,
+                    'pickup_barangay'         => $pickupBarangay,
+                    'pickup_address_snapshot' => $pickupSnapshot,
+                    'recipient_snapshot'      => $recipientSnapshot,
+                    'cod_amount'              => $codAmount,
+                    'ready_at'                => now(),
+                ]);
+            }
+        }
+
+        // 2. Sync parcel status if parcel exists and target status matches a parcel status
+        if (in_array($toStatus, Parcel::STATUSES, true)) {
+            Parcel::where('order_id', $order->id)->update([
+                'status' => $toStatus,
+            ]);
+        }
+
+        // 3. Escrow trigger:
         // TODO(2.8): Feature 2.8 will move payout release trigger to COMPLETED once buyer receipt confirmation is introduced.
         // Currently, payout availability and delivered_at release immediately on DELIVERED as existing behavior.
         if ($toStatus === OrderStatus::DELIVERED->value) {

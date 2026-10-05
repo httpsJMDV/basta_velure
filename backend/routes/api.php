@@ -260,6 +260,7 @@ Route::prefix('v1')->group(function () {
             // Seller orders & verification
             Route::get('/seller/orders', [SellerOrderController::class, 'index']);
             Route::get('/seller/orders/{order}', [SellerOrderController::class, 'show']);
+            Route::get('/seller/orders/{order}/waybill', [SellerOrderController::class, 'waybill']);
             Route::post('/seller/orders/{order}/confirm-payment', [SellerOrderController::class, 'confirmPayment']);
             Route::post('/seller/orders/{order}/reject-payment', [SellerOrderController::class, 'rejectPayment']);
             Route::post('/seller/orders/{order}/respond-return', [SellerOrderController::class, 'respondReturn']);

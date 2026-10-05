@@ -25,6 +25,7 @@ import SellerDashboard from './pages/seller/SellerDashboard';
 import SellerProductsPage from './pages/seller/SellerProductsPage';
 import SellerAddProductPage from './pages/seller/SellerAddProductPage';
 import SellerOrdersPage from './pages/seller/SellerOrdersPage';
+import WaybillPage from './pages/seller/WaybillPage';
 import SellerEarningsPage from './pages/seller/SellerEarningsPage';
 import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
 import SellerAccountSettingsPage from './pages/seller/SellerAccountSettingsPage';
@@ -293,6 +294,16 @@ function AppRoutes() {
         <Route path="shop-profile"      element={<SellerShopProfilePage />} />
         <Route path="account"           element={<SellerAccountSettingsPage />} />
       </Route>
+
+      {/* Standalone Printable Waybill for Seller & Admin */}
+      <Route
+        path="/seller/orders/:id/waybill"
+        element={
+          <RequireRole roles={['seller', 'admin']}>
+            <WaybillPage />
+          </RequireRole>
+        }
+      />
       {/* Admin — nested layout, all routes role-gated */}
       <Route
         path="/admin"

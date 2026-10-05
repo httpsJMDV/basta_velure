@@ -14,6 +14,7 @@ import {
   MapPin,
   QrCode,
   ShoppingBag,
+  Printer,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import {
@@ -342,7 +343,21 @@ export default function SellerOrdersPage() {
                             {copiedRef === `ord-${o.id}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        <span className="text-[10px] text-gray-400">
+                        {o.tracking_number && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-[10px] font-mono font-bold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.2 rounded">
+                              {o.tracking_number}
+                            </span>
+                            <button
+                              onClick={() => handleCopyRef(o.tracking_number!, `trk-${o.id}`)}
+                              className="text-gray-400 hover:text-gray-700"
+                              title="Copy Tracking Number"
+                            >
+                              {copiedRef === `trk-${o.id}` ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5" />}
+                            </button>
+                          </div>
+                        )}
+                        <span className="text-[10px] text-gray-400 block mt-0.5">
                           {new Date(o.created_at).toLocaleDateString('en-PH', {
                             month: 'short',
                             day: 'numeric',
@@ -469,6 +484,19 @@ export default function SellerOrdersPage() {
                             >
                               Respond to Return
                             </Button>
+                          )}
+
+                          {['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(normalizeOrderStatus(o.status)) && (
+                            <a
+                              href={`/seller/orders/${o.id}/waybill`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 py-1 px-2 text-[11px] font-bold bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg shadow-xs transition-colors"
+                              title="Print Waybill"
+                            >
+                              <Printer className="w-3 h-3 text-gray-500" />
+                              <span>Waybill</span>
+                            </a>
                           )}
 
                           <button
@@ -697,6 +725,28 @@ export default function SellerOrdersPage() {
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Ready for Pickup
                 </Button>
+              </div>
+            )}
+
+            {['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(normalizeOrderStatus(selectedOrder.status)) && (
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-gray-900 block">Logistics Shipping Label:</span>
+                  {selectedOrder.tracking_number && (
+                    <span className="font-mono font-bold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded text-[11px]">
+                      {selectedOrder.tracking_number}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-600">Print the standard A6 shipping label to attach to the package for courier pickup.</p>
+                <a
+                  href={`/seller/orders/${selectedOrder.id}/waybill`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-bold text-gray-800 bg-white border border-gray-300 hover:bg-gray-100 rounded-xl shadow-xs transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5 text-gray-600" /> Open Printable Waybill (A6)
+                </a>
               </div>
             )}
 

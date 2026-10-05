@@ -102,6 +102,23 @@ function OrderDetailDrawer({
               <Badge label={order.payment_status} variant={order.payment_status as never} />
             </div>
 
+            {order.tracking_number && (
+              <div className="flex items-center gap-2 text-xs bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Tracking:</span>
+                <span className="font-mono font-bold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
+                  {order.tracking_number}
+                </span>
+                <a
+                  href={`/seller/orders/${order.id}/waybill`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-bold text-brand-red hover:underline ml-auto"
+                >
+                  View Waybill ↗
+                </a>
+              </div>
+            )}
+
             {nextStatuses.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Advance Status</p>
@@ -298,7 +315,12 @@ export default function AdminOrdersPage() {
                   onClick={() => setSelected(o.id)}
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono font-semibold text-brand-black">{o.order_number}</td>
+                  <td className="px-4 py-3 font-mono font-semibold text-brand-black">
+                    <div>{o.order_number}</div>
+                    {o.tracking_number && (
+                      <div className="text-[10px] text-violet-700 font-normal">{o.tracking_number}</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {o.buyer ? `${o.buyer.first_name} ${o.buyer.last_name}` : '—'}
                   </td>

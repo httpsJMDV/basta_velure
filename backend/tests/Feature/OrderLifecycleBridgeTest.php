@@ -55,6 +55,11 @@ class OrderLifecycleBridgeTest extends TestCase
             'government_id_image_path'   => 'uploads/test_id.jpg',
             'payout_gcash_number'        => '09171234567',
             'application_status'         => 'approved',
+            'address_province'           => 'Metro Manila',
+            'address_city'               => 'Manila',
+            'address_barangay'           => 'Barangay 659',
+            'address_street'             => '123 Seller St',
+            'shop_contact_number'        => '09171234567',
         ]);
 
         $this->admin = User::forceCreate([

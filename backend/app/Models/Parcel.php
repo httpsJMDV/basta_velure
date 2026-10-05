@@ -60,19 +60,34 @@ class Parcel extends Model
     protected $fillable = [
         'tracking_number',
         'order_id',
+        'seller_id',
         'sorting_center_id',
         'assigned_rider_id',
         'pickup_rider_id',
         'status',
         'destination_barangay',
+        'pickup_barangay',
+        'pickup_address_snapshot',
+        'recipient_snapshot',
+        'cod_amount',
+        'ready_at',
         'scanned_in_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'scanned_in_at' => 'datetime',
+            'scanned_in_at'           => 'datetime',
+            'ready_at'                => 'datetime',
+            'pickup_address_snapshot' => 'array',
+            'recipient_snapshot'      => 'array',
+            'cod_amount'              => 'decimal:2',
         ];
+    }
+
+    public function seller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'seller_id');
     }
 
     public function sortingCenter(): BelongsTo
