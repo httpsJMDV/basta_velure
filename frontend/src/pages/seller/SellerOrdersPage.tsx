@@ -574,6 +574,12 @@ export default function SellerOrdersPage() {
                   </span>
                 </div>
 
+                {selectedOrder.checkout_orders_count && selectedOrder.checkout_orders_count > 1 && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] leading-relaxed">
+                    This payment proof covers a combined checkout of ₱{Number(selectedOrder.checkout_group_total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} across {selectedOrder.checkout_orders_count} orders. Your order total is ₱{Number(selectedOrder.order_total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}.
+                  </div>
+                )}
+
                 {selectedOrder.payment_proof_url ? (
                   <div className="pt-1">
                     <span className="text-[10px] font-bold text-gray-500 block mb-1">Customer Receipt Slip:</span>

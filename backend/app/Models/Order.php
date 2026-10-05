@@ -27,7 +27,7 @@ class Order extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'buyer_id', 'order_number', 'subtotal', 'shipping_fee',
+        'buyer_id', 'checkout_group_id', 'order_number', 'subtotal', 'shipping_fee',
         'total', 'payment_method', 'payment_status', 'status',
         'payment_reference', 'payment_proof_path', 'payment_verified_at',
         'payment_verified_by', 'verification_rejection_reason',

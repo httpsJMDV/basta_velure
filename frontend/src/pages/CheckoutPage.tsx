@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -19,7 +19,7 @@ import LovedItLogo from '../components/LovedItLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import { getAddressesApi, placeOrderApi } from '../api/client';
-import type { Address } from '../types';
+import type { Address, Order } from '../types';
 
 export default function CheckoutPage() {
   const { user } = useAuth();
@@ -49,11 +49,37 @@ export default function CheckoutPage() {
   // State
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successOrder, setSuccessOrder] = useState<{ id: number; order_number: string; payment_status: string } | null>(null);
+  const [successOrders, setSuccessOrders] = useState<Order[] | null>(null);
+
+  // Group items by shop for checkout
+  const shopGroups = useMemo(() => {
+    const map: Record<string, { shopName: string; sellerId?: number; items: typeof items; subtotal: number; shippingFee: number; total: number }> = {};
+    items.forEach((item) => {
+      const key = item.shopName || (item.sellerId ? `Seller #${item.sellerId}` : 'Loved-IT Merchant');
+      if (!map[key]) {
+        map[key] = {
+          shopName: key,
+          sellerId: item.sellerId,
+          items: [],
+          subtotal: 0,
+          shippingFee: 99,
+          total: 0,
+        };
+      }
+      map[key].items.push(item);
+      map[key].subtotal += item.price * item.quantity;
+    });
+
+    Object.values(map).forEach((g) => {
+      g.total = g.subtotal + g.shippingFee;
+    });
+
+    return Object.values(map);
+  }, [items]);
 
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const shippingFee = subtotal > 0 ? 99 : 0;
-  const total = subtotal + shippingFee;
+  const totalShippingFee = shopGroups.reduce((s, g) => s + g.shippingFee, 0);
+  const total = subtotal + totalShippingFee;
 
   const GCASH_NUMBER = '0917-835-8731';
   const GCASH_NAME = 'LOVED-IT OFFICIAL';
@@ -169,11 +195,8 @@ export default function CheckoutPage() {
 
       const res = await placeOrderApi(formData);
       clearCart();
-      setSuccessOrder({
-        id: res.data.id,
-        order_number: res.data.order_number,
-        payment_status: res.data.payment_status,
-      });
+      const placedOrders = res.orders && res.orders.length > 0 ? res.orders : [res.data];
+      setSuccessOrders(placedOrders);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Failed to place order. Please check your information and try again.';
       setErrorMsg(msg);
@@ -183,40 +206,67 @@ export default function CheckoutPage() {
   };
 
   // Order Success Screen
-  if (successOrder) {
+  if (successOrders && successOrders.length > 0) {
+    const isMultiShop = successOrders.length > 1;
+
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-lg w-full border border-gray-100 shadow-xl text-center flex flex-col items-center">
           <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-5 border border-emerald-100">
             <CheckCircle2 className="w-9 h-9" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Order Placed Successfully!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            {isMultiShop ? 'Orders Placed Successfully!' : 'Order Placed Successfully!'}
+          </h1>
           <p className="text-sm text-gray-500 mt-2">
-            Order <span className="font-mono font-semibold text-brand-black">#{successOrder.order_number}</span> has been created.
+            {isMultiShop
+              ? `Your items were split into ${successOrders.length} separate orders by merchant.`
+              : <>Order <span className="font-mono font-semibold text-brand-black">#{successOrders[0].order_number}</span> has been created.</>}
           </p>
 
-          <div className="w-full bg-gray-50 rounded-2xl p-4 my-6 border border-gray-100 text-left text-xs space-y-2.5">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Payment Method:</span>
-              <span className="font-semibold text-gray-800 uppercase">
-                {paymentMethod === 'gcash' ? 'GCash' : 'Cash on Delivery'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-500">Payment Status:</span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                paymentMethod === 'gcash'
-                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                  : 'bg-blue-50 text-blue-700 border border-blue-200'
-              }`}>
-                {paymentMethod === 'gcash' ? 'Pending Verification' : 'Cash on Delivery'}
-              </span>
-            </div>
-            {paymentMethod === 'gcash' && (
-              <p className="text-[11px] text-amber-800 bg-amber-50/80 p-2.5 rounded-xl border border-amber-100">
-                The seller has been notified to verify your GCash receipt. Once confirmed, your order will be packed and shipped!
-              </p>
+          <div className="w-full space-y-3 my-6">
+            {isMultiShop && (
+              <div className="space-y-2">
+                {successOrders.map((ord) => (
+                  <div key={ord.id} className="bg-gray-50 rounded-2xl p-3.5 border border-gray-100 text-left text-xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono font-bold text-gray-900">#{ord.order_number}</span>
+                      <span className="font-bold text-brand-red">₱{Number(ord.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="text-[11px] text-gray-500 flex justify-between">
+                      <span>{ord.items?.length || 1} item(s)</span>
+                      <span>Shipping: ₱{Number(ord.shipping_fee).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
+
+            <div className="w-full bg-gray-50 rounded-2xl p-4 border border-gray-100 text-left text-xs space-y-2.5">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Payment Method:</span>
+                <span className="font-semibold text-gray-800 uppercase">
+                  {paymentMethod === 'gcash' ? 'GCash' : 'Cash on Delivery'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Payment Status:</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                  paymentMethod === 'gcash'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-blue-50 text-blue-700 border border-blue-200'
+                }`}>
+                  {paymentMethod === 'gcash' ? 'Pending Verification' : 'Cash on Delivery'}
+                </span>
+              </div>
+              {paymentMethod === 'gcash' && (
+                <p className="text-[11px] text-amber-800 bg-amber-50/80 p-2.5 rounded-xl border border-amber-100">
+                  {isMultiShop
+                    ? 'Each seller has been notified to verify your payment proof for their order. Once confirmed, your orders will be packed and shipped!'
+                    : 'The seller has been notified to verify your GCash receipt. Once confirmed, your order will be packed and shipped!'}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full">
@@ -595,25 +645,39 @@ export default function CheckoutPage() {
                   Order Summary <span className="text-gray-400 font-normal text-xs">({items.length} items)</span>
                 </h2>
 
-                {/* Items List */}
-                <div className="max-h-64 overflow-y-auto space-y-3 pr-1 mb-4">
-                  {items.map((item) => (
-                    <div key={item.variantId} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-gray-50 transition-colors">
-                      <img
-                        src={item.image || '/placeholder.png'}
-                        alt={item.name}
-                        className="w-12 h-14 object-cover rounded-xl bg-gray-100 shrink-0 border border-gray-100"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-xs text-gray-800 truncate">{item.name}</p>
-                        {item.variant && <p className="text-[11px] text-gray-400 truncate">{item.variant}</p>}
-                        <p className="text-xs font-bold text-gray-900 mt-1">
-                          ₱{item.price.toLocaleString()} <span className="text-gray-400 font-normal">× {item.quantity}</span>
-                        </p>
+                {/* Items Grouped by Shop */}
+                <div className="max-h-72 overflow-y-auto space-y-4 pr-1 mb-4">
+                  {shopGroups.map((group, gIdx) => (
+                    <div key={group.shopName + gIdx} className="space-y-2 pb-3 border-b border-gray-100 last:border-b-0">
+                      <div className="flex items-center justify-between text-xs font-bold text-gray-900 bg-gray-50 px-2.5 py-1.5 rounded-xl">
+                        <span className="truncate">{group.shopName}</span>
+                        <span className="text-[11px] text-gray-500 font-normal">Shipping: ₱{group.shippingFee}</span>
                       </div>
-                      <span className="font-bold text-xs text-gray-900">
-                        ₱{(item.price * item.quantity).toLocaleString()}
-                      </span>
+                      <div className="space-y-2">
+                        {group.items.map((item) => (
+                          <div key={item.variantId} className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-gray-50 transition-colors">
+                            <img
+                              src={item.image || '/placeholder.png'}
+                              alt={item.name}
+                              className="w-10 h-12 object-cover rounded-lg bg-gray-100 shrink-0 border border-gray-100"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-xs text-gray-800 truncate">{item.name}</p>
+                              {item.variant && <p className="text-[10px] text-gray-400 truncate">{item.variant}</p>}
+                              <p className="text-[11px] font-bold text-gray-900 mt-0.5">
+                                ₱{item.price.toLocaleString()} <span className="text-gray-400 font-normal">× {item.quantity}</span>
+                              </p>
+                            </div>
+                            <span className="font-bold text-xs text-gray-900">
+                              ₱{(item.price * item.quantity).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-between text-[11px] text-gray-500 px-1">
+                        <span>Shop Subtotal: ₱{group.subtotal.toLocaleString()}</span>
+                        <span className="font-semibold text-gray-800">Shop Total: ₱{group.total.toLocaleString()}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -621,12 +685,14 @@ export default function CheckoutPage() {
                 {/* Pricing Summary */}
                 <div className="space-y-2.5 pt-3 border-t border-gray-100 text-xs">
                   <div className="flex justify-between text-gray-500">
-                    <span>Subtotal</span>
+                    <span>Subtotal ({items.length} items)</span>
                     <span className="font-medium text-gray-800">₱{subtotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-gray-500">
-                    <span>Shipping Fee (Standard)</span>
-                    <span className="font-medium text-gray-800">₱{shippingFee.toLocaleString()}</span>
+                    <span>
+                      Shipping Fee {shopGroups.length > 1 ? `(${shopGroups.length} shops × ₱99)` : '(Standard)'}
+                    </span>
+                    <span className="font-medium text-gray-800">₱{totalShippingFee.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm font-bold text-gray-900 pt-2 border-t border-gray-100">
                     <span>Total Amount</span>

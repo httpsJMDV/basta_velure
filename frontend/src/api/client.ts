@@ -594,7 +594,7 @@ export const searchAdminContactsApi = (query: string) =>
 // ─── Buyer Checkout & Orders ──────────────────────────────────────────────────
 
 export const placeOrderApi = (formData: FormData) =>
-  http.post<{ message: string; data: Order }>('/checkout/place-order', formData, {
+  http.post<{ message: string; data: Order; orders?: Order[]; checkout_group_id?: string }>('/checkout/place-order', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 

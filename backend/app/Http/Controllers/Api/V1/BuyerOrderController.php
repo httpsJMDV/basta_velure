@@ -53,128 +53,159 @@ class BuyerOrderController extends Controller
 
         $data = $request->validate($rules);
 
-        return DB::transaction(function () use ($request, $user, $data) {
-            $orderNumber = 'VEL-' . strtoupper(Str::random(4)) . '-' . date('ymdHis');
-            $subtotal    = 0;
-            $shippingFee = 99.00; // Flat shipping rate
-            $preparedItems = [];
+        $proofPath = null;
+        if ($request->hasFile('payment_proof')) {
+            $proofPath = $request->file('payment_proof')->store('orders/payment-proofs', 'public');
+        }
 
-            // Process and validate items
-            foreach ($data['items'] as $itemData) {
-                $product = Product::with(['seller', 'images'])->lockForUpdate()->findOrFail($itemData['product_id']);
-                abort_if($product->status !== 'active', 422, "Product {$product->name} is no longer available.");
+        try {
+            return DB::transaction(function () use ($user, $data, $proofPath) {
+                $preparedItems = [];
 
-                $variant = null;
-                $unitPrice = (float) $product->base_price;
-                $variantLabel = null;
+                // Process and validate items
+                foreach ($data['items'] as $itemData) {
+                    $product = Product::with(['seller', 'images'])->lockForUpdate()->findOrFail($itemData['product_id']);
+                    abort_if($product->status !== 'active', 422, "Product {$product->name} is no longer available.");
 
-                if (!empty($itemData['variant_id'])) {
-                    $variant = ProductVariant::where('product_id', $product->id)
-                        ->lockForUpdate()
-                        ->find($itemData['variant_id']);
+                    $variant = null;
+                    $unitPrice = (float) $product->base_price;
+                    $variantLabel = null;
 
-                    if ($variant) {
-                        $unitPrice = (float) $variant->price;
-                        $variantLabel = $variant->label ?? null;
-                        if ($variant->stock_quantity < $itemData['quantity']) {
-                            abort(422, "Insufficient stock for {$product->name}" . ($variantLabel ? " ({$variantLabel})" : ""));
+                    if (!empty($itemData['variant_id'])) {
+                        $variant = ProductVariant::where('product_id', $product->id)
+                            ->lockForUpdate()
+                            ->find($itemData['variant_id']);
+
+                        if ($variant) {
+                            $unitPrice = (float) $variant->price;
+                            $variantLabel = $variant->label ?? null;
+                            if ($variant->stock_quantity < $itemData['quantity']) {
+                                abort(422, "Insufficient stock for {$product->name}" . ($variantLabel ? " ({$variantLabel})" : ""));
+                            }
+                            $variant->decrement('stock_quantity', $itemData['quantity']);
                         }
-                        $variant->decrement('stock_quantity', $itemData['quantity']);
                     }
+
+                    $qty = (int) $itemData['quantity'];
+                    $itemSubtotal = round($unitPrice * $qty, 2);
+
+                    // Commission calculation
+                    $commissionRate = PlatformSetting::getCommissionRateForCategory($product->category_id);
+                    $commissionAmount = round($itemSubtotal * $commissionRate, 2);
+                    $sellerEarnings = round($itemSubtotal - $commissionAmount, 2);
+
+                    $primaryImage = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
+                    $imageUrl = $primaryImage ? asset('storage/' . $primaryImage->path) : null;
+
+                    $preparedItems[] = [
+                        'seller_id'         => $product->seller_id,
+                        'category_id'       => $product->category_id,
+                        'product_name'      => $product->name,
+                        'variant_label'     => $variantLabel,
+                        'unit_price'        => $unitPrice,
+                        'quantity'          => $qty,
+                        'subtotal'          => $itemSubtotal,
+                        'image_url'         => $imageUrl,
+                        'commission_rate'   => $commissionRate,
+                        'commission_amount' => $commissionAmount,
+                        'seller_earnings'   => $sellerEarnings,
+                        'payout_status'     => 'pending_release',
+                    ];
+
+                    // Increment product sales metric
+                    $product->increment('units_sold', $qty);
                 }
 
-                $qty = (int) $itemData['quantity'];
-                $itemSubtotal = round($unitPrice * $qty, 2);
-                $subtotal += $itemSubtotal;
+                $paymentStatus = $data['payment_method'] === 'gcash' ? 'pending_verification' : 'pending';
+                $checkoutGroupId = (string) Str::uuid();
 
-                // Commission calculation
-                $commissionRate = PlatformSetting::getCommissionRateForCategory($product->category_id);
-                $commissionAmount = round($itemSubtotal * $commissionRate, 2);
-                $sellerEarnings = round($itemSubtotal - $commissionAmount, 2);
+                $sellerGroups = collect($preparedItems)->groupBy('seller_id');
+                $groupCount = $sellerGroups->count();
 
-                $primaryImage = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
-                $imageUrl = $primaryImage ? asset('storage/' . $primaryImage->path) : null;
+                $createdOrders = [];
+                $baseTimestamp = date('ymdHis');
+                $randomKey = strtoupper(Str::random(4));
+                $orderIdx = 1;
 
-                $preparedItems[] = [
-                    'seller_id'         => $product->seller_id,
-                    'category_id'       => $product->category_id,
-                    'product_name'      => $product->name,
-                    'variant_label'     => $variantLabel,
-                    'unit_price'        => $unitPrice,
-                    'quantity'          => $qty,
-                    'subtotal'          => $itemSubtotal,
-                    'image_url'         => $imageUrl,
-                    'commission_rate'   => $commissionRate,
-                    'commission_amount' => $commissionAmount,
-                    'seller_earnings'   => $sellerEarnings,
-                    'payout_status'     => 'pending_release',
-                ];
+                foreach ($sellerGroups as $sellerId => $sellerItems) {
+                    $orderSubtotal = round((float) $sellerItems->sum('subtotal'), 2);
+                    $shippingFee = 99.00; // Flat shipping rate per seller order
+                    $orderTotal = round($orderSubtotal + $shippingFee, 2);
 
-                // Increment product sales metric
-                $product->increment('units_sold', $qty);
+                    $orderNumber = $groupCount > 1
+                        ? "VEL-{$randomKey}-{$baseTimestamp}-{$orderIdx}"
+                        : "VEL-{$randomKey}-{$baseTimestamp}";
+                    $orderIdx++;
+
+                    $order = Order::create([
+                        'buyer_id'          => $user->id,
+                        'checkout_group_id' => $checkoutGroupId,
+                        'order_number'      => $orderNumber,
+                        'subtotal'          => $orderSubtotal,
+                        'shipping_fee'      => $shippingFee,
+                        'total'             => $orderTotal,
+                        'payment_method'    => $data['payment_method'],
+                        'payment_status'    => $paymentStatus,
+                        'status'            => OrderStatus::PLACED->value,
+                        'payment_reference' => $data['payment_reference'] ?? null,
+                        'payment_proof_path'=> $proofPath,
+                        'shipping_name'     => $data['shipping_name'],
+                        'shipping_phone'    => $data['shipping_phone'],
+                        'shipping_address'  => $data['shipping_address'],
+                        'shipping_province' => $data['shipping_province'] ?? null,
+                        'shipping_city'     => $data['shipping_city'] ?? null,
+                        'shipping_barangay' => $data['shipping_barangay'] ?? null,
+                        'notes'             => $data['notes'] ?? null,
+                    ]);
+
+                    // Record initial placement history
+                    OrderStatusHistory::create([
+                        'order_id'    => $order->id,
+                        'from_status' => null,
+                        'to_status'   => OrderStatus::PLACED->value,
+                        'actor_type'  => 'buyer',
+                        'actor_id'    => $user->id,
+                        'note'        => 'Order placed by customer',
+                        'created_at'  => now(),
+                    ]);
+
+                    // Create Order Items
+                    foreach ($sellerItems as $item) {
+                        $order->items()->create($item);
+                    }
+
+                    // Create Payment Record
+                    Payment::create([
+                        'order_id'         => $order->id,
+                        'method'           => $data['payment_method'],
+                        'reference_number' => $data['payment_reference'] ?? null,
+                        'amount'           => $orderTotal,
+                        'status'           => 'pending',
+                    ]);
+
+                    $createdOrders[] = $order;
+                }
+
+                $formattedOrders = array_map(
+                    fn ($o) => $this->formatOrder($o->fresh(['items.seller.sellerProfile', 'buyer', 'statusHistories'])),
+                    $createdOrders
+                );
+
+                return response()->json([
+                    'message'           => count($createdOrders) > 1
+                        ? 'Orders placed successfully!'
+                        : 'Order placed successfully!',
+                    'data'              => $formattedOrders[0],
+                    'orders'            => $formattedOrders,
+                    'checkout_group_id' => $checkoutGroupId,
+                ], 201);
+            });
+        } catch (\Throwable $e) {
+            if ($proofPath) {
+                Storage::disk('public')->delete($proofPath);
             }
-
-            $total = $subtotal + $shippingFee;
-
-            // Handle GCash payment proof upload
-            $proofPath = null;
-            if ($request->hasFile('payment_proof')) {
-                $proofPath = $request->file('payment_proof')->store('orders/payment-proofs', 'public');
-            }
-
-            $paymentStatus = $data['payment_method'] === 'gcash' ? 'pending_verification' : 'pending';
-
-            // Create Order
-            $order = Order::create([
-                'buyer_id'          => $user->id,
-                'order_number'      => $orderNumber,
-                'subtotal'          => $subtotal,
-                'shipping_fee'      => $shippingFee,
-                'total'             => $total,
-                'payment_method'    => $data['payment_method'],
-                'payment_status'    => $paymentStatus,
-                'status'            => OrderStatus::PLACED->value,
-                'payment_reference' => $data['payment_reference'] ?? null,
-                'payment_proof_path'=> $proofPath,
-                'shipping_name'     => $data['shipping_name'],
-                'shipping_phone'    => $data['shipping_phone'],
-                'shipping_address'  => $data['shipping_address'],
-                'shipping_province' => $data['shipping_province'] ?? null,
-                'shipping_city'     => $data['shipping_city'] ?? null,
-                'shipping_barangay' => $data['shipping_barangay'] ?? null,
-                'notes'             => $data['notes'] ?? null,
-            ]);
-
-            // Record initial placement history
-            OrderStatusHistory::create([
-                'order_id'    => $order->id,
-                'from_status' => null,
-                'to_status'   => OrderStatus::PLACED->value,
-                'actor_type'  => 'buyer',
-                'actor_id'    => $user->id,
-                'note'        => 'Order placed by customer',
-                'created_at'  => now(),
-            ]);
-
-            // Create Order Items
-            foreach ($preparedItems as $item) {
-                $order->items()->create($item);
-            }
-
-            // Create Payment Record
-            Payment::create([
-                'order_id'         => $order->id,
-                'method'           => $data['payment_method'],
-                'reference_number' => $data['payment_reference'] ?? null,
-                'amount'           => $total,
-                'status'           => $data['payment_method'] === 'gcash' ? 'pending' : 'pending',
-            ]);
-
-            return response()->json([
-                'message' => 'Order placed successfully!',
-                'data'    => $this->formatOrder($order->fresh(['items', 'buyer', 'statusHistories'])),
-            ], 201);
-        });
+            throw $e;
+        }
     }
 
     /**
@@ -280,6 +311,7 @@ class BuyerOrderController extends Controller
 
         return [
             'id'                  => $o->id,
+            'checkout_group_id'   => $o->checkout_group_id,
             'order_number'        => $o->order_number,
             'status'              => $statusStr,
             'payment_method'      => $o->payment_method,

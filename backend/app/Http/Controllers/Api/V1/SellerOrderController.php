@@ -97,8 +97,28 @@ class SellerOrderController extends Controller
             ])
             ->count();
 
+        $groupIds = $orders->pluck('checkout_group_id')->filter()->unique();
+        $groupStatsMap = [];
+        if ($groupIds->isNotEmpty()) {
+            $groupStatsMap = Order::whereIn('checkout_group_id', $groupIds)
+                ->groupBy('checkout_group_id')
+                ->selectRaw('checkout_group_id, count(*) as orders_count, sum(total) as group_total')
+                ->get()
+                ->keyBy('checkout_group_id');
+        }
+
         return response()->json([
-            'data' => $orders->map(fn ($o) => $this->formatOrder($o, $sellerId)),
+            'data' => $orders->map(function ($o) use ($sellerId, $groupStatsMap) {
+                $stat = $o->checkout_group_id ? ($groupStatsMap[$o->checkout_group_id] ?? null) : null;
+                $groupMeta = null;
+                if ($stat && $stat->orders_count > 1) {
+                    $groupMeta = [
+                        'group_total'  => (float) $stat->group_total,
+                        'orders_count' => (int) $stat->orders_count,
+                    ];
+                }
+                return $this->formatOrder($o, $sellerId, detail: false, groupMeta: $groupMeta);
+            }),
             'meta' => [
                 'current_page' => $orders->currentPage(),
                 'last_page'    => $orders->lastPage(),
@@ -309,7 +329,7 @@ class SellerOrderController extends Controller
         ]);
     }
 
-    private function formatOrder(Order $o, int $sellerId, bool $detail = false): array
+    private function formatOrder(Order $o, int $sellerId, bool $detail = false, ?array $groupMeta = null): array
     {
         $sellerItems = $o->items->where('seller_id', $sellerId);
         $sellerSubtotal = (float) $sellerItems->sum('subtotal');
@@ -317,21 +337,39 @@ class SellerOrderController extends Controller
         $sellerEarnings = (float) $sellerItems->sum('seller_earnings');
         $statusStr = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
 
+        $checkoutGroupTotal = null;
+        $checkoutOrdersCount = null;
+        if ($groupMeta !== null) {
+            $checkoutGroupTotal = $groupMeta['group_total'] ?? null;
+            $checkoutOrdersCount = $groupMeta['orders_count'] ?? null;
+        } elseif ($o->checkout_group_id) {
+            $groupStats = Order::where('checkout_group_id', $o->checkout_group_id)
+                ->selectRaw('count(*) as orders_count, sum(total) as group_total')
+                ->first();
+            if ($groupStats && $groupStats->orders_count > 1) {
+                $checkoutGroupTotal = (float) $groupStats->group_total;
+                $checkoutOrdersCount = (int) $groupStats->orders_count;
+            }
+        }
+
         return [
-            'id'                  => $o->id,
-            'order_number'        => $o->order_number,
-            'status'              => $statusStr,
-            'payment_method'      => $o->payment_method,
-            'payment_status'      => $o->payment_status,
-            'payment_reference'   => $o->payment_reference,
-            'payment_proof_url'   => $o->payment_proof_path ? asset('storage/' . $o->payment_proof_path) : null,
-            'payment_verified_at' => $o->payment_verified_at?->toIso8601String(),
-            'rejection_reason'    => $o->verification_rejection_reason,
-            'order_total'         => (float) $o->total,
-            'shipping_fee'        => (float) $o->shipping_fee,
-            'seller_subtotal'     => $sellerSubtotal,
-            'seller_commission'   => $sellerCommission,
-            'seller_earnings'     => $sellerEarnings,
+            'id'                    => $o->id,
+            'checkout_group_id'     => $o->checkout_group_id,
+            'checkout_group_total'  => $checkoutGroupTotal,
+            'checkout_orders_count' => $checkoutOrdersCount,
+            'order_number'          => $o->order_number,
+            'status'                => $statusStr,
+            'payment_method'        => $o->payment_method,
+            'payment_status'        => $o->payment_status,
+            'payment_reference'     => $o->payment_reference,
+            'payment_proof_url'     => $o->payment_proof_path ? asset('storage/' . $o->payment_proof_path) : null,
+            'payment_verified_at'   => $o->payment_verified_at?->toIso8601String(),
+            'rejection_reason'      => $o->verification_rejection_reason,
+            'order_total'           => (float) $o->total,
+            'shipping_fee'          => (float) $o->shipping_fee,
+            'seller_subtotal'       => $sellerSubtotal,
+            'seller_commission'     => $sellerCommission,
+            'seller_earnings'       => $sellerEarnings,
             'shipping_name'       => $o->shipping_name,
             'shipping_phone'      => $o->shipping_phone,
             'shipping_address'    => $o->shipping_address,

@@ -455,6 +455,7 @@ export interface OrderItem {
 
 export interface Order {
   id: number;
+  checkout_group_id?: string | null;
   order_number: string;
   status: OrderStatus;
   payment_method: PaymentMethod;
@@ -494,6 +495,9 @@ export interface SellerOrderItem {
 
 export interface SellerOrder {
   id: number;
+  checkout_group_id?: string | null;
+  checkout_group_total?: number | null;
+  checkout_orders_count?: number | null;
   order_number: string;
   status: OrderStatus;
   payment_method: PaymentMethod;

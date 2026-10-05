@@ -906,7 +906,7 @@ const FILTER_STATUSES: Record<OrderFilter, OrderStatus[]> = {
   returns_cancelled: BUYER_FILTER_GROUPS.returns,
 };
 
-function OrderCard({ order, onUpdated }: { order: Order; onUpdated?: (updated: Order) => void }) {
+function OrderCard({ order, onUpdated, isPartOfMultiShopCheckout }: { order: Order; onUpdated?: (updated: Order) => void; isPartOfMultiShopCheckout?: boolean }) {
   const normStatus = normalizeOrderStatus(order.status);
   const badgeCls = getStatusBadgeClass(normStatus);
   const statusLabel = getStatusLabel(normStatus);
@@ -945,12 +945,17 @@ function OrderCard({ order, onUpdated }: { order: Order; onUpdated?: (updated: O
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-200 hover:shadow-sm transition-all space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-brand-black tracking-wide">{order.order_number}</span>
           <span className="text-gray-300">·</span>
           <span className="text-xs text-gray-400">
             {order.created_at ? new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
           </span>
+          {isPartOfMultiShopCheckout && (
+            <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+              Part of a multi-shop checkout
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {isGcashPending && (
@@ -1133,6 +1138,16 @@ function OrdersPanel() {
     return result;
   }, [orders, filter, search]);
 
+  const multiCheckoutGroupIds = useMemo(() => {
+    const counts: Record<string, number> = {};
+    orders.forEach((o) => {
+      if (o.checkout_group_id) {
+        counts[o.checkout_group_id] = (counts[o.checkout_group_id] || 0) + 1;
+      }
+    });
+    return new Set(Object.keys(counts).filter((id) => counts[id] > 1));
+  }, [orders]);
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Header */}
@@ -1206,6 +1221,7 @@ function OrdersPanel() {
           <OrderCard
             key={order.id}
             order={order}
+            isPartOfMultiShopCheckout={Boolean(order.checkout_group_id && multiCheckoutGroupIds.has(order.checkout_group_id))}
             onUpdated={(updated) => setOrders((prev) => prev.map((o) => o.id === updated.id ? updated : o))}
           />
         ))}
