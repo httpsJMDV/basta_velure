@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Dispute;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use App\Models\PlatformSetting;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\OrderStateMachine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +21,9 @@ use Illuminate\Support\Str;
 
 class BuyerOrderController extends Controller
 {
+    public function __construct(
+        protected OrderStateMachine $stateMachine
+    ) {}
     /**
      * POST /api/v1/checkout/place-order
      */
@@ -127,7 +133,7 @@ class BuyerOrderController extends Controller
                 'total'             => $total,
                 'payment_method'    => $data['payment_method'],
                 'payment_status'    => $paymentStatus,
-                'status'            => 'pending',
+                'status'            => OrderStatus::PLACED->value,
                 'payment_reference' => $data['payment_reference'] ?? null,
                 'payment_proof_path'=> $proofPath,
                 'shipping_name'     => $data['shipping_name'],
@@ -137,6 +143,17 @@ class BuyerOrderController extends Controller
                 'shipping_city'     => $data['shipping_city'] ?? null,
                 'shipping_barangay' => $data['shipping_barangay'] ?? null,
                 'notes'             => $data['notes'] ?? null,
+            ]);
+
+            // Record initial placement history
+            OrderStatusHistory::create([
+                'order_id'    => $order->id,
+                'from_status' => null,
+                'to_status'   => OrderStatus::PLACED->value,
+                'actor_type'  => 'buyer',
+                'actor_id'    => $user->id,
+                'note'        => 'Order placed by customer',
+                'created_at'  => now(),
             ]);
 
             // Create Order Items
@@ -155,7 +172,7 @@ class BuyerOrderController extends Controller
 
             return response()->json([
                 'message' => 'Order placed successfully!',
-                'data'    => $this->formatOrder($order->fresh(['items', 'buyer'])),
+                'data'    => $this->formatOrder($order->fresh(['items', 'buyer', 'statusHistories'])),
             ], 201);
         });
     }
@@ -173,7 +190,24 @@ class BuyerOrderController extends Controller
                 if ($status === 'pending_verification') {
                     $q->where('payment_status', 'pending_verification');
                 } else {
-                    $q->where('status', $status);
+                    $mappedStatus = match (strtolower($status)) {
+                        'pending'   => OrderStatus::PLACED->value,
+                        'confirmed' => OrderStatus::CONFIRMED->value,
+                        'packed', 'preparing' => OrderStatus::PREPARING->value,
+                        'shipped', 'ready_for_pickup' => OrderStatus::READY_FOR_PICKUP->value,
+                        'picked_up' => OrderStatus::PICKED_UP->value,
+                        'at_sorting_center' => OrderStatus::AT_SORTING_CENTER->value,
+                        'sorted'    => OrderStatus::SORTED->value,
+                        'assigned_to_rider' => OrderStatus::ASSIGNED_TO_RIDER->value,
+                        'out_for_delivery' => OrderStatus::OUT_FOR_DELIVERY->value,
+                        'delivered' => OrderStatus::DELIVERED->value,
+                        'completed' => OrderStatus::COMPLETED->value,
+                        'delivery_failed' => OrderStatus::DELIVERY_FAILED->value,
+                        'cancelled' => OrderStatus::CANCELLED->value,
+                        'returned'  => OrderStatus::RETURNED->value,
+                        default     => strtoupper($status),
+                    };
+                    $q->where('status', $mappedStatus);
                 }
             })
             ->latest()
@@ -196,7 +230,7 @@ class BuyerOrderController extends Controller
     {
         abort_if($order->buyer_id !== $request->user()->id, 403);
 
-        $order->load(['items.seller.sellerProfile', 'payment', 'dispute']);
+        $order->load(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories']);
 
         return response()->json([
             'data' => $this->formatOrder($order, detail: true),
@@ -226,20 +260,28 @@ class BuyerOrderController extends Controller
             ]
         );
 
-        $order->update(['status' => 'return_requested']);
+        $this->stateMachine->transition(
+            $order,
+            OrderStatus::DISPUTED,
+            'buyer',
+            $user->id,
+            "Return requested: {$data['reason']}"
+        );
 
         return response()->json([
             'message' => 'Return request submitted successfully. The seller will review within 48 hours.',
-            'data'    => $this->formatOrder($order->fresh(['items.seller.sellerProfile', 'payment', 'dispute']), detail: true),
+            'data'    => $this->formatOrder($order->fresh(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories']), detail: true),
         ]);
     }
 
     private function formatOrder(Order $o, bool $detail = false): array
     {
+        $statusStr = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
+
         return [
             'id'                  => $o->id,
             'order_number'        => $o->order_number,
-            'status'              => $o->status,
+            'status'              => $statusStr,
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,
             'payment_reference'   => $o->payment_reference,
@@ -276,6 +318,14 @@ class BuyerOrderController extends Controller
                 'resolution_note' => $o->dispute->resolution_note,
                 'resolved_at'     => $o->dispute->resolved_at?->toIso8601String(),
             ] : null,
+            'status_history'      => ($detail || $o->relationLoaded('statusHistories')) ? $o->statusHistories->map(fn ($h) => [
+                'id'          => $h->id,
+                'from_status' => $h->from_status,
+                'to_status'   => $h->to_status,
+                'actor_type'  => $h->actor_type,
+                'note'        => $h->note,
+                'created_at'  => $h->created_at?->toIso8601String(),
+            ])->values() : [],
         ];
     }
 }

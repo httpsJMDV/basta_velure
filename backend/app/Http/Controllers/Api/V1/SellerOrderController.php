@@ -2,17 +2,23 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Dispute;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Services\OrderStateMachine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class SellerOrderController extends Controller
 {
+    public function __construct(
+        protected OrderStateMachine $stateMachine
+    ) {}
+
     /**
      * GET /api/v1/seller/orders
      */
@@ -25,10 +31,26 @@ class SellerOrderController extends Controller
             ->when($request->status, function ($q, $status) {
                 if ($status === 'pending_verification') {
                     $q->where('payment_status', 'pending_verification');
-                } elseif ($status === 'confirmed') {
-                    $q->whereIn('status', ['confirmed', 'packed']);
+                } elseif (in_array(strtolower($status), ['confirmed', 'to_ship'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::CONFIRMED->value,
+                        OrderStatus::PREPARING->value,
+                        OrderStatus::READY_FOR_PICKUP->value,
+                    ]);
                 } else {
-                    $q->where('status', $status);
+                    $mapped = match (strtolower($status)) {
+                        'pending'   => OrderStatus::PLACED->value,
+                        'preparing', 'packed' => OrderStatus::PREPARING->value,
+                        'ready_for_pickup', 'shipped' => OrderStatus::READY_FOR_PICKUP->value,
+                        'picked_up' => OrderStatus::PICKED_UP->value,
+                        'out_for_delivery' => OrderStatus::OUT_FOR_DELIVERY->value,
+                        'delivered' => OrderStatus::DELIVERED->value,
+                        'completed' => OrderStatus::COMPLETED->value,
+                        'cancelled' => OrderStatus::CANCELLED->value,
+                        'returned'  => OrderStatus::RETURNED->value,
+                        default     => strtoupper($status),
+                    };
+                    $q->where('status', $mapped);
                 }
             })
             ->when($request->search, function ($q, $search) {
@@ -48,7 +70,11 @@ class SellerOrderController extends Controller
             ->count();
 
         $toShipCount = Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
-            ->whereIn('status', ['confirmed', 'packed'])
+            ->whereIn('status', [
+                OrderStatus::CONFIRMED->value,
+                OrderStatus::PREPARING->value,
+                OrderStatus::READY_FOR_PICKUP->value,
+            ])
             ->count();
 
         return response()->json([
@@ -73,7 +99,7 @@ class SellerOrderController extends Controller
         $sellerId = $request->user()->id;
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
-        $order->load(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'dispute']);
+        $order->load(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'dispute', 'statusHistories']);
 
         return response()->json([
             'data' => $this->formatOrder($order, $sellerId, detail: true),
@@ -92,7 +118,6 @@ class SellerOrderController extends Controller
             'payment_status'      => 'paid',
             'payment_verified_at' => now(),
             'payment_verified_by' => $sellerId,
-            'status'              => $order->status === 'pending' ? 'confirmed' : $order->status,
         ]);
 
         if ($order->payment) {
@@ -102,9 +127,20 @@ class SellerOrderController extends Controller
             ]);
         }
 
+        $currentStatus = $order->status instanceof OrderStatus ? $order->status->value : (string) $order->status;
+        if ($currentStatus === OrderStatus::PLACED->value) {
+            $this->stateMachine->transition(
+                $order,
+                OrderStatus::CONFIRMED,
+                'seller',
+                $sellerId,
+                'Payment verified and confirmed by merchant'
+            );
+        }
+
         return response()->json([
             'message' => 'Payment verified and confirmed successfully!',
-            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment']), $sellerId),
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'statusHistories']), $sellerId),
         ]);
     }
 
@@ -163,7 +199,13 @@ class SellerOrderController extends Controller
                 'resolved_by'     => $sellerId,
                 'resolved_at'     => now(),
             ]);
-            $order->update(['status' => 'returned']);
+            $this->stateMachine->transition(
+                $order,
+                OrderStatus::RETURNED,
+                'seller',
+                $sellerId,
+                'Return request accepted by merchant'
+            );
         } elseif ($data['action'] === 'reject') {
             $dispute->update([
                 'status'          => 'in_progress',
@@ -178,7 +220,7 @@ class SellerOrderController extends Controller
 
         return response()->json([
             'message' => 'Return response recorded successfully.',
-            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'dispute']), $sellerId, detail: true),
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'dispute', 'statusHistories']), $sellerId, detail: true),
         ]);
     }
 
@@ -191,25 +233,40 @@ class SellerOrderController extends Controller
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
         $data = $request->validate([
-            'status' => ['required', 'in:confirmed,packed,shipped,out_for_delivery,delivered,cancelled'],
+            'status' => ['required', 'string'],
+            'note'   => ['nullable', 'string', 'max:500'],
         ]);
 
-        $newStatus = $data['status'];
-        $order->update(['status' => $newStatus]);
+        $requestedStatus = match (strtolower($data['status'])) {
+            'preparing', 'packed' => OrderStatus::PREPARING->value,
+            'ready_for_pickup', 'shipped' => OrderStatus::READY_FOR_PICKUP->value,
+            'cancelled' => OrderStatus::CANCELLED->value,
+            'confirmed' => OrderStatus::CONFIRMED->value,
+            default => strtoupper($data['status']),
+        };
 
-        // When order is marked delivered, release seller earnings into available balance
-        if ($newStatus === 'delivered') {
-            OrderItem::where('order_id', $order->id)
-                ->where('seller_id', $sellerId)
-                ->update([
-                    'payout_status' => 'available',
-                    'delivered_at'  => now(),
-                ]);
-        }
+        // Sellers may only advance to PREPARING, READY_FOR_PICKUP, or CANCELLED
+        abort_unless(
+            in_array($requestedStatus, [
+                OrderStatus::PREPARING->value,
+                OrderStatus::READY_FOR_PICKUP->value,
+                OrderStatus::CANCELLED->value,
+            ], true),
+            403,
+            "Sellers cannot transition orders to {$requestedStatus}."
+        );
+
+        $order = $this->stateMachine->transition(
+            $order,
+            $requestedStatus,
+            'seller',
+            $sellerId,
+            $data['note'] ?? "Order status updated to {$requestedStatus} by seller"
+        );
 
         return response()->json([
-            'message' => "Order status updated to {$newStatus}.",
-            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment']), $sellerId),
+            'message' => "Order status updated to {$requestedStatus}.",
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'statusHistories']), $sellerId),
         ]);
     }
 
@@ -219,11 +276,12 @@ class SellerOrderController extends Controller
         $sellerSubtotal = (float) $sellerItems->sum('subtotal');
         $sellerCommission = (float) $sellerItems->sum('commission_amount');
         $sellerEarnings = (float) $sellerItems->sum('seller_earnings');
+        $statusStr = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
 
         return [
             'id'                  => $o->id,
             'order_number'        => $o->order_number,
-            'status'              => $o->status,
+            'status'              => $statusStr,
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,
             'payment_reference'   => $o->payment_reference,
@@ -270,6 +328,14 @@ class SellerOrderController extends Controller
                 'resolution_note' => $o->dispute->resolution_note,
                 'resolved_at'     => $o->dispute->resolved_at?->toIso8601String(),
             ] : null,
+            'status_history'      => ($detail || $o->relationLoaded('statusHistories')) ? $o->statusHistories->map(fn ($h) => [
+                'id'          => $h->id,
+                'from_status' => $h->from_status,
+                'to_status'   => $h->to_status,
+                'actor_type'  => $h->actor_type,
+                'note'        => $h->note,
+                'created_at'  => $h->created_at?->toIso8601String(),
+            ])->values() : [],
         ];
     }
 }

@@ -179,5 +179,8 @@ class OrderStatusMigrationTest extends TestCase
 
         $this->assertEquals('RTS', DB::table('parcels')->where('id', $parcelId)->value('status'));
         $this->assertEquals('RTS', DB::table('delivery_logs')->where('id', $deliveryLogId)->value('outcome'));
+
+        // 5. Restore UP state so database schema remains migrated
+        $this->migration->up();
     }
 }
