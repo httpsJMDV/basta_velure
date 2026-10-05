@@ -21,11 +21,14 @@ import {
   confirmSellerOrderPaymentApi,
   rejectSellerOrderPaymentApi,
   updateSellerOrderStatusApi,
+  respondSellerOrderReturnApi,
 } from '../../api/client';
 import type { SellerOrder } from '../../types';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
+import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../../utils/orderStatus';
+import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 
-type OrderTab = 'all' | 'pending_verification' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type OrderTab = 'all' | 'pending_verification' | 'to_ship' | 'in_transit' | 'delivered' | 'cancelled';
 
 function getInitials(name?: string): string {
   if (!name) return 'CU';
@@ -163,6 +166,25 @@ export default function SellerOrdersPage() {
     }
   };
 
+  const handleRespondReturn = async (action: 'accept' | 'reject', reason?: string) => {
+    if (!selectedOrder) return;
+    setActionLoading(true);
+    try {
+      const res = await respondSellerOrderReturnApi(selectedOrder.id, {
+        action,
+        reason: action === 'reject' ? reason || 'Seller rejected return request.' : undefined,
+      });
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.data : o)));
+      setSelectedOrder(res.data);
+      showToast(action === 'accept' ? 'Return accepted. Order marked as Returned.' : 'Return response recorded.');
+      fetchOrders();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to respond to return.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div ref={pageRef} className="pb-8 space-y-4 w-full">
       {/* ── 1. Modern White / Pearl-Gray Executive Hero Command Bar ── */}
@@ -223,8 +245,8 @@ export default function SellerOrdersPage() {
                 label: '⚠️ Pending GCash',
                 count: counts.pending_verification,
               },
-              { key: 'confirmed', label: 'To Ship', count: counts.to_ship },
-              { key: 'shipped', label: 'In Transit' },
+              { key: 'to_ship', label: 'To Ship', count: counts.to_ship },
+              { key: 'in_transit', label: 'In Transit' },
               { key: 'delivered', label: 'Delivered' },
               { key: 'cancelled', label: 'Cancelled / Returned' },
             ].map((tab) => (
@@ -387,17 +409,9 @@ export default function SellerOrdersPage() {
                       {/* Status */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                            o.status === 'confirmed'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : o.status === 'shipped'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
-                              : o.status === 'delivered'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-gray-100 text-gray-600 border-gray-200'
-                          }`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${getStatusBadgeClass(o.status)}`}
                         >
-                          {o.status.replace(/_/g, ' ')}
+                          {getStatusLabel(o.status)}
                         </span>
                       </td>
 
@@ -414,25 +428,35 @@ export default function SellerOrdersPage() {
                             </Button>
                           )}
 
-                          {o.status === 'confirmed' && (
+                          {normalizeOrderStatus(o.status) === 'CONFIRMED' && (
                             <Button
                               variant="secondary"
-                              onClick={() => handleUpdateStatus(o.id, 'shipped')}
+                              onClick={() => handleUpdateStatus(o.id, 'PREPARING')}
                               disabled={actionLoading}
-                              className="py-1 px-2.5 text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                              className="py-1 px-2.5 text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
                             >
-                              <Truck className="w-3 h-3 inline mr-1" /> Mark Shipped
+                              <Package className="w-3 h-3 inline mr-1" /> Start Preparing
                             </Button>
                           )}
 
-                          {o.status === 'shipped' && (
+                          {normalizeOrderStatus(o.status) === 'PREPARING' && (
                             <Button
                               variant="secondary"
-                              onClick={() => handleUpdateStatus(o.id, 'delivered')}
+                              onClick={() => handleUpdateStatus(o.id, 'READY_FOR_PICKUP')}
                               disabled={actionLoading}
-                              className="py-1 px-2.5 text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
+                              className="py-1 px-2.5 text-[11px] font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200"
                             >
-                              <CheckCircle2 className="w-3 h-3 inline mr-1" /> Mark Delivered
+                              <CheckCircle2 className="w-3 h-3 inline mr-1" /> Ready for Pickup
+                            </Button>
+                          )}
+
+                          {normalizeOrderStatus(o.status) === 'DISPUTED' && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => setSelectedOrder(o)}
+                              className="py-1 px-2.5 text-[11px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200"
+                            >
+                              Respond to Return
                             </Button>
                           )}
 
@@ -611,6 +635,77 @@ export default function SellerOrdersPage() {
               <span className="text-base font-black text-gray-900">
                 ₱{Number(selectedOrder.order_total || selectedOrder.seller_subtotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </span>
+            </div>
+
+            {/* Merchant Fulfillment Actions */}
+            {normalizeOrderStatus(selectedOrder.status) === 'CONFIRMED' && (
+              <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-1.5 text-xs">
+                <span className="font-bold text-indigo-900 block">Fulfillment Next Step:</span>
+                <p className="text-[11px] text-indigo-700">Payment is confirmed. Start picking and packing items.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => handleUpdateStatus(selectedOrder.id, 'PREPARING')}
+                  disabled={actionLoading}
+                  className="w-full py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700"
+                >
+                  <Package className="w-3.5 h-3.5 inline mr-1" /> Start Preparing Package
+                </Button>
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'PREPARING' && (
+              <div className="p-3 bg-violet-50/70 border border-violet-200 rounded-xl space-y-1.5 text-xs">
+                <span className="font-bold text-violet-900 block">Fulfillment Next Step:</span>
+                <p className="text-[11px] text-violet-700">Package is prepared. Mark as ready for courier pickup.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => handleUpdateStatus(selectedOrder.id, 'READY_FOR_PICKUP')}
+                  disabled={actionLoading}
+                  className="w-full py-1.5 text-xs font-bold bg-violet-600 hover:bg-violet-700"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Ready for Pickup
+                </Button>
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'DISPUTED' && (
+              <div className="p-3 bg-rose-50/80 border border-rose-200 rounded-xl space-y-2 text-xs">
+                <span className="font-bold text-rose-900 block">Return Request Under Review:</span>
+                <p className="text-[11px] text-rose-700">
+                  Customer has requested a return for this order. You can accept the return or reject it.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={() => handleRespondReturn('accept')}
+                    disabled={actionLoading}
+                    className="flex-1 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    Accept Return
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const reason = prompt('Please enter reason for rejecting the return request:');
+                      if (reason?.trim()) {
+                        handleRespondReturn('reject', reason.trim());
+                      }
+                    }}
+                    disabled={actionLoading}
+                    className="flex-1 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border-red-200"
+                  >
+                    Reject Return
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Tracking History Timeline */}
+            <div className="pt-2 border-t border-gray-100">
+              <span className="font-bold text-gray-700 block text-[10px] uppercase tracking-wider mb-2">
+                Order Status Tracking History
+              </span>
+              <OrderStatusTimeline history={selectedOrder.status_history} currentStatus={selectedOrder.status} />
             </div>
 
             <div className="flex justify-end pt-2 border-t border-gray-100">

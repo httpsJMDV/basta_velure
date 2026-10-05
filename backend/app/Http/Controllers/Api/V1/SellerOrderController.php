@@ -37,11 +37,31 @@ class SellerOrderController extends Controller
                         OrderStatus::PREPARING->value,
                         OrderStatus::READY_FOR_PICKUP->value,
                     ]);
+                } elseif (in_array(strtolower($status), ['in_transit', 'shipped'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::PICKED_UP->value,
+                        OrderStatus::AT_SORTING_CENTER->value,
+                        OrderStatus::SORTED->value,
+                        OrderStatus::ASSIGNED_TO_RIDER->value,
+                        OrderStatus::OUT_FOR_DELIVERY->value,
+                    ]);
+                } elseif (in_array(strtolower($status), ['delivered'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::DELIVERED->value,
+                        OrderStatus::COMPLETED->value,
+                    ]);
+                } elseif (in_array(strtolower($status), ['cancelled', 'returned'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::CANCELLED->value,
+                        OrderStatus::RETURNED->value,
+                        OrderStatus::DISPUTED->value,
+                        OrderStatus::DELIVERY_FAILED->value,
+                    ]);
                 } else {
                     $mapped = match (strtolower($status)) {
                         'pending'   => OrderStatus::PLACED->value,
                         'preparing', 'packed' => OrderStatus::PREPARING->value,
-                        'ready_for_pickup', 'shipped' => OrderStatus::READY_FOR_PICKUP->value,
+                        'ready_for_pickup' => OrderStatus::READY_FOR_PICKUP->value,
                         'picked_up' => OrderStatus::PICKED_UP->value,
                         'out_for_delivery' => OrderStatus::OUT_FOR_DELIVERY->value,
                         'delivered' => OrderStatus::DELIVERED->value,

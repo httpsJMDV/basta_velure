@@ -19,8 +19,10 @@ import PhoneInput from '../components/ui/PhoneInput';
 import UserAvatar from '../components/ui/UserAvatar';
 import AvatarCropModal from '../components/ui/AvatarCropModal';
 import LovedItLogo from '../components/LovedItLogo';
-import { uploadAvatarApi } from '../api/client';
+import { uploadAvatarApi, requestBuyerOrderReturnApi } from '../api/client';
 import type { Address, AddressLabel, Order, OrderStatus, WishlistItem, FollowedStore } from '../types';
+import { getStatusLabel, getStatusBadgeClass, BUYER_FILTER_GROUPS, normalizeOrderStatus } from '../utils/orderStatus';
+import OrderStatusTimeline from '../components/orders/OrderStatusTimeline';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
@@ -884,46 +886,65 @@ function AddressBookPanel() {
 
 // ─── My Orders ──────────────────────────────────────────────────────────────
 
-type OrderFilter = 'all' | 'to_pay' | 'to_ship' | 'to_receive' | 'to_review';
+type OrderFilter = 'all' | 'to_pay' | 'to_ship' | 'to_receive' | 'to_review' | 'returns_cancelled';
 
 const ORDER_FILTERS: { key: OrderFilter; label: string }[] = [
-  { key: 'all',        label: 'All' },
-  { key: 'to_pay',     label: 'To Pay' },
-  { key: 'to_ship',    label: 'To Ship' },
-  { key: 'to_receive', label: 'To Receive' },
-  { key: 'to_review',  label: 'To Review' },
+  { key: 'all',               label: 'All' },
+  { key: 'to_pay',            label: 'To Pay' },
+  { key: 'to_ship',           label: 'To Ship' },
+  { key: 'to_receive',        label: 'To Receive' },
+  { key: 'to_review',         label: 'To Review' },
+  { key: 'returns_cancelled', label: 'Returns & Cancelled' },
 ];
 
 const FILTER_STATUSES: Record<OrderFilter, OrderStatus[]> = {
-  all:        [],
-  to_pay:     ['pending'],
-  to_ship:    ['confirmed', 'packed'],
-  to_receive: ['shipped', 'out_for_delivery'],
-  to_review:  ['delivered'],
+  all:               [],
+  to_pay:            BUYER_FILTER_GROUPS.to_pay,
+  to_ship:           BUYER_FILTER_GROUPS.to_ship,
+  to_receive:        BUYER_FILTER_GROUPS.to_receive,
+  to_review:         BUYER_FILTER_GROUPS.to_review,
+  returns_cancelled: BUYER_FILTER_GROUPS.returns,
 };
 
-const STATUS_BADGE: Record<OrderStatus, { label: string; cls: string }> = {
-  pending:          { label: 'Pending Payment',   cls: 'bg-amber-50 text-amber-600' },
-  confirmed:        { label: 'Confirmed',          cls: 'bg-blue-50 text-blue-600' },
-  packed:           { label: 'Packed',             cls: 'bg-blue-50 text-blue-600' },
-  shipped:          { label: 'Shipped',            cls: 'bg-indigo-50 text-indigo-600' },
-  out_for_delivery: { label: 'Out for Delivery',   cls: 'bg-purple-50 text-purple-600' },
-  delivered:        { label: 'Delivered',          cls: 'bg-green-50 text-green-600' },
-  cancelled:        { label: 'Cancelled',          cls: 'bg-gray-100 text-gray-500' },
-  returned:         { label: 'Returned',           cls: 'bg-red-50 text-brand-red' },
-};
-
-function OrderCard({ order }: { order: Order }) {
-  const badge = STATUS_BADGE[order.status] || { label: order.status, cls: 'bg-gray-100 text-gray-700' };
+function OrderCard({ order, onUpdated }: { order: Order; onUpdated?: (updated: Order) => void }) {
+  const normStatus = normalizeOrderStatus(order.status);
+  const badgeCls = getStatusBadgeClass(normStatus);
+  const statusLabel = getStatusLabel(normStatus);
   const firstItem = order.items[0];
   const extraCount = order.items.length - 1;
+
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnReason, setReturnReason] = useState('Defective / Damaged');
+  const [returnDesc, setReturnDesc] = useState('');
+  const [submittingReturn, setSubmittingReturn] = useState(false);
 
   const isGcashPending = order.payment_method === 'gcash' && order.payment_status === 'pending_verification';
   const isFailed = order.payment_status === 'verification_failed';
 
+  const handleRequestReturn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!returnDesc.trim()) return;
+    setSubmittingReturn(true);
+    try {
+      const res = await requestBuyerOrderReturnApi(order.id, {
+        reason: returnReason,
+        description: returnDesc.trim(),
+      });
+      setShowReturnModal(false);
+      if (onUpdated) {
+        onUpdated(res.data);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to submit return request.');
+    } finally {
+      setSubmittingReturn(false);
+    }
+  };
+
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-200 hover:shadow-sm transition-all">
-      <div className="flex items-center justify-between mb-3">
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-200 hover:shadow-sm transition-all space-y-3">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-brand-black tracking-wide">{order.order_number}</span>
           <span className="text-gray-300">·</span>
@@ -931,7 +952,7 @@ function OrderCard({ order }: { order: Order }) {
             {order.created_at ? new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {isGcashPending && (
             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
               Verifying GCash
@@ -943,15 +964,15 @@ function OrderCard({ order }: { order: Order }) {
             </span>
           )}
           {!isGcashPending && !isFailed && (
-            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${badge.cls}`}>
-              {badge.label}
+            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${badgeCls}`}>
+              {statusLabel}
             </span>
           )}
         </div>
       </div>
 
       {firstItem && (
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden shrink-0">
             {firstItem.image_url
               ? <img src={firstItem.image_url} alt={firstItem.product_name} className="w-full h-full object-cover" />
@@ -971,23 +992,115 @@ function OrderCard({ order }: { order: Order }) {
       )}
 
       {isFailed && order.rejection_reason && (
-        <div className="mb-3 p-2.5 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
+        <div className="p-2.5 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
           <span className="font-semibold">Seller note: </span>{order.rejection_reason}
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-        <span className="text-xs text-gray-400">
-          {order.payment_method === 'gcash' ? (
-            <span>GCash {order.payment_reference ? `(Ref: ${order.payment_reference})` : ''}</span>
-          ) : (
-            'Cash on Delivery'
+      {/* Action / Timeline buttons */}
+      <div className="flex items-center justify-between pt-3 border-t border-gray-50 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTimeline(!showTimeline)}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            {showTimeline ? 'Hide Tracking Timeline ▲' : 'View Tracking Timeline ▼'}
+          </button>
+
+          {normStatus === 'DELIVERED' && (
+            <button
+              type="button"
+              onClick={() => setShowReturnModal(true)}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors"
+            >
+              Request Return / Refund
+            </button>
           )}
-        </span>
-        <span className="text-sm font-bold text-brand-black">
-          ₱{order.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-        </span>
+
+          {normStatus === 'DISPUTED' && (
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+              Return Request Under Review
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">
+            {order.payment_method === 'gcash' ? (
+              <span>GCash {order.payment_reference ? `(Ref: ${order.payment_reference})` : ''}</span>
+            ) : (
+              'Cash on Delivery'
+            )}
+          </span>
+          <span className="text-sm font-bold text-brand-black">
+            ₱{Number(order.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
       </div>
+
+      {/* Timeline Expansion */}
+      {showTimeline && (
+        <div className="pt-3 border-t border-gray-100 animate-in fade-in">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Order Tracking History</p>
+          <OrderStatusTimeline history={order.status_history} currentStatus={order.status} />
+        </div>
+      )}
+
+      {/* Return Request Modal */}
+      {showReturnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-sm font-bold text-gray-900">Request Return for #{order.order_number}</h3>
+              <button onClick={() => setShowReturnModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <form onSubmit={handleRequestReturn} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Return Reason</label>
+                <select
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
+                >
+                  <option value="Defective / Damaged">Defective / Damaged Item</option>
+                  <option value="Wrong Item Received">Wrong Item Received</option>
+                  <option value="Item Not as Described">Item Not as Described</option>
+                  <option value="Missing Parts / Accessories">Missing Parts / Accessories</option>
+                  <option value="Change of Mind">Change of Mind (Subject to Seller Policy)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Detailed Explanation</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Explain why you wish to return this item..."
+                  value={returnDesc}
+                  onChange={(e) => setReturnDesc(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReturnModal(false)}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReturn || !returnDesc.trim()}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-brand-red hover:bg-red-700 rounded-xl disabled:opacity-50"
+                >
+                  {submittingReturn ? 'Submitting…' : 'Submit Return Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1008,7 +1121,7 @@ function OrdersPanel() {
   const filtered = useMemo(() => {
     let result = orders;
     const statuses = FILTER_STATUSES[filter];
-    if (statuses.length) result = result.filter((o) => statuses.includes(o.status));
+    if (statuses.length) result = result.filter((o) => statuses.includes(normalizeOrderStatus(o.status)));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(
@@ -1090,7 +1203,11 @@ function OrdersPanel() {
         )}
 
         {!loading && filtered.map((order) => (
-          <OrderCard key={order.id} order={order} />
+          <OrderCard
+            key={order.id}
+            order={order}
+            onUpdated={(updated) => setOrders((prev) => prev.map((o) => o.id === updated.id ? updated : o))}
+          />
         ))}
       </div>
     </div>

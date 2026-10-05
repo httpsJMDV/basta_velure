@@ -408,8 +408,31 @@ export interface AuthResponse {
 }
 
 export type OrderStatus =
-  | 'pending' | 'confirmed' | 'packed' | 'shipped'
-  | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
+  | 'PLACED'
+  | 'CONFIRMED'
+  | 'PREPARING'
+  | 'READY_FOR_PICKUP'
+  | 'PICKED_UP'
+  | 'AT_SORTING_CENTER'
+  | 'SORTED'
+  | 'ASSIGNED_TO_RIDER'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'COMPLETED'
+  | 'DELIVERY_FAILED'
+  | 'RETURNED'
+  | 'CANCELLED'
+  | 'DISPUTED';
+
+export interface OrderStatusHistory {
+  id: number;
+  from_status: OrderStatus | string | null;
+  to_status: OrderStatus | string;
+  actor_type: string;
+  actor_id?: number | null;
+  note?: string | null;
+  created_at: string;
+}
 
 export type PaymentMethod = 'gcash' | 'cod';
 export type PaymentStatus = 'pending' | 'pending_verification' | 'paid' | 'failed' | 'cod' | 'verification_failed' | 'refunded';
@@ -452,6 +475,7 @@ export interface Order {
   notes?: string | null;
   created_at: string;
   items: OrderItem[];
+  status_history?: OrderStatusHistory[];
 }
 
 export interface SellerOrderItem {
@@ -498,6 +522,7 @@ export interface SellerOrder {
     phone: string | null;
   } | null;
   items: SellerOrderItem[];
+  status_history?: OrderStatusHistory[];
 }
 
 export interface SellerEarningsSummary {
@@ -560,6 +585,7 @@ export interface AdminOrder {
   created_at: string;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
   items: OrderItem[];
+  status_history?: OrderStatusHistory[];
   payment?: {
     method: PaymentMethod;
     reference_number: string | null;

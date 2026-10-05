@@ -708,15 +708,15 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
 // ─── Compact Orders Fulfillment Status Pipeline ───────────────────────────────
 
 function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
-  const rows: Array<{ key: string; label: string; hex: string }> = [
-    { key: 'pending',          label: 'Pending Confirmation', hex: '#F59E0B' },
-    { key: 'packed',           label: 'Packed by Seller',     hex: '#3B82F6' },
-    { key: 'shipped',          label: 'In Transit / Shipped', hex: '#8B5CF6' },
-    { key: 'out_for_delivery', label: 'Out for Delivery',     hex: '#F97316' },
-    { key: 'delivered',        label: 'Successfully Delivered',hex: '#10B981' },
-    { key: 'cancelled',        label: 'Cancelled / Returned', hex: '#EF4444' },
+  const rows: Array<{ keys: string[]; label: string; hex: string }> = [
+    { keys: ['PLACED', 'pending'],                                                         label: 'Pending Confirmation', hex: '#F59E0B' },
+    { keys: ['CONFIRMED', 'PREPARING', 'packed'],                                          label: 'Order Processing',     hex: '#3B82F6' },
+    { keys: ['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'shipped'], label: 'Hub & First-Mile',     hex: '#8B5CF6' },
+    { keys: ['ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'out_for_delivery'],                 label: 'Out for Delivery',     hex: '#F97316' },
+    { keys: ['DELIVERED', 'COMPLETED', 'delivered'],                                       label: 'Delivered / Completed',hex: '#10B981' },
+    { keys: ['DELIVERY_FAILED', 'RETURNED', 'CANCELLED', 'DISPUTED', 'cancelled'],         label: 'Cancelled / Returned', hex: '#EF4444' },
   ];
-  const counts     = rows.map(r => stats.by_status[r.key as never] ?? 0);
+  const counts     = rows.map(r => r.keys.reduce((sum, k) => sum + (stats.by_status[k as never] ?? 0), 0));
   const realTotal  = counts.reduce((a, b) => a + b, 0);
   const max        = Math.max(...counts, 1);
   const animatedTotal = useCountUp(realTotal);
@@ -741,7 +741,7 @@ function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
             const count = counts[i];
             const pct = Math.round((count / realTotal) * 100);
             return (
-              <div key={r.key} className="space-y-0.5">
+              <div key={r.label} className="space-y-0.5">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-medium text-gray-700">{r.label}</span>
                   <div className="flex items-center gap-1.5">

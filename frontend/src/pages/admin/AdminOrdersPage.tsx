@@ -4,26 +4,32 @@ import type { AdminOrder, OrderStatus } from '../../types';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import { Search, X, ChevronLeft, ChevronRight, Package } from 'lucide-react';
+import {
+  getStatusLabel,
+  getStatusBadgeClass,
+  normalizeOrderStatus,
+  ALLOWED_ADMIN_NEXT_STATUSES,
+} from '../../utils/orderStatus';
+import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 
 const STATUS_OPTIONS: { label: string; value: OrderStatus | '' }[] = [
-  { label: 'All', value: '' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Confirmed', value: 'confirmed' },
-  { label: 'Packed', value: 'packed' },
-  { label: 'Shipped', value: 'shipped' },
-  { label: 'Out for Delivery', value: 'out_for_delivery' },
-  { label: 'Delivered', value: 'delivered' },
-  { label: 'Cancelled', value: 'cancelled' },
-  { label: 'Returned', value: 'returned' },
+  { label: 'All Statuses', value: '' },
+  { label: 'Placed (Pending)', value: 'PLACED' },
+  { label: 'Confirmed', value: 'CONFIRMED' },
+  { label: 'Preparing', value: 'PREPARING' },
+  { label: 'Ready for Pickup', value: 'READY_FOR_PICKUP' },
+  { label: 'Picked Up', value: 'PICKED_UP' },
+  { label: 'At Sorting Center', value: 'AT_SORTING_CENTER' },
+  { label: 'Sorted', value: 'SORTED' },
+  { label: 'Assigned to Rider', value: 'ASSIGNED_TO_RIDER' },
+  { label: 'Out for Delivery', value: 'OUT_FOR_DELIVERY' },
+  { label: 'Delivered', value: 'DELIVERED' },
+  { label: 'Completed', value: 'COMPLETED' },
+  { label: 'Delivery Failed', value: 'DELIVERY_FAILED' },
+  { label: 'Returned to Seller', value: 'RETURNED' },
+  { label: 'Cancelled', value: 'CANCELLED' },
+  { label: 'Disputed', value: 'DISPUTED' },
 ];
-
-const NEXT_STATUSES: Partial<Record<OrderStatus, OrderStatus[]>> = {
-  pending:          ['confirmed', 'cancelled'],
-  confirmed:        ['packed', 'cancelled'],
-  packed:           ['shipped'],
-  shipped:          ['out_for_delivery'],
-  out_for_delivery: ['delivered'],
-};
 
 function formatPHP(n: number) {
   return `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -65,7 +71,7 @@ function OrderDetailDrawer({
     }
   }
 
-  const nextStatuses = order ? (NEXT_STATUSES[order.status] ?? []) : [];
+  const nextStatuses = order ? (ALLOWED_ADMIN_NEXT_STATUSES[normalizeOrderStatus(order.status)] ?? []) : [];
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -90,23 +96,28 @@ function OrderDetailDrawer({
           <div className="flex-1 px-5 py-4 space-y-5">
             {/* Status + actions */}
             <div className="flex items-center gap-3 flex-wrap">
-              <Badge label={order.status.replace(/_/g, ' ')} variant={order.status as never} />
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(order.status)}`}>
+                {getStatusLabel(order.status)}
+              </span>
               <Badge label={order.payment_status} variant={order.payment_status as never} />
             </div>
 
             {nextStatuses.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {nextStatuses.map((s) => (
-                  <Button
-                    key={s}
-                    variant="primary"
-                    loading={updating}
-                    onClick={() => handleStatus(s)}
-                    className="text-[12px] py-1.5 px-3"
-                  >
-                    Mark as {s.replace(/_/g, ' ')}
-                  </Button>
-                ))}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Advance Status</p>
+                <div className="flex flex-wrap gap-2">
+                  {nextStatuses.map((s) => (
+                    <Button
+                      key={s}
+                      variant="primary"
+                      loading={updating}
+                      onClick={() => handleStatus(s)}
+                      className="text-[12px] py-1.5 px-3"
+                    >
+                      Mark as {getStatusLabel(s)}
+                    </Button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -187,6 +198,12 @@ function OrderDetailDrawer({
                 </div>
               </div>
             )}
+
+            {/* Tracking History Timeline */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Tracking History</p>
+              <OrderStatusTimeline history={order.status_history} currentStatus={order.status} />
+            </div>
 
             <p className="text-[11px] text-gray-400">Placed {formatDate(order.created_at)}</p>
           </div>
@@ -286,7 +303,9 @@ export default function AdminOrdersPage() {
                     {o.buyer ? `${o.buyer.first_name} ${o.buyer.last_name}` : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge label={o.status.replace(/_/g, ' ')} variant={o.status as never} />
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(o.status)}`}>
+                      {getStatusLabel(o.status)}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <Badge label={o.payment_status} variant={o.payment_status as never} />
