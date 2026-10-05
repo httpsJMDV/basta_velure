@@ -282,6 +282,11 @@ class OrderLifecycleBridgeTest extends TestCase
             'stats' => ['total_volume', 'gcash_volume', 'cod_volume'],
         ]);
         $this->assertEquals($this->seller->id, $res->json('data.0.seller.id'));
+
+        // Test filtering by method and search
+        $searchRes = $this->getJson('/api/v1/admin/payments?method=gcash&search=Test');
+        $searchRes->assertStatus(200);
+        $this->assertCount(1, $searchRes->json('data'));
     }
 
     public function test_seller_confirms_cod_order_successfully(): void

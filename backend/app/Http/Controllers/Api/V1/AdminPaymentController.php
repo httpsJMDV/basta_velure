@@ -14,8 +14,8 @@ class AdminPaymentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $orders = Order::with(['buyer', 'items', 'seller.sellerProfile'])
-            ->when($request->method, fn ($q) => $q->where('payment_method', $request->method))
-            ->when($request->status, function ($q, $status) {
+            ->when($request->query('method'), fn ($q, $method) => $q->where('payment_method', $method))
+            ->when($request->query('status'), function ($q, $status) {
                 if ($status === 'pending_verification') {
                     $q->where('payment_status', 'pending_verification');
                 } elseif ($status === 'paid' || $status === 'confirmed') {
@@ -28,7 +28,7 @@ class AdminPaymentController extends Controller
                     $q->where('payment_status', $status);
                 }
             })
-            ->when($request->search, function ($q, $search) {
+            ->when($request->query('search'), function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('order_number', 'like', "%{$search}%")
                         ->orWhere('payment_reference', 'like', "%{$search}%")
@@ -105,7 +105,7 @@ class AdminPaymentController extends Controller
         $payment->update([
             'status'           => 'paid',
             'paid_at'          => now(),
-            'reference_number' => $request->reference_number ?? $payment->reference_number,
+            'reference_number' => $request->input('reference_number') ?? $payment->reference_number,
         ]);
         if ($payment->order) {
             $payment->order->update(['payment_status' => 'paid']);
