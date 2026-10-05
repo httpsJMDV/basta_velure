@@ -428,6 +428,17 @@ export default function SellerOrdersPage() {
                             </Button>
                           )}
 
+                          {normalizeOrderStatus(o.status) === 'PLACED' && !isGcash && (
+                            <Button
+                              variant="primary"
+                              onClick={() => handleUpdateStatus(o.id, 'CONFIRMED')}
+                              disabled={actionLoading}
+                              className="py-1 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700"
+                            >
+                              <CheckCircle2 className="w-3 h-3 inline mr-1" /> Confirm Order
+                            </Button>
+                          )}
+
                           {normalizeOrderStatus(o.status) === 'CONFIRMED' && (
                             <Button
                               variant="secondary"
@@ -638,6 +649,21 @@ export default function SellerOrdersPage() {
             </div>
 
             {/* Merchant Fulfillment Actions */}
+            {normalizeOrderStatus(selectedOrder.status) === 'PLACED' && selectedOrder.payment_method === 'cod' && (
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
+                <span className="font-bold text-emerald-900 block">Fulfillment Next Step:</span>
+                <p className="text-[11px] text-emerald-700">Cash on Delivery order placed by customer. Confirm order to begin fulfillment.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => handleUpdateStatus(selectedOrder.id, 'CONFIRMED')}
+                  disabled={actionLoading}
+                  className="w-full py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Confirm COD Order
+                </Button>
+              </div>
+            )}
+
             {normalizeOrderStatus(selectedOrder.status) === 'CONFIRMED' && (
               <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-1.5 text-xs">
                 <span className="font-bold text-indigo-900 block">Fulfillment Next Step:</span>

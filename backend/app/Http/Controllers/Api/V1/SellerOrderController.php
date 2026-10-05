@@ -134,17 +134,19 @@ class SellerOrderController extends Controller
         $sellerId = $request->user()->id;
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
-        $order->update([
-            'payment_status'      => 'paid',
-            'payment_verified_at' => now(),
-            'payment_verified_by' => $sellerId,
-        ]);
-
-        if ($order->payment) {
-            $order->payment->update([
-                'status'  => 'paid',
-                'paid_at' => now(),
+        if ($order->payment_method === 'gcash') {
+            $order->update([
+                'payment_status'      => 'paid',
+                'payment_verified_at' => now(),
+                'payment_verified_by' => $sellerId,
             ]);
+
+            if ($order->payment) {
+                $order->payment->update([
+                    'status'  => 'paid',
+                    'paid_at' => now(),
+                ]);
+            }
         }
 
         $currentStatus = $order->status instanceof OrderStatus ? $order->status->value : (string) $order->status;
@@ -154,12 +156,16 @@ class SellerOrderController extends Controller
                 OrderStatus::CONFIRMED,
                 'seller',
                 $sellerId,
-                'Payment verified and confirmed by merchant'
+                $order->payment_method === 'cod'
+                    ? 'COD order confirmed by merchant'
+                    : 'Payment verified and confirmed by merchant'
             );
         }
 
         return response()->json([
-            'message' => 'Payment verified and confirmed successfully!',
+            'message' => $order->payment_method === 'cod'
+                ? 'COD order confirmed successfully!'
+                : 'Payment verified and confirmed successfully!',
             'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'statusHistories']), $sellerId),
         ]);
     }
@@ -265,23 +271,36 @@ class SellerOrderController extends Controller
             default => strtoupper($data['status']),
         };
 
-        // Sellers may only advance to PREPARING, READY_FOR_PICKUP, or CANCELLED
-        abort_unless(
-            in_array($requestedStatus, [
-                OrderStatus::PREPARING->value,
-                OrderStatus::READY_FOR_PICKUP->value,
-                OrderStatus::CANCELLED->value,
-            ], true),
-            403,
-            "Sellers cannot transition orders to {$requestedStatus}."
-        );
+        if ($requestedStatus === OrderStatus::CONFIRMED->value) {
+            if ($order->payment_method === 'gcash' && $order->payment_status !== 'paid') {
+                abort(422, 'GCash orders require verified payment before confirmation. Please verify the payment slip.');
+            }
+        } else {
+            // Sellers may only advance to CONFIRMED (for COD or verified), PREPARING, READY_FOR_PICKUP, or CANCELLED
+            abort_unless(
+                in_array($requestedStatus, [
+                    OrderStatus::PREPARING->value,
+                    OrderStatus::READY_FOR_PICKUP->value,
+                    OrderStatus::CANCELLED->value,
+                ], true),
+                403,
+                "Sellers cannot transition orders to {$requestedStatus}."
+            );
+        }
+
+        $defaultNote = match ($requestedStatus) {
+            OrderStatus::CONFIRMED->value => $order->payment_method === 'cod'
+                ? 'COD order confirmed by merchant'
+                : 'Order confirmed by merchant',
+            default => "Order status updated to {$requestedStatus} by seller",
+        };
 
         $order = $this->stateMachine->transition(
             $order,
             $requestedStatus,
             'seller',
             $sellerId,
-            $data['note'] ?? "Order status updated to {$requestedStatus} by seller"
+            $data['note'] ?? $defaultNote
         );
 
         return response()->json([

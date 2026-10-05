@@ -283,4 +283,70 @@ class OrderLifecycleBridgeTest extends TestCase
         ]);
         $this->assertEquals($this->seller->id, $res->json('data.0.seller.id'));
     }
+
+    public function test_seller_confirms_cod_order_successfully(): void
+    {
+        Sanctum::actingAs($this->seller);
+
+        $order = $this->createOrder(OrderStatus::PLACED, 'cod', 'pending');
+
+        $res = $this->patchJson("/api/v1/seller/orders/{$order->id}/status", [
+            'status' => 'CONFIRMED',
+        ]);
+
+        $res->assertStatus(200);
+        $res->assertJsonPath('data.status', 'CONFIRMED');
+
+        $orderFresh = $order->fresh();
+        $this->assertEquals(OrderStatus::CONFIRMED, $orderFresh->status);
+        $this->assertEquals('pending', $orderFresh->payment_status);
+
+        $this->assertDatabaseHas('order_status_histories', [
+            'order_id'    => $order->id,
+            'from_status' => OrderStatus::PLACED->value,
+            'to_status'   => OrderStatus::CONFIRMED->value,
+            'actor_type'  => 'seller',
+            'actor_id'    => $this->seller->id,
+        ]);
+    }
+
+    public function test_seller_cannot_confirm_gcash_order_without_verified_payment(): void
+    {
+        Sanctum::actingAs($this->seller);
+
+        $order = $this->createOrder(OrderStatus::PLACED, 'gcash', 'pending');
+
+        $res = $this->patchJson("/api/v1/seller/orders/{$order->id}/status", [
+            'status' => 'CONFIRMED',
+        ]);
+
+        $res->assertStatus(422);
+        $this->assertEquals(OrderStatus::PLACED, $order->fresh()->status);
+        $this->assertEquals('pending', $order->fresh()->payment_status);
+    }
+
+    public function test_seller_confirms_gcash_order_via_confirm_payment_endpoint(): void
+    {
+        Sanctum::actingAs($this->seller);
+
+        $order = $this->createOrder(OrderStatus::PLACED, 'gcash', 'pending');
+
+        $res = $this->postJson("/api/v1/seller/orders/{$order->id}/confirm-payment");
+
+        $res->assertStatus(200);
+        $res->assertJsonPath('data.status', 'CONFIRMED');
+
+        $orderFresh = $order->fresh();
+        $this->assertEquals(OrderStatus::CONFIRMED, $orderFresh->status);
+        $this->assertEquals('paid', $orderFresh->payment_status);
+
+        $this->assertDatabaseHas('order_status_histories', [
+            'order_id'    => $order->id,
+            'from_status' => OrderStatus::PLACED->value,
+            'to_status'   => OrderStatus::CONFIRMED->value,
+            'actor_type'  => 'seller',
+            'actor_id'    => $this->seller->id,
+        ]);
+    }
 }
+
