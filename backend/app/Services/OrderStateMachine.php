@@ -217,6 +217,11 @@ class OrderStateMachine
                     abort(422, 'Cannot mark order ready for pickup: seller pickup address/barangay is required.');
                 }
 
+                $pickupBarangayCode = trim((string) ($profile->address_barangay_code ?? ''));
+                if ($pickupBarangayCode === '') {
+                    abort(422, 'Cannot mark order ready for pickup: Re-select your shop address so a barangay can be matched to a delivery area.');
+                }
+
                 $recipientName = trim((string) ($order->shipping_name ?? ''));
                 $recipientPhone = trim((string) ($order->shipping_phone ?? ''));
                 $recipientAddress = trim((string) ($order->shipping_address ?? ''));
@@ -226,6 +231,11 @@ class OrderStateMachine
                     abort(422, 'Cannot mark order ready for pickup: recipient details and destination barangay are required.');
                 }
 
+                $destinationBarangayCode = trim((string) ($order->shipping_barangay_code ?? ''));
+                if ($destinationBarangayCode === '') {
+                    abort(422, 'Cannot mark order ready for pickup: Delivery address is missing a barangay code. Customer must re-select their address.');
+                }
+
                 $pickupSnapshot = [
                     'shop_name'     => $profile->shop_name ?? ($seller->first_name . "'s Shop"),
                     'contact_phone' => $profile->shop_contact_number ?? $seller->phone ?? '',
@@ -233,6 +243,9 @@ class OrderStateMachine
                     'barangay'      => $pickupBarangay,
                     'city'          => $profile->address_city ?? '',
                     'province'      => $profile->address_province ?? '',
+                    'barangay_code' => $pickupBarangayCode,
+                    'city_code'     => $profile->address_city_code ?? '',
+                    'province_code' => $profile->address_province_code ?? '',
                     'full_address'  => implode(', ', array_filter([
                         $profile->address_street,
                         $pickupBarangay,
@@ -242,13 +255,16 @@ class OrderStateMachine
                 ];
 
                 $recipientSnapshot = [
-                    'name'         => $recipientName,
-                    'phone'        => $recipientPhone,
-                    'street'       => $recipientAddress,
-                    'barangay'     => $destinationBarangay,
-                    'city'         => $order->shipping_city ?? '',
-                    'province'     => $order->shipping_province ?? '',
-                    'full_address' => implode(', ', array_filter([
+                    'name'          => $recipientName,
+                    'phone'         => $recipientPhone,
+                    'street'        => $recipientAddress,
+                    'barangay'      => $destinationBarangay,
+                    'city'          => $order->shipping_city ?? '',
+                    'province'      => $order->shipping_province ?? '',
+                    'barangay_code' => $destinationBarangayCode,
+                    'city_code'     => $order->shipping_city_code ?? '',
+                    'province_code' => $order->shipping_province_code ?? '',
+                    'full_address'  => implode(', ', array_filter([
                         $recipientAddress,
                         $destinationBarangay,
                         $order->shipping_city,
@@ -260,16 +276,18 @@ class OrderStateMachine
                 $trackingNumber = $this->trackingNumberGenerator->generate();
 
                 Parcel::create([
-                    'tracking_number'         => $trackingNumber,
-                    'order_id'                => $order->id,
-                    'seller_id'               => $seller->id,
-                    'status'                  => Parcel::STATUS_READY_FOR_PICKUP,
-                    'destination_barangay'    => $destinationBarangay,
-                    'pickup_barangay'         => $pickupBarangay,
-                    'pickup_address_snapshot' => $pickupSnapshot,
-                    'recipient_snapshot'      => $recipientSnapshot,
-                    'cod_amount'              => $codAmount,
-                    'ready_at'                => now(),
+                    'tracking_number'           => $trackingNumber,
+                    'order_id'                  => $order->id,
+                    'seller_id'                 => $seller->id,
+                    'status'                    => Parcel::STATUS_READY_FOR_PICKUP,
+                    'destination_barangay'      => $destinationBarangay,
+                    'destination_barangay_code' => $destinationBarangayCode,
+                    'pickup_barangay'           => $pickupBarangay,
+                    'pickup_barangay_code'      => $pickupBarangayCode,
+                    'pickup_address_snapshot'   => $pickupSnapshot,
+                    'recipient_snapshot'        => $recipientSnapshot,
+                    'cod_amount'                => $codAmount,
+                    'ready_at'                  => now(),
                 ]);
             }
         }

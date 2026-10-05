@@ -32,7 +32,8 @@ class Order extends Model
         'payment_reference', 'payment_proof_path', 'payment_verified_at',
         'payment_verified_by', 'verification_rejection_reason',
         'shipping_name', 'shipping_phone', 'shipping_address',
-        'shipping_province', 'shipping_city', 'shipping_barangay', 'notes',
+        'shipping_province', 'shipping_city', 'shipping_barangay',
+        'shipping_province_code', 'shipping_city_code', 'shipping_barangay_code', 'notes',
     ];
 
     protected function casts(): array

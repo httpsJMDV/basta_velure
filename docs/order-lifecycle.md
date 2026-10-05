@@ -163,11 +163,12 @@ For buyer order tracking (`SettingsPage.tsx`), individual statuses map to user-f
 ### Automated Parcel Creation
 When an order transitions to `READY_FOR_PICKUP`:
 1. `OrderStateMachine` checks if a `Parcel` record already exists for the order. If not, it generates a unique tracking number and inserts the parcel inside the transaction.
-2. **Guards**:
-   - The seller must have an approved profile and a valid `address_barangay`.
-   - The order must have complete recipient details (`shipping_name`, `shipping_phone`, `shipping_address`, `shipping_barangay`).
+2. **Guards (Bridge C PSGC Standardized)**:
+   - The seller must have an approved profile with a valid `address_barangay` and standard PSGC `address_barangay_code` (or returns 422: *"Cannot mark order ready for pickup: Re-select your shop address so a barangay can be matched to a delivery area."*).
+   - The order must have complete recipient details (`shipping_name`, `shipping_phone`, `shipping_address`, `shipping_barangay`) and `shipping_barangay_code` (or returns 422: *"Cannot mark order ready for pickup: Delivery address is missing a barangay code. Customer must re-select their address."*).
    - If guards fail, the transition aborts with `422 Unprocessable Entity` and the order remains in `PREPARING`.
 3. **Snapshots**:
+   - Stores `pickup_barangay_code` and `destination_barangay_code` on the parcel for courier and hub routing.
    - `pickup_address_snapshot`: Stores shop name, seller phone, street, barangay, city, province.
    - `recipient_snapshot`: Stores buyer recipient name, phone, street, barangay, city, province.
 4. **COD Handling**:

@@ -66,6 +66,9 @@ class SellerPickupParcelTest extends TestCase
             'address_city'               => 'Makati City',
             'address_barangay'           => 'Poblacion',
             'address_street'             => '456 Burgos St',
+            'address_province_code'      => '130000000',
+            'address_city_code'          => '137602000',
+            'address_barangay_code'      => '137602015',
             'shop_contact_number'        => '09171112222',
         ]);
 
@@ -93,6 +96,9 @@ class SellerPickupParcelTest extends TestCase
             'address_city'               => 'Taguig',
             'address_barangay'           => 'Fort Bonifacio',
             'address_street'             => '789 High St',
+            'address_province_code'      => '130000000',
+            'address_city_code'          => '137607000',
+            'address_barangay_code'      => '137607005',
             'shop_contact_number'        => '09173334444',
         ]);
 
@@ -127,9 +133,12 @@ class SellerPickupParcelTest extends TestCase
             'shipping_name'     => 'Maria Santos',
             'shipping_phone'    => '09187654321',
             'shipping_address'  => '12 Sampaguita St',
-            'shipping_province' => 'Metro Manila',
-            'shipping_city'     => 'Quezon City',
-            'shipping_barangay' => 'Batasan Hills',
+            'shipping_province'      => 'Metro Manila',
+            'shipping_city'          => 'Quezon City',
+            'shipping_barangay'      => 'Batasan Hills',
+            'shipping_province_code' => '130000000',
+            'shipping_city_code'     => '137404000',
+            'shipping_barangay_code' => '137404001',
         ], $shippingOverrides));
 
         OrderItem::create([
@@ -423,9 +432,12 @@ class SellerPickupParcelTest extends TestCase
             'shipping_name'     => 'Maria Santos',
             'shipping_phone'    => '09187654321',
             'shipping_address'  => '12 Sampaguita St',
-            'shipping_province' => 'Metro Manila',
-            'shipping_city'     => 'Quezon City',
-            'shipping_barangay' => 'Batasan Hills',
+            'shipping_province'      => 'Metro Manila',
+            'shipping_city'          => 'Quezon City',
+            'shipping_barangay'      => 'Batasan Hills',
+            'shipping_province_code' => '130000000',
+            'shipping_city_code'     => '137404000',
+            'shipping_barangay_code' => '137404001',
             'items' => [
                 ['product_id' => $productA->id, 'variant_id' => $variantA->id, 'quantity' => 1],
                 ['product_id' => $productB->id, 'variant_id' => $variantB->id, 'quantity' => 1],

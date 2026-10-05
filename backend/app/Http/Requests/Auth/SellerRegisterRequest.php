@@ -33,6 +33,9 @@ class SellerRegisterRequest extends FormRequest
             'address_city'                 => ['required', 'string', 'max:100'],
             'address_barangay'             => ['required', 'string', 'max:100'],
             'address_street'               => ['nullable', 'string', 'max:255'],
+            'address_province_code'        => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'address_city_code'            => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'address_barangay_code'        => ['required', 'string', 'regex:/^\d{9,10}$/'],
         ];
     }
 

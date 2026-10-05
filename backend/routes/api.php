@@ -98,7 +98,7 @@ Route::prefix('v1')->group(function () {
         // Addresses
         Route::get('/addresses', [AddressController::class, 'index']);
         Route::post('/addresses', [AddressController::class, 'store']);
-        Route::patch('/addresses/{address}', [AddressController::class, 'update']);
+        Route::match(['patch', 'put'], '/addresses/{address}', [AddressController::class, 'update']);
         Route::delete('/addresses/{address}', [AddressController::class, 'destroy']);
         Route::patch('/addresses/{address}/default', [AddressController::class, 'setDefault']);
 

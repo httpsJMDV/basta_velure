@@ -123,9 +123,12 @@ class MultiSellerCheckoutTest extends TestCase
             'shipping_name'     => 'Juan Dela Cruz',
             'shipping_phone'    => '09171234567',
             'shipping_address'  => 'Block 1 Lot 2, Sample St',
-            'shipping_province' => 'Metro Manila',
-            'shipping_city'     => 'Quezon City',
-            'shipping_barangay' => 'Batasan Hills',
+            'shipping_province'      => 'Metro Manila',
+            'shipping_city'          => 'Quezon City',
+            'shipping_barangay'      => 'Batasan Hills',
+            'shipping_province_code' => '130000000',
+            'shipping_city_code'     => '137404000',
+            'shipping_barangay_code' => '137404001',
             'items' => [
                 [
                     'product_id' => $productA->id,
@@ -206,9 +209,12 @@ class MultiSellerCheckoutTest extends TestCase
             'shipping_name'     => 'Single Buyer',
             'shipping_phone'    => '09171234567',
             'shipping_address'  => '123 Single St',
-            'shipping_province' => 'Metro Manila',
-            'shipping_city'     => 'Manila',
-            'shipping_barangay' => 'Barangay 1',
+            'shipping_province'      => 'Metro Manila',
+            'shipping_city'          => 'Manila',
+            'shipping_barangay'      => 'Barangay 1',
+            'shipping_province_code' => '130000000',
+            'shipping_city_code'     => '133900000',
+            'shipping_barangay_code' => '133901001',
             'items' => [
                 [
                     'product_id' => $productA->id,
@@ -246,9 +252,12 @@ class MultiSellerCheckoutTest extends TestCase
             'shipping_name'     => 'Juan Dela Cruz',
             'shipping_phone'    => '09171234567',
             'shipping_address'  => 'Block 1 Lot 2, Sample St',
-            'shipping_province' => 'Metro Manila',
-            'shipping_city'     => 'Quezon City',
-            'shipping_barangay' => 'Batasan Hills',
+            'shipping_province'      => 'Metro Manila',
+            'shipping_city'          => 'Quezon City',
+            'shipping_barangay'      => 'Batasan Hills',
+            'shipping_province_code' => '130000000',
+            'shipping_city_code'     => '137404000',
+            'shipping_barangay_code' => '137404001',
             'items' => [
                 [
                     'product_id' => $productA->id,
@@ -287,9 +296,12 @@ class MultiSellerCheckoutTest extends TestCase
             'shipping_name'     => 'Juan Dela Cruz',
             'shipping_phone'    => '09171234567',
             'shipping_address'  => 'Block 1 Lot 2, Sample St',
-            'shipping_province' => 'Metro Manila',
-            'shipping_city'     => 'Quezon City',
-            'shipping_barangay' => 'Batasan Hills',
+            'shipping_province'      => 'Metro Manila',
+            'shipping_city'          => 'Quezon City',
+            'shipping_barangay'      => 'Batasan Hills',
+            'shipping_province_code' => '130000000',
+            'shipping_city_code'     => '137404000',
+            'shipping_barangay_code' => '137404001',
             'items' => [
                 [
                     'product_id' => $productA->id,

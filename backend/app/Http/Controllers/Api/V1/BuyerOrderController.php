@@ -36,14 +36,17 @@ class BuyerOrderController extends Controller
             'shipping_name'     => ['required', 'string', 'max:150'],
             'shipping_phone'    => ['required', 'string', 'max:30'],
             'shipping_address'  => ['required', 'string'],
-            'shipping_province' => ['nullable', 'string', 'max:100'],
-            'shipping_city'     => ['nullable', 'string', 'max:100'],
-            'shipping_barangay' => ['nullable', 'string', 'max:100'],
-            'notes'             => ['nullable', 'string', 'max:500'],
-            'items'             => ['required', 'array', 'min:1'],
-            'items.*.product_id'=> ['required', 'integer', 'exists:products,id'],
-            'items.*.variant_id'=> ['nullable', 'integer'],
-            'items.*.quantity'  => ['required', 'integer', 'min:1'],
+            'shipping_province'      => ['nullable', 'string', 'max:100'],
+            'shipping_city'          => ['nullable', 'string', 'max:100'],
+            'shipping_barangay'      => ['nullable', 'string', 'max:100'],
+            'shipping_province_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'shipping_city_code'     => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'shipping_barangay_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'notes'                  => ['nullable', 'string', 'max:500'],
+            'items'                  => ['required', 'array', 'min:1'],
+            'items.*.product_id'     => ['required', 'integer', 'exists:products,id'],
+            'items.*.variant_id'     => ['nullable', 'integer'],
+            'items.*.quantity'       => ['required', 'integer', 'min:1'],
         ];
 
         if ($request->payment_method === 'gcash') {
@@ -51,7 +54,13 @@ class BuyerOrderController extends Controller
             $rules['payment_proof']     = ['required', 'image', 'max:5120']; // max 5MB image
         }
 
-        $data = $request->validate($rules);
+        $messages = [
+            'shipping_barangay_code.required' => 'Selected delivery address is missing a barangay PSGC code. Please re-select or update your delivery address to proceed with checkout.',
+            'shipping_city_code.required'     => 'Selected delivery address is missing a city/municipality PSGC code. Please re-select or update your delivery address to proceed with checkout.',
+            'shipping_province_code.required' => 'Selected delivery address is missing a province PSGC code. Please re-select or update your delivery address to proceed with checkout.',
+        ];
+
+        $data = $request->validate($rules, $messages);
 
         $proofPath = null;
         if ($request->hasFile('payment_proof')) {
@@ -149,13 +158,16 @@ class BuyerOrderController extends Controller
                         'status'            => OrderStatus::PLACED->value,
                         'payment_reference' => $data['payment_reference'] ?? null,
                         'payment_proof_path'=> $proofPath,
-                        'shipping_name'     => $data['shipping_name'],
-                        'shipping_phone'    => $data['shipping_phone'],
-                        'shipping_address'  => $data['shipping_address'],
-                        'shipping_province' => $data['shipping_province'] ?? null,
-                        'shipping_city'     => $data['shipping_city'] ?? null,
-                        'shipping_barangay' => $data['shipping_barangay'] ?? null,
-                        'notes'             => $data['notes'] ?? null,
+                        'shipping_name'          => $data['shipping_name'],
+                        'shipping_phone'         => $data['shipping_phone'],
+                        'shipping_address'       => $data['shipping_address'],
+                        'shipping_province'      => $data['shipping_province'] ?? null,
+                        'shipping_city'          => $data['shipping_city'] ?? null,
+                        'shipping_barangay'      => $data['shipping_barangay'] ?? null,
+                        'shipping_province_code' => $data['shipping_province_code'],
+                        'shipping_city_code'     => $data['shipping_city_code'],
+                        'shipping_barangay_code' => $data['shipping_barangay_code'],
+                        'notes'                  => $data['notes'] ?? null,
                     ]);
 
                     // Record initial placement history

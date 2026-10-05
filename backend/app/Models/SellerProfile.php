@@ -31,6 +31,9 @@ class SellerProfile extends Model
         'address_city',
         'address_barangay',
         'address_street',
+        'address_province_code',
+        'address_city_code',
+        'address_barangay_code',
         'shop_contact_number',
         'return_policy',
         'shipping_policy',
@@ -58,7 +61,12 @@ class SellerProfile extends Model
         ];
     }
 
-    protected $appends = ['logo_url', 'banner_url'];
+    protected $appends = ['logo_url', 'banner_url', 'address_needs_update'];
+
+    public function getAddressNeedsUpdateAttribute(): bool
+    {
+        return empty($this->address_barangay_code);
+    }
 
     public function getLogoUrlAttribute(): ?string
     {

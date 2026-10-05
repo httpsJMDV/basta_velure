@@ -59,6 +59,9 @@ class OrderStateMachineTest extends TestCase
             'address_city'               => 'Manila',
             'address_barangay'           => 'Barangay 659',
             'address_street'             => '123 Seller St',
+            'address_province_code'      => '130000000',
+            'address_city_code'          => '133900000',
+            'address_barangay_code'      => '133901001',
             'shop_contact_number'        => '09171234567',
         ]);
 
@@ -97,9 +100,12 @@ class OrderStateMachineTest extends TestCase
             'shipping_name'     => 'Buyer Name',
             'shipping_phone'    => '09171234567',
             'shipping_address'  => '123 Buyer St',
-            'shipping_province' => 'Metro Manila',
-            'shipping_city'     => 'Manila',
-            'shipping_barangay' => 'Barangay 1',
+            'shipping_province'      => 'Metro Manila',
+            'shipping_city'          => 'Manila',
+            'shipping_barangay'      => 'Barangay 1',
+            'shipping_province_code' => '130000000',
+            'shipping_city_code'     => '133900000',
+            'shipping_barangay_code' => '133901002',
         ]);
 
         OrderItem::create([
