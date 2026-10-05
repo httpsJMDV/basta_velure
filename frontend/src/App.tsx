@@ -12,8 +12,9 @@ import RiderPendingPage from './pages/auth/RiderPendingPage';
 import RiderLoginPage from './pages/auth/RiderLoginPage';
 import RiderLayout from './pages/rider/RiderLayout';
 import RiderDashboardPage from './pages/rider/RiderDashboardPage';
+import RiderPickupsPage from './pages/rider/RiderPickupsPage';
 import RiderPlaceholderPage from './pages/rider/RiderPlaceholderPage';
-import { PackagePlus, Truck, Wallet, User as UserIcon } from 'lucide-react';
+import { Truck, Wallet, User as UserIcon } from 'lucide-react';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
@@ -396,17 +397,7 @@ function AppRoutes() {
         }
       >
         <Route path="dashboard" element={<RiderDashboardPage />} />
-        <Route
-          path="pickups"
-          element={
-            <RiderPlaceholderPage
-              inLayout
-              title="Merchant Pickups"
-              subtitle="Collection assignments and pickup route optimization will be available in Feature 2.4."
-              icon={PackagePlus}
-            />
-          }
-        />
+        <Route path="pickups" element={<RiderPickupsPage />} />
         <Route
           path="deliveries"
           element={

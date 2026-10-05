@@ -1472,3 +1472,54 @@ export interface CategoryPayload {
   commission_rate?: number | null;
 }
 
+// ─── Courier / Rider Pickup Dashboard ──────────────────────────────────────────
+
+export interface RiderPickupAddress {
+  street: string;
+  barangay: string;
+  city: string;
+  province: string;
+  barangay_code: string;
+  full_address: string;
+}
+
+export interface RiderPickupGroup {
+  seller_id: number;
+  shop_name: string;
+  shop_phone: string;
+  pickup_address: RiderPickupAddress;
+  parcel_count: number;
+  tracking_numbers: string[];
+  ready_since: string;
+  matched_area_label?: string | null;
+  accepted_at?: string | null;
+}
+
+export interface RiderPickupsMeta {
+  view: 'available' | 'mine';
+  available_count: number;
+  mine_count: number;
+  has_areas: boolean;
+}
+
+export interface RiderPickupsResponse {
+  data: RiderPickupGroup[];
+  meta: RiderPickupsMeta;
+}
+
+export interface RiderAcceptPickupResponse {
+  message: string;
+  claimed_count: number;
+  tracking_numbers: string[];
+}
+
+export interface RiderDeclinePickupResponse {
+  message: string;
+  declined_count: number;
+}
+
+export interface RiderReleasePickupResponse {
+  message: string;
+  released_count: number;
+}
+

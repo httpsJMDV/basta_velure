@@ -68,6 +68,10 @@ import type {
   RiderAreaAssignmentItem,
   HubCoverageOptions,
   RiderProfileData,
+  RiderPickupsResponse,
+  RiderAcceptPickupResponse,
+  RiderDeclinePickupResponse,
+  RiderReleasePickupResponse,
 } from '../types';
 
 const http = axios.create({
@@ -787,6 +791,20 @@ export const deactivateHubRiderAreaApi = (riderId: number, areaId: number) =>
 
 export const getRiderMeApi = () =>
   http.get<{ data: RiderProfileData }>('/rider/me').then((r) => r.data.data);
+
+// ─── Courier / Rider Pickups (Feature 2.4) ────────────────────────────────────
+
+export const getRiderPickupsApi = (view: 'available' | 'mine' = 'available') =>
+  http.get<RiderPickupsResponse>('/rider/pickups', { params: { view } }).then((r) => r.data);
+
+export const acceptRiderPickupApi = (sellerId: number) =>
+  http.post<RiderAcceptPickupResponse>(`/rider/pickups/sellers/${sellerId}/accept`).then((r) => r.data);
+
+export const declineRiderPickupApi = (sellerId: number) =>
+  http.post<RiderDeclinePickupResponse>(`/rider/pickups/sellers/${sellerId}/decline`).then((r) => r.data);
+
+export const releaseRiderPickupApi = (sellerId: number) =>
+  http.post<RiderReleasePickupResponse>(`/rider/pickups/sellers/${sellerId}/release`).then((r) => r.data);
 
 
 
