@@ -131,4 +131,9 @@ class Rider extends Model
     {
         return $this->hasMany(DeliveryLog::class, 'rider_id');
     }
+
+    public function pickupDeclines(): HasMany
+    {
+        return $this->hasMany(RiderPickupDecline::class, 'rider_id');
+    }
 }

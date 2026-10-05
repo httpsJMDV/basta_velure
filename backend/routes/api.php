@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\RiderRegistrationController;
 use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
+use App\Http\Controllers\Api\V1\RiderPickupController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -318,6 +319,12 @@ Route::prefix('v1')->group(function () {
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
             Route::get('/me', [RiderController::class, 'me']);
+
+            // Pickups (Feature 2.4)
+            Route::get('/pickups', [RiderPickupController::class, 'index']);
+            Route::post('/pickups/sellers/{seller}/accept', [RiderPickupController::class, 'accept']);
+            Route::post('/pickups/sellers/{seller}/decline', [RiderPickupController::class, 'decline']);
+            Route::post('/pickups/sellers/{seller}/release', [RiderPickupController::class, 'release']);
         });
     });
 });
