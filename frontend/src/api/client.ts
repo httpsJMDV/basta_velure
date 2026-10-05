@@ -40,6 +40,7 @@ import type {
   PublicShopProfile,
   PublicShopReview,
   SellerOrder,
+  WaybillData,
   SellerEarningsSummary,
   SellerOrderEarningsItem,
   PayoutRequest,
@@ -393,6 +394,10 @@ export interface SellerShopProfile {
   address_city: string | null;
   address_barangay: string | null;
   address_street: string | null;
+  address_province_code?: string | null;
+  address_city_code?: string | null;
+  address_barangay_code?: string | null;
+  address_needs_update?: boolean;
   shop_contact_number: string | null;
   return_policy: string | null;
   shipping_policy: string | null;
@@ -594,7 +599,7 @@ export const searchAdminContactsApi = (query: string) =>
 // ─── Buyer Checkout & Orders ──────────────────────────────────────────────────
 
 export const placeOrderApi = (formData: FormData) =>
-  http.post<{ message: string; data: Order }>('/checkout/place-order', formData, {
+  http.post<{ message: string; data: Order; orders?: Order[]; checkout_group_id?: string }>('/checkout/place-order', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 
@@ -628,6 +633,9 @@ export const getSellerOrdersApi = (params?: { status?: string; search?: string; 
 
 export const getSellerOrderApi = (id: number) =>
   http.get<{ data: SellerOrder }>(`/seller/orders/${id}`).then((r) => r.data.data);
+
+export const getSellerOrderWaybillApi = (id: number) =>
+  http.get<{ data: WaybillData }>(`/seller/orders/${id}/waybill`).then((r) => r.data.data);
 
 export const confirmSellerOrderPaymentApi = (orderId: number) =>
   http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/confirm-payment`).then((r) => r.data);

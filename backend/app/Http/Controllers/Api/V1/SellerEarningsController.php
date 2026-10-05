@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\OrderItem;
 use App\Models\PayoutRequest;
@@ -32,10 +33,13 @@ class SellerEarningsController extends Controller
         // Real available balance for withdrawal
         $availableBalance = max(0, round($grossAvailable - $requestedPayouts, 2));
 
+        // Excluded terminal statuses
+        $excludedStatuses = [OrderStatus::CANCELLED->value, OrderStatus::RETURNED->value, 'cancelled', 'returned'];
+
         // Pending balance: orders confirmed or in transit (not yet delivered)
         $pendingBalance = (float) OrderItem::where('seller_id', $sellerId)
             ->where('payout_status', 'pending_release')
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['cancelled', 'returned']))
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $excludedStatuses))
             ->sum('seller_earnings');
 
         // Total paid out completed
@@ -45,11 +49,11 @@ class SellerEarningsController extends Controller
 
         // Lifetime total net earnings
         $lifetimeEarnings = (float) OrderItem::where('seller_id', $sellerId)
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['cancelled', 'returned']))
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $excludedStatuses))
             ->sum('seller_earnings');
 
         $totalCommissionPaid = (float) OrderItem::where('seller_id', $sellerId)
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['cancelled', 'returned']))
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $excludedStatuses))
             ->sum('commission_amount');
 
         return response()->json([
@@ -69,20 +73,25 @@ class SellerEarningsController extends Controller
     public function orderBreakdown(Request $request): JsonResponse
     {
         $sellerId = $request->user()->id;
+        $excludedStatuses = [OrderStatus::CANCELLED->value, OrderStatus::RETURNED->value, 'cancelled', 'returned'];
 
         $items = OrderItem::with(['order.buyer'])
             ->where('seller_id', $sellerId)
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['cancelled', 'returned']))
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $excludedStatuses))
             ->latest()
             ->paginate(15);
 
         return response()->json([
             'data' => $items->map(function (OrderItem $item) {
+                $orderStatusStr = $item->order?->status instanceof OrderStatus
+                    ? $item->order->status->value
+                    : (string) $item->order?->status;
+
                 return [
                     'id'                => $item->id,
                     'order_id'          => $item->order_id,
                     'order_number'      => $item->order?->order_number,
-                    'order_status'      => $item->order?->status,
+                    'order_status'      => $orderStatusStr,
                     'payment_status'    => $item->order?->payment_status,
                     'product_name'      => $item->product_name,
                     'variant_label'     => $item->variant_label,

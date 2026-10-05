@@ -238,6 +238,8 @@ function BuyBox({
         price: displayPrice,
         image: product.images[0]?.url ?? '',
         quantity: qty,
+        sellerId: product.seller?.id,
+        shopName: product.seller?.shop_name,
       });
       onToast('Added to cart successfully!');
     } catch {
@@ -1039,6 +1041,8 @@ export default function ProductDetailPage() {
         price: activeVar?.price ?? product.base_price,
         image: product.images[0]?.url ?? '',
         quantity: qty,
+        sellerId: product.seller?.id,
+        shopName: product.seller?.shop_name,
       });
       navigate('/cart');
     } catch {

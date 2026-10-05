@@ -34,15 +34,16 @@ class SellerShopProfileController extends Controller
         $profile = $user->sellerProfile;
         abort_if(!$profile, 404);
 
-        $data = $request->validate([
+        $addressFields = [
+            'address_province', 'address_city', 'address_barangay', 'address_street',
+            'address_province_code', 'address_city_code', 'address_barangay_code',
+        ];
+
+        $rules = [
             'shop_name'           => 'sometimes|string|max:100|unique:seller_profiles,shop_name,' . $profile->id,
             'shop_category'       => 'sometimes|nullable|string|max:100',
             'shop_description'    => 'sometimes|nullable|string|max:500',
             'shop_bio'            => 'sometimes|nullable|string|max:100',
-            'address_province'    => 'sometimes|nullable|string|max:100',
-            'address_city'        => 'sometimes|nullable|string|max:100',
-            'address_barangay'    => 'sometimes|nullable|string|max:100',
-            'address_street'      => 'sometimes|nullable|string|max:255',
             'shop_contact_number' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^[0-9+]+$/'],
             'return_policy'       => 'sometimes|nullable|string|max:500',
             'shipping_policy'     => 'sometimes|nullable|string|max:500',
@@ -50,7 +51,19 @@ class SellerShopProfileController extends Controller
             'response_time'       => 'sometimes|nullable|string|max:50',
             'logo'                => 'sometimes|image|max:2048',
             'banner'              => 'sometimes|image|max:5120',
-        ]);
+        ];
+
+        if ($request->hasAny($addressFields)) {
+            $rules['address_province']      = 'required|string|max:100';
+            $rules['address_city']          = 'required|string|max:100';
+            $rules['address_barangay']      = 'required|string|max:100';
+            $rules['address_street']        = 'nullable|string|max:255';
+            $rules['address_province_code'] = ['required', 'string', 'regex:/^\d{9,10}$/'];
+            $rules['address_city_code']     = ['required', 'string', 'regex:/^\d{9,10}$/'];
+            $rules['address_barangay_code'] = ['required', 'string', 'regex:/^\d{9,10}$/'];
+        }
+
+        $data = $request->validate($rules);
 
         if ($request->hasFile('logo')) {
             if ($profile->logo_path) Storage::disk('public')->delete($profile->logo_path);
@@ -79,11 +92,15 @@ class SellerShopProfileController extends Controller
             'shop_category'       => $p->shop_category,
             'shop_description'    => $p->shop_description,
             'shop_bio'            => $p->shop_bio,
-            'address_province'    => $p->address_province,
-            'address_city'        => $p->address_city,
-            'address_barangay'    => $p->address_barangay,
-            'address_street'      => $p->address_street,
-            'shop_contact_number' => $p->shop_contact_number,
+            'address_province'      => $p->address_province,
+            'address_city'          => $p->address_city,
+            'address_barangay'      => $p->address_barangay,
+            'address_street'        => $p->address_street,
+            'address_province_code' => $p->address_province_code,
+            'address_city_code'     => $p->address_city_code,
+            'address_barangay_code' => $p->address_barangay_code,
+            'address_needs_update'  => $p->address_needs_update,
+            'shop_contact_number'   => $p->shop_contact_number,
             'return_policy'       => $p->return_policy,
             'shipping_policy'     => $p->shipping_policy,
             'business_hours'      => $p->business_hours,

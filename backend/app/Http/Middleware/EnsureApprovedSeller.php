@@ -12,7 +12,7 @@ class EnsureApprovedSeller
     {
         $user = $request->user();
 
-        if (! $user || $user->sellerProfile?->application_status !== 'approved') {
+        if (! $user || ($user->role !== 'admin' && $user->sellerProfile?->application_status !== 'approved')) {
             abort(403, 'Seller account not approved.');
         }
 

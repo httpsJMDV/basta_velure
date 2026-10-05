@@ -34,14 +34,13 @@ class DeliveryLog extends Model
     public const OUTCOME_PICKED_UP = 'PICKED_UP';
     public const OUTCOME_DELIVERED = 'DELIVERED';
     public const OUTCOME_DELIVERY_FAILED = 'DELIVERY_FAILED';
-    public const OUTCOME_RTS = 'RTS';
-    public const OUTCOME_RETURNED = 'RETURNED'; // Alias matching ERP flow terminology
+    public const OUTCOME_RETURNED = 'RETURNED'; // Canonical ERP flow outcome
+    public const OUTCOME_RTS = 'RETURNED'; // Backward compatibility alias
 
     public const OUTCOMES = [
         self::OUTCOME_PICKED_UP,
         self::OUTCOME_DELIVERED,
         self::OUTCOME_DELIVERY_FAILED,
-        self::OUTCOME_RTS,
         self::OUTCOME_RETURNED,
     ];
 

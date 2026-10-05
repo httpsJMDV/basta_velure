@@ -78,6 +78,7 @@ export interface SellerProfileSummary {
   application_status: ApplicationStatus;
   rejection_reason: string | null;
   submitted_at: string;
+  address_needs_update?: boolean;
 }
 
 export type Gender = 'male' | 'female' | 'prefer_not_to_say';
@@ -408,8 +409,31 @@ export interface AuthResponse {
 }
 
 export type OrderStatus =
-  | 'pending' | 'confirmed' | 'packed' | 'shipped'
-  | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
+  | 'PLACED'
+  | 'CONFIRMED'
+  | 'PREPARING'
+  | 'READY_FOR_PICKUP'
+  | 'PICKED_UP'
+  | 'AT_SORTING_CENTER'
+  | 'SORTED'
+  | 'ASSIGNED_TO_RIDER'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'COMPLETED'
+  | 'DELIVERY_FAILED'
+  | 'RETURNED'
+  | 'CANCELLED'
+  | 'DISPUTED';
+
+export interface OrderStatusHistory {
+  id: number;
+  from_status: OrderStatus | string | null;
+  to_status: OrderStatus | string;
+  actor_type: string;
+  actor_id?: number | null;
+  note?: string | null;
+  created_at: string;
+}
 
 export type PaymentMethod = 'gcash' | 'cod';
 export type PaymentStatus = 'pending' | 'pending_verification' | 'paid' | 'failed' | 'cod' | 'verification_failed' | 'refunded';
@@ -432,7 +456,9 @@ export interface OrderItem {
 
 export interface Order {
   id: number;
+  checkout_group_id?: string | null;
   order_number: string;
+  tracking_number?: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -449,9 +475,13 @@ export interface Order {
   shipping_province?: string | null;
   shipping_city?: string | null;
   shipping_barangay?: string | null;
+  shipping_province_code?: string | null;
+  shipping_city_code?: string | null;
+  shipping_barangay_code?: string | null;
   notes?: string | null;
   created_at: string;
   items: OrderItem[];
+  status_history?: OrderStatusHistory[];
 }
 
 export interface SellerOrderItem {
@@ -470,7 +500,11 @@ export interface SellerOrderItem {
 
 export interface SellerOrder {
   id: number;
+  checkout_group_id?: string | null;
+  checkout_group_total?: number | null;
+  checkout_orders_count?: number | null;
   order_number: string;
+  tracking_number?: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -489,6 +523,9 @@ export interface SellerOrder {
   shipping_province: string | null;
   shipping_city: string | null;
   shipping_barangay: string | null;
+  shipping_province_code?: string | null;
+  shipping_city_code?: string | null;
+  shipping_barangay_code?: string | null;
   notes: string | null;
   created_at: string;
   buyer: {
@@ -498,6 +535,62 @@ export interface SellerOrder {
     phone: string | null;
   } | null;
   items: SellerOrderItem[];
+  status_history?: OrderStatusHistory[];
+}
+
+export interface WaybillData {
+  order: {
+    id: number;
+    order_number: string;
+    created_at: string;
+    payment_method: PaymentMethod;
+    total: number;
+  };
+  parcel: {
+    id: number;
+    tracking_number: string;
+    status: string;
+    ready_at: string | null;
+    pickup_barangay: string | null;
+    pickup_barangay_code?: string | null;
+    destination_barangay: string | null;
+    destination_barangay_code?: string | null;
+    cod_amount: number | null;
+  };
+  sender: {
+    shop_name?: string;
+    contact_phone?: string;
+    street?: string;
+    barangay?: string;
+    city?: string;
+    province?: string;
+    full_address?: string;
+  };
+  recipient: {
+    name?: string;
+    phone?: string;
+    street?: string;
+    barangay?: string;
+    city?: string;
+    province?: string;
+    full_address?: string;
+  };
+  items: Array<{
+    id: number;
+    product_name: string;
+    variant_label: string | null;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+  }>;
+  cod: {
+    is_cod: boolean;
+    amount: number;
+  };
+  barcode: {
+    format: string;
+    value: string;
+  };
 }
 
 export interface SellerEarningsSummary {
@@ -551,6 +644,7 @@ export interface PayoutRequest {
 export interface AdminOrder {
   id: number;
   order_number: string;
+  tracking_number?: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -560,6 +654,7 @@ export interface AdminOrder {
   created_at: string;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
   items: OrderItem[];
+  status_history?: OrderStatusHistory[];
   payment?: {
     method: PaymentMethod;
     reference_number: string | null;
@@ -1163,6 +1258,7 @@ export interface Address {
   ward?: string;
   barangay_name?: string;
   barangay_code?: string;
+  address_needs_update?: boolean;
   label?: AddressLabel;
   is_default: boolean;
 }
@@ -1179,6 +1275,11 @@ export interface PublicShopProfile {
   address_province: string | null;
   address_city: string | null;
   address_barangay: string | null;
+  address_street?: string | null;
+  address_province_code?: string | null;
+  address_city_code?: string | null;
+  address_barangay_code?: string | null;
+  address_needs_update?: boolean;
   shop_contact_number: string | null;
   return_policy: string | null;
   shipping_policy: string | null;

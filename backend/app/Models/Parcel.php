@@ -34,40 +34,62 @@ class Parcel extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const STATUS_READY_FOR_PICKUP = 'READY_FOR_PICKUP';
+    public const STATUS_PICKED_UP = 'PICKED_UP';
     public const STATUS_AT_SORTING_CENTER = 'AT_SORTING_CENTER';
     public const STATUS_SORTED = 'SORTED';
     public const STATUS_ASSIGNED_TO_RIDER = 'ASSIGNED_TO_RIDER';
     public const STATUS_OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY';
     public const STATUS_DELIVERED = 'DELIVERED';
     public const STATUS_DELIVERY_FAILED = 'DELIVERY_FAILED';
-    public const STATUS_RTS = 'RTS';
+    public const STATUS_RETURNED = 'RETURNED';
+    public const STATUS_RTS = 'RETURNED'; // Backward compatibility alias for RETURNED
 
     public const STATUSES = [
+        self::STATUS_READY_FOR_PICKUP,
+        self::STATUS_PICKED_UP,
         self::STATUS_AT_SORTING_CENTER,
         self::STATUS_SORTED,
         self::STATUS_ASSIGNED_TO_RIDER,
         self::STATUS_OUT_FOR_DELIVERY,
         self::STATUS_DELIVERED,
         self::STATUS_DELIVERY_FAILED,
-        self::STATUS_RTS,
+        self::STATUS_RETURNED,
     ];
 
     protected $fillable = [
         'tracking_number',
         'order_id',
+        'seller_id',
         'sorting_center_id',
         'assigned_rider_id',
         'pickup_rider_id',
         'status',
         'destination_barangay',
+        'destination_barangay_code',
+        'pickup_barangay',
+        'pickup_barangay_code',
+        'pickup_address_snapshot',
+        'recipient_snapshot',
+        'cod_amount',
+        'ready_at',
         'scanned_in_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'scanned_in_at' => 'datetime',
+            'scanned_in_at'           => 'datetime',
+            'ready_at'                => 'datetime',
+            'pickup_address_snapshot' => 'array',
+            'recipient_snapshot'      => 'array',
+            'cod_amount'              => 'decimal:2',
         ];
+    }
+
+    public function seller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'seller_id');
     }
 
     public function sortingCenter(): BelongsTo

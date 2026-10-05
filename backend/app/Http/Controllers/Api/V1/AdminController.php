@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\AdminActivityLog;
@@ -74,18 +75,18 @@ class AdminController extends Controller
         )->sum('commission_amount');
 
         $commissionThisMonth = (float) OrderItem::whereHas('order', fn ($q) =>
-            $q->whereBetween('created_at', [$monthStart, $now])->whereNotIn('status', ['cancelled'])
+            $q->whereBetween('created_at', [$monthStart, $now])->whereNotIn('status', [OrderStatus::CANCELLED->value, 'cancelled'])
         )->sum('commission_amount');
 
         $commissionLifetime = (float) OrderItem::whereHas('order', fn ($q) =>
-            $q->whereNotIn('status', ['cancelled'])
+            $q->whereNotIn('status', [OrderStatus::CANCELLED->value, 'cancelled'])
         )->sum('commission_amount');
 
         // GCash vs COD Breakdown
         $gcashCount = Order::where('payment_method', 'gcash')->count();
         $codCount   = Order::where('payment_method', 'cod')->count();
-        $gcashVol   = (float) Order::where('payment_method', 'gcash')->whereNotIn('status', ['cancelled'])->sum('total');
-        $codVol     = (float) Order::where('payment_method', 'cod')->whereNotIn('status', ['cancelled'])->sum('total');
+        $gcashVol   = (float) Order::where('payment_method', 'gcash')->whereNotIn('status', [OrderStatus::CANCELLED->value, 'cancelled'])->sum('total');
+        $codVol     = (float) Order::where('payment_method', 'cod')->whereNotIn('status', [OrderStatus::CANCELLED->value, 'cancelled'])->sum('total');
 
         // Pending counts
         $pendingBuyers         = User::where('buyer_application_status', 'pending')->count();

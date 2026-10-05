@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -11,6 +12,11 @@ use Illuminate\Http\Request;
 
 class SellerReportController extends Controller
 {
+    private function excludedStatuses(): array
+    {
+        return [OrderStatus::CANCELLED->value, OrderStatus::RETURNED->value, 'cancelled', 'returned'];
+    }
+
     /**
      * GET /api/v1/seller/reports/summary
      */
@@ -20,14 +26,14 @@ class SellerReportController extends Controller
         $range = $request->query('range', '30d');
         $startDate = $this->getStartDate($range);
 
-        $orders = Order::where('seller_id', $sellerId)
-            ->whereNotIn('status', ['cancelled', 'returned'])
+        $orders = Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
+            ->whereNotIn('status', $this->excludedStatuses())
             ->when($startDate, fn ($q) => $q->where('created_at', '>=', $startDate))
             ->get();
 
         $items = OrderItem::where('seller_id', $sellerId)
             ->whereHas('order', fn ($q) =>
-                $q->whereNotIn('status', ['cancelled', 'returned'])
+                $q->whereNotIn('status', $this->excludedStatuses())
                   ->when($startDate, fn ($q2) => $q2->where('created_at', '>=', $startDate))
             )
             ->get();
@@ -36,7 +42,10 @@ class SellerReportController extends Controller
         $commissionPaid = (float) $items->sum('commission_amount');
         $netEarnings = (float) $items->sum('seller_earnings');
         $totalOrders = $orders->count();
-        $deliveredOrders = $orders->where('status', 'delivered')->count();
+        $deliveredOrders = $orders->filter(function ($o) {
+            $st = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
+            return in_array($st, [OrderStatus::DELIVERED->value, OrderStatus::COMPLETED->value, 'delivered'], true);
+        })->count();
         $unitsSold = (int) $items->sum('quantity');
 
         return response()->json([
@@ -75,24 +84,24 @@ class SellerReportController extends Controller
                 $month = $monthDate->month;
                 $label = $monthDate->format('M Y');
 
-                $gross = (float) Order::where('seller_id', $sellerId)
+                $gross = (float) Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
                     ->whereYear('created_at', $year)
                     ->whereMonth('created_at', $month)
-                    ->whereNotIn('status', ['cancelled', 'returned'])
+                    ->whereNotIn('status', $this->excludedStatuses())
                     ->sum('total');
 
                 $net = (float) OrderItem::where('seller_id', $sellerId)
                     ->whereHas('order', fn ($q) =>
                         $q->whereYear('created_at', $year)
                           ->whereMonth('created_at', $month)
-                          ->whereNotIn('status', ['cancelled', 'returned'])
+                          ->whereNotIn('status', $this->excludedStatuses())
                     )->sum('seller_earnings');
 
                 $commission = (float) OrderItem::where('seller_id', $sellerId)
                     ->whereHas('order', fn ($q) =>
                         $q->whereYear('created_at', $year)
                           ->whereMonth('created_at', $month)
-                          ->whereNotIn('status', ['cancelled', 'returned'])
+                          ->whereNotIn('status', $this->excludedStatuses())
                     )->sum('commission_amount');
 
                 return [
@@ -108,19 +117,19 @@ class SellerReportController extends Controller
                 $dateStr = $dateObj->toDateString();
                 $label = $dateObj->format('M d');
 
-                $gross = (float) Order::where('seller_id', $sellerId)
+                $gross = (float) Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
                     ->whereDate('created_at', $dateStr)
-                    ->whereNotIn('status', ['cancelled', 'returned'])
+                    ->whereNotIn('status', $this->excludedStatuses())
                     ->sum('total');
 
                 $net = (float) OrderItem::where('seller_id', $sellerId)
                     ->whereHas('order', fn ($q) =>
-                        $q->whereDate('created_at', $dateStr)->whereNotIn('status', ['cancelled', 'returned'])
+                        $q->whereDate('created_at', $dateStr)->whereNotIn('status', $this->excludedStatuses())
                     )->sum('seller_earnings');
 
                 $commission = (float) OrderItem::where('seller_id', $sellerId)
                     ->whereHas('order', fn ($q) =>
-                        $q->whereDate('created_at', $dateStr)->whereNotIn('status', ['cancelled', 'returned'])
+                        $q->whereDate('created_at', $dateStr)->whereNotIn('status', $this->excludedStatuses())
                     )->sum('commission_amount');
 
                 return [
@@ -145,8 +154,8 @@ class SellerReportController extends Controller
         $range = $request->query('range', '30d');
         $startDate = $this->getStartDate($range);
 
-        $orders = Order::where('seller_id', $sellerId)
-            ->whereNotIn('status', ['cancelled', 'returned'])
+        $orders = Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
+            ->whereNotIn('status', $this->excludedStatuses())
             ->when($startDate, fn ($q) => $q->where('created_at', '>=', $startDate))
             ->get();
 
@@ -181,7 +190,7 @@ class SellerReportController extends Controller
         $items = OrderItem::with('product')
             ->where('seller_id', $sellerId)
             ->whereHas('order', fn ($q) =>
-                $q->whereNotIn('status', ['cancelled', 'returned'])
+                $q->whereNotIn('status', $this->excludedStatuses())
                   ->when($startDate, fn ($q2) => $q2->where('created_at', '>=', $startDate))
             )
             ->get();

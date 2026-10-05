@@ -19,13 +19,15 @@ import PhoneInput from '../components/ui/PhoneInput';
 import UserAvatar from '../components/ui/UserAvatar';
 import AvatarCropModal from '../components/ui/AvatarCropModal';
 import LovedItLogo from '../components/LovedItLogo';
-import { uploadAvatarApi } from '../api/client';
+import { uploadAvatarApi, requestBuyerOrderReturnApi } from '../api/client';
 import type { Address, AddressLabel, Order, OrderStatus, WishlistItem, FollowedStore } from '../types';
+import { getStatusLabel, getStatusBadgeClass, BUYER_FILTER_GROUPS, normalizeOrderStatus } from '../utils/orderStatus';
+import OrderStatusTimeline from '../components/orders/OrderStatusTimeline';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
-  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart, MessageSquare,
+  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart, MessageSquare, AlertTriangle,
 } from 'lucide-react';
 
 const StarIcon = Star;
@@ -424,6 +426,9 @@ const EMPTY_FORM = {
   province: '',
   district: '',
   ward: '',
+  province_code: '',
+  city_code: '',
+  barangay_code: '',
   label: 'home' as AddressLabel,
 };
 
@@ -433,9 +438,12 @@ interface AddressFormInternal {
   phone: string;
   address: string;
   floor_unit: string;
-  province: string;  // PSGC code while editing, plain name when saving
+  province: string;  // PSGC code while editing
   district: string;  // PSGC code while editing
   ward: string;      // PSGC code while editing
+  province_code: string;
+  city_code: string;
+  barangay_code: string;
   label: AddressLabel;
 }
 
@@ -453,9 +461,12 @@ function AddressForm({
   // Internal state uses PSGC codes for province/district/ward
   const [form, setForm] = useState<AddressFormInternal>({
     ...initial,
-    province: '',
-    district: '',
-    ward: '',
+    province: initial.province_code || '',
+    district: initial.city_code || '',
+    ward: initial.barangay_code || '',
+    province_code: initial.province_code || '',
+    city_code: initial.city_code || '',
+    barangay_code: initial.barangay_code || '',
   });
   const set = (k: keyof AddressFormInternal, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -467,7 +478,7 @@ function AddressForm({
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingBrgy, setLoadingBrgy] = useState(false);
 
-  // Load provinces, then resolve stored plain names → codes for pre-selection
+  // Load provinces, then resolve stored plain names or codes for pre-selection
   useEffect(() => {
     fetch('https://psgc.gitlab.io/api/provinces/')
       .then((r) => r.json())
@@ -475,13 +486,14 @@ function AddressForm({
         const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
         setProvinces(sorted);
 
-        if (!initial.province) return;
-        // Try to match stored name → code
+        const targetProvince = initial.province_code || initial.province;
+        if (!targetProvince) return;
+        // Try to match stored code or name
         const match = sorted.find(
-          (p) => p.name.toLowerCase() === initial.province.toLowerCase() || p.code === initial.province
+          (p) => p.code === targetProvince || p.name.toLowerCase() === targetProvince.toLowerCase()
         );
         if (!match) return;
-        setForm((f) => ({ ...f, province: match.code }));
+        setForm((f) => ({ ...f, province: match.code, province_code: match.code }));
 
         // Pre-load cities
         setLoadingCities(true);
@@ -491,12 +503,13 @@ function AddressForm({
             const sortedCities = [...cityData].sort((a, b) => a.name.localeCompare(b.name));
             setCities(sortedCities);
 
-            if (!initial.district) return;
+            const targetCity = initial.city_code || initial.district;
+            if (!targetCity) return;
             const cityMatch = sortedCities.find(
-              (c) => c.name.toLowerCase() === initial.district.toLowerCase() || c.code === initial.district
+              (c) => c.code === targetCity || c.name.toLowerCase() === targetCity.toLowerCase()
             );
             if (!cityMatch) return;
-            setForm((f) => ({ ...f, district: cityMatch.code }));
+            setForm((f) => ({ ...f, district: cityMatch.code, city_code: cityMatch.code }));
 
             // Pre-load barangays
             setLoadingBrgy(true);
@@ -506,11 +519,12 @@ function AddressForm({
                 const sortedBrgy = [...brgyData].sort((a, b) => a.name.localeCompare(b.name));
                 setBarangays(sortedBrgy);
 
-                if (!initial.ward) return;
+                const targetWard = initial.barangay_code || initial.ward;
+                if (!targetWard) return;
                 const brgyMatch = sortedBrgy.find(
-                  (b) => b.name.toLowerCase() === initial.ward.toLowerCase() || b.code === initial.ward
+                  (b) => b.code === targetWard || b.name.toLowerCase() === targetWard.toLowerCase()
                 );
-                if (brgyMatch) setForm((f) => ({ ...f, ward: brgyMatch.code }));
+                if (brgyMatch) setForm((f) => ({ ...f, ward: brgyMatch.code, barangay_code: brgyMatch.code }));
               })
               .catch(() => {})
               .finally(() => setLoadingBrgy(false));
@@ -523,7 +537,15 @@ function AddressForm({
   }, []);
 
   function handleProvince(v: string) {
-    setForm((f) => ({ ...f, province: v, district: '', ward: '' }));
+    setForm((f) => ({
+      ...f,
+      province: v,
+      province_code: v,
+      district: '',
+      city_code: '',
+      ward: '',
+      barangay_code: '',
+    }));
     setCities([]);
     setBarangays([]);
     if (!v) return;
@@ -536,7 +558,13 @@ function AddressForm({
   }
 
   function handleCity(v: string) {
-    setForm((f) => ({ ...f, district: v, ward: '' }));
+    setForm((f) => ({
+      ...f,
+      district: v,
+      city_code: v,
+      ward: '',
+      barangay_code: '',
+    }));
     setBarangays([]);
     if (!v) return;
     setLoadingBrgy(true);
@@ -554,6 +582,9 @@ function AddressForm({
       province: provinces.find((p) => p.code === form.province)?.name ?? form.province,
       district: cities.find((c) => c.code === form.district)?.name ?? form.district,
       ward:     barangays.find((b) => b.code === form.ward)?.name ?? form.ward,
+      province_code: form.province,
+      city_code: form.district,
+      barangay_code: form.ward,
     });
   }
 
@@ -693,11 +724,16 @@ function AddressCard({
   onDelete: () => void;
   onSetDefault: () => void;
 }) {
+  const needsUpdate = addr.address_needs_update ?? (!addr.barangay_code);
 
   return (
     <div className={[
       'relative rounded-2xl border-2 p-5 transition-all',
-      addr.is_default ? 'border-brand-red bg-red-50/40' : 'border-gray-100 bg-white',
+      addr.is_default
+        ? 'border-brand-red bg-red-50/40'
+        : needsUpdate
+        ? 'border-amber-200 bg-amber-50/20'
+        : 'border-gray-100 bg-white',
     ].join(' ')}>
       {addr.is_default && (
         <span className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold text-brand-red bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
@@ -713,7 +749,24 @@ function AddressCard({
           {addr.label === 'home' ? <Home className="w-3 h-3" /> : <Briefcase className="w-3 h-3" />}
           {addr.label === 'home' ? 'Home' : 'Office'}
         </span>
+        {needsUpdate && (
+          <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+            <AlertTriangle className="w-2.5 h-2.5" /> Needs Update
+          </span>
+        )}
       </div>
+
+      {needsUpdate && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+          <div>
+            <p className="font-semibold">Standard area codes missing</p>
+            <p className="text-amber-700 mt-0.5">
+              Please click <strong>Edit</strong> to re-select your province, city, and barangay with standard PSGC codes so riders and hubs can deliver to you.
+            </p>
+          </div>
+        </div>
+      )}
 
       <p className="font-semibold text-brand-black text-sm">{addr.full_name}</p>
       <p className="text-sm text-gray-500 mt-0.5">{addr.phone}</p>
@@ -766,9 +819,12 @@ function AddressBookPanel() {
       phone: a.phone || a.phone_number || '',
       address: a.address || a.street_address || '',
       floor_unit: a.floor_unit ?? '',
-      province: a.province || a.province_name || a.province_code || '',
-      district: a.district || a.city_name || a.city_code || '',
-      ward: a.ward || a.barangay_name || a.barangay_code || '',
+      province: a.province || a.province_name || '',
+      district: a.district || a.city_name || '',
+      ward: a.ward || a.barangay_name || '',
+      province_code: a.province_code || '',
+      city_code: a.city_code || '',
+      barangay_code: a.barangay_code || '',
       label: a.label || 'home',
     };
   }
@@ -884,54 +940,83 @@ function AddressBookPanel() {
 
 // ─── My Orders ──────────────────────────────────────────────────────────────
 
-type OrderFilter = 'all' | 'to_pay' | 'to_ship' | 'to_receive' | 'to_review';
+type OrderFilter = 'all' | 'to_pay' | 'to_ship' | 'to_receive' | 'to_review' | 'returns_cancelled';
 
 const ORDER_FILTERS: { key: OrderFilter; label: string }[] = [
-  { key: 'all',        label: 'All' },
-  { key: 'to_pay',     label: 'To Pay' },
-  { key: 'to_ship',    label: 'To Ship' },
-  { key: 'to_receive', label: 'To Receive' },
-  { key: 'to_review',  label: 'To Review' },
+  { key: 'all',               label: 'All' },
+  { key: 'to_pay',            label: 'To Pay' },
+  { key: 'to_ship',           label: 'To Ship' },
+  { key: 'to_receive',        label: 'To Receive' },
+  { key: 'to_review',         label: 'To Review' },
+  { key: 'returns_cancelled', label: 'Returns & Cancelled' },
 ];
 
 const FILTER_STATUSES: Record<OrderFilter, OrderStatus[]> = {
-  all:        [],
-  to_pay:     ['pending'],
-  to_ship:    ['confirmed', 'packed'],
-  to_receive: ['shipped', 'out_for_delivery'],
-  to_review:  ['delivered'],
+  all:               [],
+  to_pay:            BUYER_FILTER_GROUPS.to_pay,
+  to_ship:           BUYER_FILTER_GROUPS.to_ship,
+  to_receive:        BUYER_FILTER_GROUPS.to_receive,
+  to_review:         BUYER_FILTER_GROUPS.to_review,
+  returns_cancelled: BUYER_FILTER_GROUPS.returns,
 };
 
-const STATUS_BADGE: Record<OrderStatus, { label: string; cls: string }> = {
-  pending:          { label: 'Pending Payment',   cls: 'bg-amber-50 text-amber-600' },
-  confirmed:        { label: 'Confirmed',          cls: 'bg-blue-50 text-blue-600' },
-  packed:           { label: 'Packed',             cls: 'bg-blue-50 text-blue-600' },
-  shipped:          { label: 'Shipped',            cls: 'bg-indigo-50 text-indigo-600' },
-  out_for_delivery: { label: 'Out for Delivery',   cls: 'bg-purple-50 text-purple-600' },
-  delivered:        { label: 'Delivered',          cls: 'bg-green-50 text-green-600' },
-  cancelled:        { label: 'Cancelled',          cls: 'bg-gray-100 text-gray-500' },
-  returned:         { label: 'Returned',           cls: 'bg-red-50 text-brand-red' },
-};
-
-function OrderCard({ order }: { order: Order }) {
-  const badge = STATUS_BADGE[order.status] || { label: order.status, cls: 'bg-gray-100 text-gray-700' };
+function OrderCard({ order, onUpdated, isPartOfMultiShopCheckout }: { order: Order; onUpdated?: (updated: Order) => void; isPartOfMultiShopCheckout?: boolean }) {
+  const normStatus = normalizeOrderStatus(order.status);
+  const badgeCls = getStatusBadgeClass(normStatus);
+  const statusLabel = getStatusLabel(normStatus);
   const firstItem = order.items[0];
   const extraCount = order.items.length - 1;
+
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnReason, setReturnReason] = useState('Defective / Damaged');
+  const [returnDesc, setReturnDesc] = useState('');
+  const [submittingReturn, setSubmittingReturn] = useState(false);
 
   const isGcashPending = order.payment_method === 'gcash' && order.payment_status === 'pending_verification';
   const isFailed = order.payment_status === 'verification_failed';
 
+  const handleRequestReturn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!returnDesc.trim()) return;
+    setSubmittingReturn(true);
+    try {
+      const res = await requestBuyerOrderReturnApi(order.id, {
+        reason: returnReason,
+        description: returnDesc.trim(),
+      });
+      setShowReturnModal(false);
+      if (onUpdated) {
+        onUpdated(res.data);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to submit return request.');
+    } finally {
+      setSubmittingReturn(false);
+    }
+  };
+
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-200 hover:shadow-sm transition-all">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-200 hover:shadow-sm transition-all space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-brand-black tracking-wide">{order.order_number}</span>
           <span className="text-gray-300">·</span>
           <span className="text-xs text-gray-400">
             {order.created_at ? new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
           </span>
+          {order.tracking_number && (
+            <span className="text-[10px] font-mono font-medium text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
+              Track: {order.tracking_number}
+            </span>
+          )}
+          {isPartOfMultiShopCheckout && (
+            <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+              Part of a multi-shop checkout
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {isGcashPending && (
             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
               Verifying GCash
@@ -943,15 +1028,15 @@ function OrderCard({ order }: { order: Order }) {
             </span>
           )}
           {!isGcashPending && !isFailed && (
-            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${badge.cls}`}>
-              {badge.label}
+            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${badgeCls}`}>
+              {statusLabel}
             </span>
           )}
         </div>
       </div>
 
       {firstItem && (
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden shrink-0">
             {firstItem.image_url
               ? <img src={firstItem.image_url} alt={firstItem.product_name} className="w-full h-full object-cover" />
@@ -971,23 +1056,115 @@ function OrderCard({ order }: { order: Order }) {
       )}
 
       {isFailed && order.rejection_reason && (
-        <div className="mb-3 p-2.5 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
+        <div className="p-2.5 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
           <span className="font-semibold">Seller note: </span>{order.rejection_reason}
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-        <span className="text-xs text-gray-400">
-          {order.payment_method === 'gcash' ? (
-            <span>GCash {order.payment_reference ? `(Ref: ${order.payment_reference})` : ''}</span>
-          ) : (
-            'Cash on Delivery'
+      {/* Action / Timeline buttons */}
+      <div className="flex items-center justify-between pt-3 border-t border-gray-50 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTimeline(!showTimeline)}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            {showTimeline ? 'Hide Tracking Timeline ▲' : 'View Tracking Timeline ▼'}
+          </button>
+
+          {normStatus === 'DELIVERED' && (
+            <button
+              type="button"
+              onClick={() => setShowReturnModal(true)}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors"
+            >
+              Request Return / Refund
+            </button>
           )}
-        </span>
-        <span className="text-sm font-bold text-brand-black">
-          ₱{order.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-        </span>
+
+          {normStatus === 'DISPUTED' && (
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+              Return Request Under Review
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">
+            {order.payment_method === 'gcash' ? (
+              <span>GCash {order.payment_reference ? `(Ref: ${order.payment_reference})` : ''}</span>
+            ) : (
+              'Cash on Delivery'
+            )}
+          </span>
+          <span className="text-sm font-bold text-brand-black">
+            ₱{Number(order.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
       </div>
+
+      {/* Timeline Expansion */}
+      {showTimeline && (
+        <div className="pt-3 border-t border-gray-100 animate-in fade-in">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Order Tracking History</p>
+          <OrderStatusTimeline history={order.status_history} currentStatus={order.status} />
+        </div>
+      )}
+
+      {/* Return Request Modal */}
+      {showReturnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-sm font-bold text-gray-900">Request Return for #{order.order_number}</h3>
+              <button onClick={() => setShowReturnModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <form onSubmit={handleRequestReturn} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Return Reason</label>
+                <select
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
+                >
+                  <option value="Defective / Damaged">Defective / Damaged Item</option>
+                  <option value="Wrong Item Received">Wrong Item Received</option>
+                  <option value="Item Not as Described">Item Not as Described</option>
+                  <option value="Missing Parts / Accessories">Missing Parts / Accessories</option>
+                  <option value="Change of Mind">Change of Mind (Subject to Seller Policy)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Detailed Explanation</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Explain why you wish to return this item..."
+                  value={returnDesc}
+                  onChange={(e) => setReturnDesc(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReturnModal(false)}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReturn || !returnDesc.trim()}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-brand-red hover:bg-red-700 rounded-xl disabled:opacity-50"
+                >
+                  {submittingReturn ? 'Submitting…' : 'Submit Return Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1008,7 +1185,7 @@ function OrdersPanel() {
   const filtered = useMemo(() => {
     let result = orders;
     const statuses = FILTER_STATUSES[filter];
-    if (statuses.length) result = result.filter((o) => statuses.includes(o.status));
+    if (statuses.length) result = result.filter((o) => statuses.includes(normalizeOrderStatus(o.status)));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(
@@ -1019,6 +1196,16 @@ function OrdersPanel() {
     }
     return result;
   }, [orders, filter, search]);
+
+  const multiCheckoutGroupIds = useMemo(() => {
+    const counts: Record<string, number> = {};
+    orders.forEach((o) => {
+      if (o.checkout_group_id) {
+        counts[o.checkout_group_id] = (counts[o.checkout_group_id] || 0) + 1;
+      }
+    });
+    return new Set(Object.keys(counts).filter((id) => counts[id] > 1));
+  }, [orders]);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1090,7 +1277,12 @@ function OrdersPanel() {
         )}
 
         {!loading && filtered.map((order) => (
-          <OrderCard key={order.id} order={order} />
+          <OrderCard
+            key={order.id}
+            order={order}
+            isPartOfMultiShopCheckout={Boolean(order.checkout_group_id && multiCheckoutGroupIds.has(order.checkout_group_id))}
+            onUpdated={(updated) => setOrders((prev) => prev.map((o) => o.id === updated.id ? updated : o))}
+          />
         ))}
       </div>
     </div>

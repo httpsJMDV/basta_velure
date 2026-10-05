@@ -10,6 +10,8 @@ export interface CartItem {
   price: number;
   quantity: number;
   image: string;
+  sellerId?: number;
+  shopName?: string;
 }
 
 interface CartContextValue {

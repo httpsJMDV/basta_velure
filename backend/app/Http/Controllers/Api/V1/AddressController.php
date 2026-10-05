@@ -18,16 +18,27 @@ class AddressController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (! $request->has('district')) {
+            if ($request->filled('city')) $request->merge(['district' => $request->input('city')]);
+            elseif ($request->filled('city_municipality')) $request->merge(['district' => $request->input('city_municipality')]);
+        }
+        if (! $request->has('ward')) {
+            if ($request->filled('barangay')) $request->merge(['ward' => $request->input('barangay')]);
+        }
+
         $data = $request->validate([
-            'full_name'  => ['required', 'string', 'max:100'],
-            'phone'      => ['required', 'string', 'max:20'],
-            'address'    => ['required', 'string', 'max:255'],
-            'floor_unit' => ['nullable', 'string', 'max:100'],
-            'province'   => ['required', 'string', 'max:100'],
-            'district'   => ['required', 'string', 'max:100'],
-            'ward'       => ['required', 'string', 'max:100'],
-            'label'      => ['required', 'in:home,office'],
-            'is_default' => ['boolean'],
+            'full_name'     => ['required', 'string', 'max:100'],
+            'phone'         => ['required', 'string', 'max:20'],
+            'address'       => ['required', 'string', 'max:255'],
+            'floor_unit'    => ['nullable', 'string', 'max:100'],
+            'province'      => ['required', 'string', 'max:100'],
+            'district'      => ['required', 'string', 'max:100'],
+            'ward'          => ['required', 'string', 'max:100'],
+            'province_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'city_code'     => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'barangay_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
+            'label'         => ['required', 'in:home,office'],
+            'is_default'    => ['boolean'],
         ]);
 
         $user = $request->user();
@@ -54,7 +65,15 @@ class AddressController extends Controller
     {
         $this->authorizeAddress($request, $address);
 
-        $data = $request->validate([
+        if (! $request->has('district')) {
+            if ($request->filled('city')) $request->merge(['district' => $request->input('city')]);
+            elseif ($request->filled('city_municipality')) $request->merge(['district' => $request->input('city_municipality')]);
+        }
+        if (! $request->has('ward')) {
+            if ($request->filled('barangay')) $request->merge(['ward' => $request->input('barangay')]);
+        }
+
+        $rules = [
             'full_name'  => ['sometimes', 'string', 'max:100'],
             'phone'      => ['sometimes', 'string', 'max:20'],
             'address'    => ['sometimes', 'string', 'max:255'],
@@ -63,7 +82,16 @@ class AddressController extends Controller
             'district'   => ['sometimes', 'string', 'max:100'],
             'ward'       => ['sometimes', 'string', 'max:100'],
             'label'      => ['sometimes', 'in:home,office'],
-        ]);
+        ];
+
+        $locationFields = ['province', 'district', 'ward', 'address', 'province_code', 'city_code', 'barangay_code'];
+        if ($request->hasAny($locationFields)) {
+            $rules['province_code'] = ['required', 'string', 'regex:/^\d{9,10}$/'];
+            $rules['city_code']     = ['required', 'string', 'regex:/^\d{9,10}$/'];
+            $rules['barangay_code'] = ['required', 'string', 'regex:/^\d{9,10}$/'];
+        }
+
+        $data = $request->validate($rules);
 
         $address->update($data);
         return response()->json(['data' => $address->fresh()]);

@@ -2,17 +2,23 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Dispute;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Services\OrderStateMachine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class SellerOrderController extends Controller
 {
+    public function __construct(
+        protected OrderStateMachine $stateMachine
+    ) {}
+
     /**
      * GET /api/v1/seller/orders
      */
@@ -20,15 +26,51 @@ class SellerOrderController extends Controller
     {
         $sellerId = $request->user()->id;
 
-        $orders = Order::with(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment'])
+        $orders = Order::with(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'parcel'])
             ->whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
             ->when($request->status, function ($q, $status) {
                 if ($status === 'pending_verification') {
                     $q->where('payment_status', 'pending_verification');
-                } elseif ($status === 'confirmed') {
-                    $q->whereIn('status', ['confirmed', 'packed']);
+                } elseif (in_array(strtolower($status), ['confirmed', 'to_ship'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::CONFIRMED->value,
+                        OrderStatus::PREPARING->value,
+                        OrderStatus::READY_FOR_PICKUP->value,
+                    ]);
+                } elseif (in_array(strtolower($status), ['in_transit', 'shipped'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::PICKED_UP->value,
+                        OrderStatus::AT_SORTING_CENTER->value,
+                        OrderStatus::SORTED->value,
+                        OrderStatus::ASSIGNED_TO_RIDER->value,
+                        OrderStatus::OUT_FOR_DELIVERY->value,
+                    ]);
+                } elseif (in_array(strtolower($status), ['delivered'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::DELIVERED->value,
+                        OrderStatus::COMPLETED->value,
+                    ]);
+                } elseif (in_array(strtolower($status), ['cancelled', 'returned'])) {
+                    $q->whereIn('status', [
+                        OrderStatus::CANCELLED->value,
+                        OrderStatus::RETURNED->value,
+                        OrderStatus::DISPUTED->value,
+                        OrderStatus::DELIVERY_FAILED->value,
+                    ]);
                 } else {
-                    $q->where('status', $status);
+                    $mapped = match (strtolower($status)) {
+                        'pending'   => OrderStatus::PLACED->value,
+                        'preparing', 'packed' => OrderStatus::PREPARING->value,
+                        'ready_for_pickup' => OrderStatus::READY_FOR_PICKUP->value,
+                        'picked_up' => OrderStatus::PICKED_UP->value,
+                        'out_for_delivery' => OrderStatus::OUT_FOR_DELIVERY->value,
+                        'delivered' => OrderStatus::DELIVERED->value,
+                        'completed' => OrderStatus::COMPLETED->value,
+                        'cancelled' => OrderStatus::CANCELLED->value,
+                        'returned'  => OrderStatus::RETURNED->value,
+                        default     => strtoupper($status),
+                    };
+                    $q->where('status', $mapped);
                 }
             })
             ->when($request->search, function ($q, $search) {
@@ -48,11 +90,35 @@ class SellerOrderController extends Controller
             ->count();
 
         $toShipCount = Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
-            ->whereIn('status', ['confirmed', 'packed'])
+            ->whereIn('status', [
+                OrderStatus::CONFIRMED->value,
+                OrderStatus::PREPARING->value,
+                OrderStatus::READY_FOR_PICKUP->value,
+            ])
             ->count();
 
+        $groupIds = $orders->pluck('checkout_group_id')->filter()->unique();
+        $groupStatsMap = [];
+        if ($groupIds->isNotEmpty()) {
+            $groupStatsMap = Order::whereIn('checkout_group_id', $groupIds)
+                ->groupBy('checkout_group_id')
+                ->selectRaw('checkout_group_id, count(*) as orders_count, sum(total) as group_total')
+                ->get()
+                ->keyBy('checkout_group_id');
+        }
+
         return response()->json([
-            'data' => $orders->map(fn ($o) => $this->formatOrder($o, $sellerId)),
+            'data' => $orders->map(function ($o) use ($sellerId, $groupStatsMap) {
+                $stat = $o->checkout_group_id ? ($groupStatsMap[$o->checkout_group_id] ?? null) : null;
+                $groupMeta = null;
+                if ($stat && $stat->orders_count > 1) {
+                    $groupMeta = [
+                        'group_total'  => (float) $stat->group_total,
+                        'orders_count' => (int) $stat->orders_count,
+                    ];
+                }
+                return $this->formatOrder($o, $sellerId, detail: false, groupMeta: $groupMeta);
+            }),
             'meta' => [
                 'current_page' => $orders->currentPage(),
                 'last_page'    => $orders->lastPage(),
@@ -73,10 +139,72 @@ class SellerOrderController extends Controller
         $sellerId = $request->user()->id;
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
-        $order->load(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'dispute']);
+        $order->load(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'dispute', 'statusHistories', 'parcel']);
 
         return response()->json([
             'data' => $this->formatOrder($order, $sellerId, detail: true),
+        ]);
+    }
+
+    /**
+     * GET /api/v1/seller/orders/{order}/waybill
+     */
+    public function waybill(Request $request, Order $order): JsonResponse
+    {
+        $user = $request->user();
+        $isOwner = $order->items()->where('seller_id', $user->id)->exists();
+        $isAdmin = $user->role === 'admin';
+        abort_unless($isOwner || $isAdmin, 403, 'Unauthorized to access waybill for this order.');
+
+        $parcel = $order->parcel()->first();
+        if (! $parcel) {
+            return response()->json([
+                'message' => 'Waybill cannot be generated: parcel has not been created yet. Mark the order as Ready for Pickup first.',
+            ], 409);
+        }
+
+        $order->loadMissing(['items.seller.sellerProfile', 'buyer']);
+        $sellerItems = $isAdmin
+            ? $order->items
+            : $order->items->where('seller_id', $user->id);
+
+        return response()->json([
+            'data' => [
+                'order' => [
+                    'id'             => $order->id,
+                    'order_number'   => $order->order_number,
+                    'created_at'     => $order->created_at?->toIso8601String(),
+                    'payment_method' => $order->payment_method,
+                    'total'          => (float) $order->total,
+                ],
+                'parcel' => [
+                    'id'                   => $parcel->id,
+                    'tracking_number'      => $parcel->tracking_number,
+                    'status'               => $parcel->status,
+                    'ready_at'             => $parcel->ready_at?->toIso8601String(),
+                    'pickup_barangay'      => $parcel->pickup_barangay,
+                    'destination_barangay' => $parcel->destination_barangay,
+                    'cod_amount'           => $parcel->cod_amount !== null ? (float) $parcel->cod_amount : null,
+                ],
+                'sender' => $parcel->pickup_address_snapshot,
+                'recipient' => $parcel->recipient_snapshot,
+                'items' => $sellerItems->map(fn ($i) => [
+                    'id'            => $i->id,
+                    'product_name'  => $i->product_name,
+                    'variant_label' => $i->variant_label,
+                    'quantity'      => $i->quantity,
+                    'unit_price'    => (float) $i->unit_price,
+                    'subtotal'      => (float) $i->subtotal,
+                ])->values(),
+                'cod' => [
+                    'is_cod' => $order->payment_method === 'cod',
+                    'amount' => $order->payment_method === 'cod' ? (float) ($parcel->cod_amount ?? $order->total) : 0.00,
+                ],
+                'barcode' => [
+                    'format' => 'CODE128',
+                    'value'  => $parcel->tracking_number,
+                ],
+            ],
         ]);
     }
 
@@ -88,23 +216,39 @@ class SellerOrderController extends Controller
         $sellerId = $request->user()->id;
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
-        $order->update([
-            'payment_status'      => 'paid',
-            'payment_verified_at' => now(),
-            'payment_verified_by' => $sellerId,
-            'status'              => $order->status === 'pending' ? 'confirmed' : $order->status,
-        ]);
-
-        if ($order->payment) {
-            $order->payment->update([
-                'status'  => 'paid',
-                'paid_at' => now(),
+        if ($order->payment_method === 'gcash') {
+            $order->update([
+                'payment_status'      => 'paid',
+                'payment_verified_at' => now(),
+                'payment_verified_by' => $sellerId,
             ]);
+
+            if ($order->payment) {
+                $order->payment->update([
+                    'status'  => 'paid',
+                    'paid_at' => now(),
+                ]);
+            }
+        }
+
+        $currentStatus = $order->status instanceof OrderStatus ? $order->status->value : (string) $order->status;
+        if ($currentStatus === OrderStatus::PLACED->value) {
+            $this->stateMachine->transition(
+                $order,
+                OrderStatus::CONFIRMED,
+                'seller',
+                $sellerId,
+                $order->payment_method === 'cod'
+                    ? 'COD order confirmed by merchant'
+                    : 'Payment verified and confirmed by merchant'
+            );
         }
 
         return response()->json([
-            'message' => 'Payment verified and confirmed successfully!',
-            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment']), $sellerId),
+            'message' => $order->payment_method === 'cod'
+                ? 'COD order confirmed successfully!'
+                : 'Payment verified and confirmed successfully!',
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'statusHistories']), $sellerId),
         ]);
     }
 
@@ -163,7 +307,13 @@ class SellerOrderController extends Controller
                 'resolved_by'     => $sellerId,
                 'resolved_at'     => now(),
             ]);
-            $order->update(['status' => 'returned']);
+            $this->stateMachine->transition(
+                $order,
+                OrderStatus::RETURNED,
+                'seller',
+                $sellerId,
+                'Return request accepted by merchant'
+            );
         } elseif ($data['action'] === 'reject') {
             $dispute->update([
                 'status'          => 'in_progress',
@@ -178,7 +328,7 @@ class SellerOrderController extends Controller
 
         return response()->json([
             'message' => 'Return response recorded successfully.',
-            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'dispute']), $sellerId, detail: true),
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'dispute', 'statusHistories']), $sellerId, detail: true),
         ]);
     }
 
@@ -191,50 +341,98 @@ class SellerOrderController extends Controller
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
         $data = $request->validate([
-            'status' => ['required', 'in:confirmed,packed,shipped,out_for_delivery,delivered,cancelled'],
+            'status' => ['required', 'string'],
+            'note'   => ['nullable', 'string', 'max:500'],
         ]);
 
-        $newStatus = $data['status'];
-        $order->update(['status' => $newStatus]);
+        $requestedStatus = match (strtolower($data['status'])) {
+            'preparing', 'packed' => OrderStatus::PREPARING->value,
+            'ready_for_pickup', 'shipped' => OrderStatus::READY_FOR_PICKUP->value,
+            'cancelled' => OrderStatus::CANCELLED->value,
+            'confirmed' => OrderStatus::CONFIRMED->value,
+            default => strtoupper($data['status']),
+        };
 
-        // When order is marked delivered, release seller earnings into available balance
-        if ($newStatus === 'delivered') {
-            OrderItem::where('order_id', $order->id)
-                ->where('seller_id', $sellerId)
-                ->update([
-                    'payout_status' => 'available',
-                    'delivered_at'  => now(),
-                ]);
+        if ($requestedStatus === OrderStatus::CONFIRMED->value) {
+            if ($order->payment_method === 'gcash' && $order->payment_status !== 'paid') {
+                abort(422, 'GCash orders require verified payment before confirmation. Please verify the payment slip.');
+            }
+        } else {
+            // Sellers may only advance to CONFIRMED (for COD or verified), PREPARING, READY_FOR_PICKUP, or CANCELLED
+            abort_unless(
+                in_array($requestedStatus, [
+                    OrderStatus::PREPARING->value,
+                    OrderStatus::READY_FOR_PICKUP->value,
+                    OrderStatus::CANCELLED->value,
+                ], true),
+                403,
+                "Sellers cannot transition orders to {$requestedStatus}."
+            );
         }
 
+        $defaultNote = match ($requestedStatus) {
+            OrderStatus::CONFIRMED->value => $order->payment_method === 'cod'
+                ? 'COD order confirmed by merchant'
+                : 'Order confirmed by merchant',
+            default => "Order status updated to {$requestedStatus} by seller",
+        };
+
+        $order = $this->stateMachine->transition(
+            $order,
+            $requestedStatus,
+            'seller',
+            $sellerId,
+            $data['note'] ?? $defaultNote
+        );
+
         return response()->json([
-            'message' => "Order status updated to {$newStatus}.",
-            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment']), $sellerId),
+            'message' => "Order status updated to {$requestedStatus}.",
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'statusHistories']), $sellerId),
         ]);
     }
 
-    private function formatOrder(Order $o, int $sellerId, bool $detail = false): array
+    private function formatOrder(Order $o, int $sellerId, bool $detail = false, ?array $groupMeta = null): array
     {
         $sellerItems = $o->items->where('seller_id', $sellerId);
         $sellerSubtotal = (float) $sellerItems->sum('subtotal');
         $sellerCommission = (float) $sellerItems->sum('commission_amount');
         $sellerEarnings = (float) $sellerItems->sum('seller_earnings');
+        $statusStr = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
+
+        $checkoutGroupTotal = null;
+        $checkoutOrdersCount = null;
+        if ($groupMeta !== null) {
+            $checkoutGroupTotal = $groupMeta['group_total'] ?? null;
+            $checkoutOrdersCount = $groupMeta['orders_count'] ?? null;
+        } elseif ($o->checkout_group_id) {
+            $groupStats = Order::where('checkout_group_id', $o->checkout_group_id)
+                ->selectRaw('count(*) as orders_count, sum(total) as group_total')
+                ->first();
+            if ($groupStats && $groupStats->orders_count > 1) {
+                $checkoutGroupTotal = (float) $groupStats->group_total;
+                $checkoutOrdersCount = (int) $groupStats->orders_count;
+            }
+        }
 
         return [
-            'id'                  => $o->id,
-            'order_number'        => $o->order_number,
-            'status'              => $o->status,
-            'payment_method'      => $o->payment_method,
-            'payment_status'      => $o->payment_status,
-            'payment_reference'   => $o->payment_reference,
-            'payment_proof_url'   => $o->payment_proof_path ? asset('storage/' . $o->payment_proof_path) : null,
-            'payment_verified_at' => $o->payment_verified_at?->toIso8601String(),
-            'rejection_reason'    => $o->verification_rejection_reason,
-            'order_total'         => (float) $o->total,
-            'shipping_fee'        => (float) $o->shipping_fee,
-            'seller_subtotal'     => $sellerSubtotal,
-            'seller_commission'   => $sellerCommission,
-            'seller_earnings'     => $sellerEarnings,
+            'id'                    => $o->id,
+            'checkout_group_id'     => $o->checkout_group_id,
+            'checkout_group_total'  => $checkoutGroupTotal,
+            'checkout_orders_count' => $checkoutOrdersCount,
+            'order_number'          => $o->order_number,
+            'tracking_number'       => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
+            'status'                => $statusStr,
+            'payment_method'        => $o->payment_method,
+            'payment_status'        => $o->payment_status,
+            'payment_reference'     => $o->payment_reference,
+            'payment_proof_url'     => $o->payment_proof_path ? asset('storage/' . $o->payment_proof_path) : null,
+            'payment_verified_at'   => $o->payment_verified_at?->toIso8601String(),
+            'rejection_reason'      => $o->verification_rejection_reason,
+            'order_total'           => (float) $o->total,
+            'shipping_fee'          => (float) $o->shipping_fee,
+            'seller_subtotal'       => $sellerSubtotal,
+            'seller_commission'     => $sellerCommission,
+            'seller_earnings'       => $sellerEarnings,
             'shipping_name'       => $o->shipping_name,
             'shipping_phone'      => $o->shipping_phone,
             'shipping_address'    => $o->shipping_address,
@@ -270,6 +468,14 @@ class SellerOrderController extends Controller
                 'resolution_note' => $o->dispute->resolution_note,
                 'resolved_at'     => $o->dispute->resolved_at?->toIso8601String(),
             ] : null,
+            'status_history'      => ($detail || $o->relationLoaded('statusHistories')) ? $o->statusHistories->map(fn ($h) => [
+                'id'          => $h->id,
+                'from_status' => $h->from_status,
+                'to_status'   => $h->to_status,
+                'actor_type'  => $h->actor_type,
+                'note'        => $h->note,
+                'created_at'  => $h->created_at?->toIso8601String(),
+            ])->values() : [],
         ];
     }
 }

@@ -98,7 +98,7 @@ Route::prefix('v1')->group(function () {
         // Addresses
         Route::get('/addresses', [AddressController::class, 'index']);
         Route::post('/addresses', [AddressController::class, 'store']);
-        Route::patch('/addresses/{address}', [AddressController::class, 'update']);
+        Route::match(['patch', 'put'], '/addresses/{address}', [AddressController::class, 'update']);
         Route::delete('/addresses/{address}', [AddressController::class, 'destroy']);
         Route::patch('/addresses/{address}/default', [AddressController::class, 'setDefault']);
 
@@ -260,6 +260,7 @@ Route::prefix('v1')->group(function () {
             // Seller orders & verification
             Route::get('/seller/orders', [SellerOrderController::class, 'index']);
             Route::get('/seller/orders/{order}', [SellerOrderController::class, 'show']);
+            Route::get('/seller/orders/{order}/waybill', [SellerOrderController::class, 'waybill']);
             Route::post('/seller/orders/{order}/confirm-payment', [SellerOrderController::class, 'confirmPayment']);
             Route::post('/seller/orders/{order}/reject-payment', [SellerOrderController::class, 'rejectPayment']);
             Route::post('/seller/orders/{order}/respond-return', [SellerOrderController::class, 'respondReturn']);

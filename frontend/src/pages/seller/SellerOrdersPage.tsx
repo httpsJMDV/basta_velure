@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search,
   CheckCircle2,
@@ -14,18 +14,24 @@ import {
   MapPin,
   QrCode,
   ShoppingBag,
+  Printer,
+  AlertTriangle,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
+import { useAuth } from '../../hooks/useAuth';
 import {
   getSellerOrdersApi,
   confirmSellerOrderPaymentApi,
   rejectSellerOrderPaymentApi,
   updateSellerOrderStatusApi,
+  respondSellerOrderReturnApi,
 } from '../../api/client';
 import type { SellerOrder } from '../../types';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
+import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../../utils/orderStatus';
+import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 
-type OrderTab = 'all' | 'pending_verification' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type OrderTab = 'all' | 'pending_verification' | 'to_ship' | 'in_transit' | 'delivered' | 'cancelled';
 
 function getInitials(name?: string): string {
   if (!name) return 'CU';
@@ -58,6 +64,9 @@ export default function SellerOrdersPage() {
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const { user } = useAuth();
+  const addressNeedsUpdate = Boolean(user?.seller_profile?.address_needs_update);
 
   const pageRef = useMountAnim();
 
@@ -163,6 +172,25 @@ export default function SellerOrdersPage() {
     }
   };
 
+  const handleRespondReturn = async (action: 'accept' | 'reject', reason?: string) => {
+    if (!selectedOrder) return;
+    setActionLoading(true);
+    try {
+      const res = await respondSellerOrderReturnApi(selectedOrder.id, {
+        action,
+        reason: action === 'reject' ? reason || 'Seller rejected return request.' : undefined,
+      });
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.data : o)));
+      setSelectedOrder(res.data);
+      showToast(action === 'accept' ? 'Return accepted. Order marked as Returned.' : 'Return response recorded.');
+      fetchOrders();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to respond to return.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div ref={pageRef} className="pb-8 space-y-4 w-full">
       {/* ── 1. Modern White / Pearl-Gray Executive Hero Command Bar ── */}
@@ -211,6 +239,26 @@ export default function SellerOrdersPage() {
         </div>
       )}
 
+      {addressNeedsUpdate && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Pickup Address Update Required</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Re-select your shop address so couriers can match your pickup area.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/seller/shop-profile"
+            className="text-xs font-semibold text-brand-red hover:underline shrink-0 self-center"
+          >
+            Update Shop Address &rarr;
+          </Link>
+        </div>
+      )}
+
       {/* ── 2. Filters & Tabs Control Bar ── */}
       <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -223,8 +271,8 @@ export default function SellerOrdersPage() {
                 label: '⚠️ Pending GCash',
                 count: counts.pending_verification,
               },
-              { key: 'confirmed', label: 'To Ship', count: counts.to_ship },
-              { key: 'shipped', label: 'In Transit' },
+              { key: 'to_ship', label: 'To Ship', count: counts.to_ship },
+              { key: 'in_transit', label: 'In Transit' },
               { key: 'delivered', label: 'Delivered' },
               { key: 'cancelled', label: 'Cancelled / Returned' },
             ].map((tab) => (
@@ -320,7 +368,21 @@ export default function SellerOrdersPage() {
                             {copiedRef === `ord-${o.id}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        <span className="text-[10px] text-gray-400">
+                        {o.tracking_number && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-[10px] font-mono font-bold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.2 rounded">
+                              {o.tracking_number}
+                            </span>
+                            <button
+                              onClick={() => handleCopyRef(o.tracking_number!, `trk-${o.id}`)}
+                              className="text-gray-400 hover:text-gray-700"
+                              title="Copy Tracking Number"
+                            >
+                              {copiedRef === `trk-${o.id}` ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5" />}
+                            </button>
+                          </div>
+                        )}
+                        <span className="text-[10px] text-gray-400 block mt-0.5">
                           {new Date(o.created_at).toLocaleDateString('en-PH', {
                             month: 'short',
                             day: 'numeric',
@@ -387,17 +449,9 @@ export default function SellerOrdersPage() {
                       {/* Status */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                            o.status === 'confirmed'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : o.status === 'shipped'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
-                              : o.status === 'delivered'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-gray-100 text-gray-600 border-gray-200'
-                          }`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${getStatusBadgeClass(o.status)}`}
                         >
-                          {o.status.replace(/_/g, ' ')}
+                          {getStatusLabel(o.status)}
                         </span>
                       </td>
 
@@ -414,26 +468,60 @@ export default function SellerOrdersPage() {
                             </Button>
                           )}
 
-                          {o.status === 'confirmed' && (
+                          {normalizeOrderStatus(o.status) === 'PLACED' && !isGcash && (
                             <Button
-                              variant="secondary"
-                              onClick={() => handleUpdateStatus(o.id, 'shipped')}
+                              variant="primary"
+                              onClick={() => handleUpdateStatus(o.id, 'CONFIRMED')}
                               disabled={actionLoading}
-                              className="py-1 px-2.5 text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                              className="py-1 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700"
                             >
-                              <Truck className="w-3 h-3 inline mr-1" /> Mark Shipped
+                              <CheckCircle2 className="w-3 h-3 inline mr-1" /> Confirm Order
                             </Button>
                           )}
 
-                          {o.status === 'shipped' && (
+                          {normalizeOrderStatus(o.status) === 'CONFIRMED' && (
                             <Button
                               variant="secondary"
-                              onClick={() => handleUpdateStatus(o.id, 'delivered')}
+                              onClick={() => handleUpdateStatus(o.id, 'PREPARING')}
                               disabled={actionLoading}
-                              className="py-1 px-2.5 text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
+                              className="py-1 px-2.5 text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
                             >
-                              <CheckCircle2 className="w-3 h-3 inline mr-1" /> Mark Delivered
+                              <Package className="w-3 h-3 inline mr-1" /> Start Preparing
                             </Button>
+                          )}
+
+                          {normalizeOrderStatus(o.status) === 'PREPARING' && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => handleUpdateStatus(o.id, 'READY_FOR_PICKUP')}
+                              disabled={actionLoading}
+                              className="py-1 px-2.5 text-[11px] font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200"
+                            >
+                              <CheckCircle2 className="w-3 h-3 inline mr-1" /> Ready for Pickup
+                            </Button>
+                          )}
+
+                          {normalizeOrderStatus(o.status) === 'DISPUTED' && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => setSelectedOrder(o)}
+                              className="py-1 px-2.5 text-[11px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200"
+                            >
+                              Respond to Return
+                            </Button>
+                          )}
+
+                          {['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(normalizeOrderStatus(o.status)) && (
+                            <a
+                              href={`/seller/orders/${o.id}/waybill`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 py-1 px-2 text-[11px] font-bold bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg shadow-xs transition-colors"
+                              title="Print Waybill"
+                            >
+                              <Printer className="w-3 h-3 text-gray-500" />
+                              <span>Waybill</span>
+                            </a>
                           )}
 
                           <button
@@ -539,6 +627,12 @@ export default function SellerOrdersPage() {
                   </span>
                 </div>
 
+                {selectedOrder.checkout_orders_count && selectedOrder.checkout_orders_count > 1 && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] leading-relaxed">
+                    This payment proof covers a combined checkout of ₱{Number(selectedOrder.checkout_group_total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} across {selectedOrder.checkout_orders_count} orders. Your order total is ₱{Number(selectedOrder.order_total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}.
+                  </div>
+                )}
+
                 {selectedOrder.payment_proof_url ? (
                   <div className="pt-1">
                     <span className="text-[10px] font-bold text-gray-500 block mb-1">Customer Receipt Slip:</span>
@@ -611,6 +705,114 @@ export default function SellerOrdersPage() {
               <span className="text-base font-black text-gray-900">
                 ₱{Number(selectedOrder.order_total || selectedOrder.seller_subtotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </span>
+            </div>
+
+            {/* Merchant Fulfillment Actions */}
+            {normalizeOrderStatus(selectedOrder.status) === 'PLACED' && selectedOrder.payment_method === 'cod' && (
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
+                <span className="font-bold text-emerald-900 block">Fulfillment Next Step:</span>
+                <p className="text-[11px] text-emerald-700">Cash on Delivery order placed by customer. Confirm order to begin fulfillment.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => handleUpdateStatus(selectedOrder.id, 'CONFIRMED')}
+                  disabled={actionLoading}
+                  className="w-full py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Confirm COD Order
+                </Button>
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'CONFIRMED' && (
+              <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-1.5 text-xs">
+                <span className="font-bold text-indigo-900 block">Fulfillment Next Step:</span>
+                <p className="text-[11px] text-indigo-700">Payment is confirmed. Start picking and packing items.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => handleUpdateStatus(selectedOrder.id, 'PREPARING')}
+                  disabled={actionLoading}
+                  className="w-full py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700"
+                >
+                  <Package className="w-3.5 h-3.5 inline mr-1" /> Start Preparing Package
+                </Button>
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'PREPARING' && (
+              <div className="p-3 bg-violet-50/70 border border-violet-200 rounded-xl space-y-1.5 text-xs">
+                <span className="font-bold text-violet-900 block">Fulfillment Next Step:</span>
+                <p className="text-[11px] text-violet-700">Package is prepared. Mark as ready for courier pickup.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => handleUpdateStatus(selectedOrder.id, 'READY_FOR_PICKUP')}
+                  disabled={actionLoading}
+                  className="w-full py-1.5 text-xs font-bold bg-violet-600 hover:bg-violet-700"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Ready for Pickup
+                </Button>
+              </div>
+            )}
+
+            {['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(normalizeOrderStatus(selectedOrder.status)) && (
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-gray-900 block">Logistics Shipping Label:</span>
+                  {selectedOrder.tracking_number && (
+                    <span className="font-mono font-bold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded text-[11px]">
+                      {selectedOrder.tracking_number}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-600">Print the standard A6 shipping label to attach to the package for courier pickup.</p>
+                <a
+                  href={`/seller/orders/${selectedOrder.id}/waybill`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-bold text-gray-800 bg-white border border-gray-300 hover:bg-gray-100 rounded-xl shadow-xs transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5 text-gray-600" /> Open Printable Waybill (A6)
+                </a>
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'DISPUTED' && (
+              <div className="p-3 bg-rose-50/80 border border-rose-200 rounded-xl space-y-2 text-xs">
+                <span className="font-bold text-rose-900 block">Return Request Under Review:</span>
+                <p className="text-[11px] text-rose-700">
+                  Customer has requested a return for this order. You can accept the return or reject it.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={() => handleRespondReturn('accept')}
+                    disabled={actionLoading}
+                    className="flex-1 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    Accept Return
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const reason = prompt('Please enter reason for rejecting the return request:');
+                      if (reason?.trim()) {
+                        handleRespondReturn('reject', reason.trim());
+                      }
+                    }}
+                    disabled={actionLoading}
+                    className="flex-1 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border-red-200"
+                  >
+                    Reject Return
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Tracking History Timeline */}
+            <div className="pt-2 border-t border-gray-100">
+              <span className="font-bold text-gray-700 block text-[10px] uppercase tracking-wider mb-2">
+                Order Status Tracking History
+              </span>
+              <OrderStatusTimeline history={selectedOrder.status_history} currentStatus={selectedOrder.status} />
             </div>
 
             <div className="flex justify-end pt-2 border-t border-gray-100">
