@@ -169,3 +169,4 @@ export const ALLOWED_ADMIN_NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   RETURNED:          [],
   CANCELLED:         [],
 };
+

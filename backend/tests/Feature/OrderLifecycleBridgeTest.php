@@ -254,4 +254,33 @@ class OrderLifecycleBridgeTest extends TestCase
         $reportRes->assertJsonPath('data.total_orders', 1);
         $reportRes->assertJsonPath('data.delivered_orders', 1);
     }
+
+    public function test_admin_payments_index_loads_with_seller_relation_and_items(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $order = $this->createOrder(OrderStatus::CONFIRMED, 'gcash', 'paid');
+
+        $res = $this->getJson('/api/v1/admin/payments');
+        $res->assertStatus(200);
+        $res->assertJsonStructure([
+            'data' => [
+                '*' => [
+                    'id',
+                    'order_number',
+                    'payment_method',
+                    'payment_status',
+                    'amount',
+                    'order_status',
+                    'seller' => ['id', 'name', 'shop_name'],
+                    'items'  => [
+                        '*' => ['id', 'product_name', 'quantity', 'price', 'subtotal'],
+                    ],
+                ],
+            ],
+            'meta',
+            'stats' => ['total_volume', 'gcash_volume', 'cod_volume'],
+        ]);
+        $this->assertEquals($this->seller->id, $res->json('data.0.seller.id'));
+    }
 }

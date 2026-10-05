@@ -13,7 +13,7 @@ class AdminPaymentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $orders = Order::with(['buyer', 'items.product', 'seller.sellerProfile'])
+        $orders = Order::with(['buyer', 'items', 'seller.sellerProfile'])
             ->when($request->method, fn ($q) => $q->where('payment_method', $request->method))
             ->when($request->status, function ($q, $status) {
                 if ($status === 'pending_verification') {
@@ -74,7 +74,7 @@ class AdminPaymentController extends Controller
                 'items_count' => $o->items->count(),
                 'items' => $o->items->map(fn ($item) => [
                     'id'           => $item->id,
-                    'product_name' => $item->product?->name ?? 'Product Item',
+                    'product_name' => $item->product_name ?? 'Product Item',
                     'quantity'     => $item->quantity,
                     'price'        => (float) $item->unit_price,
                     'subtotal'     => (float) $item->subtotal,

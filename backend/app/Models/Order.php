@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property float|string $shipping_fee
  * @property float|string $total
  * @property \App\Enums\OrderStatus|string $status
+ * @property-read \App\Models\User|null $seller
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\OrderItem> $items
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\OrderStatusHistory> $statusHistories
  */
@@ -46,6 +48,7 @@ class Order extends Model
 
     public function buyer(): BelongsTo           { return $this->belongsTo(User::class, 'buyer_id'); }
     public function verifiedBy(): BelongsTo      { return $this->belongsTo(User::class, 'payment_verified_by'); }
+    public function seller(): HasOneThrough      { return $this->hasOneThrough(User::class, OrderItem::class, 'order_id', 'id', 'id', 'seller_id'); }
     public function items(): HasMany             { return $this->hasMany(OrderItem::class); }
     public function payment(): HasOne            { return $this->hasOne(Payment::class); }
     public function dispute(): HasOne            { return $this->hasOne(Dispute::class); }
