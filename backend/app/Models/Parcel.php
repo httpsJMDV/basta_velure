@@ -34,22 +34,27 @@ class Parcel extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const STATUS_READY_FOR_PICKUP = 'READY_FOR_PICKUP';
+    public const STATUS_PICKED_UP = 'PICKED_UP';
     public const STATUS_AT_SORTING_CENTER = 'AT_SORTING_CENTER';
     public const STATUS_SORTED = 'SORTED';
     public const STATUS_ASSIGNED_TO_RIDER = 'ASSIGNED_TO_RIDER';
     public const STATUS_OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY';
     public const STATUS_DELIVERED = 'DELIVERED';
     public const STATUS_DELIVERY_FAILED = 'DELIVERY_FAILED';
-    public const STATUS_RTS = 'RTS';
+    public const STATUS_RETURNED = 'RETURNED';
+    public const STATUS_RTS = 'RETURNED'; // Backward compatibility alias for RETURNED
 
     public const STATUSES = [
+        self::STATUS_READY_FOR_PICKUP,
+        self::STATUS_PICKED_UP,
         self::STATUS_AT_SORTING_CENTER,
         self::STATUS_SORTED,
         self::STATUS_ASSIGNED_TO_RIDER,
         self::STATUS_OUT_FOR_DELIVERY,
         self::STATUS_DELIVERED,
         self::STATUS_DELIVERY_FAILED,
-        self::STATUS_RTS,
+        self::STATUS_RETURNED,
     ];
 
     protected $fillable = [

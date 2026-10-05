@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OrderStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,8 +16,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property float|string $subtotal
  * @property float|string $shipping_fee
  * @property float|string $total
- * @property string $status
+ * @property \App\Enums\OrderStatus|string $status
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\OrderItem> $items
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\OrderStatusHistory> $statusHistories
  */
 class Order extends Model
 {
@@ -34,6 +36,7 @@ class Order extends Model
     protected function casts(): array
     {
         return [
+            'status'              => OrderStatus::class,
             'subtotal'            => 'decimal:2',
             'shipping_fee'        => 'decimal:2',
             'total'               => 'decimal:2',
@@ -41,10 +44,11 @@ class Order extends Model
         ];
     }
 
-    public function buyer(): BelongsTo      { return $this->belongsTo(User::class, 'buyer_id'); }
-    public function verifiedBy(): BelongsTo { return $this->belongsTo(User::class, 'payment_verified_by'); }
-    public function items(): HasMany        { return $this->hasMany(OrderItem::class); }
-    public function payment(): HasOne       { return $this->hasOne(Payment::class); }
-    public function dispute(): HasOne       { return $this->hasOne(Dispute::class); }
-    public function parcel(): HasOne        { return $this->hasOne(Parcel::class); }
+    public function buyer(): BelongsTo           { return $this->belongsTo(User::class, 'buyer_id'); }
+    public function verifiedBy(): BelongsTo      { return $this->belongsTo(User::class, 'payment_verified_by'); }
+    public function items(): HasMany             { return $this->hasMany(OrderItem::class); }
+    public function payment(): HasOne            { return $this->hasOne(Payment::class); }
+    public function dispute(): HasOne            { return $this->hasOne(Dispute::class); }
+    public function parcel(): HasOne             { return $this->hasOne(Parcel::class); }
+    public function statusHistories(): HasMany   { return $this->hasMany(OrderStatusHistory::class)->orderBy('created_at', 'asc'); }
 }
