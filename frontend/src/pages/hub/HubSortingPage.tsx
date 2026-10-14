@@ -75,6 +75,8 @@ export default function HubSortingPage() {
   const [selected, setSelected] = useState<string[]>([]);
 
   const [confirmGroup, setConfirmGroup] = useState<HubSortingGroup | null>(null);
+  // Snapshot of the selection taken when the confirm dialog opens, so background polling cannot change it.
+  const [frozen, setFrozen] = useState<string[]>([]);
   const [sorting, setSorting] = useState(false);
   const [sortErrors, setSortErrors] = useState<string[]>([]);
 
@@ -244,12 +246,12 @@ export default function HubSortingPage() {
     setSorting(true);
     setSortErrors([]);
     try {
-      const res = await sortHubParcelsApi(selected);
+      const res = await sortHubParcelsApi(frozen);
       showToast(
         `${res.sorted_count} ${res.sorted_count === 1 ? 'parcel' : 'parcels'} sorted for ${res.barangay.name || res.barangay.code}.`,
         'success'
       );
-      setSelected([]);
+      setSelected((prev) => prev.filter((tn) => !frozen.includes(tn)));
       setConfirmGroup(null);
       requestAnimationFrame(() => triggerRef.current?.focus());
       void fetchGroups(true);
@@ -260,7 +262,7 @@ export default function HubSortingPage() {
         setSortErrors(
           Object.entries(errors).map(([key, msgs]) => {
             const index = Number(key.split('.')[1]);
-            const tn = Number.isInteger(index) ? selected[index] : undefined;
+            const tn = Number.isInteger(index) ? frozen[index] : undefined;
             return tn ? `${tn}: ${msgs[0]}` : msgs[0];
           })
         );
@@ -544,7 +546,10 @@ export default function HubSortingPage() {
                         <button
                           type="button"
                           ref={triggerRef}
-                          onClick={() => setConfirmGroup(group)}
+                          onClick={() => {
+                            setFrozen(selected);
+                            setConfirmGroup(group);
+                          }}
                           disabled={selected.length === 0 || tooMany || sorting}
                           className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
                         >
@@ -572,7 +577,7 @@ export default function HubSortingPage() {
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-gray-100">
             <div className="space-y-1">
               <h2 id="sort-confirm-title" className="text-base font-black text-gray-900">
-                Mark {selected.length} {selected.length === 1 ? 'parcel' : 'parcels'} as sorted?
+                Mark {frozen.length} {frozen.length === 1 ? 'parcel' : 'parcels'} as sorted?
               </h2>
               <p className="text-sm text-gray-600">
                 Destination: <span className="font-bold">{confirmGroup.barangay_name}</span>
@@ -606,7 +611,7 @@ export default function HubSortingPage() {
               <button
                 type="button"
                 onClick={() => void handleSort()}
-                disabled={sorting || selected.length === 0}
+                disabled={sorting || frozen.length === 0}
                 className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
               >
                 {sorting && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
