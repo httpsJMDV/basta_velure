@@ -281,3 +281,17 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - Out of scope: the hub's failure triage (1.9), buyer confirmation (2.8), earnings and history (2.9).
 - `GET /api/v1/parcels/{tracking}/delivery-proof` streams the photo to the assigned rider, the parcel's hub, the order's seller, the order's buyer and admins only.
 - Contract: `docs/api/rider-delivery-outcomes.md`.
+
+---
+
+## 14. Hub Delivery Monitoring and Failure Triage (Feature 1.9)
+
+- The hub sees its parcels that are out for delivery (live) and its failed deliveries with the rider's reason and note (`GET /api/v1/hub/deliveries/out` and `/failed`). The hub dashboard metrics gain two additive keys, `out_for_delivery` and `failed_deliveries`.
+- Two hub actions on a `DELIVERY_FAILED` parcel, both through `OrderStateMachine` with actor `hub`:
+  - **Reschedule** (`POST .../reschedule`, `DELIVERY_FAILED → ASSIGNED_TO_RIDER`): the parcel goes back to a rider who is eligible for the destination barangay (the shared 1.8 rule). `assigned_rider_id` and `assigned_at` are set, and the failure columns are kept as the record of the last failure. The rider is emailed (the 1.8 assignment email). The rider then collects it at the hub and starts the run again (2.6).
+  - **Return to seller** (`POST .../return-to-seller`, `DELIVERY_FAILED → RETURNED`): `returned_at` and `return_note` are set and the seller is emailed. `RETURNED` is terminal.
+- **Decision: attempt limit.** A parcel is limited to **3 delivery attempts** (`config('logistics.max_delivery_attempts')`). `delivery_attempts` is incremented when a rider records a failure (2.7). Once it reaches the limit the hub can only return the parcel.
+- **Assumption: riders bring failed parcels back to the hub.** Reschedule puts the parcel back in the rider's To collect list, and nothing verifies the physical hand-back.
+- **Decision: refunds and escrow are untouched.** Returning a parcel changes no money field. Escrow still releases at `DELIVERED` until 2.8. Refunds for returned orders are not built.
+- The rider's failure note is visible to the hub only; the order history (readable by buyers) carries just the reason label.
+- Contract: `docs/api/logistics-hub-deliveries.md`.

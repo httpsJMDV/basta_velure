@@ -45,11 +45,21 @@ class SortingCenterDashboardController extends Controller
             })
             ->count();
 
+        // Feature 1.9: live delivery counts (added alongside the existing keys; none of them changed)
+        $outForDelivery = $sortingCenter->parcels()
+            ->where('status', Parcel::STATUS_OUT_FOR_DELIVERY)
+            ->count();
+        $failedDeliveries = $sortingCenter->parcels()
+            ->where('status', Parcel::STATUS_DELIVERY_FAILED)
+            ->count();
+
         return response()->json([
             'data' => [
                 'inbound_today' => $inboundToday,
                 'in_sorting'    => $inSorting,
                 'active_riders' => $activeRiders,
+                'out_for_delivery'  => $outForDelivery,
+                'failed_deliveries' => $failedDeliveries,
                 'hub'           => [
                     'id'                       => $sortingCenter->id,
                     'hub_name'                 => $sortingCenter->hub_name,

@@ -35,7 +35,15 @@ Retrieves real-time operational metrics for the authenticated hub.
    - Number of delivery couriers with `ACTIVE` status who have an active area assignment (`is_active = true`) under the authenticated hub.
    - Strictly scoped to the authenticated hub.
 
-4. **`hub`** (`object`):
+4. **`out_for_delivery`** (`integer`) — added in Feature 1.9:
+   - Number of parcels currently in `OUT_FOR_DELIVERY` status (on the road with a rider).
+   - Strictly scoped to the authenticated hub (`sorting_center_id`).
+
+5. **`failed_deliveries`** (`integer`) — added in Feature 1.9:
+   - Number of parcels currently in `DELIVERY_FAILED` status (waiting for the hub to reschedule or return them). See `docs/api/logistics-hub-deliveries.md`.
+   - Strictly scoped to the authenticated hub (`sorting_center_id`).
+
+6. **`hub`** (`object`):
    - Metadata about the authenticated hub, including `id`, `hub_name`, `status`, structured address (`address_province`, `address_city`, `address_barangay`, `address_street`), and `coverage_barangays_count`.
 
 ---
@@ -49,6 +57,8 @@ Retrieves real-time operational metrics for the authenticated hub.
     "inbound_today": 14,
     "in_sorting": 8,
     "active_riders": 0,
+    "out_for_delivery": 5,
+    "failed_deliveries": 2,
     "hub": {
       "id": 3,
       "hub_name": "Valenzuela Central Logistics Hub",

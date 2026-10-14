@@ -36,6 +36,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $failure_reason
  * @property string|null $failure_note
  * @property int $delivery_attempts
+ * @property \Carbon\Carbon|null $returned_at
+ * @property string|null $return_note
  * @property \Carbon\Carbon|null $created_at
  * @property \Carbon\Carbon|null $updated_at
  * @property \Carbon\Carbon|null $deleted_at
@@ -100,6 +102,8 @@ class Parcel extends Model
         'failure_reason',
         'failure_note',
         'delivery_attempts',
+        'returned_at',
+        'return_note',
     ];
 
     protected function casts(): array
@@ -113,6 +117,7 @@ class Parcel extends Model
             'cod_collected_at'        => 'datetime',
             'failed_at'               => 'datetime',
             'delivery_attempts'       => 'integer',
+            'returned_at'             => 'datetime',
             'ready_at'                => 'datetime',
             'pickup_accepted_at'      => 'datetime',
             'picked_up_at'            => 'datetime',
