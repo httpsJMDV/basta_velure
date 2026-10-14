@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Banknote,
   Check,
+  CheckCircle2,
   ClipboardCheck,
   Copy,
   ExternalLink,
@@ -13,11 +14,20 @@ import {
   RefreshCw,
   Truck,
   User,
+  XCircle,
 } from 'lucide-react';
 import { getRiderDeliveriesApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { RiderDeliveriesResponse, RiderDeliveryParcel, RiderDeliveryView } from '../../types';
+import DeliveredSheet from './DeliveredSheet';
 import DeliveryCollectScreen from './DeliveryCollectScreen';
+import FailedSheet from './FailedSheet';
+
+/** The stop the rider is recording an outcome for. */
+interface OutcomeTarget {
+  kind: 'delivered' | 'failed';
+  parcel: RiderDeliveryParcel;
+}
 
 const POLL_MS = 30000;
 
@@ -49,15 +59,20 @@ export default function RiderDeliveriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [collecting, setCollecting] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<OutcomeTarget | null>(null);
 
   const viewRef = useRef<RiderDeliveryView>('assigned');
   const collectingRef = useRef(false);
+  const outcomeOpenRef = useRef(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const outcomeTriggerRef = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     viewRef.current = view;
     collectingRef.current = collecting;
-  }, [view, collecting]);
+    outcomeOpenRef.current = outcome !== null;
+  }, [view, collecting, outcome]);
 
   const fetchDeliveries = useCallback(
     async (target: RiderDeliveryView, mode: 'initial' | 'manual' | 'silent') => {
@@ -94,7 +109,7 @@ export default function RiderDeliveriesPage() {
   // so its checklist is never reshuffled under the rider.
   useEffect(() => {
     const refresh = () => {
-      if (collectingRef.current) return;
+      if (collectingRef.current || outcomeOpenRef.current) return;
       void fetchDeliveries(viewRef.current, 'silent');
     };
 
@@ -137,6 +152,46 @@ export default function RiderDeliveriesPage() {
     viewRef.current = next;
     setState((prev) => ({ ...prev, data: [] }));
     setView(next);
+  };
+
+  const openOutcome = (kind: OutcomeTarget['kind'], parcel: RiderDeliveryParcel, trigger: HTMLElement) => {
+    outcomeTriggerRef.current = trigger;
+    setOutcome({ kind, parcel });
+  };
+
+  // After a sheet closes, focus goes back to the button that opened it. When the stop was just
+  // removed (success) that button is gone, so focus lands on the list instead.
+  const closeOutcome = () => {
+    setOutcome(null);
+    requestAnimationFrame(() => {
+      const el = outcomeTriggerRef.current;
+      if (el && document.contains(el)) el.focus();
+      else panelRef.current?.focus();
+    });
+  };
+
+  const removeStop = (trackingNumber: string) => {
+    setState((prev) => ({
+      ...prev,
+      data: prev.data
+        .map((g) => ({ ...g, parcels: g.parcels.filter((p) => p.tracking_number !== trackingNumber) }))
+        .filter((g) => g.parcels.length > 0),
+      meta: { ...prev.meta, out_for_delivery_count: Math.max(prev.meta.out_for_delivery_count - 1, 0) },
+    }));
+  };
+
+  const handleOutcomeSuccess = (message: string, trackingNumber: string) => {
+    removeStop(trackingNumber);
+    showToast(message, 'success');
+    closeOutcome();
+    void fetchDeliveries(viewRef.current, 'silent');
+  };
+
+  // 404 / 409 from the server: the stop is not (or no longer) out for delivery. Say so and resync.
+  const handleOutcomeConflict = (message: string) => {
+    showToast(message, 'error');
+    closeOutcome();
+    void fetchDeliveries(viewRef.current, 'silent');
   };
 
   const closeCollect = () => {
@@ -202,7 +257,14 @@ export default function RiderDeliveriesPage() {
         ))}
       </div>
 
-      <div id="deliveries-panel" role="tabpanel" aria-labelledby={`deliveries-tab-${view}`} className="space-y-4">
+      <div
+        id="deliveries-panel"
+        ref={panelRef}
+        tabIndex={-1}
+        role="tabpanel"
+        aria-labelledby={`deliveries-tab-${view}`}
+        className="space-y-4 focus:outline-none"
+      >
         {loading ? (
           <div className="space-y-4 animate-pulse" aria-label="Loading deliveries">
             {[1, 2, 3].map((i) => (
@@ -386,6 +448,27 @@ export default function RiderDeliveriesPage() {
                         )}
                       </button>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={(e) => openOutcome('delivered', p, e.currentTarget)}
+                        disabled={outcome !== null}
+                        className="min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                        Delivered
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => openOutcome('failed', p, e.currentTarget)}
+                        disabled={outcome !== null}
+                        className="min-h-12 inline-flex items-center justify-center gap-2 rounded-xl border border-red-300 bg-white hover:bg-red-50 text-red-700 text-sm font-bold disabled:opacity-50"
+                      >
+                        <XCircle className="w-4 h-4" aria-hidden="true" />
+                        Delivery failed
+                      </button>
+                    </div>
                   </article>
                 );
               })}
@@ -393,6 +476,28 @@ export default function RiderDeliveriesPage() {
           ))
         )}
       </div>
+
+      {outcome?.kind === 'delivered' && (
+        <DeliveredSheet
+          parcel={outcome.parcel}
+          onClose={closeOutcome}
+          onSuccess={(res) =>
+            handleOutcomeSuccess(`Delivery recorded for ${outcome.parcel.recipient.name}.`, res.tracking_number)
+          }
+          onConflict={handleOutcomeConflict}
+        />
+      )}
+
+      {outcome?.kind === 'failed' && (
+        <FailedSheet
+          parcel={outcome.parcel}
+          onClose={closeOutcome}
+          onSuccess={(res) =>
+            handleOutcomeSuccess(`Marked failed: ${res.reason.label}. The hub will decide what happens next.`, res.tracking_number)
+          }
+          onConflict={handleOutcomeConflict}
+        />
+      )}
 
       {collecting && (
         <DeliveryCollectScreen

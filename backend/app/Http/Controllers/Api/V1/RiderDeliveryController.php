@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\DeliveryFailureReason;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
+use App\Models\DeliveryLog;
 use App\Models\Parcel;
 use App\Models\Rider;
 use App\Services\OrderStateMachine;
@@ -11,7 +13,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class RiderDeliveryController extends Controller
 {
@@ -162,6 +167,221 @@ class RiderDeliveryController extends Controller
                 'tracking_numbers' => $parcels->pluck('tracking_number')->values()->all(),
             ]);
         });
+    }
+
+    /**
+     * GET /api/v1/rider/deliveries/failure-reasons
+     *
+     * The reasons a rider can give for a failed delivery. Only OTHER requires a note.
+     */
+    public function failureReasons(): JsonResponse
+    {
+        return response()->json(['data' => DeliveryFailureReason::options()]);
+    }
+
+    /**
+     * POST /api/v1/rider/deliveries/{tracking}/delivered   (multipart)
+     *
+     * Mark one stop delivered with a photo proof. The proof goes to the private disk. The COD amount
+     * is always read from the parcel, never from the client. Escrow handling at DELIVERED is the state
+     * machine's, untouched.
+     */
+    public function delivered(Request $request, string $tracking): JsonResponse
+    {
+        if ($request->has('cod_collected')) {
+            $request->merge([
+                'cod_collected' => filter_var($request->input('cod_collected'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
+            ]);
+        }
+
+        $request->validate([
+            'proof_photo'   => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+            'received_by'   => ['nullable', 'string', 'max:100'],
+            'cod_collected' => ['nullable', 'boolean'],
+        ]);
+
+        $rider = $this->rider($request);
+        $trackingNumber = Str::upper(trim($tracking));
+        $storedPath = null;
+
+        try {
+            return DB::transaction(function () use ($request, $rider, $trackingNumber, &$storedPath) {
+                $parcel = $this->lockOwnParcel($rider, $trackingNumber);
+
+                if (! $parcel) {
+                    return $this->notFound();
+                }
+                if ($parcel->status !== Parcel::STATUS_OUT_FOR_DELIVERY) {
+                    return $this->conflict($parcel);
+                }
+                if (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::DELIVERED, 'rider')) {
+                    return $this->cannotUpdate();
+                }
+
+                // A COD parcel needs the rider to confirm the cash; the amount itself comes from the parcel.
+                $isCod = $parcel->cod_amount !== null;
+                if ($isCod && ! $request->boolean('cod_collected')) {
+                    throw ValidationException::withMessages([
+                        'cod_collected' => ['Confirm that you collected the cash on delivery amount.'],
+                    ]);
+                }
+
+                // Everything that can reject the request has run; only now is the photo kept.
+                $storedPath = $request->file('proof_photo')->store('delivery-proofs', 'ids');
+                if (! $storedPath) {
+                    throw new \RuntimeException('Could not store the delivery proof.');
+                }
+
+                $now = now();
+
+                // The state machine also syncs parcels.status, writes the history row and runs the
+                // existing escrow handling for DELIVERED.
+                $this->stateMachine->transition(
+                    $parcel->order,
+                    OrderStatus::DELIVERED,
+                    'rider',
+                    $request->user()->id,
+                    'Delivered to the recipient by the courier.',
+                    ['rider_id' => $rider->id, 'tracking_number' => $parcel->tracking_number]
+                );
+
+                $receivedBy = trim((string) $request->input('received_by', ''));
+                Parcel::where('id', $parcel->id)->update([
+                    'delivered_at'        => $now,
+                    'delivery_proof_path' => $storedPath,
+                    'received_by'         => $receivedBy !== '' ? $receivedBy : null,
+                    'cod_collected_at'    => $isCod ? $now : null,
+                ]);
+
+                DeliveryLog::create([
+                    'parcel_id' => $parcel->id,
+                    'rider_id'  => $rider->id,
+                    'outcome'   => DeliveryLog::OUTCOME_DELIVERED,
+                    'logged_at' => $now,
+                    'notes'     => $receivedBy !== '' ? "Received by {$receivedBy}" : null,
+                ]);
+
+                return response()->json([
+                    'message'         => 'Delivery recorded.',
+                    'tracking_number' => $parcel->tracking_number,
+                    'delivered_at'    => $now->toIso8601String(),
+                    'cod_collected'   => $isCod,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            // Anything that failed after the photo was stored must not leave the file behind.
+            if ($storedPath) {
+                Storage::disk('ids')->delete($storedPath);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * POST /api/v1/rider/deliveries/{tracking}/failed   (JSON)
+     *
+     * Record a failed delivery attempt with a reason. Reschedule and return-to-seller are hub
+     * actions (Feature 1.9), not part of this endpoint.
+     */
+    public function failed(Request $request, string $tracking): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['required', Rule::enum(DeliveryFailureReason::class)],
+            'note'   => [
+                'nullable', 'string', 'max:500',
+                Rule::requiredIf(fn () => $request->input('reason') === DeliveryFailureReason::OTHER->value),
+            ],
+        ]);
+
+        $reason = DeliveryFailureReason::from($validated['reason']);
+        $note = isset($validated['note']) ? trim((string) $validated['note']) : null;
+        $note = $note === '' ? null : $note;
+
+        $rider = $this->rider($request);
+        $trackingNumber = Str::upper(trim($tracking));
+
+        return DB::transaction(function () use ($request, $rider, $trackingNumber, $reason, $note) {
+            $parcel = $this->lockOwnParcel($rider, $trackingNumber);
+
+            if (! $parcel) {
+                return $this->notFound();
+            }
+            if ($parcel->status !== Parcel::STATUS_OUT_FOR_DELIVERY) {
+                return $this->conflict($parcel);
+            }
+            if (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::DELIVERY_FAILED, 'rider')) {
+                return $this->cannotUpdate();
+            }
+
+            $now = now();
+
+            // The buyer can read the history note, so it carries only the reason label, not the free-text note.
+            $this->stateMachine->transition(
+                $parcel->order,
+                OrderStatus::DELIVERY_FAILED,
+                'rider',
+                $request->user()->id,
+                'Delivery failed: ' . $reason->label(),
+                ['rider_id' => $rider->id, 'tracking_number' => $parcel->tracking_number, 'reason' => $reason->value]
+            );
+
+            Parcel::where('id', $parcel->id)->update([
+                'failed_at'         => $now,
+                'failure_reason'    => $reason->value,
+                'failure_note'      => $note,
+                'delivery_attempts' => DB::raw('delivery_attempts + 1'),
+            ]);
+
+            DeliveryLog::create([
+                'parcel_id' => $parcel->id,
+                'rider_id'  => $rider->id,
+                'outcome'   => DeliveryLog::OUTCOME_DELIVERY_FAILED,
+                'logged_at' => $now,
+                'notes'     => "{$reason->value}: {$reason->label()}" . ($note !== null ? " - {$note}" : ''),
+            ]);
+
+            return response()->json([
+                'message'           => 'Delivery failure recorded.',
+                'tracking_number'   => $parcel->tracking_number,
+                'reason'            => ['code' => $reason->value, 'label' => $reason->label()],
+                'delivery_attempts' => (int) Parcel::where('id', $parcel->id)->value('delivery_attempts'),
+            ]);
+        });
+    }
+
+    /**
+     * The rider's own parcel, row-locked. Another rider's parcel and an unknown one are the same: null.
+     */
+    protected function lockOwnParcel(Rider $rider, string $trackingNumber): ?Parcel
+    {
+        return Parcel::with('order')
+            ->where('tracking_number', $trackingNumber)
+            ->where('assigned_rider_id', $rider->id)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    protected function notFound(): JsonResponse
+    {
+        return response()->json(['message' => 'Parcel not found among your assigned deliveries.'], 404);
+    }
+
+    /** The project's conflict response (409): the parcel is not in a state this action applies to. */
+    protected function conflict(Parcel $parcel): JsonResponse
+    {
+        $message = match ($parcel->status) {
+            Parcel::STATUS_DELIVERED       => 'This parcel has already been delivered.',
+            Parcel::STATUS_DELIVERY_FAILED => 'This parcel has already been marked as failed.',
+            default                        => 'This parcel is not out for delivery.',
+        };
+
+        return response()->json(['message' => $message], 409);
+    }
+
+    protected function cannotUpdate(): JsonResponse
+    {
+        return response()->json(['message' => 'This parcel cannot be updated right now.'], 422);
     }
 
     protected function rider(Request $request): Rider

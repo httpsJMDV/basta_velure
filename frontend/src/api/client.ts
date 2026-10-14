@@ -67,6 +67,9 @@ import type {
   RiderDeliveriesResponse,
   RiderDeliveryView,
   RiderStartDeliveryResponse,
+  RiderFailureReasonsResponse,
+  RiderDeliveredResponse,
+  RiderFailedResponse,
   HubDispatchBatchesResponse,
   HubDispatchParcelsResponse,
   HubDispatchRidersResponse,
@@ -799,6 +802,33 @@ export const getRiderDeliveriesApi = (view: RiderDeliveryView = 'assigned') =>
 export const startRiderDeliveryApi = (trackingNumbers: string[]) =>
   http
     .post<RiderStartDeliveryResponse>('/rider/deliveries/start', { tracking_numbers: trackingNumbers })
+    .then((r) => r.data);
+
+// ─── Rider Delivery Outcomes (Feature 2.7) ───────────────────────────────────────
+
+export const getRiderFailureReasonsApi = () =>
+  http.get<RiderFailureReasonsResponse>('/rider/deliveries/failure-reasons').then((r) => r.data.data);
+
+export const markRiderDeliveredApi = (
+  trackingNumber: string,
+  form: FormData,
+  onProgress?: (percent: number) => void
+) =>
+  http
+    .post<RiderDeliveredResponse>(`/rider/deliveries/${encodeURIComponent(trackingNumber)}/delivered`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+      },
+    })
+    .then((r) => r.data);
+
+export const markRiderFailedApi = (trackingNumber: string, reason: string, note: string | null) =>
+  http
+    .post<RiderFailedResponse>(`/rider/deliveries/${encodeURIComponent(trackingNumber)}/failed`, {
+      reason,
+      note,
+    })
     .then((r) => r.data);
 
 // ─── Hub Dispatch (Feature 1.8) ──────────────────────────────────────────────────
