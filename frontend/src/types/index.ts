@@ -260,6 +260,7 @@ export interface RiderProfileData {
   status: RiderStatus;
   vehicle_type: RiderVehicleType;
   plate_number: string;
+  vehicle_updated_at: string | null;
   hub: {
     id: number;
     hub_name: string;
@@ -1045,7 +1046,8 @@ export interface AdminReviewStats {
 
 // ─── Messaging & Chat ────────────────────────────────────────────────────────
 
-export type ConversationType = 'buyer_seller' | 'buyer_admin' | 'seller_admin';
+export type RiderThreadType = 'rider_seller' | 'rider_buyer' | 'rider_hub';
+export type ConversationType = 'buyer_seller' | 'buyer_admin' | 'seller_admin' | RiderThreadType;
 export type ConversationStatus = 'open' | 'resolved';
 
 export interface ProductContext {
@@ -1067,7 +1069,7 @@ export interface OrderContext {
 export interface ConversationRecipient {
   id?: number | null;
   name: string;
-  role: 'buyer' | 'seller' | 'admin';
+  role: 'buyer' | 'seller' | 'admin' | 'rider' | 'hub';
   avatar?: string | null;
   email?: string | null;
   subtext?: string;
@@ -1119,6 +1121,12 @@ export interface Conversation {
   // Backward compatibility fields
   shop_name?: string;
   seller_name?: string | null;
+  // Rider delivery threads only (feature 2.10)
+  counterpart?: RiderChatCounterpart;
+  parcel?: RiderThreadParcel | null;
+  is_closed?: boolean;
+  can_send?: boolean;
+  closed_message?: string | null;
 }
 
 export interface ChatMessage {
@@ -1945,4 +1953,73 @@ export interface RiderHistoryEntry {
 export interface RiderHistoryResponse {
   data: RiderHistoryEntry[];
   meta: RiderPageMeta & { outcome: RiderHistoryFilter };
+}
+
+
+// ─── Rider delivery chat (Feature 2.10) ──────────────────────────────────────
+
+export type RiderChatCounterpart = 'seller' | 'buyer' | 'hub';
+
+export interface RiderThreadParcel {
+  tracking_number: string;
+  order_number: string | null;
+  status: string;
+}
+
+/** A rider delivery thread as the rider, the hub, the buyer or the seller sees it (names only, never contact details). */
+export interface RiderThread {
+  id: number;
+  type: RiderThreadType;
+  status: ConversationStatus;
+  counterpart: RiderChatCounterpart;
+  subject: string;
+  parcel: RiderThreadParcel | null;
+  recipient: ConversationRecipient;
+  buyer_id: number | null;
+  seller_id: number | null;
+  is_closed: boolean;
+  can_send: boolean;
+  closed_message: string | null;
+  last_message: { id: number; body: string; sender_id: number; created_at: string } | null;
+  last_message_at: string | null;
+  unread: number;
+  created_at: string;
+}
+
+export interface RiderThreadsResponse {
+  data: RiderThread[];
+  meta: { current_page: number; last_page: number; per_page: number; total: number; unread_total: number };
+}
+
+/** One entry of GET /rider/chat/unread, for the badges on stop cards. */
+export interface RiderChatUnreadItem {
+  thread_id: number;
+  tracking_number: string | null;
+  counterpart: RiderChatCounterpart;
+  unread: number;
+}
+
+/** Open or closed, as reported alongside every message fetch. */
+export interface ThreadMeta {
+  is_closed: boolean;
+  can_send: boolean;
+  closed_message: string | null;
+}
+
+export interface ThreadMessagesResult {
+  data: ChatMessage[];
+  meta: ThreadMeta;
+}
+
+/** The three calls a thread view needs; each role (rider, hub, buyer or seller) has its own endpoints. */
+export interface ThreadAdapter {
+  fetchMessages: (afterId?: number) => Promise<ThreadMessagesResult>;
+  sendMessage: (body: string) => Promise<ChatMessage>;
+  /** Only for the rider and hub endpoints; the buyer/seller endpoint marks read as it fetches. */
+  markRead?: () => Promise<void>;
+}
+
+export interface RiderVehicleUpdate {
+  vehicle_type: RiderVehicleType;
+  plate_number: string;
 }

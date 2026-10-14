@@ -24,6 +24,13 @@ import type {
   ModerationStatus,
   Conversation,
   ChatMessage,
+  RiderChatCounterpart,
+  RiderChatUnreadItem,
+  RiderThread,
+  RiderThreadsResponse,
+  RiderVehicleUpdate,
+  ThreadMessagesResult,
+  ThreadAdapter,
   ProductFilters,
   CatalogResponse,
   ProductDetail,
@@ -1004,3 +1011,50 @@ export const getRiderHistoryApi = (params: {
       },
     })
     .then((r) => r.data);
+
+
+// ─── Rider delivery chat and vehicle (Feature 2.10) ───────────────────────────
+
+export const getRiderChatThreadsApi = (params?: { per_page?: number; page?: number; unread_only?: boolean }) =>
+  http.get<RiderThreadsResponse>('/rider/chat/threads', { params }).then((r) => r.data);
+
+export const getRiderChatUnreadApi = () =>
+  http.get<{ data: RiderChatUnreadItem[]; meta: { unread_total: number } }>('/rider/chat/unread').then((r) => r.data);
+
+/** Opens (or finds) the rider's thread with one counterpart for a parcel. */
+export const openRiderChatThreadApi = (trackingNumber: string, counterpart: RiderChatCounterpart) =>
+  http
+    .post<{ data: RiderThread }>(`/rider/chat/parcels/${encodeURIComponent(trackingNumber)}/threads`, { counterpart })
+    .then((r) => r.data.data);
+
+export const updateRiderVehicleApi = (payload: RiderVehicleUpdate) =>
+  http
+    .put<{ message: string; data: RiderProfileData }>('/rider/vehicle', payload)
+    .then((r) => r.data);
+
+export const getHubChatThreadsApi = (params?: { per_page?: number; page?: number; unread_only?: boolean }) =>
+  http.get<RiderThreadsResponse>('/hub/chat/threads', { params }).then((r) => r.data);
+
+type ThreadEndpoints = { messages: string; read?: string };
+
+function threadAdapter(endpoints: ThreadEndpoints): ThreadAdapter {
+  return {
+    fetchMessages: (afterId) =>
+      http
+        .get<ThreadMessagesResult>(endpoints.messages, { params: afterId ? { after_id: afterId } : undefined })
+        .then((r) => r.data),
+    sendMessage: (body) => http.post<{ data: ChatMessage }>(endpoints.messages, { body }).then((r) => r.data.data),
+    markRead: endpoints.read ? () => http.post(endpoints.read as string).then(() => undefined) : undefined,
+  };
+}
+
+/** The rider's side of a thread. Fetching never marks read; markRead is called explicitly. */
+export const riderThreadAdapter = (threadId: number): ThreadAdapter =>
+  threadAdapter({ messages: `/rider/chat/threads/${threadId}/messages`, read: `/rider/chat/threads/${threadId}/read` });
+
+export const hubThreadAdapter = (threadId: number): ThreadAdapter =>
+  threadAdapter({ messages: `/hub/chat/threads/${threadId}/messages`, read: `/hub/chat/threads/${threadId}/read` });
+
+/** The buyer's or seller's side: the existing conversation endpoints, which mark read as they fetch. */
+export const conversationThreadAdapter = (threadId: number): ThreadAdapter =>
+  threadAdapter({ messages: `/conversations/${threadId}/messages` });

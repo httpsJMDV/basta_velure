@@ -13,6 +13,8 @@ import {
   Maximize2,
   Paperclip,
   Smile,
+  Bike,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useChat } from '../../hooks/useChat';
@@ -20,6 +22,8 @@ import AvatarWithFallback from '../ui/AvatarWithFallback';
 import ChatAttachmentBubble from './ChatAttachmentBubble';
 import EmojiPickerPopover from './EmojiPickerPopover';
 import ChatAttachmentModal from './ChatAttachmentModal';
+import RiderThreadPane from './RiderThreadPane';
+import { isRiderThread } from '../../lib/riderThread';
 
 export default function BuyerFloatingChat() {
   const { user } = useAuth();
@@ -40,10 +44,11 @@ export default function BuyerFloatingChat() {
     clearActiveConversation,
     openChatWithSupport,
     sendMessage,
+    refreshConversations,
   } = useChat();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'sellers' | 'support'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'sellers' | 'delivery' | 'support'>('all');
   const [inputBody, setInputBody] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttachModal, setShowAttachModal] = useState(false);
@@ -73,7 +78,10 @@ export default function BuyerFloatingChat() {
   // Don't render floating widget on admin pages or seller center pages
   if (
     location.pathname.startsWith('/admin') ||
-    location.pathname.startsWith('/seller')
+    location.pathname.startsWith('/seller') ||
+    // The rider and hub apps have their own chat; a shopper's bubble would only get in the way there.
+    location.pathname.startsWith('/rider') ||
+    location.pathname.startsWith('/hub')
   ) {
     return null;
   }
@@ -81,6 +89,7 @@ export default function BuyerFloatingChat() {
   // Filter conversations
   const filteredConversations = conversations.filter((c) => {
     if (activeTab === 'sellers' && c.type !== 'buyer_seller') return false;
+    if (activeTab === 'delivery' && c.type !== 'rider_buyer') return false;
     if (activeTab === 'support' && c.type !== 'buyer_admin') return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -243,7 +252,7 @@ export default function BuyerFloatingChat() {
 
                 <div className="flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200 text-xs">
-                    {(['all', 'sellers', 'support'] as const).map((t) => (
+                    {(['all', 'sellers', 'delivery', 'support'] as const).map((t) => (
                       <button
                         key={t}
                         onClick={() => setActiveTab(t)}
@@ -305,8 +314,9 @@ export default function BuyerFloatingChat() {
                   </div>
                 ) : (
                   filteredConversations.map((c) => {
+                    const isRider = isRiderThread(c);
                     const isSupport = c.type === 'buyer_admin';
-                    const name = isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
+                    const name = isRider ? 'Delivery rider' : isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
                     const avatar = isSupport ? null : c.seller?.shop_logo || c.seller?.avatar_url;
                     const hasUnread = c.unread > 0;
 
@@ -319,13 +329,19 @@ export default function BuyerFloatingChat() {
                         }`}
                       >
                         <div className="relative shrink-0">
-                          <AvatarWithFallback
-                            src={avatar}
-                            alt={name}
-                            role={isSupport ? 'admin' : 'seller'}
-                            fallbackInitials={isSupport ? 'CS' : name}
-                            className="w-10 h-10 rounded-2xl"
-                          />
+                          {isRider ? (
+                            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                              <Bike className="w-5 h-5" aria-hidden="true" />
+                            </div>
+                          ) : (
+                            <AvatarWithFallback
+                              src={avatar}
+                              alt={name}
+                              role={isSupport ? 'admin' : 'seller'}
+                              fallbackInitials={isSupport ? 'CS' : name}
+                              className="w-10 h-10 rounded-2xl"
+                            />
+                          )}
                           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white absolute -bottom-0.5 -right-0.5" />
                         </div>
 
@@ -334,6 +350,18 @@ export default function BuyerFloatingChat() {
                             <span className="text-xs font-bold text-gray-900 truncate">{name}</span>
                             <span className="text-[10px] text-gray-400 shrink-0">{formatTimeAgo(c.last_message_at)}</span>
                           </div>
+
+                          {isRider && c.parcel && (
+                            <p className="text-[10px] text-blue-700 font-semibold truncate flex items-center gap-1">
+                              <span className="font-mono">{c.parcel.tracking_number}</span>
+                              {c.is_closed && (
+                                <span className="inline-flex items-center gap-0.5 text-gray-500">
+                                  <Lock className="w-3 h-3" aria-hidden="true" />
+                                  Closed
+                                </span>
+                              )}
+                            </p>
+                          )}
 
                           {c.product && (
                             <p className="text-[10px] text-brand-red font-semibold truncate flex items-center gap-1">
@@ -358,6 +386,16 @@ export default function BuyerFloatingChat() {
                 )}
               </div>
             </div>
+          ) : isRiderThread(activeConversation) ? (
+            /* SCREEN 2 (delivery rider): text-only thread with its own polling */
+            user ? (
+              <RiderThreadPane
+                conversation={activeConversation}
+                currentUserId={user.id}
+                onActivity={() => void refreshConversations()}
+                onBack={clearActiveConversation}
+              />
+            ) : null
           ) : (
             /* SCREEN 2: ACTIVE CONVERSATION */
             <div className="flex flex-col h-full">
