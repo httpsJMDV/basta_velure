@@ -167,6 +167,21 @@ Password: Admin@1234
 
 ---
 
+## PHP Upload Limits (needed for delivery proof photos)
+
+Riders upload a photo as proof of delivery, and the API accepts photos up to **8 MB**. PHP's default `upload_max_filesize` is only **2M**, so a normal phone photo (often 3 to 6 MB) is refused by PHP itself and the rider sees "The proof photo failed to upload."
+
+In your `php.ini` (find it with `php --ini`), set:
+
+```ini
+upload_max_filesize = 8M
+post_max_size = 10M
+```
+
+Then restart `php artisan serve` (or your web server). Check with `php -r "echo ini_get('upload_max_filesize');"`.
+
+---
+
 ## Running the Tests (for developers)
 
 The automated tests **never** use your `velure` database. They run against a separate database called `velure_test`, because some tests rewrite data. This is enforced twice: `backend/phpunit.xml` pins the database to `velure_test`, and a guard in `backend/tests/TestCase.php` aborts the whole run if the active database name does not end in `_test`.

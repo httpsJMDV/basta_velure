@@ -131,4 +131,5 @@ Streams the proof photo from the private disk. Only the endpoint is built in 2.7
 ## Notes
 - **Storage**: `Storage::disk('ids')` is the private disk (`storage/app/private/ids`). Proofs live in its `delivery-proofs/` folder. Nothing is stored under `public`.
 - **PHP**: the server needs the `fileinfo` extension to judge uploads by content (standard). The GD extension is not required.
+- **PHP upload limits**: the API accepts photos up to 8 MB, but PHP rejects larger uploads first. PHP's default `upload_max_filesize` is 2M, which refuses most phone photos with a `422` on `proof_photo` ("failed to upload"). Servers must set `upload_max_filesize = 8M` and `post_max_size = 10M` (see `SETUP.md`).
 - Camera capture on the rider's phone is a web-app concern (`<input type="file" capture>`); the API only sees a file.
