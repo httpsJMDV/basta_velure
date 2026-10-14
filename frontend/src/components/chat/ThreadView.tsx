@@ -135,7 +135,7 @@ export default function ThreadView({
             <button
               type="button"
               onClick={reload}
-              className="inline-flex items-center gap-2 min-h-11 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold"
+              className="inline-flex items-center gap-2 min-h-11 px-4 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold"
             >
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
               Try again
@@ -150,12 +150,12 @@ export default function ThreadView({
             return (
               <div key={m.id}>
                 {showDay && (
-                  <p className="text-center text-[11px] font-semibold text-gray-400 py-1">{formatDay(m.created_at)}</p>
+                  <p className="text-center text-[11px] font-semibold text-gray-500 py-1">{formatDay(m.created_at)}</p>
                 )}
                 <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                   <div
                     className={`max-w-[85%] rounded-2xl px-3.5 py-2 ${
-                      mine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md'
+                      mine ? 'bg-brand-red text-white rounded-br-md' : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md'
                     }`}
                   >
                     {!mine && (
@@ -165,7 +165,7 @@ export default function ThreadView({
                       </p>
                     )}
                     <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
-                    <p className={`text-[10px] mt-0.5 ${mine ? 'text-blue-100' : 'text-gray-400'}`}>
+                    <p className={`text-[10px] mt-0.5 ${mine ? 'text-rose-100' : 'text-gray-500'}`}>
                       {formatTime(m.created_at)}
                       {mine && m.read_at ? ' · Seen' : ''}
                     </p>
@@ -214,7 +214,7 @@ export default function ThreadView({
                   rows={2}
                   disabled={loading}
                   placeholder="Type a message"
-                  className="w-full resize-none rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-full resize-none rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:bg-gray-100"
                 />
                 {remaining <= 100 && (
                   <p className={`text-[11px] mt-0.5 ${remaining <= 0 ? 'text-red-700 font-bold' : 'text-gray-500'}`}>
@@ -226,7 +226,7 @@ export default function ThreadView({
                 type="submit"
                 disabled={loading || sending || draft.trim() === ''}
                 aria-label="Send message"
-                className="min-h-12 min-w-12 inline-flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-12 min-w-12 inline-flex items-center justify-center rounded-xl bg-brand-red hover:bg-brand-red-dark text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {sending ? <RefreshCw className="w-5 h-5 animate-spin" aria-hidden="true" /> : <Send className="w-5 h-5" aria-hidden="true" />}
               </button>

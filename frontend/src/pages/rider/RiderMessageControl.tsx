@@ -85,7 +85,7 @@ export default function RiderMessageControl({
         aria-expanded={menuOpen}
         aria-controls={menuOpen ? menuId : undefined}
         aria-label={label}
-        className="relative min-h-11 inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm font-bold"
+        className="relative min-h-11 inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-brand-red-dark text-sm font-bold"
       >
         <MessageSquare className="w-4 h-4" aria-hidden="true" />
         Message

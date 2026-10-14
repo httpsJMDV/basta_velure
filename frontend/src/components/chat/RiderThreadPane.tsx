@@ -42,7 +42,7 @@ export default function RiderThreadPane({ conversation, currentUserId, onActivit
             <ArrowLeft className="w-5 h-5" aria-hidden="true" />
           </button>
         )}
-        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+        <div className="w-10 h-10 rounded-2xl bg-rose-50 text-brand-red flex items-center justify-center shrink-0">
           <Bike className="w-5 h-5" aria-hidden="true" />
         </div>
         <div className="min-w-0">

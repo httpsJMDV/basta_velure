@@ -9,7 +9,10 @@ import {
   RefreshCw,
   TrendingDown,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
+import { IconChip, StateCard } from './RiderUi';
+import { BTN_PRIMARY } from './riderStyles';
 import { getRiderEarningsDeliveriesApi, getRiderEarningsSummaryApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type {
@@ -66,7 +69,7 @@ function EarningsBars({ type, points }: { type: RiderEarningsPeriodType; points:
           return (
             <div key={p.key} className="flex-1 h-full flex items-end" title={`${p.label}: ${formatPeso(p.total)} (${p.count})`}>
               <div
-                className={`w-full rounded-t ${height > 0 ? 'bg-blue-500' : 'bg-gray-200'}`}
+                className={`w-full rounded-t ${height > 0 ? 'bg-brand-red' : 'bg-gray-200'}`}
                 style={{ height: height > 0 ? `${height}%` : '2px' }}
               />
             </div>
@@ -174,15 +177,15 @@ export default function EarningsTab() {
   return (
     <div className="space-y-4">
       {/* Period type */}
-      <div role="group" aria-label="Earnings period" className="grid grid-cols-3 gap-1 p-1 bg-gray-100 rounded-2xl">
+      <div role="group" aria-label="Earnings period" className="grid grid-cols-3 gap-1 p-1 bg-gray-100 rounded-xl">
         {PERIODS.map((p) => (
           <button
             key={p.key}
             type="button"
             aria-pressed={type === p.key}
             onClick={() => setType(p.key)}
-            className={`min-h-11 rounded-xl text-sm font-bold transition-colors ${
-              type === p.key ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            className={`min-h-10 rounded-lg text-xs font-bold transition-colors ${
+              type === p.key ? 'bg-white text-brand-red shadow-xs' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             {p.label}
@@ -209,7 +212,7 @@ export default function EarningsTab() {
             <button
               type="button"
               onClick={() => setAnchor(manilaToday())}
-              className="min-h-11 px-3 text-xs font-bold text-blue-600"
+              className="min-h-11 px-3 text-xs font-bold text-brand-red"
             >
               Back to {PERIOD_NOUN[type]}
             </button>
@@ -223,7 +226,7 @@ export default function EarningsTab() {
             aria-label="Refresh earnings"
             className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-600' : ''}`} aria-hidden="true" />
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-brand-red' : ''}`} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -239,53 +242,48 @@ export default function EarningsTab() {
 
       {loading ? (
         <div className="space-y-4 animate-pulse" aria-label="Loading earnings">
-          <div className="h-40 rounded-3xl bg-gray-200/80" />
-          <div className="h-44 rounded-2xl bg-gray-200/80" />
-          <div className="h-20 rounded-2xl bg-gray-200/80" />
+          <div className="h-40 rounded-2xl bg-white border border-gray-200/80" />
+          <div className="h-44 rounded-2xl bg-white border border-gray-200/80" />
+          <div className="h-20 rounded-2xl bg-white border border-gray-200/80" />
         </div>
       ) : error || !summary ? (
-        <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center space-y-3">
-          <AlertCircle className="w-8 h-8 text-red-500 mx-auto" aria-hidden="true" />
-          <p className="text-sm font-bold text-gray-900">Could not load your earnings</p>
-          <p className="text-xs text-gray-500">{error}</p>
-          <button
-            type="button"
-            onClick={() => void load('initial')}
-            className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
-          >
+        <StateCard icon={AlertCircle} tone="red" alert title="Could not load your earnings" message={error ?? 'Try again in a moment.'}>
+          <button type="button" onClick={() => void load('initial')} className={BTN_PRIMARY}>
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
           </button>
-        </div>
+        </StateCard>
       ) : (
         <>
           {/* Totals */}
-          <section aria-label="Earnings total" className="bg-blue-600 text-white rounded-3xl p-5 space-y-3">
-            <div>
-              <p className="text-xs font-semibold text-blue-100">Total earned</p>
-              <p className="text-4xl font-black tracking-tight">{formatPeso(summary.total_earned)}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-white/15 rounded-2xl p-3">
-                <p className="text-[11px] text-blue-100">Deliveries</p>
-                <p className="font-black text-lg">{summary.deliveries_count}</p>
+          <section aria-label="Earnings total" className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-800">Total earned</p>
+                <p className="text-3xl sm:text-4xl font-black tracking-tight text-gray-900 leading-none mt-1.5">{formatPeso(summary.total_earned)}</p>
               </div>
-              <div className="bg-white/15 rounded-2xl p-3">
-                <p className="text-[11px] text-blue-100">Average per delivery</p>
-                <p className="font-black text-lg">{formatPeso(summary.average_per_delivery)}</p>
-              </div>
+              <IconChip icon={Wallet} tone="emerald" />
             </div>
             {cmp && (
-              <p className="inline-flex items-center gap-1.5 text-xs font-semibold bg-white rounded-full px-3 py-1.5">
+              <p className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
                 <cmp.Icon className={`w-4 h-4 ${cmp.tone}`} aria-hidden="true" />
                 <span className={cmp.tone}>{cmp.text}</span>
               </p>
             )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-600">Deliveries</p>
+                <p className="font-black text-lg text-gray-900">{summary.deliveries_count}</p>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-600">Average per delivery</p>
+                <p className="font-black text-lg text-gray-900">{formatPeso(summary.average_per_delivery)}</p>
+              </div>
+            </div>
           </section>
-
           {/* Chart */}
-          <section aria-label="Earnings chart" className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
-            <h2 className="text-sm font-black text-gray-900">
+          <section aria-label="Earnings chart" className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs space-y-3">
+            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
               {summary.period.type === 'day' ? 'By hour' : 'By day'}
             </h2>
             <EarningsBars type={summary.period.type} points={summary.breakdown} />
@@ -297,23 +295,21 @@ export default function EarningsTab() {
 
           {/* Deliveries in the period */}
           <section aria-label="Deliveries in this period" className="space-y-2">
-            <h2 className="text-sm font-black text-gray-900">Deliveries</h2>
+            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Deliveries</h2>
             {rows.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-3">
-                <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-                  <Package className="w-7 h-7" aria-hidden="true" />
-                </div>
-                <h3 className="text-base font-bold text-gray-900">No deliveries {summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}</h3>
-                <p className="text-xs text-gray-500 leading-relaxed">Each parcel you deliver earns a flat fee and shows up here.</p>
-              </div>
+              <StateCard
+                icon={Package}
+                title={`No deliveries ${summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}`}
+                message="Each parcel you deliver earns a flat fee and shows up here."
+              />
             ) : (
               <ul className="space-y-2">
                 {rows.map((r) => (
-                  <li key={r.id} className="bg-white border border-gray-200 rounded-2xl p-3.5 flex items-start justify-between gap-3">
+                  <li key={r.id} className="bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-xs flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-sm font-black text-gray-900 font-mono truncate">{r.tracking_number}</p>
                       <p className="flex items-center gap-1 text-xs text-gray-600">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />
+                        <MapPin className="w-3.5 h-3.5 text-gray-500 shrink-0" aria-hidden="true" />
                         <span className="truncate">
                           {[r.destination.barangay_name, r.destination.city].filter(Boolean).join(', ') || 'Destination unavailable'}
                         </span>

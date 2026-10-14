@@ -141,7 +141,7 @@ export default function RiderChatSheet({ target, onClose, onActivity }: RiderCha
                 type="button"
                 onClick={() => void openThread()}
                 data-autofocus
-                className="inline-flex items-center gap-2 min-h-11 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold"
+                className="inline-flex items-center gap-2 min-h-11 px-4 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold"
               >
                 <RefreshCw className="w-4 h-4" aria-hidden="true" />
                 Try again
