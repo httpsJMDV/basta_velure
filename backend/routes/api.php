@@ -41,6 +41,8 @@ use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
 use App\Http\Controllers\Api\V1\DeliveryProofController;
 use App\Http\Controllers\Api\V1\RiderDeliveryController;
+use App\Http\Controllers\Api\V1\RiderEarningsController;
+use App\Http\Controllers\Api\V1\RiderHistoryController;
 use App\Http\Controllers\Api\V1\RiderPickupController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
@@ -367,6 +369,11 @@ Route::prefix('v1')->group(function () {
             // Delivery console (Feature 2.6)
             Route::get('/deliveries', [RiderDeliveryController::class, 'index']);
             Route::post('/deliveries/start', [RiderDeliveryController::class, 'start']);
+
+            // Earnings and delivery history (Feature 2.9)
+            Route::get('/earnings/summary', [RiderEarningsController::class, 'summary']);
+            Route::get('/earnings/deliveries', [RiderEarningsController::class, 'deliveries']);
+            Route::get('/history', [RiderHistoryController::class, 'index']);
 
             // Delivery outcomes (Feature 2.7)
             Route::get('/deliveries/failure-reasons', [RiderDeliveryController::class, 'failureReasons']);
