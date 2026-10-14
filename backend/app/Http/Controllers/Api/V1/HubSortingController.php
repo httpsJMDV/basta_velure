@@ -162,7 +162,11 @@ class HubSortingController extends Controller
             $referenceCode = null;
             foreach ($trackingNumbers as $tn) {
                 $candidate = $parcels->get($tn);
-                if ($candidate && $candidate->status === Parcel::STATUS_AT_SORTING_CENTER) {
+                if (
+                    $candidate
+                    && $candidate->status === Parcel::STATUS_AT_SORTING_CENTER
+                    && trim((string) $candidate->destination_barangay_code) !== ''
+                ) {
                     $referenceCode = (string) $candidate->destination_barangay_code;
                     break;
                 }
@@ -177,6 +181,9 @@ class HubSortingController extends Controller
                     $errors[$key] = ['Parcel not found for this hub.'];
                 } elseif ($parcel->status !== Parcel::STATUS_AT_SORTING_CENTER) {
                     $errors[$key] = ['This parcel is not waiting to be sorted.'];
+                } elseif (trim((string) $parcel->destination_barangay_code) === '') {
+                    // Same rule as the groups endpoint, which never lists parcels without a code.
+                    $errors[$key] = ['This parcel has no destination barangay code, so it cannot be sorted.'];
                 } elseif ((string) $parcel->destination_barangay_code !== $referenceCode) {
                     $errors[$key] = ['This parcel is bound for a different barangay than the rest of the batch.'];
                 } elseif (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::SORTED, 'hub')) {
