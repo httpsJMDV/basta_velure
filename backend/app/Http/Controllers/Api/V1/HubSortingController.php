@@ -75,9 +75,14 @@ class HubSortingController extends Controller
             );
         }
 
+        // Compare the waiting time as a moment in time, not as an ISO string (offsets would break string order).
+        $waitingSince = fn (array $g): int => $g['oldest_scanned_in_at']
+            ? Carbon::parse($g['oldest_scanned_in_at'])->getTimestamp()
+            : PHP_INT_MAX;
+
         $groups = $sort === 'count'
-            ? $groups->sort(fn (array $a, array $b) => [$b['parcel_count'], $a['oldest_scanned_in_at']] <=> [$a['parcel_count'], $b['oldest_scanned_in_at']])
-            : $groups->sort(fn (array $a, array $b) => [$a['oldest_scanned_in_at'], $a['barangay_code']] <=> [$b['oldest_scanned_in_at'], $b['barangay_code']]);
+            ? $groups->sort(fn (array $a, array $b) => [$b['parcel_count'], $waitingSince($a)] <=> [$a['parcel_count'], $waitingSince($b)])
+            : $groups->sort(fn (array $a, array $b) => [$waitingSince($a), $a['barangay_code']] <=> [$waitingSince($b), $b['barangay_code']]);
 
         $groups = $groups->values();
 
