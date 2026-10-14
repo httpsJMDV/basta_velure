@@ -333,3 +333,15 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - **Failed attempts.** Each `DELIVERY_FAILED` log is its own history entry. The reason label is read from the log's `CODE: label` prefix and mapped through `DeliveryFailureReason`; the rider's free-text note is never returned.
 - **Backfill.** `php artisan riders:backfill-earnings` creates the missing rows for deliveries made before 2.9, dated at the parcel's own delivery time and priced at the current fee. Run it once after deploying; it is safe to repeat.
 - Contract: `docs/api/rider-earnings.md`.
+
+---
+
+## 18. Hub Reports (Feature 1.10)
+
+**Read-only. No order, parcel, money or status change.** Reports only read timestamps the lifecycle already writes.
+
+- **Decision: every event is counted by its own timestamp** (`scanned_in_at`, `sorted_at`, `assigned_at`, `delivered_at`, `returned_at`, and `delivery_logs.logged_at` for failed attempts), in inclusive Asia/Manila days.
+- **Decision: on time means delivered within `logistics.delivery_sla_hours` (default 48) of the hub receiving the parcel.**
+- **Decision: a rider's deliveries and failed attempts come from `delivery_logs`**, one row per outcome with the rider who reported it, never from `parcels.assigned_rider_id`. A rider who fails a parcel keeps the failed attempt even when another rider delivers it later.
+- **Known gap.** A parcel an admin marks delivered directly has no `delivered_at` and no delivery log, so reports cannot count it (they report how many exist). The fix would be to stamp `delivered_at` in `OrderStateMachine` for every actor.
+- Contract and full definitions: `docs/api/logistics-hub-reports.md`.

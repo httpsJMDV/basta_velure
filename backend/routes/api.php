@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
 use App\Http\Controllers\Api\V1\HubDeliveryController;
 use App\Http\Controllers\Api\V1\HubDispatchController;
+use App\Http\Controllers\Api\V1\HubReportController;
 use App\Http\Controllers\Api\V1\HubParcelIntakeController;
 use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubSortingController;
@@ -336,6 +337,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/dispatch/batches/{barangay_code}/parcels',      [HubDispatchController::class, 'batchParcels']);
             Route::get('/dispatch/batches/{barangay_code}/riders',       [HubDispatchController::class, 'batchRiders']);
             Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
+
+            // Hub reports (Feature 1.10)
+            Route::get('/reports/summary', [HubReportController::class, 'summary']);
+            Route::get('/reports/riders',  [HubReportController::class, 'riders']);
+            Route::get('/reports/export',  [HubReportController::class, 'export']);
 
             // Hub rider vetting
             Route::get('/riders',                         [HubRiderController::class, 'index']);
