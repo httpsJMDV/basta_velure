@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
 use App\Http\Controllers\Api\V1\SortingCenterDashboardController;
 use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
+use App\Http\Controllers\Api\V1\HubParcelIntakeController;
 use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
@@ -300,6 +301,12 @@ Route::prefix('v1')->group(function () {
         Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
             Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
             Route::get('/coverage-options',  [HubRiderController::class, 'coverageOptions']);
+
+            // Parcel intake (Feature 1.6)
+            Route::get('/parcels/{tracking}',          [HubParcelIntakeController::class, 'lookup']);
+            Route::post('/parcels/{tracking}/receive', [HubParcelIntakeController::class, 'receive']);
+            Route::get('/intake/expected',             [HubParcelIntakeController::class, 'expected']);
+            Route::get('/intake/received-today',       [HubParcelIntakeController::class, 'receivedToday']);
 
             // Hub rider vetting
             Route::get('/riders',                         [HubRiderController::class, 'index']);

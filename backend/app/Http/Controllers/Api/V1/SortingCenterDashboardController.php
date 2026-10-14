@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Parcel;
 use App\Models\Rider;
 use App\Models\SortingCenter;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -28,13 +27,9 @@ class SortingCenterDashboardController extends Controller
             abort(403, 'Sorting center account not approved.');
         }
 
-        // Philippine calendar day (Asia/Manila UTC+8) converted to UTC boundaries
-        $startOfDayUtc = Carbon::now('Asia/Manila')->startOfDay()->utc();
-        $endOfDayUtc   = Carbon::now('Asia/Manila')->endOfDay()->utc();
-
-        // Count parcels scanned in today (Asia/Manila)
+        // Count parcels scanned in today (Philippine calendar day, Asia/Manila)
         $inboundToday = $sortingCenter->parcels()
-            ->whereBetween('scanned_in_at', [$startOfDayUtc, $endOfDayUtc])
+            ->scannedInToday()
             ->count();
 
         // Count parcels currently in AT_SORTING_CENTER status awaiting sorting
