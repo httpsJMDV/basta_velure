@@ -108,7 +108,7 @@ export default function RiderPendingPage() {
 
           {/* Hero Banner */}
           <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-7 relative overflow-hidden shadow-sm">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-rose-400/10 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="relative">
               <div className="inline-flex items-center gap-2 bg-amber-400/15 border border-amber-400/30 rounded-full px-3 py-1 mb-3">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -129,7 +129,7 @@ export default function RiderPendingPage() {
           <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-5 space-y-3.5 shadow-2xs">
             <div className="flex items-center justify-between border-b border-gray-200/80 pb-2.5">
               <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                <Bike className="w-3.5 h-3.5 text-blue-600" />
+                <Bike className="w-3.5 h-3.5 text-brand-red" />
                 Courier Application Summary
               </h2>
               <span className="text-[11px] font-semibold text-amber-700 bg-amber-100/70 border border-amber-300/60 rounded-full px-2.5 py-0.5">
@@ -152,7 +152,7 @@ export default function RiderPendingPage() {
                   <Building2 className="w-3 h-3 text-gray-400 shrink-0" />
                   Assigned Logistics Hub
                 </span>
-                <span className="font-bold text-blue-700 text-right max-w-[220px]">
+                <span className="font-bold text-brand-red text-right max-w-[220px]">
                   {data?.hub_name || 'Selected Sorting Center'}
                 </span>
               </div>
@@ -174,8 +174,8 @@ export default function RiderPendingPage() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-blue-50/70 border border-blue-200/70 p-3 text-xs text-blue-800 flex items-start gap-2.5">
-              <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs text-gray-800 flex items-start gap-2.5">
+              <Mail className="w-4 h-4 text-gray-600 shrink-0 mt-0.5" />
               <p className="leading-relaxed">
                 Please wait for the Logistics / Sorting Center&apos;s approval, which will be sent to{' '}
                 <strong className="font-semibold">{data?.email || 'your registered email'}</strong>.
@@ -241,7 +241,7 @@ export default function RiderPendingPage() {
           <div className="space-y-2 pt-2">
             <Link
               to="/"
-              className="flex items-center justify-center gap-2 w-full min-h-[44px] rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 active:scale-98 transition-all shadow-xs"
+              className="flex items-center justify-center gap-2 w-full min-h-[44px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-red-dark active:scale-98 transition-all shadow-xs"
             >
               Return to Marketplace Homepage <ArrowRight className="w-4 h-4" />
             </Link>
@@ -266,7 +266,7 @@ export default function RiderPendingPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/60 to-transparent flex items-end p-12">
           <div className="space-y-3">
-            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-600 text-white">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-red text-white">
               Loved-IT Delivery Fleet
             </span>
             <h2 className="text-white text-3xl font-extrabold tracking-tight">

@@ -20,6 +20,8 @@ import {
 import { getRiderDeliveriesApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { RiderDeliveriesResponse, RiderDeliveryParcel, RiderDeliveryView } from '../../types';
+import { PageHero, StateCard, TabBar } from './RiderUi';
+import { BTN_PRIMARY, BTN_SECONDARY } from './riderStyles';
 import DeliveredSheet from './DeliveredSheet';
 import DeliveryCollectScreen from './DeliveryCollectScreen';
 import FailedSheet from './FailedSheet';
@@ -207,59 +209,36 @@ export default function RiderDeliveriesPage() {
   let stopNumber = 0;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Truck className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-gray-900 tracking-tight">Deliveries</h1>
-            <p className="text-xs text-gray-500">Collect your parcels at the hub, then deliver them.</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => void fetchDeliveries(view, 'manual')}
-          disabled={refreshing || loading}
-          aria-label="Refresh deliveries"
-          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-600' : ''}`} aria-hidden="true" />
-        </button>
-      </div>
-
-      {/* Segments */}
-      <div role="tablist" aria-label="Delivery views" className="flex items-center border-b border-gray-200">
-        {(
-          [
-            { key: 'assigned', label: 'To collect', count: assignedCount },
-            { key: 'out_for_delivery', label: 'Out for delivery', count: outCount },
-          ] as const
-        ).map((t) => (
+    <div className="pb-4 space-y-4">
+      <PageHero
+        icon={Truck}
+        title="Deliveries"
+        subtitle="Collect your parcels at the hub, then deliver them."
+        actions={
           <button
-            key={t.key}
-            role="tab"
-            id={`deliveries-tab-${t.key}`}
-            aria-selected={view === t.key}
-            aria-controls="deliveries-panel"
-            onClick={() => switchView(t.key)}
-            className={`min-h-11 px-4 text-xs font-bold flex items-center gap-2 transition-colors ${
-              view === t.key ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-800'
-            }`}
+            type="button"
+            onClick={() => void fetchDeliveries(view, 'manual')}
+            disabled={refreshing || loading}
+            aria-label="Refresh deliveries"
+            className={`${BTN_SECONDARY} !min-h-9 !px-3`}
           >
-            <span>{t.label}</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                view === t.key ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              {t.count}
-            </span>
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-brand-red' : 'text-gray-500'}`} aria-hidden="true" />
+            Refresh
           </button>
-        ))}
-      </div>
+        }
+      />
+
+      <TabBar
+        label="Delivery views"
+        idPrefix="deliveries-tab"
+        panelId="deliveries-panel"
+        value={view}
+        onChange={switchView}
+        tabs={[
+          { key: 'assigned', label: 'To collect', count: assignedCount },
+          { key: 'out_for_delivery', label: 'Out for delivery', count: outCount },
+        ]}
+      />
 
       <div
         id="deliveries-panel"
@@ -272,54 +251,43 @@ export default function RiderDeliveriesPage() {
         {loading ? (
           <div className="space-y-4 animate-pulse" aria-label="Loading deliveries">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-36 rounded-2xl bg-gray-200/80 border border-gray-200" />
+              <div key={i} className="h-36 rounded-2xl bg-white border border-gray-200/80" />
             ))}
           </div>
         ) : error ? (
-          <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center space-y-3">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto" aria-hidden="true" />
-            <p className="text-sm font-bold text-gray-900">Could not load your deliveries</p>
-            <p className="text-xs text-gray-500">{error}</p>
-            <button
-              type="button"
-              onClick={() => void fetchDeliveries(view, 'initial')}
-              className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
-            >
+          <StateCard icon={AlertCircle} tone="red" alert title="Could not load your deliveries" message={error}>
+            <button type="button" onClick={() => void fetchDeliveries(view, 'initial')} className={BTN_PRIMARY}>
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
               Try again
             </button>
-          </div>
+          </StateCard>
         ) : state.data.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-              <Package className="w-7 h-7" aria-hidden="true" />
-            </div>
-            <h2 className="text-base font-bold text-gray-900">
-              {view === 'assigned' ? 'Nothing assigned to you yet' : 'Nothing out for delivery'}
-            </h2>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              {view === 'assigned'
+          <StateCard
+            icon={Package}
+            title={view === 'assigned' ? 'Nothing assigned to you yet' : 'Nothing out for delivery'}
+            message={
+              view === 'assigned'
                 ? 'When your hub assigns parcels to you, they appear here so you can collect them.'
-                : 'Parcels you start from the To collect tab appear here in route order.'}
-            </p>
-          </div>
+                : 'Parcels you start from the To collect tab appear here in route order.'
+            }
+          />
         ) : view === 'assigned' ? (
           <>
             {state.hub && (
-              <section className="bg-white border border-gray-200 rounded-2xl p-4 space-y-1.5" aria-label="Collect from hub">
+              <section className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs space-y-1.5" aria-label="Collect from hub">
                 <p className="flex items-center gap-2 text-sm font-black text-gray-900">
-                  <Truck className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                  <Truck className="w-4 h-4 text-gray-500" aria-hidden="true" />
                   Collect from {state.hub.hub_name}
                 </p>
                 <p className="flex items-start gap-2 text-xs text-gray-600">
-                  <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" aria-hidden="true" />
+                  <MapPin className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
                   <span>{state.hub.full_address}</span>
                 </p>
                 <a
                   href={mapsUrl(`${state.hub.hub_name}, ${state.hub.full_address}`)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-blue-600"
+                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-brand-red"
                 >
                   <span>Open in Maps</span>
                   <ExternalLink className="w-4 h-4" aria-hidden="true" />
@@ -336,7 +304,7 @@ export default function RiderDeliveriesPage() {
                     {group.parcels.length} {group.parcels.length === 1 ? 'parcel' : 'parcels'}
                   </span>
                 </h2>
-                <ul className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100">
+                <ul className="bg-white border border-gray-200/80 rounded-2xl shadow-xs divide-y divide-gray-100">
                   {group.parcels.map((p) => (
                     <li key={p.tracking_number} className="px-4 py-3 flex items-center justify-between gap-3">
                       <div className="min-w-0 space-y-0.5">
@@ -358,12 +326,12 @@ export default function RiderDeliveriesPage() {
               </section>
             ))}
 
-            <div className="sticky bottom-3">
+            <div className="sticky bottom-[4.75rem] lg:bottom-3">
               <button
                 type="button"
                 ref={triggerRef}
                 onClick={() => setCollecting(true)}
-                className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-lg"
+                className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold shadow-lg"
               >
                 <ClipboardCheck className="w-4 h-4" aria-hidden="true" />
                 Collect at hub ({assignedCount})
@@ -382,12 +350,12 @@ export default function RiderDeliveriesPage() {
                 return (
                   <article
                     key={p.tracking_number}
-                    className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3"
+                    className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs space-y-3"
                     aria-label={`Stop ${stopNumber}, ${p.recipient.name}`}
                   >
                     <div className="flex items-start gap-3">
                       <span
-                        className="w-9 h-9 rounded-full bg-blue-600 text-white text-sm font-black flex items-center justify-center shrink-0"
+                        className="w-9 h-9 rounded-full bg-brand-red text-white text-sm font-black flex items-center justify-center shrink-0"
                         aria-hidden="true"
                       >
                         {stopNumber}
@@ -395,7 +363,7 @@ export default function RiderDeliveriesPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-gray-500">Stop {stopNumber}</p>
                         <p className="flex items-center gap-1.5 text-base font-black text-gray-900">
-                          <User className="w-4 h-4 text-gray-400 shrink-0" aria-hidden="true" />
+                          <User className="w-4 h-4 text-gray-500 shrink-0" aria-hidden="true" />
                           <span className="truncate">{p.recipient.name}</span>
                         </p>
                       </div>
@@ -427,14 +395,14 @@ export default function RiderDeliveriesPage() {
 
                     <div className="space-y-1">
                       <p className="flex items-start gap-2 text-sm text-gray-800">
-                        <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" aria-hidden="true" />
+                        <MapPin className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
                         <span>{p.recipient.address.full_address}</span>
                       </p>
                       <a
                         href={mapsUrl(p.recipient.address.full_address)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-blue-600"
+                        className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-brand-red"
                       >
                         <span>Open in Maps</span>
                         <ExternalLink className="w-4 h-4" aria-hidden="true" />

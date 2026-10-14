@@ -1,221 +1,256 @@
-import { useOutletContext, Link } from 'react-router-dom';
-import type { RiderOutletContext } from './RiderLayout';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useOutletContext } from 'react-router-dom';
 import {
+  AlertCircle,
+  ArrowRight,
+  ArrowUpRight,
   Bike,
   Car,
-  Truck,
-  Warehouse,
-  MapPin,
+  Inbox,
   Layers,
-  AlertCircle,
-  RefreshCw,
-  ShieldCheck,
+  MapPin,
+  MessageSquare,
   PackagePlus,
-  Send,
-  Calendar,
+  RefreshCw,
+  Truck,
+  Wallet,
+  Warehouse,
 } from 'lucide-react';
+import { getRiderDeliveriesApi, getRiderEarningsSummaryApi, getRiderPickupsApi } from '../../api/client';
+import type { RiderOutletContext } from './RiderLayout';
+import { IconChip, KpiSkeleton, KpiTile, PageHero, SectionCard, StateCard, type Tone } from './RiderUi';
+import { BTN_PRIMARY } from './riderStyles';
+
+interface Workload {
+  pickupsAccepted: number;
+  pickupsAvailable: number;
+  pickedUp: number;
+  toCollect: number;
+  outForDelivery: number;
+  earnedToday: string;
+  deliveredToday: number;
+}
+
+const peso = (amount: string | number) =>
+  '₱' + Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+interface TodoRow {
+  icon: React.ElementType;
+  tone: Tone;
+  label: string;
+  hint: string;
+  count: number;
+  to: string;
+}
 
 export default function RiderDashboardPage() {
-  const { riderData, loading, error, refreshRider } = useOutletContext<RiderOutletContext>();
+  const { riderData, loading, error, refreshRider, chat } = useOutletContext<RiderOutletContext>();
 
-  const getVehicleIcon = (vehicleType?: string) => {
-    switch (vehicleType) {
-      case 'Car':
-      case 'Van':
-        return Car;
-      case 'Truck':
-        return Truck;
-      default:
-        return Bike;
+  const [work, setWork] = useState<Workload | null>(null);
+  const [workLoading, setWorkLoading] = useState(true);
+  const [workError, setWorkError] = useState(false);
+
+  const loadWork = useCallback(async () => {
+    setWorkLoading(true);
+    setWorkError(false);
+    try {
+      const [mine, deliveries, earnings] = await Promise.all([
+        getRiderPickupsApi('mine'),
+        getRiderDeliveriesApi('assigned'),
+        getRiderEarningsSummaryApi('day'),
+      ]);
+      setWork({
+        pickupsAccepted: mine.meta.mine_count,
+        pickupsAvailable: mine.meta.available_count,
+        pickedUp: mine.meta.picked_up_count,
+        toCollect: deliveries.meta.assigned_count,
+        outForDelivery: deliveries.meta.out_for_delivery_count,
+        earnedToday: earnings.total_earned,
+        deliveredToday: earnings.deliveries_count,
+      });
+    } catch {
+      setWorkError(true);
+    } finally {
+      setWorkLoading(false);
     }
-  };
+  }, []);
 
-  const VehicleIcon = getVehicleIcon(riderData?.vehicle_type);
+  useEffect(() => {
+    void loadWork();
+  }, [loadWork]);
 
-  // Loading skeleton state
+  const VehicleIcon = riderData?.vehicle_type === 'Car' || riderData?.vehicle_type === 'Van' ? Car : Bike;
+
   if (loading && !riderData) {
     return (
-      <div className="space-y-6 animate-pulse" aria-label="Loading courier dashboard">
-        {/* Hero banner skeleton */}
-        <div className="h-44 bg-gray-200 rounded-3xl" />
-        {/* Metric cards skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="h-28 bg-gray-200 rounded-2xl" />
-          <div className="h-28 bg-gray-200 rounded-2xl" />
-          <div className="h-28 bg-gray-200 rounded-2xl" />
-          <div className="h-28 bg-gray-200 rounded-2xl" />
-        </div>
-        {/* Coverage section skeleton */}
-        <div className="h-48 bg-gray-200 rounded-2xl" />
+      <div className="space-y-4" aria-label="Loading courier dashboard">
+        <div className="h-16 bg-white border border-gray-200/80 rounded-2xl animate-pulse" />
+        <KpiSkeleton />
+        <div className="h-48 bg-white border border-gray-200/80 rounded-2xl animate-pulse" />
       </div>
     );
   }
 
-  // Error state with retry
   if (error && !riderData) {
     return (
-      <div className="bg-white border border-red-200 rounded-2xl p-8 sm:p-12 text-center shadow-xs space-y-4 max-w-lg mx-auto my-8">
-        <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-          <AlertCircle className="w-6 h-6" />
-        </div>
-        <h2 className="text-base font-bold text-gray-900">Failed to Load Dashboard</h2>
-        <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">{error}</p>
-        <button
-          onClick={refreshRider}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Retry Loading</span>
+      <StateCard icon={AlertCircle} tone="red" title="Could not load your dashboard" message={error}>
+        <button onClick={refreshRider} className={BTN_PRIMARY}>
+          <RefreshCw className="w-4 h-4" aria-hidden="true" />
+          Try again
         </button>
-      </div>
+      </StateCard>
     );
   }
 
+  const todo: TodoRow[] = work
+    ? [
+        { icon: PackagePlus, tone: 'red', label: 'Pickups waiting in your areas', hint: 'Sellers with parcels ready', count: work.pickupsAvailable, to: '/rider/pickups' },
+        { icon: Warehouse, tone: 'amber', label: 'Parcels to drop at the hub', hint: 'Collected, not yet scanned in', count: work.pickedUp, to: '/rider/pickups' },
+        { icon: MessageSquare, tone: 'gray', label: 'Unread messages', hint: 'Sellers, buyers and your hub', count: chat.total, to: '/rider/account' },
+      ]
+    : [];
+
   return (
-    <div className="space-y-6">
-      {/* ─── Hero Welcome Banner ─────────────────────────────────────── */}
-      <div
-        className="rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-sm border border-neutral-800"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #1e3a8a 100%)' }}
-      >
-        <div className="relative z-10 max-w-3xl space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-blue-500/20 text-blue-300 border border-blue-400/30">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> Courier Station
+    <div className="pb-4 space-y-4 w-full">
+      <PageHero
+        icon={VehicleIcon}
+        title={`Courier Station · ${riderData?.full_name ?? 'Courier'}`}
+        subtitle={`${riderData?.hub?.hub_name ?? 'No hub on file'} · ${riderData?.vehicle_type ?? 'Vehicle'}${riderData?.plate_number ? ` ${riderData.plate_number}` : ''}`}
+        actions={
+          <>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              {riderData?.status === 'ACTIVE' ? 'Active' : (riderData?.status ?? 'Active')}
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Status: {riderData?.status || 'ACTIVE'}
-            </span>
-          </div>
+            <Link to="/rider/deliveries" className={`${BTN_PRIMARY} !min-h-9 !px-3.5`}>
+              <Truck className="w-3.5 h-3.5" aria-hidden="true" />
+              Deliveries
+            </Link>
+          </>
+        }
+      />
 
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
-            Welcome back, {riderData?.first_name || 'Courier'}!
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-300 leading-relaxed max-w-xl">
-            Your courier profile is active and ready for dispatch. Check your assigned delivery areas below and stand by for parcel collection and fulfillment orders.
-          </p>
+      {workLoading && !work ? (
+        <KpiSkeleton />
+      ) : workError || !work ? (
+        <div role="alert" className="bg-white border border-gray-200/80 rounded-xl px-4 py-3 shadow-xs flex items-center justify-between gap-3">
+          <p className="text-xs text-gray-700">Could not load today&apos;s numbers. Check your connection.</p>
+          <button onClick={() => void loadWork()} className="min-h-9 px-3 rounded-lg border border-gray-200 text-xs font-bold text-gray-800 hover:bg-gray-50 inline-flex items-center gap-1.5">
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Retry
+          </button>
         </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiTile icon={PackagePlus} tone="red" label="Pickups to do" value={String(work.pickupsAccepted)} hint="Accepted, not yet collected" tag="Pickups" />
+          <KpiTile icon={Warehouse} tone="amber" label="To collect at hub" value={String(work.toCollect)} hint="Assigned to you" tag="Hub" />
+          <KpiTile icon={Truck} tone="red" label="Out for delivery" value={String(work.outForDelivery)} hint="On your route now" tag="Route" />
+          <KpiTile
+            icon={Wallet}
+            tone="emerald"
+            label="Earned today"
+            value={peso(work.earnedToday)}
+            hint={`${work.deliveredToday} ${work.deliveredToday === 1 ? 'delivery' : 'deliveries'} today`}
+            tag="Today"
+          />
+        </div>
+      )}
 
-        {/* Ambient background vehicle watermark */}
-        <VehicleIcon className="absolute -right-6 -bottom-6 w-48 h-48 text-white/5 pointer-events-none transform -rotate-12" />
-      </div>
-
-      {/* ─── Courier Metrics / Key Information Cards ─────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Hub Card */}
-        <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Assigned Hub
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Warehouse className="w-4 h-4" />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+        <SectionCard id="todo-heading" title="Needs your attention" subtitle="Where to go next" className="lg:col-span-7">
+          {workLoading && !work ? (
+            <div className="space-y-2 animate-pulse" aria-hidden="true">
+              <div className="h-14 bg-gray-100 rounded-xl" />
+              <div className="h-14 bg-gray-100 rounded-xl" />
             </div>
-          </div>
-          <p className="text-base font-bold text-gray-900 truncate">
-            {riderData?.hub?.hub_name || 'Unassigned Hub'}
-          </p>
-          <p className="text-xs text-gray-500 truncate">
-            {riderData?.hub?.address_city
-              ? `${riderData.hub.address_city}, ${riderData.hub.address_province}`
-              : 'Philippines Operations'}
-          </p>
-        </div>
-
-        {/* Vehicle Spec Card */}
-        <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Vehicle Type
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <VehicleIcon className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-base font-bold text-gray-900">
-            {riderData?.vehicle_type || 'Motorcycle'}
-          </p>
-          <p className="text-xs text-gray-500 font-mono">
-            Plate: {riderData?.plate_number || 'N/A'}
-          </p>
-        </div>
-
-        {/* Active Delivery Areas Card */}
-        <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Assigned Areas
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Layers className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-gray-900">
-            {riderData?.active_areas_count || 0}
-          </p>
-          <p className="text-xs text-gray-500">
-            {riderData?.active_areas_count === 1 ? '1 active sector' : `${riderData?.active_areas_count || 0} active sectors`}
-          </p>
-        </div>
-
-        {/* Dispatch Readiness Card */}
-        <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Dispatch State
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-base font-bold text-gray-900">On Duty / Standby</p>
-          <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Ready for assignments
-          </p>
-        </div>
-      </div>
-
-      {/* ─── Assigned Delivery Areas Section ─────────────────────────── */}
-      <div className="bg-white border border-gray-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
-        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 tracking-tight flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-blue-600" />
-              Delivery Area Coverage
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Barangay jurisdictions officially designated to you by your sorting center hub.
-            </p>
-          </div>
-          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/60">
-            {riderData?.active_areas_count || 0} Areas Active
-          </span>
-        </div>
-
-        {riderData && riderData.active_areas && riderData.active_areas.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {riderData.active_areas.map((area) => (
-              <div
-                key={area.id}
-                className="p-4 bg-gray-50/70 border border-gray-200 rounded-2xl space-y-2.5 hover:border-gray-300 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-gray-900">{area.area_label}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    Active
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {area.barangays_count} {area.barangays_count === 1 ? 'designated barangay' : 'designated barangays'}:
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {area.coverage_barangays.map((bgy) => (
+          ) : todo.length === 0 ? (
+            <p className="text-xs text-gray-600 py-4 text-center">Open Pickups or Deliveries to see your work.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100 -my-1">
+              {todo.map((row) => (
+                <li key={row.label}>
+                  <Link to={row.to} className="flex items-center gap-3 min-h-14 py-2.5 rounded-xl group">
+                    <IconChip icon={row.icon} tone={row.tone} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-gray-900 group-hover:text-brand-red transition-colors">{row.label}</p>
+                      <p className="text-[11px] text-gray-500 truncate">{row.hint}</p>
+                    </div>
                     <span
-                      key={bgy}
-                      className="px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-white text-blue-800 border border-blue-200/80 shadow-2xs"
+                      className={`min-w-7 h-7 px-2 rounded-full text-xs font-black inline-flex items-center justify-center ${
+                        row.count > 0 ? 'bg-brand-red text-white' : 'bg-gray-100 text-gray-500'
+                      }`}
                     >
-                      PSGC {bgy}
+                      {row.count}
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-brand-red transition-colors" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          id="profile-heading"
+          title="Your hub and vehicle"
+          className="lg:col-span-5"
+          action={
+            <Link to="/rider/account" className="text-xs font-bold text-brand-red hover:underline inline-flex items-center gap-1 shrink-0">
+              Edit <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
+            </Link>
+          }
+        >
+          <dl className="space-y-3 text-sm">
+            <div className="flex items-start gap-3">
+              <IconChip icon={Warehouse} tone="gray" size="sm" />
+              <div className="min-w-0">
+                <dt className="text-[11px] font-semibold text-gray-500">Assigned hub</dt>
+                <dd className="font-bold text-gray-900 truncate">{riderData?.hub?.hub_name ?? 'No hub on file'}</dd>
+                <dd className="text-xs text-gray-600 truncate">
+                  {riderData?.hub?.address_city ? `${riderData.hub.address_city}, ${riderData.hub.address_province}` : 'Location not set'}
+                </dd>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <IconChip icon={VehicleIcon} tone="gray" size="sm" />
+              <div className="min-w-0">
+                <dt className="text-[11px] font-semibold text-gray-500">Vehicle</dt>
+                <dd className="font-bold text-gray-900">{riderData?.vehicle_type ?? 'Not set'}</dd>
+                <dd className="text-xs text-gray-600 font-mono">{riderData?.plate_number ?? 'No plate'}</dd>
+              </div>
+            </div>
+          </dl>
+        </SectionCard>
+      </div>
+
+      <SectionCard
+        id="areas-heading"
+        title="Delivery area coverage"
+        subtitle="Barangays your hub assigned to you. Pickups and deliveries come from these."
+        action={
+          <span className="text-[10px] font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 shrink-0">
+            {riderData?.active_areas_count ?? 0} {riderData?.active_areas_count === 1 ? 'area' : 'areas'}
+          </span>
+        }
+      >
+        {riderData && riderData.active_areas.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {riderData.active_areas.map((area) => (
+              <div key={area.id} className="p-3.5 bg-gray-50/70 border border-gray-200/80 rounded-xl space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-sm text-gray-900 flex items-center gap-2 min-w-0">
+                    <MapPin className="w-4 h-4 text-brand-red shrink-0" aria-hidden="true" />
+                    <span className="truncate">{area.area_label}</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Active</span>
+                </div>
+                <p className="text-xs text-gray-600">
+                  {area.barangays_count} {area.barangays_count === 1 ? 'barangay' : 'barangays'}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {area.coverage_barangays.map((code) => (
+                    <span key={code} className="px-2 py-0.5 rounded-md text-[11px] font-mono bg-white text-gray-700 border border-gray-200">
+                      {code}
                     </span>
                   ))}
                 </div>
@@ -223,50 +258,20 @@ export default function RiderDashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="p-8 sm:p-12 text-center rounded-2xl bg-gray-50 border border-dashed border-gray-300 space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-              <Layers className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-gray-800">No areas assigned yet</h3>
-            <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-              Your sorting center hub administrator has not yet mapped your delivery sectors. As soon as your hub assigns barangays, they will appear here automatically.
-            </p>
-          </div>
+          <StateCard
+            icon={Layers}
+            title="No areas assigned yet"
+            message="Your hub has not mapped your delivery areas. They appear here as soon as it does, and pickups in those barangays will show up on the Pickups page."
+          />
         )}
-      </div>
+      </SectionCard>
 
-      {/* ─── Operational Quick Links (Coming in 2.4+) ─────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Link
-          to="/rider/pickups"
-          className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs flex items-center gap-4 hover:border-blue-300 hover:shadow-xs transition-all group"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <PackagePlus className="w-5 h-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-bold text-sm text-gray-900">Item Pickups</h3>
-            <p className="text-xs text-gray-500 truncate">
-              Merchant pickup routes & collection tasks
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          to="/rider/deliveries"
-          className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs flex items-center gap-4 hover:border-blue-300 hover:shadow-xs transition-all group"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <Send className="w-5 h-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-bold text-sm text-gray-900">Active Deliveries</h3>
-            <p className="text-xs text-gray-500 truncate">
-              Dispatched parcels & recipient drop-offs
-            </p>
-          </div>
-        </Link>
-      </div>
+      {!workLoading && work && work.pickupsAccepted + work.toCollect + work.outForDelivery === 0 && (
+        <p className="text-center text-xs text-gray-500 flex items-center justify-center gap-1.5">
+          <Inbox className="w-3.5 h-3.5" aria-hidden="true" />
+          Nothing on your route right now.
+        </p>
+      )}
     </div>
   );
 }

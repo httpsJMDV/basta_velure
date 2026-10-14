@@ -141,7 +141,7 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
             <button
               type="button"
               onClick={() => void loadReasons()}
-              className="inline-flex items-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 text-white text-xs font-bold"
+              className="inline-flex items-center gap-1.5 min-h-11 px-5 rounded-xl bg-brand-red text-white text-xs font-bold"
             >
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
               Try again
@@ -194,7 +194,7 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
                 disabled={submitting}
                 aria-required={noteRequired}
                 placeholder="What happened?"
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60"
               />
               <p className="text-right text-[11px] text-gray-500">
                 {note.length}/{NOTE_MAX}

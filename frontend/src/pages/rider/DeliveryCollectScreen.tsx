@@ -186,7 +186,7 @@ export default function DeliveryCollectScreen({ groups, hub, onClose, onDone, on
             <button
               type="button"
               onClick={onDone}
-              className="w-full min-h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold"
+              className="w-full min-h-12 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold"
             >
               View my route
             </button>
@@ -196,18 +196,18 @@ export default function DeliveryCollectScreen({ groups, hub, onClose, onDone, on
             {hub && (
               <section className="bg-white border border-gray-200 rounded-2xl p-4 space-y-1.5" aria-label="Hub">
                 <p className="flex items-center gap-2 text-sm font-black text-gray-900">
-                  <Truck className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                  <Truck className="w-4 h-4 text-gray-500" aria-hidden="true" />
                   Collect from {hub.hub_name}
                 </p>
                 <p className="flex items-start gap-2 text-xs text-gray-600">
-                  <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" aria-hidden="true" />
+                  <MapPin className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
                   <span>{hub.full_address}</span>
                 </p>
                 <a
                   href={mapsUrl(`${hub.hub_name}, ${hub.full_address}`)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-blue-600"
+                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-brand-red"
                 >
                   <span>Open in Maps</span>
                   <ExternalLink className="w-4 h-4" aria-hidden="true" />
@@ -291,7 +291,7 @@ export default function DeliveryCollectScreen({ groups, hub, onClose, onDone, on
               type="button"
               onClick={() => void handleStart()}
               disabled={submitting || scanned.length === 0}
-              className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+              className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
             >
               {submitting && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
               <span>

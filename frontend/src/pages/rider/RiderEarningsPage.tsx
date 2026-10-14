@@ -2,13 +2,9 @@ import { useState } from 'react';
 import { Wallet } from 'lucide-react';
 import EarningsTab from './EarningsTab';
 import HistoryTab from './HistoryTab';
+import { PageHero, TabBar } from './RiderUi';
 
 type TabKey = 'earnings' | 'history';
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'earnings', label: 'Earnings' },
-  { key: 'history', label: 'History' },
-];
 
 /** Rider earnings (flat fee per delivered parcel) and the full delivery history. Read-only. */
 export default function RiderEarningsPage() {
@@ -22,35 +18,20 @@ export default function RiderEarningsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2.5">
-        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-          <Wallet className="w-5 h-5" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-xl font-black text-gray-900 tracking-tight">Earnings</h1>
-          <p className="text-xs text-gray-500">What you earn per delivery, and every delivery you have made.</p>
-        </div>
-      </div>
+    <div className="pb-4 space-y-4">
+      <PageHero icon={Wallet} title="Earnings" subtitle="What you earn per delivery, and every delivery you have made." />
 
-      <div role="tablist" aria-label="Earnings views" className="flex items-center border-b border-gray-200">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            id={`earnings-tab-${t.key}`}
-            aria-selected={tab === t.key}
-            aria-controls={`earnings-panel-${t.key}`}
-            onClick={() => select(t.key)}
-            className={`min-h-11 px-5 text-sm font-bold transition-colors ${
-              tab === t.key ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        label="Earnings views"
+        idPrefix="earnings-tab"
+        panelId={(key) => `earnings-panel-${key}`}
+        value={tab}
+        onChange={select}
+        tabs={[
+          { key: 'earnings', label: 'Earnings' },
+          { key: 'history', label: 'History' },
+        ]}
+      />
 
       <div id="earnings-panel-earnings" role="tabpanel" aria-labelledby="earnings-tab-earnings" hidden={tab !== 'earnings'}>
         <EarningsTab />

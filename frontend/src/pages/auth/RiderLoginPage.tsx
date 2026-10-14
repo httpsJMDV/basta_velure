@@ -111,15 +111,15 @@ export default function RiderLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-between text-gray-900 font-sans antialiased selection:bg-blue-100">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-between text-gray-900 font-sans antialiased selection:bg-rose-100">
       {/* ─── Top Bar ──────────────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-md mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group">
             <LovedItLogo size="sm" />
           </Link>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200/60">
-            <Bike className="w-3.5 h-3.5 text-blue-600" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-brand-red bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200/60">
+            <Bike className="w-3.5 h-3.5 text-brand-red" />
             <span>Courier Station</span>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function RiderLoginPage() {
         <div className="max-w-md w-full mx-auto">
           {/* Header Card */}
           <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-blue-500/20">
+            <div className="w-14 h-14 rounded-2xl bg-brand-red text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-brand-red/20">
               <Bike className="w-7 h-7" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
@@ -150,7 +150,7 @@ export default function RiderLoginPage() {
                 errorType === 'pending'
                   ? 'bg-amber-50 border-amber-200 text-amber-900'
                   : errorType === 'not_rider'
-                  ? 'bg-blue-50 border-blue-200 text-blue-900'
+                  ? 'bg-gray-50 border-gray-200 text-gray-900'
                   : 'bg-red-50 border-red-200 text-red-900'
               }`}
             >
@@ -160,7 +160,7 @@ export default function RiderLoginPage() {
                 ) : errorType === 'disapproved' ? (
                   <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                 ) : errorType === 'not_rider' ? (
-                  <ShieldAlert className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <ShieldAlert className="w-5 h-5 text-gray-600 shrink-0 mt-0.5" />
                 ) : (
                   <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                 )}
@@ -184,7 +184,7 @@ export default function RiderLoginPage() {
                     <div>
                       <Link
                         to="/login"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors shadow-xs"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-red text-white rounded-lg text-xs font-bold hover:bg-brand-red-dark transition-colors shadow-xs"
                       >
                         <span>Go to Standard Member Sign In</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -218,7 +218,7 @@ export default function RiderLoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="e.g. rider@lovedit.ph"
-                    className="w-full h-12 px-4 text-base bg-white border border-gray-300 rounded-xl outline-none transition-all focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full h-12 px-4 text-base bg-white border border-gray-300 rounded-xl outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/40 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -235,7 +235,7 @@ export default function RiderLoginPage() {
                   <Link
                     to="/forgot-password"
                     tabIndex={0}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                    className="text-xs font-semibold text-brand-red hover:text-brand-red-dark hover:underline"
                   >
                     Forgot password?
                   </Link>
@@ -250,12 +250,12 @@ export default function RiderLoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your account password"
-                    className="w-full h-12 pl-4 pr-12 text-base bg-white border border-gray-300 rounded-xl outline-none transition-all focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full h-12 pl-4 pr-12 text-base bg-white border border-gray-300 rounded-xl outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/40 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red/40"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -267,7 +267,7 @@ export default function RiderLoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-base rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-12 bg-brand-red hover:bg-brand-red-dark active:bg-brand-red-dark text-white font-bold text-base rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">

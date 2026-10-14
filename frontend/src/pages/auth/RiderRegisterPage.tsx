@@ -327,7 +327,7 @@ export default function RiderRegisterPage() {
               <LovedItLogo size="sm" />
             </Link>
             <div className="h-5 w-px bg-gray-200 hidden sm:block" />
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-brand-red bg-rose-50 px-2.5 py-1 rounded-full">
               <Bike className="w-3.5 h-3.5" />
               <span>Courier Registration</span>
             </div>
@@ -365,7 +365,7 @@ export default function RiderRegisterPage() {
           {/* ─── SECTION 1: Personal Details ───────────────────────── */}
           <section className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-brand-red flex items-center justify-center font-bold text-sm">
                 1
               </div>
               <div>
@@ -492,7 +492,7 @@ export default function RiderRegisterPage() {
           {/* ─── SECTION 2: Home Address ───────────────────────────── */}
           <section className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-brand-red flex items-center justify-center font-bold text-sm">
                 2
               </div>
               <div>
@@ -521,7 +521,7 @@ export default function RiderRegisterPage() {
           {/* ─── SECTION 3: Logistics Hub Selection ────────────────── */}
           <section className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-brand-red flex items-center justify-center font-bold text-sm">
                 3
               </div>
               <div className="flex-1">
@@ -561,7 +561,7 @@ export default function RiderRegisterPage() {
               </div>
             ) : loadingHubs ? (
               <div className="py-8 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
+                <RefreshCw className="w-4 h-4 animate-spin text-brand-red" />
                 <span>Loading approved logistics hubs directory…</span>
               </div>
             ) : hubs.length === 0 ? (
@@ -595,7 +595,7 @@ export default function RiderRegisterPage() {
                         onClick={() => setSelectedHubId(String(hub.id))}
                         className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
                           isSelected
-                            ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20 shadow-xs'
+                            ? 'border-brand-red bg-rose-50/60 ring-2 ring-brand-red/20 shadow-xs'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                       >
@@ -604,7 +604,7 @@ export default function RiderRegisterPage() {
                             {hub.hub_name}
                           </div>
                           {isSelected && (
-                            <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            <CheckCircle2 className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
                           )}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
@@ -622,14 +622,14 @@ export default function RiderRegisterPage() {
                 )}
 
                 {selectedHubObj && (
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between text-xs text-blue-900">
+                  <div className="mt-3 p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-center justify-between text-xs text-brand-red-dark">
                     <span className="font-medium">
                       Selected Hub: <strong>{selectedHubObj.hub_name}</strong> ({selectedHubObj.address_city})
                     </span>
                     <button
                       type="button"
                       onClick={() => setSelectedHubId('')}
-                      className="text-blue-700 font-semibold hover:underline"
+                      className="text-brand-red font-semibold hover:underline"
                     >
                       Change
                     </button>
@@ -646,7 +646,7 @@ export default function RiderRegisterPage() {
           {/* ─── SECTION 4: Vehicle Information ────────────────────── */}
           <section className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-brand-red flex items-center justify-center font-bold text-sm">
                 4
               </div>
               <div>
@@ -690,7 +690,7 @@ export default function RiderRegisterPage() {
           {/* ─── SECTION 5: Document Uploads ───────────────────────── */}
           <section className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-brand-red flex items-center justify-center font-bold text-sm">
                 5
               </div>
               <div>
@@ -734,7 +734,7 @@ export default function RiderRegisterPage() {
                 type="checkbox"
                 checked={agreeTerms}
                 onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-red focus:ring-brand-red/40"
               />
               <span className="text-xs text-gray-600 leading-relaxed">
                 I hereby declare that all submitted personal details, vehicle credentials, and uploaded documents are genuine and accurate. I understand that my courier application is subject to verification and approval by the selected Logistics / Sorting Center hub, and approval status notifications will be delivered to my registered email address.
@@ -745,7 +745,7 @@ export default function RiderRegisterPage() {
             <Button
               type="submit"
               disabled={submitting}
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all"
+              className="w-full h-12 bg-brand-red hover:bg-brand-red-dark text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all"
             >
               {submitting ? (
                 <>

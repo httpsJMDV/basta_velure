@@ -258,7 +258,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
             disabled={submitting}
             placeholder="Name of the person who received it"
             autoComplete="off"
-            className="w-full min-h-12 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+            className="w-full min-h-12 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60"
           />
         </div>
 
@@ -270,7 +270,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
               checked={codChecked}
               onChange={(e) => setCodChecked(e.target.checked)}
               disabled={submitting}
-              className="w-6 h-6 mt-0.5 accent-blue-600 shrink-0"
+              className="w-6 h-6 mt-0.5 accent-brand-red shrink-0"
             />
             <span className="text-sm font-bold text-amber-950">
               I collected {formatPeso(parcel.cod_amount)} in cash

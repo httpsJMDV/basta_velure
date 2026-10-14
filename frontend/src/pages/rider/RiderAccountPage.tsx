@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Bike, CheckCircle2, Lock, LogOut, MessageSquare, RefreshCw, ShieldCheck, Warehouse } from 'lucide-react';
+import { AlertCircle, Bike, CheckCircle2, Lock, LogOut, MessageSquare, RefreshCw, ShieldCheck, User as UserIcon, Warehouse } from 'lucide-react';
 import { getRiderChatThreadsApi, updateRiderVehicleApi } from '../../api/client';
 import { useDialogA11y } from '../../hooks/useDialogA11y';
 import type { RiderThread, RiderVehicleType } from '../../types';
 import type { RiderOutletContext } from './RiderLayout';
 import RiderChatSheet from './RiderChatSheet';
+import { PageHero, StateCard } from './RiderUi';
+import { BTN_PRIMARY } from './riderStyles';
 
 const VEHICLE_TYPES: RiderVehicleType[] = ['Motorcycle', 'Tricycle', 'Car', 'Van'];
 const PLATE_PATTERN = /^[A-Za-z0-9\s-]+$/;
@@ -31,30 +33,20 @@ export default function RiderAccountPage() {
   const { riderData, loading, error, refreshRider, chat, logout, loggingOut } = useOutletContext<RiderOutletContext>();
 
   return (
-    <div className="max-w-2xl w-full mx-auto space-y-5">
-      <div>
-        <h1 className="text-xl font-black text-gray-900">Account</h1>
-        <p className="text-xs text-gray-500">Your profile, your vehicle and your delivery conversations.</p>
-      </div>
-
+    <div className="max-w-3xl w-full mx-auto pb-4 space-y-4">
+      <PageHero icon={UserIcon} title="Account" subtitle="Your profile, your vehicle and your delivery conversations." />
       {loading && !riderData ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 animate-pulse" aria-label="Loading your profile">
+        <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 animate-pulse" aria-label="Loading your profile">
           <div className="h-4 w-1/3 rounded bg-gray-200" />
           <div className="h-4 w-1/2 rounded bg-gray-200" />
         </div>
       ) : error && !riderData ? (
-        <div className="bg-white border border-red-200 rounded-2xl p-5 text-center space-y-3">
-          <AlertCircle className="w-6 h-6 text-red-500 mx-auto" aria-hidden="true" />
-          <p role="alert" className="text-sm text-gray-700">{error}</p>
-          <button
-            type="button"
-            onClick={refreshRider}
-            className="inline-flex items-center gap-2 min-h-11 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold"
-          >
+        <StateCard icon={AlertCircle} tone="red" alert title="Could not load your profile" message={error}>
+          <button type="button" onClick={refreshRider} className={BTN_PRIMARY}>
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
           </button>
-        </div>
+        </StateCard>
       ) : riderData ? (
         <>
           <ProfileCard
@@ -81,8 +73,8 @@ export default function RiderAccountPage() {
 
 function ProfileCard({ name, hub, status }: { name: string; hub: string | null; status: string }) {
   return (
-    <section aria-labelledby="profile-heading" className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
-      <h2 id="profile-heading" className="text-sm font-black text-gray-900">Profile</h2>
+    <section aria-labelledby="profile-heading" className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+      <h2 id="profile-heading" className="text-xs font-bold text-gray-900 uppercase tracking-wider">Profile</h2>
       <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <div>
           <dt className="text-xs font-semibold text-gray-500">Name</dt>
@@ -91,7 +83,7 @@ function ProfileCard({ name, hub, status }: { name: string; hub: string | null; 
         <div>
           <dt className="text-xs font-semibold text-gray-500">Hub</dt>
           <dd className="font-bold text-gray-900 flex items-center gap-1.5">
-            <Warehouse className="w-4 h-4 text-gray-400" aria-hidden="true" />
+            <Warehouse className="w-4 h-4 text-gray-500" aria-hidden="true" />
             {hub ?? 'No hub on file'}
           </dd>
         </div>
@@ -171,10 +163,10 @@ function VehicleForm({
   };
 
   return (
-    <section aria-labelledby="vehicle-heading" className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+    <section aria-labelledby="vehicle-heading" className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
       <div className="flex items-center gap-2">
-        <Bike className="w-4 h-4 text-gray-400" aria-hidden="true" />
-        <h2 id="vehicle-heading" className="text-sm font-black text-gray-900">Vehicle</h2>
+        <Bike className="w-4 h-4 text-gray-500" aria-hidden="true" />
+        <h2 id="vehicle-heading" className="text-xs font-bold text-gray-900 uppercase tracking-wider">Vehicle</h2>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -189,7 +181,7 @@ function VehicleForm({
             }}
             aria-invalid={errors.vehicle_type ? true : undefined}
             aria-describedby={errors.vehicle_type ? 'vehicle-type-error' : undefined}
-            className="w-full min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-red/40"
           >
             {VEHICLE_TYPES.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -213,7 +205,7 @@ function VehicleForm({
             autoComplete="off"
             aria-invalid={errors.plate_number ? true : undefined}
             aria-describedby={errors.plate_number ? 'plate-number-error' : 'plate-number-hint'}
-            className="w-full min-h-11 rounded-xl border border-gray-300 px-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full min-h-11 rounded-xl border border-gray-300 px-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-red/40"
           />
           {errors.plate_number ? (
             <p id="plate-number-error" role="alert" className="text-xs font-semibold text-red-700">{errors.plate_number}</p>
@@ -235,7 +227,7 @@ function VehicleForm({
         <button
           type="submit"
           disabled={saving || !dirty}
-          className="w-full sm:w-auto min-h-12 px-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full sm:w-auto min-h-12 px-6 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
           {saving ? 'Saving…' : 'Save vehicle'}
@@ -303,10 +295,10 @@ function MessagesSection({ onChanged }: { onChanged: () => void }) {
   };
 
   return (
-    <section aria-labelledby="messages-heading" className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+    <section aria-labelledby="messages-heading" className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
       <div className="flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-gray-400" aria-hidden="true" />
-        <h2 id="messages-heading" className="text-sm font-black text-gray-900">Messages</h2>
+        <MessageSquare className="w-4 h-4 text-gray-500" aria-hidden="true" />
+        <h2 id="messages-heading" className="text-xs font-bold text-gray-900 uppercase tracking-wider">Messages</h2>
       </div>
 
       {loading ? (
@@ -320,7 +312,7 @@ function MessagesSection({ onChanged }: { onChanged: () => void }) {
           <button
             type="button"
             onClick={() => void load('initial')}
-            className="inline-flex items-center gap-2 min-h-11 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold"
+            className="inline-flex items-center gap-2 min-h-11 px-4 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold"
           >
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
@@ -348,7 +340,7 @@ function MessagesSection({ onChanged }: { onChanged: () => void }) {
                   {t.last_message && <p className="text-xs text-gray-600 truncate">{t.last_message.body}</p>}
                 </div>
                 <div className="shrink-0 text-right space-y-1">
-                  <p className="text-[11px] text-gray-400">{timeAgo(t.last_message_at)}</p>
+                  <p className="text-[11px] text-gray-500">{timeAgo(t.last_message_at)}</p>
                   {t.unread > 0 && (
                     <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-white text-[11px] font-black">
                       {t.unread}

@@ -32,6 +32,8 @@ import {
   releaseRiderPickupApi,
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
+import { PageHero, StateCard, TabBar } from './RiderUi';
+import { BTN_PRIMARY, BTN_SECONDARY } from './riderStyles';
 import PickupHandoverScreen from './PickupHandoverScreen';
 
 // Time formatting utilities
@@ -227,162 +229,79 @@ export default function RiderPickupsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* ─── Page Header ─────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <PackagePlus className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-                Merchant Pickups
-              </h1>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Browse and accept collection requests from local merchants in your active delivery areas.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Controls: Refresh Button */}
-        <div className="flex items-center gap-3">
+    <div className="pb-4 space-y-4">
+      <PageHero
+        icon={PackagePlus}
+        title="Merchant pickups"
+        subtitle="Accept collection requests from merchants in your delivery areas."
+        actions={
           <button
             onClick={() => fetchPickups(false)}
             disabled={refreshing}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-2xs transition-colors disabled:opacity-60"
-            title="Refresh pickups list"
+            className={`${BTN_SECONDARY} !min-h-9 !px-3`}
+            aria-label="Refresh pickups"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-blue-600' : 'text-gray-500'}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-brand-red' : 'text-gray-500'}`} aria-hidden="true" />
+            Refresh
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ─── No Active Areas Warning Banner ──────────────────────────── */}
       {!meta.has_areas && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-2xs">
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div role="status" className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-1">
-            <h4 className="text-sm font-bold text-amber-950">No Active Delivery Areas Assigned</h4>
-            <p className="text-xs text-amber-800 leading-relaxed">
-              Your sorting center hub administrator has not yet assigned any active barangay delivery sectors to your courier account.
-              Pickup requests only appear when you have active area assignments. Please contact your sorting center hub manager to map your coverage areas.
+            <h2 className="text-sm font-bold text-amber-950">No delivery areas assigned</h2>
+            <p className="text-xs text-amber-900 leading-relaxed">
+              Pickup requests only appear for barangays your hub has assigned to you. Ask your hub manager to map your coverage areas.
             </p>
           </div>
         </div>
       )}
 
-      {/* ─── Segment / Tab Switcher ──────────────────────────────────── */}
-      <div className="flex items-center border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('available')}
-          className={`relative pb-3 px-4 text-xs font-bold transition-colors flex items-center gap-2 ${
-            activeTab === 'available'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 hover:text-gray-800'
-          }`}
-        >
-          <span>Available Pickups</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeTab === 'available'
-                ? 'bg-blue-100 text-blue-800'
-                : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {meta.available_count}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('mine')}
-          className={`relative pb-3 px-4 text-xs font-bold transition-colors flex items-center gap-2 ${
-            activeTab === 'mine'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 hover:text-gray-800'
-          }`}
-        >
-          <span>My Pickups</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeTab === 'mine'
-                ? 'bg-blue-100 text-blue-800'
-                : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {meta.mine_count}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('picked_up')}
-          className={`relative pb-3 px-4 text-xs font-bold transition-colors flex items-center gap-2 ${
-            activeTab === 'picked_up'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 hover:text-gray-800'
-          }`}
-        >
-          <span>Picked Up</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeTab === 'picked_up'
-                ? 'bg-blue-100 text-blue-800'
-                : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {meta.picked_up_count}
-          </span>
-        </button>
-      </div>
-
+      <TabBar
+        label="Pickup views"
+        value={activeTab}
+        onChange={setActiveTab}
+        tabs={[
+          { key: 'available', label: 'Available', count: meta.available_count },
+          { key: 'mine', label: 'My pickups', count: meta.mine_count },
+          { key: 'picked_up', label: 'Picked up', count: meta.picked_up_count },
+        ]}
+      />
       {/* ─── List Content ────────────────────────────────────────────── */}
       {loading ? (
         // Skeleton loader
         <div className="space-y-4 animate-pulse" aria-label="Loading pickups">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-44 bg-gray-200/80 rounded-2xl border border-gray-200" />
+            <div key={i} className="h-44 bg-white rounded-2xl border border-gray-200/80" />
           ))}
         </div>
       ) : loadError ? (
         // Error state with retry
-        <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center shadow-2xs space-y-4 max-w-lg mx-auto my-6">
-          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mx-auto">
-            <AlertCircle className="w-7 h-7" />
-          </div>
-          <h3 className="text-base font-bold text-gray-900">Could not load pickups</h3>
-          <p className="text-xs text-gray-500">{loadError}</p>
-          <button
-            onClick={() => fetchPickups(false)}
-            disabled={refreshing}
-            className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Try again</span>
+        <StateCard icon={AlertCircle} tone="red" alert title="Could not load pickups" message={loadError}>
+          <button onClick={() => fetchPickups(false)} disabled={refreshing} className={BTN_PRIMARY}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Try again
           </button>
-        </div>
+        </StateCard>
       ) : activeTab === 'picked_up' ? (
         pickedUp.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-3xl p-8 sm:p-12 text-center shadow-2xs space-y-4 max-w-lg mx-auto my-6">
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-              <Truck className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-bold text-gray-900">Nothing to Drop Off</h3>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Parcels you collect from merchants will be listed here until your hub scans them in.
-            </p>
-          </div>
+          <StateCard
+            icon={Truck}
+            title="Nothing to drop off"
+            message="Parcels you collect from merchants are listed here until your hub scans them in."
+          />
         ) : (
           <div className="space-y-4">
             {pickedUp.map((group) => (
               <div
                 key={group.seller_id}
-                className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-2xs space-y-3"
+                className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-bold text-base text-gray-900">{group.shop_name}</h3>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
                     <Package className="w-3.5 h-3.5" />
                     {group.parcel_count} {group.parcel_count === 1 ? 'parcel' : 'parcels'}
                   </span>
@@ -390,7 +309,7 @@ export default function RiderPickupsPage() {
 
                 {group.picked_up_at && (
                   <p className="flex items-center gap-2 text-xs text-gray-500">
-                    <Clock className="w-4 h-4 text-gray-400" />
+                    <Clock className="w-4 h-4 text-gray-500" />
                     <span>Picked up</span>
                     <span className="font-semibold text-gray-700" title={formatFullDateTime(group.picked_up_at)}>
                       {formatRelativeTime(group.picked_up_at)}
@@ -410,19 +329,19 @@ export default function RiderPickupsPage() {
                 </ul>
 
                 {group.hub ? (
-                  <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 space-y-1.5">
-                    <p className="flex items-center gap-2 text-sm font-bold text-blue-950">
+                  <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 space-y-1.5">
+                    <p className="flex items-center gap-2 text-sm font-bold text-gray-900">
                       <Truck className="w-4 h-4" aria-hidden="true" />
                       Take these to {group.hub.hub_name}
                     </p>
-                    <p className="text-xs text-blue-900">{group.hub.full_address}</p>
+                    <p className="text-xs text-gray-700">{group.hub.full_address}</p>
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
                         `${group.hub.hub_name}, ${group.hub.full_address}`
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 min-h-11 text-xs font-bold text-blue-700 hover:underline"
+                      className="inline-flex items-center gap-1.5 min-h-11 text-xs font-bold text-brand-red-dark hover:underline"
                     >
                       <span>Open in Google Maps</span>
                       <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
@@ -448,35 +367,23 @@ export default function RiderPickupsPage() {
           </div>
         )
       ) : pickups.length === 0 ? (
-        // Empty state
-        <div className="bg-white border border-gray-200 rounded-3xl p-8 sm:p-12 text-center shadow-2xs space-y-4 max-w-lg mx-auto my-6">
-          <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-            <Package className="w-7 h-7" />
-          </div>
-          {activeTab === 'available' ? (
-            <>
-              <h3 className="text-base font-bold text-gray-900">No Pickups Available Right Now</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                {meta.has_areas
-                  ? 'There are currently no unclaimed pickup requests in your designated delivery areas. As soon as merchants mark orders ready, they will appear here.'
-                  : 'You do not have any active delivery areas assigned. Once your hub maps your coverage barangays, requests in those areas will show up here.'}
-              </p>
-            </>
-          ) : (
-            <>
-              <h3 className="text-base font-bold text-gray-900">No Active Pickups Claimed</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                You have not claimed any merchant pickups yet. Switch over to the Available Pickups tab to review and accept requests in your area.
-              </p>
-              <button
-                onClick={() => setActiveTab('available')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
-              >
-                <span>View Available Pickups</span>
-              </button>
-            </>
+        <StateCard
+          icon={Package}
+          title={activeTab === 'available' ? 'No pickups available right now' : 'No active pickups'}
+          message={
+            activeTab === 'available'
+              ? meta.has_areas
+                ? 'There are no unclaimed requests in your areas. They appear here as soon as merchants mark orders ready.'
+                : 'You have no delivery areas yet. Once your hub maps your barangays, requests in them appear here.'
+              : 'You have not accepted any pickups. Open Available to review requests in your area.'
+          }
+        >
+          {activeTab !== 'available' && (
+            <button onClick={() => setActiveTab('available')} className={BTN_PRIMARY}>
+              View available pickups
+            </button>
           )}
-        </div>
+        </StateCard>
       ) : (
         // Pickup cards list
         <div className="space-y-4">
@@ -491,23 +398,23 @@ export default function RiderPickupsPage() {
             return (
               <div
                 key={group.seller_id}
-                className="bg-white border border-gray-200/90 hover:border-gray-300 rounded-2xl p-5 sm:p-6 shadow-2xs transition-all space-y-4"
+                className="bg-white border border-gray-200/90 hover:border-gray-300 rounded-2xl p-4 sm:p-5 shadow-xs transition-all space-y-4"
               >
                 {/* Header row: Shop Name, Area Badge, Parcel count */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-3 border-b border-gray-100">
                   <div className="flex items-center gap-2.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-brand-red shrink-0" />
                     <h3 className="font-bold text-base text-gray-900">{group.shop_name}</h3>
                     {group.matched_area_label && (
-                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/70">
+                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">
                         {group.matched_area_label}
                       </span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
-                      <Package className="w-3.5 h-3.5 text-blue-600" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-brand-red-dark border border-rose-200/60">
+                      <Package className="w-3.5 h-3.5 text-brand-red" />
                       {group.parcel_count} {group.parcel_count === 1 ? 'parcel' : 'parcels'}
                     </span>
                   </div>
@@ -518,7 +425,7 @@ export default function RiderPickupsPage() {
                   {/* Left Column: Address & Location */}
                   <div className="space-y-2">
                     <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                      <MapPin className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
                       <div className="space-y-1">
                         <p className="font-medium text-gray-800 leading-snug">
                           {group.pickup_address.full_address ||
@@ -529,7 +436,7 @@ export default function RiderPickupsPage() {
                             href={mapsUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-red hover:text-brand-red-dark hover:underline"
                           >
                             <span>Open in Google Maps</span>
                             <ExternalLink className="w-3 h-3" />
@@ -543,16 +450,16 @@ export default function RiderPickupsPage() {
                   <div className="space-y-2">
                     {/* Phone */}
                     <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                      <Phone className="w-4 h-4 text-gray-500 shrink-0" />
                       <a
                         href={`tel:${group.shop_phone}`}
-                        className="font-semibold text-gray-900 hover:text-blue-600 hover:underline"
+                        className="font-semibold text-gray-900 hover:text-brand-red hover:underline"
                       >
                         {group.shop_phone}
                       </a>
                       <button
                         onClick={() => handleCopy(group.shop_phone, `phone-${group.seller_id}`)}
-                        className="p-1 text-gray-400 hover:text-gray-700 rounded-md transition-colors"
+                        className="p-1 text-gray-500 hover:text-gray-700 rounded-md transition-colors"
                         title="Copy phone number"
                       >
                         {copiedKey === `phone-${group.seller_id}` ? (
@@ -565,7 +472,7 @@ export default function RiderPickupsPage() {
 
                     {/* Ready Since timestamp */}
                     <div className="flex items-center gap-2 text-gray-500">
-                      <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                      <Clock className="w-4 h-4 text-gray-500 shrink-0" />
                       <span>Ready for pickup:</span>
                       <span
                         className="font-semibold text-gray-700"
@@ -644,7 +551,7 @@ export default function RiderPickupsPage() {
                             {copiedKey === tn ? (
                               <Check className="w-3 h-3 text-emerald-600" />
                             ) : (
-                              <Copy className="w-3 h-3 text-gray-400" />
+                              <Copy className="w-3 h-3 text-gray-500" />
                             )}
                           </button>
                         ))}
@@ -665,7 +572,7 @@ export default function RiderPickupsPage() {
                       </button>
                       <button
                         onClick={() => setActionModal({ type: 'accept', group })}
-                        className="inline-flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
+                        className="inline-flex items-center gap-1.5 px-5 py-2 bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
                       >
                         <PackagePlus className="w-4 h-4" />
                         <span>Accept Pickup</span>
@@ -694,7 +601,7 @@ export default function RiderPickupsPage() {
                           handoverTriggerRef.current = e.currentTarget;
                           setHandoverGroup(group);
                         }}
-                        className="inline-flex items-center gap-1.5 min-h-11 px-5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
+                        className="inline-flex items-center gap-1.5 min-h-11 px-5 bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
                       >
                         <ClipboardCheck className="w-4 h-4" />
                         <span>Start pickup</span>
@@ -731,13 +638,13 @@ export default function RiderPickupsPage() {
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150"
         >
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 border border-gray-100">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 border border-gray-100">
             {/* Modal Icon & Title */}
             <div className="flex items-start gap-3">
               <div
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
                   actionModal.type === 'accept'
-                    ? 'bg-blue-50 text-blue-600'
+                    ? 'bg-rose-50 text-brand-red'
                     : actionModal.type === 'decline'
                     ? 'bg-gray-100 text-gray-600'
                     : 'bg-red-50 text-red-600'
@@ -809,7 +716,7 @@ export default function RiderPickupsPage() {
                 disabled={actionLoading}
                 className={`inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-colors shadow-2xs disabled:opacity-50 ${
                   actionModal.type === 'accept'
-                    ? 'bg-blue-600 hover:bg-blue-700'
+                    ? 'bg-brand-red hover:bg-brand-red-dark'
                     : actionModal.type === 'decline'
                     ? 'bg-gray-900 hover:bg-gray-800'
                     : 'bg-red-600 hover:bg-red-700'

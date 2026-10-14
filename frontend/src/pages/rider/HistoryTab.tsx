@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Banknote, CheckCircle2, History, MapPin, RefreshCw, RotateCcw, Search, XCircle } from 'lucide-react';
+import { StateCard } from './RiderUi';
+import { BTN_PRIMARY, BTN_SECONDARY } from './riderStyles';
 import { getRiderHistoryApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { RiderHistoryEntry, RiderHistoryFilter, RiderHistoryOutcome } from '../../types';
@@ -141,7 +143,7 @@ export default function HistoryTab() {
             onClick={() => setOutcome(f.key)}
             className={`min-h-11 px-4 rounded-full text-xs font-bold border transition-colors ${
               outcome === f.key
-                ? 'bg-blue-600 border-blue-600 text-white'
+                ? 'bg-brand-red border-brand-red text-white'
                 : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -158,7 +160,7 @@ export default function HistoryTab() {
             value={from}
             max={to || undefined}
             onChange={(e) => setFrom(e.target.value)}
-            className="mt-1 w-full min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900"
+            className="mt-1 w-full min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
           />
         </label>
         <label className="block text-xs font-semibold text-gray-700">
@@ -168,7 +170,7 @@ export default function HistoryTab() {
             value={to}
             min={from || undefined}
             onChange={(e) => setTo(e.target.value)}
-            className="mt-1 w-full min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900"
+            className="mt-1 w-full min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
           />
         </label>
       </div>
@@ -181,14 +183,14 @@ export default function HistoryTab() {
       <div className="flex items-center gap-2">
         <label className="relative flex-1 block">
           <span className="sr-only">Search by tracking number or order number</span>
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
+          <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
           <input
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Tracking or order number"
             maxLength={100}
-            className="w-full min-h-11 rounded-xl border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900"
+            className="w-full min-h-11 rounded-xl border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900 focus:outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
           />
         </label>
         <button
@@ -198,7 +200,7 @@ export default function HistoryTab() {
           aria-label="Refresh history"
           className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
         >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-600' : ''}`} aria-hidden="true" />
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-brand-red' : ''}`} aria-hidden="true" />
         </button>
       </div>
 
@@ -206,40 +208,32 @@ export default function HistoryTab() {
       {loading ? (
         <div className="space-y-3 animate-pulse" aria-label="Loading history">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 rounded-2xl bg-gray-200/80 border border-gray-200" />
+            <div key={i} className="h-24 rounded-2xl bg-white border border-gray-200/80" />
           ))}
         </div>
       ) : error ? (
-        <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center space-y-3">
-          <AlertCircle className="w-8 h-8 text-red-500 mx-auto" aria-hidden="true" />
-          <p className="text-sm font-bold text-gray-900">Could not load your history</p>
-          <p className="text-xs text-gray-500">{error}</p>
-          <button
-            type="button"
-            onClick={() => void load('initial')}
-            className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
-          >
+        <StateCard icon={AlertCircle} tone="red" alert title="Could not load your history" message={error}>
+          <button type="button" onClick={() => void load('initial')} className={BTN_PRIMARY}>
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
           </button>
-        </div>
+        </StateCard>
       ) : entries.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-            <History className="w-7 h-7" aria-hidden="true" />
-          </div>
-          <h2 className="text-base font-bold text-gray-900">{filtered ? 'Nothing matches these filters' : 'No history yet'}</h2>
-          <p className="text-xs text-gray-500 leading-relaxed">
-            {filtered
+        <StateCard
+          icon={History}
+          title={filtered ? 'Nothing matches these filters' : 'No history yet'}
+          message={
+            filtered
               ? 'Try a different outcome, a wider date range or another search.'
-              : 'Your delivered, failed and returned parcels appear here.'}
-          </p>
+              : 'Your delivered, failed and returned parcels appear here.'
+          }
+        >
           {filtered && (
-            <button type="button" onClick={clearFilters} className="min-h-11 px-5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50">
+            <button type="button" onClick={clearFilters} className={BTN_SECONDARY}>
               Clear filters
             </button>
           )}
-        </div>
+        </StateCard>
       ) : (
         <section aria-label="Delivery history" className="space-y-2">
           <p className="text-xs text-gray-500" aria-live="polite">
@@ -250,7 +244,7 @@ export default function HistoryTab() {
               const style = OUTCOME_STYLE[e.outcome];
               const place = [e.destination.barangay_name, e.destination.city].filter(Boolean).join(', ');
               return (
-                <li key={entryKey(e)} className="bg-white border border-gray-200 rounded-2xl p-3.5 space-y-2">
+                <li key={entryKey(e)} className="bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-xs space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold ${style.badge}`}>
                       <style.Icon className="w-3.5 h-3.5" aria-hidden="true" />
@@ -264,7 +258,7 @@ export default function HistoryTab() {
                     <p className="text-sm font-black text-gray-900 font-mono break-all">{e.tracking_number}</p>
                     {e.order_number && <p className="text-[11px] text-gray-500">Order #{e.order_number}</p>}
                     <p className="flex items-center gap-1 text-xs text-gray-600">
-                      <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />
+                      <MapPin className="w-3.5 h-3.5 text-gray-500 shrink-0" aria-hidden="true" />
                       <span>{place || 'Destination unavailable'}</span>
                     </p>
                   </div>
@@ -276,7 +270,7 @@ export default function HistoryTab() {
                       {e.fee && <span className="font-black text-emerald-700">Earned +{formatPeso(e.fee)}</span>}
                       {e.cod_collected && (
                         <span className="inline-flex items-center gap-1 text-gray-700">
-                          <Banknote className="w-3.5 h-3.5 text-gray-400" aria-hidden="true" />
+                          <Banknote className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />
                           Cash collected {formatPeso(e.cod_collected)}
                         </span>
                       )}

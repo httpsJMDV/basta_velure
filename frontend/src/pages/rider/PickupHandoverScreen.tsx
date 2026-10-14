@@ -197,12 +197,12 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
             )}
 
             {result.hub ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
-                <p className="flex items-center gap-2 text-sm font-black text-blue-950">
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-2">
+                <p className="flex items-center gap-2 text-sm font-black text-gray-900">
                   <Truck className="w-4 h-4" aria-hidden="true" />
                   Take these to {result.hub.hub_name}
                 </p>
-                <p className="flex items-start gap-2 text-xs text-blue-900">
+                <p className="flex items-start gap-2 text-xs text-gray-700">
                   <MapPin className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                   <span>{result.hub.full_address}</span>
                 </p>
@@ -210,7 +210,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
                   href={mapsUrl(`${result.hub.hub_name}, ${result.hub.full_address}`)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-bold text-blue-700 hover:underline"
+                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-bold text-brand-red hover:underline"
                 >
                   <span>Open in Google Maps</span>
                   <ExternalLink className="w-4 h-4" aria-hidden="true" />
@@ -225,7 +225,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
             <button
               type="button"
               onClick={onDone}
-              className="w-full min-h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold"
+              className="w-full min-h-12 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold"
             >
               Done
             </button>
@@ -236,7 +236,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
             <section className="bg-white border border-gray-200 rounded-2xl p-4 space-y-2" aria-label="Seller">
               <p className="text-base font-black text-gray-900">{group.shop_name}</p>
               <p className="flex items-start gap-2 text-xs text-gray-600">
-                <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <MapPin className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
                 <span>{group.pickup_address.full_address}</span>
               </p>
               <div className="flex flex-wrap gap-x-4">
@@ -244,14 +244,14 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
                   href={`tel:${group.shop_phone}`}
                   className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-gray-900"
                 >
-                  <Phone className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                  <Phone className="w-4 h-4 text-gray-500" aria-hidden="true" />
                   {group.shop_phone}
                 </a>
                 <a
                   href={mapsUrl(group.pickup_address.full_address)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-blue-600"
+                  className="inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-brand-red"
                 >
                   <span>Open in Google Maps</span>
                   <ExternalLink className="w-4 h-4" aria-hidden="true" />
@@ -332,7 +332,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
               type="button"
               onClick={handleConfirm}
               disabled={busy || scanned.length === 0}
-              className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+              className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
             >
               {submitting && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
               <span>
