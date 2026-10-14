@@ -769,6 +769,14 @@ export interface Order {
   shipping_barangay_code?: string | null;
   notes?: string | null;
   created_at: string;
+  /** Feature 2.8: when delivered, when it will confirm itself, when it was completed. */
+  delivered_at?: string | null;
+  auto_complete_at?: string | null;
+  completed_at?: string | null;
+  /** True when the rider uploaded a delivery proof photo the buyer can view. */
+  delivery_proof_available?: boolean;
+  /** Set when the buyer has an open return request for this order. */
+  dispute?: { id: number; status: string } | null;
   items: OrderItem[];
   status_history?: OrderStatusHistory[];
 }
@@ -907,6 +915,8 @@ export interface SellerOrderEarningsItem {
   payout_status: string;
   order_date: string;
   delivered_date: string | null;
+  /** Feature 2.8: when this item's escrow releases; null until the order is COMPLETED. */
+  escrow_release_at?: string | null;
 }
 
 export interface PayoutRequest {
