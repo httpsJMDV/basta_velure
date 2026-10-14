@@ -24,6 +24,13 @@ import type {
   ModerationStatus,
   Conversation,
   ChatMessage,
+  RiderChatCounterpart,
+  RiderChatUnreadItem,
+  RiderThread,
+  RiderThreadsResponse,
+  RiderVehicleUpdate,
+  ThreadMessagesResult,
+  ThreadAdapter,
   ProductFilters,
   CatalogResponse,
   ProductDetail,
@@ -76,6 +83,11 @@ import type {
   RiderHistoryFilter,
   RiderHistoryResponse,
   HubDeliveriesOutResponse,
+  HubReportKind,
+  HubReportRiderSort,
+  HubReportRiders,
+  HubReportSortDirection,
+  HubReportSummary,
   HubDeliveriesFailedResponse,
   HubRescheduleResponse,
   HubReturnToSellerResponse,
@@ -1004,3 +1016,104 @@ export const getRiderHistoryApi = (params: {
       },
     })
     .then((r) => r.data);
+
+
+// ─── Hub reports (Feature 1.10) ───────────────────────────────────────────────
+
+export const getHubReportSummaryApi = (params: { from: string; to: string }) =>
+  http.get<{ data: HubReportSummary }>('/hub/reports/summary', { params }).then((r) => r.data.data);
+
+export const getHubReportRidersApi = (params: {
+  from: string;
+  to: string;
+  sort?: HubReportRiderSort;
+  direction?: HubReportSortDirection;
+}) => http.get<{ data: HubReportRiders }>('/hub/reports/riders', { params }).then((r) => r.data.data);
+
+/**
+ * Downloads a report as a CSV file. The API needs the bearer token, so a plain link cannot do it: the file is fetched
+ * as a blob and saved through a temporary link.
+ */
+export async function downloadHubReportApi(params: {
+  report: HubReportKind;
+  from: string;
+  to: string;
+  sort?: HubReportRiderSort;
+  direction?: HubReportSortDirection;
+}): Promise<void> {
+  let res;
+  try {
+    res = await http.get<Blob>('/hub/reports/export', { params, responseType: 'blob' });
+  } catch (err: unknown) {
+    // With responseType 'blob' an error body is a Blob too, so read the API's message out of it.
+    if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
+      let message = 'The export could not be created.';
+      try {
+        const body = JSON.parse(await err.response.data.text()) as { message?: string; errors?: Record<string, string[]> };
+        message = Object.values(body.errors ?? {}).flat()[0] ?? body.message ?? message;
+      } catch {
+        // keep the generic message
+      }
+      throw new Error(message);
+    }
+    throw err;
+  }
+
+  const disposition = String(res.headers['content-disposition'] ?? '');
+  const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? `hub-${params.report}-report.csv`;
+
+  const url = URL.createObjectURL(res.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Rider delivery chat and vehicle (Feature 2.10) ───────────────────────────
+
+export const getRiderChatThreadsApi = (params?: { per_page?: number; page?: number; unread_only?: boolean }) =>
+  http.get<RiderThreadsResponse>('/rider/chat/threads', { params }).then((r) => r.data);
+
+export const getRiderChatUnreadApi = () =>
+  http.get<{ data: RiderChatUnreadItem[]; meta: { unread_total: number } }>('/rider/chat/unread').then((r) => r.data);
+
+/** Opens (or finds) the rider's thread with one counterpart for a parcel. */
+export const openRiderChatThreadApi = (trackingNumber: string, counterpart: RiderChatCounterpart) =>
+  http
+    .post<{ data: RiderThread }>(`/rider/chat/parcels/${encodeURIComponent(trackingNumber)}/threads`, { counterpart })
+    .then((r) => r.data.data);
+
+export const updateRiderVehicleApi = (payload: RiderVehicleUpdate) =>
+  http
+    .put<{ message: string; data: RiderProfileData }>('/rider/vehicle', payload)
+    .then((r) => r.data);
+
+export const getHubChatThreadsApi = (params?: { per_page?: number; page?: number; unread_only?: boolean }) =>
+  http.get<RiderThreadsResponse>('/hub/chat/threads', { params }).then((r) => r.data);
+
+type ThreadEndpoints = { messages: string; read?: string };
+
+function threadAdapter(endpoints: ThreadEndpoints): ThreadAdapter {
+  return {
+    fetchMessages: (afterId) =>
+      http
+        .get<ThreadMessagesResult>(endpoints.messages, { params: afterId ? { after_id: afterId } : undefined })
+        .then((r) => r.data),
+    sendMessage: (body) => http.post<{ data: ChatMessage }>(endpoints.messages, { body }).then((r) => r.data.data),
+    markRead: endpoints.read ? () => http.post(endpoints.read as string).then(() => undefined) : undefined,
+  };
+}
+
+/** The rider's side of a thread. Fetching never marks read; markRead is called explicitly. */
+export const riderThreadAdapter = (threadId: number): ThreadAdapter =>
+  threadAdapter({ messages: `/rider/chat/threads/${threadId}/messages`, read: `/rider/chat/threads/${threadId}/read` });
+
+export const hubThreadAdapter = (threadId: number): ThreadAdapter =>
+  threadAdapter({ messages: `/hub/chat/threads/${threadId}/messages`, read: `/hub/chat/threads/${threadId}/read` });
+
+/** The buyer's or seller's side: the existing conversation endpoints, which mark read as they fetch. */
+export const conversationThreadAdapter = (threadId: number): ThreadAdapter =>
+  threadAdapter({ messages: `/conversations/${threadId}/messages` });

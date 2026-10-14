@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import {
   AlertCircle,
@@ -22,6 +23,8 @@ import type { RiderDeliveriesResponse, RiderDeliveryParcel, RiderDeliveryView } 
 import DeliveredSheet from './DeliveredSheet';
 import DeliveryCollectScreen from './DeliveryCollectScreen';
 import FailedSheet from './FailedSheet';
+import type { RiderOutletContext } from './RiderLayout';
+import RiderMessageControl from './RiderMessageControl';
 
 /** The stop the rider is recording an outcome for. */
 interface OutcomeTarget {
@@ -51,6 +54,7 @@ function telHref(phone: string): string {
 
 export default function RiderDeliveriesPage() {
   const { showToast } = useToast();
+  const { chat } = useOutletContext<RiderOutletContext>();
 
   const [view, setView] = useState<RiderDeliveryView>('assigned');
   const [state, setState] = useState<RiderDeliveriesResponse>(EMPTY);
@@ -334,10 +338,20 @@ export default function RiderDeliveriesPage() {
                 </h2>
                 <ul className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100">
                   {group.parcels.map((p) => (
-                    <li key={p.tracking_number} className="px-4 py-3 space-y-0.5">
-                      <p className="font-mono text-sm font-bold text-gray-900 break-all">{p.tracking_number}</p>
-                      <p className="text-xs text-gray-600">{p.recipient.name}</p>
-                      {p.item_summary && <p className="text-[11px] text-gray-500">{p.item_summary}</p>}
+                    <li key={p.tracking_number} className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="font-mono text-sm font-bold text-gray-900 break-all">{p.tracking_number}</p>
+                        <p className="text-xs text-gray-600">{p.recipient.name}</p>
+                        {p.item_summary && <p className="text-[11px] text-gray-500">{p.item_summary}</p>}
+                      </div>
+                      <RiderMessageControl
+                        trackingNumber={p.tracking_number}
+                        phase="delivery"
+                        unread={chat.byTracking[p.tracking_number] ?? 0}
+                        unreadByCounterpart={chat.byTrackingCounterpart[p.tracking_number]}
+                        onActivity={chat.refresh}
+                        className="shrink-0"
+                      />
                     </li>
                   ))}
                 </ul>
@@ -448,6 +462,14 @@ export default function RiderDeliveriesPage() {
                         )}
                       </button>
                     </div>
+
+                    <RiderMessageControl
+                      trackingNumber={p.tracking_number}
+                      phase="delivery"
+                      unread={chat.byTracking[p.tracking_number] ?? 0}
+                      unreadByCounterpart={chat.byTrackingCounterpart[p.tracking_number]}
+                      onActivity={chat.refresh}
+                    />
 
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <button

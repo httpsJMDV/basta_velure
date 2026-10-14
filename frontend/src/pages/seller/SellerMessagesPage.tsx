@@ -10,6 +10,8 @@ import {
   Paperclip,
   Smile,
   X,
+  Bike,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getEcho } from '../../lib/echo';
@@ -19,6 +21,8 @@ import AvatarWithFallback from '../../components/ui/AvatarWithFallback';
 import ChatAttachmentBubble from '../../components/chat/ChatAttachmentBubble';
 import EmojiPickerPopover from '../../components/chat/EmojiPickerPopover';
 import ChatAttachmentModal from '../../components/chat/ChatAttachmentModal';
+import RiderThreadPane from '../../components/chat/RiderThreadPane';
+import { isRiderThread } from '../../lib/riderThread';
 import {
   getConversationsApi,
   getConversationMessagesApi,
@@ -30,6 +34,7 @@ const FILTER_OPTIONS = [
   { value: 'all', label: 'All Conversations' },
   { value: 'buyer_seller', label: 'Buyer Inquiries' },
   { value: 'seller_admin', label: 'Admin Support' },
+  { value: 'rider_seller', label: 'Delivery Riders' },
   { value: 'unread', label: 'Unread Messages' },
 ];
 
@@ -68,11 +73,11 @@ export default function SellerMessagesPage() {
     }
   }, [selectedImage]);
 
-  const loadConversations = useCallback(async (selectId?: number) => {
+  const loadConversations = useCallback(async (selectId?: number, silent = false) => {
     try {
-      setLoadingList(true);
+      if (!silent) setLoadingList(true);
       const params: any = { scope: 'seller' };
-      if (filterType === 'buyer_seller' || filterType === 'seller_admin') {
+      if (filterType === 'buyer_seller' || filterType === 'seller_admin' || filterType === 'rider_seller') {
         params.type = filterType;
       } else if (filterType === 'unread') {
         params.unread_only = true;
@@ -96,7 +101,7 @@ export default function SellerMessagesPage() {
     } catch {
       // ignore
     } finally {
-      setLoadingList(false);
+      if (!silent) setLoadingList(false);
     }
   }, [filterType, searchQuery]);
 
@@ -444,8 +449,11 @@ export default function SellerMessagesPage() {
               </div>
             ) : (
               conversations.map((c) => {
+                const isRider = isRiderThread(c);
                 const isSupport = c.type === 'seller_admin';
-                const buyerName = isSupport
+                const buyerName = isRider
+                  ? 'Delivery rider'
+                  : isSupport
                   ? 'Loved-IT Partner Support'
                   : c.buyer
                   ? `${c.buyer.first_name} ${c.buyer.last_name}`
@@ -465,13 +473,19 @@ export default function SellerMessagesPage() {
                     }`}
                   >
                     <div className="relative shrink-0">
-                      <AvatarWithFallback
-                        src={avatar}
-                        alt={buyerName}
-                        role={isSupport ? 'admin' : 'buyer'}
-                        fallbackInitials={isSupport ? 'CS' : buyerName}
-                        className="w-11 h-11 rounded-2xl"
-                      />
+                      {isRider ? (
+                        <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                          <Bike className="w-5 h-5" aria-hidden="true" />
+                        </div>
+                      ) : (
+                        <AvatarWithFallback
+                          src={avatar}
+                          alt={buyerName}
+                          role={isSupport ? 'admin' : 'buyer'}
+                          fallbackInitials={isSupport ? 'CS' : buyerName}
+                          className="w-11 h-11 rounded-2xl"
+                        />
+                      )}
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white absolute -bottom-0.5 -right-0.5" />
                     </div>
 
@@ -483,16 +497,28 @@ export default function SellerMessagesPage() {
 
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${
-                          isSupport ? 'bg-rose-50 text-brand-red border border-rose-100' : 'bg-gray-100 text-gray-700'
+                          isSupport ? 'bg-rose-50 text-brand-red border border-rose-100' : isRider ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-gray-100 text-gray-700'
                         }`}>
-                          {isSupport ? 'Loved-IT Support' : 'Buyer Inquiry'}
+                          {isSupport ? 'Loved-IT Support' : isRider ? 'Pickup' : 'Buyer Inquiry'}
                         </span>
+                        {isRider && c.is_closed && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-gray-100 text-gray-600">
+                            <Lock className="w-2.5 h-2.5" aria-hidden="true" />
+                            Closed
+                          </span>
+                        )}
                         {c.status === 'resolved' && (
                           <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-emerald-50 text-emerald-700">
                             Resolved
                           </span>
                         )}
                       </div>
+
+                      {isRider && c.parcel && (
+                        <p className="text-[10px] text-blue-700 font-mono font-semibold truncate mb-0.5">
+                          {c.parcel.tracking_number}
+                        </p>
+                      )}
 
                       {c.product && (
                         <p className="text-[10px] text-brand-red font-semibold truncate flex items-center gap-1 mb-0.5">
@@ -537,6 +563,14 @@ export default function SellerMessagesPage() {
                 Communicate directly with your buyers and provide prompt customer assistance.
               </p>
             </div>
+          ) : isRiderThread(selectedConversation) ? (
+            user ? (
+              <RiderThreadPane
+                conversation={selectedConversation}
+                currentUserId={user.id}
+                onActivity={() => void loadConversationsRef.current(selectedConvRef.current?.id, true)}
+              />
+            ) : null
           ) : (
             <>
               {/* Header */}

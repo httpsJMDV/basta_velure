@@ -13,6 +13,8 @@ import {
   X,
   Paperclip,
   Smile,
+  Bike,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useChat } from '../../hooks/useChat';
@@ -21,6 +23,8 @@ import AvatarWithFallback from '../../components/ui/AvatarWithFallback';
 import ChatAttachmentBubble from '../../components/chat/ChatAttachmentBubble';
 import EmojiPickerPopover from '../../components/chat/EmojiPickerPopover';
 import ChatAttachmentModal from '../../components/chat/ChatAttachmentModal';
+import RiderThreadPane from '../../components/chat/RiderThreadPane';
+import { isRiderThread } from '../../lib/riderThread';
 
 export default function BuyerMessagesPage() {
   const { user } = useAuth();
@@ -35,10 +39,11 @@ export default function BuyerMessagesPage() {
     selectConversation,
     openChatWithSupport,
     sendMessage,
+    refreshConversations,
   } = useChat();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'sellers' | 'support'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'sellers' | 'delivery' | 'support'>('all');
   const [inputBody, setInputBody] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttachModal, setShowAttachModal] = useState(false);
@@ -74,6 +79,7 @@ export default function BuyerMessagesPage() {
 
   const filteredConversations = conversations.filter((c) => {
     if (activeTab === 'sellers' && c.type !== 'buyer_seller') return false;
+    if (activeTab === 'delivery' && c.type !== 'rider_buyer') return false;
     if (activeTab === 'support' && c.type !== 'buyer_admin') return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -215,7 +221,7 @@ export default function BuyerMessagesPage() {
 
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs">
-              {(['all', 'sellers', 'support'] as const).map((t) => (
+              {(['all', 'sellers', 'delivery', 'support'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
@@ -258,8 +264,9 @@ export default function BuyerMessagesPage() {
             </div>
           ) : (
             filteredConversations.map((c) => {
+              const isRider = isRiderThread(c);
               const isSupport = c.type === 'buyer_admin';
-              const name = isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
+              const name = isRider ? 'Delivery rider' : isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
               const avatar = isSupport ? null : c.seller?.shop_logo || c.seller?.avatar_url;
               const isSelected = activeConversation?.id === c.id;
               const hasUnread = c.unread > 0;
@@ -275,13 +282,19 @@ export default function BuyerMessagesPage() {
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <AvatarWithFallback
-                      src={avatar}
-                      alt={name}
-                      role={isSupport ? 'admin' : 'seller'}
-                      fallbackInitials={isSupport ? 'CS' : name}
-                      className="w-11 h-11 rounded-2xl"
-                    />
+                    {isRider ? (
+                      <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Bike className="w-5 h-5" aria-hidden="true" />
+                      </div>
+                    ) : (
+                      <AvatarWithFallback
+                        src={avatar}
+                        alt={name}
+                        role={isSupport ? 'admin' : 'seller'}
+                        fallbackInitials={isSupport ? 'CS' : name}
+                        className="w-11 h-11 rounded-2xl"
+                      />
+                    )}
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white absolute -bottom-0.5 -right-0.5" />
                   </div>
 
@@ -290,6 +303,18 @@ export default function BuyerMessagesPage() {
                       <span className="text-xs font-bold text-gray-900 truncate">{name}</span>
                       <span className="text-[10px] text-gray-400 shrink-0">{formatTimeAgo(c.last_message_at)}</span>
                     </div>
+
+                    {isRider && c.parcel && (
+                      <p className="text-[10px] text-blue-700 font-semibold truncate flex items-center gap-1">
+                        <span className="font-mono">{c.parcel.tracking_number}</span>
+                        {c.is_closed && (
+                          <span className="inline-flex items-center gap-0.5 text-gray-500">
+                            <Lock className="w-3 h-3" aria-hidden="true" />
+                            Closed
+                          </span>
+                        )}
+                      </p>
+                    )}
 
                     {c.product && (
                       <p className="text-[10px] text-brand-red font-semibold truncate flex items-center gap-1">
@@ -335,6 +360,14 @@ export default function BuyerMessagesPage() {
               Contact Customer Support
             </button>
           </div>
+        ) : isRiderThread(activeConversation) ? (
+          user ? (
+            <RiderThreadPane
+              conversation={activeConversation}
+              currentUserId={user.id}
+              onActivity={() => void refreshConversations()}
+            />
+          ) : null
         ) : (
           <>
             {/* Header */}

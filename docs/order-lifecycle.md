@@ -333,3 +333,29 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - **Failed attempts.** Each `DELIVERY_FAILED` log is its own history entry. The reason label is read from the log's `CODE: label` prefix and mapped through `DeliveryFailureReason`; the rider's free-text note is never returned.
 - **Backfill.** `php artisan riders:backfill-earnings` creates the missing rows for deliveries made before 2.9, dated at the parcel's own delivery time and priced at the current fee. Run it once after deploying; it is safe to repeat.
 - Contract: `docs/api/rider-earnings.md`.
+
+
+---
+
+## 17. Rider Delivery Chat Windows (Feature 2.10)
+
+**No order, parcel or money change.** Chat only reads the parcel's status; it never writes it.
+
+- **Decision: a rider thread is open only while the parcel is active for that rider.** Pickup phase: `READY_FOR_PICKUP` (accepted by the rider, `pickup_rider_id`) and `PICKED_UP`. Delivery phase: `ASSIGNED_TO_RIDER` and `OUT_FOR_DELIVERY` (`assigned_rider_id`). Whether a thread is open is computed from the parcel on every request, never stored, so a status change closes it at once.
+- **Decision: who the rider can talk to depends on the phase.** The seller during pickup, the buyer during delivery, the hub in both. A seller thread therefore closes when the parcel enters delivery.
+- **Decision: after the parcel finishes the thread is read-only.** `DELIVERED`, `DELIVERY_FAILED`, `RETURNED` (and any other status outside the active ones, such as `AT_SORTING_CENTER`) leave the thread readable but refuse sends. This protects the buyer's privacy once the delivery is done.
+- **Reschedules.** A failed delivery that the hub reschedules to the same rider (`ASSIGNED_TO_RIDER` again) reopens the same thread. If it goes to a different rider, the first rider's thread stays closed and the new rider starts their own.
+- **Vehicle edits** (type and plate) are immediate and do not touch the rider's approval or documents. This is a known gap; see `docs/api/rider-chat-account.md`.
+- Contract: `docs/api/rider-chat-account.md`.
+
+---
+
+## 18. Hub Reports (Feature 1.10)
+
+**Read-only. No order, parcel, money or status change.** Reports only read timestamps the lifecycle already writes.
+
+- **Decision: every event is counted by its own timestamp** (`scanned_in_at`, `sorted_at`, `assigned_at`, `delivered_at`, `returned_at`, and `delivery_logs.logged_at` for failed attempts), in inclusive Asia/Manila days.
+- **Decision: on time means delivered within `logistics.delivery_sla_hours` (default 48) of the hub receiving the parcel.**
+- **Decision: a rider's deliveries and failed attempts come from `delivery_logs`**, one row per outcome with the rider who reported it, never from `parcels.assigned_rider_id`. A rider who fails a parcel keeps the failed attempt even when another rider delivers it later.
+- **Known gap.** A parcel an admin marks delivered directly has no `delivered_at` and no delivery log, so reports cannot count it (they report how many exist). The fix would be to stamp `delivered_at` in `OrderStateMachine` for every actor.
+- Contract and full definitions: `docs/api/logistics-hub-reports.md`.

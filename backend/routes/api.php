@@ -32,8 +32,11 @@ use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
 use App\Http\Controllers\Api\V1\SortingCenterDashboardController;
 use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
+use App\Http\Controllers\Api\V1\HubChatController;
+use App\Http\Controllers\Api\V1\RiderChatController;
 use App\Http\Controllers\Api\V1\HubDeliveryController;
 use App\Http\Controllers\Api\V1\HubDispatchController;
+use App\Http\Controllers\Api\V1\HubReportController;
 use App\Http\Controllers\Api\V1\HubParcelIntakeController;
 use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubSortingController;
@@ -337,6 +340,18 @@ Route::prefix('v1')->group(function () {
             Route::get('/dispatch/batches/{barangay_code}/riders',       [HubDispatchController::class, 'batchRiders']);
             Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
 
+            // Hub reports (Feature 1.10)
+            Route::get('/reports/summary', [HubReportController::class, 'summary']);
+            Route::get('/reports/riders',  [HubReportController::class, 'riders']);
+            Route::get('/reports/export',  [HubReportController::class, 'export']);
+
+            // Rider delivery chat (Feature 2.10): riders start threads, the hub lists, reads and replies
+            Route::get('/chat/threads',                              [HubChatController::class, 'index']);
+            Route::get('/chat/threads/{conversation}',               [HubChatController::class, 'show']);
+            Route::get('/chat/threads/{conversation}/messages',      [HubChatController::class, 'messages']);
+            Route::post('/chat/threads/{conversation}/messages',     [HubChatController::class, 'send']);
+            Route::post('/chat/threads/{conversation}/read',         [HubChatController::class, 'markRead']);
+
             // Hub rider vetting
             Route::get('/riders',                         [HubRiderController::class, 'index']);
             Route::get('/riders/{rider}',                 [HubRiderController::class, 'show']);
@@ -379,6 +394,16 @@ Route::prefix('v1')->group(function () {
             Route::get('/deliveries/failure-reasons', [RiderDeliveryController::class, 'failureReasons']);
             Route::post('/deliveries/{tracking}/delivered', [RiderDeliveryController::class, 'delivered']);
             Route::post('/deliveries/{tracking}/failed', [RiderDeliveryController::class, 'failed']);
+
+            // Delivery chat and vehicle (Feature 2.10). The seller and buyer use /conversations; the hub uses /hub/chat.
+            Route::get('/chat/threads', [RiderChatController::class, 'index']);
+            Route::get('/chat/unread', [RiderChatController::class, 'unread']);
+            Route::post('/chat/parcels/{tracking}/threads', [RiderChatController::class, 'open']);
+            Route::get('/chat/threads/{conversation}', [RiderChatController::class, 'show']);
+            Route::get('/chat/threads/{conversation}/messages', [RiderChatController::class, 'messages']);
+            Route::post('/chat/threads/{conversation}/messages', [RiderChatController::class, 'send']);
+            Route::post('/chat/threads/{conversation}/read', [RiderChatController::class, 'markRead']);
+            Route::put('/vehicle', [RiderController::class, 'updateVehicle']);
         });
     });
 });

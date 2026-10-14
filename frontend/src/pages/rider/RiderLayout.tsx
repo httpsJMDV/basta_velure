@@ -16,6 +16,7 @@ import {
   Car,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useRiderChatUnread, type RiderChatUnread } from '../../hooks/useRiderChatUnread';
 import { getRiderMeApi, logoutApi } from '../../api/client';
 import type { RiderProfileData } from '../../types';
 import LovedItLogo from '../../components/LovedItLogo';
@@ -26,6 +27,10 @@ export interface RiderOutletContext {
   loading: boolean;
   error: string | null;
   refreshRider: () => void;
+  /** Unread delivery-chat messages, polled once here and shared with the pages. */
+  chat: RiderChatUnread;
+  logout: () => Promise<void>;
+  loggingOut: boolean;
 }
 
 interface NavTab {
@@ -42,6 +47,19 @@ const NAV_TABS: NavTab[] = [
   { icon: UserIcon, label: 'Account', to: '/rider/account' },
 ];
 
+function UnreadBadge({ count, floating = false }: { count: number; floating?: boolean }) {
+  return (
+    <span
+      className={`min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center ${
+        floating ? 'absolute -top-1.5 -right-2' : 'ml-auto'
+      }`}
+    >
+      <span aria-hidden="true">{count > 9 ? '9+' : count}</span>
+      <span className="sr-only">{count} unread messages</span>
+    </span>
+  );
+}
+
 export default function RiderLayout() {
   const { user, clearAuth } = useAuth();
   const location = useLocation();
@@ -53,6 +71,7 @@ export default function RiderLayout() {
   const [error, setError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [statusRevokedMessage, setStatusRevokedMessage] = useState<string | null>(null);
+  const chat = useRiderChatUnread(!statusRevokedMessage);
 
   // Fetch /rider/me
   const fetchRiderProfile = useCallback(async () => {
@@ -212,6 +231,7 @@ export default function RiderLayout() {
               >
                 <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-gray-400'}`} />
                 <span className="truncate">{tab.label}</span>
+                {tab.to === '/rider/account' && chat.total > 0 && <UnreadBadge count={chat.total} />}
               </Link>
             );
           })}
@@ -293,7 +313,11 @@ export default function RiderLayout() {
 
         {/* Page Content Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Outlet context={{ riderData, loading, error, refreshRider: fetchRiderProfile }} />
+          <Outlet
+            context={
+              { riderData, loading, error, refreshRider: fetchRiderProfile, chat, logout: handleLogout, loggingOut } satisfies RiderOutletContext
+            }
+          />
         </main>
       </div>
 
@@ -315,7 +339,10 @@ export default function RiderLayout() {
                   : 'text-gray-400 hover:text-gray-700 font-medium'
               }`}
             >
-              <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110 text-blue-600' : 'text-gray-400'}`} />
+              <span className="relative">
+                <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110 text-blue-600' : 'text-gray-400'}`} />
+                {tab.to === '/rider/account' && chat.total > 0 && <UnreadBadge count={chat.total} floating />}
+              </span>
               <span className="text-[10px] mt-0.5 tracking-tight">{tab.label}</span>
             </Link>
           );
