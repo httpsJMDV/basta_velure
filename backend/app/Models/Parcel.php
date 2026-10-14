@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -90,6 +91,20 @@ class Parcel extends Model
             'recipient_snapshot'      => 'array',
             'cod_amount'              => 'decimal:2',
         ];
+    }
+
+    /**
+     * Scope to parcels scanned in during the current Philippine calendar day (Asia/Manila),
+     * compared against UTC-stored timestamps. Shared by the hub dashboard metrics and hub intake.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     */
+    public function scopeScannedInToday($query)
+    {
+        $startOfDayUtc = Carbon::now('Asia/Manila')->startOfDay()->utc();
+        $endOfDayUtc = Carbon::now('Asia/Manila')->endOfDay()->utc();
+
+        return $query->whereBetween('scanned_in_at', [$startOfDayUtc, $endOfDayUtc]);
     }
 
     public function declines(): HasMany

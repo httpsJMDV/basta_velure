@@ -312,6 +312,45 @@ export interface HubDashboardMetrics {
   };
 }
 
+// ─── Hub Parcel Intake (Feature 1.6) ───────────────────────────────────────────
+
+export interface HubParcelRecord {
+  tracking_number: string;
+  order_number: string | null;
+  status: string;
+  shop_name: string;
+  destination_barangay: { code: string | null; name: string | null };
+  pickup_rider: { name: string; plate_number: string | null } | null;
+  picked_up_at: string | null;
+  scanned_in_at: string | null;
+  /** Present on lookup and receive responses only. */
+  recipient?: {
+    name: string;
+    address: { street: string; barangay: string; city: string; province: string };
+  };
+}
+
+export interface HubParcelLookupResponse {
+  data: HubParcelRecord;
+}
+
+export interface HubParcelReceiveResponse {
+  message: string;
+  data: HubParcelRecord;
+}
+
+export interface HubParcelListResponse {
+  data: HubParcelRecord[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+  };
+}
+
 export interface HubDashboardMetricsResponse {
   data: HubDashboardMetrics;
 }

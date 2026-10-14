@@ -224,3 +224,14 @@ Only the rider confirms handover. There is no seller-side confirmation step. The
 
 ### Out of scope
 Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about delivery (2.6 onward).
+
+---
+
+## 9. Hub Parcel Intake (Feature 1.6)
+
+- A hub worker scans or types the tracking number (`GET /api/v1/hub/parcels/{tracking}` to look up, `POST /api/v1/hub/parcels/{tracking}/receive` to receive). Receiving moves the order `PICKED_UP → AT_SORTING_CENTER` through `OrderStateMachine` with actor `hub`; the parcel status follows through the existing sync. It also sets `parcels.scanned_in_at`.
+- A parcel belongs to a hub through `parcels.sorting_center_id`, set when that hub's rider accepts the pickup (2.4). Other hubs get `404`. A parcel still `READY_FOR_PICKUP` returns `409`, and a repeat scan returns `409` with the original `scanned_in_at`.
+- `scanned_in_at` drives the dashboard `inbound_today` metric (Asia/Manila day); `in_sorting` counts parcels in `AT_SORTING_CENTER`. Both start counting real numbers with this feature.
+- Lists: `GET /api/v1/hub/intake/expected` (PICKED_UP, awaiting scan) and `GET /api/v1/hub/intake/received-today`.
+- Out of scope: sorting by area (1.7), dispatch (1.8) and delivery.
+- Contract: `docs/api/logistics-hub-intake.md`.

@@ -17,6 +17,7 @@ import RiderPlaceholderPage from './pages/rider/RiderPlaceholderPage';
 import { Truck, Wallet, User as UserIcon } from 'lucide-react';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
+import HubIntakePage from './pages/hub/HubIntakePage';
 import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
 import HubRidersPage from './pages/hub/HubRidersPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
@@ -347,15 +348,7 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/hub/dashboard" replace />} />
         <Route path="dashboard" element={<HubDashboardPage />} />
-        <Route
-          path="intake"
-          element={
-            <HubPlaceholderPage
-              title="Parcel Intake"
-              subtitle="Barcode and QR intake scanning for arriving merchant packages."
-            />
-          }
-        />
+        <Route path="intake" element={<HubIntakePage />} />
         <Route
           path="sorting"
           element={
