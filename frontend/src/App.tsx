@@ -14,8 +14,9 @@ import RiderLayout from './pages/rider/RiderLayout';
 import RiderDashboardPage from './pages/rider/RiderDashboardPage';
 import RiderDeliveriesPage from './pages/rider/RiderDeliveriesPage';
 import RiderPickupsPage from './pages/rider/RiderPickupsPage';
+import RiderEarningsPage from './pages/rider/RiderEarningsPage';
 import RiderPlaceholderPage from './pages/rider/RiderPlaceholderPage';
-import { Wallet, User as UserIcon } from 'lucide-react';
+import { User as UserIcon } from 'lucide-react';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubIntakePage from './pages/hub/HubIntakePage';
@@ -381,17 +382,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<RiderDashboardPage />} />
         <Route path="pickups" element={<RiderPickupsPage />} />
         <Route path="deliveries" element={<RiderDeliveriesPage />} />
-        <Route
-          path="earnings"
-          element={
-            <RiderPlaceholderPage
-              inLayout
-              title="Courier Earnings"
-              subtitle="Delivery compensation, tip breakdown, and payout remittance history in Feature 2.6."
-              icon={Wallet}
-            />
-          }
-        />
+        <Route path="earnings" element={<RiderEarningsPage />} />
         <Route
           path="account"
           element={

@@ -305,6 +305,11 @@ class OrderStateMachine
         //    DELIVERED: record the delivery time only. Funds stay in escrow (pending_release).
         if ($toStatus === OrderStatus::DELIVERED->value) {
             OrderItem::where('order_id', $order->id)->update(['delivered_at' => now()]);
+
+            // Feature 2.9: the rider earns a flat fee for the delivery, recorded now (not at the buyer's
+            // confirmation, and never clawed back by a later return). It adds a rider_earnings row and
+            // touches no buyer, seller or platform money. Idempotent, whichever actor triggered DELIVERED.
+            app(RiderEarningsRecorder::class)->recordForDeliveredOrder($order);
         }
 
         //    COMPLETED (by the buyer, the system's auto-complete, or an admin): start the hold. Each item

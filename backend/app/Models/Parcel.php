@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -201,5 +202,11 @@ class Parcel extends Model
     public function earnings(): HasMany
     {
         return $this->hasMany(RiderEarning::class, 'parcel_id');
+    }
+
+    /** The single earnings row this parcel produced for its rider (Feature 2.9), if it was delivered. */
+    public function earning(): HasOne
+    {
+        return $this->hasOne(RiderEarning::class, 'parcel_id');
     }
 }

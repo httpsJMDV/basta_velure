@@ -314,3 +314,22 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - Buyer status grouping: `DELIVERED` is in To Receive, `COMPLETED` is in To Review.
 - Out of scope: refunds for returned or cancelled orders, and the review feature (not built yet).
 - Contract: `docs/api/buyer-confirm-receipt.md`.
+
+---
+
+## 16. Rider Earnings and Delivery History (Feature 2.9)
+
+**No buyer, seller or platform money changes.** This only records and reports what a rider has earned.
+
+- **Decision: flat fee per delivered parcel.** `config('rider.delivery_fee')` (env `RIDER_DELIVERY_FEE`, default `50.00`). No distance, weight or tips.
+- **Decision: the fee is a snapshot.** It is copied onto the `rider_earnings` row when the row is created, so changing the setting never rewrites history.
+- **Decision: created at `DELIVERED`, by any actor.** `OrderStateMachine` calls `RiderEarningsRecorder` inside its transaction when an order enters `DELIVERED` (rider, hub or admin). It is idempotent: a unique index on `rider_earnings.parcel_id` allows one row per parcel, and entering `DELIVERED` again (a rejected dispute) adds nothing. A parcel with no assigned rider earns nobody anything.
+- **Decision: no clawback.** A later return or dispute does not remove the fee. A failed delivery earns nothing.
+- **Decision: no payouts to riders.** There is no remittance or settlement; earnings are a record and a report.
+- **Time.** Reports use Asia/Manila. Weeks run Monday to Sunday. Period bounds are computed in Manila time and compared in UTC, start inclusive and end exclusive.
+- **Money.** Decimal strings, summed in SQL or in integer centavos, never floats. The average per delivery is rounded half up.
+- **How RETURNED history is derived.** `RETURNED` is never written to `delivery_logs` (the hub's return-to-seller action does not create a log), so the history reads it from the parcel: status `RETURNED`, `returned_at` set (only that hub action sets it) and `assigned_rider_id` equal to the rider. It is credited to the last assigned rider at `returned_at`. A seller accepting a buyer return also ends in `RETURNED` but has no `returned_at`, so it is not a delivery-history entry.
+- **Admin-delivered parcels.** They have no rider delivery log, so the history's delivered entries are built from the earnings rows instead, which guarantees the fee is shown.
+- **Failed attempts.** Each `DELIVERY_FAILED` log is its own history entry. The reason label is read from the log's `CODE: label` prefix and mapped through `DeliveryFailureReason`; the rider's free-text note is never returned.
+- **Backfill.** `php artisan riders:backfill-earnings` creates the missing rows for deliveries made before 2.9, dated at the parcel's own delivery time and priced at the current fee. Run it once after deploying; it is safe to repeat.
+- Contract: `docs/api/rider-earnings.md`.
