@@ -268,3 +268,16 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - The rider's list is scoped to `assigned_rider_id`, so it always matches what the hub dispatched (1.8). Unlike hub endpoints, it includes the recipient phone and COD amount, because only the assigned rider can read it.
 - Out of scope: delivered and failed outcomes (2.7), buyer confirmation (2.8), earnings (2.9).
 - Contract: `docs/api/rider-deliveries.md`.
+
+---
+
+## 13. Rider Delivery Outcomes (Feature 2.7)
+
+- From the Out for delivery list, the rider marks one stop **Delivered** (`POST /api/v1/rider/deliveries/{tracking}/delivered`) or **Failed** (`POST .../failed`). Both go through `OrderStateMachine` with actor `rider`: `OUT_FOR_DELIVERY → DELIVERED` and `OUT_FOR_DELIVERY → DELIVERY_FAILED`. The parcel status follows the existing sync.
+- **Delivered** requires a photo proof, stored on the private disk (never public), and for a COD parcel a cash confirmation. The amount is read from the parcel, never from the client. It records `delivered_at`, `delivery_proof_path`, `received_by` and `cod_collected_at`, and a `delivery_logs` row.
+- **Failed** requires a reason from a single enum (`DeliveryFailureReason`); only `OTHER` also requires a note. It records `failed_at`, `failure_reason`, `failure_note`, increments `delivery_attempts`, and writes a `delivery_logs` row. The history note carries only the reason label, because buyers can read it.
+- **Escrow is unchanged**: the existing release at `DELIVERED` (order items' payout `available`) still happens exactly as before. **It still releases at `DELIVERED` until Feature 2.8** moves it to `COMPLETED`. A failed delivery releases nothing.
+- **Reschedule and return-to-seller are hub actions in Feature 1.9.** After a failure the parcel stays assigned to the rider; the hub decides what happens next (`DELIVERY_FAILED → ASSIGNED_TO_RIDER` for another attempt, or `→ RETURNED`).
+- Out of scope: the hub's failure triage (1.9), buyer confirmation (2.8), earnings and history (2.9).
+- `GET /api/v1/parcels/{tracking}/delivery-proof` streams the photo to the assigned rider, the parcel's hub, the order's seller, the order's buyer and admins only.
+- Contract: `docs/api/rider-delivery-outcomes.md`.

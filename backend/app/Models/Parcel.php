@@ -28,6 +28,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon|null $sorted_at
  * @property \Carbon\Carbon|null $assigned_at
  * @property \Carbon\Carbon|null $out_for_delivery_at
+ * @property \Carbon\Carbon|null $delivered_at
+ * @property string|null $delivery_proof_path
+ * @property string|null $received_by
+ * @property \Carbon\Carbon|null $cod_collected_at
+ * @property \Carbon\Carbon|null $failed_at
+ * @property string|null $failure_reason
+ * @property string|null $failure_note
+ * @property int $delivery_attempts
  * @property \Carbon\Carbon|null $created_at
  * @property \Carbon\Carbon|null $updated_at
  * @property \Carbon\Carbon|null $deleted_at
@@ -84,6 +92,14 @@ class Parcel extends Model
         'sorted_at',
         'assigned_at',
         'out_for_delivery_at',
+        'delivered_at',
+        'delivery_proof_path',
+        'received_by',
+        'cod_collected_at',
+        'failed_at',
+        'failure_reason',
+        'failure_note',
+        'delivery_attempts',
     ];
 
     protected function casts(): array
@@ -93,6 +109,10 @@ class Parcel extends Model
             'sorted_at'               => 'datetime',
             'assigned_at'             => 'datetime',
             'out_for_delivery_at'     => 'datetime',
+            'delivered_at'            => 'datetime',
+            'cod_collected_at'        => 'datetime',
+            'failed_at'               => 'datetime',
+            'delivery_attempts'       => 'integer',
             'ready_at'                => 'datetime',
             'pickup_accepted_at'      => 'datetime',
             'picked_up_at'            => 'datetime',

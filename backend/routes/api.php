@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubSortingController;
 use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
+use App\Http\Controllers\Api\V1\DeliveryProofController;
 use App\Http\Controllers\Api\V1\RiderDeliveryController;
 use App\Http\Controllers\Api\V1\RiderPickupController;
 use Illuminate\Support\Facades\RateLimiter;
@@ -84,6 +85,9 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         // Broadcast authentication for Echo / WebSockets
         \Illuminate\Support\Facades\Broadcast::routes();
+
+        // Delivery proof photo (Feature 2.7): rider, hub, seller, buyer and admin only; authorization is in the controller
+        Route::get('/parcels/{tracking}/delivery-proof', [DeliveryProofController::class, 'show']);
 
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
@@ -354,6 +358,11 @@ Route::prefix('v1')->group(function () {
             // Delivery console (Feature 2.6)
             Route::get('/deliveries', [RiderDeliveryController::class, 'index']);
             Route::post('/deliveries/start', [RiderDeliveryController::class, 'start']);
+
+            // Delivery outcomes (Feature 2.7)
+            Route::get('/deliveries/failure-reasons', [RiderDeliveryController::class, 'failureReasons']);
+            Route::post('/deliveries/{tracking}/delivered', [RiderDeliveryController::class, 'delivered']);
+            Route::post('/deliveries/{tracking}/failed', [RiderDeliveryController::class, 'failed']);
         });
     });
 });
