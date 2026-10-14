@@ -443,6 +443,32 @@ export interface RiderStartDeliveryResponse {
   tracking_numbers: string[];
 }
 
+// ─── Rider Delivery Outcomes (Feature 2.7) ─────────────────────────────────────
+
+export interface RiderFailureReason {
+  code: string;
+  label: string;
+  requires_note: boolean;
+}
+
+export interface RiderFailureReasonsResponse {
+  data: RiderFailureReason[];
+}
+
+export interface RiderDeliveredResponse {
+  message: string;
+  tracking_number: string;
+  delivered_at: string;
+  cod_collected: boolean;
+}
+
+export interface RiderFailedResponse {
+  message: string;
+  tracking_number: string;
+  reason: { code: string; label: string };
+  delivery_attempts: number;
+}
+
 // ─── Hub Dispatch (Feature 1.8) ────────────────────────────────────────────────
 
 export interface HubDispatchBatch {
