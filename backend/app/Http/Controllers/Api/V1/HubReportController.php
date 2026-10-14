@@ -35,6 +35,7 @@ class HubReportController extends Controller
      */
     public function riders(HubReportRequest $request): JsonResponse
     {
+        $hub = $this->hub($request);
         $range = $this->reports->range($request->validated('from'), $request->validated('to'));
         $sort = $request->validated('sort') ?? 'delivered';
         $direction = $request->validated('direction');
@@ -45,7 +46,8 @@ class HubReportController extends Controller
                 'sla_hours' => $this->reports->slaHours(),
                 'sort'      => $sort,
                 'direction' => $direction ?? ($sort === 'name' ? 'asc' : 'desc'),
-                'riders'    => $this->reports->riders($this->hub($request), $range, $sort, $direction),
+                'riders'    => $this->reports->riders($hub, $range, $sort, $direction),
+                'unattributed_deliveries' => $this->reports->unattributedDeliveries($hub, $range),
             ],
         ]);
     }

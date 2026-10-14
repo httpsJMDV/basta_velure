@@ -18,7 +18,8 @@ use Illuminate\Support\Facades\DB;
  * timestamp falling in that interval.
  *
  * Attribution (one rule for every rider figure): the rider of an outcome is the rider on that outcome's
- * delivery_logs row. A failed attempt is a DELIVERY_FAILED row (one per attempt, so a parcel that fails twice counts
+ * delivery_logs row. (An administrator marking an order delivered writes no log, so that delivery is counted in the hub
+ * totals but is nobody's: see unattributedDeliveries().) A failed attempt is a DELIVERY_FAILED row (one per attempt, so a parcel that fails twice counts
  * twice, for the rider who made each attempt). A delivery is the parcel's DELIVERED row. Neither follows
  * parcels.assigned_rider_id, which moves on when a parcel is rescheduled to someone else.
  */
@@ -213,6 +214,26 @@ class HubReportService
         })->all();
 
         return $this->sortRiders($rows, $sort, $direction);
+    }
+
+    /**
+     * Deliveries in the range that no rider reported: the parcel has a delivery time but no DELIVERED log, which is
+     * what an administrator marking an order delivered leaves behind. They are in the hub's totals but in no rider's
+     * row, so this number is what lets the rider table add up to the totals.
+     *
+     * @param array{from: string, to: string, days: int, start: string, end: string} $range
+     */
+    public function unattributedDeliveries(SortingCenter $hub, array $range): int
+    {
+        return $this->between($this->parcels($hub, 'p'), 'p.delivered_at', $range)
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('delivery_logs as l')
+                    ->whereColumn('l.parcel_id', 'p.id')
+                    ->where('l.outcome', DeliveryLog::OUTCOME_DELIVERED)
+                    ->whereNull('l.deleted_at');
+            })
+            ->count();
     }
 
     /**

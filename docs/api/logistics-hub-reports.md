@@ -51,7 +51,8 @@ A delivered parcel is **on time** when `delivered_at − scanned_in_at` is **at 
 **Which riders are listed:** every `ACTIVE` rider of the hub (idle ones as zeros and `null` rates), plus any other rider of the hub (for example one disapproved since) who had activity in the range. `PENDING` and never-active riders are not listed.
 
 ### Known limits of the source data
-- **Admin-delivered parcels are not counted.** When an admin marks an order delivered directly, the parcel becomes `DELIVERED` but never gets `delivered_at`, and no delivery log is written (only the rider-earnings row records it). With no timestamp they cannot belong to any range. `excluded.delivered_without_time` in the summary says how many such parcels the hub has (all time), so the gap is visible.
+- **Admin-delivered parcels are counted in the hub's totals but credited to no rider.** Whoever moves an order to `DELIVERED`, `OrderStateMachine` stamps `parcels.delivered_at` if it is empty (it never overwrites the rider endpoint's own value), so an admin delivery lands in the right day and in `delivered`, the on-time figures and the averages like any other. It writes no delivery log, because a log means a rider reported the outcome, so no rider row includes it. `riders.unattributed_deliveries` says how many such deliveries are in the range, which is what lets the rider table add up to the totals.
+- **Older admin-delivered parcels** (marked delivered before this stamp existed) have no `delivered_at`. `php artisan parcels:backfill-delivered-at --apply` fills it from the order's first `DELIVERED` history row (dry run without `--apply`). Until it is run, `excluded.delivered_without_time` counts them (all time) and they are in no figure. It is normally 0.
 - **Only the latest `assigned_at` and `out_for_delivery_at` are kept.** A rescheduled parcel overwrites them, so `dispatched` counts the latest dispatch of a parcel, `avg_hub_dwell_hours` measures to its latest dispatch, and `avg_delivery_hours` measures the successful attempt. Failed attempts are the exception: every one is kept in `delivery_logs`.
 - Failed attempts exist only when a rider reported them. A parcel an admin sets to `DELIVERY_FAILED` has no log and no attempt.
 
@@ -92,7 +93,8 @@ A delivered parcel is **on time** when `delivered_at − scanned_in_at` is **at 
         "delivered": 2, "failed_attempts": 1, "success_rate": 0.6667,
         "avg_delivery_hours": 4, "on_time_deliveries": 2, "on_time_rate": 1
       }
-    ]
+    ],
+    "unattributed_deliveries": 0
   }
 }
 ```
