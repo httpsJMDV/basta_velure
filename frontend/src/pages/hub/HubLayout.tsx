@@ -5,6 +5,7 @@ import {
   PackagePlus,
   Layers,
   Send,
+  Truck,
   Bike,
   BarChart2,
   LogOut,
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: PackagePlus, label: 'Parcel Intake', to: '/hub/intake' },
   { icon: Layers, label: 'Sorting', to: '/hub/sorting' },
   { icon: Send, label: 'Dispatch', to: '/hub/dispatch' },
+  { icon: Truck, label: 'Deliveries', to: '/hub/deliveries' },
   { icon: Bike, label: 'Riders', to: '/hub/riders' },
   { icon: BarChart2, label: 'Reports', to: '/hub/reports' },
 ];
@@ -38,6 +40,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/hub/intake': 'Parcel Intake',
   '/hub/sorting': 'Package Sorting',
   '/hub/dispatch': 'Delivery Dispatch',
+  '/hub/deliveries': 'Delivery Monitoring',
   '/hub/riders': 'Riders & Fleet',
   '/hub/reports': 'Performance Reports',
 };

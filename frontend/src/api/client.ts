@@ -70,6 +70,10 @@ import type {
   RiderFailureReasonsResponse,
   RiderDeliveredResponse,
   RiderFailedResponse,
+  HubDeliveriesOutResponse,
+  HubDeliveriesFailedResponse,
+  HubRescheduleResponse,
+  HubReturnToSellerResponse,
   HubDispatchBatchesResponse,
   HubDispatchParcelsResponse,
   HubDispatchRidersResponse,
@@ -827,6 +831,29 @@ export const markRiderFailedApi = (trackingNumber: string, reason: string, note:
   http
     .post<RiderFailedResponse>(`/rider/deliveries/${encodeURIComponent(trackingNumber)}/failed`, {
       reason,
+      note,
+    })
+    .then((r) => r.data);
+
+// ─── Hub Delivery Monitoring and Failure Triage (Feature 1.9) ─────────────────────
+
+export const getHubDeliveriesOutApi = (params: { search?: string; rider_id?: number } = {}) =>
+  http.get<HubDeliveriesOutResponse>('/hub/deliveries/out', { params }).then((r) => r.data);
+
+export const getHubDeliveriesFailedApi = (
+  params: { search?: string; reason?: string; page?: number; per_page?: number } = {}
+) => http.get<HubDeliveriesFailedResponse>('/hub/deliveries/failed', { params }).then((r) => r.data);
+
+export const rescheduleHubDeliveryApi = (trackingNumber: string, riderId: number) =>
+  http
+    .post<HubRescheduleResponse>(`/hub/deliveries/${encodeURIComponent(trackingNumber)}/reschedule`, {
+      rider_id: riderId,
+    })
+    .then((r) => r.data);
+
+export const returnHubDeliveryToSellerApi = (trackingNumber: string, note: string | null) =>
+  http
+    .post<HubReturnToSellerResponse>(`/hub/deliveries/${encodeURIComponent(trackingNumber)}/return-to-seller`, {
       note,
     })
     .then((r) => r.data);
