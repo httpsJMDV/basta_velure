@@ -104,7 +104,12 @@ export default function HubIntakePage() {
 
     if (!silent) setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const res = await fetcher({ page, per_page: 20 });
+      let res = await fetcher({ page, per_page: 20 });
+      // The page we were on may no longer exist (e.g. its last parcel was just received).
+      if (res.data.length === 0 && res.meta.total > 0 && res.meta.last_page < page) {
+        pagesRef.current[kind] = res.meta.last_page;
+        res = await fetcher({ page: res.meta.last_page, per_page: 20 });
+      }
       setState({
         items: res.data,
         total: res.meta.total,
@@ -367,11 +372,18 @@ export default function HubIntakePage() {
                   <button
                     type="button"
                     onClick={() => handleScan(lookup.tracking_number)}
-                    disabled={busy}
+                    disabled={busy || lookup.scanned_in_at !== null}
                     className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
                   >
                     {busy && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
-                    <span>Receive</span>
+                    {lookup.scanned_in_at ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                        <span>Received at {formatDateTime(lookup.scanned_in_at)}</span>
+                      </>
+                    ) : (
+                      <span>Receive</span>
+                    )}
                   </button>
                 </div>
               </div>
