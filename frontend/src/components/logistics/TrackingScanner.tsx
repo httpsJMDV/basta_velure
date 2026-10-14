@@ -61,6 +61,7 @@ export default function TrackingScanner({
   const onScanRef = useRef(onScan);
   const disabledRef = useRef(disabled);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const mountedRef = useRef(true);
 
   const cameraSupported = isCameraScanSupported();
 
@@ -81,7 +82,13 @@ export default function TrackingScanner({
     }
   }, []);
 
-  useEffect(() => stopCamera, [stopCamera]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopCamera();
+    };
+  }, [stopCamera]);
 
   const startCamera = async () => {
     const Detector = getBarcodeDetector();
@@ -94,6 +101,11 @@ export default function TrackingScanner({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
+      // The scanner may have unmounted while the permission prompt was open.
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       setCameraOn(true);
 

@@ -48,6 +48,7 @@ Returns unclaimed, undeclined `READY_FOR_PICKUP` parcels inside the courier's ac
   "meta": {
     "available_count": 1,
     "mine_count": 0,
+    "picked_up_count": 0,
     "has_areas": true,
     "limit": 50
   }
@@ -87,6 +88,7 @@ Returns parcels currently accepted by the authenticated courier that are still i
   "meta": {
     "available_count": 0,
     "mine_count": 1,
+    "picked_up_count": 0,
     "has_areas": true,
     "limit": 50
   }

@@ -337,6 +337,23 @@ class RiderPickupExecutionTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors(['tracking_numbers']);
     }
 
+    public function test_confirm_rejects_parcel_whose_order_is_no_longer_pickable(): void
+    {
+        [$user, $rider] = $this->createRider();
+        $seller = $this->createSeller();
+        $disputed = $this->createParcel($seller, $rider->id, Parcel::STATUS_READY_FOR_PICKUP, OrderStatus::DISPUTED);
+        $fine = $this->createParcel($seller, $rider->id);
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/rider/pickups/confirm', [
+            'tracking_numbers' => [$fine->tracking_number, $disputed->tracking_number],
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['tracking_numbers.1'])
+            ->assertJsonMissingValidationErrors(['tracking_numbers.0']);
+
+        $this->assertEquals(Parcel::STATUS_READY_FOR_PICKUP, $fine->fresh()->status);
+        $this->assertEquals(OrderStatus::READY_FOR_PICKUP, $fine->order->fresh()->status);
+    }
+
     public function test_confirm_is_not_repeatable(): void
     {
         [$user, $rider] = $this->createRider();

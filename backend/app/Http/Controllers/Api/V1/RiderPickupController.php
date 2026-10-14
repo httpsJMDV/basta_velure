@@ -454,7 +454,7 @@ class RiderPickupController extends Controller
         $trackingNumbers = array_values($validated['tracking_numbers']);
 
         return DB::transaction(function () use ($request, $rider, $trackingNumbers) {
-            $parcels = Parcel::where('pickup_rider_id', $rider->id)
+            $parcels = Parcel::with('order')->where('pickup_rider_id', $rider->id)
                 ->whereIn('tracking_number', $trackingNumbers)
                 ->lockForUpdate()
                 ->get()

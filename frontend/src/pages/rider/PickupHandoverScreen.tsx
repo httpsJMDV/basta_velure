@@ -113,11 +113,16 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status === 422 && err.response.data?.errors) {
         const errors = err.response.data.errors as Record<string, string[]>;
+        const failed = new Set<string>();
         const lines = Object.entries(errors).map(([key, msgs]) => {
           const index = Number(key.split('.')[1]);
           const code = Number.isInteger(index) ? scanned[index] : undefined;
+          if (code) failed.add(code);
           return code ? `${code}: ${msgs[0]}` : msgs[0];
         });
+        // Untick the codes the server rejected so the rider can confirm the rest.
+        scannedRef.current = scannedRef.current.filter((code) => !failed.has(code));
+        setScanned(scannedRef.current);
         setItemErrors(lines);
         setConfirmError(err.response.data.message || 'Some parcels could not be confirmed.');
         onChanged();
