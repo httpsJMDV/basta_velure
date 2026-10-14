@@ -394,6 +394,60 @@ export interface HubSortResponse {
   barangay: { code: string; name: string };
 }
 
+// ─── Hub Dispatch (Feature 1.8) ────────────────────────────────────────────────
+
+export interface HubDispatchBatch {
+  barangay_code: string;
+  barangay_name: string;
+  city: string;
+  parcel_count: number;
+  oldest_sorted_at: string | null;
+  eligible_riders: number;
+}
+
+export interface HubDispatchBatchesResponse {
+  data: HubDispatchBatch[];
+  meta: { total_batches: number; total_parcels: number };
+}
+
+export interface HubDispatchParcel {
+  tracking_number: string;
+  order_number: string | null;
+  sorted_at: string | null;
+}
+
+export interface HubDispatchParcelsResponse {
+  data: HubDispatchParcel[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+  };
+}
+
+export interface HubDispatchRider {
+  id: number;
+  name: string;
+  vehicle_type: string;
+  plate_number: string | null;
+  area_labels: string[];
+  current_load: number;
+}
+
+export interface HubDispatchRidersResponse {
+  data: HubDispatchRider[];
+}
+
+export interface HubDispatchAssignResponse {
+  message: string;
+  assigned_count: number;
+  barangay: { code: string; name: string };
+  rider: { id: number; name: string };
+}
+
 export interface HubDashboardMetricsResponse {
   data: HubDashboardMetrics;
 }

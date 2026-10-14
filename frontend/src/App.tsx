@@ -19,6 +19,7 @@ import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubIntakePage from './pages/hub/HubIntakePage';
 import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
+import HubDispatchPage from './pages/hub/HubDispatchPage';
 import HubSortingPage from './pages/hub/HubSortingPage';
 import HubRidersPage from './pages/hub/HubRidersPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
@@ -351,15 +352,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<HubDashboardPage />} />
         <Route path="intake" element={<HubIntakePage />} />
         <Route path="sorting" element={<HubSortingPage />} />
-        <Route
-          path="dispatch"
-          element={
-            <HubPlaceholderPage
-              title="Delivery Dispatch"
-              subtitle="Rider bag handover and dispatch tracking."
-            />
-          }
-        />
+        <Route path="dispatch" element={<HubDispatchPage />} />
         <Route path="riders" element={<HubRidersPage />} />
         <Route
           path="reports"

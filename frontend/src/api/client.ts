@@ -64,6 +64,10 @@ import type {
   HubParcelLookupResponse,
   HubParcelReceiveResponse,
   HubParcelListResponse,
+  HubDispatchBatchesResponse,
+  HubDispatchParcelsResponse,
+  HubDispatchRidersResponse,
+  HubDispatchAssignResponse,
   HubSortingGroupsResponse,
   HubSortingParcelsResponse,
   HubSortingSort,
@@ -783,6 +787,29 @@ export const getHubSortingGroupParcelsApi = (
 
 export const sortHubParcelsApi = (trackingNumbers: string[]) =>
   http.post<HubSortResponse>('/hub/sorting/sort', { tracking_numbers: trackingNumbers }).then((r) => r.data);
+
+// ─── Hub Dispatch (Feature 1.8) ──────────────────────────────────────────────────
+
+export const getHubDispatchBatchesApi = (params: { search?: string; sort?: HubSortingSort } = {}) =>
+  http.get<HubDispatchBatchesResponse>('/hub/dispatch/batches', { params }).then((r) => r.data);
+
+export const getHubDispatchBatchParcelsApi = (
+  barangayCode: string,
+  params: { page?: number; per_page?: number } = {}
+) =>
+  http
+    .get<HubDispatchParcelsResponse>(`/hub/dispatch/batches/${encodeURIComponent(barangayCode)}/parcels`, { params })
+    .then((r) => r.data);
+
+export const getHubDispatchBatchRidersApi = (barangayCode: string) =>
+  http
+    .get<HubDispatchRidersResponse>(`/hub/dispatch/batches/${encodeURIComponent(barangayCode)}/riders`)
+    .then((r) => r.data);
+
+export const assignHubParcelsApi = (riderId: number, trackingNumbers: string[]) =>
+  http
+    .post<HubDispatchAssignResponse>('/hub/dispatch/assign', { rider_id: riderId, tracking_numbers: trackingNumbers })
+    .then((r) => r.data);
 
 // ─── Logistics / Sorting Center Hub Courier Vetting & Area Mapping ─────────────
 
