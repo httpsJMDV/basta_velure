@@ -98,6 +98,28 @@ class SortingCenter extends Model
         return $this->hasMany(Parcel::class, 'sorting_center_id');
     }
 
+    /**
+     * Name and address of this hub as shown to riders (where to drop off or collect parcels).
+     *
+     * @return array<string, string>
+     */
+    public function riderFacingPayload(): array
+    {
+        return [
+            'hub_name'     => (string) $this->hub_name,
+            'street'       => (string) ($this->address_street ?? ''),
+            'barangay'     => (string) ($this->address_barangay ?? ''),
+            'city'         => (string) ($this->address_city ?? ''),
+            'province'     => (string) ($this->address_province ?? ''),
+            'full_address' => implode(', ', array_filter([
+                $this->address_street,
+                $this->address_barangay,
+                $this->address_city,
+                $this->address_province,
+            ])),
+        ];
+    }
+
     public function riderAreaAssignments(): HasMany
     {
         return $this->hasMany(RiderAreaAssignment::class, 'sorting_center_id');

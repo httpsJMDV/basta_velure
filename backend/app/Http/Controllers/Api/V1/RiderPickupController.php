@@ -527,24 +527,7 @@ class RiderPickupController extends Controller
      */
     protected function hubPayload(Rider $rider): ?array
     {
-        $hub = $rider->sortingCenter;
-        if (! $hub) {
-            return null;
-        }
-
-        return [
-            'hub_name'     => (string) $hub->hub_name,
-            'street'       => (string) ($hub->address_street ?? ''),
-            'barangay'     => (string) ($hub->address_barangay ?? ''),
-            'city'         => (string) ($hub->address_city ?? ''),
-            'province'     => (string) ($hub->address_province ?? ''),
-            'full_address' => implode(', ', array_filter([
-                $hub->address_street,
-                $hub->address_barangay,
-                $hub->address_city,
-                $hub->address_province,
-            ])),
-        ];
+        return $rider->sortingCenter?->riderFacingPayload();
     }
 
     /**

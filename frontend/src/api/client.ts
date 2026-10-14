@@ -64,6 +64,9 @@ import type {
   HubParcelLookupResponse,
   HubParcelReceiveResponse,
   HubParcelListResponse,
+  RiderDeliveriesResponse,
+  RiderDeliveryView,
+  RiderStartDeliveryResponse,
   HubDispatchBatchesResponse,
   HubDispatchParcelsResponse,
   HubDispatchRidersResponse,
@@ -787,6 +790,16 @@ export const getHubSortingGroupParcelsApi = (
 
 export const sortHubParcelsApi = (trackingNumbers: string[]) =>
   http.post<HubSortResponse>('/hub/sorting/sort', { tracking_numbers: trackingNumbers }).then((r) => r.data);
+
+// ─── Rider Delivery Console (Feature 2.6) ────────────────────────────────────────
+
+export const getRiderDeliveriesApi = (view: RiderDeliveryView = 'assigned') =>
+  http.get<RiderDeliveriesResponse>('/rider/deliveries', { params: { view } }).then((r) => r.data);
+
+export const startRiderDeliveryApi = (trackingNumbers: string[]) =>
+  http
+    .post<RiderStartDeliveryResponse>('/rider/deliveries/start', { tracking_numbers: trackingNumbers })
+    .then((r) => r.data);
 
 // ─── Hub Dispatch (Feature 1.8) ──────────────────────────────────────────────────
 

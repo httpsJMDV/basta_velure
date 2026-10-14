@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon|null $scanned_in_at
  * @property \Carbon\Carbon|null $sorted_at
  * @property \Carbon\Carbon|null $assigned_at
+ * @property \Carbon\Carbon|null $out_for_delivery_at
  * @property \Carbon\Carbon|null $created_at
  * @property \Carbon\Carbon|null $updated_at
  * @property \Carbon\Carbon|null $deleted_at
@@ -82,6 +83,7 @@ class Parcel extends Model
         'scanned_in_at',
         'sorted_at',
         'assigned_at',
+        'out_for_delivery_at',
     ];
 
     protected function casts(): array
@@ -90,6 +92,7 @@ class Parcel extends Model
             'scanned_in_at'           => 'datetime',
             'sorted_at'               => 'datetime',
             'assigned_at'             => 'datetime',
+            'out_for_delivery_at'     => 'datetime',
             'ready_at'                => 'datetime',
             'pickup_accepted_at'      => 'datetime',
             'picked_up_at'            => 'datetime',
