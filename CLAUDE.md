@@ -9,13 +9,14 @@ Shopee/Lazada-style Philippine marketplace (BSIT capstone). Roles: Admin, Buyer,
 - Dev machine is Windows (PowerShell) with local MySQL.
 
 ## Commands
-- Backend tests: `cd backend; php artisan test`
-- Migration state: `php artisan migrate:status`
+- Backend tests: `cd backend; php artisan test`. They run against the separate `velure_test` database, pinned in `phpunit.xml` and enforced by a guard in `tests/TestCase.php` that aborts if the database name does not end in `_test`. One-time setup (create `velure_test`, then `$env:DB_DATABASE='velure_test'; php artisan migrate`) is in `SETUP.md`. Re-run that migrate after adding migrations.
+- Migration state: `php artisan migrate:status` (this checks `velure`; add `$env:DB_DATABASE='velure_test'` to check the test database).
 - Frontend: `cd frontend; npm run lint; npm run build`
 A feature is not done until the full backend suite, lint, and build all pass.
 
 ## Hard rules
 - Never run `migrate:fresh`, `migrate:refresh`, or `db:wipe`. Never edit or regenerate `backend/database/velure.sql`.
+- Tests must never touch `velure`. Do not use `RefreshDatabase`, `DatabaseMigrations`, or call `migrate:fresh` in tests; use `DatabaseTransactions`. Do not weaken the `_test` guard in `tests/TestCase.php` or the DB settings in `phpunit.xml`.
 - Never edit an existing migration. Add new additive migrations with timestamps after the latest one.
 - Uploaded documents live on the private `ids` disk and are served only through authorized routes.
 - Do not change money logic (amounts, 10% commission, 8% for Food & Grocery, escrow, payouts) unless asked.
