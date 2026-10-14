@@ -1806,7 +1806,8 @@ export interface RiderPickupGroup {
   shop_phone: string;
   pickup_address: RiderPickupAddress;
   parcel_count: number;
-  tracking_numbers: string[];
+  /** Only in the "mine" view. The "available" view never lists tracking numbers (docs/api/rider-pickups.md). */
+  tracking_numbers?: string[];
   ready_since: string;
   matched_area_label?: string | null;
   pickup_accepted_at?: string | null;

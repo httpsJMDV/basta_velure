@@ -481,6 +481,7 @@ export default function RiderPickupsPage() {
         // Pickup cards list
         <div className="space-y-4">
           {pickups.map((group) => {
+            const trackingNumbers = group.tracking_numbers ?? [];
             const isExpanded = !!expandedTracking[group.seller_id];
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
               group.pickup_address.full_address ||
@@ -591,63 +592,66 @@ export default function RiderPickupsPage() {
                 </div>
 
                 {/* Tracking numbers accordion */}
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="flex items-center justify-between text-xs">
-                    <button
-                      onClick={() => toggleExpandTracking(group.seller_id)}
-                      className="inline-flex items-center gap-1.5 font-bold text-gray-700 hover:text-gray-900"
-                    >
-                      <span>
-                        {group.tracking_numbers.length}{' '}
-                        {group.tracking_numbers.length === 1 ? 'Tracking Number' : 'Tracking Numbers'}
-                      </span>
-                      {isExpanded ? (
-                        <ChevronUp className="w-3.5 h-3.5 text-gray-500" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleCopy(group.tracking_numbers.join(', '), `all-tracking-${group.seller_id}`)
-                      }
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gray-800"
-                    >
-                      {copiedKey === `all-tracking-${group.seller_id}` ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span className="text-emerald-600 font-bold">Copied all</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          <span>Copy all</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="flex flex-wrap gap-2 pt-2.5">
-                      {group.tracking_numbers.map((tn) => (
-                        <button
-                          key={tn}
-                          onClick={() => handleCopy(tn, tn)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-800 transition-colors"
-                          title="Click to copy tracking number"
-                        >
-                          <span>{tn}</span>
-                          {copiedKey === tn ? (
+                {/* Only a group that lists its parcels (the My pickups view) has tracking numbers to show. */}
+                {trackingNumbers.length > 0 && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <button
+                        onClick={() => toggleExpandTracking(group.seller_id)}
+                        className="inline-flex items-center gap-1.5 font-bold text-gray-700 hover:text-gray-900"
+                      >
+                        <span>
+                          {trackingNumbers.length}{' '}
+                          {trackingNumbers.length === 1 ? 'Tracking Number' : 'Tracking Numbers'}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-gray-500" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+                        )}
+                      </button>
+  
+                      <button
+                        onClick={() =>
+                          handleCopy(trackingNumbers.join(', '), `all-tracking-${group.seller_id}`)
+                        }
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gray-800"
+                      >
+                        {copiedKey === `all-tracking-${group.seller_id}` ? (
+                          <>
                             <Check className="w-3 h-3 text-emerald-600" />
-                          ) : (
-                            <Copy className="w-3 h-3 text-gray-400" />
-                          )}
-                        </button>
-                      ))}
+                            <span className="text-emerald-600 font-bold">Copied all</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy all</span>
+                          </>
+                        )}
+                      </button>
                     </div>
-                  )}
-                </div>
+  
+                    {isExpanded && (
+                      <div className="flex flex-wrap gap-2 pt-2.5">
+                        {trackingNumbers.map((tn) => (
+                          <button
+                            key={tn}
+                            onClick={() => handleCopy(tn, tn)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-800 transition-colors"
+                            title="Click to copy tracking number"
+                          >
+                            <span>{tn}</span>
+                            {copiedKey === tn ? (
+                              <Check className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-gray-400" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Bottom Card Actions */}
                 <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
@@ -669,12 +673,12 @@ export default function RiderPickupsPage() {
                     </>
                   ) : (
                     <>
-                      {group.tracking_numbers.length > 0 && (
+                      {trackingNumbers.length > 0 && (
                         <RiderMessageControl
-                          trackingNumber={group.tracking_numbers[0]}
+                          trackingNumber={trackingNumbers[0]}
                           phase="pickup"
-                          unread={groupUnread(chat, group.tracking_numbers).total}
-                          unreadByCounterpart={groupUnread(chat, group.tracking_numbers).byCounterpart}
+                          unread={groupUnread(chat, trackingNumbers).total}
+                          unreadByCounterpart={groupUnread(chat, trackingNumbers).byCounterpart}
                           onActivity={chat.refresh}
                         />
                       )}

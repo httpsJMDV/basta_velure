@@ -135,7 +135,8 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
     }
   };
 
-  const total = group.tracking_numbers.length;
+  const trackingNumbers = group.tracking_numbers ?? []; // always present for a pickup the rider has accepted
+  const total = trackingNumbers.length;
   const remaining = result ? Math.max(total - result.picked_up_count, 0) : 0;
 
   return (
@@ -267,7 +268,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
                 </span>
               </div>
               <ul className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100">
-                {group.tracking_numbers.map((tn) => {
+                {trackingNumbers.map((tn) => {
                   const done = scanned.includes(tn);
                   return (
                     <li key={tn} className="flex items-center gap-3 px-4 py-3">
