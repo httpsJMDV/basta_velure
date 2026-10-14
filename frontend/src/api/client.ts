@@ -76,6 +76,11 @@ import type {
   RiderHistoryFilter,
   RiderHistoryResponse,
   HubDeliveriesOutResponse,
+  HubReportKind,
+  HubReportRiderSort,
+  HubReportRiders,
+  HubReportSortDirection,
+  HubReportSummary,
   HubDeliveriesFailedResponse,
   HubRescheduleResponse,
   HubReturnToSellerResponse,
@@ -1004,3 +1009,58 @@ export const getRiderHistoryApi = (params: {
       },
     })
     .then((r) => r.data);
+
+
+// ─── Hub reports (Feature 1.10) ───────────────────────────────────────────────
+
+export const getHubReportSummaryApi = (params: { from: string; to: string }) =>
+  http.get<{ data: HubReportSummary }>('/hub/reports/summary', { params }).then((r) => r.data.data);
+
+export const getHubReportRidersApi = (params: {
+  from: string;
+  to: string;
+  sort?: HubReportRiderSort;
+  direction?: HubReportSortDirection;
+}) => http.get<{ data: HubReportRiders }>('/hub/reports/riders', { params }).then((r) => r.data.data);
+
+/**
+ * Downloads a report as a CSV file. The API needs the bearer token, so a plain link cannot do it: the file is fetched
+ * as a blob and saved through a temporary link.
+ */
+export async function downloadHubReportApi(params: {
+  report: HubReportKind;
+  from: string;
+  to: string;
+  sort?: HubReportRiderSort;
+  direction?: HubReportSortDirection;
+}): Promise<void> {
+  let res;
+  try {
+    res = await http.get<Blob>('/hub/reports/export', { params, responseType: 'blob' });
+  } catch (err: unknown) {
+    // With responseType 'blob' an error body is a Blob too, so read the API's message out of it.
+    if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
+      let message = 'The export could not be created.';
+      try {
+        const body = JSON.parse(await err.response.data.text()) as { message?: string; errors?: Record<string, string[]> };
+        message = Object.values(body.errors ?? {}).flat()[0] ?? body.message ?? message;
+      } catch {
+        // keep the generic message
+      }
+      throw new Error(message);
+    }
+    throw err;
+  }
+
+  const disposition = String(res.headers['content-disposition'] ?? '');
+  const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? `hub-${params.report}-report.csv`;
+
+  const url = URL.createObjectURL(res.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

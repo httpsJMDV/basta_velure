@@ -96,7 +96,7 @@ export default function HubLayout() {
   return (
     <div className="min-h-screen bg-gray-50/70 flex flex-col lg:flex-row font-sans text-gray-900 antialiased">
       {/* ── Desktop Sidebar ── */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-[#0B0F19] border-r border-gray-800 shrink-0 select-none">
+      <aside className="hidden lg:flex print:!hidden lg:flex-col lg:w-64 bg-[#0B0F19] border-r border-gray-800 shrink-0 select-none">
         {/* Hub Header & Branding */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-gray-800/80">
           <Link to="/hub/dashboard" className="flex items-center gap-2.5">
@@ -163,7 +163,7 @@ export default function HubLayout() {
       </aside>
 
       {/* ── Mobile Header & Drawer ── */}
-      <div className="lg:hidden bg-[#0B0F19] border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+      <div className="lg:hidden print:hidden bg-[#0B0F19] border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMobileOpen(true)}
@@ -237,7 +237,7 @@ export default function HubLayout() {
       {/* ── Main Content Area ── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar on desktop */}
-        <header className="hidden lg:flex items-center justify-between h-16 px-8 bg-white border-b border-gray-200/80 sticky top-0 z-30">
+        <header className="hidden lg:flex print:!hidden items-center justify-between h-16 px-8 bg-white border-b border-gray-200/80 sticky top-0 z-30">
           {/* Breadcrumbs */}
           <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
             <span className="text-gray-400">Logistics Hub</span>
@@ -266,7 +266,7 @@ export default function HubLayout() {
         </header>
 
         {/* Content Outlet */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto print:p-0 print:max-w-none">
           <Outlet />
         </main>
       </div>

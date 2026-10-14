@@ -20,11 +20,11 @@ import { User as UserIcon } from 'lucide-react';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubIntakePage from './pages/hub/HubIntakePage';
-import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
 import HubDeliveriesPage from './pages/hub/HubDeliveriesPage';
 import HubDispatchPage from './pages/hub/HubDispatchPage';
 import HubSortingPage from './pages/hub/HubSortingPage';
 import HubRidersPage from './pages/hub/HubRidersPage';
+import HubReportsPage from './pages/hub/HubReportsPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import SellerLayout from './pages/seller/SellerLayout';
@@ -358,15 +358,7 @@ function AppRoutes() {
         <Route path="dispatch" element={<HubDispatchPage />} />
         <Route path="deliveries" element={<HubDeliveriesPage />} />
         <Route path="riders" element={<HubRidersPage />} />
-        <Route
-          path="reports"
-          element={
-            <HubPlaceholderPage
-              title="Hub Reports"
-              subtitle="Operational turnaround times, fulfillment SLAs, and throughput analytics."
-            />
-          }
-        />
+        <Route path="reports" element={<HubReportsPage />} />
       </Route>
 
       {/* Rider / Courier Station — gated */}

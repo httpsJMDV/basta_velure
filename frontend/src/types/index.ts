@@ -1946,3 +1946,78 @@ export interface RiderHistoryResponse {
   data: RiderHistoryEntry[];
   meta: RiderPageMeta & { outcome: RiderHistoryFilter };
 }
+
+
+// ─── Hub reports (Feature 1.10) ──────────────────────────────────────────────
+
+export interface HubReportRange {
+  from: string;
+  to: string;
+  days: number;
+  timezone: string;
+}
+
+/** Rates are fractions between 0 and 1; every nullable field is null when there is nothing to divide or average. */
+export interface HubReportTotals {
+  received: number;
+  sorted: number;
+  dispatched: number;
+  delivered: number;
+  failed_attempts: number;
+  returned: number;
+  on_time_deliveries: number;
+  on_time_rate: number | null;
+  success_rate: number | null;
+  avg_hub_dwell_hours: number | null;
+  avg_delivery_hours: number | null;
+}
+
+export interface HubReportDailyRow {
+  date: string;
+  received: number;
+  delivered: number;
+  failed: number;
+  returned: number;
+}
+
+export interface HubReportSummary {
+  range: HubReportRange;
+  sla_hours: number;
+  totals: HubReportTotals;
+  daily: HubReportDailyRow[];
+  excluded: { delivered_without_time: number };
+}
+
+export type HubReportRiderSort =
+  | 'name'
+  | 'delivered'
+  | 'failed_attempts'
+  | 'success_rate'
+  | 'avg_delivery_hours'
+  | 'on_time_rate';
+
+export type HubReportSortDirection = 'asc' | 'desc';
+
+export interface HubReportRiderRow {
+  rider_id: number;
+  name: string;
+  status: string;
+  vehicle_type: string;
+  plate_number: string | null;
+  delivered: number;
+  failed_attempts: number;
+  success_rate: number | null;
+  avg_delivery_hours: number | null;
+  on_time_deliveries: number;
+  on_time_rate: number | null;
+}
+
+export interface HubReportRiders {
+  range: HubReportRange;
+  sla_hours: number;
+  sort: HubReportRiderSort;
+  direction: HubReportSortDirection;
+  riders: HubReportRiderRow[];
+}
+
+export type HubReportKind = 'daily' | 'riders';
