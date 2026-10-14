@@ -28,7 +28,8 @@ flowchart TD
 | **Seller ↔ Admin** | ✅ | Partner support, payout issues, application/compliance appeals |
 | **Buyer ↔ Buyer** | ❌ | Disabled by security rules |
 | **Seller ↔ Seller** | ❌ | Disabled by security rules |
-| **Any Role ↔ Rider** | ❌ | Reserved for future logistics module |
+| **Rider ↔ Seller / Buyer / Hub** | ✅ | Delivery threads tied to one parcel (feature 2.10): seller during pickup, buyer during delivery, hub throughout. Read-only once the parcel is delivered, failed or returned. See section 7. |
+| **Admin ↔ Rider threads** | ❌ | Rider threads are private to their two participants; admins do not see them |
 
 ---
 
@@ -42,7 +43,7 @@ The database uses two primary tables: `conversations` and `messages`.
 | `id` | `BIGINT UNSIGNED` | ❌ | Primary Key |
 | `buyer_id` | `BIGINT UNSIGNED` | ✅ | Foreign key referencing `users(id)` (Buyer participant) |
 | `seller_id` | `BIGINT UNSIGNED` | ✅ | Foreign key referencing `users(id)` (Seller participant) |
-| `type` | `ENUM` | ❌ | `'buyer_seller'`, `'buyer_admin'`, `'seller_admin'` |
+| `type` | `VARCHAR(32)` | ❌ | `'buyer_seller'`, `'buyer_admin'`, `'seller_admin'`, and for rider threads `'rider_seller'`, `'rider_buyer'`, `'rider_hub'` |
 | `status` | `ENUM` | ❌ | `'open'`, `'resolved'` (default: `'open'`) |
 | `subject` | `VARCHAR(255)` | ✅ | Topic / issue title (used for support tickets) |
 | `product_id` | `BIGINT UNSIGNED` | ✅ | Foreign key referencing `products(id)` for pinned product card |
@@ -50,6 +51,10 @@ The database uses two primary tables: `conversations` and `messages`.
 | `buyer_unread` | `INT UNSIGNED` | ❌ | Unread messages count for the Buyer (default: `0`) |
 | `seller_unread` | `INT UNSIGNED` | ❌ | Unread messages count for the Seller (default: `0`) |
 | `admin_unread` | `INT UNSIGNED` | ❌ | Unread messages count for Admin (default: `0`) |
+| `parcel_id` | `BIGINT UNSIGNED` | ✅ | Rider threads only: the parcel the thread is about |
+| `rider_id` | `BIGINT UNSIGNED` | ✅ | Rider threads only: the rider's user (`users.id`) |
+| `sorting_center_id` | `BIGINT UNSIGNED` | ✅ | `rider_hub` threads only: the hub |
+| `rider_unread` / `hub_unread` | `INT UNSIGNED` | ❌ | Unread counts for the rider and the hub (default: `0`) |
 | `last_message_at` | `TIMESTAMP` | ✅ | Timestamp of the latest message for ordering |
 | `created_at` / `updated_at` | `TIMESTAMP` | ❌ | Timestamps |
 
@@ -324,3 +329,15 @@ sequenceDiagram
 | **Seller Center** | [SellerLayout.tsx](file:///c:/Projects/basta_velure/frontend/src/pages/seller/SellerLayout.tsx) | Sidebar item links to `/seller/messages` with unread badge |
 | **Admin Panel** | [AdminLayout.tsx](file:///c:/Projects/basta_velure/frontend/src/pages/admin/AdminLayout.tsx) | Sidebar item and TopBar icon link to `/admin/messages` |
 | **Global Buyer Overlay** | [App.tsx](file:///c:/Projects/basta_velure/frontend/src/App.tsx) | `<BuyerFloatingChat />` mounted globally inside `<ChatProvider>` |
+
+---
+
+## 7. Rider Delivery Threads (Feature 2.10)
+
+Riders can message the people involved in a parcel they are working on. These are ordinary rows in `conversations` and `messages` with type `rider_seller`, `rider_buyer` or `rider_hub`, one thread per parcel, rider and counterpart. The full contract is in [docs/api/rider-chat-account.md](docs/api/rider-chat-account.md); the points that differ from the rest of this document:
+
+- **Endpoints.** Buyers and sellers use the endpoints in section 3 unchanged; the controller branches on `type`. The rider uses `/api/v1/rider/chat/...` and the hub uses `/api/v1/hub/chat/...`.
+- **Window.** A thread is open only while the parcel is active for that rider (pickup: `READY_FOR_PICKUP` accepted, `PICKED_UP`; delivery: `ASSIGNED_TO_RIDER`, `OUT_FOR_DELIVERY`). Afterwards it stays readable but sending returns `409`. The state is computed from the parcel on every request.
+- **Text only, 1000 characters, rate limited** (20 sends per minute per user). No images, product cards or order cards, and `PATCH /conversations/{id}/status` does not apply.
+- **Privacy.** Payloads carry names only (never phone, email or address). Buyers and sellers see the rider by first name, labelled "Delivery rider" with the tracking number. Admins cannot read rider threads, and the websocket channel admits only the two participants.
+- **Unread and delivery.** The rider and hub poll `GET .../messages?after_id=<id>` every 3 seconds while a conversation is on screen and mark read explicitly (`POST .../read`). The buyer and seller pages keep their websocket channels and also receive `MessageSent` and `ConversationUpdated` for these threads (rider named by first name only).

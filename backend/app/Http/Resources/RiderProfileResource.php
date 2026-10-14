@@ -36,6 +36,7 @@ class RiderProfileResource extends JsonResource
             'status'       => $this->status,
             'vehicle_type' => $this->vehicle_type,
             'plate_number' => $this->plate_number,
+            'vehicle_updated_at' => $this->vehicle_updated_at?->toIso8601String(),
             'hub'          => $hub ? [
                 'id'               => $hub->id,
                 'hub_name'         => $hub->hub_name,

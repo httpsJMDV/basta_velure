@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $sorting_center_id
  * @property string $vehicle_type
  * @property string|null $plate_number
+ * @property \Carbon\Carbon|null $vehicle_updated_at
  * @property string|null $or_cr_path
  * @property string|null $drivers_license_path
  * @property string $status
@@ -70,6 +71,7 @@ class Rider extends Model
         'sorting_center_id',
         'vehicle_type',
         'plate_number',
+        'vehicle_updated_at',
         'or_cr_path',
         'drivers_license_path',
         'status',
@@ -83,6 +85,7 @@ class Rider extends Model
     {
         return [
             'reviewed_at'  => 'datetime',
+            'vehicle_updated_at' => 'datetime',
             'submitted_at' => 'datetime',
         ];
     }
