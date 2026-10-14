@@ -104,7 +104,7 @@ class RiderHistoryController extends Controller
             ->whereNull('p.deleted_at')
             ->select([
                 DB::raw("'delivered' as outcome"),
-                're.earned_at as occurred_at',
+                DB::raw('COALESCE(p.delivered_at, re.earned_at) as occurred_at'),
                 'p.id as parcel_id',
                 'p.tracking_number',
                 'o.order_number',

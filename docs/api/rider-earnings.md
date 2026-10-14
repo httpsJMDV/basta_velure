@@ -131,7 +131,7 @@ Every delivery attempt the rider has made, newest first.
 - `fee` is set only on `delivered` entries. `cod_collected` is set only on a delivered COD parcel whose cash was confirmed.
 - **Each failed attempt is its own entry**, so a parcel that failed twice appears twice, each with its own reason.
 - **How each outcome is derived**
-  - `delivered`: from the rider's earnings rows. A parcel an admin marked delivered therefore still appears, with its fee, even though no rider delivery log exists for it.
+  - `delivered`: from the rider's earnings rows. A parcel an admin marked delivered therefore still appears, with its fee, even though no rider delivery log exists for it. Its `occurred_at` is the parcel's `delivered_at` (stamped for every actor), or the earning's time for older parcels that have none.
   - `failed`: from the rider's `DELIVERY_FAILED` delivery logs.
   - `returned`: `RETURNED` is **not written to the delivery logs** (the hub's return action never creates one), so it is derived from the parcel: status `RETURNED`, `returned_at` set (only the hub's "return to seller" action sets it), and assigned to this rider. The entry is credited to the parcel's last assigned rider, at `returned_at`. A `RETURNED` parcel without `returned_at` (for example a seller accepting a buyer return) is not a delivery-history entry.
 - The recipient's phone number is never included.

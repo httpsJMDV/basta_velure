@@ -306,6 +306,12 @@ class OrderStateMachine
         if ($toStatus === OrderStatus::DELIVERED->value) {
             OrderItem::where('order_id', $order->id)->update(['delivered_at' => now()]);
 
+            // Hub reports and the rider history read the parcel's delivery time, so stamp it for every actor (an
+            // admin has no rider endpoint to do it). Only when empty: the rider endpoint's own value is never
+            // overwritten, and a second pass through DELIVERED (a rejected dispute) keeps the original time.
+            // No delivery log is written here: a log means a rider reported the outcome.
+            Parcel::where('order_id', $order->id)->whereNull('delivered_at')->update(['delivered_at' => now()]);
+
             // Feature 2.9: the rider earns a flat fee for the delivery, recorded now (not at the buyer's
             // confirmation, and never clawed back by a later return). It adds a rider_earnings row and
             // touches no buyer, seller or platform money. Idempotent, whichever actor triggered DELIVERED.
