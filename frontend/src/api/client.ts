@@ -70,6 +70,11 @@ import type {
   RiderFailureReasonsResponse,
   RiderDeliveredResponse,
   RiderFailedResponse,
+  RiderEarningsPeriodType,
+  RiderEarningsSummaryResponse,
+  RiderEarningsDeliveriesResponse,
+  RiderHistoryFilter,
+  RiderHistoryResponse,
   HubDeliveriesOutResponse,
   HubDeliveriesFailedResponse,
   HubRescheduleResponse,
@@ -969,5 +974,33 @@ export const declineRiderPickupApi = (sellerId: number) =>
 export const releaseRiderPickupApi = (sellerId: number) =>
   http.post<RiderReleasePickupResponse>(`/rider/pickups/sellers/${sellerId}/release`).then((r) => r.data);
 
+// ─── Rider Earnings and History (Feature 2.9) ────────────────────────────────────
 
+export const getRiderEarningsSummaryApi = (period: RiderEarningsPeriodType, date?: string) =>
+  http
+    .get<RiderEarningsSummaryResponse>('/rider/earnings/summary', { params: { period, date } })
+    .then((r) => r.data.data);
 
+export const getRiderEarningsDeliveriesApi = (period: RiderEarningsPeriodType, date?: string, page = 1) =>
+  http
+    .get<RiderEarningsDeliveriesResponse>('/rider/earnings/deliveries', { params: { period, date, page } })
+    .then((r) => r.data);
+
+export const getRiderHistoryApi = (params: {
+  outcome?: RiderHistoryFilter;
+  from?: string;
+  to?: string;
+  search?: string;
+  page?: number;
+}) =>
+  http
+    .get<RiderHistoryResponse>('/rider/history', {
+      params: {
+        outcome: params.outcome,
+        from: params.from || undefined,
+        to: params.to || undefined,
+        search: params.search || undefined,
+        page: params.page,
+      },
+    })
+    .then((r) => r.data);

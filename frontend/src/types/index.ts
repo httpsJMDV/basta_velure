@@ -1863,3 +1863,86 @@ export interface RiderReleasePickupResponse {
   released_count: number;
 }
 
+// ─── Rider Earnings and History (Feature 2.9) ──────────────────────────────────
+
+export type RiderEarningsPeriodType = 'day' | 'week' | 'month';
+
+export interface RiderEarningsPeriod {
+  type: RiderEarningsPeriodType;
+  /** Manila calendar dates, YYYY-MM-DD, both inclusive. */
+  start_date: string;
+  end_date: string;
+  start_at: string;
+  end_at: string;
+  is_current: boolean;
+  timezone: string;
+}
+
+export interface RiderEarningsBreakdownPoint {
+  /** "00".."23" for a day, YYYY-MM-DD for a week or month. */
+  key: string;
+  label: string;
+  /** Decimal string, e.g. "150.00". Never a float. */
+  total: string;
+  count: number;
+}
+
+export interface RiderEarningsSummary {
+  period: RiderEarningsPeriod;
+  total_earned: string;
+  deliveries_count: number;
+  average_per_delivery: string;
+  previous: RiderEarningsPeriod & { total_earned: string; deliveries_count: number };
+  breakdown: RiderEarningsBreakdownPoint[];
+  lifetime_total: string;
+}
+
+export interface RiderEarningsSummaryResponse {
+  data: RiderEarningsSummary;
+}
+
+export interface RiderPageMeta {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+  from: number | null;
+  to: number | null;
+}
+
+export interface RiderEarnedDelivery {
+  id: number;
+  tracking_number: string;
+  order_number: string | null;
+  destination: { barangay_name: string; city: string };
+  /** When the fee was earned (ISO 8601). */
+  delivered_at: string;
+  fee: string;
+}
+
+export interface RiderEarningsDeliveriesResponse {
+  data: RiderEarnedDelivery[];
+  meta: RiderPageMeta & { period: RiderEarningsPeriod };
+}
+
+export type RiderHistoryOutcome = 'delivered' | 'failed' | 'returned';
+export type RiderHistoryFilter = RiderHistoryOutcome | 'all';
+
+export interface RiderHistoryEntry {
+  outcome: RiderHistoryOutcome;
+  occurred_at: string;
+  tracking_number: string;
+  order_number: string | null;
+  destination: { barangay_name: string; city: string };
+  /** Only on failed attempts. The label comes from the reason list, never the rider's note. */
+  failure_reason: { code: string; label: string } | null;
+  /** Only on delivered entries. */
+  fee: string | null;
+  /** Only on a delivered COD parcel whose cash was confirmed. */
+  cod_collected: string | null;
+}
+
+export interface RiderHistoryResponse {
+  data: RiderHistoryEntry[];
+  meta: RiderPageMeta & { outcome: RiderHistoryFilter };
+}

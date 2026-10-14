@@ -1,0 +1,347 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Minus,
+  Package,
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
+import { getRiderEarningsDeliveriesApi, getRiderEarningsSummaryApi } from '../../api/client';
+import { useToast } from '../../components/ui/Toast';
+import type {
+  RiderEarnedDelivery,
+  RiderEarningsBreakdownPoint,
+  RiderEarningsPeriodType,
+  RiderEarningsSummary,
+} from '../../types';
+import { addDays, errorMessage, formatPeso, formatTime, fromCents, manilaToday, periodLabel, toCents } from './earningsFormat';
+
+const PERIODS: { key: RiderEarningsPeriodType; label: string }[] = [
+  { key: 'day', label: 'Day' },
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+];
+
+const COMPARE_WORDS: Record<RiderEarningsPeriodType, { current: string; other: string }> = {
+  day: { current: 'yesterday', other: 'the day before' },
+  week: { current: 'last week', other: 'the week before' },
+  month: { current: 'last month', other: 'the month before' },
+};
+
+const PERIOD_NOUN: Record<RiderEarningsPeriodType, string> = { day: 'today', week: 'this week', month: 'this month' };
+
+function comparison(summary: RiderEarningsSummary) {
+  const diff = toCents(summary.total_earned) - toCents(summary.previous.total_earned);
+  const words = COMPARE_WORDS[summary.period.type];
+  const when = summary.period.is_current ? words.current : words.other;
+  if (diff > 0) return { Icon: TrendingUp, text: `${formatPeso(fromCents(diff))} more than ${when}`, tone: 'text-emerald-700' };
+  if (diff < 0) return { Icon: TrendingDown, text: `${formatPeso(fromCents(-diff))} less than ${when}`, tone: 'text-red-700' };
+  return { Icon: Minus, text: `Same as ${when}`, tone: 'text-gray-600' };
+}
+
+/** Which bars get an axis label, so 24 hourly or 31 daily bars stay readable on a phone. */
+function showAxisLabel(type: RiderEarningsPeriodType, index: number): boolean {
+  if (type === 'day') return index % 6 === 0;
+  if (type === 'month') return index % 5 === 0;
+  return true;
+}
+
+function EarningsBars({ type, points }: { type: RiderEarningsPeriodType; points: RiderEarningsBreakdownPoint[] }) {
+  const maxCents = Math.max(...points.map((p) => toCents(p.total)), 0);
+  const busy = points.filter((p) => p.count > 0);
+  const summary = busy.length
+    ? busy.map((p) => `${p.label}: ${formatPeso(p.total)} from ${p.count} ${p.count === 1 ? 'delivery' : 'deliveries'}`).join('; ')
+    : 'No earnings in this period';
+
+  return (
+    <div>
+      <div role="img" aria-label={`Earnings chart. ${summary}`} className="flex items-end gap-px sm:gap-1 h-32">
+        {points.map((p) => {
+          const cents = toCents(p.total);
+          const height = cents > 0 && maxCents > 0 ? Math.max((cents / maxCents) * 100, 6) : 0;
+          return (
+            <div key={p.key} className="flex-1 h-full flex items-end" title={`${p.label}: ${formatPeso(p.total)} (${p.count})`}>
+              <div
+                className={`w-full rounded-t ${height > 0 ? 'bg-blue-500' : 'bg-gray-200'}`}
+                style={{ height: height > 0 ? `${height}%` : '2px' }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-px sm:gap-1 mt-1.5" aria-hidden="true">
+        {points.map((p, i) => (
+          <div key={p.key} className="flex-1 text-center text-[10px] leading-tight text-gray-500">
+            {showAxisLabel(type, i) ? (type === 'week' ? p.label.split(' ').map((s) => <div key={s}>{s}</div>) : p.label.replace(' ', ' ')) : ''}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function EarningsTab() {
+  const { showToast } = useToast();
+
+  const [type, setType] = useState<RiderEarningsPeriodType>('day');
+  const [anchor, setAnchor] = useState<string>(() => manilaToday());
+  const [summary, setSummary] = useState<RiderEarningsSummary | null>(null);
+  const [rows, setRows] = useState<RiderEarnedDelivery[]>([]);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Each fetch gets a number; an older response that arrives late is dropped.
+  const requestRef = useRef(0);
+
+  const load = useCallback(
+    async (mode: 'initial' | 'manual' | 'silent') => {
+      const id = ++requestRef.current;
+      if (mode === 'initial') {
+        setLoading(true);
+        setError(null);
+      }
+      if (mode === 'manual') setRefreshing(true);
+      try {
+        const [s, list] = await Promise.all([
+          getRiderEarningsSummaryApi(type, anchor),
+          getRiderEarningsDeliveriesApi(type, anchor, 1),
+        ]);
+        if (id !== requestRef.current) return;
+        setSummary(s);
+        setRows(list.data);
+        setPage(list.meta.current_page);
+        setLastPage(list.meta.last_page);
+        setError(null);
+      } catch (err: unknown) {
+        if (id !== requestRef.current || mode === 'silent') return;
+        const message = errorMessage(err, 'Could not load your earnings.');
+        setError(message);
+        if (mode === 'manual') showToast(message, 'error');
+      } finally {
+        if (id === requestRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [type, anchor, showToast]
+  );
+
+  useEffect(() => {
+    void load('initial');
+  }, [load]);
+
+  // Coming back to the app after delivering a parcel: refresh quietly.
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') void load('silent');
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [load]);
+
+  const loadMore = async () => {
+    if (loadingMore || page >= lastPage) return;
+    const id = requestRef.current;
+    setLoadingMore(true);
+    try {
+      const list = await getRiderEarningsDeliveriesApi(type, anchor, page + 1);
+      if (id !== requestRef.current) return;
+      setRows((prev) => [...prev, ...list.data.filter((r) => !prev.some((p) => p.id === r.id))]);
+      setPage(list.meta.current_page);
+      setLastPage(list.meta.last_page);
+    } catch (err: unknown) {
+      showToast(errorMessage(err, 'Could not load more deliveries.'), 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const cmp = summary ? comparison(summary) : null;
+
+  return (
+    <div className="space-y-4">
+      {/* Period type */}
+      <div role="group" aria-label="Earnings period" className="grid grid-cols-3 gap-1 p-1 bg-gray-100 rounded-2xl">
+        {PERIODS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            aria-pressed={type === p.key}
+            onClick={() => setType(p.key)}
+            className={`min-h-11 rounded-xl text-sm font-bold transition-colors ${
+              type === p.key ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Navigator */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => summary && setAnchor(summary.previous.start_date)}
+          disabled={!summary || loading}
+          aria-label={`Previous ${type}`}
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <ChevronLeft className="w-5 h-5" aria-hidden="true" />
+        </button>
+        <div className="text-center min-w-0">
+          <p className="text-sm font-black text-gray-900 truncate" aria-live="polite">
+            {summary ? periodLabel(summary.period) : ' '}
+          </p>
+          {summary && !summary.period.is_current && (
+            <button
+              type="button"
+              onClick={() => setAnchor(manilaToday())}
+              className="min-h-11 px-3 text-xs font-bold text-blue-600"
+            >
+              Back to {PERIOD_NOUN[type]}
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void load('manual')}
+            disabled={refreshing || loading}
+            aria-label="Refresh earnings"
+            className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-600' : ''}`} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => summary && setAnchor(addDays(summary.period.end_date, 1))}
+            disabled={!summary || loading || summary.period.is_current}
+            aria-label={`Next ${type}`}
+            className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <ChevronRight className="w-5 h-5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-4 animate-pulse" aria-label="Loading earnings">
+          <div className="h-40 rounded-3xl bg-gray-200/80" />
+          <div className="h-44 rounded-2xl bg-gray-200/80" />
+          <div className="h-20 rounded-2xl bg-gray-200/80" />
+        </div>
+      ) : error || !summary ? (
+        <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center space-y-3">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto" aria-hidden="true" />
+          <p className="text-sm font-bold text-gray-900">Could not load your earnings</p>
+          <p className="text-xs text-gray-500">{error}</p>
+          <button
+            type="button"
+            onClick={() => void load('initial')}
+            className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
+          >
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
+            Try again
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Totals */}
+          <section aria-label="Earnings total" className="bg-blue-600 text-white rounded-3xl p-5 space-y-3">
+            <div>
+              <p className="text-xs font-semibold text-blue-100">Total earned</p>
+              <p className="text-4xl font-black tracking-tight">{formatPeso(summary.total_earned)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-white/15 rounded-2xl p-3">
+                <p className="text-[11px] text-blue-100">Deliveries</p>
+                <p className="font-black text-lg">{summary.deliveries_count}</p>
+              </div>
+              <div className="bg-white/15 rounded-2xl p-3">
+                <p className="text-[11px] text-blue-100">Average per delivery</p>
+                <p className="font-black text-lg">{formatPeso(summary.average_per_delivery)}</p>
+              </div>
+            </div>
+            {cmp && (
+              <p className="inline-flex items-center gap-1.5 text-xs font-semibold bg-white rounded-full px-3 py-1.5">
+                <cmp.Icon className={`w-4 h-4 ${cmp.tone}`} aria-hidden="true" />
+                <span className={cmp.tone}>{cmp.text}</span>
+              </p>
+            )}
+          </section>
+
+          {/* Chart */}
+          <section aria-label="Earnings chart" className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+            <h2 className="text-sm font-black text-gray-900">
+              {summary.period.type === 'day' ? 'By hour' : 'By day'}
+            </h2>
+            <EarningsBars type={summary.period.type} points={summary.breakdown} />
+          </section>
+
+          <p className="text-xs text-gray-500 text-center">
+            All-time earnings: <span className="font-bold text-gray-800">{formatPeso(summary.lifetime_total)}</span>
+          </p>
+
+          {/* Deliveries in the period */}
+          <section aria-label="Deliveries in this period" className="space-y-2">
+            <h2 className="text-sm font-black text-gray-900">Deliveries</h2>
+            {rows.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
+                  <Package className="w-7 h-7" aria-hidden="true" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900">No deliveries {summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}</h3>
+                <p className="text-xs text-gray-500 leading-relaxed">Each parcel you deliver earns a flat fee and shows up here.</p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {rows.map((r) => (
+                  <li key={r.id} className="bg-white border border-gray-200 rounded-2xl p-3.5 flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-sm font-black text-gray-900 font-mono truncate">{r.tracking_number}</p>
+                      <p className="flex items-center gap-1 text-xs text-gray-600">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />
+                        <span className="truncate">
+                          {[r.destination.barangay_name, r.destination.city].filter(Boolean).join(', ') || 'Destination unavailable'}
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        {summary.period.type === 'day' ? '' : `${new Date(r.delivered_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' })}, `}
+                        {formatTime(r.delivered_at)}
+                      </p>
+                    </div>
+                    <p className="text-sm font-black text-emerald-700 shrink-0">+{formatPeso(r.fee)}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {page < lastPage && (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                {loadingMore && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                {loadingMore ? 'Loading...' : 'Load more'}
+              </button>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
