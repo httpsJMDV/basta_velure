@@ -300,6 +300,10 @@ export interface HubDashboardMetrics {
   inbound_today: number;
   in_sorting: number;
   active_riders: number;
+  /** Parcels on the road right now (Feature 1.9). */
+  out_for_delivery: number;
+  /** Failed deliveries waiting for the hub to reschedule or return them (Feature 1.9). */
+  failed_deliveries: number;
   hub: {
     id: number;
     hub_name: string;
@@ -467,6 +471,80 @@ export interface RiderFailedResponse {
   tracking_number: string;
   reason: { code: string; label: string };
   delivery_attempts: number;
+}
+
+// ─── Hub Delivery Monitoring and Failure Triage (Feature 1.9) ──────────────────
+
+export interface HubDeliveryRider {
+  id: number;
+  name: string;
+  plate_number: string | null;
+}
+
+export interface HubDeliveryDestination {
+  barangay_code: string | null;
+  barangay_name: string;
+  city: string;
+}
+
+export interface HubDeliveryOutRow {
+  tracking_number: string;
+  order_number: string | null;
+  rider: HubDeliveryRider | null;
+  destination: HubDeliveryDestination;
+  recipient_name: string;
+  out_for_delivery_at: string | null;
+  elapsed_minutes: number | null;
+}
+
+export interface HubDeliveriesOutResponse {
+  data: HubDeliveryOutRow[];
+  meta: {
+    total: number;
+    truncated: boolean;
+    riders: { rider_id: number | null; name: string; plate_number: string | null; count: number }[];
+  };
+}
+
+export interface HubDeliveryFailedRow {
+  tracking_number: string;
+  order_number: string | null;
+  rider: HubDeliveryRider | null;
+  destination: HubDeliveryDestination;
+  recipient_name: string;
+  failure_reason: { code: string; label: string } | null;
+  failure_note: string | null;
+  failed_at: string | null;
+  delivery_attempts: number;
+  max_attempts: number;
+  can_reschedule: boolean;
+}
+
+export interface HubDeliveriesFailedResponse {
+  data: HubDeliveryFailedRow[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+    max_attempts: number;
+    reasons: { code: string; label: string; requires_note: boolean }[];
+  };
+}
+
+export interface HubRescheduleResponse {
+  message: string;
+  tracking_number: string;
+  rider: { id: number; name: string };
+  delivery_attempts: number;
+  max_attempts: number;
+}
+
+export interface HubReturnToSellerResponse {
+  message: string;
+  tracking_number: string;
 }
 
 // ─── Hub Dispatch (Feature 1.8) ────────────────────────────────────────────────

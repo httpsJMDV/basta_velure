@@ -20,6 +20,7 @@ import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubIntakePage from './pages/hub/HubIntakePage';
 import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
+import HubDeliveriesPage from './pages/hub/HubDeliveriesPage';
 import HubDispatchPage from './pages/hub/HubDispatchPage';
 import HubSortingPage from './pages/hub/HubSortingPage';
 import HubRidersPage from './pages/hub/HubRidersPage';
@@ -354,6 +355,7 @@ function AppRoutes() {
         <Route path="intake" element={<HubIntakePage />} />
         <Route path="sorting" element={<HubSortingPage />} />
         <Route path="dispatch" element={<HubDispatchPage />} />
+        <Route path="deliveries" element={<HubDeliveriesPage />} />
         <Route path="riders" element={<HubRidersPage />} />
         <Route
           path="reports"

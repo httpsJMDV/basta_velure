@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
 use App\Http\Controllers\Api\V1\SortingCenterDashboardController;
 use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
+use App\Http\Controllers\Api\V1\HubDeliveryController;
 use App\Http\Controllers\Api\V1\HubDispatchController;
 use App\Http\Controllers\Api\V1\HubParcelIntakeController;
 use App\Http\Controllers\Api\V1\HubRiderController;
@@ -319,6 +320,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/sorting/groups',                          [HubSortingController::class, 'groups']);
             Route::get('/sorting/groups/{barangay_code}/parcels',  [HubSortingController::class, 'groupParcels']);
             Route::post('/sorting/sort',                           [HubSortingController::class, 'sort']);
+
+            // Delivery monitoring and failure triage (Feature 1.9)
+            Route::get('/deliveries/out',                               [HubDeliveryController::class, 'out']);
+            Route::get('/deliveries/failed',                            [HubDeliveryController::class, 'failed']);
+            Route::post('/deliveries/{tracking}/reschedule',            [HubDeliveryController::class, 'reschedule']);
+            Route::post('/deliveries/{tracking}/return-to-seller',      [HubDeliveryController::class, 'returnToSeller']);
 
             // Dispatch (Feature 1.8)
             Route::get('/dispatch/batches',                              [HubDispatchController::class, 'batches']);

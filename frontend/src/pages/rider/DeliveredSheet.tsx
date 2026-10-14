@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react';
 import axios from 'axios';
 import { Camera, CheckCircle2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { markRiderDeliveredApi } from '../../api/client';
+import { downscaleImage, formatBytes } from '../../utils/imageDownscale';
 import type { RiderDeliveredResponse, RiderDeliveryParcel } from '../../types';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -32,6 +33,8 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [photoInfo, setPhotoInfo] = useState<{ finalBytes: number; originalBytes: number; downscaled: boolean } | null>(null);
   const [receivedBy, setReceivedBy] = useState('');
   const [codChecked, setCodChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -61,31 +64,46 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
     };
   }, [previewUrl]);
 
-  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // lets the same file be chosen again after Retake
     if (!file) return;
 
+    const reject = (message: string) => {
+      setPhoto(null);
+      setPreviewUrl(null);
+      setPhotoInfo(null);
+      setPhotoError(message);
+    };
+
     if (!ALLOWED_TYPES.includes(file.type)) {
-      setPhoto(null);
-      setPreviewUrl(null);
-      setPhotoError('Use a JPG, PNG or WebP photo.');
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setPhoto(null);
-      setPreviewUrl(null);
-      setPhotoError('That photo is larger than 8 MB. Take a new one.');
+      reject('Use a JPG, PNG or WebP photo.');
       return;
     }
 
+    // Shrink in the browser first: phone photos are several MB, and a smaller upload is faster on mobile data.
     setPhotoError(null);
     setErrors([]);
-    setPhoto(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    setProcessing(true);
+    const result = await downscaleImage(file);
+    setProcessing(false);
+
+    // Checked on what will actually be uploaded. A big photo only fails here if shrinking was not possible.
+    if (result.file.size > MAX_BYTES) {
+      reject('That photo is larger than 8 MB and could not be reduced. Take a new one.');
+      return;
+    }
+
+    setPhoto(result.file);
+    setPreviewUrl(URL.createObjectURL(result.file));
+    setPhotoInfo({
+      finalBytes: result.file.size,
+      originalBytes: file.size,
+      downscaled: result.downscaled,
+    });
   };
 
-  const canSubmit = photo !== null && (!isCod || codChecked) && !submitting;
+  const canSubmit = photo !== null && !processing && (!isCod || codChecked) && !submitting;
 
   const handleSubmit = async () => {
     if (!photo || busyRef.current) return;
@@ -167,7 +185,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
             type="file"
             accept="image/jpeg,image/png,image/webp"
             capture="environment"
-            onChange={handleFile}
+            onChange={(e) => void handleFile(e)}
             disabled={submitting}
             className="sr-only"
             aria-describedby={photoError ? 'delivered-photo-error' : undefined}
@@ -180,10 +198,16 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
                 alt="Preview of the proof photo you took"
                 className="w-full max-h-72 object-contain rounded-2xl bg-gray-100 border border-gray-200"
               />
+              {photoInfo && (
+                <p className="text-xs text-gray-600" role="status">
+                  Photo ready: <span className="font-bold">{formatBytes(photoInfo.finalBytes)}</span>
+                  {photoInfo.downscaled && ` (reduced from ${formatBytes(photoInfo.originalBytes)})`}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                disabled={submitting}
+                disabled={submitting || processing}
                 className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-50"
               >
                 <RotateCcw className="w-4 h-4" aria-hidden="true" />
@@ -194,11 +218,20 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              disabled={submitting}
+              disabled={submitting || processing}
               className="w-full min-h-14 inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 text-sm font-bold text-gray-800 hover:bg-gray-100 disabled:opacity-50"
             >
-              <Camera className="w-5 h-5" aria-hidden="true" />
-              Take photo
+              {processing ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" aria-hidden="true" />
+                  Preparing photo...
+                </>
+              ) : (
+                <>
+                  <Camera className="w-5 h-5" aria-hidden="true" />
+                  Take photo
+                </>
+              )}
             </button>
           )}
 
