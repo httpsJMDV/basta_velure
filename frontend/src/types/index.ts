@@ -394,6 +394,55 @@ export interface HubSortResponse {
   barangay: { code: string; name: string };
 }
 
+// ─── Rider Delivery Console (Feature 2.6) ──────────────────────────────────────
+
+export type RiderDeliveryView = 'assigned' | 'out_for_delivery';
+
+export interface RiderDeliveryParcel {
+  tracking_number: string;
+  order_number: string | null;
+  recipient: {
+    name: string;
+    phone: string;
+    address: {
+      street: string;
+      barangay: string;
+      city: string;
+      province: string;
+      full_address: string;
+    };
+  };
+  /** Amount to collect from the recipient; null for prepaid orders. */
+  cod_amount: number | null;
+  item_count: number;
+  item_summary: string;
+  assigned_at: string | null;
+  out_for_delivery_at: string | null;
+}
+
+export interface RiderDeliveryGroup {
+  barangay_code: string;
+  barangay_name: string;
+  city: string;
+  parcels: RiderDeliveryParcel[];
+}
+
+export interface RiderDeliveriesResponse {
+  data: RiderDeliveryGroup[];
+  hub: RiderHubDropoff | null;
+  meta: {
+    view: RiderDeliveryView;
+    assigned_count: number;
+    out_for_delivery_count: number;
+  };
+}
+
+export interface RiderStartDeliveryResponse {
+  message: string;
+  started_count: number;
+  tracking_numbers: string[];
+}
+
 // ─── Hub Dispatch (Feature 1.8) ────────────────────────────────────────────────
 
 export interface HubDispatchBatch {
