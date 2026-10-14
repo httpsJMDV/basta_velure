@@ -257,3 +257,14 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - **Un-assigning is not supported**: the state machine has no `ASSIGNED_TO_RIDER → SORTED` transition.
 - Out of scope: the rider's delivery console (2.6) and delivery outcomes (2.7).
 - Contract: `docs/api/logistics-hub-dispatch.md`.
+
+---
+
+## 12. Rider Delivery Console (Feature 2.6)
+
+- The rider sees the parcels the hub assigned to them (`GET /api/v1/rider/deliveries`), collects them at the hub, scans or types each tracking number, and starts the run with `POST /api/v1/rider/deliveries/start`.
+- Starting moves each order `ASSIGNED_TO_RIDER → OUT_FOR_DELIVERY` through `OrderStateMachine` with actor `rider`; the parcel status follows through the existing sync, and `parcels.out_for_delivery_at` is stamped. The request is all or nothing, and `assigned_rider_id` / `assigned_at` are untouched.
+- **Decision: only the rider confirms the collection.** There is no hub-side handover step, mirroring 2.5.
+- The rider's list is scoped to `assigned_rider_id`, so it always matches what the hub dispatched (1.8). Unlike hub endpoints, it includes the recipient phone and COD amount, because only the assigned rider can read it.
+- Out of scope: delivered and failed outcomes (2.7), buyer confirmation (2.8), earnings (2.9).
+- Contract: `docs/api/rider-deliveries.md`.

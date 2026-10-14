@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubSortingController;
 use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
+use App\Http\Controllers\Api\V1\RiderDeliveryController;
 use App\Http\Controllers\Api\V1\RiderPickupController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
@@ -349,6 +350,10 @@ Route::prefix('v1')->group(function () {
             // Pickup execution (Feature 2.5)
             Route::post('/pickups/verify', [RiderPickupController::class, 'verify']);
             Route::post('/pickups/confirm', [RiderPickupController::class, 'confirm']);
+
+            // Delivery console (Feature 2.6)
+            Route::get('/deliveries', [RiderDeliveryController::class, 'index']);
+            Route::post('/deliveries/start', [RiderDeliveryController::class, 'start']);
         });
     });
 });
