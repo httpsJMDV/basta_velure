@@ -167,6 +167,32 @@ Password: Admin@1234
 
 ---
 
+## Running the Tests (for developers)
+
+The automated tests **never** use your `velure` database. They run against a separate database called `velure_test`, because some tests rewrite data. This is enforced twice: `backend/phpunit.xml` pins the database to `velure_test`, and a guard in `backend/tests/TestCase.php` aborts the whole run if the active database name does not end in `_test`.
+
+**One-time setup**
+
+1. In MySQL Workbench, run:
+   ```sql
+   CREATE DATABASE IF NOT EXISTS velure_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+2. Create its tables (PowerShell, from `basta_velure/backend`):
+   ```powershell
+   $env:DB_DATABASE='velure_test'; php artisan migrate; Remove-Item Env:DB_DATABASE
+   ```
+   Repeat this command whenever you pull new migrations.
+
+**Run the tests**
+```powershell
+cd basta_velure/backend
+php artisan test
+```
+
+**If you see "Refusing to run the tests"**, the active database is not a `_test` database. Check `DB_DATABASE` in `backend/phpunit.xml` (it must be `velure_test`) and that you did not edit the guard. Never work around it by pointing the tests at `velure`.
+
+---
+
 ## Quick Recap — Terminal Commands
 
 | What | Folder | Command |

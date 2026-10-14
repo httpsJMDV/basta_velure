@@ -13,7 +13,7 @@ use App\Models\ProductVariant;
 use App\Models\SellerProfile;
 use App\Models\User;
 use App\Services\OrderStateMachine;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -22,7 +22,7 @@ use Tests\TestCase;
 
 class AddressStandardizationTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private User $buyer;
     private User $seller;

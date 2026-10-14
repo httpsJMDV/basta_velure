@@ -75,11 +75,12 @@ class OrderStatusMigrationTest extends TestCase
         DB::table('delivery_logs')->where('notes', 'migration_test')->delete();
         DB::table('parcels')->where('tracking_number', 'MIG-PARCEL-RTS')->delete();
         DB::table('orders')->where('buyer_id', $this->buyer->id)->delete();
-        $this->rider->delete();
-        $this->riderUser->delete();
-        $this->hub->delete();
-        $this->hubOwner->delete();
-        $this->buyer->delete();
+        // These models soft-delete; remove the fixtures for real so no rows are left behind.
+        $this->rider->forceDelete();
+        $this->riderUser->forceDelete();
+        $this->hub->forceDelete();
+        $this->hubOwner->forceDelete();
+        $this->buyer->forceDelete();
 
         parent::tearDown();
     }
