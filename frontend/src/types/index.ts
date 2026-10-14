@@ -2026,6 +2026,8 @@ export interface HubReportRiders {
   sort: HubReportRiderSort;
   direction: HubReportSortDirection;
   riders: HubReportRiderRow[];
+  /** Deliveries in the range that no rider reported (an administrator marked them delivered). */
+  unattributed_deliveries: number;
 }
 
 export type HubReportKind = 'daily' | 'riders';

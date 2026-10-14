@@ -74,6 +74,7 @@ export default function HubReportsPage() {
 
   const [summary, setSummary] = useState<HubReportSummary | null>(null);
   const [riders, setRiders] = useState<HubReportRiderRow[]>([]);
+  const [unattributed, setUnattributed] = useState(0);
   const [sort, setSort] = useState<HubReportRiderSort>('delivered');
   const [direction, setDirection] = useState<HubReportSortDirection>('desc');
   const [loading, setLoading] = useState(true);
@@ -108,6 +109,7 @@ export default function HubReportsPage() {
         if (id !== requestRef.current) return; // a newer request replaced this one
         setSummary(s);
         setRiders(r.riders);
+        setUnattributed(r.unattributed_deliveries);
         setApplied(range);
       } catch (err: unknown) {
         if (id !== requestRef.current) return;
@@ -157,7 +159,10 @@ export default function HubReportsPage() {
     setRidersBusy(true);
     try {
       const r = await getHubReportRidersApi({ ...applied, sort: key, direction: nextDirection });
-      if (id === requestRef.current) setRiders(r.riders);
+      if (id === requestRef.current) {
+        setRiders(r.riders);
+        setUnattributed(r.unattributed_deliveries);
+      }
     } catch (err: unknown) {
       if (id === requestRef.current) showToast(explain(err).message ?? 'Could not sort the riders.', 'error');
     } finally {
@@ -331,8 +336,8 @@ export default function HubReportsPage() {
             <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
               <Info className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
               <span>
-                {summary.excluded.delivered_without_time} {summary.excluded.delivered_without_time === 1 ? 'parcel was' : 'parcels were'} marked delivered by an
-                administrator without a delivery time, so {summary.excluded.delivered_without_time === 1 ? 'it is' : 'they are'} not in any figure here.
+                {summary.excluded.delivered_without_time} {summary.excluded.delivered_without_time === 1 ? 'parcel was' : 'parcels were'} recorded as delivered without a delivery time
+                (older records), so {summary.excluded.delivered_without_time === 1 ? 'it is' : 'they are'} not in any figure here.
               </span>
             </p>
           )}
@@ -426,6 +431,12 @@ export default function HubReportsPage() {
               <p className="text-sm text-gray-500 py-4 text-center">No active riders in this hub yet.</p>
             ) : (
               <RidersTable riders={riders} sort={sort} direction={direction} onSort={(key) => void changeSort(key)} busy={ridersBusy} />
+            )}
+
+            {unattributed > 0 && (
+              <p className="text-xs text-gray-600">
+                {unattributed} {unattributed === 1 ? 'delivery was' : 'deliveries were'} marked delivered by an administrator, so {unattributed === 1 ? 'it is' : 'they are'} counted above but not credited to any rider.
+              </p>
             )}
           </section>
         </div>
