@@ -277,8 +277,6 @@ class RiderChatService
         ]);
         $limit = (int) ($validated['limit'] ?? self::DEFAULT_MESSAGE_LIMIT);
 
-        $this->loadForFormatting(collect([$conversation]));
-
         $query = $conversation->messages();
         if (isset($validated['after_id'])) {
             $messages = $query->where('id', '>', $validated['after_id'])->orderBy('id')->limit($limit)->get();
@@ -292,6 +290,11 @@ class RiderChatService
         // endpoints mark read explicitly instead (POST .../read) so a background poll never does.
         if ($markRead) {
             $this->markRead($conversation, $user, $role);
+        }
+
+        // Names are only needed to label messages, so an empty poll skips these queries.
+        if ($messages->isNotEmpty()) {
+            $this->loadForFormatting(collect([$conversation]));
         }
 
         $open = $this->isOpen($conversation);
