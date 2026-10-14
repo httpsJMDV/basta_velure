@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\AdminSortingCenterApplicationController;
 use App\Http\Controllers\Api\V1\SortingCenterDashboardController;
 use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
+use App\Http\Controllers\Api\V1\HubDispatchController;
 use App\Http\Controllers\Api\V1\HubParcelIntakeController;
 use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubSortingController;
@@ -313,6 +314,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/sorting/groups',                          [HubSortingController::class, 'groups']);
             Route::get('/sorting/groups/{barangay_code}/parcels',  [HubSortingController::class, 'groupParcels']);
             Route::post('/sorting/sort',                           [HubSortingController::class, 'sort']);
+
+            // Dispatch (Feature 1.8)
+            Route::get('/dispatch/batches',                              [HubDispatchController::class, 'batches']);
+            Route::get('/dispatch/batches/{barangay_code}/parcels',      [HubDispatchController::class, 'batchParcels']);
+            Route::get('/dispatch/batches/{barangay_code}/riders',       [HubDispatchController::class, 'batchRiders']);
+            Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
 
             // Hub rider vetting
             Route::get('/riders',                         [HubRiderController::class, 'index']);

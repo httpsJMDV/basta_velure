@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Parcel;
-use App\Models\Rider;
-use App\Models\RiderAreaAssignment;
 use App\Models\SortingCenter;
 use App\Services\OrderStateMachine;
+use App\Services\RiderAreaCoverage;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,8 +18,10 @@ class HubSortingController extends Controller
 {
     protected const MAX_SORT_BATCH = 200;
 
-    public function __construct(protected OrderStateMachine $stateMachine)
-    {
+    public function __construct(
+        protected OrderStateMachine $stateMachine,
+        protected RiderAreaCoverage $riderCoverage,
+    ) {
     }
 
     /**
@@ -49,7 +50,7 @@ class HubSortingController extends Controller
             ->keyBy('id');
 
         $coverage = array_map('strval', $hub->coverage_barangays ?? []);
-        $ridersByCode = $this->activeRidersByBarangayCode($hub);
+        $ridersByCode = $this->riderCoverage->eligibleByBarangayCode($hub);
 
         $groups = $rows->map(function ($row) use ($samples, $coverage, $ridersByCode) {
             $code = (string) $row->code;
@@ -249,29 +250,5 @@ class HubSortingController extends Controller
             ->where('status', Parcel::STATUS_AT_SORTING_CENTER)
             ->whereNotNull('destination_barangay_code')
             ->where('destination_barangay_code', '!=', '');
-    }
-
-    /**
-     * Map of barangay code (string) => [rider_id => true] for ACTIVE riders of this hub
-     * with an active area assignment containing the code.
-     *
-     * @return array<string, array<int, bool>>
-     */
-    protected function activeRidersByBarangayCode(SortingCenter $hub): array
-    {
-        $map = [];
-
-        RiderAreaAssignment::where('is_active', true)
-            ->whereHas('rider', fn ($q) => $q
-                ->where('status', Rider::STATUS_ACTIVE)
-                ->where('sorting_center_id', $hub->id))
-            ->get(['rider_id', 'coverage_barangays'])
-            ->each(function (RiderAreaAssignment $assignment) use (&$map) {
-                foreach ($assignment->coverage_barangays ?? [] as $code) {
-                    $map[(string) $code][$assignment->rider_id] = true;
-                }
-            });
-
-        return $map;
     }
 }

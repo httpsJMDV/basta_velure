@@ -246,3 +246,14 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - **Un-sorting is not supported**: the state machine has no `SORTED → AT_SORTING_CENTER` transition.
 - Out of scope: assigning to riders (1.8).
 - Contract: `docs/api/logistics-hub-sorting.md`.
+
+---
+
+## 11. Hub Dispatch (Feature 1.8)
+
+- A batch is this hub's `SORTED` parcels for one destination barangay PSGC code. The dispatcher assigns a batch to one rider with `POST /api/v1/hub/dispatch/assign`. Each order moves `SORTED → ASSIGNED_TO_RIDER` through `OrderStateMachine` with actor `hub`; the parcel status follows through the existing sync. `parcels.assigned_rider_id` and `parcels.assigned_at` are set. The request is all or nothing.
+- **Eligible rider**: `ACTIVE`, belongs to the hub, and has an active area assignment whose barangay codes contain the batch's code (compared as strings). Several riders may be eligible; the dispatcher chooses.
+- After commit, the rider receives one email per assign request (hub name, parcel count, barangay, login link from `FRONTEND_URL`). A mail failure never undoes the assignment. No in-app notification exists yet.
+- **Un-assigning is not supported**: the state machine has no `ASSIGNED_TO_RIDER → SORTED` transition.
+- Out of scope: the rider's delivery console (2.6) and delivery outcomes (2.7).
+- Contract: `docs/api/logistics-hub-dispatch.md`.
