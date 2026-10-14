@@ -18,6 +18,7 @@ A feature is not done until the full backend suite, lint, and build all pass.
 - Never run `migrate:fresh`, `migrate:refresh`, or `db:wipe`. Never edit or regenerate `backend/database/velure.sql`.
 - Tests must never touch `velure`. Do not use `RefreshDatabase`, `DatabaseMigrations`, or call `migrate:fresh` in tests; use `DatabaseTransactions`. Do not weaken the `_test` guard in `tests/TestCase.php` or the DB settings in `phpunit.xml`.
 - Never edit an existing migration. Add new additive migrations with timestamps after the latest one.
+- After adding a migration, run it on BOTH databases: `php artisan migrate` (velure), then `$env:DB_DATABASE='velure_test'; php artisan migrate; Remove-Item Env:DB_DATABASE` (velure_test). Tests only see the new columns once `velure_test` is migrated.
 - Uploaded documents live on the private `ids` disk and are served only through authorized routes.
 - Do not change money logic (amounts, 10% commission, 8% for Food & Grocery, escrow, payouts) unless asked.
 - PSGC codes are strings (leading zeros matter). Codes are authoritative for matching; names are display text.
@@ -42,9 +43,10 @@ A feature is not done until the full backend suite, lint, and build all pass.
 - Payments: GCash and COD only, with manual/simulated escrow. Escrow release fires at DELIVERED for now (TODO(2.8): move to COMPLETED when buyer confirm-receipt exists).
 
 ## Status (Oct 14, 2026): verify against `git log origin/main` and `docs/`
-Done and merged to `main`: hub registration, admin approval, hub dashboard, rider vetting and area assignment (1.1 to 1.5); rider tables, registration, login and shell (2.1 to 2.3); order lifecycle state machine; one-order-per-seller checkout; parcels, tracking numbers and waybill; PSGC address standardization; 2.4 rider pickup dashboard (PR #12, `b9963fb`: list/accept/decline/release endpoints, `RiderPickupsPage`, `docs/api/rider-pickups.md`).
-Unmerged: nothing. Every `origin/jm/*` branch and `origin/maru` is already contained in `origin/main`; the old branches are stale and can be deleted when you choose. Local `main` may lag `origin/main`, so `git fetch` first.
-Next, in order: 2.5 pickup execution (scan/confirm, PICKED_UP) → 1.6 hub intake scan → 1.7 sorting by barangay → 1.8 dispatch by area → 2.6 rider delivery console → 2.7 delivered/failed outcomes → 1.9 delivery monitoring and return-to-seller → 2.8 buyer confirm receipt + escrow trigger → 2.9 rider earnings and history → 2.10 rider chat/account → 1.10 hub reports → mobile.
+Done and merged to `main`: hub registration, admin approval, hub dashboard, rider vetting and area assignment (1.1 to 1.5); rider tables, registration, login and shell (2.1 to 2.3); order lifecycle state machine; one-order-per-seller checkout; parcels, tracking numbers and waybill; PSGC address standardization; 2.4 rider pickup dashboard (PR #12); 2.5 rider pickup execution (PR #13); 1.6 hub parcel intake (PR #14); 1.7 hub area sorting (PR #15); test database isolation (PR #16).
+Done on branch `liam/hub-dispatch`, not yet merged: 1.8 hub dispatch (SORTED to ASSIGNED_TO_RIDER, `docs/api/logistics-hub-dispatch.md`), plus the 1.7 follow-ups.
+Unmerged elsewhere: `amaru/hub-intake` has one commit (`d50e898`, two 1.6 UI fixes) that never reached `main`. Other old `origin/*` branches are stale and fully contained in `main`. Local `main` may lag `origin/main`, so `git fetch` first.
+Next, in order: 2.6 rider delivery console (the rider `deliveries` page is still a placeholder; it starts from ASSIGNED_TO_RIDER) → 2.7 delivered/failed outcomes → 1.9 delivery monitoring and return-to-seller → 2.8 buyer confirm receipt + escrow trigger → 2.9 rider earnings and history → 2.10 rider chat/account → 1.10 hub reports → mobile.
 
 ## Parked issues
 - Payment proof images are stored on the public disk; move them to the private disk.

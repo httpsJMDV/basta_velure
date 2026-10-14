@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Parcel;
-use App\Models\Rider;
-use App\Models\RiderAreaAssignment;
 use App\Models\SortingCenter;
 use App\Services\OrderStateMachine;
+use App\Services\RiderAreaCoverage;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,8 +18,10 @@ class HubSortingController extends Controller
 {
     protected const MAX_SORT_BATCH = 200;
 
-    public function __construct(protected OrderStateMachine $stateMachine)
-    {
+    public function __construct(
+        protected OrderStateMachine $stateMachine,
+        protected RiderAreaCoverage $riderCoverage,
+    ) {
     }
 
     /**
@@ -49,7 +50,7 @@ class HubSortingController extends Controller
             ->keyBy('id');
 
         $coverage = array_map('strval', $hub->coverage_barangays ?? []);
-        $ridersByCode = $this->activeRidersByBarangayCode($hub);
+        $ridersByCode = $this->riderCoverage->eligibleByBarangayCode($hub);
 
         $groups = $rows->map(function ($row) use ($samples, $coverage, $ridersByCode) {
             $code = (string) $row->code;
@@ -75,9 +76,14 @@ class HubSortingController extends Controller
             );
         }
 
+        // Compare the waiting time as a moment in time, not as an ISO string (offsets would break string order).
+        $waitingSince = fn (array $g): int => $g['oldest_scanned_in_at']
+            ? Carbon::parse($g['oldest_scanned_in_at'])->getTimestamp()
+            : PHP_INT_MAX;
+
         $groups = $sort === 'count'
-            ? $groups->sort(fn (array $a, array $b) => [$b['parcel_count'], $a['oldest_scanned_in_at']] <=> [$a['parcel_count'], $b['oldest_scanned_in_at']])
-            : $groups->sort(fn (array $a, array $b) => [$a['oldest_scanned_in_at'], $a['barangay_code']] <=> [$b['oldest_scanned_in_at'], $b['barangay_code']]);
+            ? $groups->sort(fn (array $a, array $b) => [$b['parcel_count'], $waitingSince($a)] <=> [$a['parcel_count'], $waitingSince($b)])
+            : $groups->sort(fn (array $a, array $b) => [$waitingSince($a), $a['barangay_code']] <=> [$waitingSince($b), $b['barangay_code']]);
 
         $groups = $groups->values();
 
@@ -162,7 +168,11 @@ class HubSortingController extends Controller
             $referenceCode = null;
             foreach ($trackingNumbers as $tn) {
                 $candidate = $parcels->get($tn);
-                if ($candidate && $candidate->status === Parcel::STATUS_AT_SORTING_CENTER) {
+                if (
+                    $candidate
+                    && $candidate->status === Parcel::STATUS_AT_SORTING_CENTER
+                    && trim((string) $candidate->destination_barangay_code) !== ''
+                ) {
                     $referenceCode = (string) $candidate->destination_barangay_code;
                     break;
                 }
@@ -177,6 +187,9 @@ class HubSortingController extends Controller
                     $errors[$key] = ['Parcel not found for this hub.'];
                 } elseif ($parcel->status !== Parcel::STATUS_AT_SORTING_CENTER) {
                     $errors[$key] = ['This parcel is not waiting to be sorted.'];
+                } elseif (trim((string) $parcel->destination_barangay_code) === '') {
+                    // Same rule as the groups endpoint, which never lists parcels without a code.
+                    $errors[$key] = ['This parcel has no destination barangay code, so it cannot be sorted.'];
                 } elseif ((string) $parcel->destination_barangay_code !== $referenceCode) {
                     $errors[$key] = ['This parcel is bound for a different barangay than the rest of the batch.'];
                 } elseif (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::SORTED, 'hub')) {
@@ -237,29 +250,5 @@ class HubSortingController extends Controller
             ->where('status', Parcel::STATUS_AT_SORTING_CENTER)
             ->whereNotNull('destination_barangay_code')
             ->where('destination_barangay_code', '!=', '');
-    }
-
-    /**
-     * Map of barangay code (string) => [rider_id => true] for ACTIVE riders of this hub
-     * with an active area assignment containing the code.
-     *
-     * @return array<string, array<int, bool>>
-     */
-    protected function activeRidersByBarangayCode(SortingCenter $hub): array
-    {
-        $map = [];
-
-        RiderAreaAssignment::where('is_active', true)
-            ->whereHas('rider', fn ($q) => $q
-                ->where('status', Rider::STATUS_ACTIVE)
-                ->where('sorting_center_id', $hub->id))
-            ->get(['rider_id', 'coverage_barangays'])
-            ->each(function (RiderAreaAssignment $assignment) use (&$map) {
-                foreach ($assignment->coverage_barangays ?? [] as $code) {
-                    $map[(string) $code][$assignment->rider_id] = true;
-                }
-            });
-
-        return $map;
     }
 }

@@ -357,6 +357,35 @@ class HubSortingTest extends TestCase
         }
     }
 
+    public function test_sort_rejects_a_parcel_with_an_empty_destination_barangay_code_per_item(): void
+    {
+        $fine = $this->createParcel($this->hub, self::CODE_A);
+        $blank = $this->createParcel($this->hub, self::CODE_A, overrides: ['destination_barangay_code' => '']);
+        $nullCode = $this->createParcel($this->hub, self::CODE_A, overrides: ['destination_barangay_code' => null]);
+
+        // The groups endpoint never lists them, so the sort endpoint must not accept them either.
+        $codes = collect($this->fetchGroups()->assertOk()->json('data'))->pluck('barangay_code')->all();
+        $this->assertSame([self::CODE_A], $codes);
+
+        $response = $this->sort([$fine->tracking_number, $blank->tracking_number, $nullCode->tracking_number])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['tracking_numbers.1', 'tracking_numbers.2'])
+            ->assertJsonMissingValidationErrors(['tracking_numbers.0']);
+
+        $this->assertStringContainsString('no destination barangay code', $response->json('errors')['tracking_numbers.1'][0]);
+
+        // Even when the blank-code parcel comes first it cannot become the batch's reference barangay.
+        $this->sort([$blank->tracking_number, $fine->tracking_number])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['tracking_numbers.0'])
+            ->assertJsonMissingValidationErrors(['tracking_numbers.1']);
+
+        foreach ([$fine, $blank, $nullCode] as $parcel) {
+            $this->assertEquals(Parcel::STATUS_AT_SORTING_CENTER, $parcel->fresh()->status);
+            $this->assertNull($parcel->fresh()->sorted_at);
+        }
+    }
+
     public function test_sort_item_errors_for_wrong_status_unknown_and_other_hubs_parcels(): void
     {
         $ok = $this->createParcel($this->hub, self::CODE_A);
