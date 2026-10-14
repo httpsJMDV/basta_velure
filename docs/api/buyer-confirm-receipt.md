@@ -61,6 +61,8 @@ No body. Requires Sanctum authentication and the `buyer` role.
 | `delivery_proof_available` | `true` when a proof photo exists. The photo is fetched from `GET /api/v1/parcels/{tracking}/delivery-proof` (Feature 2.7), which the order's buyer may read. |
 
 ## 3. Seller earnings payload (additive)
+The seller dashboard's balance card (`GET /api/v1/seller/dashboard/stats`, key `balance`) now shows the real numbers, from the same calculation as the earnings page (`SellerBalanceCalculator`): `available` is the released earnings minus payout requests, `pending` is what is still in escrow, `total_paid_out` is completed payouts. It used to be a hardcoded placeholder (`pending` 0, `available` = total sales).
+
 `GET /api/v1/seller/earnings/orders` gains `escrow_release_at` per item: when the item's escrow releases. It is `null` until the order is `COMPLETED`, and `null` for items that are already `available`. Every existing key is unchanged.
 
 `GET /api/v1/seller/earnings` is unchanged. Delivered-but-unconfirmed items count in `pending_balance`, not `available_balance`.
@@ -76,8 +78,11 @@ For orders in `DELIVERED` for at least `orders.auto_complete_days` (judged by th
 ### `php artisan payouts:release-due`
 Sets `payout_status = available` on items that are `pending_release`, have `escrow_release_at <= now`, and belong to a `COMPLETED` order. It never touches `disbursed` or already `available` items, items of cancelled, returned, disputed or merely delivered orders, or any amount.
 
+#### Safety net for missing release dates
+A `pending_release` item on a `COMPLETED` order that has **no** `escrow_release_at` (nothing in the app creates this; a manual database edit could) would otherwise stay in escrow forever. `payouts:release-due` therefore dates it from the order's `completed_at` plus the hold, releases it once that moment has passed, and says so in its output. If the order has no `completed_at` either, nothing can be dated honestly: the item is left alone and the command prints a warning so someone can check it by hand.
+
 ### Running the scheduler
-The scheduler must be running for these to fire: `php artisan schedule:work` in development, a cron entry for `php artisan schedule:run` every minute in production. See `SETUP.md`.
+The scheduler must be running for these to fire: `php artisan schedule:work` in development, a cron entry for `php artisan schedule:run` every minute in production. See `SETUP.md`. `php artisan scheduler:check` reports whether the scheduler is running (it fails with exit code 1 when its per-minute heartbeat is missing or older than 5 minutes).
 
 ---
 

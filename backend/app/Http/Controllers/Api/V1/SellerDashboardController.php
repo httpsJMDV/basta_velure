@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\SellerBalanceCalculator;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,7 +42,8 @@ class SellerDashboardController extends Controller
             ->where('stock_quantity', '<=', 5)
             ->count();
 
-        $totalRevenue = (float) OrderItem::where('seller_id', $sellerId)->sum('subtotal');
+        // Real money position (was a hardcoded placeholder), from the same calculation as the earnings page.
+        $balance = app(SellerBalanceCalculator::class)->forSeller($sellerId);
 
         return response()->json([
             'data' => [
@@ -51,9 +53,9 @@ class SellerDashboardController extends Controller
                 'total_products'  => $totalProducts,
                 'low_stock_count' => $lowStockCount,
                 'balance'         => [
-                    'pending'        => 0.0,
-                    'available'      => $totalRevenue,
-                    'total_paid_out' => 0.0,
+                    'pending'        => $balance['pending_balance'],
+                    'available'      => $balance['available_balance'],
+                    'total_paid_out' => $balance['total_paid_out'],
                 ],
             ],
         ]);

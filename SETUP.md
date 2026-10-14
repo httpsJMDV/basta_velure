@@ -185,6 +185,14 @@ Two things happen automatically, once an hour, through Laravel's scheduler:
   * * * * * cd /path/to/basta_velure/backend && php artisan schedule:run >> /dev/null 2>&1
   ```
 
+**Check that it is running:** the scheduler writes a heartbeat every minute. Run
+
+```powershell
+php artisan scheduler:check
+```
+
+It says the scheduler is running, or fails (exit code 1) and tells you how to start it. Run it after deploying and whenever sellers say they are not being paid. It needs a cache that persists between processes (the default `CACHE_STORE=database` is fine).
+
 **Demos:** to see the whole flow quickly, set these in `backend/.env`, then restart the server:
 
 ```

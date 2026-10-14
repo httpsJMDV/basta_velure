@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\OrderItem;
 use App\Models\PayoutRequest;
+use App\Services\SellerBalanceCalculator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,55 +19,11 @@ class SellerEarningsController extends Controller
      */
     public function summary(Request $request): JsonResponse
     {
-        $sellerId = $request->user()->id;
-
-        // Total earnings from all delivered items
-        $grossAvailable = (float) OrderItem::where('seller_id', $sellerId)
-            ->where('payout_status', 'available')
-            ->sum('seller_earnings');
-
-        // Total already requested in pending or processing payouts
-        $requestedPayouts = (float) PayoutRequest::where('seller_id', $sellerId)
-            ->whereIn('status', ['pending', 'processing', 'completed'])
-            ->sum('amount');
-
-        // Real available balance for withdrawal
-        $availableBalance = max(0, round($grossAvailable - $requestedPayouts, 2));
-
-        // Excluded terminal statuses
-        $excludedStatuses = [OrderStatus::CANCELLED->value, OrderStatus::RETURNED->value, 'cancelled', 'returned'];
-
-        // Pending balance: orders confirmed or in transit (not yet delivered)
-        $pendingBalance = (float) OrderItem::where('seller_id', $sellerId)
-            ->where('payout_status', 'pending_release')
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $excludedStatuses))
-            ->sum('seller_earnings');
-
-        // Total paid out completed
-        $totalPaidOut = (float) PayoutRequest::where('seller_id', $sellerId)
-            ->where('status', 'completed')
-            ->sum('amount');
-
-        // Lifetime total net earnings
-        $lifetimeEarnings = (float) OrderItem::where('seller_id', $sellerId)
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $excludedStatuses))
-            ->sum('seller_earnings');
-
-        $totalCommissionPaid = (float) OrderItem::where('seller_id', $sellerId)
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $excludedStatuses))
-            ->sum('commission_amount');
-
+        // The same calculation the seller dashboard card uses, so the two always agree.
         return response()->json([
-            'data' => [
-                'available_balance'     => $availableBalance,
-                'pending_balance'       => round($pendingBalance, 2),
-                'total_paid_out'        => round($totalPaidOut, 2),
-                'lifetime_earnings'     => round($lifetimeEarnings, 2),
-                'total_commission_paid' => round($totalCommissionPaid, 2),
-            ],
+            'data' => app(SellerBalanceCalculator::class)->forSeller($request->user()->id),
         ]);
     }
-
     /**
      * GET /api/v1/seller/earnings/orders
      */
