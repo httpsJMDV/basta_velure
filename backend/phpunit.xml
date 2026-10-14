@@ -23,8 +23,16 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="mysql"/>
-        <env name="DB_DATABASE" value="velure"/>
+        <!--
+            The tests must never run against the dev database. A real environment variable (for example a
+            leftover $env:DB_DATABASE) must not be able to change that. Laravel can read a value from
+            $_SERVER as well as $_ENV, and <env> never touches $_SERVER, so the database is set in both
+            places and <env> is forced.
+        -->
+        <env name="DB_CONNECTION" value="mysql" force="true"/>
+        <env name="DB_DATABASE" value="velure_test" force="true"/>
+        <server name="DB_CONNECTION" value="mysql"/>
+        <server name="DB_DATABASE" value="velure_test"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
