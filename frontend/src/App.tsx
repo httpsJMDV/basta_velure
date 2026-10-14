@@ -19,6 +19,7 @@ import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubIntakePage from './pages/hub/HubIntakePage';
 import HubPlaceholderPage from './pages/hub/HubPlaceholderPage';
+import HubSortingPage from './pages/hub/HubSortingPage';
 import HubRidersPage from './pages/hub/HubRidersPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
@@ -349,15 +350,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/hub/dashboard" replace />} />
         <Route path="dashboard" element={<HubDashboardPage />} />
         <Route path="intake" element={<HubIntakePage />} />
-        <Route
-          path="sorting"
-          element={
-            <HubPlaceholderPage
-              title="Package Sorting"
-              subtitle="Destination sorting into designated city and barangay distribution bins."
-            />
-          }
-        />
+        <Route path="sorting" element={<HubSortingPage />} />
         <Route
           path="dispatch"
           element={

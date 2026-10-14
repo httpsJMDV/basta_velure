@@ -351,6 +351,49 @@ export interface HubParcelListResponse {
   };
 }
 
+// ─── Hub Area Sorting (Feature 1.7) ────────────────────────────────────────────
+
+export type HubSortingSort = 'waiting' | 'count';
+
+export interface HubSortingGroup {
+  barangay_code: string;
+  barangay_name: string;
+  city: string;
+  parcel_count: number;
+  oldest_scanned_in_at: string | null;
+  in_coverage: boolean;
+  riders_covering: number;
+}
+
+export interface HubSortingGroupsResponse {
+  data: HubSortingGroup[];
+  meta: { total_groups: number; total_parcels: number };
+}
+
+export interface HubSortingParcel {
+  tracking_number: string;
+  order_number: string | null;
+  scanned_in_at: string | null;
+}
+
+export interface HubSortingParcelsResponse {
+  data: HubSortingParcel[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+  };
+}
+
+export interface HubSortResponse {
+  message: string;
+  sorted_count: number;
+  barangay: { code: string; name: string };
+}
+
 export interface HubDashboardMetricsResponse {
   data: HubDashboardMetrics;
 }
