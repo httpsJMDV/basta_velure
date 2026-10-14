@@ -13,8 +13,8 @@ Match what the app already does. Read the nearest existing page first and copy i
 - Statuses: use `utils/orderStatus.ts` (`getStatusLabel`, `getStatusBadgeClass`). Never hand-pick order status colors.
 
 ## Which accent where
-- Storefront, seller, admin: `brand-red` for primary actions and active states, `brand-black` for secondary.
-- Rider portal and hub work pages (`pages/rider/*`, `HubRidersPage`, `HubIntakePage`): `blue-600` primary actions, `emerald` for success, `red` for errors, `amber` for warnings.
+- Storefront, seller, admin and rider: `brand-red` for primary actions and active states, `brand-black` for secondary. The rider portal copies the seller dashboard: light shell, `RiderUi.tsx` (`PageHero`, `KpiTile`, `SectionCard`, `TabBar`, `StateCard`) and `riderStyles.ts` (`BTN_PRIMARY`, `BTN_SECONDARY`). No blue anywhere in `pages/rider/*`, the rider auth pages or the shared chat view.
+- Hub work pages (`HubRidersPage`, `HubIntakePage`): `blue-600` primary actions. `emerald` for success, `amber` for warnings on every portal.
 - Hub shell (`HubLayout`): dark `#0B0F19` sidebar with `brand-red` active nav.
 - Stay consistent inside one portal. Do not mix red and blue primary buttons on the same screen.
 
