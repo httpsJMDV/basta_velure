@@ -168,15 +168,28 @@ class OrderStateMachineTest extends TestCase
         $order = $this->stateMachine->transition($order, OrderStatus::DELIVERED, 'rider', $this->rider->id, 'Delivered to recipient');
         $this->assertEquals(OrderStatus::DELIVERED, $order->status);
 
-        // Escrow trigger assert: DELIVERED sets payout_status to available
+        // Escrow timing (Feature 2.8): DELIVERED only records the delivery time. It no longer releases funds.
         $item->refresh();
-        $this->assertEquals('available', $item->payout_status);
+        $this->assertEquals('pending_release', $item->payout_status);
         $this->assertNotNull($item->delivered_at);
+        $this->assertNull($item->escrow_release_at);
         $this->assertEquals('450.00', (string) $item->seller_earnings);
 
         // 10. DELIVERED -> COMPLETED (buyer)
         $order = $this->stateMachine->transition($order, OrderStatus::COMPLETED, 'buyer', $this->buyer->id, 'Order received and accepted');
         $this->assertEquals(OrderStatus::COMPLETED, $order->status);
+
+        // COMPLETED starts the hold: still in escrow, with a release date one hold period away.
+        $item->refresh();
+        $this->assertEquals('pending_release', $item->payout_status);
+        $this->assertNotNull($order->fresh()->completed_at);
+        $this->assertNotNull($item->escrow_release_at);
+        $this->assertEqualsWithDelta(
+            now()->addDays((int) config('payouts.escrow_hold_days'))->getTimestamp(),
+            $item->escrow_release_at->getTimestamp(),
+            5
+        );
+        $this->assertEquals('450.00', (string) $item->seller_earnings); // money untouched
 
         // Assert all 10 history rows exist in order
         $this->assertCount(10, $order->statusHistories);

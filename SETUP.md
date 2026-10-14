@@ -167,6 +167,41 @@ Password: Admin@1234
 
 ---
 
+## The Scheduler (needed for order completion and seller payouts)
+
+Two things happen automatically, once an hour, through Laravel's scheduler:
+
+- `orders:auto-complete` completes a delivered order the buyer never confirmed (after 3 days).
+- `payouts:release-due` makes a seller's earnings available once the 7-day protection period after completion has ended.
+
+**The scheduler must be running, or neither happens and sellers are never paid.**
+
+- **Development:** in a separate terminal, from `basta_velure/backend`:
+  ```powershell
+  php artisan schedule:work
+  ```
+- **Production:** add one cron entry that runs every minute:
+  ```
+  * * * * * cd /path/to/basta_velure/backend && php artisan schedule:run >> /dev/null 2>&1
+  ```
+
+**Demos:** to see the whole flow quickly, set these in `backend/.env`, then restart the server:
+
+```
+PAYOUT_ESCROW_HOLD_DAYS=0
+ORDER_AUTO_COMPLETE_DAYS=0
+```
+
+and run the two commands by hand instead of waiting for the hour:
+
+```powershell
+php artisan orders:auto-complete
+php artisan payouts:release-due
+```
+
+Remove the two lines (or set 7 and 3) for normal use. Emails use the queue as before; keep `php artisan queue:work` running if `QUEUE_CONNECTION=database`.
+
+---
 ## PHP Upload Limits (needed for delivery proof photos)
 
 Riders upload a photo as proof of delivery, and the API accepts photos up to **8 MB**. PHP's default `upload_max_filesize` is only **2M**, so a normal phone photo (often 3 to 6 MB) is refused by PHP itself and the rider sees "The proof photo failed to upload."

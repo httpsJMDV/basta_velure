@@ -128,6 +128,8 @@ Authorized Actor Roles: `buyer`, `seller`, `rider`, `hub`, `admin`, `system`.
 
 ## 4. Escrow Trigger Decision & Scheduled Jobs Audit
 
+> **Superseded by Feature 2.8 (section 15).** The text below records the Bridge A decision at the time. Escrow no longer releases at `DELIVERED`: it is scheduled at `COMPLETED` and released after a hold period by `payouts:release-due`. The `TODO(2.8)` it mentions has been removed from the code.
+
 ### Decision
 - **Current Behavior Preserved**: In this Bridge A feature, payout release (`OrderItem.payout_status = 'available'` and `delivered_at = now()`) triggers at the **`DELIVERED`** transition.
 - **Reasoning**: A buyer-side "Confirm Receipt" action has not been built yet. Shifting the release trigger to `COMPLETED` immediately would permanently strand seller payouts since orders would never reach `COMPLETED` in ordinary user flows.
@@ -295,3 +297,19 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - **Decision: refunds and escrow are untouched.** Returning a parcel changes no money field. Escrow still releases at `DELIVERED` until 2.8. Refunds for returned orders are not built.
 - The rider's failure note is visible to the hub only; the order history (readable by buyers) carries just the reason label.
 - Contract: `docs/api/logistics-hub-deliveries.md`.
+
+---
+
+## 15. Buyer Confirms Receipt and the Escrow Rule (Feature 2.8)
+
+**Only the timing of payout release changed.** Amounts, commission, payout requests and disbursement are untouched.
+
+- The buyer confirms receipt with `POST /api/v1/buyer/orders/{order}/confirm-receipt`: `DELIVERED → COMPLETED` through `OrderStateMachine` with actor `buyer`. `orders.completed_at` is set.
+- **Escrow timing.** At `DELIVERED` the state machine records `delivered_at` only; `payout_status` stays `pending_release`. At `COMPLETED` (by the buyer, by auto-complete with actor `system`, or by an admin) each item still in `pending_release` gets `escrow_release_at = now + payouts.escrow_hold_days` (default 7). The `payouts:release-due` command is the only thing that moves an item to `available`, once `escrow_release_at` has passed and the order is `COMPLETED`.
+- A transition never moves a `payout_status` backwards or forwards. Items already `available` or `disbursed` are left alone.
+- **Auto-complete.** If the buyer does nothing, `orders:auto-complete` completes a `DELIVERED` order `orders.auto_complete_days` (default 3) after delivery, with actor `system` and the note `Auto-completed after N days`. It never touches `DISPUTED`, cancelled, returned or failed orders.
+- Both commands run hourly through Laravel's scheduler (`routes/console.php`). The scheduler must be running (`php artisan schedule:work` in development, a cron entry in production). For demos set `PAYOUT_ESCROW_HOLD_DAYS=0` and `ORDER_AUTO_COMPLETE_DAYS=0` and run the two commands by hand.
+- **Returns are only possible while `DELIVERED`.** `COMPLETED` is terminal and has no transition to `DISPUTED`, so confirming receipt ends the return window. A refused return request no longer leaves a dispute row behind. A disputed order cannot be confirmed.
+- Buyer status grouping: `DELIVERED` is in To Receive, `COMPLETED` is in To Review.
+- Out of scope: refunds for returned or cancelled orders, and the review feature (not built yet).
+- Contract: `docs/api/buyer-confirm-receipt.md`.

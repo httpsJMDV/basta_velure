@@ -117,6 +117,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/buyer/orders', [BuyerOrderController::class, 'index']);
         Route::get('/buyer/orders/{order}', [BuyerOrderController::class, 'show']);
         Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn']);
+        // Feature 2.8: only buyers (other roles get 403); another buyer's order is a 404 in the controller
+        Route::post('/buyer/orders/{order}/confirm-receipt', [BuyerOrderController::class, 'confirmReceipt'])->middleware('role:buyer');
 
         // Unified Messaging & Chat System
         Route::get('/conversations', [ConversationController::class, 'index']);

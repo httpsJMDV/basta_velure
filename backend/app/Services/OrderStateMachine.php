@@ -299,15 +299,33 @@ class OrderStateMachine
             ]);
         }
 
-        // 3. Escrow trigger:
-        // TODO(2.8): Feature 2.8 will move payout release trigger to COMPLETED once buyer receipt confirmation is introduced.
-        // Currently, payout availability and delivered_at release immediately on DELIVERED as existing behavior.
+        // 3. Escrow timing (Feature 2.8). Only WHEN funds become available changes here; amounts,
+        //    commission and payout requests are untouched, and payout_status is never moved by a transition.
+        //
+        //    DELIVERED: record the delivery time only. Funds stay in escrow (pending_release).
         if ($toStatus === OrderStatus::DELIVERED->value) {
-            OrderItem::where('order_id', $order->id)
-                ->update([
-                    'payout_status' => 'available',
-                    'delivered_at'  => now(),
-                ]);
+            OrderItem::where('order_id', $order->id)->update(['delivered_at' => now()]);
         }
+
+        //    COMPLETED (by the buyer, the system's auto-complete, or an admin): start the hold. Each item
+        //    still in escrow gets a release date; the payouts:release-due command makes it available later.
+        //    Items already available or disbursed are left exactly as they are.
+        if ($toStatus === OrderStatus::COMPLETED->value) {
+            $completedAt = now();
+
+            Order::where('id', $order->id)->update(['completed_at' => $completedAt]);
+
+            OrderItem::where('order_id', $order->id)
+                ->where('payout_status', 'pending_release')
+                ->update(['escrow_release_at' => $completedAt->copy()->addDays($this->escrowHoldDays())]);
+        }
+    }
+
+    /**
+     * Days a seller's earnings stay in escrow after the order is COMPLETED.
+     */
+    protected function escrowHoldDays(): int
+    {
+        return max(0, (int) config('payouts.escrow_hold_days', 7));
     }
 }

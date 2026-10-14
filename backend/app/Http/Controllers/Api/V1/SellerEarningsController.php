@@ -104,6 +104,9 @@ class SellerEarningsController extends Controller
                     'payout_status'     => $item->payout_status,
                     'order_date'        => $item->created_at?->toIso8601String(),
                     'delivered_date'    => $item->delivered_at?->toIso8601String(),
+                    // Feature 2.8 (added; no existing key changed): when this item's escrow releases.
+                    // Null until the order is COMPLETED, and for items that are already available.
+                    'escrow_release_at' => $item->escrow_release_at?->toIso8601String(),
                 ];
             }),
             'meta' => [
