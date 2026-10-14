@@ -61,6 +61,9 @@ import type {
   SortingCenterApplicationSummaryItem,
   SortingCenterApplicationDetail,
   HubDashboardMetrics,
+  HubParcelLookupResponse,
+  HubParcelReceiveResponse,
+  HubParcelListResponse,
   PublicApprovedHub,
   RiderRegistrationResponse,
   HubRidersListResponse,
@@ -744,6 +747,22 @@ export const deleteAdminCategoryApi = (id: number) =>
 
 export const getHubDashboardMetricsApi = () =>
   http.get<{ data: HubDashboardMetrics }>('/hub/dashboard/metrics').then((r) => r.data.data);
+
+// ─── Hub Parcel Intake (Feature 1.6) ─────────────────────────────────────────────
+
+export const lookupHubParcelApi = (tracking: string) =>
+  http.get<HubParcelLookupResponse>(`/hub/parcels/${encodeURIComponent(tracking)}`).then((r) => r.data);
+
+export const receiveHubParcelApi = (tracking: string) =>
+  http
+    .post<HubParcelReceiveResponse>(`/hub/parcels/${encodeURIComponent(tracking)}/receive`)
+    .then((r) => r.data);
+
+export const getHubExpectedParcelsApi = (params: { page?: number; per_page?: number } = {}) =>
+  http.get<HubParcelListResponse>('/hub/intake/expected', { params }).then((r) => r.data);
+
+export const getHubReceivedTodayApi = (params: { page?: number; per_page?: number } = {}) =>
+  http.get<HubParcelListResponse>('/hub/intake/received-today', { params }).then((r) => r.data);
 
 // ─── Logistics / Sorting Center Hub Courier Vetting & Area Mapping ─────────────
 
