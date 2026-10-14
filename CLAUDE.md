@@ -18,6 +18,7 @@ A feature is not done until the full backend suite, lint, and build all pass.
 - Never run `migrate:fresh`, `migrate:refresh`, or `db:wipe`. Never edit or regenerate `backend/database/velure.sql`.
 - Tests must never touch `velure`. Do not use `RefreshDatabase`, `DatabaseMigrations`, or call `migrate:fresh` in tests; use `DatabaseTransactions`. Do not weaken the `_test` guard in `tests/TestCase.php` or the DB settings in `phpunit.xml`.
 - Never edit an existing migration. Add new additive migrations with timestamps after the latest one.
+- After adding a migration, run it on BOTH databases: `php artisan migrate` (velure), then `$env:DB_DATABASE='velure_test'; php artisan migrate; Remove-Item Env:DB_DATABASE` (velure_test). Tests only see the new columns once `velure_test` is migrated.
 - Uploaded documents live on the private `ids` disk and are served only through authorized routes.
 - Do not change money logic (amounts, 10% commission, 8% for Food & Grocery, escrow, payouts) unless asked.
 - PSGC codes are strings (leading zeros matter). Codes are authoritative for matching; names are display text.
