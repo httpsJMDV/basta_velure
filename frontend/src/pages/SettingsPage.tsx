@@ -23,6 +23,7 @@ import { uploadAvatarApi, requestBuyerOrderReturnApi } from '../api/client';
 import type { Address, AddressLabel, Order, OrderStatus, WishlistItem, FollowedStore } from '../types';
 import { getStatusLabel, getStatusBadgeClass, BUYER_FILTER_GROUPS, normalizeOrderStatus } from '../utils/orderStatus';
 import OrderStatusTimeline from '../components/orders/OrderStatusTimeline';
+import BuyerReceiptConfirm from '../components/orders/BuyerReceiptConfirm';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
@@ -1060,6 +1061,9 @@ function OrderCard({ order, onUpdated, isPartOfMultiShopCheckout }: { order: Ord
           <span className="font-semibold">Seller note: </span>{order.rejection_reason}
         </div>
       )}
+
+      {/* Feature 2.8: delivered orders wait for the buyer to confirm receipt */}
+      {normStatus === 'DELIVERED' && <BuyerReceiptConfirm order={order} onUpdated={onUpdated} />}
 
       {/* Action / Timeline buttons */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-50 flex-wrap gap-2">

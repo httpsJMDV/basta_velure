@@ -11,7 +11,7 @@ class OrderItem extends Model
         'order_id', 'seller_id', 'category_id', 'product_name', 'variant_label',
         'unit_price', 'quantity', 'subtotal', 'image_url',
         'commission_rate', 'commission_amount', 'seller_earnings',
-        'payout_status', 'delivered_at',
+        'payout_status', 'delivered_at', 'escrow_release_at',
     ];
 
     protected function casts(): array
@@ -23,6 +23,7 @@ class OrderItem extends Model
             'commission_amount' => 'decimal:2',
             'seller_earnings'   => 'decimal:2',
             'delivered_at'      => 'datetime',
+            'escrow_release_at' => 'datetime',
         ];
     }
 

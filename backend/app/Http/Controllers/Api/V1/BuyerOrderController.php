@@ -293,23 +293,27 @@ class BuyerOrderController extends Controller
             'description' => ['required', 'string', 'max:2000'],
         ]);
 
-        \App\Models\Dispute::updateOrCreate(
-            ['order_id' => $order->id],
-            [
-                'buyer_id'    => $user->id,
-                'reason'      => $data['reason'],
-                'description' => $data['description'],
-                'status'      => 'open',
-            ]
-        );
+        // One transaction: if the state machine refuses the move (for example the order is already
+        // COMPLETED), no dispute row may be left behind.
+        DB::transaction(function () use ($order, $user, $data) {
+            \App\Models\Dispute::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'buyer_id'    => $user->id,
+                    'reason'      => $data['reason'],
+                    'description' => $data['description'],
+                    'status'      => 'open',
+                ]
+            );
 
-        $this->stateMachine->transition(
-            $order,
-            OrderStatus::DISPUTED,
-            'buyer',
-            $user->id,
-            "Return requested: {$data['reason']}"
-        );
+            $this->stateMachine->transition(
+                $order,
+                OrderStatus::DISPUTED,
+                'buyer',
+                $user->id,
+                "Return requested: {$data['reason']}"
+            );
+        });
 
         return response()->json([
             'message' => 'Return request submitted successfully. The seller will review within 48 hours.',
@@ -317,9 +321,66 @@ class BuyerOrderController extends Controller
         ]);
     }
 
+    /**
+     * POST /api/v1/buyer/orders/{order}/confirm-receipt
+     *
+     * The buyer confirms the parcel arrived: DELIVERED -> COMPLETED. This starts the seller's escrow hold
+     * (the state machine sets completed_at and each item's escrow_release_at); no money moves here.
+     * Another buyer's order is a 404. Anything but DELIVERED (including a disputed order and a second
+     * submit) is a 409.
+     */
+    public function confirmReceipt(Request $request, int $order): JsonResponse
+    {
+        $user = $request->user();
+
+        return DB::transaction(function () use ($user, $order) {
+            /** @var Order|null $locked */
+            $locked = Order::where('id', $order)->where('buyer_id', $user->id)->lockForUpdate()->first();
+
+            if (! $locked) {
+                return response()->json(['message' => 'Order not found.'], 404);
+            }
+
+            $status = $locked->status instanceof OrderStatus ? $locked->status : OrderStatus::tryFrom((string) $locked->status);
+
+            if ($status === OrderStatus::DISPUTED) {
+                return response()->json(['message' => 'A return request is open for this order, so receipt cannot be confirmed.'], 409);
+            }
+            if ($status === OrderStatus::COMPLETED) {
+                return response()->json(['message' => 'This order has already been confirmed as received.'], 409);
+            }
+            if ($status !== OrderStatus::DELIVERED) {
+                return response()->json(['message' => 'You can confirm receipt once the order has been delivered.'], 409);
+            }
+
+            $this->stateMachine->transition(
+                $locked,
+                OrderStatus::COMPLETED,
+                'buyer',
+                $user->id,
+                'Buyer confirmed receipt'
+            );
+
+            $fresh = $locked->fresh(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories', 'parcel']);
+
+            return response()->json([
+                'message' => 'Thanks for confirming. The seller\'s payment will be released after the protection period.',
+                'data'    => $this->formatOrder($fresh, detail: true),
+            ]);
+        });
+    }
+
     private function formatOrder(Order $o, bool $detail = false): array
     {
         $statusStr = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
+
+        // Feature 2.8: when the order was delivered, when it will auto-complete if the buyer does nothing,
+        // and whether a delivery proof photo exists (the photo itself is fetched from the secure endpoint).
+        $parcel = $o->relationLoaded('parcel') ? $o->parcel : $o->parcel()->first();
+        $deliveredAt = $parcel?->delivered_at;
+        $autoCompleteAt = ($statusStr === OrderStatus::DELIVERED->value && $deliveredAt)
+            ? $deliveredAt->copy()->addDays(max(0, (int) config('orders.auto_complete_days', 3)))
+            : null;
 
         return [
             'id'                  => $o->id,
@@ -344,6 +405,10 @@ class BuyerOrderController extends Controller
             'shipping_barangay'   => $o->shipping_barangay,
             'notes'               => $o->notes,
             'created_at'          => $o->created_at?->toIso8601String(),
+            'delivered_at'            => $deliveredAt?->toIso8601String(),
+            'auto_complete_at'        => $autoCompleteAt?->toIso8601String(),
+            'completed_at'            => $o->completed_at?->toIso8601String(),
+            'delivery_proof_available' => (bool) $parcel?->delivery_proof_path,
             'items'               => $o->items->map(fn ($i) => [
                 'id'            => $i->id,
                 'seller_id'     => $i->seller_id,

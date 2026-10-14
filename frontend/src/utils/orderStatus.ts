@@ -66,7 +66,7 @@ export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
     label: 'Delivered',
     shortLabel: 'Delivered',
     badgeCls: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    description: 'Package delivered to buyer. Escrow countdown initiated.',
+    description: 'Package delivered to the buyer. Waiting for the buyer to confirm receipt.',
   },
   COMPLETED: {
     label: 'Order Completed',
@@ -136,8 +136,8 @@ export const BUYER_FILTER_GROUPS = {
   all:        [] as OrderStatus[],
   to_pay:     ['PLACED'] as OrderStatus[],
   to_ship:    ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'] as OrderStatus[],
-  to_receive: ['PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY'] as OrderStatus[],
-  to_review:  ['DELIVERED', 'COMPLETED'] as OrderStatus[],
+  to_receive: ['PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED'] as OrderStatus[],
+  to_review:  ['COMPLETED'] as OrderStatus[],
   returns:    ['CANCELLED', 'RETURNED', 'DISPUTED', 'DELIVERY_FAILED'] as OrderStatus[],
 };
 

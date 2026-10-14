@@ -254,8 +254,10 @@ class RiderDeliveryOutcomeTest extends TestCase
         $this->assertEquals($rider->id, $log->rider_id);
     }
 
-    public function test_existing_escrow_behavior_at_delivered_is_unchanged(): void
+    public function test_delivered_no_longer_releases_escrow_and_changes_no_money(): void
     {
+        // Changed on purpose in Feature 2.8: funds used to become available the moment the rider marked
+        // DELIVERED. Now DELIVERED only records the delivery time; release waits for COMPLETED plus the hold.
         [$user, $rider] = $this->createRider();
         $parcel = $this->createParcel($rider, 'gcash');
         $item = $parcel->order->items()->first();
@@ -265,7 +267,8 @@ class RiderDeliveryOutcomeTest extends TestCase
         $this->deliver($user, $parcel->tracking_number)->assertOk();
 
         $item->refresh();
-        $this->assertSame('available', $item->payout_status);
+        $this->assertSame('pending_release', $item->payout_status);
+        $this->assertNull($item->escrow_release_at);
         $this->assertNotNull($item->delivered_at);
         // Money is exactly what it was; the rider flow touches none of it.
         $this->assertEquals(1035.00, (float) $item->seller_earnings);

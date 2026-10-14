@@ -44,6 +44,7 @@ class Order extends Model
             'shipping_fee'        => 'decimal:2',
             'total'               => 'decimal:2',
             'payment_verified_at' => 'datetime',
+            'completed_at'        => 'datetime',
         ];
     }
 

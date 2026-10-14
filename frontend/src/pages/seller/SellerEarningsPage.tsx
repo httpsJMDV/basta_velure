@@ -231,7 +231,7 @@ export default function SellerEarningsPage() {
                 ₱{animatedPending.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-xs font-bold text-gray-800 mt-1">Pending Clearance</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Delivered orders in return window</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Awaiting buyer confirmation or release date</p>
             </div>
           </div>
 
@@ -480,6 +480,13 @@ export default function SellerEarningsPage() {
                         >
                           {item.payout_status}
                         </span>
+                        {item.payout_status === 'pending_release' && (
+                          <span className="block mt-1 text-[10px] font-medium text-gray-500">
+                            {item.escrow_release_at
+                              ? `Releases on ${new Date(item.escrow_release_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                              : 'Releases after the buyer confirms receipt'}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))
