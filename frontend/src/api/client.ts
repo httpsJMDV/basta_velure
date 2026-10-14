@@ -64,6 +64,10 @@ import type {
   HubParcelLookupResponse,
   HubParcelReceiveResponse,
   HubParcelListResponse,
+  HubSortingGroupsResponse,
+  HubSortingParcelsResponse,
+  HubSortingSort,
+  HubSortResponse,
   PublicApprovedHub,
   RiderRegistrationResponse,
   HubRidersListResponse,
@@ -763,6 +767,22 @@ export const getHubExpectedParcelsApi = (params: { page?: number; per_page?: num
 
 export const getHubReceivedTodayApi = (params: { page?: number; per_page?: number } = {}) =>
   http.get<HubParcelListResponse>('/hub/intake/received-today', { params }).then((r) => r.data);
+
+// ─── Hub Area Sorting (Feature 1.7) ──────────────────────────────────────────────
+
+export const getHubSortingGroupsApi = (params: { search?: string; sort?: HubSortingSort } = {}) =>
+  http.get<HubSortingGroupsResponse>('/hub/sorting/groups', { params }).then((r) => r.data);
+
+export const getHubSortingGroupParcelsApi = (
+  barangayCode: string,
+  params: { page?: number; per_page?: number } = {}
+) =>
+  http
+    .get<HubSortingParcelsResponse>(`/hub/sorting/groups/${encodeURIComponent(barangayCode)}/parcels`, { params })
+    .then((r) => r.data);
+
+export const sortHubParcelsApi = (trackingNumbers: string[]) =>
+  http.post<HubSortResponse>('/hub/sorting/sort', { tracking_numbers: trackingNumbers }).then((r) => r.data);
 
 // ─── Logistics / Sorting Center Hub Courier Vetting & Area Mapping ─────────────
 
