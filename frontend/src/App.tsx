@@ -15,8 +15,7 @@ import RiderDashboardPage from './pages/rider/RiderDashboardPage';
 import RiderDeliveriesPage from './pages/rider/RiderDeliveriesPage';
 import RiderPickupsPage from './pages/rider/RiderPickupsPage';
 import RiderEarningsPage from './pages/rider/RiderEarningsPage';
-import RiderPlaceholderPage from './pages/rider/RiderPlaceholderPage';
-import { User as UserIcon } from 'lucide-react';
+import RiderAccountPage from './pages/rider/RiderAccountPage';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubIntakePage from './pages/hub/HubIntakePage';
@@ -25,6 +24,7 @@ import HubDispatchPage from './pages/hub/HubDispatchPage';
 import HubSortingPage from './pages/hub/HubSortingPage';
 import HubRidersPage from './pages/hub/HubRidersPage';
 import HubReportsPage from './pages/hub/HubReportsPage';
+import HubMessagesPage from './pages/hub/HubMessagesPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import SellerLayout from './pages/seller/SellerLayout';
@@ -359,6 +359,7 @@ function AppRoutes() {
         <Route path="deliveries" element={<HubDeliveriesPage />} />
         <Route path="riders" element={<HubRidersPage />} />
         <Route path="reports" element={<HubReportsPage />} />
+        <Route path="messages" element={<HubMessagesPage />} />
       </Route>
 
       {/* Rider / Courier Station — gated */}
@@ -375,17 +376,7 @@ function AppRoutes() {
         <Route path="pickups" element={<RiderPickupsPage />} />
         <Route path="deliveries" element={<RiderDeliveriesPage />} />
         <Route path="earnings" element={<RiderEarningsPage />} />
-        <Route
-          path="account"
-          element={
-            <RiderPlaceholderPage
-              inLayout
-              title="Courier Account"
-              subtitle="Driver license verification, vehicle specs, and account security management."
-              icon={UserIcon}
-            />
-          }
-        />
+        <Route path="account" element={<RiderAccountPage />} />
       </Route>
 
       <Route path="/about"             element={<AboutUsPage />} />

@@ -2,14 +2,15 @@
 
 namespace App\Http\Requests\Auth;
 
-use App\Models\Rider;
+use App\Http\Requests\Concerns\ValidatesRiderVehicle;
 use App\Models\SortingCenter;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class RegisterRiderRequest extends FormRequest
 {
+    use ValidatesRiderVehicle;
+
     public function authorize(): bool
     {
         return true;
@@ -55,19 +56,7 @@ class RegisterRiderRequest extends FormRequest
             $merge['sorting_center_id'] = $this->input('hub_id');
         }
 
-        // Plate number normalization: trim and uppercase
-        if ($this->filled('plate_number')) {
-            $merge['plate_number'] = strtoupper(trim((string) $this->input('plate_number')));
-        }
-
-        // Vehicle type normalization (e.g. "motorcycle" -> "Motorcycle")
-        if ($this->filled('vehicle_type')) {
-            $raw = trim((string) $this->input('vehicle_type'));
-            $match = collect(Rider::VEHICLE_TYPES)->first(fn ($t) => strcasecmp($t, $raw) === 0);
-            if ($match) {
-                $merge['vehicle_type'] = $match;
-            }
-        }
+        $merge += $this->normalizedVehicleInput();
 
         if (! empty($merge)) {
             $this->merge($merge);
@@ -111,9 +100,8 @@ class RegisterRiderRequest extends FormRequest
                 },
             ],
 
-            // Vehicle Information
-            'vehicle_type'          => ['required', 'string', Rule::in(Rider::VEHICLE_TYPES)],
-            'plate_number'          => ['required', 'string', 'max:20', 'regex:/^[A-Z0-9\s\-]+$/i'],
+            // Vehicle Information (type and plate: shared with the rider's own vehicle edit)
+            ...$this->vehicleRules(),
 
             // Document Uploads
             'or_cr_image'           => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
@@ -151,11 +139,7 @@ class RegisterRiderRequest extends FormRequest
             'sorting_center_id.required'      => 'Please select the logistics hub you wish to apply to.',
             'sorting_center_id.integer'       => 'Invalid logistics hub identifier.',
             'sorting_center_id.exists'        => 'The selected logistics hub does not exist.',
-            'vehicle_type.required'           => 'Please select your vehicle type.',
-            'vehicle_type.in'                 => 'Vehicle type must be Motorcycle, Tricycle, Car, or Van.',
-            'plate_number.required'           => 'Vehicle plate number is required.',
-            'plate_number.max'                => 'Plate number must not exceed 20 characters.',
-            'plate_number.regex'              => 'Plate number contains invalid characters.',
+            ...$this->vehicleMessages(),
             'or_cr_image.required'            => 'Official Receipt / Certificate of Registration (OR/CR) document is required.',
             'or_cr_image.file'                => 'OR/CR upload must be a valid file.',
             'or_cr_image.mimes'               => 'OR/CR document must be a JPG, JPEG, PNG, or PDF file.',

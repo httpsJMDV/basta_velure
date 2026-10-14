@@ -35,6 +35,11 @@ class ConversationUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
+        if ($this->conversation->isRiderThread()) {
+            return app(\App\Services\RiderChatService::class)
+                ->broadcastPayload($this->conversation, $this->userId, $this->unreadCount);
+        }
+
         $lastMessage = $this->conversation->latestMessage;
 
         return [

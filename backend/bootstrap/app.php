@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -21,6 +22,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'approved_rider'          => \App\Http\Middleware\EnsureApprovedRider::class,
         ]);
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+
+        // The framework default sends guests to route('login'), which this API-only app does not have, so any
+        // /api/* request without "Accept: application/json" crashed with a 500 instead of a 401.
+        $middleware->redirectGuestsTo(
+            fn (Request $request) => $request->is('api/*') || ! Route::has('login') ? null : route('login'),
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

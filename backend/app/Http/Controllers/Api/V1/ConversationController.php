@@ -11,12 +11,21 @@ use App\Models\Message;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\RiderChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ConversationController extends Controller
 {
+    /** Through these endpoints only the buyer and seller reach a rider thread; the rider and hub have their own. */
+    private const RIDER_THREAD_ROLES = [RiderChatService::ROLE_BUYER, RiderChatService::ROLE_SELLER];
+
+    private function riderChat(): RiderChatService
+    {
+        return app(RiderChatService::class);
+    }
+
     // ── List conversations for current user ──────────────────────────────────
 
     public function index(Request $request): JsonResponse
@@ -33,7 +42,9 @@ class ConversationController extends Controller
         ]);
 
         if ($user->role === 'admin') {
-            // Admin can see all or filter by role / status / type / search
+            // Admin can see all or filter by role / status / type / search. Rider delivery threads are private
+            // to their participants (feature 2.10), so they are never listed here.
+            $query->whereNotIn('type', Conversation::RIDER_TYPES);
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
             }
@@ -56,7 +67,7 @@ class ConversationController extends Controller
         } elseif ($scope === 'seller' || ($user->role === 'seller' && $scope !== 'buyer')) {
             // Seller Center view: ONLY seller-related conversations (buyer_seller & seller_admin)
             $query->where('seller_id', $user->id)
-                  ->whereIn('type', ['buyer_seller', 'seller_admin']);
+                  ->whereIn('type', ['buyer_seller', 'seller_admin', Conversation::TYPE_RIDER_SELLER]);
 
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
@@ -79,7 +90,7 @@ class ConversationController extends Controller
         } else {
             // Buyer view: ONLY buyer conversations (buyer_seller & buyer_admin)
             $query->where('buyer_id', $user->id)
-                  ->whereIn('type', ['buyer_seller', 'buyer_admin']);
+                  ->whereIn('type', ['buyer_seller', 'buyer_admin', Conversation::TYPE_RIDER_BUYER]);
 
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
@@ -97,10 +108,21 @@ class ConversationController extends Controller
             }
         }
 
-        $conversations = $query->orderByDesc('last_message_at')
+        $found = $query->orderByDesc('last_message_at')
             ->orderByDesc('updated_at')
-            ->get()
-            ->map(fn ($c) => $this->formatConversation($c, $user));
+            ->get();
+
+        // Rider delivery threads (feature 2.10) carry their own payload and open/closed state.
+        $riderThreads = $found->filter(fn ($c) => $c->isRiderThread());
+        $riderOpen = [];
+        if ($riderThreads->isNotEmpty()) {
+            $this->riderChat()->loadForFormatting($riderThreads);
+            $riderOpen = $this->riderChat()->openStates($riderThreads);
+        }
+
+        $conversations = $found->map(fn ($c) => $c->isRiderThread()
+            ? $this->riderChat()->formatConversation($c, $this->riderChat()->roleOf($user, $c) ?? RiderChatService::ROLE_BUYER, $riderOpen[$c->id])
+            : $this->formatConversation($c, $user));
 
         return response()->json(['data' => $conversations]);
     }
@@ -117,11 +139,11 @@ class ConversationController extends Controller
             $count = (int) Conversation::sum('admin_unread');
         } elseif ($scope === 'seller' || ($user->role === 'seller' && $scope !== 'buyer')) {
             $count = (int) Conversation::where('seller_id', $user->id)
-                ->whereIn('type', ['buyer_seller', 'seller_admin'])
+                ->whereIn('type', ['buyer_seller', 'seller_admin', Conversation::TYPE_RIDER_SELLER])
                 ->sum('seller_unread');
         } else {
             $count = (int) Conversation::where('buyer_id', $user->id)
-                ->whereIn('type', ['buyer_seller', 'buyer_admin'])
+                ->whereIn('type', ['buyer_seller', 'buyer_admin', Conversation::TYPE_RIDER_BUYER])
                 ->sum('buyer_unread');
         }
 
@@ -292,6 +314,10 @@ class ConversationController extends Controller
 
     public function show(Request $request, Conversation $conversation): JsonResponse
     {
+        if ($conversation->isRiderThread()) {
+            return $this->riderChat()->showResponse($request, $conversation, self::RIDER_THREAD_ROLES);
+        }
+
         $this->authorizeConversation($request, $conversation);
 
         $conversation->load([
@@ -311,6 +337,10 @@ class ConversationController extends Controller
 
     public function messages(Request $request, Conversation $conversation): JsonResponse
     {
+        if ($conversation->isRiderThread()) {
+            return $this->riderChat()->messagesResponse($request, $conversation, self::RIDER_THREAD_ROLES, markRead: true);
+        }
+
         $this->authorizeConversation($request, $conversation);
         $user = $request->user();
 
@@ -349,6 +379,10 @@ class ConversationController extends Controller
 
     public function send(Request $request, Conversation $conversation): JsonResponse
     {
+        if ($conversation->isRiderThread()) {
+            return $this->riderChat()->sendResponse($request, $conversation, self::RIDER_THREAD_ROLES);
+        }
+
         $this->authorizeConversation($request, $conversation);
         $user = $request->user();
 
@@ -464,6 +498,7 @@ class ConversationController extends Controller
 
     public function attachableProducts(Request $request, Conversation $conversation): JsonResponse
     {
+        abort_if($conversation->isRiderThread(), 404, 'Conversation not found.');
         $this->authorizeConversation($request, $conversation);
         $user = $request->user();
 
@@ -504,6 +539,7 @@ class ConversationController extends Controller
 
     public function attachableOrders(Request $request, Conversation $conversation): JsonResponse
     {
+        abort_if($conversation->isRiderThread(), 404, 'Conversation not found.');
         $this->authorizeConversation($request, $conversation);
         $user = $request->user();
 
@@ -547,6 +583,8 @@ class ConversationController extends Controller
 
     public function updateStatus(Request $request, Conversation $conversation): JsonResponse
     {
+        // A rider thread opens and closes with its parcel; nobody resolves it by hand.
+        abort_if($conversation->isRiderThread(), 404, 'Conversation not found.');
         $user = $request->user();
         if ($user->role !== 'admin' && $conversation->seller_id !== $user->id) {
             abort(403, 'Unauthorized to modify conversation status.');

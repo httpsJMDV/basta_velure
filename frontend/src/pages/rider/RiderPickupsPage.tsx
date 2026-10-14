@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import RiderMessageControl from './RiderMessageControl';
+import { groupUnread } from '../../hooks/useRiderChatUnread';
 import axios from 'axios';
 import {
   PackagePlus,
@@ -67,7 +69,7 @@ interface ActionModalState {
 }
 
 export default function RiderPickupsPage() {
-  const { riderData } = useOutletContext<RiderOutletContext>();
+  const { riderData, chat } = useOutletContext<RiderOutletContext>();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<RiderPickupView>('available');
@@ -431,6 +433,16 @@ export default function RiderPickupsPage() {
                     Your account has no hub on file. Ask your hub manager where to drop these parcels off.
                   </p>
                 )}
+
+                {group.tracking_numbers.length > 0 && (
+                  <RiderMessageControl
+                    trackingNumber={group.tracking_numbers[0]}
+                    phase="pickup"
+                    unread={groupUnread(chat, group.tracking_numbers).total}
+                    unreadByCounterpart={groupUnread(chat, group.tracking_numbers).byCounterpart}
+                    onActivity={chat.refresh}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -657,6 +669,15 @@ export default function RiderPickupsPage() {
                     </>
                   ) : (
                     <>
+                      {group.tracking_numbers.length > 0 && (
+                        <RiderMessageControl
+                          trackingNumber={group.tracking_numbers[0]}
+                          phase="pickup"
+                          unread={groupUnread(chat, group.tracking_numbers).total}
+                          unreadByCounterpart={groupUnread(chat, group.tracking_numbers).byCounterpart}
+                          onActivity={chat.refresh}
+                        />
+                      )}
                       <button
                         onClick={() => setActionModal({ type: 'release', group })}
                         className="inline-flex items-center gap-1.5 min-h-11 px-4 border border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 text-xs font-bold rounded-xl transition-colors"
