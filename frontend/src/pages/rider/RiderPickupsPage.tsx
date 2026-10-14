@@ -17,16 +17,20 @@ import {
   Undo2,
   ChevronDown,
   ChevronUp,
+  ClipboardCheck,
+  Truck,
 } from 'lucide-react';
 import type { RiderOutletContext } from './RiderLayout';
-import type { RiderPickupGroup, RiderPickupsMeta } from '../../types';
+import type { RiderPickedUpGroup, RiderPickupGroup, RiderPickupsMeta, RiderPickupView } from '../../types';
 import {
   getRiderPickupsApi,
+  getRiderPickedUpApi,
   acceptRiderPickupApi,
   declineRiderPickupApi,
   releaseRiderPickupApi,
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
+import PickupHandoverScreen from './PickupHandoverScreen';
 
 // Time formatting utilities
 function formatRelativeTime(isoString?: string | null): string {
@@ -66,14 +70,18 @@ export default function RiderPickupsPage() {
   const { riderData } = useOutletContext<RiderOutletContext>();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'available' | 'mine'>('available');
+  const [activeTab, setActiveTab] = useState<RiderPickupView>('available');
   const [pickups, setPickups] = useState<RiderPickupGroup[]>([]);
+  const [pickedUp, setPickedUp] = useState<RiderPickedUpGroup[]>([]);
   const [meta, setMeta] = useState<RiderPickupsMeta>({
-    view: 'available',
     available_count: 0,
     mine_count: 0,
+    picked_up_count: 0,
     has_areas: true,
   });
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [handoverGroup, setHandoverGroup] = useState<RiderPickupGroup | null>(null);
+  const handoverTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionModal, setActionModal] = useState<ActionModalState | null>(null);
@@ -89,16 +97,23 @@ export default function RiderPickupsPage() {
         setRefreshing(true);
       }
       try {
-        const response = await getRiderPickupsApi(activeTab);
-        setPickups(response.data);
-        setMeta(response.meta);
+        if (activeTab === 'picked_up') {
+          const response = await getRiderPickedUpApi();
+          setPickedUp(response.data);
+          setMeta(response.meta);
+        } else {
+          const response = await getRiderPickupsApi(activeTab);
+          setPickups(response.data);
+          setMeta(response.meta);
+        }
+        setLoadError(null);
       } catch (err: unknown) {
         if (!isBackground) {
-          if (axios.isAxiosError(err)) {
-            showToast(err.response?.data?.message || 'Failed to load pickups', 'error');
-          } else {
-            showToast('Failed to load pickups', 'error');
-          }
+          const message = axios.isAxiosError(err)
+            ? err.response?.data?.message || 'Failed to load pickups'
+            : 'Failed to load pickups';
+          setLoadError(message);
+          showToast(message, 'error');
         }
       } finally {
         setLoading(false);
@@ -298,6 +313,26 @@ export default function RiderPickupsPage() {
             {meta.mine_count}
           </span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('picked_up')}
+          className={`relative pb-3 px-4 text-xs font-bold transition-colors flex items-center gap-2 ${
+            activeTab === 'picked_up'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <span>Picked Up</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === 'picked_up'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {meta.picked_up_count}
+          </span>
+        </button>
       </div>
 
       {/* ─── List Content ────────────────────────────────────────────── */}
@@ -308,6 +343,98 @@ export default function RiderPickupsPage() {
             <div key={i} className="h-44 bg-gray-200/80 rounded-2xl border border-gray-200" />
           ))}
         </div>
+      ) : loadError ? (
+        // Error state with retry
+        <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center shadow-2xs space-y-4 max-w-lg mx-auto my-6">
+          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-bold text-gray-900">Could not load pickups</h3>
+          <p className="text-xs text-gray-500">{loadError}</p>
+          <button
+            onClick={() => fetchPickups(false)}
+            disabled={refreshing}
+            className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>Try again</span>
+          </button>
+        </div>
+      ) : activeTab === 'picked_up' ? (
+        pickedUp.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-3xl p-8 sm:p-12 text-center shadow-2xs space-y-4 max-w-lg mx-auto my-6">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
+              <Truck className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-bold text-gray-900">Nothing to Drop Off</h3>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Parcels you collect from merchants will be listed here until your hub scans them in.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pickedUp.map((group) => (
+              <div
+                key={group.seller_id}
+                className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-2xs space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold text-base text-gray-900">{group.shop_name}</h3>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
+                    <Package className="w-3.5 h-3.5" />
+                    {group.parcel_count} {group.parcel_count === 1 ? 'parcel' : 'parcels'}
+                  </span>
+                </div>
+
+                {group.picked_up_at && (
+                  <p className="flex items-center gap-2 text-xs text-gray-500">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <span>Picked up</span>
+                    <span className="font-semibold text-gray-700" title={formatFullDateTime(group.picked_up_at)}>
+                      {formatRelativeTime(group.picked_up_at)}
+                    </span>
+                  </p>
+                )}
+
+                <ul className="flex flex-wrap gap-2">
+                  {group.tracking_numbers.map((tn) => (
+                    <li
+                      key={tn}
+                      className="px-2.5 py-1 rounded-lg text-xs font-mono bg-gray-50 border border-gray-200 text-gray-800"
+                    >
+                      {tn}
+                    </li>
+                  ))}
+                </ul>
+
+                {group.hub ? (
+                  <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 space-y-1.5">
+                    <p className="flex items-center gap-2 text-sm font-bold text-blue-950">
+                      <Truck className="w-4 h-4" aria-hidden="true" />
+                      Take these to {group.hub.hub_name}
+                    </p>
+                    <p className="text-xs text-blue-900">{group.hub.full_address}</p>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        `${group.hub.hub_name}, ${group.hub.full_address}`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 min-h-11 text-xs font-bold text-blue-700 hover:underline"
+                    >
+                      <span>Open in Google Maps</span>
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-600">
+                    Your account has no hub on file. Ask your hub manager where to drop these parcels off.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )
       ) : pickups.length === 0 ? (
         // Empty state
         <div className="bg-white border border-gray-200 rounded-3xl p-8 sm:p-12 text-center shadow-2xs space-y-4 max-w-lg mx-auto my-6">
@@ -385,9 +512,6 @@ export default function RiderPickupsPage() {
                             `${group.pickup_address.street}, ${group.pickup_address.barangay}, ${group.pickup_address.city}, ${group.pickup_address.province}`}
                         </p>
                         <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                            PSGC {group.pickup_address.barangay_code}
-                          </span>
                           <a
                             href={mapsUrl}
                             target="_blank"
@@ -439,15 +563,15 @@ export default function RiderPickupsPage() {
                     </div>
 
                     {/* Accepted At timestamp if in "mine" view */}
-                    {group.accepted_at && (
+                    {group.pickup_accepted_at && (
                       <div className="flex items-center gap-2 text-emerald-700">
                         <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                         <span>Accepted by you:</span>
                         <span
                           className="font-semibold"
-                          title={formatFullDateTime(group.accepted_at)}
+                          title={formatFullDateTime(group.pickup_accepted_at)}
                         >
-                          {formatRelativeTime(group.accepted_at)}
+                          {formatRelativeTime(group.pickup_accepted_at)}
                         </span>
                       </div>
                     )}
@@ -532,19 +656,47 @@ export default function RiderPickupsPage() {
                       </button>
                     </>
                   ) : (
-                    <button
-                      onClick={() => setActionModal({ type: 'release', group })}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 text-xs font-bold rounded-xl transition-colors"
-                    >
-                      <Undo2 className="w-3.5 h-3.5" />
-                      <span>Release Pickup</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setActionModal({ type: 'release', group })}
+                        className="inline-flex items-center gap-1.5 min-h-11 px-4 border border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 text-xs font-bold rounded-xl transition-colors"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                        <span>Release Pickup</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          handoverTriggerRef.current = e.currentTarget;
+                          setHandoverGroup(group);
+                        }}
+                        className="inline-flex items-center gap-1.5 min-h-11 px-5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
+                      >
+                        <ClipboardCheck className="w-4 h-4" />
+                        <span>Start pickup</span>
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* ─── Pickup Handover Screen (Feature 2.5) ────────────────────── */}
+      {handoverGroup && (
+        <PickupHandoverScreen
+          group={handoverGroup}
+          onClose={() => {
+            setHandoverGroup(null);
+            requestAnimationFrame(() => handoverTriggerRef.current?.focus());
+          }}
+          onChanged={() => fetchPickups(true)}
+          onDone={() => {
+            setHandoverGroup(null);
+            setActiveTab('picked_up');
+          }}
+        />
       )}
 
       {/* ─── Confirmation Modal Dialog ───────────────────────────────── */}

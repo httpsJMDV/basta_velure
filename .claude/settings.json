@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(php artisan migrate:fresh *)",
+      "Bash(php artisan migrate:refresh *)",
+      "Bash(php artisan db:wipe *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Edit(backend/database/velure.sql)"
+    ]
+  }
+}

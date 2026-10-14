@@ -1479,7 +1479,17 @@ export interface RiderPickupAddress {
   barangay: string;
   city: string;
   province: string;
-  barangay_code: string;
+  full_address: string;
+}
+
+export type RiderPickupView = 'available' | 'mine' | 'picked_up';
+
+export interface RiderHubDropoff {
+  hub_name: string;
+  street: string;
+  barangay: string;
+  city: string;
+  province: string;
   full_address: string;
 }
 
@@ -1492,19 +1502,50 @@ export interface RiderPickupGroup {
   tracking_numbers: string[];
   ready_since: string;
   matched_area_label?: string | null;
-  accepted_at?: string | null;
+  pickup_accepted_at?: string | null;
+}
+
+/** A seller group in the `picked_up` view (collected, awaiting hub drop-off). */
+export interface RiderPickedUpGroup {
+  seller_id: number;
+  shop_name: string;
+  parcel_count: number;
+  tracking_numbers: string[];
+  picked_up_at: string | null;
+  hub: RiderHubDropoff | null;
 }
 
 export interface RiderPickupsMeta {
-  view: 'available' | 'mine';
   available_count: number;
   mine_count: number;
+  picked_up_count: number;
   has_areas: boolean;
 }
 
 export interface RiderPickupsResponse {
   data: RiderPickupGroup[];
   meta: RiderPickupsMeta;
+}
+
+export interface RiderPickedUpResponse {
+  data: RiderPickedUpGroup[];
+  meta: RiderPickupsMeta;
+}
+
+export interface RiderVerifyParcelResponse {
+  data: {
+    tracking_number: string;
+    seller_id: number;
+    shop_name: string;
+    order_number: string | null;
+  };
+}
+
+export interface RiderConfirmHandoverResponse {
+  message: string;
+  picked_up_count: number;
+  tracking_numbers: string[];
+  hub: RiderHubDropoff | null;
 }
 
 export interface RiderAcceptPickupResponse {

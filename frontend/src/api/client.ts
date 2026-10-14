@@ -69,6 +69,9 @@ import type {
   HubCoverageOptions,
   RiderProfileData,
   RiderPickupsResponse,
+  RiderPickedUpResponse,
+  RiderVerifyParcelResponse,
+  RiderConfirmHandoverResponse,
   RiderAcceptPickupResponse,
   RiderDeclinePickupResponse,
   RiderReleasePickupResponse,
@@ -796,6 +799,21 @@ export const getRiderMeApi = () =>
 
 export const getRiderPickupsApi = (view: 'available' | 'mine' = 'available') =>
   http.get<RiderPickupsResponse>('/rider/pickups', { params: { view } }).then((r) => r.data);
+
+// ─── Courier / Rider Pickup Execution (Feature 2.5) ───────────────────────────
+
+export const getRiderPickedUpApi = () =>
+  http.get<RiderPickedUpResponse>('/rider/pickups', { params: { view: 'picked_up' } }).then((r) => r.data);
+
+export const verifyRiderParcelApi = (trackingNumber: string) =>
+  http
+    .post<RiderVerifyParcelResponse>('/rider/pickups/verify', { tracking_number: trackingNumber })
+    .then((r) => r.data);
+
+export const confirmRiderHandoverApi = (trackingNumbers: string[]) =>
+  http
+    .post<RiderConfirmHandoverResponse>('/rider/pickups/confirm', { tracking_numbers: trackingNumbers })
+    .then((r) => r.data);
 
 export const acceptRiderPickupApi = (sellerId: number) =>
   http.post<RiderAcceptPickupResponse>(`/rider/pickups/sellers/${sellerId}/accept`).then((r) => r.data);
