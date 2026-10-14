@@ -235,3 +235,14 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - Lists: `GET /api/v1/hub/intake/expected` (PICKED_UP, awaiting scan) and `GET /api/v1/hub/intake/received-today`.
 - Out of scope: sorting by area (1.7), dispatch (1.8) and delivery.
 - Contract: `docs/api/logistics-hub-intake.md`.
+
+---
+
+## 10. Hub Area Sorting (Feature 1.7)
+
+- Parcels in `AT_SORTING_CENTER` are grouped by **destination barangay PSGC code** (`parcels.destination_barangay_code`). The code is the area key; there is no separate area concept.
+- The dispatcher selects parcels for one barangay and calls `POST /api/v1/hub/sorting/sort`. Each order moves `AT_SORTING_CENTER → SORTED` through `OrderStateMachine` with actor `hub`; the parcel status follows through the existing sync, and `parcels.sorted_at` is stamped. The request is all or nothing, and a mixed-barangay batch is rejected.
+- Groups show whether the code is in the hub's `coverage_barangays` (`in_coverage`) and how many `ACTIVE` riders of the hub have an active area assignment containing it (`riders_covering`). Both are informational; a hub can still sort a parcel nobody covers yet.
+- **Un-sorting is not supported**: the state machine has no `SORTED → AT_SORTING_CENTER` transition.
+- Out of scope: assigning to riders (1.8).
+- Contract: `docs/api/logistics-hub-sorting.md`.

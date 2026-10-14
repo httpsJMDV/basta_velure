@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\PublicSortingCenterController;
 use App\Http\Controllers\Api\V1\RiderRegistrationController;
 use App\Http\Controllers\Api\V1\HubParcelIntakeController;
 use App\Http\Controllers\Api\V1\HubRiderController;
+use App\Http\Controllers\Api\V1\HubSortingController;
 use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
 use App\Http\Controllers\Api\V1\RiderPickupController;
@@ -307,6 +308,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/parcels/{tracking}/receive', [HubParcelIntakeController::class, 'receive']);
             Route::get('/intake/expected',             [HubParcelIntakeController::class, 'expected']);
             Route::get('/intake/received-today',       [HubParcelIntakeController::class, 'receivedToday']);
+
+            // Area sorting (Feature 1.7)
+            Route::get('/sorting/groups',                          [HubSortingController::class, 'groups']);
+            Route::get('/sorting/groups/{barangay_code}/parcels',  [HubSortingController::class, 'groupParcels']);
+            Route::post('/sorting/sort',                           [HubSortingController::class, 'sort']);
 
             // Hub rider vetting
             Route::get('/riders',                         [HubRiderController::class, 'index']);
