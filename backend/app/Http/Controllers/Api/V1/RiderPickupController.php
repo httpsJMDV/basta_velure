@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
+use App\Models\DeliveryLog;
 use App\Models\Parcel;
 use App\Models\Rider;
 use App\Models\RiderPickupDecline;
+use App\Services\OrderStateMachine;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class RiderPickupController extends Controller
 {
@@ -17,6 +21,15 @@ class RiderPickupController extends Controller
      * Maximum number of seller pickup groups returned per request.
      */
     protected const MAX_GROUPS_LIMIT = 50;
+
+    /**
+     * Maximum number of tracking numbers accepted in one handover confirmation.
+     */
+    protected const MAX_CONFIRM_BATCH = 50;
+
+    public function __construct(protected OrderStateMachine $stateMachine)
+    {
+    }
 
     /**
      * Retrieve the authenticated courier profile.
@@ -67,11 +80,12 @@ class RiderPickupController extends Controller
     }
 
     /**
-     * GET /api/v1/rider/pickups?view=available|mine
+     * GET /api/v1/rider/pickups?view=available|mine|picked_up
      *
      * List pickup requests grouped by seller for either:
      * - available: unclaimed, undeclined READY_FOR_PICKUP parcels in rider's active areas
      * - mine: parcels claimed by this rider that are still READY_FOR_PICKUP
+     * - picked_up: parcels this rider collected (PICKED_UP) that still need hub drop-off
      */
     public function index(Request $request): JsonResponse
     {
@@ -93,12 +107,26 @@ class RiderPickupController extends Controller
             ->distinct('seller_id')
             ->count('seller_id');
 
+        // Calculate count of rider's picked-up seller groups still awaiting hub drop-off
+        $pickedUpCount = (int) Parcel::where('pickup_rider_id', $rider->id)
+            ->where('status', Parcel::STATUS_PICKED_UP)
+            ->distinct('seller_id')
+            ->count('seller_id');
+
         $meta = [
             'available_count' => $availableCount,
             'mine_count'      => $mineCount,
+            'picked_up_count' => $pickedUpCount,
             'has_areas'       => $hasAreas,
             'limit'           => self::MAX_GROUPS_LIMIT,
         ];
+
+        if ($view === 'picked_up') {
+            return response()->json([
+                'data' => $this->pickedUpGroups($rider),
+                'meta' => $meta,
+            ]);
+        }
 
         if ($view === 'mine') {
             $parcels = Parcel::where('pickup_rider_id', $rider->id)
@@ -353,6 +381,204 @@ class RiderPickupController extends Controller
                 'released_count' => $count,
             ]);
         });
+    }
+
+    /**
+     * POST /api/v1/rider/pickups/verify
+     *
+     * Read-only check that a tracking number is one of this rider's accepted,
+     * still-uncollected parcels. Never exposes recipient details or COD amounts.
+     */
+    public function verify(Request $request): JsonResponse
+    {
+        $request->validate([
+            'tracking_number' => ['required', 'string', 'max:50'],
+        ]);
+
+        $rider = $this->getAuthenticatedRider($request);
+        $trackingNumber = $this->normalizeTrackingNumber($request->input('tracking_number'));
+
+        $parcel = Parcel::with('order:id,order_number')
+            ->where('tracking_number', $trackingNumber)
+            ->where('pickup_rider_id', $rider->id)
+            ->first();
+
+        if (! $parcel) {
+            return response()->json([
+                'message' => 'Parcel not found among your accepted pickups.',
+            ], 404);
+        }
+
+        if ($parcel->status !== Parcel::STATUS_READY_FOR_PICKUP) {
+            return response()->json([
+                'message' => 'This parcel has already been picked up.',
+            ], 409);
+        }
+
+        $snapshot = $parcel->pickup_address_snapshot ?? [];
+
+        return response()->json([
+            'data' => [
+                'tracking_number' => $parcel->tracking_number,
+                'seller_id'       => (int) $parcel->seller_id,
+                'shop_name'       => $snapshot['shop_name'] ?? ('Seller #' . $parcel->seller_id),
+                'order_number'    => $parcel->order?->order_number,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/v1/rider/pickups/confirm
+     *
+     * Confirm physical handover of one or more accepted parcels. All-or-nothing:
+     * if any tracking number is invalid, nothing is changed.
+     */
+    public function confirm(Request $request): JsonResponse
+    {
+        $input = $request->input('tracking_numbers');
+        if (is_array($input)) {
+            $request->merge([
+                'tracking_numbers' => array_map(
+                    fn ($tn) => is_string($tn) ? $this->normalizeTrackingNumber($tn) : $tn,
+                    $input
+                ),
+            ]);
+        }
+
+        $validated = $request->validate([
+            'tracking_numbers'   => ['required', 'array', 'min:1', 'max:' . self::MAX_CONFIRM_BATCH],
+            'tracking_numbers.*' => ['required', 'string', 'max:50', 'distinct'],
+        ]);
+
+        $rider = $this->getAuthenticatedRider($request);
+        $trackingNumbers = array_values($validated['tracking_numbers']);
+
+        return DB::transaction(function () use ($request, $rider, $trackingNumbers) {
+            $parcels = Parcel::where('pickup_rider_id', $rider->id)
+                ->whereIn('tracking_number', $trackingNumbers)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('tracking_number');
+
+            $errors = [];
+            foreach ($trackingNumbers as $index => $trackingNumber) {
+                $parcel = $parcels->get($trackingNumber);
+                $key = "tracking_numbers.{$index}";
+
+                if (! $parcel) {
+                    $errors[$key] = ['Parcel not found among your accepted pickups.'];
+                } elseif ($parcel->status !== Parcel::STATUS_READY_FOR_PICKUP) {
+                    $errors[$key] = ['This parcel has already been picked up.'];
+                } elseif (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::PICKED_UP, 'rider')) {
+                    $errors[$key] = ['This parcel cannot be picked up right now.'];
+                }
+            }
+
+            if (! empty($errors)) {
+                return response()->json([
+                    'message' => 'One or more parcels cannot be confirmed. Nothing was changed.',
+                    'errors'  => $errors,
+                ], 422);
+            }
+
+            $now = now();
+            foreach ($parcels as $parcel) {
+                // The state machine also syncs parcels.status and writes the history row.
+                $this->stateMachine->transition(
+                    $parcel->order,
+                    OrderStatus::PICKED_UP,
+                    'rider',
+                    $request->user()->id,
+                    'Picked up from the seller by the courier.',
+                    ['rider_id' => $rider->id, 'tracking_number' => $parcel->tracking_number]
+                );
+
+                Parcel::where('id', $parcel->id)->update(['picked_up_at' => $now]);
+
+                DeliveryLog::create([
+                    'parcel_id' => $parcel->id,
+                    'rider_id'  => $rider->id,
+                    'outcome'   => DeliveryLog::OUTCOME_PICKED_UP,
+                    'logged_at' => $now,
+                ]);
+            }
+
+            return response()->json([
+                'message'          => 'Handover confirmed.',
+                'picked_up_count'  => $parcels->count(),
+                'tracking_numbers' => $parcels->pluck('tracking_number')->values()->all(),
+                'hub'              => $this->hubPayload($rider),
+            ]);
+        });
+    }
+
+    /**
+     * Trim and uppercase a scanned or typed tracking number.
+     */
+    protected function normalizeTrackingNumber(string $value): string
+    {
+        return Str::upper(trim($value));
+    }
+
+    /**
+     * Drop-off details of the rider's own sorting center hub.
+     *
+     * @return array<string, string>|null
+     */
+    protected function hubPayload(Rider $rider): ?array
+    {
+        $hub = $rider->sortingCenter;
+        if (! $hub) {
+            return null;
+        }
+
+        return [
+            'hub_name'     => (string) $hub->hub_name,
+            'street'       => (string) ($hub->address_street ?? ''),
+            'barangay'     => (string) ($hub->address_barangay ?? ''),
+            'city'         => (string) ($hub->address_city ?? ''),
+            'province'     => (string) ($hub->address_province ?? ''),
+            'full_address' => implode(', ', array_filter([
+                $hub->address_street,
+                $hub->address_barangay,
+                $hub->address_city,
+                $hub->address_province,
+            ])),
+        ];
+    }
+
+    /**
+     * Seller groups of this rider's PICKED_UP parcels, with the hub drop-off details.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function pickedUpGroups(Rider $rider): array
+    {
+        $parcels = Parcel::where('pickup_rider_id', $rider->id)
+            ->where('status', Parcel::STATUS_PICKED_UP)
+            ->orderBy('picked_up_at', 'asc')
+            ->get();
+
+        $hub = $this->hubPayload($rider);
+        $groups = [];
+
+        foreach ($parcels->groupBy('seller_id') as $sellerId => $sellerParcels) {
+            /** @var Parcel $first */
+            $first = $sellerParcels->first();
+            $snapshot = $first->pickup_address_snapshot ?? [];
+            $pickedUpAt = $sellerParcels->max('picked_up_at');
+
+            $groups[] = [
+                'seller_id'        => (int) $sellerId,
+                'shop_name'        => $snapshot['shop_name'] ?? ('Seller #' . $sellerId),
+                'parcel_count'     => $sellerParcels->count(),
+                'tracking_numbers' => $sellerParcels->pluck('tracking_number')->all(),
+                'picked_up_at'     => $pickedUpAt ? Carbon::parse($pickedUpAt)->toIso8601String() : null,
+                'hub'              => $hub,
+            ];
+        }
+
+        return array_slice($groups, 0, self::MAX_GROUPS_LIMIT);
     }
 }
 

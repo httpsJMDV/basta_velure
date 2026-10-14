@@ -209,3 +209,18 @@ When an order enters `READY_FOR_PICKUP`, its parcel becomes an available pickup 
 - **Release** (`POST /api/v1/rider/pickups/sellers/{seller}/release`): Clears `pickup_rider_id`, `sorting_center_id`, and `pickup_accepted_at` back to `null`, safely returning the parcels to the pool of available pickups for other couriers.
 
 
+
+---
+
+## 8. Courier Pickup Execution (Feature 2.5)
+
+### Handover confirmation
+- The rider who accepted a pickup (2.4) goes to the seller, scans or types each parcel's tracking number (`POST /api/v1/rider/pickups/verify`), then confirms handover (`POST /api/v1/rider/pickups/confirm`).
+- Confirming moves the order `READY_FOR_PICKUP → PICKED_UP` through `OrderStateMachine` with actor `rider`; the parcel status follows through the existing sync. It also sets `parcels.picked_up_at` and writes a `delivery_logs` row with outcome `PICKED_UP`.
+- Confirm is all-or-nothing per request. Partial pickup is allowed: the rider can confirm only some of the parcels they accepted.
+
+### Decision: rider-only confirmation
+Only the rider confirms handover. There is no seller-side confirmation step. The tracking number scan is the proof of handover, and a seller confirmation would add a blocking step the seller can forget.
+
+### Out of scope
+Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about delivery (2.6 onward).

@@ -195,3 +195,119 @@ Releases previously claimed parcels for this merchant back to the available pool
   }
   ```
 
+
+---
+
+## 5. Picked Up View (`GET /api/v1/rider/pickups?view=picked_up`) — Feature 2.5
+
+Lists this rider's parcels that are in `PICKED_UP` status (collected from the seller, not yet scanned in by the hub), grouped by seller. Each group carries the rider's own hub so the app can show where to drop the parcels off.
+
+`meta.picked_up_count` (number of seller groups) is now present on every view.
+
+```json
+{
+  "data": [
+    {
+      "seller_id": 4,
+      "shop_name": "Maria's Vintage Boutique",
+      "parcel_count": 2,
+      "tracking_numbers": ["LIT-261006-9A3K7P", "LIT-261006-2B4L8R"],
+      "picked_up_at": "2026-10-06T03:10:00.000000Z",
+      "hub": {
+        "hub_name": "Central Sorting Hub",
+        "street": "123 Hub St",
+        "barangay": "Real",
+        "city": "Calamba",
+        "province": "Laguna",
+        "full_address": "123 Hub St, Real, Calamba, Laguna"
+      }
+    }
+  ],
+  "meta": { "available_count": 0, "mine_count": 0, "picked_up_count": 1, "has_areas": true, "limit": 50 }
+}
+```
+
+`hub` is `null` if the rider has no hub. No recipient details or COD amounts are returned.
+
+---
+
+## 6. Verify Parcel (`POST /api/v1/rider/pickups/verify`) — Feature 2.5
+
+Read-only check used after each scan or manual entry. Changes nothing.
+
+- **Body**: `{ "tracking_number": "LIT-261006-9A3K7P" }`. The value is trimmed and uppercased before lookup.
+- **Rule**: succeeds only if the parcel's `pickup_rider_id` is the authenticated rider and the parcel is still `READY_FOR_PICKUP`.
+
+#### Response: `200 OK`
+```json
+{
+  "data": {
+    "tracking_number": "LIT-261006-9A3K7P",
+    "seller_id": 4,
+    "shop_name": "Maria's Vintage Boutique",
+    "order_number": "VEL-20261006-ABC123"
+  }
+}
+```
+No recipient name, address, phone or COD amount is ever included.
+
+#### Error Responses
+- `401`: Unauthenticated.
+- `403`: Account is pending hub approval or deactivated.
+- `404`: Unknown tracking number, or the parcel was not accepted by this rider (the two are indistinguishable on purpose).
+- `409`: The parcel has already been picked up (`{ "message": "This parcel has already been picked up." }`).
+- `422`: `tracking_number` missing or too long.
+
+---
+
+## 7. Confirm Handover (`POST /api/v1/rider/pickups/confirm`) — Feature 2.5
+
+Confirms physical handover of one or more accepted parcels. **All or nothing**: every item is validated first, and if any is invalid nothing is changed.
+
+- **Body**: `{ "tracking_numbers": ["LIT-261006-9A3K7P", "LIT-261006-2B4L8R"] }` — 1 to 50 items, no duplicates (compared after trim and uppercase).
+- **Partial pickup is allowed**: the rider may confirm only some of the parcels they accepted. The rest stay accepted and `READY_FOR_PICKUP`.
+
+### State Behavior
+In one database transaction, with row locks, for each parcel:
+- Transitions the order `READY_FOR_PICKUP → PICKED_UP` through `OrderStateMachine` with actor `rider` (writes an `order_status_histories` row; the parcel status follows through the existing sync).
+- Sets `parcels.picked_up_at = now()`.
+- Writes a `delivery_logs` row (`outcome = PICKED_UP`, rider, parcel, `logged_at`).
+- Does **not** change `pickup_rider_id` or `sorting_center_id` (set at accept in 2.4).
+
+#### Response: `200 OK`
+```json
+{
+  "message": "Handover confirmed.",
+  "picked_up_count": 2,
+  "tracking_numbers": ["LIT-261006-9A3K7P", "LIT-261006-2B4L8R"],
+  "hub": {
+    "hub_name": "Central Sorting Hub",
+    "street": "123 Hub St",
+    "barangay": "Real",
+    "city": "Calamba",
+    "province": "Laguna",
+    "full_address": "123 Hub St, Real, Calamba, Laguna"
+  }
+}
+```
+
+#### Error Responses
+- `401`: Unauthenticated.
+- `403`: Account is pending hub approval or deactivated.
+- `422`: Validation failed or at least one parcel cannot be confirmed. Errors are keyed by array index and nothing is changed:
+  ```json
+  {
+    "message": "One or more parcels cannot be confirmed. Nothing was changed.",
+    "errors": {
+      "tracking_numbers.1": ["Parcel not found among your accepted pickups."],
+      "tracking_numbers.2": ["This parcel has already been picked up."]
+    }
+  }
+  ```
+
+---
+
+## Notes
+
+- **Decision**: only the rider confirms handover. There is no seller-side confirmation step.
+- **Camera scanning** in the web app uses the browser `BarcodeDetector` API (`code_128`) and needs HTTPS or `localhost`. Where it is unsupported, the rider types the tracking number. The API is the same either way.

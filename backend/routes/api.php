@@ -325,6 +325,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/pickups/sellers/{seller}/accept', [RiderPickupController::class, 'accept']);
             Route::post('/pickups/sellers/{seller}/decline', [RiderPickupController::class, 'decline']);
             Route::post('/pickups/sellers/{seller}/release', [RiderPickupController::class, 'release']);
+
+            // Pickup execution (Feature 2.5)
+            Route::post('/pickups/verify', [RiderPickupController::class, 'verify']);
+            Route::post('/pickups/confirm', [RiderPickupController::class, 'confirm']);
         });
     });
 });
