@@ -225,7 +225,7 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
   - [ ] **Message** > buyer: the existing thread opens in a bottom sheet with 3 messages. Send one.
   - [ ] **Delivered**: take or choose **two different photos** (the parcel handed over, then the delivery address), tick the COD cash confirmation, submit. Sending the same photo twice is refused. The parcel disappears from the list.
   - [ ] **Map** on a stop card opens Track package: the timeline and the map with the route.
-  - [ ] **Location**: while rider 1 has a parcel to collect or carry, the courier pages ask for the phone's location and stay locked until it is shared (open the site on `https://` or `localhost`; a phone on `http://192.168...` cannot share a location). A green bar then says it is sharing.
+  - [ ] **Location**: while rider 1 has a parcel to collect or carry, the courier pages ask for the phone's location and stay locked until it is shared (open the site on `https://` or `localhost`; a phone on `http://192.168...` cannot share a location).
   - [ ] **Delivery failed**: pick a reason, submit (use a different parcel, or reseed afterwards).
 - [ ] **Earnings**: lifetime **₱250** (5 deliveries at the default ₱50 fee), with a day/week/month breakdown. **History** lists deliveries and failed attempts.
 - [ ] **Account**: profile, vehicle form (change the plate, see "saved"), Messages list, **Log out** asks to confirm.
