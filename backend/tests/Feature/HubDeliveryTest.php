@@ -814,7 +814,7 @@ class HubDeliveryTest extends TestCase
         $this->actingAs($secondUser, 'sanctum')
             ->postJson('/api/v1/rider/deliveries/start', ['tracking_numbers' => [$retry->tracking_number]])->assertOk();
         $this->actingAs($secondUser, 'sanctum')
-            ->post("/api/v1/rider/deliveries/{$retry->tracking_number}/delivered", ['proof_photo' => $this->png(), 'cod_collected' => '1'], ['Accept' => 'application/json'])
+            ->post("/api/v1/rider/deliveries/{$retry->tracking_number}/delivered", ['proof_photo' => $this->png(), 'proof_photo_2' => UploadedFile::fake()->createWithContent('proof-2.jpg', base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=') . 'x'), 'cod_collected' => '1'], ['Accept' => 'application/json'])
             ->assertOk();
 
         $retry->refresh();

@@ -298,7 +298,7 @@ class AdminOrdersReviewsTest extends TestCase
         $this->getJson('/api/v1/admin/orders/summary')->assertForbidden();
     }
 
-    // ── Reviews ──────────────────────────────────────────────────────────────
+    // ── Reviews: shops first, read-only ──────────────────────────────────────
 
     private function makeProduct(User $seller, string $name): Product
     {
@@ -307,102 +307,186 @@ class AdminOrdersReviewsTest extends TestCase
         return Product::forceCreate(['seller_id' => $seller->id, 'category_id' => $category->id, 'name' => $name, 'description' => 'x', 'base_price' => 100, 'status' => 'active', 'weight_kg' => 0.2, 'sku' => strtoupper(Str::random(8))]);
     }
 
-    private function review(Product $product, User $buyer, int $rating, string $status, bool $flagged = false, string $comment = 'ok', ?Order $order = null): Review
+    private function review(Product $product, User $buyer, int $rating, string $comment = 'ok', ?Order $order = null, ?string $at = null): Review
     {
         return Review::forceCreate([
             'buyer_id' => $buyer->id, 'product_id' => $product->id, 'order_id' => $order?->id, 'rating' => $rating, 'comment' => $comment,
-            'verified_purchase' => true, 'flagged' => $flagged, 'flag_reason' => $flagged ? 'Abusive language' : null, 'moderation_status' => $status,
+            'verified_purchase' => true, 'created_at' => $at ?? now(), 'updated_at' => $at ?? now(),
         ]);
     }
 
+    private User $emptyShop;
+
+    /**
+     * Gadget Garage: 5, 5, 5 (3 reviews, 5.00). Pantry Plus: 4, 3, 1 (3 reviews, 2.67). Quiet Corner: approved, no
+     * reviews. A pending shop with a review of its own must not be listed. One review is soft-deleted.
+     */
     private function seedReviews(): void
     {
         $charger = $this->makeProduct($this->sellerOne, 'USB-C Charger');
         $basket = $this->makeProduct($this->sellerTwo, 'Bamboo Basket');
+        $this->emptyShop = $this->makeSeller('Quiet Corner', 'Quin', 'Cruz');
         $order = Order::forceCreate(['buyer_id' => $this->buyerA->id, 'order_number' => 'VEL-REV-1', 'subtotal' => 1, 'total' => 1, 'payment_method' => 'cod', 'status' => 'COMPLETED']);
 
-        // ratings: 5,5,4,3,2,1,5 => 25 / 7 = 3.57; statuses: visible 4, pending 2 (one flagged), hidden 1 (flagged too)
-        $this->review($charger, $this->buyerA, 5, 'visible', false, 'Works great', $order);
-        $this->review($charger, $this->buyerB, 5, 'visible', false, 'Fast charging');
-        $this->review($basket, $this->buyerA, 4, 'visible', false, 'Sturdy basket');
-        $this->review($basket, $this->buyerB, 3, 'pending_review', false, 'It is fine');
-        $this->review($charger, $this->buyerB, 2, 'pending_review', true, 'Terrible, scam shop!!!');
-        $this->review($basket, $this->buyerB, 1, 'hidden', true, 'Spam spam spam');
-        $this->review($charger, $this->buyerA, 5, 'visible', false, 'Would buy again');
-        $gone = $this->review($charger, $this->buyerA, 1, 'visible', false, 'deleted review');
-        $gone->delete();
+        $this->review($charger, $this->buyerA, 5, 'Works great', $order, '2026-10-10 05:00:00');
+        $this->review($charger, $this->buyerB, 5, 'Fast charging', null, '2026-10-11 05:00:00');
+        $this->review($charger, $this->buyerA, 5, 'Would buy again', null, '2026-10-12 05:00:00');
+        $this->review($basket, $this->buyerA, 4, 'Sturdy basket', null, '2026-10-13 05:00:00');
+        $this->review($basket, $this->buyerB, 3, 'It is fine', null, '2026-10-14 05:00:00');
+        $this->review($basket, $this->buyerB, 1, 'Fell apart in a week', null, '2026-10-15 05:00:00');
+        $this->review($charger, $this->buyerB, 1, 'deleted review', null, '2026-10-15 06:00:00')->delete();
+
+        $pending = $this->makeUser('buyer', 'Pen', 'Ding');
+        SellerProfile::forceCreate([
+            'user_id' => $pending->id, 'shop_name' => 'Pending Shop', 'shop_category' => 'x', 'shop_description' => 'x',
+            'date_of_birth' => '1990-01-01', 'government_id_type' => 'national_id', 'government_id_number' => 'N/A',
+            'government_id_number_hash' => hash('sha256', 'p' . $pending->id), 'government_id_image_path' => 'x.png',
+            'address_province' => 'Laguna', 'address_city' => 'Calamba', 'address_barangay' => 'Real',
+            'payout_gcash_number' => '09170000000', 'application_status' => 'pending', 'submitted_at' => now(),
+        ]);
     }
 
-    public function test_the_reviews_summary_has_the_right_average_counts_and_distribution(): void
+    public function test_the_reviews_summary_covers_the_platform_and_its_shops(): void
     {
         Sanctum::actingAs($this->admin);
 
-        // No reviews yet: null, not 0.
+        // No reviews yet: null, not 0. The two seeded shops exist but neither has a review.
         $empty = $this->getJson('/api/v1/admin/reviews/summary')->assertOk()->json('data');
         $this->assertSame(0, $empty['total']);
         $this->assertNull($empty['average_rating']);
         $this->assertSame(['1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 0], $empty['rating_distribution']);
+        $this->assertSame(2, $empty['shops']);
+        $this->assertSame(0, $empty['shops_reviewed']);
 
         $this->seedReviews();
         $summary = $this->getJson('/api/v1/admin/reviews/summary')->assertOk()->json('data');
 
-        $this->assertSame(7, $summary['total'], 'the soft-deleted review is not counted');
-        $this->assertEquals(3.57, $summary['average_rating']);
-        $this->assertSame(['1' => 1, '2' => 1, '3' => 1, '4' => 1, '5' => 3], $summary['rating_distribution']);
-        $this->assertSame(7, array_sum($summary['rating_distribution']));
-        $this->assertSame(['pending_review' => 2, 'visible' => 4, 'hidden' => 1], $summary['by_status']);
-        $this->assertSame(7, array_sum($summary['by_status']));
-        $this->assertSame(2, $summary['flagged'], 'flagged in any status');
+        $this->assertSame(6, $summary['total'], 'the soft-deleted review is not counted');
+        $this->assertEquals(3.83, $summary['average_rating']);
+        $this->assertSame(['1' => 1, '2' => 0, '3' => 1, '4' => 1, '5' => 3], $summary['rating_distribution']);
+        $this->assertSame(6, array_sum($summary['rating_distribution']));
+        $this->assertSame(3, $summary['shops'], 'approved shops only: the pending one is not a shop yet');
+        $this->assertSame(2, $summary['shops_reviewed']);
+        $this->assertArrayNotHasKey('by_status', $summary);
+        $this->assertArrayNotHasKey('flagged', $summary);
 
-        // It agrees with a raw recount.
         $raw = Review::all();
         $this->assertEquals(round($raw->avg('rating'), 2), $summary['average_rating']);
-        $this->assertSame($raw->where('flagged', true)->count(), $summary['flagged']);
-        $this->assertSame($raw->where('moderation_status', 'pending_review')->count(), $summary['by_status']['pending_review']);
-
-        // Moderating moves the counts.
-        $pending = Review::where('moderation_status', 'pending_review')->where('flagged', false)->firstOrFail();
-        $this->patchJson("/api/v1/admin/reviews/{$pending->id}/moderate", ['moderation_status' => 'visible'])->assertOk();
-        $after = $this->getJson('/api/v1/admin/reviews/summary')->json('data');
-        $this->assertSame(['pending_review' => 1, 'visible' => 5, 'hidden' => 1], $after['by_status']);
     }
 
-    public function test_the_reviews_list_filters_and_carries_the_product_shop_and_order(): void
+    public function test_the_shops_list_shows_every_approved_shop_with_its_review_figures(): void
     {
         $this->seedReviews();
         Sanctum::actingAs($this->admin);
-        $comments = fn ($r) => collect($r->json('data'))->pluck('comment')->sort()->values()->all();
+        $names = fn ($r) => collect($r->json('data'))->pluck('shop_name')->all();
 
-        $all = $this->getJson('/api/v1/admin/reviews?per_page=100')->assertOk();
-        $this->assertSame(7, $all->json('meta.total'));
-        $this->assertSame(['current_page' => 1, 'last_page' => 1, 'total' => 7, 'per_page' => 100, 'from' => 1, 'to' => 7], $all->json('meta'));
+        $list = $this->getJson('/api/v1/admin/reviews/shops?per_page=100')->assertOk();
+        // Most reviews first; a tie falls back to the name; a shop with no reviews comes last. The pending shop is absent.
+        $this->assertSame(['Gadget Garage', 'Pantry Plus', 'Quiet Corner'], $names($list));
+        $this->assertSame(['current_page' => 1, 'last_page' => 1, 'total' => 3, 'per_page' => 100, 'from' => 1, 'to' => 3], $list->json('meta'));
 
-        $this->assertSame(['It is fine', 'Terrible, scam shop!!!'], $comments($this->getJson('/api/v1/admin/reviews?moderation_status=pending_review')));
-        $this->assertSame(['Spam spam spam'], $comments($this->getJson('/api/v1/admin/reviews?moderation_status=hidden')));
-        $this->assertSame(['Spam spam spam', 'Terrible, scam shop!!!'], $comments($this->getJson('/api/v1/admin/reviews?flagged=true')));
-        $this->assertSame(['Fast charging', 'Works great', 'Would buy again'], $comments($this->getJson('/api/v1/admin/reviews?rating=5')));
-        // Search: comment, product, shop, buyer.
-        $this->assertSame(['Sturdy basket'], $comments($this->getJson('/api/v1/admin/reviews?search=sturdy')));
-        $this->assertSame(['Fast charging', 'Terrible, scam shop!!!', 'Works great', 'Would buy again'], $comments($this->getJson('/api/v1/admin/reviews?search=Charger&per_page=100')));
-        $this->assertSame(['It is fine', 'Spam spam spam', 'Sturdy basket'], $comments($this->getJson('/api/v1/admin/reviews?search=Pantry+Plus&per_page=100')));
-        $this->assertSame(['Fast charging', 'It is fine', 'Spam spam spam', 'Terrible, scam shop!!!'], $comments($this->getJson('/api/v1/admin/reviews?search=Bautista&per_page=100')));
+        $rows = collect($list->json('data'))->keyBy('shop_name');
+        $this->assertSame($this->sellerOne->id, $rows['Gadget Garage']['id']);
+        $this->assertSame(3, $rows['Gadget Garage']['review_count']);
+        $this->assertEquals(5.0, $rows['Gadget Garage']['average_rating']);
+        $this->assertSame('gadget-garage', $rows['Gadget Garage']['shop_slug']);
+        $this->assertSame('Gil Santos', $rows['Gadget Garage']['owner_name']);
+        $this->assertArrayHasKey('logo_url', $rows['Gadget Garage']);
+        $this->assertNotNull($rows['Gadget Garage']['last_review_at']);
+        $this->assertSame(3, $rows['Pantry Plus']['review_count']);
+        $this->assertEquals(2.67, $rows['Pantry Plus']['average_rating']);
+        $this->assertSame(0, $rows['Quiet Corner']['review_count']);
+        $this->assertNull($rows['Quiet Corner']['average_rating'], 'null, not 0, with no reviews');
+        $this->assertNull($rows['Quiet Corner']['last_review_at']);
 
-        $row = collect($this->getJson('/api/v1/admin/reviews?search=Works+great')->json('data'))->first();
+        // Sorting.
+        $this->assertSame(['Gadget Garage', 'Pantry Plus', 'Quiet Corner'], $names($this->getJson('/api/v1/admin/reviews/shops?sort=rating&direction=desc')));
+        $this->assertSame(['Pantry Plus', 'Gadget Garage', 'Quiet Corner'], $names($this->getJson('/api/v1/admin/reviews/shops?sort=rating&direction=asc')), 'shops without a rating stay last');
+        $this->assertSame(['Pantry Plus', 'Gadget Garage', 'Quiet Corner'], $names($this->getJson('/api/v1/admin/reviews/shops?sort=recent')), 'latest review first');
+        $this->assertSame(['Quiet Corner', 'Pantry Plus', 'Gadget Garage'], $names($this->getJson('/api/v1/admin/reviews/shops?sort=name&direction=desc')));
+
+        // Search by shop name, owner name and owner email.
+        $this->assertSame(['Pantry Plus'], $names($this->getJson('/api/v1/admin/reviews/shops?search=pantry')));
+        $this->assertSame(['Gadget Garage'], $names($this->getJson('/api/v1/admin/reviews/shops?search=Santos')));
+        $this->assertSame(['Quiet Corner'], $names($this->getJson('/api/v1/admin/reviews/shops?search=' . urlencode($this->emptyShop->email))));
+        $this->assertSame([], $names($this->getJson('/api/v1/admin/reviews/shops?search=nothing-here')));
+        $this->assertSame(['Gadget Garage'], $names($this->getJson('/api/v1/admin/reviews/shops?per_page=1')));
+
+        $this->getJson('/api/v1/admin/reviews/shops?sort=bogus')->assertStatus(422);
+        $this->getJson('/api/v1/admin/reviews/shops?per_page=500')->assertStatus(422);
+    }
+
+    public function test_one_shop_opens_with_its_figures_and_its_own_reviews(): void
+    {
+        $this->seedReviews();
+        Sanctum::actingAs($this->admin);
+        $comments = fn ($r) => collect($r->json('data'))->pluck('comment')->all();
+
+        $shop = $this->getJson("/api/v1/admin/reviews/shops/{$this->sellerTwo->id}")->assertOk()->json('data');
+        $this->assertSame('Pantry Plus', $shop['shop_name']);
+        $this->assertSame('pantry-plus', $shop['shop_slug']);
+        $this->assertSame(3, $shop['review_count']);
+        $this->assertEquals(2.67, $shop['average_rating']);
+        $this->assertSame(['1' => 1, '2' => 0, '3' => 1, '4' => 1, '5' => 0], $shop['rating_distribution']);
+        $empty = $this->getJson("/api/v1/admin/reviews/shops/{$this->emptyShop->id}")->assertOk()->json('data');
+        $this->assertSame(0, $empty['review_count']);
+        $this->assertNull($empty['average_rating']);
+
+        // Not a shop: a plain buyer, and a shop whose application is still pending.
+        $this->getJson("/api/v1/admin/reviews/shops/{$this->buyerA->id}")->assertNotFound();
+        $pendingId = SellerProfile::where('shop_name', 'Pending Shop')->value('user_id');
+        $this->getJson("/api/v1/admin/reviews/shops/{$pendingId}")->assertNotFound();
+
+        // The reviews of a shop: only that shop's, newest first, with the product and order they came from.
+        $list = $this->getJson("/api/v1/admin/reviews?shop_id={$this->sellerOne->id}")->assertOk();
+        $this->assertSame(['Would buy again', 'Fast charging', 'Works great'], $comments($list));
+        $this->assertSame(['current_page' => 1, 'last_page' => 1, 'total' => 3, 'per_page' => 20, 'from' => 1, 'to' => 3], $list->json('meta'));
+        $row = collect($list->json('data'))->last();
         $this->assertSame('USB-C Charger', $row['product']['name']);
         $this->assertSame('Gadget Garage', $row['shop']['name']);
         $this->assertSame('VEL-REV-1', $row['order']['order_number']);
-        foreach (['id', 'product_id', 'rating', 'comment', 'verified_purchase', 'flagged', 'flag_reason', 'moderation_status', 'created_at', 'buyer'] as $key) {
+        foreach (['id', 'product_id', 'rating', 'comment', 'verified_purchase', 'created_at', 'buyer'] as $key) {
             $this->assertArrayHasKey($key, $row, $key);
         }
-        $noOrder = collect($this->getJson('/api/v1/admin/reviews?search=Fast+charging')->json('data'))->first();
-        $this->assertNull($noOrder['order']);
+        $this->assertNull(collect($list->json('data'))->first()['order'], 'a review may have no order');
+
+        // Filters inside a shop.
+        $this->assertSame(['Sturdy basket'], $comments($this->getJson("/api/v1/admin/reviews?shop_id={$this->sellerTwo->id}&rating=4")));
+        $this->assertSame(['Fell apart in a week', 'It is fine'], $comments($this->getJson("/api/v1/admin/reviews?shop_id={$this->sellerTwo->id}&search=Bautista")));
+        $this->assertSame(['Fell apart in a week', 'It is fine', 'Sturdy basket'], $comments($this->getJson("/api/v1/admin/reviews?shop_id={$this->sellerTwo->id}&search=basket")), 'product name');
+        $this->assertSame([], $comments($this->getJson("/api/v1/admin/reviews?shop_id={$this->emptyShop->id}")));
+        $this->assertSame(6, $this->getJson('/api/v1/admin/reviews?per_page=100')->json('meta.total'), 'without shop_id: every review');
 
         $this->getJson('/api/v1/admin/reviews?rating=9')->assertStatus(422);
-        $this->getJson('/api/v1/admin/reviews?moderation_status=approved')->assertStatus(422);
+    }
+
+    public function test_reviews_are_read_only_for_the_admin_and_closed_to_everyone_else(): void
+    {
+        $this->seedReviews();
+        $review = Review::firstOrFail();
+        Sanctum::actingAs($this->admin);
+
+        // No approve, hide, flag or delete: the old moderation endpoints are gone, and nothing about moderation is shown.
+        foreach ([
+            ['patchJson', "/api/v1/admin/reviews/{$review->id}/moderate", ['moderation_status' => 'hidden']],
+            ['getJson', '/api/v1/admin/reviews/stats', []],
+            ['deleteJson', "/api/v1/admin/reviews/{$review->id}", []],
+            ['putJson', "/api/v1/admin/reviews/{$review->id}", ['rating' => 1]],
+            ['postJson', '/api/v1/admin/reviews', ['rating' => 1]],
+        ] as [$method, $url, $body]) {
+            $status = $this->{$method}($url, $body)->getStatusCode();
+            $this->assertContains($status, [404, 405], "{$method} {$url} answered {$status}");
+        }
+        $this->assertSame(0, Review::where('id', $review->id)->where('moderation_status', '!=', 'visible')->count());
+        $row = collect($this->getJson('/api/v1/admin/reviews')->json('data'))->first();
+        foreach (['moderation_status', 'flagged', 'flag_reason'] as $key) {
+            $this->assertArrayNotHasKey($key, $row);
+        }
 
         Sanctum::actingAs($this->buyerA);
-        $this->getJson('/api/v1/admin/reviews')->assertForbidden();
-        $this->getJson('/api/v1/admin/reviews/summary')->assertForbidden();
+        foreach (['/api/v1/admin/reviews', '/api/v1/admin/reviews/summary', '/api/v1/admin/reviews/shops', "/api/v1/admin/reviews/shops/{$this->sellerOne->id}"] as $url) {
+            $this->getJson($url)->assertForbidden();
+        }
     }
 
     public function test_buyers_cannot_create_reviews_through_the_api_yet(): void
@@ -415,5 +499,15 @@ class AdminOrdersReviewsTest extends TestCase
             $this->assertContains($status, $url === '/api/v1/admin/reviews' ? [403, 405] : [404, 405], "{$url} answered {$status}");
         }
         $this->assertSame(0, Review::count());
+    }
+
+    public function test_the_public_product_reviews_list_every_review_of_the_product(): void
+    {
+        $product = $this->makeProduct($this->sellerOne, 'USB-C Charger');
+        $this->review($product, $this->buyerA, 5, 'Great');
+        $this->review($product, $this->buyerB, 2, 'Meh');
+
+        $response = $this->getJson("/api/v1/products/{$product->id}/reviews")->assertOk();
+        $this->assertCount(2, $response->json('data'));
     }
 }

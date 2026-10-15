@@ -43,6 +43,8 @@ use App\Http\Controllers\Api\V1\HubSortingController;
 use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
 use App\Http\Controllers\Api\V1\DeliveryProofController;
+use App\Http\Controllers\Api\V1\ParcelTrackingController;
+use App\Http\Controllers\Api\V1\RiderLocationController;
 use App\Http\Controllers\Api\V1\RiderDeliveryController;
 use App\Http\Controllers\Api\V1\RiderEarningsController;
 use App\Http\Controllers\Api\V1\RiderHistoryController;
@@ -94,6 +96,8 @@ Route::prefix('v1')->group(function () {
 
         // Delivery proof photo (Feature 2.7): rider, hub, seller, buyer and admin only; authorization is in the controller
         Route::get('/parcels/{tracking}/delivery-proof', [DeliveryProofController::class, 'show']);
+        // Track package: timeline, route places and the courier's live position (buyer, seller, hub, rider, admin)
+        Route::get('/parcels/{tracking}/tracking', [ParcelTrackingController::class, 'show']);
 
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
@@ -230,10 +234,11 @@ Route::prefix('v1')->group(function () {
             Route::patch('/disputes/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
 
             // Reviews
+            // Reviews are read-only for the admin (honest feedback: no approve, hide or delete), grouped by shop.
             Route::get('/reviews', [AdminReviewController::class, 'index']);
-            Route::get('/reviews/stats', [AdminReviewController::class, 'stats']);
             Route::get('/reviews/summary', [AdminReviewController::class, 'summary']);
-            Route::patch('/reviews/{review}/moderate', [AdminReviewController::class, 'moderate']);
+            Route::get('/reviews/shops', [AdminReviewController::class, 'shops']);
+            Route::get('/reviews/shops/{seller}', [AdminReviewController::class, 'shop']);
 
             // Products (admin review)
             Route::get('/products', [AdminProductController::class, 'index']);
@@ -341,6 +346,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/dispatch/batches/{barangay_code}/parcels',      [HubDispatchController::class, 'batchParcels']);
             Route::get('/dispatch/batches/{barangay_code}/riders',       [HubDispatchController::class, 'batchRiders']);
             Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
+            Route::get('/dispatch/awaiting-pickup',                      [HubDispatchController::class, 'awaitingPickup']);
 
             // Hub reports (Feature 1.10)
             Route::get('/reports/summary', [HubReportController::class, 'summary']);
@@ -406,6 +412,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/chat/threads/{conversation}/messages', [RiderChatController::class, 'send']);
             Route::post('/chat/threads/{conversation}/read', [RiderChatController::class, 'markRead']);
             Route::put('/vehicle', [RiderController::class, 'updateVehicle']);
+
+            // Live location: the rider's latest point, shown to the people tracking a parcel they carry
+            Route::get('/location/status', [RiderLocationController::class, 'status']);
+            Route::post('/location', [RiderLocationController::class, 'store'])->middleware('throttle:60,1');
         });
     });
 });

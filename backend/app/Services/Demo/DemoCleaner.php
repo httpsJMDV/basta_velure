@@ -200,6 +200,7 @@ class DemoCleaner
         };
 
         $add($private, DB::table('parcels')->whereIn('id', $ids['parcels'])->pluck('delivery_proof_path'));
+        $add($private, DB::table('parcels')->whereIn('id', $ids['parcels'])->pluck('delivery_proof_path_2'));
         $add($private, DB::table('riders')->whereIn('id', $ids['riders'])->pluck('or_cr_path'));
         $add($private, DB::table('riders')->whereIn('id', $ids['riders'])->pluck('drivers_license_path'));
         $add($private, DB::table('sorting_centers')->whereIn('id', $ids['hubs'])->pluck('dti_permit_path'));

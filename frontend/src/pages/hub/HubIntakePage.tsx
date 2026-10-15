@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import axios from 'axios';
 import {
   AlertCircle,
@@ -11,6 +11,7 @@ import {
   PackageCheck,
   RefreshCw,
   ScanLine,
+  Truck,
   User,
   XCircle,
 } from 'lucide-react';
@@ -22,7 +23,8 @@ import {
   receiveHubParcelApi,
 } from '../../api/client';
 import type { HubParcelRecord } from '../../types';
-import { PageHero } from '../../components/admin/dashboardKit';
+import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import { useLivePolling } from '../../hooks/useLivePolling';
 
 type IntakeTab = 'scan' | 'expected' | 'received';
 type ListKind = 'expected' | 'received';
@@ -128,11 +130,18 @@ export default function HubIntakePage() {
     }
   }, []);
 
-  // Initial load of both lists so the tab counts are real.
-  useEffect(() => {
-    void loadList('expected', 1);
-    void loadList('received', 1);
-  }, [loadList]);
+  // Live: both lists load on arrival and re-read themselves every few seconds, so a parcel a rider has just dropped off
+  // (or one received on another screen) shows up here without a refresh button.
+  const refreshAll = useCallback(
+    async (silent: boolean) => {
+      await Promise.all([
+        loadList('expected', pagesRef.current.expected, silent),
+        loadList('received', pagesRef.current.received, silent),
+      ]);
+    },
+    [loadList]
+  );
+  const { lastUpdated } = useLivePolling(refreshAll, 15000);
 
   const refreshLists = useCallback(() => {
     void loadList('expected', pagesRef.current.expected, true);
@@ -203,18 +212,17 @@ export default function HubIntakePage() {
         title="Parcel Intake"
         subtitle="Scan parcels in as riders drop them off at your hub."
       >
-        <div
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"
-          aria-label={`${sessionCount} received this session`}
-        >
-          <PackageCheck className="w-4 h-4" aria-hidden="true" />
-          <span className="text-sm font-black">{sessionCount}</span>
-          <span className="text-xs font-semibold">received this session</span>
-        </div>
+        <LiveStamp updatedAt={lastUpdated} />
       </PageHero>
 
+      <section aria-label="Intake summary" className="grid grid-cols-3 gap-2.5">
+        <StatCard compact icon={Truck} label="On the way" value={expected.loading ? null : expected.total} subtext="Picked up, not scanned in" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => setTab('expected')} active={tab === 'expected'} />
+        <StatCard compact icon={PackageCheck} label="Received today" value={received.loading ? null : received.total} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => setTab('received')} active={tab === 'received'} />
+        <StatCard compact icon={ScanLine} label="This session" value={sessionCount} subtext="Scanned on this screen" iconBg="bg-blue-50" iconColor="text-blue-600" onClick={() => setTab('scan')} active={tab === 'scan'} />
+      </section>
+
       {/* Tabs */}
-      <div role="tablist" aria-label="Intake views" className="flex items-center border-b border-gray-200 overflow-x-auto">
+      <div role="tablist" aria-label="Intake views" className="inline-flex items-center gap-0.5 p-1 overflow-x-auto bg-gray-100/80 rounded-xl max-w-full">
         {(
           [
             { key: 'scan', label: 'Scan', count: null },
@@ -229,8 +237,8 @@ export default function HubIntakePage() {
             aria-selected={tab === t.key}
             aria-controls={`intake-panel-${t.key}`}
             onClick={() => setTab(t.key)}
-            className={`min-h-11 px-4 text-xs font-bold whitespace-nowrap flex items-center gap-2 transition-colors ${
-              tab === t.key ? 'text-brand-red border-b-2 border-brand-red' : 'text-gray-500 hover:text-gray-800'
+            className={`min-h-10 px-4 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+              tab === t.key ? 'bg-white text-brand-red shadow-xs' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
             <span>{t.label}</span>
@@ -255,7 +263,7 @@ export default function HubIntakePage() {
           className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start"
         >
           {/* Scanner column */}
-          <section className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 space-y-4" aria-label="Scanner">
+          <section className="bg-white border border-gray-200/80 shadow-xs rounded-2xl p-4 sm:p-5 space-y-4" aria-label="Scanner">
             <label className="flex items-center justify-between gap-3 min-h-11 cursor-pointer">
               <span className="space-y-0.5">
                 <span className="block text-sm font-bold text-gray-900">Auto-receive on scan</span>
@@ -278,7 +286,7 @@ export default function HubIntakePage() {
               />
             </label>
 
-            <TrackingScanner onScan={handleScan} disabled={busy} />
+            <TrackingScanner onScan={handleScan} disabled={busy} autoFocus />
 
             {busy && (
               <p className="flex items-center gap-2 text-xs text-gray-500" role="status">
@@ -387,7 +395,7 @@ export default function HubIntakePage() {
           </section>
 
           {/* Feed column */}
-          <section className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 space-y-3" aria-label="Session feed">
+          <section className="bg-white border border-gray-200/80 shadow-xs rounded-2xl p-4 sm:p-5 space-y-3" aria-label="Session feed">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black text-gray-900">This session</h2>
               <span className="text-xs text-gray-500">Last {FEED_LIMIT} scans</span>
@@ -516,7 +524,7 @@ function ParcelList({ state, timeLabel, timeOf, emptyTitle, emptyText, onRetry, 
         {state.items.map((parcel) => (
           <li
             key={parcel.tracking_number}
-            className="bg-white border border-gray-200 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-600"
+            className="bg-white border border-gray-200/80 shadow-xs rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-600"
           >
             <div className="space-y-0.5 min-w-0">
               <p className="font-mono text-sm font-black text-gray-900 break-all">{parcel.tracking_number}</p>

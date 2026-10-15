@@ -17,15 +17,15 @@ import type {
   AdminDispute,
   AdminDisputeStats,
   AdminReview,
-  AdminReviewStats,
   AdminReviewSummary,
   AdminReviewListParams,
+  AdminReviewShop,
+  AdminReviewShopSort,
   AdminOrderSummary,
   AdminOrderListParams,
   OrderStatus,
   PaymentStatus,
   DisputeStatus,
-  ModerationStatus,
   Conversation,
   ChatMessage,
   RiderChatCounterpart,
@@ -118,6 +118,9 @@ import type {
   RiderAcceptPickupResponse,
   RiderDeclinePickupResponse,
   RiderReleasePickupResponse,
+  ParcelTracking,
+  RiderLocationStatus,
+  HubAwaitingRider,
 } from '../types';
 
 const http = axios.create({
@@ -361,17 +364,18 @@ export const getAdminDisputeStatsApi = () =>
   http.get<{ data: AdminDisputeStats }>('/admin/disputes/stats').then((r) => r.data.data);
 
 // Admin — reviews
+// Admin: reviews are read-only (no approve or hide), grouped by shop.
 export const getAdminReviewsApi = (params?: AdminReviewListParams) =>
-  http.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params: { ...params, flagged: params?.flagged ? 'true' : undefined } }).then((r) => r.data);
-
-export const moderateReviewApi = (id: number, moderation_status: ModerationStatus) =>
-  http.patch<{ data: AdminReview }>(`/admin/reviews/${id}/moderate`, { moderation_status }).then((r) => r.data.data);
+  http.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params }).then((r) => r.data);
 
 export const getAdminReviewSummaryApi = () =>
   http.get<{ data: AdminReviewSummary }>('/admin/reviews/summary').then((r) => r.data.data);
 
-export const getAdminReviewStatsApi = () =>
-  http.get<{ data: AdminReviewStats }>('/admin/reviews/stats').then((r) => r.data.data);
+export const getAdminReviewShopsApi = (params?: { search?: string; sort?: AdminReviewShopSort; direction?: 'asc' | 'desc'; page?: number; per_page?: number }) =>
+  http.get<PaginatedResponse<AdminReviewShop>>('/admin/reviews/shops', { params }).then((r) => r.data);
+
+export const getAdminReviewShopApi = (shopId: number) =>
+  http.get<{ data: AdminReviewShop }>(`/admin/reviews/shops/${shopId}`).then((r) => r.data.data);
 
 // Products — public catalog
 export const getProductsApi = (filters: ProductFilters = {}) => {
@@ -674,8 +678,8 @@ export const confirmBuyerOrderReceiptApi = (orderId: number) =>
   http.post<{ message: string; data: Order }>(`/buyer/orders/${orderId}/confirm-receipt`).then((r) => r.data);
 
 /** Fetches the delivery proof photo through the authorized endpoint and returns a blob URL to show it. */
-export const getDeliveryProofBlobUrl = async (trackingNumber: string): Promise<string> => {
-  const res = await http.get(`/parcels/${encodeURIComponent(trackingNumber)}/delivery-proof`, { responseType: 'blob' });
+export const getDeliveryProofBlobUrl = async (trackingNumber: string, photo: 1 | 2 = 1): Promise<string> => {
+  const res = await http.get(`/parcels/${encodeURIComponent(trackingNumber)}/delivery-proof`, { params: photo === 2 ? { photo: 2 } : undefined, responseType: 'blob' });
   return URL.createObjectURL(res.data as Blob);
 };
 
@@ -1134,3 +1138,17 @@ export const hubThreadAdapter = (threadId: number): ThreadAdapter =>
 /** The buyer's or seller's side: the existing conversation endpoints, which mark read as they fetch. */
 export const conversationThreadAdapter = (threadId: number): ThreadAdapter =>
   threadAdapter({ messages: `/conversations/${threadId}/messages` });
+
+// ─── Track package and live courier location ───────────────────────────────────
+
+export const getParcelTrackingApi = (trackingNumber: string) =>
+  http.get<{ data: ParcelTracking }>(`/parcels/${encodeURIComponent(trackingNumber)}/tracking`).then((r) => r.data.data);
+
+export const getRiderLocationStatusApi = () =>
+  http.get<{ data: RiderLocationStatus }>('/rider/location/status').then((r) => r.data.data);
+
+export const postRiderLocationApi = (point: { latitude: number; longitude: number; heading?: number | null; accuracy?: number | null }) =>
+  http.post<{ message: string }>('/rider/location', point).then((r) => r.data);
+
+export const getHubAwaitingPickupApi = () =>
+  http.get<{ data: HubAwaitingRider[]; meta: { parcel_count: number } }>('/hub/dispatch/awaiting-pickup').then((r) => r.data);

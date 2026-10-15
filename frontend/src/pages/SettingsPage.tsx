@@ -25,6 +25,7 @@ import { getStatusLabel, getStatusBadgeClass, BUYER_FILTER_GROUPS, normalizeOrde
 import OrderStatusTimeline from '../components/orders/OrderStatusTimeline';
 import BuyerReceiptConfirm from '../components/orders/BuyerReceiptConfirm';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import TrackPackageButton from '../components/tracking/TrackPackageButton';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
@@ -1010,6 +1011,9 @@ function OrderCard({ order, onUpdated, isPartOfMultiShopCheckout }: { order: Ord
             <span className="text-[10px] font-mono font-medium text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
               Track: {order.tracking_number}
             </span>
+          )}
+          {order.tracking_number && ['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'DELIVERY_FAILED'].includes(String(order.status)) && (
+            <TrackPackageButton trackingNumber={order.tracking_number} />
           )}
           {isPartOfMultiShopCheckout && (
             <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">

@@ -27,6 +27,7 @@ import DeliveryCollectScreen from './DeliveryCollectScreen';
 import FailedSheet from './FailedSheet';
 import type { RiderOutletContext } from './RiderLayout';
 import RiderMessageControl from './RiderMessageControl';
+import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 
 /** The stop the rider is recording an outcome for. */
 interface OutcomeTarget {
@@ -417,6 +418,7 @@ export default function RiderDeliveriesPage() {
                         </p>
                         <p className="font-mono text-xs font-bold text-gray-800 break-all">{p.tracking_number}</p>
                       </div>
+                      <TrackPackageButton trackingNumber={p.tracking_number} label="Map" className="shrink-0" />
                       <button
                         type="button"
                         onClick={() => handleCopy(p.tracking_number)}

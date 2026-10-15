@@ -841,6 +841,8 @@ export interface Order {
   completed_at?: string | null;
   /** True when the rider uploaded a delivery proof photo the buyer can view. */
   delivery_proof_available?: boolean;
+  /** How many proof photos exist (older deliveries have one, new ones have two). */
+  delivery_proof_count?: number;
   /** Set when the buyer has an open return request for this order. */
   dispute?: { id: number; status: string } | null;
   items: OrderItem[];
@@ -1125,9 +1127,6 @@ export interface AdminReview {
   rating: number;
   comment: string | null;
   verified_purchase: boolean;
-  flagged: boolean;
-  flag_reason: string | null;
-  moderation_status: ModerationStatus;
   created_at: string;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
   product?: { id: number; name: string } | null;
@@ -1135,30 +1134,39 @@ export interface AdminReview {
   order?: { id: number; order_number: string } | null;
 }
 
-/** GET /admin/reviews/summary. Covers every review that exists, whatever its moderation status. */
+/** GET /admin/reviews/summary: the whole platform's review figures. */
 export interface AdminReviewSummary {
   total: number;
   /** Null, never 0, when there are no reviews. */
   average_rating: number | null;
   rating_distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
-  by_status: Record<ModerationStatus, number>;
-  /** Flagged reviews in any moderation status. */
-  flagged: number;
+  /** Approved shops, and how many of them have at least one review. */
+  shops: number;
+  shops_reviewed: number;
 }
 
+/** One shop in the admin Reviews list. `id` is the seller's user id. */
+export interface AdminReviewShop {
+  id: number;
+  shop_name: string;
+  shop_slug: string;
+  logo_url: string | null;
+  owner_name: string;
+  review_count: number;
+  average_rating: number | null;
+  last_review_at: string | null;
+  /** Only on GET /admin/reviews/shops/{seller}. */
+  rating_distribution?: Record<'1' | '2' | '3' | '4' | '5', number>;
+}
+
+export type AdminReviewShopSort = 'reviews' | 'rating' | 'recent' | 'name';
+
 export interface AdminReviewListParams {
-  moderation_status?: ModerationStatus;
-  flagged?: boolean;
+  shop_id?: number;
   rating?: number;
   search?: string;
   page?: number;
   per_page?: number;
-}
-
-export interface AdminReviewStats {
-  flagged_pending: number;
-  pending_review: number;
-  hidden: number;
 }
 
 // ─── Messaging & Chat ────────────────────────────────────────────────────────
@@ -2235,4 +2243,66 @@ export interface ThreadAdapter {
 export interface RiderVehicleUpdate {
   vehicle_type: RiderVehicleType;
   plate_number: string;
+}
+
+// ─── Track package and live courier location ─────────────────────────────────
+
+export interface TrackingPlace {
+  name: string;
+  full_address: string;
+  barangay: string;
+  city: string;
+  province: string;
+}
+
+export type CourierState = 'live' | 'stale' | 'not_sharing' | 'not_with_courier';
+
+export interface TrackingCourier {
+  state: CourierState;
+  leg: 'pickup' | 'delivery' | null;
+  name: string | null;
+  vehicle_type: string | null;
+  location: { latitude: number; longitude: number; heading: number | null; accuracy_m: number | null; updated_at: string } | null;
+}
+
+export interface TrackingEvent {
+  status: string;
+  title: string;
+  detail: string;
+  at: string | null;
+  proof: boolean;
+}
+
+export interface ParcelTracking {
+  tracking_number: string;
+  order_number: string | null;
+  status: string;
+  viewer_role: 'buyer' | 'seller' | 'hub' | 'rider' | 'admin';
+  origin: TrackingPlace;
+  hub: TrackingPlace | null;
+  destination: TrackingPlace;
+  courier: TrackingCourier;
+  events: TrackingEvent[];
+  proof: { count: number; delivered_at: string | null; received_by: string | null };
+}
+
+export interface RiderLocationStatus {
+  sharing_required: boolean;
+  active_parcels: number;
+  last_located_at: string | null;
+}
+
+// ─── Hub: parcels waiting for their rider (handover QR) ─────────────────────────
+
+export interface HubAwaitingParcel {
+  tracking_number: string;
+  order_number: string | null;
+  barangay: string;
+  recipient_name: string;
+  assigned_at: string | null;
+}
+
+export interface HubAwaitingRider {
+  rider: { id: number; name: string };
+  parcels: HubAwaitingParcel[];
 }

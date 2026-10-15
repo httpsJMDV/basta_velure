@@ -1,68 +1,95 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useState } from 'react';
+import { Link, useOutletContext } from 'react-router-dom';
 import {
-  RotateCw,
   AlertCircle,
-  PackagePlus,
-  Layers,
-  Send,
-  Building2,
-  MapPin,
-  ShieldCheck,
   ArrowRight,
+  ArrowDownToLine,
+  Bike,
+  Building2,
+  CheckCircle2,
+  Layers,
+  MapPin,
+  MessageSquare,
+  PackagePlus,
+  Send,
+  Truck,
+  UserCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { getHubDashboardMetricsApi } from '../../api/client';
-import type { HubDashboardMetrics } from '../../types';
-import HubMetricCards from '../../components/logistics/HubMetricCards';
-import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { useLivePolling } from '../../hooks/useLivePolling';
+import { getHubDashboardMetricsApi, getHubReportSummaryApi } from '../../api/client';
+import type { HubDashboardMetrics, HubReportDailyRow } from '../../types';
+import { PageHero, StatCard, StatCardSkeleton, LiveStamp } from '../../components/admin/dashboardKit';
+import DailyChart from './reports/DailyChart';
+import { addDays, manilaToday } from './reports/reportFormat';
+import type { HubOutletContext } from './HubLayout';
+
+const POLL_MS = 15000;
+
+/** The four steps a parcel takes through the hub, with what is waiting at each. */
+interface Station {
+  to: string;
+  icon: React.ElementType;
+  title: string;
+  blurb: string;
+  figure: string | null;
+  caption: string;
+  tone: string;
+}
 
 export default function HubDashboardPage() {
   const { user } = useAuth();
+  const { unreadMessages, pendingRiders } = useOutletContext<HubOutletContext>();
   const [metrics, setMetrics] = useState<HubDashboardMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [week, setWeek] = useState<HubReportDailyRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  const fetchMetrics = useCallback(async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
-    setError(null);
+  // Live: the numbers re-read themselves every few seconds while the tab is visible. There is no refresh button.
+  const load = useCallback(async (silent: boolean) => {
     try {
-      const data = await getHubDashboardMetricsApi();
-      setMetrics(data);
-      setLastRefreshed(new Date());
+      const today = manilaToday();
+      const [m, report] = await Promise.all([
+        getHubDashboardMetricsApi(),
+        getHubReportSummaryApi({ from: addDays(today, -6), to: today }).catch(() => null),
+      ]);
+      setMetrics(m);
+      if (report) setWeek(report.daily);
+      setError(null);
     } catch (err: unknown) {
-      const message =
+      if (silent) return;
+      setError(
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        'Failed to load hub operational metrics. Please check your network connection.';
-      setError(message);
-    } finally {
-      setLoading(false);
+          'Could not load the hub numbers. Check your connection.'
+      );
     }
   }, []);
+  const { lastUpdated } = useLivePolling(load, POLL_MS);
 
-  // Fetch on mount
-  useEffect(() => {
-    fetchMetrics();
-  }, [fetchMetrics]);
-
-  // Refetch when browser window/tab regains focus
-  useEffect(() => {
-    const handleFocus = () => {
-      fetchMetrics(true); // Silent refetch on tab focus
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchMetrics]);
-
+  const loading = metrics === null && error === null;
   const hub = metrics?.hub || user?.sorting_center;
+  const failed = metrics?.failed_deliveries ?? 0;
+  const inSorting = metrics?.in_sorting ?? 0;
+
+  const stations: Station[] = [
+    { to: '/hub/intake', icon: PackagePlus, title: 'Parcel intake', blurb: 'Scan parcels in as riders drop them off.', figure: metrics ? String(metrics.inbound_today) : null, caption: 'received today', tone: 'bg-emerald-50 text-emerald-600' },
+    { to: '/hub/sorting', icon: Layers, title: 'Sorting', blurb: 'Group parcels by destination barangay.', figure: metrics ? String(metrics.in_sorting) : null, caption: 'waiting to be sorted', tone: 'bg-blue-50 text-blue-600' },
+    { to: '/hub/dispatch', icon: Send, title: 'Dispatch', blurb: 'Hand sorted parcels to the rider for that area.', figure: metrics ? String(metrics.active_riders) : null, caption: 'active riders', tone: 'bg-violet-50 text-violet-600' },
+    { to: '/hub/deliveries', icon: Truck, title: 'Deliveries', blurb: 'Watch the road and triage failed deliveries.', figure: metrics ? String(metrics.out_for_delivery) : null, caption: 'on the road now', tone: 'bg-amber-50 text-amber-600' },
+  ];
+
+  const attention = [
+    { show: pendingRiders > 0, icon: UserCheck, tone: 'bg-amber-50 text-amber-600', title: `${pendingRiders} rider application${pendingRiders === 1 ? '' : 's'}`, detail: 'Review the documents and approve or decline', to: '/hub/riders' },
+    { show: failed > 0, icon: AlertTriangle, tone: 'bg-rose-50 text-rose-600', title: `${failed} failed deliver${failed === 1 ? 'y' : 'ies'}`, detail: 'Reschedule with a rider or return to the seller', to: '/hub/deliveries' },
+    { show: inSorting > 0, icon: Layers, tone: 'bg-blue-50 text-blue-600', title: `${inSorting} parcel${inSorting === 1 ? '' : 's'} waiting to be sorted`, detail: 'Sort them so they can be dispatched', to: '/hub/sorting' },
+    { show: unreadMessages > 0, icon: MessageSquare, tone: 'bg-sky-50 text-sky-600', title: `${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}`, detail: 'From your riders', to: '/hub/messages' },
+  ].filter((a) => a.show);
 
   return (
-    <div className="space-y-6">
-      {/* ── Top Hero Banner ── */}
+    <div className="pb-8 space-y-3">
       <PageHero
         icon={Building2}
-        eyebrow="Live command center"
+        eyebrow="Command center"
         title={hub?.hub_name || 'Sorting Center Hub'}
         subtitle={
           hub?.address_city ? (
@@ -76,160 +103,152 @@ export default function HubDashboardPage() {
           )
         }
       >
-        {lastRefreshed && (
-          <span className="hidden sm:inline text-[11px] text-neutral-400">
-            Updated {lastRefreshed.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </span>
-        )}
-        <button onClick={() => fetchMetrics()} disabled={loading} className={HERO_BUTTON} title="Refresh live metrics">
-          <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-          <span>Refresh</span>
-        </button>
+        <LiveStamp updatedAt={lastUpdated} />
       </PageHero>
-      {/* ── Error Banner with Retry Action ── */}
+
       {error && (
-        <div className="rounded-2xl p-4 sm:p-5 bg-red-50 border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-900">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-bold text-red-800">Operational Metrics Error</p>
-              <p className="text-xs text-red-600 mt-0.5">{error}</p>
-            </div>
+        <div role="alert" className="flex items-start gap-3 px-4 py-3 text-red-900 border border-red-200 bg-red-50 rounded-xl">
+          <AlertCircle className="w-5 h-5 mt-0.5 text-red-600 shrink-0" aria-hidden="true" />
+          <div className="flex-1">
+            <p className="text-xs font-bold text-red-800">The hub numbers could not be loaded</p>
+            <p className="mt-0.5 text-xs text-red-600">{error} This page keeps trying on its own.</p>
           </div>
-          <button
-            onClick={() => fetchMetrics()}
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shrink-0 transition-colors shadow-2xs"
-          >
-            <RotateCw className="w-3.5 h-3.5" />
-            Retry
-          </button>
         </div>
       )}
 
-      {/* ── Summary Metric Cards ── */}
-      <section aria-label="Operational Summary">
-        <HubMetricCards metrics={metrics} loading={loading} />
+      {/* Key figures: each one opens the station that works on it */}
+      <section aria-label="Operational summary" className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
+        {loading ? (
+          [1, 2, 3, 4, 5].map((i) => <StatCardSkeleton key={i} />)
+        ) : (
+          <>
+            <StatCard compact icon={ArrowDownToLine} label="Received today" value={metrics?.inbound_today} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600" to="/hub/intake" />
+            <StatCard compact icon={Layers} label="In sorting" value={metrics?.in_sorting} subtext="At the hub, not yet sorted" iconBg="bg-blue-50" iconColor="text-blue-600" to="/hub/sorting" />
+            <StatCard compact icon={Truck} label="Out for delivery" value={metrics?.out_for_delivery} subtext="On the road right now" iconBg="bg-amber-50" iconColor="text-amber-600" to="/hub/deliveries" />
+            <StatCard compact icon={AlertTriangle} label="Failed deliveries" value={metrics?.failed_deliveries} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600" to="/hub/deliveries" />
+            <StatCard compact icon={Bike} label="Active riders" value={metrics?.active_riders} subtext={`${pendingRiders} waiting for approval`} iconBg="bg-violet-50" iconColor="text-violet-600" to="/hub/riders" />
+          </>
+        )}
       </section>
 
-      {/* ── Operations Workstation Quick Launch ── */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-900 tracking-tight">
-            Hub Operations Workstations
-          </h2>
-          <span className="text-[11px] text-gray-500 font-medium">Standard sorting workflow</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Workstation 1: Parcel Intake */}
-          <Link
-            to="/hub/intake"
-            className="group bg-white rounded-2xl p-5 border border-gray-200/80 shadow-xs hover:border-gray-300 hover:shadow-sm transition-all flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform border border-emerald-100">
-                <PackagePlus className="w-5 h-5" />
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <div className="space-y-3 xl:col-span-2">
+          {/* The parcel's journey through the hub */}
+          <section aria-labelledby="flow-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 id="flow-heading" className="text-sm font-black text-gray-900">How a parcel moves through the hub</h2>
+                <p className="text-xs text-gray-500">Open a station to work on it.</p>
               </div>
-              <h3 className="text-sm font-bold text-gray-900 group-hover:text-brand-red transition-colors">
-                Parcel Intake
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Scan incoming deliveries from local sellers and external logistics drop-offs.
-              </p>
             </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-emerald-600">
-              <span>Open Intake Station</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
+            <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+              {stations.map((s, i) => {
+                const Icon = s.icon;
+                return (
+                  <li key={s.to} className="relative">
+                    <Link
+                      to={s.to}
+                      className="group flex flex-col h-full p-3.5 transition-all border rounded-xl border-gray-200/80 bg-gray-50/50 hover:bg-white hover:border-gray-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${s.tone}`}>
+                          <Icon className="w-4 h-4" aria-hidden="true" />
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-400">Step {i + 1}</span>
+                      </div>
+                      <h3 className="mt-2.5 text-sm font-bold text-gray-900 group-hover:text-brand-red transition-colors">{s.title}</h3>
+                      <p className="mt-0.5 text-[11px] text-gray-500 leading-snug">{s.blurb}</p>
+                      <p className="mt-3 text-xl font-black tabular-nums text-gray-900">
+                        {s.figure ?? <span className="text-gray-300">n/a</span>}
+                        <span className="ml-1.5 text-[11px] font-semibold text-gray-500">{s.caption}</span>
+                      </p>
+                      <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-bold text-brand-red">
+                        Open <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
 
-          {/* Workstation 2: Package Sorting */}
-          <Link
-            to="/hub/sorting"
-            className="group bg-white rounded-2xl p-5 border border-gray-200/80 shadow-xs hover:border-gray-300 hover:shadow-sm transition-all flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform border border-blue-100">
-                <Layers className="w-5 h-5" />
+          {/* The last seven days */}
+          <section aria-labelledby="week-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div>
+                <h2 id="week-heading" className="text-sm font-black text-gray-900">Parcels, last 7 days</h2>
+                <p className="text-xs text-gray-500">Received, delivered, failed and returned, by day.</p>
               </div>
-              <h3 className="text-sm font-bold text-gray-900 group-hover:text-brand-red transition-colors">
-                Package Sorting
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Route parcels into geographic bins by city, cluster, and destination barangay.
-              </p>
+              <Link to="/hub/reports" className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-brand-red-dark">
+                Full reports <ArrowRight className="w-3 h-3" aria-hidden="true" />
+              </Link>
             </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-brand-red">
-              <span>Open Sorting Station</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
+            {week === null ? (
+              <div className="h-56 rounded-xl bg-gray-100 animate-pulse" aria-busy="true" />
+            ) : (
+              <DailyChart daily={week} bare height={240} />
+            )}
+          </section>
+        </div>
 
-          {/* Workstation 3: Delivery Dispatch */}
-          <Link
-            to="/hub/dispatch"
-            className="group bg-white rounded-2xl p-5 border border-gray-200/80 shadow-xs hover:border-gray-300 hover:shadow-sm transition-all flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform border border-purple-100">
-                <Send className="w-5 h-5" />
+        <div className="space-y-3">
+          {/* What needs the manager */}
+          <section aria-labelledby="attention-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
+            <h2 id="attention-heading" className="text-sm font-black text-gray-900">Needs your attention</h2>
+            <p className="text-xs text-gray-500 mb-3">Updates by itself as work comes in.</p>
+            {loading ? (
+              <div className="space-y-2 animate-pulse" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="h-12 bg-gray-100 rounded-xl" />)}</div>
+            ) : attention.length === 0 ? (
+              <div className="flex flex-col items-center gap-1.5 py-6 text-center">
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
+                  <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
+                </span>
+                <p className="text-sm font-bold text-gray-900">All clear</p>
+                <p className="max-w-[16rem] text-xs text-gray-500">No applications, failed deliveries, unsorted parcels or unread messages.</p>
               </div>
-              <h3 className="text-sm font-bold text-gray-900 group-hover:text-brand-red transition-colors">
-                Delivery Dispatch
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Assign sorted packages to available couriers and track bag handovers.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-purple-600">
-              <span>Open Dispatch Desk</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
+            ) : (
+              <ul className="space-y-2">
+                {attention.map(({ icon: Icon, tone, title, detail, to }) => (
+                  <li key={to + title}>
+                    <Link to={to} className="group flex items-center gap-3 p-2.5 transition-colors border rounded-xl border-gray-100 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red">
+                      <span className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${tone}`}>
+                        <Icon className="w-4 h-4" aria-hidden="true" />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-xs font-bold text-gray-900 truncate">{title}</span>
+                        <span className="block text-[11px] text-gray-500 truncate">{detail}</span>
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-red transition-colors shrink-0" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* The hub's territory */}
+          <section aria-labelledby="territory-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
+            <h2 id="territory-heading" className="text-sm font-black text-gray-900">Hub profile</h2>
+            <dl className="mt-3 space-y-3 text-xs">
+              <div>
+                <dt className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Facility</dt>
+                <dd className="mt-0.5 font-bold text-gray-900">{hub?.hub_name ?? 'n/a'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Jurisdiction</dt>
+                <dd className="mt-0.5 font-bold text-gray-900">{hub?.address_city ?? 'n/a'}, {hub?.address_province ?? 'n/a'}</dd>
+                <dd className="text-gray-500">Barangay {hub?.address_barangay ?? 'n/a'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Delivery coverage</dt>
+                <dd className="mt-0.5 font-bold text-gray-900">
+                  {metrics?.hub?.coverage_barangays_count !== undefined ? `${metrics.hub.coverage_barangays_count} barangays` : 'n/a'}
+                </dd>
+              </div>
+            </dl>
+          </section>
         </div>
-      </section>
-
-      {/* ── Hub Information & Service Overview ── */}
-      <section className="bg-white rounded-2xl border border-gray-200/80 p-5 sm:p-6 shadow-xs">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Hub Authorization &amp; Territory</h3>
-              <p className="text-[11px] text-gray-500">Official sorting center profile</p>
-            </div>
-          </div>
-          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-            Active Hub Operator
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-3.5 rounded-xl bg-gray-50/70 border border-gray-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Hub Facility</span>
-            <p className="font-bold text-gray-900 text-sm mt-1">{hub?.hub_name}</p>
-            <p className="text-gray-500 mt-0.5">Authorized Loved-IT Logistics Node</p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-gray-50/70 border border-gray-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Jurisdiction</span>
-            <p className="font-bold text-gray-900 text-sm mt-1">
-              {hub?.address_city || 'City'}, {hub?.address_province || 'Province'}
-            </p>
-            <p className="text-gray-500 mt-0.5">Barangay {hub?.address_barangay || ''}</p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-gray-50/70 border border-gray-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Delivery Coverage</span>
-            <p className="font-bold text-gray-900 text-sm mt-1">
-              {metrics?.hub?.coverage_barangays_count ?? 0} Designated Barangays
-            </p>
-            <p className="text-gray-500 mt-0.5">Active local delivery zone</p>
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -30,6 +30,7 @@ import type { SellerOrder } from '../../types';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../../utils/orderStatus';
 import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
+import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 
 type OrderTab = 'all' | 'pending_verification' | 'to_ship' | 'in_transit' | 'delivered' | 'cancelled';
 
@@ -764,6 +765,9 @@ export default function SellerOrdersPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-gray-600">Print the standard A6 shipping label to attach to the package for courier pickup.</p>
+                {selectedOrder.tracking_number && (
+                  <TrackPackageButton trackingNumber={selectedOrder.tracking_number} variant="button" className="w-full" />
+                )}
                 <a
                   href={`/seller/orders/${selectedOrder.id}/waybill`}
                   target="_blank"

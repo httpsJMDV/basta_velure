@@ -45,7 +45,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import axios from 'axios';
-import { PageHero } from '../../components/admin/dashboardKit';
+import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
 
 const PRESET_AREA_LABELS = [
   'Area A - Central District',
@@ -382,10 +382,14 @@ export default function HubRidersPage() {
       .catch((err) => console.error('Failed to load hub coverage options:', err));
   }, []);
 
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
   // Fetch riders list
-  const fetchRiders = useCallback(() => {
-    setLoading(true);
-    setError(null);
+  const fetchRiders = useCallback((silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
 
     getHubRidersApi({
       status: currentTab === 'ALL' ? 'all' : currentTab,
@@ -397,18 +401,35 @@ export default function HubRidersPage() {
         setRiders(res.data || []);
         setCounts(res.counts || { pending: 0, active: 0, disapproved: 0, all: 0 });
         setMeta(res.meta);
+        setLastUpdated(new Date());
       })
       .catch((err) => {
+        if (silent) return; // a quiet refresh that fails just tries again next time
         console.error('Failed to load couriers:', err);
         setError('Failed to load courier applications. Please check your connection and try again.');
       })
       .finally(() => {
-        setLoading(false);
+        if (!silent) setLoading(false);
       });
   }, [currentTab, currentSearch, currentPage, currentPerPage]);
 
   useEffect(() => {
     fetchRiders();
+  }, [fetchRiders]);
+
+  // Live: applications and approvals from other screens show up on their own, with no refresh button.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') fetchRiders(true);
+    };
+    const timer = setInterval(tick, 20000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('focus', tick);
+    };
   }, [fetchRiders]);
 
   // Handle Search Input Change
@@ -625,84 +646,17 @@ export default function HubRidersPage() {
         eyebrow="People"
         title="Riders & Fleet"
         subtitle="Review courier applications, verify their documents, and map active couriers to the barangays they deliver in."
-      />
-      {/* ─── Summary Metrics Cards ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div
-          onClick={() => handleTabChange('PENDING')}
-          className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between cursor-pointer transition-all ${
-            currentTab === 'PENDING'
-              ? 'border-amber-400 ring-2 ring-amber-400/20 shadow-xs'
-              : 'border-stone-200/90 hover:border-gray-300'
-          }`}
-        >
-          <div className="space-y-1">
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-              Pending Couriers
-            </span>
-            <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">
-              {counts.pending}
-            </p>
-            <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Awaiting review
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100 shadow-2xs">
-            <Clock className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div
-          onClick={() => handleTabChange('ACTIVE')}
-          className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between cursor-pointer transition-all ${
-            currentTab === 'ACTIVE'
-              ? 'border-emerald-400 ring-2 ring-emerald-400/20 shadow-xs'
-              : 'border-stone-200/90 hover:border-gray-300'
-          }`}
-        >
-          <div className="space-y-1">
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-              Active Couriers
-            </span>
-            <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">
-              {counts.active}
-            </p>
-            <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Authorized fleet
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 shadow-2xs">
-            <CheckCircle className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div
-          onClick={() => handleTabChange('DISAPPROVED')}
-          className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between cursor-pointer transition-all ${
-            currentTab === 'DISAPPROVED'
-              ? 'border-red-400 ring-2 ring-red-400/20 shadow-xs'
-              : 'border-stone-200/90 hover:border-gray-300'
-          }`}
-        >
-          <div className="space-y-1">
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-              Disapproved
-            </span>
-            <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">
-              {counts.disapproved}
-            </p>
-            <p className="text-[11px] text-stone-500 font-semibold flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-stone-400" /> Declined applications
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-600 flex items-center justify-center shrink-0 border border-stone-200 shadow-2xs">
-            <XCircle className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Controls Bar: Status Tabs, Search, and Refresh ─────────── */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-4">
+      >
+        <LiveStamp updatedAt={lastUpdated} />
+      </PageHero>
+      {/* ─── Summary: each card is also the filter ─────────────────── */}
+      <section aria-label="Courier summary" className="grid grid-cols-3 gap-2.5">
+        <StatCard compact icon={Clock} label="Pending couriers" value={counts.pending} subtext="Awaiting your review" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => handleTabChange('PENDING')} active={currentTab === 'PENDING'} />
+        <StatCard compact icon={CheckCircle} label="Active couriers" value={counts.active} subtext="Authorized fleet" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => handleTabChange('ACTIVE')} active={currentTab === 'ACTIVE'} />
+        <StatCard compact icon={XCircle} label="Disapproved" value={counts.disapproved} subtext="Declined applications" iconBg="bg-stone-100" iconColor="text-stone-600" onClick={() => handleTabChange('DISAPPROVED')} active={currentTab === 'DISAPPROVED'} />
+      </section>
+      {/* ─── Controls Bar: Status Tabs and Search ─────────── */}
+      <div className="bg-white border border-gray-200/80 rounded-2xl p-3 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-4">
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl overflow-x-auto">
           {[
@@ -719,14 +673,14 @@ export default function HubRidersPage() {
                 onClick={() => handleTabChange(key as RiderStatus | 'ALL')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
                   isActive
-                    ? 'bg-white text-gray-900 shadow-2xs'
+                    ? 'bg-white text-brand-red shadow-2xs'
                     : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
                 <span>{label}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    isActive ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                    isActive ? 'bg-red-100 text-brand-red-dark' : 'bg-gray-200 text-gray-600'
                   }`}
                 >
                   {count}
@@ -749,16 +703,6 @@ export default function HubRidersPage() {
             />
           </div>
 
-          <button
-            type="button"
-            onClick={fetchRiders}
-            disabled={loading}
-            className="h-9 px-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 text-gray-600 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-            title="Refresh List"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
         </div>
       </div>
 
@@ -775,7 +719,7 @@ export default function HubRidersPage() {
           <p className="text-xs text-gray-500 max-w-sm mx-auto">{error}</p>
           <button
             type="button"
-            onClick={fetchRiders}
+            onClick={() => fetchRiders()}
             className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors mt-2"
           >
             Retry Loading

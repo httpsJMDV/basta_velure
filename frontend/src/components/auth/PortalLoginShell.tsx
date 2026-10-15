@@ -36,11 +36,11 @@ export default function PortalLoginShell({
       {/* Form column */}
       <div className="w-full md:w-1/2 flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-16 bg-white">
         <div className="max-w-sm w-full mx-auto">
-          <Link to="/" className="inline-block mb-8 group">
+          <Link to="/" className="block w-fit mb-8 group">
             <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-12 sm:h-14 object-contain group-hover:opacity-95 transition-opacity" />
           </Link>
 
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-red bg-red-50 border border-red-100 rounded-full px-2.5 py-1 mb-4">
+          <p className="flex w-fit items-center gap-1.5 text-xs font-semibold text-brand-red bg-red-50 border border-red-100 rounded-full px-2.5 py-1 mb-4">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-red" aria-hidden="true" />
             {badge}
           </p>

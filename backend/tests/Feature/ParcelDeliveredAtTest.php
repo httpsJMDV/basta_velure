@@ -162,7 +162,7 @@ class ParcelDeliveredAtTest extends TestCase
         $proof = UploadedFile::fake()->createWithContent('proof.jpg', base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA='));
 
         $this->actingAs($this->riderUser, 'sanctum')
-            ->post("/api/v1/rider/deliveries/{$parcel->tracking_number}/delivered", ['proof_photo' => $proof], ['Accept' => 'application/json'])
+            ->post("/api/v1/rider/deliveries/{$parcel->tracking_number}/delivered", ['proof_photo' => $proof, 'proof_photo_2' => UploadedFile::fake()->createWithContent('proof-2.jpg', base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=') . 'x')], ['Accept' => 'application/json'])
             ->assertOk();
 
         $parcel->refresh();

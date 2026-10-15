@@ -422,20 +422,24 @@ class DemoSeederTest extends TestCase
             $this->assertTrue($review->verified_purchase);
         }
 
-        // Mixed ratings and statuses, and exactly one flagged review, still waiting for moderation.
+        // Every rating from one to five, all simply published: nothing flags, hides or approves a review.
         $this->assertSame([1, 2, 3, 4, 5, 5], $reviews->pluck('rating')->sort()->values()->all());
-        $this->assertSame(['hidden' => 1, 'pending_review' => 2, 'visible' => 3], $reviews->countBy('moderation_status')->sortKeys()->all());
-        $flagged = $reviews->where('flagged', true);
-        $this->assertCount(1, $flagged);
-        $this->assertSame('pending_review', $flagged->first()->moderation_status);
-        $this->assertNotNull($flagged->first()->flag_reason);
+        $this->assertSame(['visible' => 6], $reviews->countBy('moderation_status')->all());
+        $this->assertSame(0, $reviews->where('flagged', true)->count());
 
-        // The admin page reads them through the real endpoints.
+        // The admin page reads them through the real endpoints, shop first.
         $summary = $this->as('admin')->getJson('/api/v1/admin/reviews/summary')->assertOk()->json('data');
         $this->assertSame(6, $summary['total']);
         $this->assertEquals(3.33, $summary['average_rating']);
-        $this->assertSame(['pending_review' => 2, 'visible' => 3, 'hidden' => 1], $summary['by_status']);
-        $this->assertSame(1, $summary['flagged']);
+        $this->assertSame(['1' => 1, '2' => 1, '3' => 1, '4' => 1, '5' => 2], $summary['rating_distribution']);
+        $this->assertSame(2, $summary['shops']);
+        $shops = collect($this->as('admin')->getJson('/api/v1/admin/reviews/shops')->assertOk()->json('data'));
+        $this->assertSame(2, $shops->count());
+        $this->assertSame(6, $shops->sum('review_count'), 'every demo review belongs to one of the two demo shops');
+        foreach ($shops as $shop) {
+            $this->assertNotNull($shop['logo_url'], 'a demo shop has a logo image');
+            $this->assertNotEmpty($shop['shop_slug']);
+        }
         $list = $this->as('admin')->getJson('/api/v1/admin/reviews?per_page=100')->assertOk();
         $this->assertSame(6, $list->json('meta.total'));
         foreach ($list->json('data') as $row) {
@@ -443,7 +447,6 @@ class DemoSeederTest extends TestCase
             $this->assertNotNull($row['shop']);
             $this->assertNotNull($row['order']);
         }
-
         // Seeding again gives the same six, not twelve; a reset removes them all.
         $this->demo->seed();
         $this->assertSame(6, Review::count());

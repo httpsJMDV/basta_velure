@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ChangeEvent } from 'react';
 import axios from 'axios';
 import { Camera, CheckCircle2, RefreshCw, RotateCcw, X } from 'lucide-react';
@@ -27,14 +28,158 @@ function validationMessages(data: unknown): string[] {
   return errors ? Object.values(errors).flat() : [];
 }
 
+interface PhotoSlotProps {
+  id: string;
+  step: number;
+  title: string;
+  hint: string;
+  file: File | null;
+  disabled: boolean;
+  onChange: (file: File | null) => void;
+  /** Reports that the slot is shrinking a photo, so the form waits for it. */
+  onProcessing: (busy: boolean) => void;
+}
+
+/** One proof photo: take or retake it, see a preview, and shrink it in the browser before upload. */
+function PhotoSlot({ id, step, title, hint, file, disabled, onChange, onProcessing }: PhotoSlotProps) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [info, setInfo] = useState<{ finalBytes: number; originalBytes: number; downscaled: boolean } | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Free the preview's memory when it changes and when the sheet closes.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const reject = (message: string) => {
+    onChange(null);
+    setPreviewUrl(null);
+    setInfo(null);
+    setError(message);
+  };
+
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    e.target.value = ''; // lets the same file be chosen again after Retake
+    if (!picked) return;
+
+    if (!ALLOWED_TYPES.includes(picked.type)) {
+      reject('Use a JPG, PNG or WebP photo.');
+      return;
+    }
+
+    // Shrink in the browser first: phone photos are several MB, and a smaller upload is faster on mobile data.
+    setError(null);
+    setProcessing(true);
+    onProcessing(true);
+    const result = await downscaleImage(picked);
+    setProcessing(false);
+    onProcessing(false);
+
+    // Checked on what will actually be uploaded. A big photo only fails here if shrinking was not possible.
+    if (result.file.size > MAX_BYTES) {
+      reject('That photo is larger than 8 MB and could not be reduced. Take a new one.');
+      return;
+    }
+
+    onChange(result.file);
+    setPreviewUrl(URL.createObjectURL(result.file));
+    setInfo({ finalBytes: result.file.size, originalBytes: picked.size, downscaled: result.downscaled });
+  };
+
+  const showPreview = file !== null && previewUrl !== null;
+
+  return (
+    <section aria-label={title} className="space-y-2">
+      <div className="flex items-start gap-2.5">
+        <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-black flex items-center justify-center shrink-0" aria-hidden="true">
+          {step}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-gray-900">
+            {title} <span className="text-red-700">(required)</span>
+          </p>
+          <p className="text-xs text-gray-500">{hint}</p>
+        </div>
+      </div>
+
+      <input
+        ref={fileRef}
+        id={id}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        onChange={(e) => void handleFile(e)}
+        disabled={disabled}
+        className="sr-only"
+        aria-describedby={error ? `${id}-error` : undefined}
+      />
+
+      {showPreview ? (
+        <div className="space-y-2">
+          <img
+            src={previewUrl}
+            alt={`Preview of ${title.toLowerCase()}`}
+            className="w-full max-h-60 object-contain rounded-2xl bg-gray-100 border border-gray-200"
+          />
+          {info && (
+            <p className="text-xs text-gray-600" role="status">
+              Photo ready: <span className="font-bold">{formatBytes(info.finalBytes)}</span>
+              {info.downscaled && ` (reduced from ${formatBytes(info.originalBytes)})`}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={disabled || processing}
+            className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-50"
+          >
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
+            Retake photo
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={disabled || processing}
+          className="w-full min-h-14 inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 text-sm font-bold text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+        >
+          {processing ? (
+            <>
+              <RefreshCw className="w-5 h-5 animate-spin" aria-hidden="true" />
+              Preparing photo...
+            </>
+          ) : (
+            <>
+              <Camera className="w-5 h-5" aria-hidden="true" />
+              Take photo
+            </>
+          )}
+        </button>
+      )}
+
+      <div aria-live="assertive">
+        {error && (
+          <p id={`${id}-error`} className="text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl p-3">
+            {error}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict }: DeliveredSheetProps) {
   const isCod = parcel.cod_amount !== null;
 
   const [photo, setPhoto] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const [photoInfo, setPhotoInfo] = useState<{ finalBytes: number; originalBytes: number; downscaled: boolean } | null>(null);
+  const [photo2, setPhoto2] = useState<File | null>(null);
+  const [processingCount, setProcessingCount] = useState(0);
   const [receivedBy, setReceivedBy] = useState('');
   const [codChecked, setCodChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +187,6 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
   const [errors, setErrors] = useState<string[]>([]);
 
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const busyRef = useRef(false);
 
   useEffect(() => {
@@ -57,56 +201,13 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
-  // Free the preview's memory when it changes and when the sheet closes.
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  const processing = processingCount > 0;
+  const trackProcessing = (busy: boolean) => setProcessingCount((n) => Math.max(0, n + (busy ? 1 : -1)));
 
-  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // lets the same file be chosen again after Retake
-    if (!file) return;
-
-    const reject = (message: string) => {
-      setPhoto(null);
-      setPreviewUrl(null);
-      setPhotoInfo(null);
-      setPhotoError(message);
-    };
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      reject('Use a JPG, PNG or WebP photo.');
-      return;
-    }
-
-    // Shrink in the browser first: phone photos are several MB, and a smaller upload is faster on mobile data.
-    setPhotoError(null);
-    setErrors([]);
-    setProcessing(true);
-    const result = await downscaleImage(file);
-    setProcessing(false);
-
-    // Checked on what will actually be uploaded. A big photo only fails here if shrinking was not possible.
-    if (result.file.size > MAX_BYTES) {
-      reject('That photo is larger than 8 MB and could not be reduced. Take a new one.');
-      return;
-    }
-
-    setPhoto(result.file);
-    setPreviewUrl(URL.createObjectURL(result.file));
-    setPhotoInfo({
-      finalBytes: result.file.size,
-      originalBytes: file.size,
-      downscaled: result.downscaled,
-    });
-  };
-
-  const canSubmit = photo !== null && !processing && (!isCod || codChecked) && !submitting;
+  const canSubmit = photo !== null && photo2 !== null && !processing && (!isCod || codChecked) && !submitting;
 
   const handleSubmit = async () => {
-    if (!photo || busyRef.current) return;
+    if (!photo || !photo2 || busyRef.current) return;
 
     busyRef.current = true;
     setSubmitting(true);
@@ -115,6 +216,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
 
     const form = new FormData();
     form.append('proof_photo', photo);
+    form.append('proof_photo_2', photo2);
     if (receivedBy.trim() !== '') form.append('received_by', receivedBy.trim());
     if (isCod) form.append('cod_collected', codChecked ? '1' : '0');
 
@@ -137,7 +239,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
         setErrors([message || 'The server could not record the delivery. Try again.']);
         return;
       }
-      setErrors(['No connection. Check your network and try again. Your photo is kept.']);
+      setErrors(['No connection. Check your network and try again. Your photos are kept.']);
     } finally {
       busyRef.current = false;
       setSubmitting(false);
@@ -145,7 +247,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" role="presentation">
       <div
         role="dialog"
@@ -173,76 +275,37 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
           </button>
         </div>
 
-        {/* Photo proof */}
-        <section aria-label="Proof photo" className="space-y-2">
-          <p className="text-sm font-bold text-gray-900">
-            Proof photo <span className="text-red-700">(required)</span>
-          </p>
+        <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl p-3">
+          Two different photos are the proof that the parcel reached the buyer. The buyer, the seller and the hub can see them.
+        </p>
 
-          <input
-            ref={fileRef}
-            id="delivered-photo"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            capture="environment"
-            onChange={(e) => void handleFile(e)}
-            disabled={submitting}
-            className="sr-only"
-            aria-describedby={photoError ? 'delivered-photo-error' : undefined}
-          />
+        <PhotoSlot
+          id="delivered-photo"
+          step={1}
+          title="Parcel handed over"
+          hint="The parcel with the recipient, or at their door."
+          file={photo}
+          disabled={submitting}
+          onChange={(f) => {
+            setPhoto(f);
+            setErrors([]);
+          }}
+          onProcessing={trackProcessing}
+        />
 
-          {previewUrl ? (
-            <div className="space-y-2">
-              <img
-                src={previewUrl}
-                alt="Preview of the proof photo you took"
-                className="w-full max-h-72 object-contain rounded-2xl bg-gray-100 border border-gray-200"
-              />
-              {photoInfo && (
-                <p className="text-xs text-gray-600" role="status">
-                  Photo ready: <span className="font-bold">{formatBytes(photoInfo.finalBytes)}</span>
-                  {photoInfo.downscaled && ` (reduced from ${formatBytes(photoInfo.originalBytes)})`}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={submitting || processing}
-                className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-50"
-              >
-                <RotateCcw className="w-4 h-4" aria-hidden="true" />
-                Retake photo
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={submitting || processing}
-              className="w-full min-h-14 inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 text-sm font-bold text-gray-800 hover:bg-gray-100 disabled:opacity-50"
-            >
-              {processing ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" aria-hidden="true" />
-                  Preparing photo...
-                </>
-              ) : (
-                <>
-                  <Camera className="w-5 h-5" aria-hidden="true" />
-                  Take photo
-                </>
-              )}
-            </button>
-          )}
-
-          <div aria-live="assertive">
-            {photoError && (
-              <p id="delivered-photo-error" className="text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl p-3">
-                {photoError}
-              </p>
-            )}
-          </div>
-        </section>
+        <PhotoSlot
+          id="delivered-photo-2"
+          step={2}
+          title="Delivery address"
+          hint="The house, gate or building so the location is clear."
+          file={photo2}
+          disabled={submitting}
+          onChange={(f) => {
+            setPhoto2(f);
+            setErrors([]);
+          }}
+          onProcessing={trackProcessing}
+        />
 
         {/* Received by */}
         <div className="space-y-1">
@@ -319,6 +382,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

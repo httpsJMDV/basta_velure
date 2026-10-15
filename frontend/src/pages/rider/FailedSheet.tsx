@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { AlertCircle, RefreshCw, X, XCircle } from 'lucide-react';
 import { getRiderFailureReasonsApi, markRiderFailedApi } from '../../api/client';
@@ -100,7 +101,7 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" role="presentation">
       <div
         role="dialog"
@@ -244,5 +245,7 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
         </div>
       </div>
     </div>
+    ,
+    document.body
   );
 }

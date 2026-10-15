@@ -5,6 +5,8 @@ import type {
   AdminOrder, AdminOrderGroupKey, AdminOrderListParams, AdminOrderSummary, OrderStatus,
 } from '../../types';
 import Button from '../../components/ui/Button';
+import CustomSelect from '../../components/ui/CustomSelect';
+import DateRangeBar from '../../components/admin/DateRangeBar';
 import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
 import {
@@ -20,15 +22,29 @@ import {
   ORDER_STATUS_ICON,
 } from '../../utils/orderStatus';
 import { NA, peso, whole, lastDays, formatDay, manilaToday } from '../../utils/adminReports';
+import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 
 const PER_PAGE = 20;
 
 type DatePreset = '7d' | '30d' | '90d' | 'all' | 'custom';
 const DATE_PRESETS: { value: Exclude<DatePreset, 'custom'>; label: string; days: number | null }[] = [
-  { value: '7d', label: 'Last 7 days', days: 7 },
-  { value: '30d', label: 'Last 30 days', days: 30 },
-  { value: '90d', label: 'Last 90 days', days: 90 },
+  { value: '7d', label: '7 days', days: 7 },
+  { value: '30d', label: '30 days', days: 30 },
+  { value: '90d', label: '90 days', days: 90 },
   { value: 'all', label: 'All time', days: null },
+];
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: '', label: 'All payment methods' },
+  { value: 'gcash', label: 'GCash' },
+  { value: 'cod', label: 'Cash on delivery' },
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: '', label: 'All payment statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'failed', label: 'Failed' },
 ];
 
 const PAYMENT_STATUS_STYLE: Record<string, string> = {
@@ -175,6 +191,7 @@ function OrderDetailDrawer({
                 >
                   View Waybill ↗
                 </a>
+                <TrackPackageButton trackingNumber={order.tracking_number} />
               </div>
             )}
 
@@ -342,7 +359,9 @@ export default function AdminOrdersPage() {
     return days ? lastDays(days) : {};
   }, [preset, customFrom, customTo]);
 
-  const customInvalid = preset === 'custom' && customFrom !== '' && customTo !== '' && customFrom > customTo;
+  // The days in force, as the date pickers show them ('' for an open end).
+  const shownFrom = preset === 'custom' ? customFrom : dateRange.from ?? '';
+  const shownTo = preset === 'custom' ? customTo : dateRange.to ?? '';
 
   // The filters both the list and the summary share. The status group only narrows the list.
   const sharedFilters = useMemo(() => ({
@@ -432,55 +451,25 @@ export default function AdminOrdersPage() {
   const ariaSort = (key: SortKey): 'ascending' | 'descending' | 'none' => (sort !== key ? 'none' : direction === 'asc' ? 'ascending' : 'descending');
 
   return (
-    <div className="pb-8 space-y-4">
+    <div className="pb-8 space-y-3">
       <PageHero
         icon={ShoppingBag}
         eyebrow="Commerce"
         title="Orders & Fulfillment"
         subtitle={<>Every order on the platform, counted in Philippine time · {rangeLabel}</>}
-      >
-        <div className="flex flex-wrap items-center gap-1 bg-neutral-800/90 p-0.5 rounded-xl border border-neutral-700/60" role="group" aria-label="Date range">
-          {DATE_PRESETS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => { setPreset(p.value); setPage(1); }}
-              aria-pressed={preset === p.value}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
-                preset === p.value ? 'bg-brand-red text-white shadow-xs' : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => { setPreset('custom'); setPage(1); }}
-            aria-pressed={preset === 'custom'}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
-              preset === 'custom' ? 'bg-brand-red text-white shadow-xs' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Custom
-          </button>
-        </div>
-      </PageHero>
+      />
 
-      {preset === 'custom' && (
-        <div className="flex flex-wrap items-end gap-3 p-3 bg-white border border-gray-200/80 rounded-xl">
-          <label className="text-[11px] font-semibold text-gray-500">
-            From
-            <input type="date" value={customFrom} max={customTo || manilaToday()} onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
-              className="block mt-0.5 h-9 px-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red" />
-          </label>
-          <label className="text-[11px] font-semibold text-gray-500">
-            To
-            <input type="date" value={customTo} min={customFrom || undefined} max={manilaToday()} onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
-              className="block mt-0.5 h-9 px-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red" />
-          </label>
-          {customInvalid && <p role="alert" className="text-[11px] font-semibold text-red-600">The start date must be on or before the end date.</p>}
-        </div>
-      )}
+      <DateRangeBar
+        presets={DATE_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
+        preset={preset === 'custom' ? '' : preset}
+        from={shownFrom}
+        to={shownTo}
+        today={manilaToday()}
+        fromPlaceholder="Since the first order"
+        toPlaceholder="Today"
+        onPreset={(value) => { setPreset(value as DatePreset); setPage(1); }}
+        onRange={(from, to) => { setCustomFrom(from); setCustomTo(to); setPreset('custom'); setPage(1); }}
+      />
 
       {/* ── KPI row ── */}
       {summaryFailed ? (
@@ -489,100 +478,91 @@ export default function AdminOrdersPage() {
           <button onClick={loadSummary} className="px-3 py-1 text-xs font-bold text-white bg-brand-red rounded-lg hover:bg-[#8e2424]">Retry</button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
           {!summary ? (
             [1, 2, 3, 4, 5, 6].map((i) => <StatCardSkeleton key={i} />)
           ) : (
             <>
-              <StatCard icon={ClipboardList} label="Total orders" value={summary.total} subtext="Matching the filters" iconBg="bg-violet-50" iconColor="text-violet-600"
-                onClick={() => chooseGroup('')} active={group === ''} actionLabel="Show all" />
-              <StatCard icon={Clock} label="Awaiting action" value={groupCount('awaiting_action')} subtext="Placed to ready for pickup" iconBg="bg-amber-50" iconColor="text-amber-600"
-                onClick={() => chooseGroup('awaiting_action')} active={group === 'awaiting_action'} actionLabel="Filter" />
-              <StatCard icon={Truck} label="In transit" value={groupCount('in_transit')} subtext="Picked up to out for delivery" iconBg="bg-blue-50" iconColor="text-blue-600"
-                onClick={() => chooseGroup('in_transit')} active={group === 'in_transit'} actionLabel="Filter" />
-              <StatCard icon={PackageCheck} label="Delivered / completed" value={groupCount('delivered_completed')} subtext="With the buyer" iconBg="bg-emerald-50" iconColor="text-emerald-600"
-                onClick={() => chooseGroup('delivered_completed')} active={group === 'delivered_completed'} actionLabel="Filter" />
-              <StatCard icon={AlertTriangle} label="Problem orders" value={groupCount('problem')} subtext="Failed, returned or disputed" iconBg="bg-red-50" iconColor="text-red-600"
-                onClick={() => chooseGroup('problem')} active={group === 'problem'} actionLabel="Filter" />
-              <StatCard icon={Wallet} label="GMV" value={summary.gmv} money subtext="Not counting cancelled or returned" iconBg="bg-rose-50" iconColor="text-brand-red" />
+              <StatCard compact icon={ClipboardList} label="Total orders" value={summary.total} subtext="Matching the filters" iconBg="bg-violet-50" iconColor="text-violet-600"
+                onClick={() => chooseGroup('')} active={group === ''} />
+              <StatCard compact icon={Clock} label="Awaiting action" value={groupCount('awaiting_action')} subtext="Placed to ready for pickup" iconBg="bg-amber-50" iconColor="text-amber-600"
+                onClick={() => chooseGroup('awaiting_action')} active={group === 'awaiting_action'} />
+              <StatCard compact icon={Truck} label="In transit" value={groupCount('in_transit')} subtext="Picked up to out for delivery" iconBg="bg-blue-50" iconColor="text-blue-600"
+                onClick={() => chooseGroup('in_transit')} active={group === 'in_transit'} />
+              <StatCard compact icon={PackageCheck} label="Delivered / completed" value={groupCount('delivered_completed')} subtext="With the buyer" iconBg="bg-emerald-50" iconColor="text-emerald-600"
+                onClick={() => chooseGroup('delivered_completed')} active={group === 'delivered_completed'} />
+              <StatCard compact icon={AlertTriangle} label="Problem orders" value={groupCount('problem')} subtext="Failed, returned or disputed" iconBg="bg-red-50" iconColor="text-red-600"
+                onClick={() => chooseGroup('problem')} active={group === 'problem'} />
+              <StatCard compact icon={Wallet} label="GMV" value={summary.gmv} money subtext="Not counting cancelled or returned" iconBg="bg-rose-50" iconColor="text-brand-red" />
             </>
           )}
         </div>
       )}
 
-      {/* ── Status chips ── */}
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by status group">
-        <button
-          type="button"
-          onClick={() => chooseGroup('')}
-          aria-pressed={group === ''}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
-            group === '' ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          All <span className={`px-1.5 rounded-full text-[10px] ${group === '' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{summary ? whole(summary.total) : NA}</span>
-        </button>
-        {ADMIN_ORDER_GROUPS.map((g) => (
+      {/* ── Filters: status chips, then search and the dropdowns ── */}
+      <div className="p-3 space-y-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by status group">
           <button
-            key={g.key}
             type="button"
-            onClick={() => chooseGroup(g.key)}
-            aria-pressed={group === g.key}
+            onClick={() => chooseGroup('')}
+            aria-pressed={group === ''}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
-              group === g.key ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              group === '' ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
             }`}
           >
-            {g.label}
-            <span className={`px-1.5 rounded-full text-[10px] ${group === g.key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{summary ? whole(summary.groups[g.key]) : NA}</span>
+            All <span className={`px-1.5 rounded-full text-[10px] ${group === '' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{summary ? whole(summary.total) : NA}</span>
           </button>
-        ))}
-      </div>
+          {ADMIN_ORDER_GROUPS.map((g) => (
+            <button
+              key={g.key}
+              type="button"
+              onClick={() => chooseGroup(g.key)}
+              aria-pressed={group === g.key}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+                group === g.key ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {g.label}
+              <span className={`px-1.5 rounded-full text-[10px] ${group === g.key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{summary ? whole(summary.groups[g.key]) : NA}</span>
+            </button>
+          ))}
+        </div>
 
-      {/* ── Filters ── */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative flex-1 lg:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" aria-hidden="true" />
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search orders"
-            placeholder="Order #, tracking #, buyer or shop"
-            className="w-full pl-8 pr-8 py-2 text-[13px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red bg-white"
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              aria-label="Search orders"
+              placeholder="Order #, tracking #, buyer or shop"
+              className="w-full min-h-[44px] pl-10 pr-9 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent bg-white"
+            />
+            {searchInput && (
+              <button type="button" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <CustomSelect
+            className="lg:w-56"
+            value={paymentMethod}
+            onChange={(v) => { setPaymentMethod(v as '' | 'gcash' | 'cod'); setPage(1); }}
+            options={PAYMENT_METHOD_OPTIONS}
           />
-          {searchInput && (
-            <button type="button" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700">
-              <X className="w-3.5 h-3.5" />
+          <CustomSelect
+            className="lg:w-56"
+            value={paymentStatus}
+            onChange={(v) => { setPaymentStatus(v); setPage(1); }}
+            options={PAYMENT_STATUS_OPTIONS}
+          />
+          {filtersActive && (
+            <button type="button" onClick={clearFilters} className="self-start px-2 text-xs font-bold text-brand-red hover:underline lg:self-auto">
+              Clear filters
             </button>
           )}
         </div>
-        <select
-          value={paymentMethod}
-          onChange={(e) => { setPaymentMethod(e.target.value as '' | 'gcash' | 'cod'); setPage(1); }}
-          aria-label="Payment method"
-          className="text-[13px] border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red"
-        >
-          <option value="">All payment methods</option>
-          <option value="gcash">GCash</option>
-          <option value="cod">Cash on delivery</option>
-        </select>
-        <select
-          value={paymentStatus}
-          onChange={(e) => { setPaymentStatus(e.target.value); setPage(1); }}
-          aria-label="Payment status"
-          className="text-[13px] border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red"
-        >
-          <option value="">All payment statuses</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-          <option value="failed">Failed</option>
-        </select>
-        {filtersActive && (
-          <button type="button" onClick={clearFilters} className="text-xs font-bold text-brand-red hover:underline self-start lg:self-auto">
-            Clear filters
-          </button>
-        )}
       </div>
-
       {/* ── List ── */}
       {failed ? (
         <div role="alert" className="flex flex-col items-center gap-3 px-4 py-12 text-center bg-white border border-red-200 rounded-xl">

@@ -181,11 +181,20 @@ class RiderDeliveryOutcomeTest extends TestCase
         return $this->fakeImage($name);
     }
 
+    /** A second genuine image whose bytes differ from every fakeImage(), because the two proof photos must differ. */
+    protected function secondPhoto(): UploadedFile
+    {
+        return UploadedFile::fake()->createWithContent('proof-2.jpg', base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=') . 'x');
+    }
+
     protected function deliver(User $user, string $tracking, array $fields = [], bool $withPhoto = true)
     {
         $payload = $fields;
         if ($withPhoto && ! array_key_exists('proof_photo', $payload)) {
             $payload['proof_photo'] = $this->photo();
+        }
+        if ($withPhoto && ! array_key_exists('proof_photo_2', $payload)) {
+            $payload['proof_photo_2'] = $this->secondPhoto();
         }
 
         return $this->actingAs($user, 'sanctum')->post('/api/v1/rider/deliveries/' . $tracking . '/delivered', $payload, ['Accept' => 'application/json']);
@@ -238,7 +247,7 @@ class RiderDeliveryOutcomeTest extends TestCase
 
         // Stored on the private disk, in delivery-proofs/, and nowhere public.
         $this->assertStringStartsWith('delivery-proofs/', $parcel->delivery_proof_path);
-        Storage::disk('ids')->assertExists($parcel->delivery_proof_path);
+        $this->assertTrue(Storage::disk('ids')->exists($parcel->delivery_proof_path));
         $this->assertFalse(Storage::disk('public')->exists($parcel->delivery_proof_path));
 
         $history = OrderStatusHistory::where('order_id', $parcel->order_id)
@@ -321,6 +330,42 @@ class RiderDeliveryOutcomeTest extends TestCase
 
         $this->assertNull($without->fresh()->cod_collected_at);
         $this->assertNull($with->fresh()->cod_collected_at);
+    }
+
+    public function test_a_delivery_needs_two_different_photos_and_both_are_kept_privately(): void
+    {
+        [$user, $rider] = $this->createRider();
+        $admin = $this->makeUser('admin', 'Admin');
+        $parcel = $this->createParcel($rider, 'gcash');
+
+        // The second photo is required.
+        $this->actingAs($user, 'sanctum')
+            ->post('/api/v1/rider/deliveries/' . $parcel->tracking_number . '/delivered', ['proof_photo' => $this->photo()], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['proof_photo_2']);
+
+        // The same picture twice is refused, and nothing is kept.
+        $this->deliver($user, $parcel->tracking_number, ['proof_photo_2' => $this->photo('again.jpg')])
+            ->assertStatus(422)->assertJsonValidationErrors(['proof_photo_2']);
+        $parcel->refresh();
+        $this->assertSame(Parcel::STATUS_OUT_FOR_DELIVERY, $parcel->status);
+        $this->assertNull($parcel->delivery_proof_path);
+        $this->assertNull($parcel->delivery_proof_path_2);
+
+        // Two different photos are accepted and both land on the private disk.
+        $this->deliver($user, $parcel->tracking_number)->assertOk();
+        $parcel->refresh();
+        $this->assertNotSame($parcel->delivery_proof_path, $parcel->delivery_proof_path_2);
+        $this->assertTrue(Storage::disk('ids')->exists($parcel->delivery_proof_path));
+        $this->assertTrue(Storage::disk('ids')->exists($parcel->delivery_proof_path_2));
+        $this->assertFalse(Storage::disk('public')->exists($parcel->delivery_proof_path_2));
+
+        // The authorized endpoint serves each photo.
+        $url = '/api/v1/parcels/' . $parcel->tracking_number . '/delivery-proof';
+        $first = $this->actingAs($admin, 'sanctum')->get($url);
+        $second = $this->actingAs($admin, 'sanctum')->get($url . '?photo=2');
+        $first->assertOk();
+        $second->assertOk();
+        $this->assertNotSame(file_get_contents($first->baseResponse->getFile()->getPathname()), file_get_contents($second->baseResponse->getFile()->getPathname()));
     }
 
     public function test_the_photo_is_required_and_must_be_a_small_image(): void
@@ -518,7 +563,7 @@ class RiderDeliveryOutcomeTest extends TestCase
         $this->deliver($user, $d->tracking_number)->assertStatus(409);
         $this->assertSame(1, OrderStatusHistory::where('order_id', $d->order_id)->where('to_status', 'DELIVERED')->count());
         $this->assertSame(1, DeliveryLog::where('parcel_id', $d->id)->count());
-        $this->assertCount(1, Storage::disk('ids')->allFiles());
+        $this->assertCount(2, Storage::disk('ids')->allFiles());
 
         // Double submit of "failed".
         $f = $this->createParcel($rider);

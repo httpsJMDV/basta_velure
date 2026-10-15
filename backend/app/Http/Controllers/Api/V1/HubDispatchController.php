@@ -99,6 +99,43 @@ class HubDispatchController extends Controller
     }
 
     /**
+     * GET /api/v1/hub/dispatch/awaiting-pickup
+     *
+     * This hub's ASSIGNED_TO_RIDER parcels, grouped by rider: the parcels waiting at the hub for their rider to
+     * collect. The hub shows a QR code for each so the rider scans it off the screen instead of a printed label.
+     */
+    public function awaitingPickup(Request $request): JsonResponse
+    {
+        $hub = $this->hub($request);
+
+        $parcels = Parcel::with(['assignedRider.user', 'order:id,order_number'])
+            ->where('sorting_center_id', $hub->id)
+            ->where('status', Parcel::STATUS_ASSIGNED_TO_RIDER)
+            ->whereNotNull('assigned_rider_id')
+            ->orderBy('assigned_at')
+            ->orderBy('id')
+            ->get();
+
+        $groups = $parcels->groupBy('assigned_rider_id')->map(function ($rows) {
+            $rider = $rows->first()->assignedRider;
+            $name = trim(($rider?->user?->first_name ?? '') . ' ' . ($rider?->user?->last_name ?? ''));
+
+            return [
+                'rider'   => ['id' => (int) $rider?->id, 'name' => $name !== '' ? $name : 'Rider'],
+                'parcels' => $rows->map(fn (Parcel $p) => [
+                    'tracking_number' => $p->tracking_number,
+                    'order_number'    => $p->order?->order_number,
+                    'barangay'        => (string) ($p->destination_barangay ?? ''),
+                    'recipient_name'  => (string) (($p->recipient_snapshot ?? [])['name'] ?? ''),
+                    'assigned_at'     => $p->assigned_at?->toIso8601String(),
+                ])->values()->all(),
+            ];
+        })->sortBy(fn ($g) => $g['rider']['name'])->values()->all();
+
+        return response()->json(['data' => $groups, 'meta' => ['parcel_count' => $parcels->count()]]);
+    }
+
+    /**
      * GET /api/v1/hub/dispatch/batches/{barangay_code}/parcels
      *
      * SORTED parcels of one batch, oldest first. No recipient phone and no COD amount.

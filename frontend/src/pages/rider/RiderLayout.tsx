@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderChatUnread, type RiderChatUnread } from '../../hooks/useRiderChatUnread';
+import { useRiderLocationBeacon } from '../../hooks/useRiderLocationBeacon';
+import { RiderLocationGate, RiderSharingBar } from './RiderLocationGate';
 import { getRiderMeApi, logoutApi } from '../../api/client';
 import type { RiderProfileData } from '../../types';
 import LovedItLogo from '../../components/LovedItLogo';
@@ -96,6 +98,8 @@ export default function RiderLayout() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [statusRevokedMessage, setStatusRevokedMessage] = useState<string | null>(null);
   const chat = useRiderChatUnread(!statusRevokedMessage);
+  // While the rider has a parcel to collect or carry, their phone reports its position for the map.
+  const beacon = useRiderLocationBeacon(!statusRevokedMessage);
 
   const fetchRiderProfile = useCallback(async () => {
     setLoading(true);
@@ -155,6 +159,10 @@ export default function RiderLayout() {
   const fullName = riderData?.full_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim();
   const initials = initialsOf(riderData?.first_name ?? user?.first_name, riderData?.last_name ?? user?.last_name);
   const hubName = riderData?.hub?.hub_name;
+
+  // Earnings and the account stay open so a rider can always sign out or check their pay.
+  const locationExempt = location.pathname.startsWith('/rider/earnings') || location.pathname.startsWith('/rider/account');
+  const locationLocked = beacon.required && beacon.state !== 'sharing' && !locationExempt;
 
   if (statusRevokedMessage) {
     return (
@@ -260,15 +268,25 @@ export default function RiderLayout() {
       {/* ─── Main column ───────────────────────────────────────────────── */}
       <div className="flex-1 lg:ml-56 flex flex-col min-h-screen min-w-0">
         <ShellTopBar
+          theme="light"
           rootLabel="Loved-IT Courier"
           pageLabel={pageLabel}
           roleLabel={hubName ?? 'Courier'}
           user={{ name: fullName || 'Courier', email: user?.email, initials }}
+          alertsTitle="Courier Alerts"
+          searchPlaceholder="Search courier pages..."
+          searchItems={[
+            { label: 'Dashboard', to: '/rider/dashboard', group: 'Overview', icon: LayoutDashboard },
+            { label: 'Pickups', to: '/rider/pickups', group: 'Work', icon: PackagePlus },
+            { label: 'Deliveries', to: '/rider/deliveries', group: 'Work', icon: Truck },
+            { label: 'Earnings', to: '/rider/earnings', group: 'Money', icon: Wallet },
+            { label: 'My account', to: '/rider/account', group: 'Account', icon: UserIcon },
+          ]}
           alerts={
             chat.total > 0
               ? [{
                   icon: MessageSquare,
-                  tone: 'bg-blue-500/20 text-blue-300',
+                  tone: 'bg-blue-50 text-blue-600',
                   title: `${chat.total} unread message${chat.total > 1 ? 's' : ''}`,
                   detail: 'About your parcels',
                   to: '/rider/account',
@@ -282,8 +300,8 @@ export default function RiderLayout() {
           ]}
           leading={
             <Link to="/rider/dashboard" className="lg:hidden shrink-0" aria-label="Courier dashboard">
-              <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center p-0.5">
-                <LovedItLogo variant="dark" type="icon" size="custom" showText={false} imgClassName="w-5 h-5 object-contain" />
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 flex items-center justify-center p-0.5 shadow-xs">
+                <LovedItLogo variant="light" type="icon" size="custom" showText={false} imgClassName="w-5 h-5 object-contain" />
               </div>
             </Link>
           }
@@ -291,6 +309,10 @@ export default function RiderLayout() {
         />
 
         <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6">
+          {beacon.required && beacon.state === 'sharing' && !locationExempt && <RiderSharingBar activeParcels={beacon.activeParcels} />}
+          {locationLocked ? (
+            <RiderLocationGate state={beacon.state} activeParcels={beacon.activeParcels} onAsk={beacon.ask} />
+          ) : (
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={location.pathname}
@@ -306,6 +328,7 @@ export default function RiderLayout() {
               />
             </motion.div>
           </AnimatePresence>
+          )}
         </main>
       </div>
 

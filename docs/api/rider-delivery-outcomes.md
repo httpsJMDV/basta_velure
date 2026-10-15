@@ -46,7 +46,8 @@ The single source of failure reasons. Only `OTHER` requires a note.
 
 | Field | Rules |
 |---|---|
-| `proof_photo` | **Required.** An image file: `jpg`, `jpeg`, `png` or `webp`, judged by its real content type, max **8 MB** (8192 KB). |
+| `proof_photo` | **Required.** The parcel handed over (with the recipient or at the door). An image file: `jpg`, `jpeg`, `png` or `webp`, judged by its real content type, max **8 MB** (8192 KB). |
+| `proof_photo_2` | **Required.** The delivery address (house, gate or building). Same rules, and it must be a **different file** from `proof_photo` (same bytes twice is a `422` on `proof_photo_2`). |
 | `received_by` | Optional string, max 100 characters. Who received the parcel. |
 | `cod_collected` | Boolean (`1`/`0`/`true`/`false`). **Required and must be true when the parcel has a `cod_amount`.** Ignored for prepaid parcels. |
 
@@ -54,11 +55,11 @@ The COD amount is **read from the parcel**, never from the client; any amount a 
 
 ### What happens
 - The order is checked first. A parcel that cannot be delivered is rejected **before** the photo is stored, so nothing is kept.
-- The photo is stored on the **private** `ids` disk under `delivery-proofs/`. It is never on a public path, and the path is never returned by this endpoint.
+- Both photos are stored on the **private** `ids` disk under `delivery-proofs/`. They are never on a public path, and the paths are never returned by this endpoint.
 - The order moves `OUT_FOR_DELIVERY → DELIVERED` through `OrderStateMachine` with actor `rider` (history row written; the parcel follows the sync).
-- On the parcel: `delivered_at`, `delivery_proof_path`, `received_by` and, for COD, `cod_collected_at` are set.
+- On the parcel: `delivered_at`, `delivery_proof_path`, `delivery_proof_path_2`, `received_by` and, for COD, `cod_collected_at` are set.
 - A `delivery_logs` row is written (outcome `DELIVERED`).
-- If anything fails after the photo was stored, the file is deleted.
+- If anything fails after the photos were stored, both files are deleted.
 - **Escrow is unchanged.** Whatever the state machine already does at `DELIVERED` (marking the order items' payout `available` and `delivered_at`) still happens exactly as before, and nothing else about money changes. **Escrow still releases at `DELIVERED` until Feature 2.8** moves it to `COMPLETED`. No earnings rows are created (2.9).
 
 #### Response: `200 OK`
@@ -73,7 +74,7 @@ The COD amount is **read from the parcel**, never from the client; any amount a 
 
 #### Errors
 - `404` / `409` / `422` as in the overview.
-- `422` validation: `proof_photo` missing, wrong type, or over 8 MB; `received_by` over 100 characters; `cod_collected` missing or false on a COD parcel.
+- `422` validation: `proof_photo` or `proof_photo_2` missing, wrong type, or over 8 MB; the two photos identical; `received_by` over 100 characters; `cod_collected` missing or false on a COD parcel.
 
 ---
 
@@ -110,7 +111,7 @@ JSON body.
 ---
 
 ## 4. Delivery Proof Photo (`GET /api/v1/parcels/{tracking}/delivery-proof`)
-Streams the proof photo from the private disk. Only the endpoint is built in 2.7; showing the proof elsewhere in the UI comes later.
+Streams the first proof photo from the private disk; add `?photo=2` for the second one (the delivery address). Deliveries made before the second photo existed only have the first, and `?photo=2` is a `404` for them.
 
 **Who may read it** (checked on every request):
 

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useOutletContext } from 'react-router-dom';
 import RiderMessageControl from './RiderMessageControl';
 import { groupUnread } from '../../hooks/useRiderChatUnread';
@@ -632,7 +633,7 @@ export default function RiderPickupsPage() {
       )}
 
       {/* ─── Confirmation Modal Dialog ───────────────────────────────── */}
-      {actionModal && (
+      {actionModal && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -731,7 +732,8 @@ export default function RiderPickupsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

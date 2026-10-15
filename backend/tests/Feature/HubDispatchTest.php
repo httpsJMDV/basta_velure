@@ -593,6 +593,38 @@ class HubDispatchTest extends TestCase
         });
     }
 
+    public function test_awaiting_pickup_lists_assigned_parcels_by_rider_for_this_hub_only(): void
+    {
+        Mail::fake();
+        [, $riderA] = $this->eligibleRider();
+        [, $riderB] = $this->eligibleRider();
+        $a1 = $this->createParcel($this->hub, self::CODE_A);
+        $a2 = $this->createParcel($this->hub, self::CODE_A);
+        $b1 = $this->createParcel($this->hub, self::CODE_A);
+        $this->dispatchTo($riderA, [$a1->tracking_number, $a2->tracking_number])->assertOk();
+        $this->dispatchTo($riderB, [$b1->tracking_number])->assertOk();
+
+        // Not waiting for a rider: still sorted, and another hub's.
+        $sorted = $this->createParcel($this->hub, self::CODE_A);
+        $theirs = $this->createParcel($this->otherHub, self::CODE_A, status: Parcel::STATUS_ASSIGNED_TO_RIDER, orderStatus: OrderStatus::ASSIGNED_TO_RIDER, overrides: ['assigned_rider_id' => $riderA->id, 'assigned_at' => now()]);
+
+        $res = $this->actingAs($this->hubUser, 'sanctum')->getJson('/api/v1/hub/dispatch/awaiting-pickup')->assertOk()
+            ->assertJsonPath('meta.parcel_count', 3);
+
+        $groups = collect($res->json('data'));
+        $this->assertCount(2, $groups);
+        $this->assertEqualsCanonicalizing([$a1->tracking_number, $a2->tracking_number], $groups->firstWhere('rider.id', $riderA->id)['parcels'] ? array_column($groups->firstWhere('rider.id', $riderA->id)['parcels'], 'tracking_number') : []);
+        $this->assertSame([$b1->tracking_number], array_column($groups->firstWhere('rider.id', $riderB->id)['parcels'], 'tracking_number'));
+        $this->assertStringNotContainsString($sorted->tracking_number, $res->getContent());
+        $this->assertStringNotContainsString($theirs->tracking_number, $res->getContent());
+
+        // The other hub sees only its own, and a rider is not a hub.
+        $other = $this->actingAs($this->otherHubUser, 'sanctum')->getJson('/api/v1/hub/dispatch/awaiting-pickup')->assertOk();
+        $this->assertSame([$theirs->tracking_number], array_column($other->json('data.0.parcels'), 'tracking_number'));
+        [$riderUser] = $this->createRider();
+        $this->actingAs($riderUser, 'sanctum')->getJson('/api/v1/hub/dispatch/awaiting-pickup')->assertStatus(403);
+    }
+
     public function test_email_falls_back_to_app_url_and_uses_singular_wording(): void
     {
         Mail::fake();
