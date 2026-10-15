@@ -74,7 +74,7 @@ export function useRiderLocationBeacon(enabled: boolean): {
       return;
     }
 
-    setState('starting');
+    setState((prev) => (prev === 'sharing' ? prev : 'starting'));
     let wakeLock: { release: () => Promise<void> } | null = null;
     const keepAwake = async () => {
       try {

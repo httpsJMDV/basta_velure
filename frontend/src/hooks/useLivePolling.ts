@@ -40,5 +40,8 @@ export function useLivePolling(load: (silent: boolean) => Promise<unknown> | voi
     };
   }, [run, intervalMs]);
 
-  return { lastUpdated, refresh: () => void run(true) };
+  // Stable, so a screen can list it as an effect dependency without the effect re-running every render.
+  const refresh = useCallback(() => void run(true), [run]);
+
+  return { lastUpdated, refresh };
 }
