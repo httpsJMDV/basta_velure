@@ -129,7 +129,10 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // A 401 from the sign-in call itself just means "wrong credentials": the page shows the message. Redirecting
+    // here would reload the page (or pull a rider off /rider/login) and throw the message away.
+    const isSignIn = err.config?.url === '/auth/login';
+    if (err.response?.status === 401 && !isSignIn) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
@@ -138,8 +141,9 @@ http.interceptors.response.use(
 );
 
 // Auth
-export const loginApi = (email: string, password: string) =>
-  http.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data);
+/** `identifier` is an email address or a username (docs/api/auth-login.md). */
+export const loginApi = (identifier: string, password: string) =>
+  http.post<AuthResponse>('/auth/login', { identifier, password }).then((r) => r.data);
 
 export const registerBuyerApi = (data: Record<string, string> | FormData) =>
   http.post<AuthResponse>('/auth/register', data, {

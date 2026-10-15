@@ -58,19 +58,25 @@ php artisan demo:reset    # removes the demo data and the demo files
 
 ### Accounts
 
-All accounts share one password: **`Demo#12345`** (change it with `DEMO_PASSWORD` in `.env` before seeding).
+Every account signs in with its **username** or its **email**, at the normal sign-in page (the rider and hub sign-in pages take the same two). Letter case does not matter. Each role has its own simple password.
 
-| Role | Email | Sign in at |
-|---|---|---|
-| Admin | `admin@demo.loved-it.test` | `/login` |
-| Seller 1 (Marco Gadgets, pickup in Area A) | `seller1@demo.loved-it.test` | `/login` |
-| Seller 2 (Liza Pantry & Home, pickup in Area B) | `seller2@demo.loved-it.test` | `/login` |
-| Buyer 1 (Ana Cruz) | `buyer1@demo.loved-it.test` | `/login` |
-| Buyer 2 (Ben Dela Cruz) | `buyer2@demo.loved-it.test` | `/login` |
-| Hub owner (Hector Bautista, Demo Sorting Hub - Santa Cruz) | `hub@demo.loved-it.test` | `/login` |
-| Rider 1 (Juan Dela Rosa, Motorcycle, covers Area A) | `rider1@demo.loved-it.test` | `/rider/login` |
-| Rider 2 (Pedro Mendoza, Tricycle, covers Area B) | `rider2@demo.loved-it.test` | `/rider/login` |
-| Rider 3 (Carlo Navarro, applicant, **PENDING**) | `rider3@demo.loved-it.test` | `/rider/login` |
+> **These passwords are deliberately weak and are for the local demo only.** `demo:seed` and `demo:reset` refuse to run in production and on any database whose name ends in `_test`, so the weak accounts can never be created there. Never copy them to a shared or hosted database.
+
+| Role | Username | Email | Password | Sign in at |
+|---|---|---|---|---|
+| Admin | `admin` | `admin@demo.loved-it.test` | `admin123` | `/login` |
+| Buyer 1 (Ana Cruz) | `buyer1` | `buyer1@demo.loved-it.test` | `buyer123` | `/login` |
+| Buyer 2 (Ben Dela Cruz) | `buyer2` | `buyer2@demo.loved-it.test` | `buyer123` | `/login` |
+| Seller 1 (Marco Gadgets, pickup in Area A) | `seller1` | `seller1@demo.loved-it.test` | `seller123` | `/login` |
+| Seller 2 (Liza Pantry & Home, pickup in Area B) | `seller2` | `seller2@demo.loved-it.test` | `seller123` | `/login` |
+| Hub owner (Hector Bautista, Demo Sorting Hub - Santa Cruz) | `hub1` | `hub@demo.loved-it.test` | `hub123` | `/hub/login` (or `/login`) |
+| Rider 1 (Juan Dela Rosa, Motorcycle, covers Area A) | `rider1` | `rider1@demo.loved-it.test` | `rider123` | `/rider/login` (or `/login`) |
+| Rider 2 (Pedro Mendoza, Tricycle, covers Area B) | `rider2` | `rider2@demo.loved-it.test` | `rider123` | `/rider/login` (or `/login`) |
+| Rider 3 (Carlo Navarro, applicant, **PENDING**) | `rider3` | `rider3@demo.loved-it.test` | `rider123` | `/rider/login` |
+
+`demo:seed` prints this same table (with the username column) when it finishes. The usernames and passwords live in `backend/config/demo.php`.
+
+A demo **seller is also a buyer**, exactly like a real one: they registered as a buyer, applied to sell, and were approved, so `seller1` and `seller2` can shop (they have a saved address) as well as open `/seller`. Their `role` is `buyer`; the approved shop profile is what makes them a seller.
 
 Use a separate browser profile or a private window per role so sessions do not overwrite each other.
 
@@ -112,7 +118,7 @@ Area C is in the hub's coverage but **no rider covers it**, on purpose: the parc
 
 Tick each box as you go. Write down anything that looks wrong or breaks (what you clicked, what you expected, what happened) and send me the list.
 
-### Admin (`admin@demo.loved-it.test`, then `/admin`)
+### Admin (`admin` / `admin123`, then `/admin`)
 
 - [ ] **Dashboard** loads with numbers and a recent-activity feed, no errors in the browser console.
 - [ ] **Orders** lists the demo orders (29 if the database held nothing else). Filter by status; open a PLACED, a DELIVERED and a DISPUTED one. The status history shows who did what.
@@ -125,7 +131,7 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 - [ ] **Reports** loads. **Activity log** loads.
 - [ ] **Messages** loads (the rider-buyer chat is private to its two participants, so it is **not** listed here).
 
-### Seller 1 (`seller1@demo.loved-it.test`, then `/seller`)
+### Seller 1 (`seller1` / `seller123`, then `/seller`)
 
 - [ ] **Dashboard** shows orders and an earnings summary.
 - [ ] **Products**: 4 products with variants and stock. Open one to edit, change a price, save.
@@ -136,13 +142,13 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 - [ ] **Earnings** lists order earnings; COMPLETED orders show a release date, others show pending release.
 - [ ] **Messages** loads. **Shop profile** shows the shop with its pickup address (Santa Cruz, Bagumbayan).
 
-### Seller 2 (`seller2@demo.loved-it.test`, then `/seller`)
+### Seller 2 (`seller2` / `seller123`, then `/seller`)
 
 - [ ] **Orders** lists 14 orders. The PLACED COD order has a **Confirm** action.
 - [ ] The **DISPUTED** order shows the buyer's return request; try **Respond to return**.
 - [ ] **Earnings** and **Products** (4 products, two with two variants) load.
 
-### Buyer 1 (`buyer1@demo.loved-it.test`)
+### Buyer 1 (`buyer1` / `buyer123`)
 
 - [ ] **Home** and a **product page** (for example Wireless Earbuds) load with photos, price and variants.
 - [ ] **Settings > Orders** (`/settings/orders`) lists Ana's orders.
@@ -153,12 +159,12 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 - [ ] **Settings > Addresses** shows 3 saved addresses with their barangay (Area A default). Edit one.
 - [ ] **Cart and checkout** with **COD** to the Area A address works (see the live flow in section 4).
 
-### Buyer 2 (`buyer2@demo.loved-it.test`)
+### Buyer 2 (`buyer2` / `buyer123`)
 
 - [ ] **Settings > Returns** shows the disputed order.
 - [ ] **Settings > Orders** shows the DELIVERED, DELIVERY_FAILED, SORTED and other orders. Open the **DELIVERY_FAILED** one and read the status.
 
-### Hub (`hub@demo.loved-it.test`, then `/hub`)
+### Hub (`hub1` / `hub123`, then `/hub`)
 
 - [ ] **Dashboard** (`/hub/dashboard`): **In sorting 1**, **Out for delivery 2**, **Failed deliveries 2**, **Active riders 2**. *Inbound today* is 1 or more (it counts parcels scanned in since midnight Manila time).
 - [ ] **Parcel Intake** (`/hub/intake`): **1 expected parcel** (the PICKED_UP one with rider 2). Receive it by typing or scanning its tracking number. It moves to *In sorting* (now 2).
@@ -177,7 +183,7 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
   - [ ] **Print** hides the sidebar and the controls.
 - [ ] **Messages** (`/hub/messages`): empty state at first. It fills when a rider messages the hub (see the live flow).
 
-### Rider 1 (`rider1@demo.loved-it.test`, then `/rider/login`)
+### Rider 1 (`rider1` / `rider123`, then `/rider/login`)
 
 - [ ] **Dashboard** shows the profile, hub (Demo Sorting Hub - Santa Cruz) and the Area A assignment.
 - [ ] **Pickups**:
@@ -193,13 +199,13 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 - [ ] **Earnings**: lifetime **₱250** (5 deliveries at the default ₱50 fee), with a day/week/month breakdown. **History** lists deliveries and failed attempts.
 - [ ] **Account**: profile, vehicle form (change the plate, see "saved"), Messages list, **Log out** asks to confirm.
 
-### Rider 2 (`rider2@demo.loved-it.test`)
+### Rider 2 (`rider2` / `rider123`)
 
 - [ ] **Deliveries**: *To collect* 1, *Out for delivery* 1 (prepaid, nothing to collect).
 - [ ] **Pickups > Picked up**: 1 parcel waiting to be scanned at the hub.
 - [ ] **Earnings**: lifetime **₱300** (6 deliveries).
 
-### Rider 3 (`rider3@demo.loved-it.test`, pending applicant)
+### Rider 3 (`rider3` / `rider123`, pending applicant)
 
 - [ ] Signing in at `/rider/login` is **refused** with the message that the application is *pending hub approval*; the rider app is not usable.
 - [ ] After the hub approves Carlo (hub **Riders** page), signing in works and opens the rider app. He has no area assignment yet, so he sees no pickups: assign him one from the hub **Riders** page.

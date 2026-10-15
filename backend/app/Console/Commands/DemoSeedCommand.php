@@ -51,8 +51,8 @@ class DemoSeedCommand extends Command
         $this->line('Orders by status:');
         $this->table(['Status', 'Orders'], collect($result['statuses'])->map(fn (int $n, string $s) => [$s, $n])->values()->all());
 
-        $this->line('Sign in with these accounts (all share one password):');
-        $this->table(['Role', 'Email', 'Password'], array_map(fn (array $c) => [$c['role'], $c['email'], $c['password']], $result['credentials']));
+        $this->line('Sign in with an email OR a username (local demo only: these passwords are deliberately weak):');
+        $this->table(['Role', 'Username', 'Email', 'Password'], array_map(fn (array $c) => [$c['role'], $c['username'], $c['email'], $c['password']], $result['credentials']));
 
         $this->line('Next: docs/demo-walkthrough.md. Remove it all later with: php artisan demo:reset');
 

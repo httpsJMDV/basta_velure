@@ -6,6 +6,7 @@ import { loginApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import LovedItLogo from '../../components/LovedItLogo';
 import { useToast } from '../../components/ui/Toast';
+import { validateLoginIdentifier } from '../../utils/loginIdentifier';
 import {
   Bike,
   AlertCircle,
@@ -23,7 +24,8 @@ export default function RiderLoginPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [identifierError, setIdentifierError] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -35,10 +37,13 @@ export default function RiderLoginPage() {
     e.preventDefault();
     setErrorType(null);
     setErrorMessage('');
+    const problem = validateLoginIdentifier(identifier);
+    setIdentifierError(problem ?? '');
+    if (problem) return;
     setLoading(true);
 
     try {
-      const res = await loginApi(email.trim(), password);
+      const res = await loginApi(identifier.trim(), password);
 
       // Verify the authenticated account has the rider role
       if (res.data.role !== 'rider') {
@@ -93,7 +98,7 @@ export default function RiderLoginPage() {
           }
         } else if (status === 401) {
           setErrorType('invalid');
-          setErrorMessage('Invalid email or password. Please verify your credentials and try again.');
+          setErrorMessage('Invalid email, username or password. Please verify your credentials and try again.');
         } else if (err.code === 'ERR_NETWORK' || !err.response) {
           setErrorType('general');
           setErrorMessage('Network error: Unable to connect to Loved-IT servers. Please check your internet connection.');
@@ -199,28 +204,40 @@ export default function RiderLoginPage() {
           {/* ─── Sign In Form Card ─────────────────────────────────────────── */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-xs">
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-              {/* Email Address */}
+              {/* Email or username */}
               <div>
                 <label
-                  htmlFor="rider-email"
+                  htmlFor="rider-identifier"
                   className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2"
                 >
-                  Email Address
+                  Email or username
                 </label>
                 <div className="relative">
                   <input
-                    id="rider-email"
-                    type="email"
+                    id="rider-identifier"
+                    type="text"
                     inputMode="email"
-                    autoComplete="email"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     required
                     disabled={loading}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. rider@lovedit.ph"
-                    className="w-full h-12 px-4 text-base bg-white border border-gray-300 rounded-xl outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/40 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    value={identifier}
+                    onChange={(e) => {
+                      setIdentifier(e.target.value);
+                      if (identifierError) setIdentifierError('');
+                    }}
+                    aria-invalid={identifierError ? true : undefined}
+                    aria-describedby={identifierError ? 'rider-identifier-error' : undefined}
+                    placeholder="e.g. rider@lovedit.ph or rider1"
+                    className={`w-full h-12 px-4 text-base bg-white border rounded-xl outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/40 disabled:bg-gray-100 disabled:cursor-not-allowed ${identifierError ? 'border-red-500' : 'border-gray-300'}`}
                   />
                 </div>
+                {identifierError && (
+                  <p id="rider-identifier-error" role="alert" className="mt-1.5 text-xs font-medium text-red-600">
+                    {identifierError}
+                  </p>
+                )}
               </div>
 
               {/* Password */}

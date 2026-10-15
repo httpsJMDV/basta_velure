@@ -12,14 +12,30 @@ return [
     | ".test" top-level domain is reserved, so no real person can own one of
     | these addresses.
     |
-    | Every account shares one password, printed when the seeder finishes.
-    | Set DEMO_PASSWORD in .env to change it.
+    | Each demo account can sign in with its email (<key>@demo.loved-it.test) or
+    | with the short username below, using the password below. These passwords
+    | are deliberately weak so a demo is easy to run: they are for a LOCAL
+    | database only. demo:seed and demo:reset refuse production and any database
+    | whose name ends in _test.
+    |
+    | Keys are the local part of the demo email. The username is stored in
+    | users.username, which only this seeder ever writes.
     |
     */
 
     'email_domain' => 'demo.loved-it.test',
 
-    'password' => env('DEMO_PASSWORD', 'Demo#12345'),
+    'accounts' => [
+        'admin'   => ['username' => 'admin',  'password' => 'admin123'],
+        'buyer1'  => ['username' => 'buyer1', 'password' => 'buyer123'],
+        'buyer2'  => ['username' => 'buyer2', 'password' => 'buyer123'],
+        'seller1' => ['username' => 'seller1', 'password' => 'seller123'],
+        'seller2' => ['username' => 'seller2', 'password' => 'seller123'],
+        'hub'     => ['username' => 'hub1',   'password' => 'hub123'],
+        'rider1'  => ['username' => 'rider1', 'password' => 'rider123'],
+        'rider2'  => ['username' => 'rider2', 'password' => 'rider123'],
+        'rider3'  => ['username' => 'rider3', 'password' => 'rider123'],
+    ],
 
     /*
     | Every demo file lives under this folder on its disk ("public" and the

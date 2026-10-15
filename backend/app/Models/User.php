@@ -32,10 +32,10 @@ class User extends Authenticatable
         'buyer_application_status',
         'buyer_rejection_reason',
         'avatar_path',
-        // role, status are intentionally excluded — set explicitly in code only
+        // role, status and username are intentionally excluded — set explicitly in code only (username: demo seeder)
     ];
 
-    protected $hidden = ['password', 'remember_token', 'verification_token', 'reset_token'];
+    protected $hidden = ['password', 'remember_token', 'verification_token', 'reset_token', 'username'];
 
     protected function casts(): array
     {
@@ -54,6 +54,23 @@ class User extends Authenticatable
     public function getAvatarUrlAttribute(): ?string
     {
         return $this->avatar_path ? asset('storage/' . $this->avatar_path) : null;
+    }
+
+    /**
+     * The account a sign-in identifier names: an email (anything with an "@") or a username, case-insensitive.
+     * Usernames never contain "@" (only the demo seeder sets them), so the two cannot collide. The columns are
+     * compared directly so their unique indexes are used; MySQL's collation makes the comparison case-insensitive.
+     */
+    public static function findByLoginIdentifier(string $identifier): ?self
+    {
+        $identifier = mb_strtolower(trim($identifier));
+        if ($identifier === '') {
+            return null;
+        }
+
+        return str_contains($identifier, '@')
+            ? static::where('email', $identifier)->first()
+            : static::where('username', $identifier)->first();
     }
 
     public function sellerProfile(): HasOne

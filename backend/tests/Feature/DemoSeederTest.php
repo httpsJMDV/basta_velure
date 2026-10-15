@@ -246,18 +246,19 @@ class DemoSeederTest extends TestCase
 
     public function test_every_role_can_sign_in_and_every_screen_has_data(): void
     {
-        config(['demo.password' => 'Demo#12345']);
         $result = $this->demo->seed();
 
-        // Credentials: nine accounts on the demo domain with the shared password; the active ones can sign in.
+        // Credentials: nine accounts on the demo domain, each with its own simple username and password; the active
+        // ones can sign in with the email or the username.
         $this->assertCount(9, $result['credentials']);
         foreach ($result['credentials'] as $credential) {
             $this->assertStringEndsWith('@demo.loved-it.test', $credential['email']);
-            $this->assertSame('Demo#12345', $credential['password']);
-            $this->assertTrue(Hash::check('Demo#12345', User::where('email', $credential['email'])->value('password')));
+            $this->assertTrue(Hash::check($credential['password'], User::where('email', $credential['email'])->value('password')));
         }
         foreach (['admin', 'seller1', 'seller2', 'buyer1', 'buyer2', 'hub', 'rider1', 'rider2'] as $local) {
-            $this->postJson('/api/v1/auth/login', ['email' => $this->email($local), 'password' => 'Demo#12345'])->assertOk();
+            $password = config("demo.accounts.{$local}.password");
+            $this->postJson('/api/v1/auth/login', ['email' => $this->email($local), 'password' => $password])->assertOk();
+            $this->postJson('/api/v1/auth/login', ['identifier' => config("demo.accounts.{$local}.username"), 'password' => $password])->assertOk();
         }
 
         // Rider: her assigned and out-for-delivery parcels come back through the real endpoint, and they are hers.
@@ -331,6 +332,76 @@ class DemoSeederTest extends TestCase
             ->get("/api/v1/parcels/{$parcel->tracking_number}/delivery-proof", ['Accept' => 'application/json']);
         $response->assertOk();
         $this->assertStringStartsWith('image/', (string) $response->headers->get('Content-Type'));
+    }
+
+    public function test_every_demo_username_exists_and_a_demo_seller_is_a_real_buyer_who_can_also_shop(): void
+    {
+        $result = $this->demo->seed();
+
+        $expected = [
+            'admin'   => ['admin', 'admin123'],
+            'buyer1'  => ['buyer1', 'buyer123'], 'buyer2' => ['buyer2', 'buyer123'],
+            'seller1' => ['seller1', 'seller123'], 'seller2' => ['seller2', 'seller123'],
+            'hub'     => ['hub1', 'hub123'],
+            'rider1'  => ['rider1', 'rider123'], 'rider2' => ['rider2', 'rider123'], 'rider3' => ['rider3', 'rider123'],
+        ];
+        $this->assertEqualsCanonicalizing(
+            collect($expected)->map(fn ($pair, $local) => ['username' => $pair[0], 'email' => $this->email($local), 'password' => $pair[1]])->values()->all(),
+            collect($result['credentials'])->map(fn ($c) => collect($c)->only(['username', 'email', 'password'])->all())->all(),
+            'the credentials table lists every username with its password',
+        );
+        foreach ($expected as $local => [$username, $password]) {
+            $user = $this->user($local);
+            $this->assertSame($username, $user->username);
+            $this->assertTrue(Hash::check($password, $user->password));
+            // The three riders and the admin etc. sign in by username in any case, except the pending applicant.
+            $status = $local === 'rider3' ? 403 : 200;
+            $this->postJson('/api/v1/auth/login', ['identifier' => strtoupper($username), 'password' => $password])->assertStatus($status);
+        }
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'rider3', 'password' => 'rider123'])
+            ->assertStatus(403)->assertJsonPath('message', 'Your rider application is currently pending hub approval. You will receive an email notification once reviewed.');
+
+        // A demo seller is what a real approved seller is: a buyer account (role never becomes "seller") with an
+        // approved seller profile, a complete buyer profile and a default address.
+        foreach (['seller1', 'seller2'] as $local) {
+            $seller = $this->user($local);
+            $this->assertSame('buyer', $seller->role);
+            $this->assertSame('approved', $seller->sellerProfile->application_status);
+            $this->assertSame('approved', $seller->buyer_application_status);
+            $this->assertNotNull($seller->government_id_type);
+            $this->assertNotNull($seller->date_of_birth);
+            $this->assertNotNull($seller->sex);
+            $this->assertNotNull($seller->addresses()->where('is_default', true)->whereNotNull('barangay_code')->first());
+        }
+        // The same goes for the demo buyers and the hub owner: nothing sends them to /complete-profile.
+        foreach (['buyer1', 'buyer2', 'hub'] as $local) {
+            $this->assertNotNull($this->user($local)->government_id_type, "{$local} profile is complete");
+        }
+
+        // ... so the seller can also shop: seller 1 buys seller 2's product.
+        $seller = $this->user('seller1');
+        $product = Product::where('seller_id', $this->user('seller2')->id)->firstOrFail();
+        $variant = ProductVariant::where('product_id', $product->id)->firstOrFail();
+        $address = $seller->addresses()->where('is_default', true)->firstOrFail();
+        $login = $this->postJson('/api/v1/auth/login', ['identifier' => 'seller1', 'password' => 'seller123'])->assertOk();
+        $this->assertSame('buyer', $login->json('data.role'));
+        $this->assertSame('approved', $login->json('data.seller_profile.application_status'));
+
+        $order = $this->as('seller1')->postJson('/api/v1/checkout/place-order', [
+            'payment_method'         => 'cod',
+            'shipping_name'          => $address->full_name,
+            'shipping_phone'         => $address->phone,
+            'shipping_address'       => $address->address,
+            'shipping_province_code' => $address->province_code,
+            'shipping_city_code'     => $address->city_code,
+            'shipping_barangay_code' => $address->barangay_code,
+            'items'                  => [['product_id' => $product->id, 'variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $this->assertSame($seller->id, Order::where('order_number', $order->json('data.order_number'))->value('buyer_id'));
+        $this->as('seller1')->getJson('/api/v1/buyer/orders')->assertOk();
+
+        // And a seller can still use the seller side.
+        $this->as('seller1')->getJson('/api/v1/seller/orders')->assertOk();
     }
 
     // ── 3. Reset removes the demo and only the demo ─────────────────────────

@@ -5,6 +5,7 @@ import { loginApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import { validateLoginIdentifier } from '../../utils/loginIdentifier';
 import GoogleSignInButton from '../../components/GoogleSignInButton';
 import LovedItLogo from '../../components/LovedItLogo';
 import { useToast } from '../../components/ui/Toast';
@@ -12,7 +13,8 @@ import { useToast } from '../../components/ui/Toast';
 export default function LoginPage() {
   const { setAuth } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [identifierError, setIdentifierError] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,9 +24,12 @@ export default function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    const problem = validateLoginIdentifier(identifier);
+    setIdentifierError(problem ?? '');
+    if (problem) return;
     setLoading(true);
     try {
-      const res = await loginApi(email, password);
+      const res = await loginApi(identifier.trim(), password);
       setAuth(res.data, res.token);
       showToast(`Welcome back, ${res.data.first_name}!`);
       const role = res.data.role;
@@ -58,13 +63,16 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
             <Input
-              label="Email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              label="Email or username"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={identifier}
+              onChange={(e) => { setIdentifier(e.target.value); if (identifierError) setIdentifierError(''); }}
+              error={identifierError}
               required
             />
             <div className="flex flex-col gap-1">
