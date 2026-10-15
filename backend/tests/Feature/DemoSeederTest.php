@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\Parcel;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Review;
 use App\Models\SortingCenter;
 use App\Models\User;
 use App\Services\Demo\DemoDataService;
@@ -71,7 +72,7 @@ class DemoSeederTest extends TestCase
     {
         $counts = [];
         foreach (['users', 'seller_profiles', 'sorting_centers', 'riders', 'rider_area_assignments', 'addresses', 'products', 'product_variants', 'product_images',
-                  'orders', 'order_items', 'order_status_histories', 'payments', 'parcels', 'delivery_logs', 'rider_earnings', 'disputes', 'conversations', 'messages',
+                  'orders', 'order_items', 'order_status_histories', 'payments', 'parcels', 'delivery_logs', 'rider_earnings', 'disputes', 'reviews', 'conversations', 'messages',
                   'personal_access_tokens', 'categories'] as $table) {
             $counts[$table] = DB::table($table)->count();
         }
@@ -402,6 +403,53 @@ class DemoSeederTest extends TestCase
 
         // And a seller can still use the seller side.
         $this->as('seller1')->getJson('/api/v1/seller/orders')->assertOk();
+    }
+
+    public function test_the_seeder_creates_demo_reviews_for_the_admin_page_and_nothing_else_makes_them(): void
+    {
+        $result = $this->demo->seed();
+
+        // Six reviews, all on demo products by demo buyers, from COMPLETED demo orders.
+        $this->assertSame(6, $result['totals']['reviews']);
+        $reviews = Review::with(['product', 'order'])->get();
+        $this->assertCount(6, $reviews);
+        $demoIds = $this->demoUserIds()->pluck('id');
+        foreach ($reviews as $review) {
+            $this->assertTrue($demoIds->contains($review->buyer_id), 'a demo buyer wrote it');
+            $this->assertTrue($demoIds->contains($review->product->seller_id), 'on a demo seller\'s product');
+            $this->assertSame('COMPLETED', $review->order->status->value, 'from a completed order');
+            $this->assertSame($review->buyer_id, $review->order->buyer_id);
+            $this->assertTrue($review->verified_purchase);
+        }
+
+        // Mixed ratings and statuses, and exactly one flagged review, still waiting for moderation.
+        $this->assertSame([1, 2, 3, 4, 5, 5], $reviews->pluck('rating')->sort()->values()->all());
+        $this->assertSame(['hidden' => 1, 'pending_review' => 2, 'visible' => 3], $reviews->countBy('moderation_status')->sortKeys()->all());
+        $flagged = $reviews->where('flagged', true);
+        $this->assertCount(1, $flagged);
+        $this->assertSame('pending_review', $flagged->first()->moderation_status);
+        $this->assertNotNull($flagged->first()->flag_reason);
+
+        // The admin page reads them through the real endpoints.
+        $summary = $this->as('admin')->getJson('/api/v1/admin/reviews/summary')->assertOk()->json('data');
+        $this->assertSame(6, $summary['total']);
+        $this->assertEquals(3.33, $summary['average_rating']);
+        $this->assertSame(['pending_review' => 2, 'visible' => 3, 'hidden' => 1], $summary['by_status']);
+        $this->assertSame(1, $summary['flagged']);
+        $list = $this->as('admin')->getJson('/api/v1/admin/reviews?per_page=100')->assertOk();
+        $this->assertSame(6, $list->json('meta.total'));
+        foreach ($list->json('data') as $row) {
+            $this->assertNotNull($row['product']);
+            $this->assertNotNull($row['shop']);
+            $this->assertNotNull($row['order']);
+        }
+
+        // Seeding again gives the same six, not twelve; a reset removes them all.
+        $this->demo->seed();
+        $this->assertSame(6, Review::count());
+        $this->demo->reset();
+        $this->assertSame(0, Review::count());
+        $this->assertSame(0, DB::table('reviews')->count(), 'soft-deleted rows included');
     }
 
     // ── 3. Reset removes the demo and only the demo ─────────────────────────

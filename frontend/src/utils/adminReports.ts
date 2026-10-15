@@ -40,3 +40,26 @@ export function percentChange(current: number | null | undefined, previous: numb
 export function manilaToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
+
+/** A YYYY-MM-DD date moved by a number of days (calendar arithmetic, no timezone involved). */
+export function shiftDay(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** The last `days` Manila days, ending today. */
+export function lastDays(days: number): { from: string; to: string } {
+  const to = manilaToday();
+  return { from: shiftDay(to, -(days - 1)), to };
+}
+
+/** A YYYY-MM-DD day as "Oct 16, 2026". */
+export function formatDay(iso: string): string {
+  return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
+}
+
+/** A timestamp as "Oct 16, 2026" in Manila time. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
+}

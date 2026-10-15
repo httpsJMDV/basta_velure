@@ -18,6 +18,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\Rider;
+use App\Models\Review;
 use App\Models\RiderAreaAssignment;
 use App\Models\SellerProfile;
 use App\Models\SortingCenter;
@@ -33,7 +34,7 @@ use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
- * Fills the database with a realistic demo dataset: every role, and at least one order at every status.
+ * Fills the database with a realistic demo dataset: every role, at least one order at every status, and a few reviews.
  *
  * It builds the data through the same code the app uses wherever that code is reusable: every status change goes
  * through OrderStateMachine (so history rows, parcels, tracking numbers, rider earnings and escrow dates are real), and
@@ -114,6 +115,7 @@ class DemoDataService
                 $this->createPeopleAndPlaces();
                 $this->createCatalog();
                 $this->runScenarios();
+                $this->createReviews();
             });
         } catch (\Throwable $e) {
             // The transaction rolled the rows back; do not leave their files behind.
@@ -774,6 +776,58 @@ class DemoDataService
         $this->machine->transition(Order::find($order->id), $to, $actor, $user->id, $note, $meta);
     }
 
+    // ── Reviews ──────────────────────────────────────────────────────────────
+
+    /**
+     * A few reviews on the COMPLETED demo orders, so the admin Reviews page has something to show.
+     *
+     * Buyers cannot submit reviews yet (there is no endpoint), so these rows are written straight into the Review
+     * model the admin page reads. They are written here and nowhere else, they hang off demo buyers and demo products
+     * (so demo:reset removes them), and they cover every rating band and moderation status, with one flagged review
+     * waiting for moderation.
+     */
+    private function createReviews(): void
+    {
+        $buyerIds = collect($this->users)->only(['buyer1', 'buyer2'])->pluck('id');
+        $orders = Order::whereIn('buyer_id', $buyerIds)
+            ->where('status', OrderStatus::COMPLETED->value)
+            ->with('items')
+            ->orderBy('id')
+            ->get();
+
+        // rating, moderation status, flagged, days ago, comment, flag reason
+        $plan = [
+            [5, 'visible',        false, 6, 'Fast delivery and exactly as described. Will order again!', null],
+            [4, 'visible',        false, 5, 'Good quality. The packaging could be a little better.', null],
+            [5, 'visible',        false, 4, 'Great value for the price. The seller answered all my questions.', null],
+            [3, 'pending_review', false, 3, 'The item is okay, but it arrived a day later than promised.', null],
+            [2, 'pending_review', true,  2, 'Worst shop ever, total scam, do not buy from them!!!', 'Possible abusive language; reported by the seller.'],
+            [1, 'hidden',         false, 1, 'This review was about a different product, so it was hidden.', null],
+        ];
+
+        foreach ($plan as $i => [$rating, $moderation, $flagged, $days, $comment, $flagReason]) {
+            $order = $orders[$i] ?? null;
+            $item = $order?->items->first();
+            $product = $item ? Product::where('seller_id', $item->seller_id)->where('name', $item->product_name)->first() : null;
+            if (! $order || ! $product) {
+                continue;
+            }
+
+            $this->at($this->daysAgo($days));
+            Review::forceCreate([
+                'buyer_id'          => $order->buyer_id,
+                'product_id'        => $product->id,
+                'order_id'          => $order->id,
+                'rating'            => $rating,
+                'comment'           => $comment,
+                'verified_purchase' => true,
+                'flagged'           => $flagged,
+                'flag_reason'       => $flagReason,
+                'moderation_status' => $moderation,
+            ]);
+        }
+    }
+
     // ── Chat ─────────────────────────────────────────────────────────────────
 
     /**
@@ -838,6 +892,7 @@ class DemoDataService
             'delivery_logs' => DB::table('delivery_logs')->whereIn('rider_id', collect($this->riders)->pluck('id'))->count(),
             'conversations' => DB::table('conversations')->whereIn('rider_id', $demoUsers)->count(),
             'disputes'      => DB::table('disputes')->whereIn('order_id', $orderIds)->count(),
+            'reviews'       => DB::table('reviews')->whereIn('buyer_id', $demoUsers)->count(),
         ];
     }
 

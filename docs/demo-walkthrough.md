@@ -108,7 +108,7 @@ Area C is in the hub's coverage but **no rider covers it**, on purpose: the parc
 
 ### What the seed creates
 
-29 orders, 24 parcels, 8 products, 11 rider earnings, 1 rider-buyer chat, 1 dispute.
+29 orders, 24 parcels, 8 products, 11 rider earnings, 1 rider-buyer chat, 1 dispute, 6 reviews (ratings 5, 5, 4, 3, 2, 1; three approved, two pending, one hidden; the 2-star one is flagged).
 
 | Order status | Count | Notes |
 |---|---|---|
@@ -146,10 +146,11 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 ### Admin (`admin` / `admin123`, then `/admin`)
 
 - [ ] **Dashboard** loads with the last 30 days of numbers (GMV, commission, orders, active buyers and sellers, payment split, pipeline), a chart and a recent-activity feed, no errors in the browser console. Click GMV, a chart link or the pipeline card: **Reports** opens with the same dates in the address bar and scrolls to that section, showing the same figures.
-- [ ] **Orders** lists the demo orders (29 if the database held nothing else). Filter by status; open a PLACED, a DELIVERED and a DISPUTED one. The status history shows who did what.
+- [ ] **Orders** (Orders & Fulfillment): the KPI row (total, awaiting action, in transit, delivered or completed, problem orders, GMV) and the status chips with counts add up to the total for the date range (default last 30 days, so with a fresh seed all 29 orders). Click a chip or KPI to filter; search by order number, tracking number, buyer or shop; filter by payment; sort by Date and Total; open a PLACED, a DELIVERED and a DISPUTED one: the drawer shows the status history and the admin actions. Narrow the window to a phone width: the table becomes cards.
 - [ ] **Payments** loads and lists the GCash orders (14 in the seed, 2 of them not yet verified). *(See "Known problems" below: the seeded GCash orders are stored as `pending`, so a filter for `pending_verification` will not match them.)*
 - [ ] **Disputes** shows 1 open dispute (buyer 2, "Item not as described"). Open it; try resolving it, then run `php artisan demo:seed` again to put it back.
 - [ ] **Products** lists the 8 active demo products. Open one.
+- [ ] **Reviews** (Reviews & Ratings) shows the 6 demo reviews: average rating 3.33, 6 total, 2 pending moderation, 1 flagged, and the rating distribution. The chips (All, Pending, Approved, Hidden, Flagged) filter the list; open a long comment with Show more; **Approve** the pending ones and **Hide** another, and watch the counts move. The order number links to the Orders page. (Buyers cannot submit reviews yet, so these demo rows are the only reviews; `demo:reset` removes them.)
 - [ ] **Sellers**, **Buyers**, **Riders** list the demo accounts. The **Riders** page also shows each rider's hub and hub-application status, and lets you suspend or reactivate the account. There is no "Rider Applications" page: a rider is approved by the hub they chose (hub **Riders** page), so approve `rider3` as `hub1`, not as the admin.
 - [ ] **Sorting center applications** and **Seller applications** show the approved demo hub and the two approved shops (nothing pending).
 - [ ] **Categories** shows the taxonomy. **Settings** shows the commission settings.

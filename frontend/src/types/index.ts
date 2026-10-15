@@ -1018,6 +1018,8 @@ export interface AdminOrder {
   total: number;
   created_at: string;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
+  /** The shop selling on the order (checkout makes one order per seller). */
+  shop?: { id: number; name: string } | null;
   items: OrderItem[];
   status_history?: OrderStatusHistory[];
   payment?: {
@@ -1027,6 +1029,33 @@ export interface AdminOrder {
     status: PaymentStatus;
     paid_at: string | null;
   } | null;
+}
+
+/** The status groups of the admin Orders page. They partition every order status. */
+export type AdminOrderGroupKey = 'awaiting_action' | 'in_transit' | 'delivered_completed' | 'problem' | 'cancelled';
+
+/** GET /admin/orders/summary: the KPI row and chip counts for the current filters (except the status filter). */
+export interface AdminOrderSummary {
+  total: number;
+  groups: Record<AdminOrderGroupKey, number>;
+  by_status: Record<OrderStatus, number>;
+  /** Sum of the orders that count (not cancelled or returned), the dashboard's definition of GMV. */
+  gmv: number;
+}
+
+export interface AdminOrderListParams {
+  status?: OrderStatus;
+  group?: AdminOrderGroupKey;
+  search?: string;
+  /** Inclusive Asia/Manila days (YYYY-MM-DD); send both or neither. */
+  from?: string;
+  to?: string;
+  payment_method?: 'gcash' | 'cod';
+  payment_status?: string;
+  sort?: 'date' | 'total';
+  direction?: 'asc' | 'desc';
+  page?: number;
+  per_page?: number;
 }
 
 export interface AdminOrderStats {
@@ -1101,6 +1130,29 @@ export interface AdminReview {
   moderation_status: ModerationStatus;
   created_at: string;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
+  product?: { id: number; name: string } | null;
+  shop?: { id: number; name: string } | null;
+  order?: { id: number; order_number: string } | null;
+}
+
+/** GET /admin/reviews/summary. Covers every review that exists, whatever its moderation status. */
+export interface AdminReviewSummary {
+  total: number;
+  /** Null, never 0, when there are no reviews. */
+  average_rating: number | null;
+  rating_distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  by_status: Record<ModerationStatus, number>;
+  /** Flagged reviews in any moderation status. */
+  flagged: number;
+}
+
+export interface AdminReviewListParams {
+  moderation_status?: ModerationStatus;
+  flagged?: boolean;
+  rating?: number;
+  search?: string;
+  page?: number;
+  per_page?: number;
 }
 
 export interface AdminReviewStats {

@@ -191,6 +191,7 @@ Route::prefix('v1')->group(function () {
             // Orders
             Route::get('/orders', [AdminOrderController::class, 'index']);
             Route::get('/orders/stats', [AdminOrderController::class, 'stats']);
+            Route::get('/orders/summary', [AdminOrderController::class, 'summary']);
             Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
             Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
 
@@ -231,6 +232,7 @@ Route::prefix('v1')->group(function () {
             // Reviews
             Route::get('/reviews', [AdminReviewController::class, 'index']);
             Route::get('/reviews/stats', [AdminReviewController::class, 'stats']);
+            Route::get('/reviews/summary', [AdminReviewController::class, 'summary']);
             Route::patch('/reviews/{review}/moderate', [AdminReviewController::class, 'moderate']);
 
             // Products (admin review)

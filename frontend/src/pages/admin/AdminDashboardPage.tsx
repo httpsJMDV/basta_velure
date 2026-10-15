@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
 import type { AdminStats, DashboardFeed, DashboardChartPoint } from '../../types';
 import { NA, peso, whole, percent, reportsHref, percentChange } from '../../utils/adminReports';
+import { StatCard, StatCardSkeleton, SectionHeader, ChartEmptyState } from '../../components/admin/dashboardKit';
 import {
   UserPlus, Package,
   Users, TrendingUp, TrendingDown,
@@ -211,92 +212,6 @@ function ActionCard({
         <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
       </div>
     </Link>
-  );
-}
-
-// ─── Compact Financial / Velocity Metric Card ─────────────────────────────────
-
-interface StatCardProps {
-  icon: React.ElementType;
-  label: string;
-  /** A number is counted up and formatted; null or undefined shows "n/a"; a string is shown as is. */
-  value: number | string | null | undefined;
-  subtext?: string;
-  /** Format the number as pesos. */
-  money?: boolean;
-  trendEl?: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-  /** Where the matching section of the reports page is. */
-  to?: string;
-}
-
-function StatCard({ icon: Icon, label, value, subtext, money, trendEl, iconBg, iconColor, to }: StatCardProps) {
-  const numericTarget = typeof value === 'number' ? value : 0;
-  const animated = useCountUp(numericTarget);
-  const displayValue = typeof value === 'number'
-    ? (money ? peso(animated) : whole(animated))
-    : value ?? NA;
-
-  const body = (
-    <>
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
-            <Icon className="w-3.5 h-3.5" />
-          </div>
-          {trendEl && <div>{trendEl}</div>}
-        </div>
-        <p className="text-xl font-black leading-none tracking-tight text-gray-900 sm:text-2xl">{displayValue}</p>
-        <p className="mt-1 text-xs font-bold text-gray-800">{label}</p>
-        {subtext && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{subtext}</p>}
-      </div>
-      {to && (
-        <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] font-bold text-brand-red group-hover:text-[#801f1f]">
-          <span>View in Reports</span>
-          <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-        </div>
-      )}
-    </>
-  );
-
-  const cls = 'flex flex-col justify-between p-3.5 bg-white border shadow-xs rounded-xl border-gray-200/80';
-  return to ? (
-    <Link to={to} className={`group ${cls} transition-all duration-150 hover:shadow-sm hover:border-gray-300`}>{body}</Link>
-  ) : (
-    <div className={cls}>{body}</div>
-  );
-}
-
-// ─── Compact Section Header ───────────────────────────────────────────────────
-
-function SectionHeader({ title, to, icon: Icon }: { title: string; to?: string; icon?: React.ElementType }) {
-  return (
-    <div className="flex items-center justify-between mb-2.5">
-      <div className="flex items-center gap-2">
-        <div className="w-1 h-3.5 rounded-full bg-brand-red" />
-        {Icon && <Icon className="w-3.5 h-3.5 text-gray-500" />}
-        <h2 className="text-[11px] font-bold tracking-wider text-gray-800 uppercase">{title}</h2>
-      </div>
-      {to && (
-        <Link to={to} className="text-[11px] font-bold text-brand-red hover:text-[#801f1f] flex items-center gap-1 transition-colors">
-          View all <ArrowRight className="w-3 h-3" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
-// ─── Compact Shared Empty State ───────────────────────────────────────────────
-
-function ChartEmptyState({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-1.5 py-8 text-center">
-      <div className="flex items-center justify-center w-8 h-8 border border-gray-100 rounded-xl bg-gray-50">
-        <Activity className="w-4 h-4 text-gray-300" />
-      </div>
-      <p className="text-[11px] font-semibold text-gray-400">{message}</p>
-    </div>
   );
 }
 
@@ -836,18 +751,7 @@ export default function AdminDashboardPage() {
 
   useEffect(load, []);
 
-  const skeletonCard = (key: number) => (
-    <div key={key} className="bg-white border border-gray-200/80 rounded-xl p-3.5 h-[96px] animate-pulse flex flex-col justify-between">
-      <div className="flex items-center justify-between">
-        <div className="w-7 h-7 bg-gray-100 rounded-lg" />
-        <div className="w-12 h-3.5 bg-gray-100 rounded" />
-      </div>
-      <div className="space-y-1.5">
-        <div className="w-20 h-5 bg-gray-200 rounded" />
-        <div className="w-28 h-2.5 bg-gray-100 rounded" />
-      </div>
-    </div>
-  );
+  const skeletonCard = (key: number) => <StatCardSkeleton key={key} />;
 
   const metrics = stats?.metrics;
   const previous = stats?.previous;
@@ -948,6 +852,7 @@ export default function AdminDashboardPage() {
               iconColor="text-brand-red"
               trendEl={<TrendBadge current={metrics?.gmv} previous={previous?.gmv} label="prior 30 days" />}
               to={reportsHref(stats.window, 'sales')}
+            actionLabel="View in Reports"
             />
             <StatCard
               icon={Coins}
@@ -959,6 +864,7 @@ export default function AdminDashboardPage() {
               iconColor="text-emerald-600"
               trendEl={<TrendBadge current={metrics?.commission} previous={previous?.commission} label="prior 30 days" />}
               to={reportsHref(stats.window, 'commission')}
+            actionLabel="View in Reports"
             />
             <StatCard
               icon={PackageCheck}
@@ -969,6 +875,7 @@ export default function AdminDashboardPage() {
               iconColor="text-violet-600"
               trendEl={<TrendBadge current={metrics?.orders} previous={previous?.orders} label="prior 30 days" />}
               to={reportsHref(stats.window, 'orders')}
+            actionLabel="View in Reports"
             />
             <StatCard
               icon={Users}
@@ -978,6 +885,7 @@ export default function AdminDashboardPage() {
               iconBg="bg-indigo-50"
               iconColor="text-indigo-600"
               to={reportsHref(stats.window, 'activity')}
+            actionLabel="View in Reports"
             />
           </div>
         ) : null}

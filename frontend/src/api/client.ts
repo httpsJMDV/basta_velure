@@ -18,6 +18,10 @@ import type {
   AdminDisputeStats,
   AdminReview,
   AdminReviewStats,
+  AdminReviewSummary,
+  AdminReviewListParams,
+  AdminOrderSummary,
+  AdminOrderListParams,
   OrderStatus,
   PaymentStatus,
   DisputeStatus,
@@ -317,8 +321,12 @@ export const getOrdersApi = (params?: { status?: string; search?: string }) =>
   );
 
 // Admin — orders
-export const getAdminOrdersApi = (params?: { status?: OrderStatus; search?: string; page?: number }) =>
+export const getAdminOrdersApi = (params?: AdminOrderListParams) =>
   http.get<PaginatedResponse<AdminOrder>>('/admin/orders', { params }).then((r) => r.data);
+
+/** The KPI row and chip counts for the same filters as the list (the status and group filters are ignored). */
+export const getAdminOrderSummaryApi = (params?: Omit<AdminOrderListParams, 'status' | 'group' | 'sort' | 'direction' | 'page' | 'per_page'>) =>
+  http.get<{ data: AdminOrderSummary }>('/admin/orders/summary', { params }).then((r) => r.data.data);
 
 export const getAdminOrderApi = (id: number) =>
   http.get<{ data: AdminOrder }>(`/admin/orders/${id}`).then((r) => r.data.data);
@@ -353,11 +361,14 @@ export const getAdminDisputeStatsApi = () =>
   http.get<{ data: AdminDisputeStats }>('/admin/disputes/stats').then((r) => r.data.data);
 
 // Admin — reviews
-export const getAdminReviewsApi = (params?: { moderation_status?: ModerationStatus; flagged?: boolean; search?: string; page?: number }) =>
+export const getAdminReviewsApi = (params?: AdminReviewListParams) =>
   http.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params: { ...params, flagged: params?.flagged ? 'true' : undefined } }).then((r) => r.data);
 
 export const moderateReviewApi = (id: number, moderation_status: ModerationStatus) =>
   http.patch<{ data: AdminReview }>(`/admin/reviews/${id}/moderate`, { moderation_status }).then((r) => r.data.data);
+
+export const getAdminReviewSummaryApi = () =>
+  http.get<{ data: AdminReviewSummary }>('/admin/reviews/summary').then((r) => r.data.data);
 
 export const getAdminReviewStatsApi = () =>
   http.get<{ data: AdminReviewStats }>('/admin/reviews/stats').then((r) => r.data.data);

@@ -1,42 +1,78 @@
-import { useEffect, useState, useCallback } from 'react';
-import { getAdminOrdersApi, getAdminOrderApi, updateAdminOrderStatusApi } from '../../api/client';
-import type { AdminOrder, OrderStatus } from '../../types';
-import Badge from '../../components/ui/Badge';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { getAdminOrdersApi, getAdminOrderApi, getAdminOrderSummaryApi, updateAdminOrderStatusApi } from '../../api/client';
+import type {
+  AdminOrder, AdminOrderGroupKey, AdminOrderListParams, AdminOrderSummary, OrderStatus,
+} from '../../types';
 import Button from '../../components/ui/Button';
-import { Search, X, ChevronLeft, ChevronRight, Package } from 'lucide-react';
+import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
+import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
+import {
+  Search, X, ChevronLeft, ChevronRight, Package, ClipboardList, Clock, Truck, PackageCheck, AlertTriangle, Wallet,
+  ArrowUp, ArrowDown, ArrowUpDown, AlertCircle, SearchX, ShoppingBag,
+} from 'lucide-react';
 import {
   getStatusLabel,
   getStatusBadgeClass,
   normalizeOrderStatus,
   ALLOWED_ADMIN_NEXT_STATUSES,
+  ADMIN_ORDER_GROUPS,
+  ORDER_STATUS_ICON,
 } from '../../utils/orderStatus';
-import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
+import { NA, peso, whole, lastDays, formatDay, manilaToday } from '../../utils/adminReports';
 
-const STATUS_OPTIONS: { label: string; value: OrderStatus | '' }[] = [
-  { label: 'All Statuses', value: '' },
-  { label: 'Placed (Pending)', value: 'PLACED' },
-  { label: 'Confirmed', value: 'CONFIRMED' },
-  { label: 'Preparing', value: 'PREPARING' },
-  { label: 'Ready for Pickup', value: 'READY_FOR_PICKUP' },
-  { label: 'Picked Up', value: 'PICKED_UP' },
-  { label: 'At Sorting Center', value: 'AT_SORTING_CENTER' },
-  { label: 'Sorted', value: 'SORTED' },
-  { label: 'Assigned to Rider', value: 'ASSIGNED_TO_RIDER' },
-  { label: 'Out for Delivery', value: 'OUT_FOR_DELIVERY' },
-  { label: 'Delivered', value: 'DELIVERED' },
-  { label: 'Completed', value: 'COMPLETED' },
-  { label: 'Delivery Failed', value: 'DELIVERY_FAILED' },
-  { label: 'Returned to Seller', value: 'RETURNED' },
-  { label: 'Cancelled', value: 'CANCELLED' },
-  { label: 'Disputed', value: 'DISPUTED' },
+const PER_PAGE = 20;
+
+type DatePreset = '7d' | '30d' | '90d' | 'all' | 'custom';
+const DATE_PRESETS: { value: Exclude<DatePreset, 'custom'>; label: string; days: number | null }[] = [
+  { value: '7d', label: 'Last 7 days', days: 7 },
+  { value: '30d', label: 'Last 30 days', days: 30 },
+  { value: '90d', label: 'Last 90 days', days: 90 },
+  { value: 'all', label: 'All time', days: null },
 ];
 
-function formatPHP(n: number) {
-  return `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+const PAYMENT_STATUS_STYLE: Record<string, string> = {
+  paid: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  pending: 'bg-amber-50 text-amber-700 border border-amber-200',
+  pending_verification: 'bg-amber-50 text-amber-700 border border-amber-200',
+  failed: 'bg-red-50 text-red-700 border border-red-200',
+};
+
+const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  paid: 'Paid',
+  pending: 'Pending',
+  pending_verification: 'Awaiting verification',
+  failed: 'Failed',
+};
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
+}
+
+// ─── Small display pieces ─────────────────────────────────────────────────────
+
+/** Status as an icon and text, never colour alone. */
+function StatusBadge({ status }: { status: string }) {
+  const normalized = normalizeOrderStatus(status);
+  const Icon = ORDER_STATUS_ICON[normalized];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusBadgeClass(status)}`}>
+      <Icon className="w-3 h-3 shrink-0" aria-hidden="true" />
+      {getStatusLabel(status)}
+    </span>
+  );
+}
+
+function PaymentBadge({ status }: { status: string }) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${PAYMENT_STATUS_STYLE[status] ?? 'bg-gray-100 text-gray-700 border border-gray-200'}`}>
+      {PAYMENT_STATUS_LABEL[status] ?? status}
+    </span>
+  );
+}
+
+function buyerName(o: AdminOrder) {
+  return o.buyer ? `${o.buyer.first_name} ${o.buyer.last_name}` : NA;
 }
 
 // ─── Detail drawer ────────────────────────────────────────────────────────────
@@ -52,20 +88,35 @@ function OrderDetailDrawer({
 }) {
   const [order, setOrder] = useState<AdminOrder | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setLoading(true);
-    getAdminOrderApi(orderId).then(setOrder).finally(() => setLoading(false));
+    setLoadFailed(false);
+    getAdminOrderApi(orderId).then(setOrder).catch(() => setLoadFailed(true)).finally(() => setLoading(false));
   }, [orderId]);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   async function handleStatus(status: OrderStatus) {
     if (!order) return;
     setUpdating(true);
+    setActionError('');
     try {
       const updated = await updateAdminOrderStatusApi(order.id, status);
       setOrder(updated);
       onUpdated(updated);
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setActionError(message ?? 'The status could not be changed. Please try again.');
     } finally {
       setUpdating(false);
     }
@@ -74,21 +125,31 @@ function OrderDetailDrawer({
   const nextStatuses = order ? (ALLOWED_ADMIN_NEXT_STATUSES[normalizeOrderStatus(order.status)] ?? []) : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={order ? `Order ${order.order_number}` : 'Order detail'}>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white h-full flex flex-col shadow-2xl overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <p className="text-[14px] font-bold text-brand-black">
             {order ? `Order ${order.order_number}` : 'Order Detail'}
           </p>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <button ref={closeRef} onClick={onClose} aria-label="Close order detail" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red">
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
 
         {loading && (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm text-gray-400">Loading…</p>
+          <div className="flex-1 px-5 py-4 space-y-3 animate-pulse" aria-busy="true">
+            <div className="h-6 bg-gray-100 rounded w-1/3" />
+            <div className="h-16 bg-gray-100 rounded" />
+            <div className="h-24 bg-gray-100 rounded" />
+          </div>
+        )}
+
+        {!loading && loadFailed && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-5 text-center">
+            <AlertCircle className="w-6 h-6 text-red-500" />
+            <p className="text-sm text-gray-600">This order could not be loaded.</p>
+            <Button variant="ghost" onClick={() => { setLoading(true); setLoadFailed(false); getAdminOrderApi(orderId).then(setOrder).catch(() => setLoadFailed(true)).finally(() => setLoading(false)); }}>Retry</Button>
           </div>
         )}
 
@@ -96,10 +157,8 @@ function OrderDetailDrawer({
           <div className="flex-1 px-5 py-4 space-y-5">
             {/* Status + actions */}
             <div className="flex items-center gap-3 flex-wrap">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(order.status)}`}>
-                {getStatusLabel(order.status)}
-              </span>
-              <Badge label={order.payment_status} variant={order.payment_status as never} />
+              <StatusBadge status={order.status} />
+              <PaymentBadge status={order.payment_status} />
             </div>
 
             {order.tracking_number && (
@@ -117,6 +176,10 @@ function OrderDetailDrawer({
                   View Waybill ↗
                 </a>
               </div>
+            )}
+
+            {actionError && (
+              <p role="alert" className="px-3 py-2 text-xs text-red-800 border border-red-200 bg-red-50 rounded-lg">{actionError}</p>
             )}
 
             {nextStatuses.length > 0 && (
@@ -138,17 +201,23 @@ function OrderDetailDrawer({
               </div>
             )}
 
-            {/* Buyer */}
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Buyer</p>
-              {order.buyer ? (
-                <p className="text-[13px] text-brand-black">
-                  {order.buyer.first_name} {order.buyer.last_name}
-                  <span className="text-gray-400 ml-1">· {order.buyer.email}</span>
-                </p>
-              ) : (
-                <p className="text-[13px] text-gray-400">—</p>
-              )}
+            {/* Buyer and shop */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Buyer</p>
+                {order.buyer ? (
+                  <p className="text-[13px] text-brand-black">
+                    {order.buyer.first_name} {order.buyer.last_name}
+                    <span className="block text-[11px] text-gray-400 truncate">{order.buyer.email}</span>
+                  </p>
+                ) : (
+                  <p className="text-[13px] text-gray-400">{NA}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Shop</p>
+                <p className="text-[13px] text-brand-black">{order.shop?.name ?? NA}</p>
+              </div>
             </div>
 
             {/* Items */}
@@ -168,7 +237,7 @@ function OrderDetailDrawer({
                       <p className="text-[12px] font-semibold text-brand-black truncate">{item.product_name}</p>
                       <p className="text-[11px] text-gray-400">{item.variant_label} · qty {item.quantity}</p>
                     </div>
-                    <p className="text-[12px] font-semibold text-brand-black shrink-0">{formatPHP(item.subtotal)}</p>
+                    <p className="text-[12px] font-semibold text-brand-black shrink-0">{peso(item.subtotal)}</p>
                   </div>
                 ))}
               </div>
@@ -177,13 +246,13 @@ function OrderDetailDrawer({
             {/* Totals */}
             <div className="border-t border-gray-100 pt-3 space-y-1.5">
               <div className="flex justify-between text-[12px] text-gray-500">
-                <span>Subtotal</span><span>{formatPHP(order.subtotal)}</span>
+                <span>Subtotal</span><span>{peso(order.subtotal)}</span>
               </div>
               <div className="flex justify-between text-[12px] text-gray-500">
-                <span>Shipping</span><span>{formatPHP(order.shipping_fee)}</span>
+                <span>Shipping</span><span>{peso(order.shipping_fee)}</span>
               </div>
               <div className="flex justify-between text-[13px] font-bold text-brand-black">
-                <span>Total</span><span>{formatPHP(order.total)}</span>
+                <span>Total</span><span>{peso(order.total)}</span>
               </div>
             </div>
 
@@ -204,7 +273,7 @@ function OrderDetailDrawer({
                   )}
                   <div className="flex justify-between text-[12px]">
                     <span className="text-gray-500">Status</span>
-                    <Badge label={order.payment.status} variant={order.payment.status as never} />
+                    <PaymentBadge status={order.payment.status} />
                   </div>
                   {order.payment.paid_at && (
                     <div className="flex justify-between text-[12px]">
@@ -232,146 +301,432 @@ function OrderDetailDrawer({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AdminOrdersPage() {
-  const [orders, setOrders]       = useState<AdminOrder[]>([]);
-  const [meta, setMeta]           = useState({ current_page: 1, last_page: 1, total: 0 });
-  const [loading, setLoading]     = useState(false);
-  const [search, setSearch]       = useState('');
-  const [status, setStatus]       = useState<OrderStatus | ''>('');
-  const [page, setPage]           = useState(1);
-  const [selected, setSelected]   = useState<number | null>(null);
+type SortKey = 'date' | 'total';
 
-  const load = useCallback(async () => {
+export default function AdminOrdersPage() {
+  const [orders, setOrders]     = useState<AdminOrder[]>([]);
+  const [meta, setMeta]         = useState({ current_page: 1, last_page: 1, total: 0, from: null as number | null, to: null as number | null });
+  const [summary, setSummary]   = useState<AdminOrderSummary | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [failed, setFailed]     = useState(false);
+  const [summaryFailed, setSummaryFailed] = useState(false);
+
+  // The Reviews page links here with ?search=<order number>.
+  const [searchParams] = useSearchParams();
+  const initialSearch = (searchParams.get('search') ?? '').trim();
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [search, setSearch]           = useState(initialSearch);
+  const [group, setGroup]             = useState<AdminOrderGroupKey | ''>('');
+  const [paymentMethod, setPaymentMethod] = useState<'' | 'gcash' | 'cod'>('');
+  const [paymentStatus, setPaymentStatus] = useState('');
+  const [preset, setPreset]           = useState<DatePreset>('30d');
+  const [customFrom, setCustomFrom]   = useState('');
+  const [customTo, setCustomTo]       = useState('');
+  const [sort, setSort]               = useState<SortKey>('date');
+  const [direction, setDirection]     = useState<'asc' | 'desc'>('desc');
+  const [page, setPage]               = useState(1);
+  const [selected, setSelected]       = useState<number | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  // Wait for typing to pause before asking the server.
+  useEffect(() => {
+    const id = window.setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 300);
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
+
+  const dateRange = useMemo<{ from?: string; to?: string }>(() => {
+    if (preset === 'custom') {
+      return customFrom && customTo && customFrom <= customTo ? { from: customFrom, to: customTo } : {};
+    }
+    const days = DATE_PRESETS.find((p) => p.value === preset)?.days;
+    return days ? lastDays(days) : {};
+  }, [preset, customFrom, customTo]);
+
+  const customInvalid = preset === 'custom' && customFrom !== '' && customTo !== '' && customFrom > customTo;
+
+  // The filters both the list and the summary share. The status group only narrows the list.
+  const sharedFilters = useMemo(() => ({
+    ...dateRange,
+    search: search || undefined,
+    payment_method: paymentMethod || undefined,
+    payment_status: paymentStatus || undefined,
+  }), [dateRange, search, paymentMethod, paymentStatus]);
+
+  const loadList = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
-      const res = await getAdminOrdersApi({
-        status: status || undefined,
-        search: search || undefined,
-        page,
-      });
+      const params: AdminOrderListParams = { ...sharedFilters, group: group || undefined, sort, direction, page, per_page: PER_PAGE };
+      const res = await getAdminOrdersApi(params);
       setOrders(res.data);
-      setMeta(res.meta);
+      setMeta({ current_page: res.meta.current_page, last_page: res.meta.last_page, total: res.meta.total, from: (res.meta as { from?: number | null }).from ?? null, to: (res.meta as { to?: number | null }).to ?? null });
+    } catch {
+      setFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [status, search, page]);
+  }, [sharedFilters, group, sort, direction, page]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadSummary = useCallback(async () => {
+    setSummaryFailed(false);
+    try {
+      setSummary(await getAdminOrderSummaryApi(sharedFilters));
+    } catch {
+      setSummaryFailed(true);
+    }
+  }, [sharedFilters]);
 
-  function handleUpdated(updated: AdminOrder) {
-    setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+  useEffect(() => { loadList(); }, [loadList]);
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+
+  function chooseGroup(next: AdminOrderGroupKey | '') {
+    setGroup((current) => (current === next ? '' : next));
+    setPage(1);
   }
 
-  return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-bold text-brand-black">Orders</h1>
+  function toggleSort(key: SortKey) {
+    if (sort === key) {
+      setDirection((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSort(key);
+      setDirection('desc');
+    }
+    setPage(1);
+  }
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Order # or buyer…"
-            className="w-full pl-8 pr-3 py-2 text-[13px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red bg-white"
-          />
-        </div>
-        <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value as OrderStatus | ''); setPage(1); }}
-          className="text-[13px] border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red"
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+  const filtersActive = Boolean(group || search || paymentMethod || paymentStatus || preset !== '30d');
+
+  function clearFilters() {
+    setGroup('');
+    setSearchInput('');
+    setSearch('');
+    setPaymentMethod('');
+    setPaymentStatus('');
+    setPreset('30d');
+    setCustomFrom('');
+    setCustomTo('');
+    setPage(1);
+  }
+
+  function openOrder(id: number, el: HTMLElement) {
+    openerRef.current = el;
+    setSelected(id);
+  }
+
+  const closeDrawer = useCallback(() => {
+    setSelected(null);
+    // Give focus back to the row that opened the drawer.
+    window.setTimeout(() => openerRef.current?.focus(), 0);
+  }, []);
+
+  function handleUpdated() {
+    // A status change moves the order between groups: refresh the list and the counts.
+    loadList();
+    loadSummary();
+  }
+
+  const rangeLabel = dateRange.from && dateRange.to ? `${formatDay(dateRange.from)} to ${formatDay(dateRange.to)}` : preset === 'custom' ? 'Choose both dates' : 'All time';
+  const groupCount = (key: AdminOrderGroupKey) => summary?.groups[key];
+
+  const sortIcon = (key: SortKey) => (sort !== key ? ArrowUpDown : direction === 'asc' ? ArrowUp : ArrowDown);
+  const ariaSort = (key: SortKey): 'ascending' | 'descending' | 'none' => (sort !== key ? 'none' : direction === 'asc' ? 'ascending' : 'descending');
+
+  return (
+    <div className="pb-8 space-y-4">
+      <PageHero
+        icon={ShoppingBag}
+        eyebrow="Commerce"
+        title="Orders & Fulfillment"
+        subtitle={<>Every order on the platform, counted in Philippine time · {rangeLabel}</>}
+      >
+        <div className="flex flex-wrap items-center gap-1 bg-neutral-800/90 p-0.5 rounded-xl border border-neutral-700/60" role="group" aria-label="Date range">
+          {DATE_PRESETS.map((p) => (
+            <button
+              key={p.value}
+              type="button"
+              onClick={() => { setPreset(p.value); setPage(1); }}
+              aria-pressed={preset === p.value}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
+                preset === p.value ? 'bg-brand-red text-white shadow-xs' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              {p.label}
+            </button>
           ))}
-        </select>
+          <button
+            type="button"
+            onClick={() => { setPreset('custom'); setPage(1); }}
+            aria-pressed={preset === 'custom'}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
+              preset === 'custom' ? 'bg-brand-red text-white shadow-xs' : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            Custom
+          </button>
+        </div>
+      </PageHero>
+
+      {preset === 'custom' && (
+        <div className="flex flex-wrap items-end gap-3 p-3 bg-white border border-gray-200/80 rounded-xl">
+          <label className="text-[11px] font-semibold text-gray-500">
+            From
+            <input type="date" value={customFrom} max={customTo || manilaToday()} onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
+              className="block mt-0.5 h-9 px-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red" />
+          </label>
+          <label className="text-[11px] font-semibold text-gray-500">
+            To
+            <input type="date" value={customTo} min={customFrom || undefined} max={manilaToday()} onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
+              className="block mt-0.5 h-9 px-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red" />
+          </label>
+          {customInvalid && <p role="alert" className="text-[11px] font-semibold text-red-600">The start date must be on or before the end date.</p>}
+        </div>
+      )}
+
+      {/* ── KPI row ── */}
+      {summaryFailed ? (
+        <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
+          <span>The order totals could not be loaded.</span>
+          <button onClick={loadSummary} className="px-3 py-1 text-xs font-bold text-white bg-brand-red rounded-lg hover:bg-[#8e2424]">Retry</button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          {!summary ? (
+            [1, 2, 3, 4, 5, 6].map((i) => <StatCardSkeleton key={i} />)
+          ) : (
+            <>
+              <StatCard icon={ClipboardList} label="Total orders" value={summary.total} subtext="Matching the filters" iconBg="bg-violet-50" iconColor="text-violet-600"
+                onClick={() => chooseGroup('')} active={group === ''} actionLabel="Show all" />
+              <StatCard icon={Clock} label="Awaiting action" value={groupCount('awaiting_action')} subtext="Placed to ready for pickup" iconBg="bg-amber-50" iconColor="text-amber-600"
+                onClick={() => chooseGroup('awaiting_action')} active={group === 'awaiting_action'} actionLabel="Filter" />
+              <StatCard icon={Truck} label="In transit" value={groupCount('in_transit')} subtext="Picked up to out for delivery" iconBg="bg-blue-50" iconColor="text-blue-600"
+                onClick={() => chooseGroup('in_transit')} active={group === 'in_transit'} actionLabel="Filter" />
+              <StatCard icon={PackageCheck} label="Delivered / completed" value={groupCount('delivered_completed')} subtext="With the buyer" iconBg="bg-emerald-50" iconColor="text-emerald-600"
+                onClick={() => chooseGroup('delivered_completed')} active={group === 'delivered_completed'} actionLabel="Filter" />
+              <StatCard icon={AlertTriangle} label="Problem orders" value={groupCount('problem')} subtext="Failed, returned or disputed" iconBg="bg-red-50" iconColor="text-red-600"
+                onClick={() => chooseGroup('problem')} active={group === 'problem'} actionLabel="Filter" />
+              <StatCard icon={Wallet} label="GMV" value={summary.gmv} money subtext="Not counting cancelled or returned" iconBg="bg-rose-50" iconColor="text-brand-red" />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Status chips ── */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by status group">
+        <button
+          type="button"
+          onClick={() => chooseGroup('')}
+          aria-pressed={group === ''}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+            group === '' ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          All <span className={`px-1.5 rounded-full text-[10px] ${group === '' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{summary ? whole(summary.total) : NA}</span>
+        </button>
+        {ADMIN_ORDER_GROUPS.map((g) => (
+          <button
+            key={g.key}
+            type="button"
+            onClick={() => chooseGroup(g.key)}
+            aria-pressed={group === g.key}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+              group === g.key ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            {g.label}
+            <span className={`px-1.5 rounded-full text-[10px] ${group === g.key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{summary ? whole(summary.groups[g.key]) : NA}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Order</th>
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Buyer</th>
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Status</th>
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Payment</th>
-                <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Total</th>
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-[13px] text-gray-400">Loading…</td></tr>
-              )}
-              {!loading && orders.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-[13px] text-gray-400">No orders found.</td></tr>
-              )}
-              {!loading && orders.map((o) => (
-                <tr
-                  key={o.id}
-                  onClick={() => setSelected(o.id)}
-                  className="hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-3 font-mono font-semibold text-brand-black">
-                    <div>{o.order_number}</div>
-                    {o.tracking_number && (
-                      <div className="text-[10px] text-violet-700 font-normal">{o.tracking_number}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {o.buyer ? `${o.buyer.first_name} ${o.buyer.last_name}` : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(o.status)}`}>
-                      {getStatusLabel(o.status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge label={o.payment_status} variant={o.payment_status as never} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-brand-black">{formatPHP(o.total)}</td>
-                  <td className="px-4 py-3 text-gray-400">{formatDate(o.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* ── Filters ── */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative flex-1 lg:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" aria-hidden="true" />
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label="Search orders"
+            placeholder="Order #, tracking #, buyer or shop"
+            className="w-full pl-8 pr-8 py-2 text-[13px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red bg-white"
+          />
+          {searchInput && (
+            <button type="button" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-
-        {/* Pagination */}
-        {meta.last_page > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <p className="text-[12px] text-gray-400">{meta.total} orders</p>
-            <div className="flex items-center gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
-              >
-                <ChevronLeft className="w-3.5 h-3.5 text-gray-500" />
-              </button>
-              <span className="text-[12px] text-gray-500">{page} / {meta.last_page}</span>
-              <button
-                disabled={page >= meta.last_page}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
-              >
-                <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
-              </button>
-            </div>
-          </div>
+        <select
+          value={paymentMethod}
+          onChange={(e) => { setPaymentMethod(e.target.value as '' | 'gcash' | 'cod'); setPage(1); }}
+          aria-label="Payment method"
+          className="text-[13px] border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+        >
+          <option value="">All payment methods</option>
+          <option value="gcash">GCash</option>
+          <option value="cod">Cash on delivery</option>
+        </select>
+        <select
+          value={paymentStatus}
+          onChange={(e) => { setPaymentStatus(e.target.value); setPage(1); }}
+          aria-label="Payment status"
+          className="text-[13px] border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+        >
+          <option value="">All payment statuses</option>
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="failed">Failed</option>
+        </select>
+        {filtersActive && (
+          <button type="button" onClick={clearFilters} className="text-xs font-bold text-brand-red hover:underline self-start lg:self-auto">
+            Clear filters
+          </button>
         )}
       </div>
 
-      {selected !== null && (
-        <OrderDetailDrawer
-          orderId={selected}
-          onClose={() => setSelected(null)}
-          onUpdated={handleUpdated}
-        />
+      {/* ── List ── */}
+      {failed ? (
+        <div role="alert" className="flex flex-col items-center gap-3 px-4 py-12 text-center bg-white border border-red-200 rounded-xl">
+          <AlertCircle className="w-6 h-6 text-red-500" />
+          <p className="text-sm text-gray-700">The orders could not be loaded.</p>
+          <Button variant="primary" onClick={loadList}>Retry</Button>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden" aria-busy={loading}>
+          {/* Table, from the md breakpoint up */}
+          <div className="hidden md:block max-h-[68vh] overflow-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-left">
+                  {['Order', 'Buyer', 'Shop', 'Status', 'Payment'].map((h) => (
+                    <th key={h} scope="col" className="sticky top-0 z-10 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-100">{h}</th>
+                  ))}
+                  <th scope="col" aria-sort={ariaSort('total')} className="sticky top-0 z-10 px-4 py-3 text-right bg-gray-50 border-b border-gray-100">
+                    <button type="button" onClick={() => toggleSort('total')} className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-500 uppercase tracking-wide hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red rounded">
+                      Total {(() => { const I = sortIcon('total'); return <I className="w-3 h-3" aria-hidden="true" />; })()}
+                    </button>
+                  </th>
+                  <th scope="col" aria-sort={ariaSort('date')} className="sticky top-0 z-10 px-4 py-3 text-left bg-gray-50 border-b border-gray-100">
+                    <button type="button" onClick={() => toggleSort('date')} className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-500 uppercase tracking-wide hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red rounded">
+                      Date {(() => { const I = sortIcon('date'); return <I className="w-3 h-3" aria-hidden="true" />; })()}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {loading && orders.length === 0 && [0, 1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    {[0, 1, 2, 3, 4, 5, 6].map((c) => <td key={c} className="px-4 py-4"><div className="h-3 bg-gray-100 rounded w-3/4" /></td>)}
+                  </tr>
+                ))}
+                {!loading && orders.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-12"><OrdersEmpty filtersActive={filtersActive} onClear={clearFilters} /></td></tr>
+                )}
+                {orders.map((o) => (
+                  <tr
+                    key={o.id}
+                    tabIndex={0}
+                    onClick={(e) => openOrder(o.id, e.currentTarget)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openOrder(o.id, e.currentTarget); } }}
+                    className={`cursor-pointer transition-colors hover:bg-red-50/40 focus:outline-none focus-visible:bg-red-50/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-red ${loading ? 'opacity-60' : ''}`}
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-mono font-semibold text-brand-black">{o.order_number}</p>
+                      <p className="text-[10px] font-mono text-violet-700">{o.tracking_number ?? <span className="text-gray-300">No tracking yet</span>}</p>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{buyerName(o)}</td>
+                    <td className="px-4 py-3 text-gray-700">{o.shop?.name ?? NA}</td>
+                    <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
+                    <td className="px-4 py-3">
+                      <p className="text-[11px] font-bold text-gray-700 uppercase">{o.payment_method}</p>
+                      <PaymentBadge status={o.payment_status} />
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-brand-black">{peso(o.total)}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(o.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Cards, below the md breakpoint */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {loading && orders.length === 0 && [0, 1, 2, 3].map((i) => (
+              <div key={i} className="p-4 space-y-2 animate-pulse"><div className="h-3 bg-gray-100 rounded w-1/2" /><div className="h-3 bg-gray-100 rounded w-3/4" /><div className="h-3 bg-gray-100 rounded w-1/3" /></div>
+            ))}
+            {!loading && orders.length === 0 && <div className="px-4 py-10"><OrdersEmpty filtersActive={filtersActive} onClear={clearFilters} /></div>}
+            {orders.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={(e) => openOrder(o.id, e.currentTarget)}
+                className={`block w-full p-4 text-left space-y-2 hover:bg-red-50/40 focus:outline-none focus-visible:bg-red-50/60 ${loading ? 'opacity-60' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-[13px] font-semibold text-brand-black truncate">{o.order_number}</p>
+                    <p className="text-[10px] font-mono text-violet-700">{o.tracking_number ?? 'No tracking yet'}</p>
+                  </div>
+                  <p className="text-[13px] font-bold text-brand-black shrink-0">{peso(o.total)}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={o.status} />
+                  <PaymentBadge status={o.payment_status} />
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">{o.payment_method}</span>
+                </div>
+                <p className="text-xs text-gray-500">{buyerName(o)} · {o.shop?.name ?? NA}</p>
+                <p className="text-[11px] text-gray-400">{formatDate(o.created_at)}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {meta.total > 0 && (
+            <div className="flex flex-col items-center justify-between gap-2 px-4 py-3 border-t border-gray-100 sm:flex-row">
+              <p className="text-[12px] text-gray-500">
+                Showing <span className="font-semibold text-gray-800">{meta.from ?? 0}–{meta.to ?? 0}</span> of <span className="font-semibold text-gray-800">{whole(meta.total)}</span> {meta.total === 1 ? 'order' : 'orders'}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((p) => p - 1)}
+                  aria-label="Previous page"
+                  className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 text-gray-500" />
+                </button>
+                <span className="text-[12px] text-gray-600">Page {meta.current_page} of {meta.last_page}</span>
+                <button
+                  disabled={page >= meta.last_page || loading}
+                  onClick={() => setPage((p) => p + 1)}
+                  aria-label="Next page"
+                  className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
+
+      {selected !== null && (
+        <OrderDetailDrawer orderId={selected} onClose={closeDrawer} onUpdated={handleUpdated} />
+      )}
+    </div>
+  );
+}
+
+function OrdersEmpty({ filtersActive, onClear }: { filtersActive: boolean; onClear: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-2 text-center">
+      <div className="flex items-center justify-center w-10 h-10 border border-gray-100 rounded-xl bg-gray-50">
+        {filtersActive ? <SearchX className="w-5 h-5 text-gray-300" aria-hidden="true" /> : <ShoppingBag className="w-5 h-5 text-gray-300" aria-hidden="true" />}
+      </div>
+      <p className="text-sm font-semibold text-gray-700">{filtersActive ? 'No orders match these filters' : 'No orders in this period yet'}</p>
+      <p className="max-w-sm text-xs text-gray-400">
+        {filtersActive ? 'Try a wider date range or clear the filters.' : 'Orders appear here as soon as buyers check out.'}
+      </p>
+      {filtersActive && <button type="button" onClick={onClear} className="text-xs font-bold text-brand-red hover:underline">Clear filters</button>}
     </div>
   );
 }
