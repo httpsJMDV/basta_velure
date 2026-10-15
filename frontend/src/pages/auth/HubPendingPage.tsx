@@ -248,11 +248,11 @@ export default function HubPendingPage() {
             </Link>
 
             <Link
-              to="/login"
+              to="/hub/login"
               className="flex items-center justify-center gap-2 w-full min-h-[42px] rounded-xl border border-gray-300 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 active:scale-98 transition-all"
             >
               <LogIn className="w-4 h-4 text-gray-500" />
-              Go to Account Login
+              Go to Hub Sign In
             </Link>
           </div>
         </div>

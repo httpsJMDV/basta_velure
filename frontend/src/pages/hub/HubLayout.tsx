@@ -67,7 +67,7 @@ export default function HubLayout() {
 
   const handleLogout = () => {
     clearAuth();
-    navigate('/login');
+    navigate('/hub/login');
   };
 
   const isNavActive = (to: string) => {

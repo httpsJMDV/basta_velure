@@ -80,6 +80,22 @@ A demo **seller is also a buyer**, exactly like a real one: they registered as a
 
 Use a separate browser profile or a private window per role so sessions do not overwrite each other.
 
+### Where everything is
+
+Every sign-up and sign-in page, per role. All sign-in pages take an **email or a username**.
+
+| Role | Sign up | Sign in | Lands on after sign-in | Approved by |
+|---|---|---|---|---|
+| Buyer | `/register` | `/login` | `/` (home) | Admin approves the buyer profile (`/admin/buyer-applications`) |
+| Seller | `/register/seller` (a signed-in buyer applies; a buyer becomes a seller by being approved, there is no separate seller account) | `/login` | `/seller` | Admin (`/admin/seller-applications`) |
+| Rider (courier) | `/register/rider` | `/rider/login` (or `/login`) | `/rider/dashboard` | The logistics hub the rider chose (hub **Riders** page, `/hub/riders`) |
+| Logistics hub owner | `/register/hub` | `/hub/login` (or `/login`) | `/hub/dashboard` | Admin (`/admin/sorting-center-applications`) |
+| Admin | none (created by the team or the demo seeder) | `/login` | `/admin` | n/a |
+
+How people find them: the **Partner with us** page (`/partner`) has three cards (Sell on Loved-IT, Become a delivery rider, Register a logistics hub), each with what you need, who approves you, and Register and Sign in buttons. The site header's top bar and mobile menu and the footer link to `/partner`, **Become a rider** and **Logistics partner**; the footer also has **Courier sign in** and **Hub sign in**. The main sign-in page ends with two cards, **Courier sign-in** and **Logistics hub sign-in**. `/hub/login` and `/register/hub` link to each other, and so do `/rider/login` and `/register/rider`.
+
+After a successful sign-in on `/login`: admin goes to `/admin`, an approved seller to `/seller`, an approved hub owner to `/hub/dashboard`, an active rider to `/rider/dashboard`, and a buyer to `/`. A pending or rejected hub or rider, and a suspended account, is refused with a message and stays on the sign-in page. A signed-out visit to `/hub/*` goes to `/hub/login`, and to `/rider/*` goes to `/rider/login`.
+
 ### The three places (real PSGC codes)
 
 | Area | Municipality | Barangay | Barangay code |
@@ -117,6 +133,15 @@ Area C is in the hub's coverage but **no rider covers it**, on purpose: the parc
 ## 3. Click-through checklist
 
 Tick each box as you go. Write down anything that looks wrong or breaks (what you clicked, what you expected, what happened) and send me the list.
+
+### Entry points (signed out)
+
+- [ ] The site header's top bar (desktop) and the mobile menu show **Partner with us**, **Become a rider** and **Logistics partner**; the footer shows the same plus **Courier sign in** and **Hub sign in**.
+- [ ] `/partner` shows three cards, each with the documents you need, who approves you, and **Register** and **Sign in** buttons that go to the right pages (see "Where everything is").
+- [ ] `/login` ends with two cards, **Courier sign-in** (`/rider/login`) and **Logistics hub sign-in** (`/hub/login`).
+- [ ] `/hub/login` and `/register/hub` link to each other; a wrong password shows "Invalid email, username or password" and keeps you on the page.
+- [ ] On `/login`, `/rider/login` and `/hub/login`, type `ADMIN`-style capitals or an email: both work. Sign in as `hub1` on `/login` and you land on `/hub/dashboard`; `seller1` lands on `/seller`; `rider1` on `/rider/dashboard`; `buyer1` on the home page.
+- [ ] `rider3` (the pending applicant) is refused on `/rider/login` with the pending-hub-approval message.
 
 ### Admin (`admin` / `admin123`, then `/admin`)
 

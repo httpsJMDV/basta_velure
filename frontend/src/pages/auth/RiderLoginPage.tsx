@@ -50,7 +50,7 @@ export default function RiderLoginPage() {
         clearAuth();
         setErrorType('not_rider');
         setErrorMessage(
-          'This sign-in station is exclusively reserved for courier delivery personnel. If you are a buyer, seller, or hub manager, please use the standard portal.'
+          'This sign-in station is exclusively reserved for courier delivery personnel. If you are a buyer, seller, or hub owner, please use your own sign-in.'
         );
         return;
       }
@@ -321,11 +321,19 @@ export default function RiderLoginPage() {
           </div>
 
           {/* Standard Portal Switch Link */}
-          <div className="mt-6 text-center text-xs text-gray-500">
-            Looking for buyer, seller, or hub sign in?{' '}
-            <Link to="/login" className="font-semibold text-brand-red hover:underline">
-              Standard Sign In
-            </Link>
+          <div className="mt-6 text-center text-xs text-gray-500 space-y-1">
+            <p>
+              Looking for buyer or seller sign in?{' '}
+              <Link to="/login" className="font-semibold text-brand-red hover:underline">
+                Standard Sign In
+              </Link>
+            </p>
+            <p>
+              Own a logistics hub?{' '}
+              <Link to="/hub/login" className="font-semibold text-brand-red hover:underline">
+                Hub Sign In
+              </Link>
+            </p>
           </div>
         </div>
       </main>

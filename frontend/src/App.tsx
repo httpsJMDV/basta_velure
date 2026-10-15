@@ -7,6 +7,7 @@ import CompleteProfilePage from './pages/auth/CompleteProfilePage';
 import SellerRegisterPage from './pages/auth/SellerRegisterPage';
 import HubRegisterPage from './pages/auth/HubRegisterPage';
 import HubPendingPage from './pages/auth/HubPendingPage';
+import HubLoginPage from './pages/auth/HubLoginPage';
 import RiderRegisterPage from './pages/auth/RiderRegisterPage';
 import RiderPendingPage from './pages/auth/RiderPendingPage';
 import RiderLoginPage from './pages/auth/RiderLoginPage';
@@ -70,6 +71,7 @@ import TermsOfServicePage from './pages/legal/TermsOfServicePage';
 import CookiePolicyPage from './pages/legal/CookiePolicyPage';
 import SafetyHelpPage from './pages/help/SafetyHelpPage';
 import AboutUsPage from './pages/AboutUsPage';
+import PartnerPage from './pages/PartnerPage';
 import {
   SettingsLayout,
   SettingsAccount,
@@ -100,7 +102,7 @@ function RequireApprovedSeller({ children }: { children: ReactNode }) {
 function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
   const { user, loading, clearAuth } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/hub/login" replace />;
   if (!user.sorting_center) return <Navigate to="/register/hub" replace />;
   if (user.sorting_center.status === 'PENDING') return <Navigate to="/register/hub/pending" replace />;
   if (user.sorting_center.status === 'REJECTED') return <Navigate to="/register/hub" replace />;
@@ -118,7 +120,7 @@ function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
             Your sorting center hub account has been suspended by platform administration. Please contact support for assistance.
           </p>
           <button
-            onClick={() => { clearAuth(); window.location.href = '/login'; }}
+            onClick={() => { clearAuth(); window.location.href = '/hub/login'; }}
             className="w-full py-2.5 px-4 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl transition-colors"
           >
             Log Out
@@ -246,6 +248,8 @@ function AppRoutes() {
       <Route path="/register/rider/pending" element={<RiderPendingPage />} />
       <Route path="/register/courier" element={<Navigate to="/register/rider" replace />} />
       <Route path="/rider/login" element={<RiderLoginPage />} />
+      <Route path="/hub/login" element={<HubLoginPage />} />
+      <Route path="/partner" element={<PartnerPage />} />
       <Route
         path="/complete-profile"
         element={

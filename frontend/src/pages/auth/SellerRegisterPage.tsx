@@ -242,7 +242,7 @@ function ApprovedScreen() {
 
       <div className="flex flex-col gap-2">
         <button
-          onClick={() => navigate('/seller/dashboard')}
+          onClick={() => navigate('/seller')}
           className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors"
         >
           Go to Seller Dashboard <ArrowRight className="w-4 h-4" />

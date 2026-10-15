@@ -5,7 +5,9 @@ import { loginApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import { Bike, Warehouse } from 'lucide-react';
 import { validateLoginIdentifier } from '../../utils/loginIdentifier';
+import { roleHomePath } from '../../utils/roleHome';
 import GoogleSignInButton from '../../components/GoogleSignInButton';
 import LovedItLogo from '../../components/LovedItLogo';
 import { useToast } from '../../components/ui/Toast';
@@ -32,10 +34,7 @@ export default function LoginPage() {
       const res = await loginApi(identifier.trim(), password);
       setAuth(res.data, res.token);
       showToast(`Welcome back, ${res.data.first_name}!`);
-      const role = res.data.role;
-      if (role === 'admin') navigate('/admin');
-      else if (role === 'seller') navigate('/seller/dashboard');
-      else navigate('/');
+      navigate(roleHomePath(res.data));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message ?? 'Login failed.';
@@ -115,14 +114,39 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          <div className="mt-5 pt-4 border-t border-gray-100 text-center">
-            <Link
-              to="/rider/login"
-              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-semibold"
-            >
-              <span>Are you a delivery courier? Courier Sign In</span>
-              <span aria-hidden="true">&rarr;</span>
-            </Link>
+          {/* Partner portals: couriers and hub owners sign in on their own pages */}
+          <div className="mt-6 pt-5 border-t border-gray-100">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Partner sign-in</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Link
+                to="/rider/login"
+                className="group flex items-start gap-3 rounded-xl border border-gray-200 p-3.5 min-h-[44px] hover:border-brand-red hover:bg-rose-50/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand-red">
+                  <Bike className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-gray-900">Courier sign-in</span>
+                  <span className="block text-xs text-gray-500">Delivery riders</span>
+                </span>
+              </Link>
+              <Link
+                to="/hub/login"
+                className="group flex items-start gap-3 rounded-xl border border-gray-200 p-3.5 min-h-[44px] hover:border-brand-red hover:bg-rose-50/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand-red">
+                  <Warehouse className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-gray-900">Logistics hub sign-in</span>
+                  <span className="block text-xs text-gray-500">Sorting center owners</span>
+                </span>
+              </Link>
+            </div>
+            <p className="mt-3 text-center text-xs text-gray-500">
+              Want to sell or deliver with us?{' '}
+              <Link to="/partner" className="font-semibold text-brand-red hover:underline">Partner with us</Link>
+            </p>
           </div>
         </div>
       </div>
