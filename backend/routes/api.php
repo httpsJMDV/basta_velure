@@ -230,10 +230,11 @@ Route::prefix('v1')->group(function () {
             Route::patch('/disputes/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
 
             // Reviews
+            // Reviews are read-only for the admin (honest feedback: no approve, hide or delete), grouped by shop.
             Route::get('/reviews', [AdminReviewController::class, 'index']);
-            Route::get('/reviews/stats', [AdminReviewController::class, 'stats']);
             Route::get('/reviews/summary', [AdminReviewController::class, 'summary']);
-            Route::patch('/reviews/{review}/moderate', [AdminReviewController::class, 'moderate']);
+            Route::get('/reviews/shops', [AdminReviewController::class, 'shops']);
+            Route::get('/reviews/shops/{seller}', [AdminReviewController::class, 'shop']);
 
             // Products (admin review)
             Route::get('/products', [AdminProductController::class, 'index']);

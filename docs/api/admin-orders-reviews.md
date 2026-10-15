@@ -49,32 +49,42 @@ The page's labels for the groups live in `frontend/src/utils/orderStatus.ts` (`A
 
 ## Reviews
 
+Reviews are honest feedback from buyers, so the admin can **read** them and nothing else: there is no approve, hide, flag or delete (the old `PATCH /admin/reviews/{review}/moderate` and `GET /admin/reviews/stats` are gone, and nothing about moderation appears in a payload). What the admin watches is each **shop's** reviews, which are the reviews of its products, so the page lists shops first and opens one shop on request.
+
+### `GET /api/v1/admin/reviews/shops`
+
+Every **approved** shop, including shops with no reviews yet (a pending or rejected application is not a shop). Optional: `search` (shop name, owner name or owner email), `sort` (`reviews` default, `rating`, `recent`, `name`), `direction` (`asc`, `desc`; default `desc`), `page`, `per_page` (1 to 100, default 20). Ties fall back to the shop name, and shops with no rating or no review date always sort last.
+
+Each row: `id` (the seller's user id), `shop_name`, `shop_slug`, `logo_url` (or `null`), `owner_name`, `review_count`, `average_rating` (two places; **null, never 0**, with no reviews), `last_review_at` (or `null`). `meta` has `current_page`, `last_page`, `total`, `per_page`, `from`, `to`.
+
+### `GET /api/v1/admin/reviews/shops/{seller}`
+
+One shop's row plus `rating_distribution` (`{"1": n, ... "5": n}`, adding up to `review_count`). `404` when the user is not an approved shop. The web page uses `shop_slug` for its **Go to shop profile** button (`/shop/{shop_slug}`).
+
 ### `GET /api/v1/admin/reviews`
 
-Existing: `moderation_status` (`visible`, `hidden`, `pending_review`), `flagged=true`, `search`, `page`. New and optional: `rating` (1 to 5), `per_page` (1 to 100, default 20). `search` now also matches the **comment**, the **product name** and the **shop name**, as well as the buyer's name or email. `meta` adds `per_page`, `from`, `to`.
+Optional: `shop_id` (the seller's user id), `rating` (1 to 5), `search` (comment, buyer name or email, product name), `page`, `per_page` (1 to 100, default 20). Newest first. Without `shop_id` it is every review. Soft-deleted reviews are never listed.
 
-Each row keeps its original keys and gains `product: { id, name } | null`, `shop: { id, name } | null` and `order: { id, order_number } | null` (a review may have no order).
-
-The page's chips map to: Pending = `moderation_status=pending_review`, Approved = `visible`, Hidden = `hidden`, Flagged = `flagged=true` (any status).
+Each row: `id`, `product_id`, `rating`, `comment`, `verified_purchase`, `created_at`, `buyer`, `product: { id, name } | null`, `shop: { id, name } | null`, `order: { id, order_number } | null` (a review may have no order).
 
 ### `GET /api/v1/admin/reviews/summary`
 
 ```json
 { "data": {
-  "total": 7,
-  "average_rating": 3.57,
-  "rating_distribution": { "1": 1, "2": 1, "3": 1, "4": 1, "5": 3 },
-  "by_status": { "pending_review": 2, "visible": 4, "hidden": 1 },
-  "flagged": 2
+  "total": 6,
+  "average_rating": 3.33,
+  "rating_distribution": { "1": 1, "2": 1, "3": 1, "4": 1, "5": 2 },
+  "shops": 3,
+  "shops_reviewed": 2
 } }
 ```
 
-Every figure covers all reviews that exist (soft-deleted ones excepted), whatever their moderation status, so `rating_distribution` and `by_status` each add up to `total`. `flagged` counts flagged reviews in any status. `average_rating` is rounded to two places and is **null, never 0**, when there are no reviews. (`GET /admin/reviews/stats` is unchanged.)
+Every review that exists counts (soft-deleted ones excepted), so the distribution adds up to `total`. `average_rating` is null, never 0, with no reviews. `shops` is the number of approved shops and `shops_reviewed` how many of them have at least one review.
 
-`PATCH /admin/reviews/{review}/moderate` is unchanged; its response now includes the extra keys above.
+### Public reviews
+
+`GET /products/{product}/reviews` lists every review of the product. It used to filter on `moderation_status = 'approved'`, a value the column does not have, so it listed nothing; with no moderation the filter is gone. (The `moderation_status`, `flagged` and `flag_reason` columns still exist but nothing reads or writes them.)
 
 ### Demo reviews
 
-Buyers cannot submit reviews yet, so there is no endpoint that creates one. `php artisan demo:seed` writes six demo reviews straight into the `Review` model (ratings 5, 5, 4, 3, 2, 1; three approved, two pending, one hidden; the 2-star one flagged and still pending) on the demo buyers' COMPLETED orders. They hang off demo users and demo products, so `demo:reset` removes them. Nothing else creates reviews.
-
-Known gap, not changed here: the public product reviews endpoint (`PublicProductController::reviews`) filters on `moderation_status = 'approved'`, a value the column does not have (`visible` is the approved state), so it lists nothing. It matters once buyers can submit reviews.
+Buyers cannot submit reviews yet, so there is no endpoint that creates one. `php artisan demo:seed` writes six demo reviews straight into the `Review` model (ratings 5, 4, 5, 3, 2, 1) on the demo buyers' COMPLETED orders, all published. They hang off demo users and demo products, so `demo:reset` removes them. Nothing else creates reviews.

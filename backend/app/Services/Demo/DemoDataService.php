@@ -783,8 +783,8 @@ class DemoDataService
      *
      * Buyers cannot submit reviews yet (there is no endpoint), so these rows are written straight into the Review
      * model the admin page reads. They are written here and nowhere else, they hang off demo buyers and demo products
-     * (so demo:reset removes them), and they cover every rating band and moderation status, with one flagged review
-     * waiting for moderation.
+     * (so demo:reset removes them), and they cover every rating from one to five. Reviews are honest feedback: nothing
+     * flags, hides or approves them, so they are all simply published.
      */
     private function createReviews(): void
     {
@@ -795,17 +795,17 @@ class DemoDataService
             ->orderBy('id')
             ->get();
 
-        // rating, moderation status, flagged, days ago, comment, flag reason
+        // rating, days ago, comment
         $plan = [
-            [5, 'visible',        false, 6, 'Fast delivery and exactly as described. Will order again!', null],
-            [4, 'visible',        false, 5, 'Good quality. The packaging could be a little better.', null],
-            [5, 'visible',        false, 4, 'Great value for the price. The seller answered all my questions.', null],
-            [3, 'pending_review', false, 3, 'The item is okay, but it arrived a day later than promised.', null],
-            [2, 'pending_review', true,  2, 'Worst shop ever, total scam, do not buy from them!!!', 'Possible abusive language; reported by the seller.'],
-            [1, 'hidden',         false, 1, 'This review was about a different product, so it was hidden.', null],
+            [5, 6, 'Fast delivery and exactly as described. Will order again!'],
+            [4, 5, 'Good quality. The packaging could be a little better.'],
+            [5, 4, 'Great value for the price. The seller answered all my questions.'],
+            [3, 3, 'The item is okay, but it arrived a day later than promised.'],
+            [2, 2, 'Not what I expected from the photos, and the seller was slow to reply.'],
+            [1, 1, 'The item stopped working after two days.'],
         ];
 
-        foreach ($plan as $i => [$rating, $moderation, $flagged, $days, $comment, $flagReason]) {
+        foreach ($plan as $i => [$rating, $days, $comment]) {
             $order = $orders[$i] ?? null;
             $item = $order?->items->first();
             $product = $item ? Product::where('seller_id', $item->seller_id)->where('name', $item->product_name)->first() : null;
@@ -821,9 +821,6 @@ class DemoDataService
                 'rating'            => $rating,
                 'comment'           => $comment,
                 'verified_purchase' => true,
-                'flagged'           => $flagged,
-                'flag_reason'       => $flagReason,
-                'moderation_status' => $moderation,
             ]);
         }
     }
