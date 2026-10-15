@@ -4,6 +4,7 @@ import axios from 'axios';
 import {
   AlertCircle,
   Ban,
+  AlertTriangle,
   Bike,
   CalendarClock,
   Clock,
@@ -37,7 +38,8 @@ import type {
   HubDeliveryOutRow,
   HubDispatchRider,
 } from '../../types';
-import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import CustomSelect from '../../components/ui/CustomSelect';
 
 const POLL_MS = 30000;
 const NOTE_MAX = 500;
@@ -102,6 +104,7 @@ export default function HubDeliveriesPage() {
   const tab: TabKey = searchParams.get('tab') === 'failed' ? 'failed' : 'out';
 
   const [counts, setCounts] = useState({ out: 0, failed: 0 });
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const [out, setOut] = useState<OutState>({ data: null, loading: true, error: null });
   const [outSearchInput, setOutSearchInput] = useState('');
@@ -145,6 +148,7 @@ export default function HubDeliveriesPage() {
     try {
       const m = await getHubDashboardMetricsApi();
       setCounts({ out: m.out_for_delivery, failed: m.failed_deliveries });
+      setLastUpdated(new Date());
     } catch {
       // The tab labels simply keep their last counts.
     }
@@ -305,22 +309,17 @@ export default function HubDeliveriesPage() {
         headingRef={headingRef}
         subtitle="Watch parcels on the road and decide what happens to failed deliveries."
       >
-        <button
-          type="button"
-          onClick={() => {
-            void fetchCounts();
-            if (tab === 'out') void fetchOut(false);
-            else void fetchFailed(false);
-          }}
-          className={HERO_BUTTON}
-        >
-          <RefreshCw className="w-4 h-4" aria-hidden="true" />
-          Refresh
-        </button>
+        <LiveStamp updatedAt={lastUpdated} />
       </PageHero>
 
+      <section aria-label="Delivery summary" className="grid grid-cols-3 gap-2.5">
+        <StatCard compact icon={Truck} label="Out for delivery" value={counts.out} subtext="On the road now" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => switchTab('out')} active={tab === 'out'} />
+        <StatCard compact icon={AlertTriangle} label="Failed deliveries" value={counts.failed} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600" onClick={() => switchTab('failed')} active={tab === 'failed'} />
+        <StatCard compact icon={Bike} label="Riders on the road" value={out.data ? out.data.meta.riders.filter((r) => r.rider_id !== null).length : null} subtext="With parcels to deliver" iconBg="bg-violet-50" iconColor="text-violet-600" />
+      </section>
+
       {/* Tabs */}
-      <div role="tablist" aria-label="Delivery views" className="flex items-center border-b border-gray-200">
+      <div role="tablist" aria-label="Delivery views" className="inline-flex items-center gap-0.5 p-1 bg-gray-100/80 rounded-xl max-w-full">
         {(
           [
             { key: 'out', label: 'Out for delivery', count: counts.out },
@@ -334,8 +333,8 @@ export default function HubDeliveriesPage() {
             aria-selected={tab === t.key}
             aria-controls="deliveries-panel"
             onClick={() => switchTab(t.key)}
-            className={`min-h-11 px-4 text-xs font-bold flex items-center gap-2 transition-colors ${
-              tab === t.key ? 'text-brand-red border-b-2 border-brand-red' : 'text-gray-500 hover:text-gray-800'
+            className={`min-h-10 px-4 rounded-lg text-xs font-bold flex items-center gap-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+              tab === t.key ? 'bg-white text-brand-red shadow-xs' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
             <span>{t.label}</span>
@@ -354,41 +353,30 @@ export default function HubDeliveriesPage() {
         {tab === 'out' ? (
           <>
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <label htmlFor="out-search" className="block text-xs font-bold text-gray-700 mb-1">
-                  Search parcels
-                </label>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
-                  <input
-                    id="out-search"
-                    type="search"
-                    value={outSearchInput}
-                    onChange={(e) => setOutSearchInput(e.target.value)}
-                    placeholder="Tracking, order, recipient, barangay or rider"
-                    className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-                  />
-                </div>
+            <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <label htmlFor="out-search" className="sr-only">Search parcels</label>
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+                <input
+                  id="out-search"
+                  type="search"
+                  value={outSearchInput}
+                  onChange={(e) => setOutSearchInput(e.target.value)}
+                  placeholder="Search tracking, order, recipient, barangay or rider"
+                  className="w-full min-h-[44px] pl-10 pr-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
+                />
               </div>
-              <div className="sm:w-64">
-                <label htmlFor="out-rider" className="block text-xs font-bold text-gray-700 mb-1">
-                  Rider
-                </label>
-                <select
-                  id="out-rider"
-                  value={riderFilter}
-                  onChange={(e) => setRiderFilter(e.target.value)}
-                  className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-                >
-                  <option value="">All riders</option>
-                  {(out.data?.meta.riders ?? []).map((r) => (
-                    <option key={r.rider_id ?? 'none'} value={r.rider_id ?? ''} disabled={r.rider_id === null}>
-                      {r.name || 'Unassigned'} ({r.count})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CustomSelect
+                className="sm:w-64"
+                value={riderFilter}
+                onChange={setRiderFilter}
+                options={[
+                  { value: '', label: 'All riders' },
+                  ...(out.data?.meta.riders ?? [])
+                    .filter((r) => r.rider_id !== null)
+                    .map((r) => ({ value: String(r.rider_id), label: `${r.name || 'Unassigned'} (${r.count})` })),
+                ]}
+              />
             </div>
 
             {out.loading && !out.data ? (
@@ -416,7 +404,7 @@ export default function HubDeliveriesPage() {
                   </p>
                 )}
                 {outGroups.map((group) => (
-                  <section key={group.key} aria-label={group.name} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                  <section key={group.key} aria-label={group.name} className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden">
                     <header className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
                       <p className="flex items-center gap-2 text-sm font-black text-gray-900 min-w-0">
                         <Bike className="w-4 h-4 text-gray-400 shrink-0" aria-hidden="true" />
@@ -461,44 +449,31 @@ export default function HubDeliveriesPage() {
         ) : (
           <>
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <label htmlFor="failed-search" className="block text-xs font-bold text-gray-700 mb-1">
-                  Search parcels
-                </label>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
-                  <input
-                    id="failed-search"
-                    type="search"
-                    value={failedSearchInput}
-                    onChange={(e) => setFailedSearchInput(e.target.value)}
-                    placeholder="Tracking, order, recipient, barangay or rider"
-                    className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-                  />
-                </div>
+            <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <label htmlFor="failed-search" className="sr-only">Search parcels</label>
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+                <input
+                  id="failed-search"
+                  type="search"
+                  value={failedSearchInput}
+                  onChange={(e) => setFailedSearchInput(e.target.value)}
+                  placeholder="Search tracking, order, recipient, barangay or rider"
+                  className="w-full min-h-[44px] pl-10 pr-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
+                />
               </div>
-              <div className="sm:w-72">
-                <label htmlFor="failed-reason" className="block text-xs font-bold text-gray-700 mb-1">
-                  Reason
-                </label>
-                <select
-                  id="failed-reason"
-                  value={reasonFilter}
-                  onChange={(e) => {
-                    setReasonFilter(e.target.value);
-                    setFailedPage(1);
-                  }}
-                  className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-                >
-                  <option value="">All reasons</option>
-                  {(failed.data?.meta.reasons ?? []).map((r) => (
-                    <option key={r.code} value={r.code}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CustomSelect
+                className="sm:w-72"
+                value={reasonFilter}
+                onChange={(v) => {
+                  setReasonFilter(v);
+                  setFailedPage(1);
+                }}
+                options={[
+                  { value: '', label: 'All reasons' },
+                  ...(failed.data?.meta.reasons ?? []).map((r) => ({ value: r.code, label: r.label })),
+                ]}
+              />
             </div>
 
             {failed.loading && !failed.data ? (

@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Clock,
   Inbox,
+  MapPin,
   Package,
   RefreshCw,
   Search,
@@ -23,7 +24,8 @@ import {
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { HubDispatchBatch, HubDispatchParcel, HubDispatchRider, HubSortingSort } from '../../types';
-import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import CustomSelect from '../../components/ui/CustomSelect';
 
 const POLL_MS = 30000;
 const PARCEL_PAGE_SIZE = 100;
@@ -85,6 +87,7 @@ export default function HubDispatchPage() {
   const [totals, setTotals] = useState({ batches: 0, parcels: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<HubSortingSort>('waiting');
@@ -128,6 +131,7 @@ export default function HubDispatchPage() {
       setBatches(res.data);
       setTotals({ batches: res.meta.total_batches, parcels: res.meta.total_parcels });
       setError(null);
+      setLastUpdated(new Date());
       // A batch that emptied out (or filtered away) cannot stay open.
       if (expandedRef.current && !res.data.some((b) => b.barangay_code === expandedRef.current)) {
         setExpanded(null);
@@ -349,58 +353,39 @@ export default function HubDispatchPage() {
         title="Delivery Dispatch"
         subtitle="Assign sorted parcels to a rider who covers the destination barangay."
       >
-          <button
-            type="button"
-            onClick={() => void fetchBatches(false)}
-            disabled={loading}
-            className={HERO_BUTTON}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            Refresh
-          </button>
+        <LiveStamp updatedAt={lastUpdated} />
       </PageHero>
 
+      <section aria-label="Dispatch summary" className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+        <StatCard compact icon={MapPin} label="Barangays" value={loading ? null : totals.batches} subtext="Ready for dispatch" iconBg="bg-violet-50" iconColor="text-violet-600" />
+        <StatCard compact icon={Package} label="Sorted parcels" value={loading ? null : totals.parcels} subtext="Waiting for a rider" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+        <StatCard compact icon={Clock} label="Longest wait" value={loading || batches.length === 0 ? null : waitingLabel(batches.map((b) => b.oldest_sorted_at).filter((v): v is string => !!v).sort()[0] ?? null)} subtext="Since the oldest was sorted" iconBg="bg-amber-50" iconColor="text-amber-600" />
+        <StatCard compact icon={Users} label="No eligible rider" value={loading ? null : batches.filter((b) => b.eligible_riders === 0).length} subtext="Barangays nobody can take" iconBg="bg-rose-50" iconColor="text-rose-600" />
+      </section>
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <label htmlFor="dispatch-search" className="block text-xs font-bold text-gray-700 mb-1">
-            Search barangay or city
-          </label>
-          <div className="relative">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
-            <input
-              id="dispatch-search"
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="e.g. Poblacion or Makati"
-              className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-            />
-          </div>
+      <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <label htmlFor="dispatch-search" className="sr-only">Search barangay or city</label>
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+          <input
+            id="dispatch-search"
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search barangay or city, such as Poblacion"
+            className="w-full min-h-[44px] pl-10 pr-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
+          />
         </div>
-        <div className="sm:w-56">
-          <label htmlFor="dispatch-sort" className="block text-xs font-bold text-gray-700 mb-1">
-            Sort by
-          </label>
-          <select
-            id="dispatch-sort"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as HubSortingSort)}
-            className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-          >
-            <option value="waiting">Longest waiting</option>
-            <option value="count">Most parcels</option>
-          </select>
-        </div>
+        <CustomSelect
+          className="sm:w-56"
+          value={sort}
+          onChange={(v) => setSort(v as HubSortingSort)}
+          options={[
+            { value: 'waiting', label: 'Longest waiting' },
+            { value: 'count', label: 'Most parcels' },
+          ]}
+        />
       </div>
-
-      {!loading && !error && batches.length > 0 && (
-        <p className="text-xs text-gray-500">
-          {plural(totals.batches, 'barangay', 'barangays')} &bull; {plural(totals.parcels, 'parcel', 'parcels')} waiting
-          for dispatch
-        </p>
-      )}
-
       {/* States */}
       {loading ? (
         <div className="space-y-3 animate-pulse" aria-label="Loading dispatch batches">
@@ -442,7 +427,7 @@ export default function HubDispatchPage() {
             const isOpen = expanded === batch.barangay_code;
             const panelId = `dispatch-panel-${batch.barangay_code}`;
             return (
-              <li key={batch.barangay_code} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <li key={batch.barangay_code} className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden">
                 <button
                   type="button"
                   onClick={() => toggleBatch(batch.barangay_code)}

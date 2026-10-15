@@ -1125,9 +1125,6 @@ export interface AdminReview {
   rating: number;
   comment: string | null;
   verified_purchase: boolean;
-  flagged: boolean;
-  flag_reason: string | null;
-  moderation_status: ModerationStatus;
   created_at: string;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
   product?: { id: number; name: string } | null;
@@ -1135,30 +1132,39 @@ export interface AdminReview {
   order?: { id: number; order_number: string } | null;
 }
 
-/** GET /admin/reviews/summary. Covers every review that exists, whatever its moderation status. */
+/** GET /admin/reviews/summary: the whole platform's review figures. */
 export interface AdminReviewSummary {
   total: number;
   /** Null, never 0, when there are no reviews. */
   average_rating: number | null;
   rating_distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
-  by_status: Record<ModerationStatus, number>;
-  /** Flagged reviews in any moderation status. */
-  flagged: number;
+  /** Approved shops, and how many of them have at least one review. */
+  shops: number;
+  shops_reviewed: number;
 }
 
+/** One shop in the admin Reviews list. `id` is the seller's user id. */
+export interface AdminReviewShop {
+  id: number;
+  shop_name: string;
+  shop_slug: string;
+  logo_url: string | null;
+  owner_name: string;
+  review_count: number;
+  average_rating: number | null;
+  last_review_at: string | null;
+  /** Only on GET /admin/reviews/shops/{seller}. */
+  rating_distribution?: Record<'1' | '2' | '3' | '4' | '5', number>;
+}
+
+export type AdminReviewShopSort = 'reviews' | 'rating' | 'recent' | 'name';
+
 export interface AdminReviewListParams {
-  moderation_status?: ModerationStatus;
-  flagged?: boolean;
+  shop_id?: number;
   rating?: number;
   search?: string;
   page?: number;
   per_page?: number;
-}
-
-export interface AdminReviewStats {
-  flagged_pending: number;
-  pending_review: number;
-  hidden: number;
 }
 
 // ─── Messaging & Chat ────────────────────────────────────────────────────────

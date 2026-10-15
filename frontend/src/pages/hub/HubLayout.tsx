@@ -31,6 +31,10 @@ import {
 export interface HubOutletContext {
   /** Re-read the unread badge on the Messages nav item. */
   refreshChatUnread: () => void;
+  /** Waiting for the hub, read by the layout for its badges, so a page need not ask again. */
+  unreadMessages: number;
+  pendingRiders: number;
+  failedDeliveries: number;
 }
 
 const ROUTE_TITLES: Record<string, string> = {
@@ -163,19 +167,15 @@ export default function HubLayout() {
           <Warehouse className="w-4 h-4" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold text-white truncate">{hub?.hub_name || 'Sorting Center Hub'}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
-            <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">Approved hub</span>
-          </div>
+          <p className="text-xs font-bold text-white truncate" title={hub?.hub_name}>{hub?.hub_name || 'Sorting Center Hub'}</p>
+          {hub?.address_city && (
+            <p className="text-[11px] text-white/45 mt-0.5 flex items-center gap-1 truncate">
+              <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{hub.address_city}, {hub.address_province}</span>
+            </p>
+          )}
         </div>
       </div>
-      {hub?.address_city && (
-        <p className="text-[11px] text-white/45 mt-2 flex items-center gap-1 truncate">
-          <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
-          <span className="truncate">{hub.address_city}, {hub.address_province}</span>
-        </p>
-      )}
     </div>
   );
 
@@ -243,7 +243,7 @@ export default function HubLayout() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
             >
-              <Outlet context={{ refreshChatUnread: chat.refresh } satisfies HubOutletContext} />
+              <Outlet context={{ refreshChatUnread: chat.refresh, unreadMessages: chat.total, pendingRiders, failedDeliveries } satisfies HubOutletContext} />
             </motion.div>
           </AnimatePresence>
         </main>

@@ -150,7 +150,7 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 - [ ] **Payments** loads and lists the GCash orders (14 in the seed, 2 of them not yet verified). *(See "Known problems" below: the seeded GCash orders are stored as `pending`, so a filter for `pending_verification` will not match them.)*
 - [ ] **Disputes** shows 1 open dispute (buyer 2, "Item not as described"). Open it; try resolving it, then run `php artisan demo:seed` again to put it back.
 - [ ] **Products** lists the 8 active demo products. Open one.
-- [ ] **Reviews** (Reviews & Ratings) shows the 6 demo reviews: average rating 3.33, 6 total, 2 pending moderation, 1 flagged, and the rating distribution. The chips (All, Pending, Approved, Hidden, Flagged) filter the list; open a long comment with Show more; **Approve** the pending ones and **Hide** another, and watch the counts move. The order number links to the Orders page. (Buyers cannot submit reviews yet, so these demo rows are the only reviews; `demo:reset` removes them.)
+- [ ] **Reviews** (Shop Reviews) lists the two demo shops with their logo, average rating and review count; the cards show the platform average 3.33, 6 reviews and "2 of 2" shops reviewed. Click a shop to read its reviews (filter by star, search, expand a long comment); **Go to shop profile** (top right) opens its public page in a new tab. There is no approve or hide: reviews are honest feedback. The order number links to the Orders page. (Buyers cannot submit reviews yet, so these demo rows are the only reviews; `demo:reset` removes them.)
 - [ ] **Sellers**, **Buyers**, **Riders** list the demo accounts. The **Riders** page also shows each rider's hub and hub-application status, and lets you suspend or reactivate the account. There is no "Rider Applications" page: a rider is approved by the hub they chose (hub **Riders** page), so approve `rider3` as `hub1`, not as the admin.
 - [ ] **Sorting center applications** and **Seller applications** show the approved demo hub and the two approved shops (nothing pending).
 - [ ] **Categories** shows the taxonomy. **Settings** shows the commission settings.
@@ -194,6 +194,8 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 
 - [ ] **Dashboard** (`/hub/dashboard`): **In sorting 1**, **Out for delivery 2**, **Failed deliveries 2**, **Active riders 2**. *Inbound today* is 1 or more (it counts parcels scanned in since midnight Manila time).
 - [ ] **Parcel Intake** (`/hub/intake`): **1 expected parcel** (the PICKED_UP one with rider 2). Receive it by typing or scanning its tracking number. It moves to *In sorting* (now 2).
+  - [ ] **Scan with camera** starts the webcam (allow camera access; it needs `https://` or `http://localhost`). Hold a printed waybill barcode (seller `Orders` > waybill > print) in front of it: the frame turns green and the parcel is received. A USB or Bluetooth barcode scanner also works: the typing box is focused, so just scan.
+  - [ ] The pages refresh themselves ("Live" badge in the top banner): receive a parcel in a second window and it appears here within about 15 seconds, with no refresh button.
 - [ ] **Sorting** (`/hub/sorting`): one group for **Batong Malake (Area C)**. Sort it. (It then waits in Dispatch with no eligible rider.)
 - [ ] **Dispatch** (`/hub/dispatch`): a batch for **Anibong (Area B)** with **2 parcels**, and **Pedro Mendoza** as the eligible rider. Assign them.
 - [ ] **Deliveries** (`/hub/deliveries`):

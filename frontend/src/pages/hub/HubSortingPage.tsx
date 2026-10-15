@@ -23,7 +23,8 @@ import {
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { HubSortingGroup, HubSortingParcel, HubSortingSort } from '../../types';
-import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import CustomSelect from '../../components/ui/CustomSelect';
 
 const POLL_MS = 30000;
 const PARCEL_PAGE_SIZE = 100;
@@ -67,6 +68,7 @@ export default function HubSortingPage() {
   const [totals, setTotals] = useState({ groups: 0, parcels: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<HubSortingSort>('waiting');
@@ -113,6 +115,7 @@ export default function HubSortingPage() {
       setGroups(res.data);
       setTotals({ groups: res.meta.total_groups, parcels: res.meta.total_parcels });
       setError(null);
+      setLastUpdated(new Date());
       // A group that emptied out (or filtered away) cannot stay expanded.
       if (expandedRef.current && !res.data.some((g) => g.barangay_code === expandedRef.current)) {
         setExpanded(null);
@@ -292,58 +295,39 @@ export default function HubSortingPage() {
         title="Package Sorting"
         subtitle="Group received parcels by destination barangay and mark them sorted."
       >
-          <button
-            type="button"
-            onClick={() => void fetchGroups(false)}
-            disabled={loading}
-            className={HERO_BUTTON}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            Refresh
-          </button>
+        <LiveStamp updatedAt={lastUpdated} />
       </PageHero>
 
+      <section aria-label="Sorting summary" className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+        <StatCard compact icon={MapPinOff} label="Barangays" value={loading ? null : totals.groups} subtext="With parcels waiting" iconBg="bg-blue-50" iconColor="text-blue-600" />
+        <StatCard compact icon={Package} label="Parcels to sort" value={loading ? null : totals.parcels} subtext="Scanned in, not sorted" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+        <StatCard compact icon={Clock} label="Longest wait" value={loading || groups.length === 0 ? null : waitingLabel(groups.map((g) => g.oldest_scanned_in_at).filter((v): v is string => !!v).sort()[0] ?? null)} subtext="Oldest parcel at the hub" iconBg="bg-amber-50" iconColor="text-amber-600" />
+        <StatCard compact icon={Users} label="No rider covers" value={loading ? null : groups.filter((g) => g.riders_covering === 0).length} subtext="Barangays nobody can deliver" iconBg="bg-rose-50" iconColor="text-rose-600" />
+      </section>
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <label htmlFor="sorting-search" className="block text-xs font-bold text-gray-700 mb-1">
-            Search barangay or city
-          </label>
-          <div className="relative">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
-            <input
-              id="sorting-search"
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="e.g. Poblacion or Makati"
-              className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-            />
-          </div>
+      <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <label htmlFor="sorting-search" className="sr-only">Search barangay or city</label>
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+          <input
+            id="sorting-search"
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search barangay or city, such as Poblacion"
+            className="w-full min-h-[44px] pl-10 pr-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
+          />
         </div>
-        <div className="sm:w-56">
-          <label htmlFor="sorting-sort" className="block text-xs font-bold text-gray-700 mb-1">
-            Sort by
-          </label>
-          <select
-            id="sorting-sort"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as HubSortingSort)}
-            className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-          >
-            <option value="waiting">Longest waiting</option>
-            <option value="count">Most parcels</option>
-          </select>
-        </div>
+        <CustomSelect
+          className="sm:w-56"
+          value={sort}
+          onChange={(v) => setSort(v as HubSortingSort)}
+          options={[
+            { value: 'waiting', label: 'Longest waiting' },
+            { value: 'count', label: 'Most parcels' },
+          ]}
+        />
       </div>
-
-      {!loading && !error && groups.length > 0 && (
-        <p className="text-xs text-gray-500">
-          {totals.groups} {totals.groups === 1 ? 'barangay' : 'barangays'} &bull; {totals.parcels}{' '}
-          {totals.parcels === 1 ? 'parcel' : 'parcels'} waiting
-        </p>
-      )}
-
       {/* States */}
       {loading ? (
         <div className="space-y-3 animate-pulse" aria-label="Loading sorting groups">
@@ -385,7 +369,7 @@ export default function HubSortingPage() {
             const isOpen = expanded === group.barangay_code;
             const panelId = `sorting-panel-${group.barangay_code}`;
             return (
-              <li key={group.barangay_code} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <li key={group.barangay_code} className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden">
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.barangay_code)}

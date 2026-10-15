@@ -7,7 +7,7 @@ import ThreadView from '../../components/chat/ThreadView';
 import { useAuth } from '../../hooks/useAuth';
 import type { RiderThread, ThreadMeta } from '../../types';
 import type { HubOutletContext } from './HubLayout';
-import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { PageHero, LiveStamp } from '../../components/admin/dashboardKit';
 
 const LIST_POLL_MS = 10000;
 
@@ -37,6 +37,7 @@ export default function HubMessagesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const load = useCallback(
     async (mode: 'initial' | 'silent') => {
@@ -49,6 +50,7 @@ export default function HubMessagesPage() {
         setThreads(res.data);
         setUnreadTotal(res.meta.unread_total);
         setError(null);
+        setLastUpdated(new Date());
       } catch (err: unknown) {
         if (mode === 'silent') return;
         setError(
@@ -101,17 +103,10 @@ export default function HubMessagesPage() {
         title="Rider messages"
         subtitle="Conversations riders start about the parcels they are collecting or delivering. They close when the parcel is done."
       >
-        <button
-          type="button"
-          onClick={() => void load('initial')}
-          aria-label="Refresh messages"
-          className={`${HERO_BUTTON} min-w-11`}
-        >
-          <RefreshCw className="w-4 h-4" aria-hidden="true" />
-        </button>
+        <LiveStamp updatedAt={lastUpdated} />
       </PageHero>
 
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden md:grid md:grid-cols-[20rem_1fr] h-[calc(100vh-14rem)] min-h-[28rem]">
+      <div className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden md:grid md:grid-cols-[20rem_1fr] h-[calc(100vh-14rem)] min-h-[28rem]">
         {/* Thread list: hidden on a phone while a thread is open */}
         <section
           aria-label="Conversations"

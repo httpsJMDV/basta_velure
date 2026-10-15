@@ -45,13 +45,15 @@ import type {
 } from '../../types';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
 import { NA, peso, whole, percent, manilaToday } from '../../utils/adminReports';
+import { PageHero } from '../../components/admin/dashboardKit';
+import DateRangeBar from '../../components/admin/DateRangeBar';
 
 const TIMEFRAMES = [
-  { label: 'Last 7 Days', value: '7d' },
-  { label: 'Last 30 Days', value: '30d' },
-  { label: 'Last 90 Days', value: '90d' },
-  { label: 'Past 12 Months', value: '12m' },
-  { label: 'All Time', value: 'all' },
+  { label: '7 days', value: '7d' },
+  { label: '30 days', value: '30d' },
+  { label: '90 days', value: '90d' },
+  { label: '12 months', value: '12m' },
+  { label: 'All time', value: 'all' },
 ];
 
 const PRESET_VALUES = new Set(TIMEFRAMES.map((t) => t.value));
@@ -98,10 +100,6 @@ export default function AdminReportsPage() {
   const [sellers, setSellers] = useState<TopSellerItem[]>([]);
   const [paymentSplit, setPaymentSplit] = useState<PaymentMethodSplit | null>(null);
 
-  // Draft values of the two date inputs (applied when both are valid).
-  const [draftFrom, setDraftFrom] = useState(customRange ? fromParam : '');
-  const [draftTo, setDraftTo] = useState(customRange ? toParam : '');
-
   const pageRef = useMountAnim();
   const today = manilaToday();
 
@@ -133,12 +131,6 @@ export default function AdminReportsPage() {
     loadData();
   }, [loadData]);
 
-  // Keep the date inputs in step with the URL (a preset clears them; a link fills them).
-  useEffect(() => {
-    setDraftFrom(customRange ? fromParam : '');
-    setDraftTo(customRange ? toParam : '');
-  }, [customRange, fromParam, toParam]);
-
   // Open on the section the dashboard linked to (#sales, #commission, ...), once the figures are on screen.
   useEffect(() => {
     if (loading || !location.hash) return;
@@ -155,7 +147,6 @@ export default function AdminReportsPage() {
     }
   }
 
-  const draftInvalid = Boolean(draftFrom && draftTo && draftFrom > draftTo);
   const range = summary?.range;
 
   const animatedCommission = useCountUp(summary?.total_commission ?? 0);
@@ -168,77 +159,30 @@ export default function AdminReportsPage() {
 
   return (
     <div ref={pageRef} className="pb-8 space-y-4">
-      {/* ── 1. Compact Executive Hero Command Bar ── */}
-      <div
-        className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
+      {/* ── 1. Page header and the period control ── */}
+      <PageHero
+        icon={BarChart3}
+        eyebrow="Commerce"
+        title="Platform Reports & Analytics"
+        subtitle="The same figures as the dashboard, counted in Philippine time. Cancelled and returned orders are left out of sales, commission and activity."
       >
-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Platform Reports &amp; Analytics</h1>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 text-neutral-200 border border-white/15">
-                  <CalendarDays className="w-3 h-3" aria-hidden="true" />
-                  {loading ? 'Loading…' : range ? `${formatDay(range.from)} to ${formatDay(range.to)} · ${range.days} ${range.days === 1 ? 'day' : 'days'}` : NA}
-                </span>
-              </div>
-              <p className="text-[11px] text-neutral-400 mt-0.5">
-                The same figures as the dashboard, counted in Philippine time. Cancelled and returned orders are left out of sales, commission and activity.
-              </p>
-            </div>
-          </div>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-neutral-200 border border-white/15">
+          <CalendarDays className="w-3 h-3" aria-hidden="true" />
+          {loading ? 'Loading…' : range ? `${range.days} ${range.days === 1 ? 'day' : 'days'}` : NA}
+        </span>
+      </PageHero>
 
-          {/* Timeframe presets */}
-          <div className="flex flex-wrap items-center gap-1 bg-neutral-800/90 p-0.5 rounded-xl border border-neutral-700/60 self-start md:self-auto shrink-0">
-            {TIMEFRAMES.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => choosePreset(t.value)}
-                aria-pressed={!customRange && preset === t.value}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                  !customRange && preset === t.value
-                    ? 'bg-brand-red text-white shadow-xs'
-                    : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Custom dates */}
-        <div className="flex flex-wrap items-end gap-2.5 pt-2.5 border-t border-neutral-800/80">
-          <label className="text-[11px] font-semibold text-neutral-400">
-            From
-            <input
-              type="date"
-              value={draftFrom}
-              max={draftTo || today}
-              onChange={(e) => { setDraftFrom(e.target.value); applyDates(e.target.value, draftTo); }}
-              className="block mt-0.5 h-8 px-2 text-xs text-white bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red [color-scheme:dark]"
-            />
-          </label>
-          <label className="text-[11px] font-semibold text-neutral-400">
-            To
-            <input
-              type="date"
-              value={draftTo}
-              min={draftFrom || undefined}
-              max={today}
-              onChange={(e) => { setDraftTo(e.target.value); applyDates(draftFrom, e.target.value); }}
-              className="block mt-0.5 h-8 px-2 text-xs text-white bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red [color-scheme:dark]"
-            />
-          </label>
-          {draftInvalid && <p role="alert" className="text-[11px] font-semibold text-amber-300">The start date must be on or before the end date.</p>}
-          {!draftInvalid && <p className="text-[11px] text-neutral-500">Pick both dates to report on exact days.</p>}
-        </div>
-      </div>
-
+      <DateRangeBar
+        presets={TIMEFRAMES}
+        preset={customRange ? '' : preset}
+        from={range && !loading ? (range.preset === 'all' ? '' : range.from) : customRange ? fromParam : ''}
+        to={range && !loading ? (range.preset === 'all' ? '' : range.to) : customRange ? toParam : ''}
+        today={today}
+        fromPlaceholder="Since the first order"
+        toPlaceholder="Today"
+        onPreset={choosePreset}
+        onRange={applyDates}
+      />
       {error && (
         <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
           <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4" aria-hidden="true" /> The reports could not be loaded.</span>

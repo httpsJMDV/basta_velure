@@ -17,15 +17,15 @@ import type {
   AdminDispute,
   AdminDisputeStats,
   AdminReview,
-  AdminReviewStats,
   AdminReviewSummary,
   AdminReviewListParams,
+  AdminReviewShop,
+  AdminReviewShopSort,
   AdminOrderSummary,
   AdminOrderListParams,
   OrderStatus,
   PaymentStatus,
   DisputeStatus,
-  ModerationStatus,
   Conversation,
   ChatMessage,
   RiderChatCounterpart,
@@ -361,17 +361,18 @@ export const getAdminDisputeStatsApi = () =>
   http.get<{ data: AdminDisputeStats }>('/admin/disputes/stats').then((r) => r.data.data);
 
 // Admin — reviews
+// Admin: reviews are read-only (no approve or hide), grouped by shop.
 export const getAdminReviewsApi = (params?: AdminReviewListParams) =>
-  http.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params: { ...params, flagged: params?.flagged ? 'true' : undefined } }).then((r) => r.data);
-
-export const moderateReviewApi = (id: number, moderation_status: ModerationStatus) =>
-  http.patch<{ data: AdminReview }>(`/admin/reviews/${id}/moderate`, { moderation_status }).then((r) => r.data.data);
+  http.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params }).then((r) => r.data);
 
 export const getAdminReviewSummaryApi = () =>
   http.get<{ data: AdminReviewSummary }>('/admin/reviews/summary').then((r) => r.data.data);
 
-export const getAdminReviewStatsApi = () =>
-  http.get<{ data: AdminReviewStats }>('/admin/reviews/stats').then((r) => r.data.data);
+export const getAdminReviewShopsApi = (params?: { search?: string; sort?: AdminReviewShopSort; direction?: 'asc' | 'desc'; page?: number; per_page?: number }) =>
+  http.get<PaginatedResponse<AdminReviewShop>>('/admin/reviews/shops', { params }).then((r) => r.data);
+
+export const getAdminReviewShopApi = (shopId: number) =>
+  http.get<{ data: AdminReviewShop }>(`/admin/reviews/shops/${shopId}`).then((r) => r.data.data);
 
 // Products — public catalog
 export const getProductsApi = (filters: ProductFilters = {}) => {

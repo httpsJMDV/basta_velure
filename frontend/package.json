@@ -12,6 +12,7 @@
   "dependencies": {
     "@react-oauth/google": "^0.13.5",
     "axios": "^1.19.0",
+    "barcode-detector": "^3.2.2",
     "framer-motion": "^13.1.0",
     "jsbarcode": "^3.12.3",
     "laravel-echo": "^2.4.0",
