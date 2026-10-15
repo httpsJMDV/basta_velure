@@ -161,6 +161,126 @@ export function ShellSidebar({
   );
 }
 
+// ─── Themes ───────────────────────────────────────────────────────────────────
+
+/** The top bar comes in the admin console's dark look and in the seller dashboard's light look. */
+export type ShellTheme = 'dark' | 'light';
+
+interface ThemeClasses {
+  bar: string;
+  iconButton: string;
+  root: string;
+  chevron: string;
+  title: string;
+  ring: string;
+  panel: string;
+  panelHead: string;
+  panelTitle: string;
+  panelCount: string;
+  alertRow: string;
+  alertTitle: string;
+  alertDetail: string;
+  empty: string;
+  divider: string;
+  userRole: string;
+  userName: string;
+  avatarRing: string;
+  menuName: string;
+  menuEmail: string;
+  menuLink: string;
+  logout: string;
+  searchBox: string;
+  searchBoxOpen: string;
+  searchIcon: string;
+  searchInput: string;
+  searchHint: string;
+  searchClear: string;
+  searchPanel: string;
+  searchRowOn: string;
+  searchRowOff: string;
+  searchTileOn: string;
+  searchTileOff: string;
+  searchGroup: string;
+  searchFoot: string;
+}
+
+const THEMES: Record<ShellTheme, ThemeClasses> = {
+  dark: {
+    bar: 'border-b border-white/10',
+    iconButton: 'text-gray-400 hover:text-white hover:bg-white/10',
+    root: 'text-white/30',
+    chevron: 'text-white/20',
+    title: 'text-white',
+    ring: 'ring-[#111111]',
+    panel: 'bg-[#1c1c1c] border border-white/10',
+    panelHead: 'border-b border-white/10',
+    panelTitle: 'text-white',
+    panelCount: 'bg-brand-red/20 text-red-300 border border-brand-red/30',
+    alertRow: 'hover:bg-white/5',
+    alertTitle: 'text-white',
+    alertDetail: 'text-white/50',
+    empty: 'text-white/40',
+    divider: 'border-white/10',
+    userRole: 'text-white/25',
+    userName: 'text-white/85',
+    avatarRing: 'ring-white/10',
+    menuName: 'text-white',
+    menuEmail: 'text-white/40',
+    menuLink: 'text-white/70 hover:text-white hover:bg-white/5',
+    logout: 'text-rose-400 hover:bg-rose-500/10',
+    searchBox: 'bg-white/[0.06] hover:bg-white/[0.09] border border-white/[0.08]',
+    searchBoxOpen: 'border border-brand-red/60 ring-2 ring-brand-red/20 bg-white/[0.09]',
+    searchIcon: 'text-white/40',
+    searchInput: 'text-white placeholder-white/40',
+    searchHint: 'text-white/30 border-white/10',
+    searchClear: 'text-white/40 hover:text-white',
+    searchPanel: 'bg-[#1a1a1a] border border-white/10',
+    searchRowOn: 'bg-white/10 text-white',
+    searchRowOff: 'text-white/70 hover:bg-white/5 hover:text-white',
+    searchTileOn: 'bg-brand-red text-white',
+    searchTileOff: 'bg-white/5 text-white/60',
+    searchGroup: 'text-white/30',
+    searchFoot: 'bg-black/30 border-t border-white/5 text-white/30',
+  },
+  light: {
+    bar: 'bg-white border-b border-gray-200 shadow-2xs',
+    iconButton: 'text-gray-500 hover:text-gray-900 hover:bg-gray-100',
+    root: 'text-gray-400',
+    chevron: 'text-gray-300',
+    title: 'text-gray-900',
+    ring: 'ring-white',
+    panel: 'bg-white border border-gray-200',
+    panelHead: 'border-b border-gray-100',
+    panelTitle: 'text-gray-900',
+    panelCount: 'bg-red-50 text-brand-red border border-red-200',
+    alertRow: 'hover:bg-gray-50',
+    alertTitle: 'text-gray-800',
+    alertDetail: 'text-gray-500',
+    empty: 'text-gray-500',
+    divider: 'border-gray-100',
+    userRole: 'text-gray-400',
+    userName: 'text-gray-800',
+    avatarRing: 'ring-red-100',
+    menuName: 'text-gray-900',
+    menuEmail: 'text-gray-500',
+    menuLink: 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
+    logout: 'text-rose-600 hover:bg-rose-50',
+    searchBox: 'bg-gray-50 hover:bg-gray-100/70 border border-gray-200',
+    searchBoxOpen: 'border border-brand-red/60 ring-2 ring-brand-red/15 bg-white',
+    searchIcon: 'text-gray-400',
+    searchInput: 'text-gray-800 placeholder-gray-400',
+    searchHint: 'text-gray-400 border-gray-200',
+    searchClear: 'text-gray-400 hover:text-gray-700',
+    searchPanel: 'bg-white border border-gray-200',
+    searchRowOn: 'bg-gray-100 text-gray-900',
+    searchRowOff: 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+    searchTileOn: 'bg-brand-red text-white',
+    searchTileOff: 'bg-gray-100 text-gray-500',
+    searchGroup: 'text-gray-400',
+    searchFoot: 'bg-gray-50 border-t border-gray-100 text-gray-400',
+  },
+};
+
 // ─── Search ───────────────────────────────────────────────────────────────────
 
 export interface ShellSearchItem {
@@ -170,7 +290,8 @@ export interface ShellSearchItem {
   icon: React.ElementType;
 }
 
-function ShellSearchBar({ items, placeholder }: { items: ShellSearchItem[]; placeholder: string }) {
+function ShellSearchBar({ items, placeholder, theme }: { items: ShellSearchItem[]; placeholder: string; theme: ShellTheme }) {
+  const t = THEMES[theme];
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -224,10 +345,8 @@ function ShellSearchBar({ items, placeholder }: { items: ShellSearchItem[]; plac
 
   return (
     <div ref={containerRef} className="relative w-full max-w-sm mx-auto hidden md:block">
-      <div className={`flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.09] border ${
-        isOpen ? 'border-brand-red/60 ring-2 ring-brand-red/20 bg-white/[0.09]' : 'border-white/[0.08]'
-      } rounded-xl px-3 py-1.5 transition-all`}>
-        <Search className="w-4 h-4 text-white/40 shrink-0" aria-hidden="true" />
+      <div className={`flex items-center gap-2 rounded-xl px-3 py-1.5 transition-all ${isOpen ? t.searchBoxOpen : t.searchBox}`}>
+        <Search className={`w-4 h-4 shrink-0 ${t.searchIcon}`} aria-hidden="true" />
         <input
           ref={inputRef}
           type="text"
@@ -237,19 +356,19 @@ function ShellSearchBar({ items, placeholder }: { items: ShellSearchItem[]; plac
           onKeyDown={onKeyDown}
           aria-label={placeholder}
           placeholder={placeholder}
-          className="flex-1 bg-transparent text-xs text-white placeholder-white/40 outline-none"
+          className={`flex-1 bg-transparent text-xs outline-none ${t.searchInput}`}
         />
         {query ? (
-          <button type="button" aria-label="Clear search" onClick={() => { setQuery(''); inputRef.current?.focus(); }} className="p-0.5 text-white/40 hover:text-white rounded">
+          <button type="button" aria-label="Clear search" onClick={() => { setQuery(''); inputRef.current?.focus(); }} className={`p-0.5 rounded ${t.searchClear}`}>
             <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         ) : (
-          <span className="text-[10px] text-white/30 font-mono border border-white/10 rounded px-1.5 py-0.5 shrink-0">Ctrl K</span>
+          <span className={`text-[10px] font-mono border rounded px-1.5 py-0.5 shrink-0 ${t.searchHint}`}>Ctrl K</span>
         )}
       </div>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
+        <div className={`absolute left-0 right-0 top-full mt-1.5 rounded-xl shadow-2xl overflow-hidden z-50 ${t.searchPanel}`}>
           <div className="max-h-72 overflow-y-auto p-1.5 space-y-0.5" style={{ scrollbarWidth: 'none' }}>
             {filtered.length > 0 ? (
               filtered.map((item, idx) => {
@@ -261,25 +380,23 @@ function ShellSearchBar({ items, placeholder }: { items: ShellSearchItem[]; plac
                     type="button"
                     onClick={() => select(item.to)}
                     onMouseEnter={() => setSelectedIndex(idx)}
-                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors ${
-                      selected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'
-                    }`}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors ${selected ? t.searchRowOn : t.searchRowOff}`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${selected ? 'bg-brand-red text-white' : 'bg-white/5 text-white/60'}`}>
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${selected ? t.searchTileOn : t.searchTileOff}`}>
                         <Icon className="w-3.5 h-3.5" aria-hidden="true" />
                       </div>
                       <span className="text-xs font-medium truncate">{item.label}</span>
                     </div>
-                    <span className="text-[10px] text-white/30 uppercase tracking-wider font-semibold shrink-0 ml-2">{item.group}</span>
+                    <span className={`text-[10px] uppercase tracking-wider font-semibold shrink-0 ml-2 ${t.searchGroup}`}>{item.group}</span>
                   </button>
                 );
               })
             ) : (
-              <div className="py-6 text-center text-xs text-white/40">No matching pages for "{query}"</div>
+              <div className={`py-6 text-center text-xs ${t.empty}`}>No matching pages for "{query}"</div>
             )}
           </div>
-          <div className="px-3 py-1.5 bg-black/30 border-t border-white/5 flex items-center justify-between text-[10px] text-white/30">
+          <div className={`px-3 py-1.5 flex items-center justify-between text-[10px] ${t.searchFoot}`}>
             <span>↑↓ to navigate</span>
             <span>↵ to select</span>
             <span>esc to dismiss</span>
@@ -308,6 +425,7 @@ export interface ShellMenuLink {
 }
 
 export function ShellTopBar({
+  theme = 'dark',
   rootLabel,
   pageLabel,
   roleLabel,
@@ -315,23 +433,30 @@ export function ShellTopBar({
   searchItems,
   searchPlaceholder = 'Search pages...',
   alerts,
+  alertsTitle = 'Notifications',
   messages,
+  actions,
   menuLinks,
   leading,
   onToggleSidebar,
   onOpenMobile,
   onLogout,
 }: {
+  /** The admin console's dark bar, or the seller dashboard's light bar. */
+  theme?: ShellTheme;
   rootLabel: string;
   pageLabel: string;
-  /** The small caption above the user's name, such as "Hub manager". */
+  /** The small caption under (dark) or over (light) the user's name, such as "Hub manager". */
   roleLabel: string;
   user: ShellUser;
   searchItems?: ShellSearchItem[];
   searchPlaceholder?: string;
   alerts: ShellAlert[];
+  alertsTitle?: string;
   /** The messages shortcut, with its unread count. */
   messages?: { to: string; unread: number };
+  /** Extra buttons before the messages shortcut (such as "View Shop"). */
+  actions?: ReactNode;
   menuLinks?: ShellMenuLink[];
   /** Something to show before the breadcrumb, such as the logo on a phone. */
   leading?: ReactNode;
@@ -341,6 +466,7 @@ export function ShellTopBar({
   onOpenMobile?: () => void;
   onLogout: () => void;
 }) {
+  const t = THEMES[theme];
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
@@ -366,15 +492,35 @@ export function ShellTopBar({
   }, [notifOpen, userMenuOpen]);
 
   const totalAlerts = alerts.length;
+  const iconBtn = `w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg transition-colors relative ${t.iconButton}`;
+  const messagesLink = messages ? (
+<Link
+            to={messages.to}
+            className={iconBtn}
+            title="Messages"
+            aria-label={messages.unread > 0 ? `Messages, ${messages.unread} unread` : 'Messages'}
+          >
+            <MessageSquare className="w-[17px] h-[17px]" aria-hidden="true" />
+            {messages.unread > 0 && (
+              <span className={`absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-0.5 bg-brand-red text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ${t.ring}`} aria-hidden="true">
+                {messages.unread > 9 ? '9+' : messages.unread}
+              </span>
+            )}
+          </Link>
+  ) : null;
 
   return (
-    <div ref={barRef} className="h-14 shrink-0 flex items-center gap-3 px-4 sm:px-5 border-b border-white/10 sticky top-0 z-20 print:hidden" style={SHELL_BG}>
+    <div
+      ref={barRef}
+      className={`h-14 shrink-0 flex items-center gap-3 px-4 sm:px-5 sticky top-0 z-20 print:hidden ${t.bar}`}
+      style={theme === 'dark' ? SHELL_BG : undefined}
+    >
       {leading}
       {onToggleSidebar && (
         <button
           onClick={onToggleSidebar}
           aria-label="Collapse or expand the sidebar"
-          className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+          className={`hidden lg:flex w-8 h-8 items-center justify-center rounded-lg transition-colors shrink-0 ${t.iconButton}`}
         >
           <PanelLeft className="w-[18px] h-[18px]" aria-hidden="true" />
         </button>
@@ -383,7 +529,7 @@ export function ShellTopBar({
         <button
           onClick={onOpenMobile}
           aria-label="Open the menu"
-          className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+          className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-lg transition-colors shrink-0 ${t.iconButton}`}
         >
           <Menu className="w-[18px] h-[18px]" aria-hidden="true" />
         </button>
@@ -391,68 +537,58 @@ export function ShellTopBar({
 
       {/* Breadcrumb + page title */}
       <div className="flex items-center gap-2 min-w-0">
-        <span className="text-white/30 text-[13px] truncate hidden sm:block">{rootLabel}</span>
-        <ChevronRight className="w-3 h-3 text-white/20 shrink-0 hidden sm:block" aria-hidden="true" />
-        <span className="text-white font-bold text-[15px] sm:text-[16px] truncate">{pageLabel}</span>
+        <span className={`text-[13px] truncate hidden sm:block ${t.root}`}>{rootLabel}</span>
+        <ChevronRight className={`w-3 h-3 shrink-0 hidden sm:block ${t.chevron}`} aria-hidden="true" />
+        <span className={`font-bold text-[15px] sm:text-[16px] truncate ${t.title}`}>{pageLabel}</span>
       </div>
 
-      {searchItems && searchItems.length > 0 && <ShellSearchBar items={searchItems} placeholder={searchPlaceholder} />}
+      {searchItems && searchItems.length > 0 && <ShellSearchBar items={searchItems} placeholder={searchPlaceholder} theme={theme} />}
 
       <div className="ml-auto flex items-center gap-1.5 shrink-0 relative">
+        {actions}
+
+        {theme === 'light' && messagesLink}
+
         {/* Notifications */}
         <div className="relative">
           <button
             onClick={() => { setNotifOpen((v) => !v); setUserMenuOpen(false); }}
-            aria-label={totalAlerts > 0 ? `Notifications, ${totalAlerts} need attention` : 'Notifications'}
+            aria-label={totalAlerts > 0 ? `${alertsTitle}, ${totalAlerts} need attention` : alertsTitle}
             aria-expanded={notifOpen}
-            className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
-            title="Notifications"
+            className={iconBtn}
+            title={alertsTitle}
           >
             <Bell className="w-[17px] h-[17px]" aria-hidden="true" />
-            {totalAlerts > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-brand-red rounded-full ring-2 ring-[#111111]" aria-hidden="true" />}
+            {totalAlerts > 0 && <span className={`absolute top-1 right-1 w-2 h-2 bg-brand-red rounded-full ring-2 ${t.ring}`} aria-hidden="true" />}
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-11 w-[min(20rem,calc(100vw-2rem))] bg-[#1c1c1c] border border-white/10 rounded-2xl shadow-2xl p-4 z-50">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <span className="text-xs font-bold text-white">Notifications</span>
-                <span className="text-[10px] bg-brand-red/20 text-red-300 font-bold px-2 py-0.5 rounded-full border border-brand-red/30">
+            <div className={`absolute right-0 top-11 w-[min(20rem,calc(100vw-2rem))] rounded-2xl shadow-2xl p-4 z-50 ${t.panel}`}>
+              <div className={`flex items-center justify-between pb-3 ${t.panelHead}`}>
+                <span className={`text-xs font-bold ${t.panelTitle}`}>{alertsTitle}</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.panelCount}`}>
                   {totalAlerts} Action{totalAlerts === 1 ? '' : 's'}
                 </span>
               </div>
               <div className="py-2 space-y-2 max-h-64 overflow-y-auto">
                 {alerts.map(({ icon: Icon, tone, title, detail, to }) => (
-                  <Link key={to + title} to={to} onClick={() => setNotifOpen(false)} className="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-white/5 transition-colors">
+                  <Link key={to + title} to={to} onClick={() => setNotifOpen(false)} className={`flex items-start gap-2.5 p-2.5 rounded-xl transition-colors ${t.alertRow}`}>
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${tone}`}>
                       <Icon className="w-3.5 h-3.5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-white leading-tight">{title}</p>
-                      <p className="text-[10px] text-white/50">{detail}</p>
+                      <p className={`text-xs font-bold leading-tight ${t.alertTitle}`}>{title}</p>
+                      <p className={`text-[10px] ${t.alertDetail}`}>{detail}</p>
                     </div>
                   </Link>
                 ))}
-                {totalAlerts === 0 && <p className="text-center py-6 text-xs text-white/40">Nothing needs your attention</p>}
+                {totalAlerts === 0 && <p className={`text-center py-6 text-xs ${t.empty}`}>Nothing needs your attention</p>}
               </div>
             </div>
           )}
         </div>
 
-        {messages && (
-          <Link
-            to={messages.to}
-            className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
-            title="Messages"
-            aria-label={messages.unread > 0 ? `Messages, ${messages.unread} unread` : 'Messages'}
-          >
-            <MessageSquare className="w-[17px] h-[17px]" aria-hidden="true" />
-            {messages.unread > 0 && (
-              <span className="absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-0.5 bg-brand-red text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-[#111111]" aria-hidden="true">
-                {messages.unread > 9 ? '9+' : messages.unread}
-              </span>
-            )}
-          </Link>
-        )}
+        {theme === 'dark' && messagesLink}
 
         {/* User menu */}
         <div className="relative">
@@ -460,31 +596,40 @@ export function ShellTopBar({
             onClick={() => { setUserMenuOpen((v) => !v); setNotifOpen(false); }}
             aria-expanded={userMenuOpen}
             aria-label="Account menu"
-            className="flex items-center gap-2.5 ml-1 pl-3 border-l border-white/10 hover:opacity-90 transition-opacity"
+            className={`flex items-center gap-2.5 ml-1 pl-3 border-l hover:opacity-90 transition-opacity ${t.divider}`}
           >
             <div className="text-right hidden sm:block">
-              <p className="text-[10px] text-white/25 uppercase tracking-widest leading-none">{roleLabel}</p>
-              <p className="text-[13px] font-semibold text-white/85 leading-tight mt-0.5 truncate max-w-[140px]">{user.name}</p>
+              {theme === 'dark' ? (
+                <>
+                  <p className={`text-[10px] uppercase tracking-widest leading-none ${t.userRole}`}>{roleLabel}</p>
+                  <p className={`text-[13px] font-semibold leading-tight mt-0.5 truncate max-w-[140px] ${t.userName}`}>{user.name}</p>
+                </>
+              ) : (
+                <>
+                  <p className={`text-[12px] font-semibold leading-tight truncate max-w-[140px] ${t.userName}`}>{user.name}</p>
+                  <p className={`text-[10px] truncate max-w-[140px] ${t.userRole}`}>{roleLabel}</p>
+                </>
+              )}
             </div>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-2 ring-white/10">
+            <div className={`w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-2 ${t.avatarRing}`}>
               {user.initials}
             </div>
           </button>
 
           {userMenuOpen && (
-            <div className="absolute right-0 top-11 w-56 bg-[#1c1c1c] border border-white/10 rounded-2xl shadow-2xl p-2 z-50">
-              <div className="px-3 py-2 border-b border-white/10 mb-1">
-                <p className="text-xs font-bold text-white truncate">{user.name}</p>
-                <p className="text-[10px] text-white/40 truncate">{user.email}</p>
+            <div className={`absolute right-0 top-11 w-56 rounded-2xl shadow-2xl p-2 z-50 ${t.panel}`}>
+              <div className={`px-3 py-2 mb-1 ${t.panelHead}`}>
+                <p className={`text-xs font-bold truncate ${t.menuName}`}>{user.name}</p>
+                <p className={`text-[10px] truncate ${t.menuEmail}`}>{user.email}</p>
               </div>
               {menuLinks?.map(({ icon: Icon, label, to }) => (
-                <Link key={to} to={to} onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
+                <Link key={to} to={to} onClick={() => setUserMenuOpen(false)} className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-xl transition-colors ${t.menuLink}`}>
                   <Icon className="w-3.5 h-3.5" aria-hidden="true" /> {label}
                 </Link>
               ))}
               <button
                 onClick={() => { setUserMenuOpen(false); onLogout(); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors mt-1 border-t border-white/10"
+                className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-colors mt-1 border-t ${t.divider} ${t.logout}`}
               >
                 <LogOut className="w-3.5 h-3.5" aria-hidden="true" /> Log Out
               </button>
