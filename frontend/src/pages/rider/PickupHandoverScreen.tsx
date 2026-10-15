@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
   ArrowLeft,
@@ -139,14 +140,14 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
   const total = trackingNumbers.length;
   const remaining = result ? Math.max(total - result.picked_up_count, 0) : 0;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="handover-title"
-      className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-gray-100 overflow-y-auto"
     >
-      <div className="max-w-xl mx-auto min-h-full flex flex-col">
+      <div className="max-w-xl mx-auto min-h-full flex flex-col bg-gray-50 sm:border-x border-gray-200">
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
           {!result && (
             <button
@@ -348,5 +349,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
         )}
       </div>
     </div>
+    ,
+    document.body
   );
 }

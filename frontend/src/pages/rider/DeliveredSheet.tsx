@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ChangeEvent } from 'react';
 import axios from 'axios';
 import { Camera, CheckCircle2, RefreshCw, RotateCcw, X } from 'lucide-react';
@@ -145,7 +146,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" role="presentation">
       <div
         role="dialog"
@@ -320,5 +321,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
         </div>
       </div>
     </div>
+    ,
+    document.body
   );
 }
