@@ -273,6 +273,8 @@ class AdminController extends Controller
             }))
             ->whereIn('role', ['buyer', 'seller', 'rider'])
             ->with('sellerProfile')
+            // The Riders page shows each rider's hub and application status (the hub, not the admin, approves riders).
+            ->when($request->role === 'rider', fn ($q) => $q->with('rider.sortingCenter'))
             ->latest();
 
         $perPage = min((int) ($request->per_page ?? 30), 100);
@@ -302,7 +304,7 @@ class AdminController extends Controller
             ]);
         });
 
-        return response()->json(['data' => new UserResource($user->fresh())]);
+        return response()->json(['data' => new UserResource($user->fresh(['rider.sortingCenter']))]);
     }
 
     public function reactivate(Request $request, User $user): JsonResponse
@@ -321,7 +323,7 @@ class AdminController extends Controller
             ]);
         });
 
-        return response()->json(['data' => new UserResource($user->fresh())]);
+        return response()->json(['data' => new UserResource($user->fresh(['rider.sortingCenter']))]);
     }
 
     // ── Activity log ─────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ This document specifies the backend API contract for registering a new **Rider /
 - **Endpoints**:
   - `GET /api/v1/logistics/hubs` — Public directory of approved sorting centers for hub selection.
   - `POST /api/v1/auth/register-rider` — Courier applicant registration with document uploads.
+- **Who approves a rider**: the **logistics hub the rider chose** on this form (`sorting_center_id`), from the hub's Riders page (`docs/api/logistics-hub-riders.md`). The admin does not approve or disapprove riders and has no endpoint to do so; the admin only manages the account afterwards (`docs/api/admin-riders.md`).
 - **Authentication**: Public / Guest endpoints (registration rate-limited under `throttle:upload` and `throttle:auth`).
 - **Content-Type**:
   - `GET /api/v1/logistics/hubs`: `application/json`

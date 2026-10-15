@@ -329,7 +329,6 @@ function AppRoutes() {
         <Route path="buyer-applications"          element={<AdminBuyerApplicationsPage />} />
         <Route path="seller-applications"         element={<AdminSellerApplicationsPage />} />
         <Route path="sorting-center-applications" element={<AdminSortingCenterApplicationsPage />} />
-        <Route path="rider-applications"          element={<AdminPlaceholderPage title="Rider Applications" />} />
         <Route path="sellers"             element={<AdminUsersPage />} />
         <Route path="buyers"              element={<AdminUsersPage />} />
         <Route path="riders"              element={<AdminUsersPage />} />
