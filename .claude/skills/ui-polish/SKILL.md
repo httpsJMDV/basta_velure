@@ -14,8 +14,9 @@ Match what the app already does. Read the nearest existing page first and copy i
 
 ## Which accent where
 - Storefront, seller, admin and rider: `brand-red` for primary actions and active states, `brand-black` for secondary. The rider portal copies the seller dashboard: light shell, `RiderUi.tsx` (`PageHero`, `KpiTile`, `SectionCard`, `TabBar`, `StateCard`) and `riderStyles.ts` (`BTN_PRIMARY`, `BTN_SECONDARY`). No blue anywhere in `pages/rider/*`, the rider auth pages or the shared chat view.
-- Hub work pages (`HubRidersPage`, `HubIntakePage`): `blue-600` primary actions. `emerald` for success, `amber` for warnings on every portal.
-- Hub shell (`HubLayout`): dark `#0B0F19` sidebar with `brand-red` active nav.
+- Hub work pages: `brand-red` primary actions like the admin console. `blue` is only an informational tint (icon tiles, info banners); `emerald` for success, `amber` for warnings on every portal.
+- Admin, hub and courier chrome: the dark `#111111` sidebar and top bar of the admin console. The hub uses `components/shell/PortalChrome.tsx` (`ShellSidebar`, `ShellTopBar`) and the courier top bar uses `ShellTopBar`; keep them in step with `AdminLayout`. Page headers on those portals use `PageHero` from `components/admin/dashboardKit.tsx`.
+- Courier and hub sign-in pages use `components/auth/PortalLoginShell.tsx` (the buyer login's split layout).
 - Stay consistent inside one portal. Do not mix red and blue primary buttons on the same screen.
 
 ## Layout and shape (counts from the codebase)

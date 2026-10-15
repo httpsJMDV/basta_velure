@@ -239,7 +239,7 @@ export default function TrackingScanner({
             autoComplete="off"
             spellCheck={false}
             enterKeyHint="done"
-            className="flex-1 min-w-0 min-h-12 px-3 rounded-xl border border-gray-300 bg-white font-mono text-sm uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+            className="flex-1 min-w-0 min-h-12 px-3 rounded-xl border border-gray-300 bg-white font-mono text-sm uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-brand-red disabled:opacity-60"
           />
           <button
             type="submit"

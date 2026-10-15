@@ -7,6 +7,7 @@ import ThreadView from '../../components/chat/ThreadView';
 import { useAuth } from '../../hooks/useAuth';
 import type { RiderThread, ThreadMeta } from '../../types';
 import type { HubOutletContext } from './HubLayout';
+import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 
 const LIST_POLL_MS = 10000;
 
@@ -94,22 +95,21 @@ export default function HubMessagesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-black text-gray-900">Rider messages</h1>
-          <p className="text-xs text-gray-500">
-            Conversations riders start about the parcels they are collecting or delivering. They close when the parcel is done.
-          </p>
-        </div>
+      <PageHero
+        icon={MessageSquare}
+        eyebrow="People"
+        title="Rider messages"
+        subtitle="Conversations riders start about the parcels they are collecting or delivering. They close when the parcel is done."
+      >
         <button
           type="button"
           onClick={() => void load('initial')}
           aria-label="Refresh messages"
-          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+          className={`${HERO_BUTTON} min-w-11`}
         >
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
         </button>
-      </div>
+      </PageHero>
 
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden md:grid md:grid-cols-[20rem_1fr] h-[calc(100vh-14rem)] min-h-[28rem]">
         {/* Thread list: hidden on a phone while a thread is open */}

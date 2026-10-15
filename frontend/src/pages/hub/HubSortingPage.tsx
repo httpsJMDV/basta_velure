@@ -23,6 +23,7 @@ import {
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { HubSortingGroup, HubSortingParcel, HubSortingSort } from '../../types';
+import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 
 const POLL_MS = 30000;
 const PARCEL_PAGE_SIZE = 100;
@@ -285,27 +286,22 @@ export default function HubSortingPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Layers className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Package Sorting</h1>
-            <p className="text-xs text-gray-500">Group received parcels by destination barangay and mark them sorted.</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => void fetchGroups(false)}
-          disabled={loading}
-          className="self-start sm:self-auto min-h-11 inline-flex items-center gap-2 px-4 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-          Refresh
-        </button>
-      </div>
+      <PageHero
+        icon={Layers}
+        eyebrow="Operations"
+        title="Package Sorting"
+        subtitle="Group received parcels by destination barangay and mark them sorted."
+      >
+          <button
+            type="button"
+            onClick={() => void fetchGroups(false)}
+            disabled={loading}
+            className={HERO_BUTTON}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Refresh
+          </button>
+      </PageHero>
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -321,7 +317,7 @@ export default function HubSortingPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="e.g. Poblacion or Makati"
-              className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
             />
           </div>
         </div>
@@ -333,7 +329,7 @@ export default function HubSortingPage() {
             id="sorting-sort"
             value={sort}
             onChange={(e) => setSort(e.target.value as HubSortingSort)}
-            className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
           >
             <option value="waiting">Longest waiting</option>
             <option value="count">Most parcels</option>
@@ -363,7 +359,7 @@ export default function HubSortingPage() {
           <button
             type="button"
             onClick={() => void fetchGroups(false)}
-            className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
+            className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold"
           >
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
@@ -472,7 +468,7 @@ export default function HubSortingPage() {
                         <button
                           type="button"
                           onClick={() => void loadParcels(group.barangay_code, 1, 'replace')}
-                          className="inline-flex items-center gap-1.5 min-h-11 px-4 rounded-xl bg-blue-600 text-white text-xs font-bold"
+                          className="inline-flex items-center gap-1.5 min-h-11 px-4 rounded-xl bg-brand-red text-white text-xs font-bold"
                         >
                           <RefreshCw className="w-4 h-4" aria-hidden="true" />
                           Try again
@@ -488,7 +484,7 @@ export default function HubSortingPage() {
                               type="checkbox"
                               checked={allLoadedSelected}
                               onChange={toggleSelectAll}
-                              className="w-5 h-5 accent-blue-600"
+                              className="w-5 h-5 accent-brand-red"
                             />
                             Select all ({parcels.items.length})
                           </label>
@@ -507,7 +503,7 @@ export default function HubSortingPage() {
                                     type="checkbox"
                                     checked={checked}
                                     onChange={() => toggleParcel(p.tracking_number)}
-                                    className="w-5 h-5 accent-blue-600 shrink-0"
+                                    className="w-5 h-5 accent-brand-red shrink-0"
                                   />
                                   <span className="flex-1 min-w-0">
                                     <span className="block font-mono text-xs font-bold text-gray-900 break-all">
@@ -551,7 +547,7 @@ export default function HubSortingPage() {
                             setConfirmGroup(group);
                           }}
                           disabled={selected.length === 0 || tooMany || sorting}
-                          className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+                          className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
                         >
                           <CheckSquare className="w-4 h-4" aria-hidden="true" />
                           Mark as sorted ({selected.length})
@@ -612,7 +608,7 @@ export default function HubSortingPage() {
                 type="button"
                 onClick={() => void handleSort()}
                 disabled={sorting || frozen.length === 0}
-                className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+                className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
               >
                 {sorting && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
                 <span>{sortErrors.length > 0 ? 'Try again' : 'Confirm and sort'}</span>

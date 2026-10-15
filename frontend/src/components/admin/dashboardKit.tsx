@@ -117,8 +117,12 @@ export function ChartEmptyState({ message, hint }: { message: string; hint?: str
   );
 }
 
-/** The dark gradient band that opens an admin page. */
-export function PageHero({ icon: Icon, eyebrow, title, subtitle, children }: { icon: React.ElementType; eyebrow: string; title: string; subtitle?: ReactNode; children?: ReactNode }) {
+/** A button that sits on the dark hero band. */
+export const HERO_BUTTON =
+  'min-h-11 inline-flex items-center justify-center gap-2 px-3.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60';
+
+/** The dark gradient band that opens an admin, hub or courier page. */
+export function PageHero({ icon: Icon, eyebrow, title, subtitle, children, headingRef }: { icon: React.ElementType; eyebrow: string; title: string; subtitle?: ReactNode; children?: ReactNode; headingRef?: React.Ref<HTMLHeadingElement> }) {
   return (
     <div
       className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
@@ -130,7 +134,7 @@ export function PageHero({ icon: Icon, eyebrow, title, subtitle, children }: { i
         </div>
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/40">{eyebrow}</p>
-          <h1 className="text-sm font-bold tracking-wider text-white uppercase sm:text-base">{title}</h1>
+          <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="text-sm font-bold tracking-wider text-white uppercase sm:text-base focus:outline-none">{title}</h1>
           {subtitle && <p className="text-[11px] text-neutral-400 mt-0.5">{subtitle}</p>}
         </div>
       </div>

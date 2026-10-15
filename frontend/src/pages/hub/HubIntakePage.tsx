@@ -22,6 +22,7 @@ import {
   receiveHubParcelApi,
 } from '../../api/client';
 import type { HubParcelRecord } from '../../types';
+import { PageHero } from '../../components/admin/dashboardKit';
 
 type IntakeTab = 'scan' | 'expected' | 'received';
 type ListKind = 'expected' | 'received';
@@ -196,26 +197,21 @@ export default function HubIntakePage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <ScanLine className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Parcel Intake</h1>
-            <p className="text-xs text-gray-500">Scan parcels in as riders drop them off at your hub.</p>
-          </div>
-        </div>
+      <PageHero
+        icon={ScanLine}
+        eyebrow="Operations"
+        title="Parcel Intake"
+        subtitle="Scan parcels in as riders drop them off at your hub."
+      >
         <div
-          className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"
           aria-label={`${sessionCount} received this session`}
         >
           <PackageCheck className="w-4 h-4" aria-hidden="true" />
           <span className="text-sm font-black">{sessionCount}</span>
           <span className="text-xs font-semibold">received this session</span>
         </div>
-      </div>
+      </PageHero>
 
       {/* Tabs */}
       <div role="tablist" aria-label="Intake views" className="flex items-center border-b border-gray-200 overflow-x-auto">
@@ -234,14 +230,14 @@ export default function HubIntakePage() {
             aria-controls={`intake-panel-${t.key}`}
             onClick={() => setTab(t.key)}
             className={`min-h-11 px-4 text-xs font-bold whitespace-nowrap flex items-center gap-2 transition-colors ${
-              tab === t.key ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-800'
+              tab === t.key ? 'text-brand-red border-b-2 border-brand-red' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
             <span>{t.label}</span>
             {t.count !== null && (
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  tab === t.key ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                  tab === t.key ? 'bg-red-100 text-brand-red-dark' : 'bg-gray-100 text-gray-600'
                 }`}
               >
                 {t.count}
@@ -278,7 +274,7 @@ export default function HubIntakePage() {
                   setLookup(null);
                 }}
                 disabled={busy}
-                className="w-6 h-6 accent-blue-600 shrink-0"
+                className="w-6 h-6 accent-brand-red shrink-0"
               />
             </label>
 
@@ -373,7 +369,7 @@ export default function HubIntakePage() {
                     type="button"
                     onClick={() => handleScan(lookup.tracking_number)}
                     disabled={busy || lookup.scanned_in_at !== null}
-                    className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+                    className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
                   >
                     {busy && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
                     {lookup.scanned_in_at ? (
@@ -493,7 +489,7 @@ function ParcelList({ state, timeLabel, timeOf, emptyTitle, emptyText, onRetry, 
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
+          className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold"
         >
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
           Try again

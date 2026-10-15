@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  LayoutDashboard,
+  Gauge,
   PackagePlus,
   Layers,
   Send,
@@ -9,40 +10,28 @@ import {
   Bike,
   BarChart2,
   MessageSquare,
-  LogOut,
-  Menu,
-  X,
-  ChevronRight,
   Warehouse,
-  ShieldCheck,
-  User as UserIcon,
+  UserCheck,
+  AlertTriangle,
+  MapPin,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useHubChatUnread } from '../../hooks/useHubChatUnread';
-import LovedItLogo from '../../components/LovedItLogo';
+import { getHubDashboardMetricsApi, getHubRidersApi } from '../../api/client';
+import {
+  ShellSidebar,
+  ShellTopBar,
+  SHELL_BG,
+  type ShellAlert,
+  type ShellNavGroup,
+  type ShellSearchItem,
+} from '../../components/shell/PortalChrome';
 
 /** What the hub pages can ask of the layout. */
 export interface HubOutletContext {
   /** Re-read the unread badge on the Messages nav item. */
   refreshChatUnread: () => void;
 }
-
-interface NavItem {
-  icon: React.ElementType;
-  label: string;
-  to: string;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', to: '/hub/dashboard' },
-  { icon: PackagePlus, label: 'Parcel Intake', to: '/hub/intake' },
-  { icon: Layers, label: 'Sorting', to: '/hub/sorting' },
-  { icon: Send, label: 'Dispatch', to: '/hub/dispatch' },
-  { icon: Truck, label: 'Deliveries', to: '/hub/deliveries' },
-  { icon: Bike, label: 'Riders', to: '/hub/riders' },
-  { icon: MessageSquare, label: 'Messages', to: '/hub/messages' },
-  { icon: BarChart2, label: 'Reports', to: '/hub/reports' },
-];
 
 const ROUTE_TITLES: Record<string, string> = {
   '/hub/dashboard': 'Command Dashboard',
@@ -55,6 +44,12 @@ const ROUTE_TITLES: Record<string, string> = {
   '/hub/reports': 'Performance Reports',
 };
 
+const SIDEBAR_W_EXPANDED = 'w-60';
+const SIDEBAR_W_COLLAPSED = 'w-16';
+const ML_EXPANDED = 'lg:ml-60';
+const ML_COLLAPSED = 'lg:ml-16';
+const ALERTS_POLL_MS = 60000;
+
 export default function HubLayout() {
   const { user, clearAuth } = useAuth();
   const location = useLocation();
@@ -62,232 +57,197 @@ export default function HubLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const chat = useHubChatUnread(true);
 
+  // What is waiting for the hub: riders to approve and failed deliveries to triage. Read on every page change and
+  // once a minute, so the badges stay close to the truth without a page asking for them.
+  const [pendingRiders, setPendingRiders] = useState(0);
+  const [failedDeliveries, setFailedDeliveries] = useState(0);
+
+  const loadAlerts = useCallback(async () => {
+    const [riders, metrics] = await Promise.allSettled([getHubRidersApi({ status: 'PENDING', per_page: 1 }), getHubDashboardMetricsApi()]);
+    if (riders.status === 'fulfilled') setPendingRiders(riders.value.counts.pending);
+    if (metrics.status === 'fulfilled') setFailedDeliveries(metrics.value.failed_deliveries);
+  }, []);
+
+  useEffect(() => {
+    void loadAlerts();
+  }, [loadAlerts, location.pathname]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void loadAlerts();
+    }, ALERTS_POLL_MS);
+    return () => clearInterval(timer);
+  }, [loadAlerts]);
+
+  // Persist the sidebar collapse state, as the admin console does.
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('hub_sidebar_collapsed') === 'true'; }
+    catch { return false; }
+  });
+
+  function toggleCollapse() {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem('hub_sidebar_collapsed', String(next)); } catch { /* storage may be unavailable */ }
+      return next;
+    });
+  }
+
   const hub = user?.sorting_center;
-  const currentTitle = ROUTE_TITLES[location.pathname] || 'Hub Logistics';
+  const pageLabel = ROUTE_TITLES[location.pathname] ?? 'Hub Logistics';
+
+  const nav: ShellNavGroup[] = useMemo(() => [
+    { heading: 'Overview', items: [{ icon: Gauge, label: 'Dashboard', to: '/hub/dashboard' }] },
+    {
+      heading: 'Operations',
+      items: [
+        { icon: PackagePlus, label: 'Parcel Intake', to: '/hub/intake' },
+        { icon: Layers, label: 'Sorting', to: '/hub/sorting' },
+        { icon: Send, label: 'Dispatch', to: '/hub/dispatch' },
+        { icon: Truck, label: 'Deliveries', to: '/hub/deliveries', badge: failedDeliveries },
+      ],
+    },
+    {
+      heading: 'People',
+      items: [
+        { icon: Bike, label: 'Riders', to: '/hub/riders', badge: pendingRiders },
+        { icon: MessageSquare, label: 'Messages', to: '/hub/messages', badge: chat.total },
+      ],
+    },
+    { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/hub/reports' }] },
+  ], [failedDeliveries, pendingRiders, chat.total]);
+
+  const searchItems: ShellSearchItem[] = [
+    { label: 'Command Dashboard', to: '/hub/dashboard', group: 'Overview', icon: Gauge },
+    { label: 'Parcel Intake: scan parcels in', to: '/hub/intake', group: 'Operations', icon: PackagePlus },
+    { label: 'Package Sorting', to: '/hub/sorting', group: 'Operations', icon: Layers },
+    { label: 'Delivery Dispatch: assign riders', to: '/hub/dispatch', group: 'Operations', icon: Send },
+    { label: 'Delivery Monitoring and failed deliveries', to: '/hub/deliveries', group: 'Operations', icon: Truck },
+    { label: 'Riders and applications', to: '/hub/riders', group: 'People', icon: Bike },
+    { label: 'Rider Messages', to: '/hub/messages', group: 'People', icon: MessageSquare },
+    { label: 'Performance Reports', to: '/hub/reports', group: 'Insights', icon: BarChart2 },
+  ];
+
+  const alerts: ShellAlert[] = [];
+  if (pendingRiders > 0) {
+    alerts.push({ icon: UserCheck, tone: 'bg-amber-500/20 text-amber-300', title: `${pendingRiders} rider application${pendingRiders > 1 ? 's' : ''}`, detail: 'Waiting for your approval', to: '/hub/riders' });
+  }
+  if (failedDeliveries > 0) {
+    alerts.push({ icon: AlertTriangle, tone: 'bg-rose-500/20 text-rose-300', title: `${failedDeliveries} failed deliver${failedDeliveries > 1 ? 'ies' : 'y'}`, detail: 'Reschedule or return to the seller', to: '/hub/deliveries' });
+  }
+  if (chat.total > 0) {
+    alerts.push({ icon: MessageSquare, tone: 'bg-blue-500/20 text-blue-300', title: `${chat.total} unread message${chat.total > 1 ? 's' : ''}`, detail: 'From your riders', to: '/hub/messages' });
+  }
+
+  const isActive = (to: string) =>
+    to === '/hub/dashboard'
+      ? location.pathname === '/hub/dashboard' || location.pathname === '/hub'
+      : location.pathname.startsWith(to);
 
   const handleLogout = () => {
     clearAuth();
     navigate('/hub/login');
   };
 
-  const isNavActive = (to: string) => {
-    if (to === '/hub/dashboard') {
-      return location.pathname === '/hub/dashboard' || location.pathname === '/hub';
-    }
-    return location.pathname.startsWith(to);
+  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Hub manager';
+  const shellUser = {
+    name: fullName,
+    email: user?.email,
+    initials: `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`.toUpperCase() || 'H',
   };
 
-  const renderNavLinks = () => (
-    <nav className="space-y-1 px-3 py-4">
-      <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-        Operations Workstation
+  const profile = (
+    <div className="mx-3 mt-3 p-3 rounded-xl bg-white/[0.04] border border-white/10">
+      <div className="flex items-start gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+          <Warehouse className="w-4 h-4" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold text-white truncate">{hub?.hub_name || 'Sorting Center Hub'}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
+            <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">Approved hub</span>
+          </div>
+        </div>
       </div>
-      {NAV_ITEMS.map((item) => {
-        const active = isNavActive(item.to);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
-              active
-                ? 'bg-brand-red text-white shadow-xs'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-            }`}
-          >
-            <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-gray-400'}`} />
-            <span className="truncate">{item.label}</span>
-            {item.to === '/hub/messages' && chat.total > 0 && (
-              <span className="ml-auto min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center">
-                <span aria-hidden="true">{chat.total > 9 ? '9+' : chat.total}</span>
-                <span className="sr-only">{chat.total} unread messages</span>
-              </span>
-            )}
-          </Link>
-        );
-      })}
-    </nav>
+      {hub?.address_city && (
+        <p className="text-[11px] text-white/45 mt-2 flex items-center gap-1 truncate">
+          <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
+          <span className="truncate">{hub.address_city}, {hub.address_province}</span>
+        </p>
+      )}
+    </div>
   );
 
+  const sidebarW = collapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
+  const mainML = collapsed ? ML_COLLAPSED : ML_EXPANDED;
+
+  const sidebarProps = {
+    brandTo: '/hub/dashboard',
+    roleBadge: 'Logistics',
+    tagline: 'Hub Command Center',
+    nav,
+    isActive,
+    profile,
+    user: shellUser,
+    onLogout: handleLogout,
+    navLabel: 'Logistics hub',
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50/70 flex flex-col lg:flex-row font-sans text-gray-900 antialiased">
-      {/* ── Desktop Sidebar ── */}
-      <aside className="hidden lg:flex print:!hidden lg:flex-col lg:w-64 bg-[#0B0F19] border-r border-gray-800 shrink-0 select-none">
-        {/* Hub Header & Branding */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-gray-800/80">
-          <Link to="/hub/dashboard" className="flex items-center gap-2.5">
-            <LovedItLogo />
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-brand-red/15 text-brand-red border border-brand-red/30">
-              Logistics
-            </span>
-          </Link>
-        </div>
-
-        {/* Hub Profile Badge */}
-        <div className="p-4 mx-3 my-3 rounded-xl bg-gray-900/90 border border-gray-800/90">
-          <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
-              <Warehouse className="w-4 h-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-white truncate">
-                {hub?.hub_name || 'Sorting Center Hub'}
-              </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">
-                  Approved Hub
-                </span>
-              </div>
-            </div>
-          </div>
-          {hub?.address_city && (
-            <p className="text-[11px] text-gray-400 mt-2 truncate">
-              {hub.address_city}, {hub.address_province}
-            </p>
-          )}
-        </div>
-
-        {/* Navigation links */}
-        <div className="flex-1 overflow-y-auto">
-          {renderNavLinks()}
-        </div>
-
-        {/* Sidebar Footer with user & logout */}
-        <div className="p-4 border-t border-gray-800/80 bg-[#0B0F19]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-gray-300 shrink-0 font-semibold text-xs">
-                {user?.first_name?.[0] || 'H'}
-              </div>
-              <div className="min-w-0 truncate">
-                <p className="text-xs font-semibold text-white truncate">
-                  {user?.first_name} {user?.last_name}
-                </p>
-                <p className="text-[10px] text-gray-400 truncate">{user?.email}</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Log out"
-              className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors shrink-0"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900 antialiased">
+      {/* ── Desktop sidebar ── */}
+      <aside
+        className={`hidden lg:flex print:!hidden flex-col ${sidebarW} shrink-0 fixed inset-y-0 left-0 z-30 transition-all duration-200 select-none`}
+        style={SHELL_BG}
+      >
+        <ShellSidebar {...sidebarProps} collapsed={collapsed} />
       </aside>
 
-      {/* ── Mobile Header & Drawer ── */}
-      <div className="lg:hidden print:hidden bg-[#0B0F19] border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 focus:outline-none"
-            aria-label="Open sidebar menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <LovedItLogo />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            Approved
-          </span>
-          <button
-            onClick={handleLogout}
-            className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
-            title="Log out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Drawer Overlay */}
+      {/* ── Mobile nav overlay ── */}
       {mobileOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs lg:hidden flex"
-          onClick={() => setMobileOpen(false)}
-        >
-          <div
-            className="w-72 max-w-[85vw] bg-[#0B0F19] h-full flex flex-col border-r border-gray-800 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="h-14 flex items-center justify-between px-4 border-b border-gray-800">
-              <LovedItLogo />
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800"
-                aria-label="Close menu"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 border-b border-gray-800/80 bg-gray-900/60">
-              <p className="text-xs font-bold text-white truncate">{hub?.hub_name || 'Sorting Center Hub'}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">{hub?.address_city}, {hub?.address_province}</p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-              {renderNavLinks()}
-            </div>
-
-            <div className="p-4 border-t border-gray-800 flex items-center justify-between">
-              <div className="flex items-center gap-2 truncate">
-                <UserIcon className="w-4 h-4 text-gray-400" />
-                <span className="text-xs text-white truncate">{user?.first_name} {user?.last_name}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="text-xs text-red-400 hover:text-red-300 font-semibold"
-              >
-                Log Out
-              </button>
-            </div>
-          </div>
+        <div className="lg:hidden print:hidden fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Hub menu">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className={`relative ${SIDEBAR_W_EXPANDED} max-w-[85vw] flex flex-col h-full z-50`} style={SHELL_BG}>
+            <ShellSidebar {...sidebarProps} collapsed={false} onNavigate={() => setMobileOpen(false)} />
+          </aside>
         </div>
       )}
 
-      {/* ── Main Content Area ── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar on desktop */}
-        <header className="hidden lg:flex print:!hidden items-center justify-between h-16 px-8 bg-white border-b border-gray-200/80 sticky top-0 z-30">
-          {/* Breadcrumbs */}
-          <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
-            <span className="text-gray-400">Logistics Hub</span>
-            <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-            <span className="text-gray-900 font-bold">{currentTitle}</span>
-          </div>
+      {/* ── Top bar + content ── */}
+      <div className={`flex-1 min-w-0 ${mainML} print:!ml-0 flex flex-col min-h-screen transition-all duration-200`}>
+        <ShellTopBar
+          rootLabel="Loved-IT Logistics"
+          pageLabel={pageLabel}
+          roleLabel="Hub manager"
+          user={shellUser}
+          searchItems={searchItems}
+          searchPlaceholder="Search hub console..."
+          alerts={alerts}
+          messages={{ to: '/hub/messages', unread: chat.total }}
+          menuLinks={[
+            { icon: Bike, label: 'Riders & Fleet', to: '/hub/riders' },
+            { icon: BarChart2, label: 'Performance Reports', to: '/hub/reports' },
+          ]}
+          onToggleSidebar={toggleCollapse}
+          onOpenMobile={() => setMobileOpen(true)}
+          onLogout={handleLogout}
+        />
 
-          {/* Right Header items */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span className="font-semibold text-gray-800 truncate max-w-[200px]">
-                {hub?.hub_name || 'Valenzuela Hub'}
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors"
+        <main className="flex-1 p-4 lg:p-6 print:p-0">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Log Out</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Content Outlet */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto print:p-0 print:max-w-none">
-          <Outlet context={{ refreshChatUnread: chat.refresh } satisfies HubOutletContext} />
+              <Outlet context={{ refreshChatUnread: chat.refresh } satisfies HubOutletContext} />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>
   );
 }
-
