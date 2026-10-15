@@ -152,7 +152,7 @@ export default function TrackingScanner({
           // Autoplay can be interrupted by a fast toggle; the stream stays attached.
         }
 
-        const detector = new Detector({ formats: ['code_128'] });
+        const detector = new Detector({ formats: ['code_128', 'qr_code'] });
         let busy = false;
         timerRef.current = setInterval(async () => {
           if (busy || disabledRef.current || video.readyState < 2) return;
@@ -223,7 +223,7 @@ export default function TrackingScanner({
                 muted
                 playsInline
                 className="absolute inset-0 w-full h-full object-cover"
-                aria-label="Camera preview for scanning the parcel barcode"
+                aria-label="Camera preview for scanning the parcel barcode or QR code"
               />
               {/* Viewfinder: corner brackets and a sweeping line, green for a moment after a read */}
               <div className="absolute inset-x-6 top-1/2 -translate-y-1/2 h-28 pointer-events-none" aria-hidden="true">
@@ -237,7 +237,7 @@ export default function TrackingScanner({
                 />
               </div>
               <p className="absolute bottom-2 inset-x-0 text-center text-[11px] font-semibold text-white/90 drop-shadow">
-                Hold the waybill barcode inside the frame
+                Hold the barcode or QR code inside the frame
               </p>
             </div>
           ) : (
@@ -246,7 +246,7 @@ export default function TrackingScanner({
                 <ScanLine className="w-5 h-5" aria-hidden="true" />
               </span>
               <p className="text-sm font-bold text-gray-900">Scan a waybill</p>
-              <p className="text-xs text-gray-500">Point the camera at the barcode on the parcel.</p>
+              <p className="text-xs text-gray-500">Point the camera at the barcode on the parcel, or the QR code on the hub screen.</p>
             </div>
           )}
           <button

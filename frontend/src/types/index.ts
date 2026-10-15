@@ -2291,3 +2291,18 @@ export interface RiderLocationStatus {
   active_parcels: number;
   last_located_at: string | null;
 }
+
+// ─── Hub: parcels waiting for their rider (handover QR) ─────────────────────────
+
+export interface HubAwaitingParcel {
+  tracking_number: string;
+  order_number: string | null;
+  barangay: string;
+  recipient_name: string;
+  assigned_at: string | null;
+}
+
+export interface HubAwaitingRider {
+  rider: { id: number; name: string };
+  parcels: HubAwaitingParcel[];
+}

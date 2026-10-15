@@ -346,6 +346,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/dispatch/batches/{barangay_code}/parcels',      [HubDispatchController::class, 'batchParcels']);
             Route::get('/dispatch/batches/{barangay_code}/riders',       [HubDispatchController::class, 'batchRiders']);
             Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
+            Route::get('/dispatch/awaiting-pickup',                      [HubDispatchController::class, 'awaitingPickup']);
 
             // Hub reports (Feature 1.10)
             Route::get('/reports/summary', [HubReportController::class, 'summary']);

@@ -198,8 +198,9 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
   - [ ] The pages refresh themselves ("Live" badge in the top banner): receive a parcel in a second window and it appears here within about 15 seconds, with no refresh button.
 - [ ] **Sorting** (`/hub/sorting`): one group for **Batong Malake (Area C)**. Sort it. (It then waits in Dispatch with no eligible rider.)
 - [ ] **Dispatch** (`/hub/dispatch`): a batch for **Anibong (Area B)** with **2 parcels**, and **Pedro Mendoza** as the eligible rider. Assign them.
+  - [ ] After assigning, **Waiting for riders to collect** appears at the top of the page. **Show QR codes** opens one QR per parcel on the screen; the rider scans them (below) instead of a printed label.
 - [ ] **Deliveries** (`/hub/deliveries`):
-  - [ ] *Out for delivery* shows 2 parcels (rider 1 and rider 2).
+  - [ ] *Out for delivery* shows 2 parcels (rider 1 and rider 2). **Track live** on a row opens Track package with the map.
   - [ ] *Failed*: 2 parcels. The 1-attempt one can be **rescheduled** to a rider; the 3-attempt one can only be **returned to the seller**. Try both.
 - [ ] **Riders** (`/hub/riders`): **1 pending applicant (Carlo Navarro)**. Open his application, view the documents, **Approve** him (or disapprove). 2 active riders, each with an area assignment.
 - [ ] **Reports** (`/hub/reports`) with the default *Last 30 days* (these are the numbers at seed time; they change as you work):
@@ -219,10 +220,12 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
   - [ ] *My pickups*: the parcel you accepted earlier (and the one you just accepted). **Start pickup**, verify the tracking number, **confirm handover**.
   - [ ] *Picked up*: shows what you are carrying to the hub, with the hub address.
 - [ ] **Deliveries**:
-  - [ ] *To collect*: 1 parcel for Area A. **Collect at hub**, tick it.
+  - [ ] *To collect*: 1 parcel for Area A. **Collect at hub**, then **Scan with camera** and point it at the QR on the hub's Dispatch screen (or type the tracking number).
   - [ ] *Out for delivery*: 1 parcel, **COD**, with the cash amount, recipient phone and address. Open **Maps**.
   - [ ] **Message** > buyer: the existing thread opens in a bottom sheet with 3 messages. Send one.
-  - [ ] **Delivered**: take or choose a photo, tick the COD cash confirmation, submit. The parcel disappears from the list.
+  - [ ] **Delivered**: take or choose **two different photos** (the parcel handed over, then the delivery address), tick the COD cash confirmation, submit. Sending the same photo twice is refused. The parcel disappears from the list.
+  - [ ] **Map** on a stop card opens Track package: the timeline and the map with the route.
+  - [ ] **Location**: while rider 1 has a parcel to collect or carry, the courier pages ask for the phone's location and stay locked until it is shared (open the site on `https://` or `localhost`; a phone on `http://192.168...` cannot share a location). A green bar then says it is sharing.
   - [ ] **Delivery failed**: pick a reason, submit (use a different parcel, or reseed afterwards).
 - [ ] **Earnings**: lifetime **₱250** (5 deliveries at the default ₱50 fee), with a day/week/month breakdown. **History** lists deliveries and failed attempts.
 - [ ] **Account**: profile, vehicle form (change the plate, see "saved"), Messages list, **Log out** asks to confirm.
@@ -254,7 +257,7 @@ Take a brand-new order from placement to COMPLETED. Use **COD** (see "Known prob
 8. [ ] **Rider 1** on the card: **Message > buyer**, send "I am nearby". **Buyer 1** > Settings > Messages: the message is there (live with `reverb:start`, otherwise refresh). Reply.
 9. [ ] **Rider 1**: **Message > hub**, ask a question. **Hub** > Messages: the thread appears with an unread badge; reply. The rider sees the reply within a few seconds.
 10. [ ] **Rider 1**: **Delivered** with a photo and the COD confirmation. **Check:** the buyer thread now says **"This conversation is closed"** and has no compose box, for both rider and buyer.
-11. [ ] **Buyer 1** > Orders: the order is **DELIVERED** with the proof photo. **Confirm Order Received**. Status: COMPLETED.
+11. [ ] **Buyer 1** > Orders: **Track package** shows the timeline (newest first) and, while rider 1 is out for delivery with their location on, the truck on the map moving as rider 1 moves, with the road route and an ETA. The seller, the hub and the admin can open the same view from their order or delivery pages. Once DELIVERED, the *Delivered* step shows both proof photos (tap to enlarge). The order is **DELIVERED** with the proof photos. **Confirm Order Received**. Status: COMPLETED.
 12. [ ] **Seller 1** > Earnings: the order shows a **release date** (7 days after completion by default). **Rider 1** > Earnings: the new delivery adds ₱50. **Hub** > Reports > Last 30 days: Delivered and Received each went up by 1.
 13. [ ] **Admin** > Orders: the order's history shows every step and who did it.
 

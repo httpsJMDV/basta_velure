@@ -120,6 +120,7 @@ import type {
   RiderReleasePickupResponse,
   ParcelTracking,
   RiderLocationStatus,
+  HubAwaitingRider,
 } from '../types';
 
 const http = axios.create({
@@ -1148,3 +1149,6 @@ export const getRiderLocationStatusApi = () =>
 
 export const postRiderLocationApi = (point: { latitude: number; longitude: number; heading?: number | null; accuracy?: number | null }) =>
   http.post<{ message: string }>('/rider/location', point).then((r) => r.data);
+
+export const getHubAwaitingPickupApi = () =>
+  http.get<{ data: HubAwaitingRider[]; meta: { parcel_count: number } }>('/hub/dispatch/awaiting-pickup').then((r) => r.data);

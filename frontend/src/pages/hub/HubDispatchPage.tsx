@@ -26,6 +26,7 @@ import { useToast } from '../../components/ui/Toast';
 import type { HubDispatchBatch, HubDispatchParcel, HubDispatchRider, HubSortingSort } from '../../types';
 import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
 import CustomSelect from '../../components/ui/CustomSelect';
+import AwaitingPickupPanel from './AwaitingPickupPanel';
 
 const POLL_MS = 30000;
 const PARCEL_PAGE_SIZE = 100;
@@ -362,6 +363,7 @@ export default function HubDispatchPage() {
         <StatCard compact icon={Clock} label="Longest wait" value={loading || batches.length === 0 ? null : waitingLabel(batches.map((b) => b.oldest_sorted_at).filter((v): v is string => !!v).sort()[0] ?? null)} subtext="Since the oldest was sorted" iconBg="bg-amber-50" iconColor="text-amber-600" />
         <StatCard compact icon={Users} label="No eligible rider" value={loading ? null : batches.filter((b) => b.eligible_riders === 0).length} subtext="Barangays nobody can take" iconBg="bg-rose-50" iconColor="text-rose-600" />
       </section>
+      <AwaitingPickupPanel />
       {/* Controls */}
       <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
         <div className="relative flex-1">
