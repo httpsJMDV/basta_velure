@@ -22,6 +22,7 @@ import {
   ORDER_STATUS_ICON,
 } from '../../utils/orderStatus';
 import { NA, peso, whole, lastDays, formatDay, manilaToday } from '../../utils/adminReports';
+import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 
 const PER_PAGE = 20;
 
@@ -190,6 +191,7 @@ function OrderDetailDrawer({
                 >
                   View Waybill ↗
                 </a>
+                <TrackPackageButton trackingNumber={order.tracking_number} />
               </div>
             )}
 

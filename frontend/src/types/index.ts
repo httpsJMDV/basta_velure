@@ -2244,3 +2244,50 @@ export interface RiderVehicleUpdate {
   vehicle_type: RiderVehicleType;
   plate_number: string;
 }
+
+// ─── Track package and live courier location ─────────────────────────────────
+
+export interface TrackingPlace {
+  name: string;
+  full_address: string;
+  barangay: string;
+  city: string;
+  province: string;
+}
+
+export type CourierState = 'live' | 'stale' | 'not_sharing' | 'not_with_courier';
+
+export interface TrackingCourier {
+  state: CourierState;
+  leg: 'pickup' | 'delivery' | null;
+  name: string | null;
+  vehicle_type: string | null;
+  location: { latitude: number; longitude: number; heading: number | null; accuracy_m: number | null; updated_at: string } | null;
+}
+
+export interface TrackingEvent {
+  status: string;
+  title: string;
+  detail: string;
+  at: string | null;
+  proof: boolean;
+}
+
+export interface ParcelTracking {
+  tracking_number: string;
+  order_number: string | null;
+  status: string;
+  viewer_role: 'buyer' | 'seller' | 'hub' | 'rider' | 'admin';
+  origin: TrackingPlace;
+  hub: TrackingPlace | null;
+  destination: TrackingPlace;
+  courier: TrackingCourier;
+  events: TrackingEvent[];
+  proof: { count: number; delivered_at: string | null; received_by: string | null };
+}
+
+export interface RiderLocationStatus {
+  sharing_required: boolean;
+  active_parcels: number;
+  last_located_at: string | null;
+}

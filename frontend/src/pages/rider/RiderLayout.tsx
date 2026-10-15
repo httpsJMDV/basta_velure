@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderChatUnread, type RiderChatUnread } from '../../hooks/useRiderChatUnread';
+import { useRiderLocationBeacon } from '../../hooks/useRiderLocationBeacon';
+import { RiderLocationGate, RiderSharingBar } from './RiderLocationGate';
 import { getRiderMeApi, logoutApi } from '../../api/client';
 import type { RiderProfileData } from '../../types';
 import LovedItLogo from '../../components/LovedItLogo';
@@ -96,6 +98,8 @@ export default function RiderLayout() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [statusRevokedMessage, setStatusRevokedMessage] = useState<string | null>(null);
   const chat = useRiderChatUnread(!statusRevokedMessage);
+  // While the rider has a parcel to collect or carry, their phone reports its position for the map.
+  const beacon = useRiderLocationBeacon(!statusRevokedMessage);
 
   const fetchRiderProfile = useCallback(async () => {
     setLoading(true);
@@ -155,6 +159,10 @@ export default function RiderLayout() {
   const fullName = riderData?.full_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim();
   const initials = initialsOf(riderData?.first_name ?? user?.first_name, riderData?.last_name ?? user?.last_name);
   const hubName = riderData?.hub?.hub_name;
+
+  // Earnings and the account stay open so a rider can always sign out or check their pay.
+  const locationExempt = location.pathname.startsWith('/rider/earnings') || location.pathname.startsWith('/rider/account');
+  const locationLocked = beacon.required && beacon.state !== 'sharing' && !locationExempt;
 
   if (statusRevokedMessage) {
     return (
@@ -301,6 +309,10 @@ export default function RiderLayout() {
         />
 
         <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6">
+          {beacon.required && beacon.state === 'sharing' && !locationExempt && <RiderSharingBar activeParcels={beacon.activeParcels} />}
+          {locationLocked ? (
+            <RiderLocationGate state={beacon.state} activeParcels={beacon.activeParcels} onAsk={beacon.ask} />
+          ) : (
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={location.pathname}
@@ -316,6 +328,7 @@ export default function RiderLayout() {
               />
             </motion.div>
           </AnimatePresence>
+          )}
         </main>
       </div>
 

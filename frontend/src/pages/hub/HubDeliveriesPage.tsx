@@ -40,6 +40,7 @@ import type {
 } from '../../types';
 import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
 import CustomSelect from '../../components/ui/CustomSelect';
+import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 
 const POLL_MS = 30000;
 const NOTE_MAX = 500;
@@ -423,6 +424,7 @@ export default function HubDeliveriesPage() {
                             <p className="text-[11px] text-gray-500">
                               Order {row.order_number ?? 'n/a'} &bull; {row.recipient_name}
                             </p>
+                            <TrackPackageButton trackingNumber={row.tracking_number} label="Track live" className="mt-1.5" />
                           </div>
                           <p className="flex items-start gap-1.5 text-xs text-gray-700">
                             <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" aria-hidden="true" />

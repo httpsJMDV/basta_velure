@@ -118,6 +118,8 @@ import type {
   RiderAcceptPickupResponse,
   RiderDeclinePickupResponse,
   RiderReleasePickupResponse,
+  ParcelTracking,
+  RiderLocationStatus,
 } from '../types';
 
 const http = axios.create({
@@ -1135,3 +1137,14 @@ export const hubThreadAdapter = (threadId: number): ThreadAdapter =>
 /** The buyer's or seller's side: the existing conversation endpoints, which mark read as they fetch. */
 export const conversationThreadAdapter = (threadId: number): ThreadAdapter =>
   threadAdapter({ messages: `/conversations/${threadId}/messages` });
+
+// ─── Track package and live courier location ───────────────────────────────────
+
+export const getParcelTrackingApi = (trackingNumber: string) =>
+  http.get<{ data: ParcelTracking }>(`/parcels/${encodeURIComponent(trackingNumber)}/tracking`).then((r) => r.data.data);
+
+export const getRiderLocationStatusApi = () =>
+  http.get<{ data: RiderLocationStatus }>('/rider/location/status').then((r) => r.data.data);
+
+export const postRiderLocationApi = (point: { latitude: number; longitude: number; heading?: number | null; accuracy?: number | null }) =>
+  http.post<{ message: string }>('/rider/location', point).then((r) => r.data);
