@@ -724,7 +724,8 @@ class DemoDataService
                 $receivedBy = $parcel->recipient_snapshot['name'] ?? 'Recipient';
                 $parcel->update([
                     'delivered_at'        => now(),
-                    'delivery_proof_path' => $this->storeFile('ids', 'delivery-proofs', $parcel->tracking_number, 70, 150, 90, 480, 320),
+                    'delivery_proof_path'   => $this->storeFile('ids', 'delivery-proofs', $parcel->tracking_number, 70, 150, 90, 480, 320),
+                    'delivery_proof_path_2' => $this->storeFile('ids', 'delivery-proofs', $parcel->tracking_number . '-2', 120, 90, 60, 480, 320),
                     'received_by'         => $receivedBy,
                     'cod_collected_at'    => $parcel->cod_amount !== null ? now() : null,
                 ]);

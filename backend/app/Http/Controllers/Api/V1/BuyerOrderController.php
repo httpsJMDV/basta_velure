@@ -409,6 +409,7 @@ class BuyerOrderController extends Controller
             'auto_complete_at'        => $autoCompleteAt?->toIso8601String(),
             'completed_at'            => $o->completed_at?->toIso8601String(),
             'delivery_proof_available' => (bool) $parcel?->delivery_proof_path,
+            'delivery_proof_count'     => (int) (bool) $parcel?->delivery_proof_path + (int) (bool) $parcel?->delivery_proof_path_2,
             'items'               => $o->items->map(fn ($i) => [
                 'id'            => $i->id,
                 'seller_id'     => $i->seller_id,

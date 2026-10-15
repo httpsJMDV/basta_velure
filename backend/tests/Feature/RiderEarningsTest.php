@@ -715,6 +715,7 @@ class RiderEarningsTest extends TestCase
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
         $this->actingAs($user, 'sanctum')->post("/api/v1/rider/deliveries/{$deliver->tracking_number}/delivered", [
             'proof_photo' => UploadedFile::fake()->createWithContent('proof.png', $png), 'cod_collected' => '1',
+            'proof_photo_2' => UploadedFile::fake()->createWithContent('proof-2.png', $png . 'x'),
         ], ['Accept' => 'application/json'])->assertOk();
         $this->actingAs($user, 'sanctum')->postJson("/api/v1/rider/deliveries/{$fail->tracking_number}/failed", ['reason' => 'REFUSED'])->assertOk();
 

@@ -675,8 +675,8 @@ export const confirmBuyerOrderReceiptApi = (orderId: number) =>
   http.post<{ message: string; data: Order }>(`/buyer/orders/${orderId}/confirm-receipt`).then((r) => r.data);
 
 /** Fetches the delivery proof photo through the authorized endpoint and returns a blob URL to show it. */
-export const getDeliveryProofBlobUrl = async (trackingNumber: string): Promise<string> => {
-  const res = await http.get(`/parcels/${encodeURIComponent(trackingNumber)}/delivery-proof`, { responseType: 'blob' });
+export const getDeliveryProofBlobUrl = async (trackingNumber: string, photo: 1 | 2 = 1): Promise<string> => {
+  const res = await http.get(`/parcels/${encodeURIComponent(trackingNumber)}/delivery-proof`, { params: photo === 2 ? { photo: 2 } : undefined, responseType: 'blob' });
   return URL.createObjectURL(res.data as Blob);
 };
 

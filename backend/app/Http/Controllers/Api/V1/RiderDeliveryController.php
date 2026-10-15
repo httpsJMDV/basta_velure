@@ -182,7 +182,7 @@ class RiderDeliveryController extends Controller
     /**
      * POST /api/v1/rider/deliveries/{tracking}/delivered   (multipart)
      *
-     * Mark one stop delivered with a photo proof. The proof goes to the private disk. The COD amount
+     * Mark one stop delivered with two different photos as proof. The photos go to the private disk. The COD amount
      * is always read from the parcel, never from the client. Escrow handling at DELIVERED is the state
      * machine's, untouched.
      */
@@ -196,16 +196,24 @@ class RiderDeliveryController extends Controller
 
         $request->validate([
             'proof_photo'   => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+            'proof_photo_2' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'received_by'   => ['nullable', 'string', 'max:100'],
             'cod_collected' => ['nullable', 'boolean'],
         ]);
 
+        // The two photos must be two different pictures, not the same file sent twice.
+        if (hash_file('sha256', $request->file('proof_photo')->getRealPath()) === hash_file('sha256', $request->file('proof_photo_2')->getRealPath())) {
+            throw ValidationException::withMessages([
+                'proof_photo_2' => ['Take a second, different photo.'],
+            ]);
+        }
+
         $rider = $this->rider($request);
         $trackingNumber = Str::upper(trim($tracking));
-        $storedPath = null;
+        $storedPaths = [];
 
         try {
-            return DB::transaction(function () use ($request, $rider, $trackingNumber, &$storedPath) {
+            return DB::transaction(function () use ($request, $rider, $trackingNumber, &$storedPaths) {
                 $parcel = $this->lockOwnParcel($rider, $trackingNumber);
 
                 if (! $parcel) {
@@ -226,10 +234,13 @@ class RiderDeliveryController extends Controller
                     ]);
                 }
 
-                // Everything that can reject the request has run; only now is the photo kept.
-                $storedPath = $request->file('proof_photo')->store('delivery-proofs', 'ids');
-                if (! $storedPath) {
-                    throw new \RuntimeException('Could not store the delivery proof.');
+                // Everything that can reject the request has run; only now are the photos kept.
+                foreach (['proof_photo', 'proof_photo_2'] as $field) {
+                    $path = $request->file($field)->store('delivery-proofs', 'ids');
+                    if (! $path) {
+                        throw new \RuntimeException('Could not store the delivery proof.');
+                    }
+                    $storedPaths[$field] = $path;
                 }
 
                 $now = now();
@@ -248,7 +259,8 @@ class RiderDeliveryController extends Controller
                 $receivedBy = trim((string) $request->input('received_by', ''));
                 Parcel::where('id', $parcel->id)->update([
                     'delivered_at'        => $now,
-                    'delivery_proof_path' => $storedPath,
+                    'delivery_proof_path'   => $storedPaths['proof_photo'],
+                    'delivery_proof_path_2' => $storedPaths['proof_photo_2'],
                     'received_by'         => $receivedBy !== '' ? $receivedBy : null,
                     'cod_collected_at'    => $isCod ? $now : null,
                 ]);
@@ -269,9 +281,9 @@ class RiderDeliveryController extends Controller
                 ]);
             });
         } catch (\Throwable $e) {
-            // Anything that failed after the photo was stored must not leave the file behind.
-            if ($storedPath) {
-                Storage::disk('ids')->delete($storedPath);
+            // Anything that failed after the photos were stored must not leave the files behind.
+            foreach ($storedPaths as $path) {
+                Storage::disk('ids')->delete($path);
             }
 
             throw $e;

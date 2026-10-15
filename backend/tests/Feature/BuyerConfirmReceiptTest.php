@@ -360,6 +360,7 @@ class BuyerConfirmReceiptTest extends TestCase
         $this->actingAs($riderUser, 'sanctum')
             ->post("/api/v1/rider/deliveries/{$tracking}/delivered", [
                 'proof_photo'   => \Illuminate\Http\UploadedFile::fake()->createWithContent('proof.png', $png),
+                'proof_photo_2' => \Illuminate\Http\UploadedFile::fake()->createWithContent('proof-2.png', $png . 'x'),
                 'cod_collected' => '1',
             ], ['Accept' => 'application/json'])->assertOk();
 

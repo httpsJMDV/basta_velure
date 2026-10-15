@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon|null $out_for_delivery_at
  * @property \Carbon\Carbon|null $delivered_at
  * @property string|null $delivery_proof_path
+ * @property string|null $delivery_proof_path_2
  * @property string|null $received_by
  * @property \Carbon\Carbon|null $cod_collected_at
  * @property \Carbon\Carbon|null $failed_at
@@ -97,6 +98,7 @@ class Parcel extends Model
         'out_for_delivery_at',
         'delivered_at',
         'delivery_proof_path',
+        'delivery_proof_path_2',
         'received_by',
         'cod_collected_at',
         'failed_at',

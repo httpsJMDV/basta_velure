@@ -841,6 +841,8 @@ export interface Order {
   completed_at?: string | null;
   /** True when the rider uploaded a delivery proof photo the buyer can view. */
   delivery_proof_available?: boolean;
+  /** How many proof photos exist (older deliveries have one, new ones have two). */
+  delivery_proof_count?: number;
   /** Set when the buyer has an open return request for this order. */
   dispute?: { id: number; status: string } | null;
   items: OrderItem[];

@@ -58,6 +58,7 @@ No body. Requires Sanctum authentication and the `buyer` role.
 | `delivered_at` | When the rider delivered it, or `null`. |
 | `auto_complete_at` | While `DELIVERED`: `delivered_at` plus `auto_complete_days`, when the order will complete itself. `null` otherwise. |
 | `completed_at` | When the order reached `COMPLETED`, or `null`. |
+| `delivery_proof_count` | How many proof photos exist: `2` for a delivery made with the two-photo rule, `1` for an older one, `0` for none. |
 | `delivery_proof_available` | `true` when a proof photo exists. The photo is fetched from `GET /api/v1/parcels/{tracking}/delivery-proof` (Feature 2.7), which the order's buyer may read. |
 
 ## 3. Seller earnings payload (additive)
