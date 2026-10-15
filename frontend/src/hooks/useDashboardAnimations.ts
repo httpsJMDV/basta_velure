@@ -11,7 +11,8 @@ export function useCountUp(target: number, duration = 1000): number {
     const run = (now: number) => {
       const p = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(from + (target - from) * eased));
+      // Money is not whole pesos: land exactly on the target instead of its rounded value.
+      setValue(p === 1 ? target : Math.round(from + (target - from) * eased));
       if (p < 1) raf.current = requestAnimationFrame(run);
     };
     raf.current = requestAnimationFrame(run);

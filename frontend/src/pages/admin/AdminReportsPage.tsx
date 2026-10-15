@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useLocation, useSearchParams, Link } from 'react-router-dom';
 import {
   TrendingUp,
   Coins,
@@ -10,6 +11,12 @@ import {
   BarChart3,
   QrCode,
   Truck,
+  Users,
+  ShieldAlert,
+  Percent,
+  ClipboardList,
+  CalendarDays,
+  AlertCircle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -34,22 +41,56 @@ import type {
   CategoryBreakdownItem,
   TopSellerItem,
   PaymentMethodSplit,
+  ReportRangeParams,
 } from '../../types';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
+import { NA, peso, whole, percent, manilaToday } from '../../utils/adminReports';
 
 const TIMEFRAMES = [
   { label: 'Last 7 Days', value: '7d' },
   { label: 'Last 30 Days', value: '30d' },
   { label: 'Last 90 Days', value: '90d' },
   { label: 'Past 12 Months', value: '12m' },
+  { label: 'All Time', value: 'all' },
 ];
+
+const PRESET_VALUES = new Set(TIMEFRAMES.map((t) => t.value));
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const CATEGORY_COLORS = ['#A32D2D', '#007DFE', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
 
+const PIPELINE_COLORS: Record<string, string> = {
+  awaiting_confirmation: '#F59E0B',
+  processing:            '#3B82F6',
+  hub_first_mile:        '#8B5CF6',
+  out_for_delivery:      '#F97316',
+  delivered_completed:   '#10B981',
+  cancelled_problem:     '#EF4444',
+};
+
+function formatDay(iso: string): string {
+  return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
+}
+
 export default function AdminReportsPage() {
-  const [range, setRange] = useState<string>('30d');
-  const [interval, setInterval] = useState<'daily' | 'monthly'>('daily');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+
+  // The range lives in the URL (?from=&to= or ?range=), so a dashboard card can link to exactly the days it shows.
+  const fromParam = searchParams.get('from') ?? '';
+  const toParam = searchParams.get('to') ?? '';
+  const rangeParam = searchParams.get('range') ?? '';
+  const customRange = DATE_PATTERN.test(fromParam) && DATE_PATTERN.test(toParam) && fromParam <= toParam;
+  const preset = PRESET_VALUES.has(rangeParam) ? rangeParam : '30d';
+
+  const rangeParams: ReportRangeParams = useMemo(
+    () => (customRange ? { from: fromParam, to: toParam } : { range: preset }),
+    [customRange, fromParam, toParam, preset],
+  );
+
+  const [interval, setIntervalMode] = useState<'daily' | 'monthly'>('daily');
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<boolean>(false);
 
   const [summary, setSummary] = useState<AdminReportSummary | null>(null);
   const [chartData, setChartData] = useState<AdminRevenueChartPoint[]>([]);
@@ -57,17 +98,24 @@ export default function AdminReportsPage() {
   const [sellers, setSellers] = useState<TopSellerItem[]>([]);
   const [paymentSplit, setPaymentSplit] = useState<PaymentMethodSplit | null>(null);
 
+  // Draft values of the two date inputs (applied when both are valid).
+  const [draftFrom, setDraftFrom] = useState(customRange ? fromParam : '');
+  const [draftTo, setDraftTo] = useState(customRange ? toParam : '');
+
   const pageRef = useMountAnim();
+  const today = manilaToday();
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
+      const monthly = interval === 'monthly' || (!customRange && (preset === '12m' || preset === 'all'));
       const [sum, chart, cats, topSell, split] = await Promise.all([
-        getAdminReportSummaryApi(range),
-        getAdminRevenueChartApi({ range, interval: range === '12m' ? 'monthly' : interval }),
-        getAdminCategoryBreakdownApi(range),
-        getAdminTopSellersApi(range),
-        getAdminPaymentSplitApi(range),
+        getAdminReportSummaryApi(rangeParams),
+        getAdminRevenueChartApi({ ...rangeParams, interval: monthly ? 'monthly' : 'daily' }),
+        getAdminCategoryBreakdownApi(rangeParams),
+        getAdminTopSellersApi(rangeParams),
+        getAdminPaymentSplitApi(rangeParams),
       ]);
       setSummary(sum);
       setChartData(chart);
@@ -75,68 +123,133 @@ export default function AdminReportsPage() {
       setSellers(topSell);
       setPaymentSplit(split);
     } catch {
-      // ignore
+      setError(true);
     } finally {
       setLoading(false);
     }
-  }, [range, interval]);
+  }, [rangeParams, interval, customRange, preset]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  // Keep the date inputs in step with the URL (a preset clears them; a link fills them).
+  useEffect(() => {
+    setDraftFrom(customRange ? fromParam : '');
+    setDraftTo(customRange ? toParam : '');
+  }, [customRange, fromParam, toParam]);
+
+  // Open on the section the dashboard linked to (#sales, #commission, ...), once the figures are on screen.
+  useEffect(() => {
+    if (loading || !location.hash) return;
+    document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [loading, location.hash]);
+
+  function choosePreset(value: string) {
+    setSearchParams({ range: value }, { replace: false });
+  }
+
+  function applyDates(from: string, to: string) {
+    if (DATE_PATTERN.test(from) && DATE_PATTERN.test(to) && from <= to) {
+      setSearchParams({ from, to });
+    }
+  }
+
+  const draftInvalid = Boolean(draftFrom && draftTo && draftFrom > draftTo);
+  const range = summary?.range;
+
   const animatedCommission = useCountUp(summary?.total_commission ?? 0);
   const animatedGmv        = useCountUp(summary?.total_gmv ?? 0);
   const animatedEarnings   = useCountUp(summary?.total_seller_earnings ?? 0);
   const animatedUnits      = useCountUp(summary?.total_units_sold ?? 0);
+  const animatedOrders     = useCountUp(summary?.total_orders ?? 0);
+
+  const sectionClass = 'scroll-mt-4';
 
   return (
     <div ref={pageRef} className="pb-8 space-y-4">
       {/* ── 1. Compact Executive Hero Command Bar ── */}
       <div
-        className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
+        className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-            <BarChart3 className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Platform Reports &amp; Analytics</h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                <span className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-amber-400 animate-spin' : 'bg-emerald-400 animate-pulse'}`} />
-                {loading ? 'Syncing…' : 'Live Synced'}
-              </span>
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
+              <BarChart3 className="w-4 h-4" />
             </div>
-            <p className="text-[11px] text-neutral-400 mt-0.5">
-              Real-time financial breakdown, category commissions, and seller revenue performance
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Platform Reports &amp; Analytics</h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 text-neutral-200 border border-white/15">
+                  <CalendarDays className="w-3 h-3" aria-hidden="true" />
+                  {loading ? 'Loading…' : range ? `${formatDay(range.from)} to ${formatDay(range.to)} · ${range.days} ${range.days === 1 ? 'day' : 'days'}` : NA}
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-0.5">
+                The same figures as the dashboard, counted in Philippine time. Cancelled and returned orders are left out of sales, commission and activity.
+              </p>
+            </div>
+          </div>
+
+          {/* Timeframe presets */}
+          <div className="flex flex-wrap items-center gap-1 bg-neutral-800/90 p-0.5 rounded-xl border border-neutral-700/60 self-start md:self-auto shrink-0">
+            {TIMEFRAMES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => choosePreset(t.value)}
+                aria-pressed={!customRange && preset === t.value}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  !customRange && preset === t.value
+                    ? 'bg-brand-red text-white shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Timeframe Selector Chips inside Hero */}
-        <div className="flex items-center gap-1 bg-neutral-800/90 p-0.5 rounded-xl border border-neutral-700/60 self-end md:self-auto shrink-0">
-          {TIMEFRAMES.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setRange(t.value)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                range === t.value
-                  ? 'bg-brand-red text-white shadow-xs'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        {/* Custom dates */}
+        <div className="flex flex-wrap items-end gap-2.5 pt-2.5 border-t border-neutral-800/80">
+          <label className="text-[11px] font-semibold text-neutral-400">
+            From
+            <input
+              type="date"
+              value={draftFrom}
+              max={draftTo || today}
+              onChange={(e) => { setDraftFrom(e.target.value); applyDates(e.target.value, draftTo); }}
+              className="block mt-0.5 h-8 px-2 text-xs text-white bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red [color-scheme:dark]"
+            />
+          </label>
+          <label className="text-[11px] font-semibold text-neutral-400">
+            To
+            <input
+              type="date"
+              value={draftTo}
+              min={draftFrom || undefined}
+              max={today}
+              onChange={(e) => { setDraftTo(e.target.value); applyDates(draftFrom, e.target.value); }}
+              className="block mt-0.5 h-8 px-2 text-xs text-white bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red [color-scheme:dark]"
+            />
+          </label>
+          {draftInvalid && <p role="alert" className="text-[11px] font-semibold text-amber-300">The start date must be on or before the end date.</p>}
+          {!draftInvalid && <p className="text-[11px] text-neutral-500">Pick both dates to report on exact days.</p>}
         </div>
       </div>
 
-      {/* ── 2. Summary KPI Grid (4 Compact Cards) ── */}
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
+          <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4" aria-hidden="true" /> The reports could not be loaded.</span>
+          <button onClick={loadData} className="px-3 py-1 text-xs font-bold text-white bg-brand-red rounded-lg hover:bg-[#8e2424]">Retry</button>
+        </div>
+      )}
+
+      {/* ── 2. Summary KPI Grid ── */}
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <div key={i} className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs h-24 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <div className="w-7 h-7 bg-gray-100 rounded-lg" />
@@ -151,35 +264,71 @@ export default function AdminReportsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center font-bold shrink-0">
-                <Coins className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[10px] font-bold text-gray-400">Rate: {summary?.avg_commission_rate ?? 10}%</span>
-            </div>
-            <div>
-              <p className="text-xl sm:text-2xl font-black text-brand-red tracking-tight leading-none">
-                ₱{animatedCommission.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-              </p>
-              <p className="text-xs font-bold text-gray-800 mt-1">Platform Commission</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Total platform take-rate revenue</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
+          <div id="sales" className={`${sectionClass} bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between`}>
             <div className="flex items-center justify-between mb-2">
               <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
                 <TrendingUp className="w-3.5 h-3.5" />
               </div>
-              <span className="text-[10px] font-bold text-gray-400">{summary?.total_orders ?? 0} orders</span>
+              <span className="text-[10px] font-bold text-gray-400">{summary ? `${whole(summary.total_orders)} orders` : NA}</span>
             </div>
             <div>
               <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-                ₱{animatedGmv.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                {summary ? peso(animatedGmv) : NA}
               </p>
               <p className="text-xs font-bold text-gray-800 mt-1">Gross Merchandise Value</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Total marketplace volume</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Orders that count, shipping included</p>
+            </div>
+          </div>
+
+          <div id="commission" className={`${sectionClass} bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center font-bold shrink-0">
+                <Coins className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[10px] font-bold text-gray-400">Rate: {percent(summary?.avg_commission_rate)}</span>
+            </div>
+            <div>
+              <p className="text-xl sm:text-2xl font-black text-brand-red tracking-tight leading-none">
+                {summary ? peso(animatedCommission) : NA}
+              </p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Platform Commission</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Stored fees, as a share of GMV</p>
+            </div>
+          </div>
+
+          <div id="orders" className={`${sectionClass} bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-7 h-7 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center font-bold shrink-0">
+                <ClipboardList className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[10px] font-bold text-gray-400">{summary?.orders_placed !== undefined ? `${whole(summary.orders_placed)} placed` : NA}</span>
+            </div>
+            <div>
+              <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
+                {summary ? whole(animatedOrders) : NA}
+              </p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Orders</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                {summary?.cancelled_orders !== undefined && summary?.returned_orders !== undefined
+                  ? `Not counting ${whole(summary.cancelled_orders)} cancelled and ${whole(summary.returned_orders)} returned`
+                  : NA}
+              </p>
+            </div>
+          </div>
+
+          <div id="activity" className={`${sectionClass} bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+                <Users className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[10px] font-bold text-gray-400">In this period</span>
+            </div>
+            <div>
+              <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
+                {summary?.active_buyers !== undefined ? `${whole(summary.active_buyers)} · ${whole(summary.active_sellers)}` : NA}
+              </p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Active Buyers · Sellers</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Placed, or sold on, a counted order</p>
             </div>
           </div>
 
@@ -192,10 +341,10 @@ export default function AdminReportsPage() {
             </div>
             <div>
               <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-                ₱{animatedEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                {summary ? peso(animatedEarnings) : NA}
               </p>
               <p className="text-xs font-bold text-gray-800 mt-1">Seller Payout Earnings</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Disbursed store partner revenue</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Store partners' share, before payout</p>
             </div>
           </div>
 
@@ -208,10 +357,46 @@ export default function AdminReportsPage() {
             </div>
             <div>
               <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-                {animatedUnits.toLocaleString()}
+                {summary ? whole(animatedUnits) : NA}
               </p>
               <p className="text-xs font-bold text-gray-800 mt-1">Total Units Sold</p>
               <p className="text-[11px] text-gray-400 mt-0.5 truncate">Across all item categories</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold shrink-0">
+                <ShieldAlert className="w-3.5 h-3.5" />
+              </div>
+              <Link to="/admin/disputes" className="text-[10px] font-bold text-brand-red hover:underline">Open queue</Link>
+            </div>
+            <div>
+              <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
+                {summary?.disputes ? whole(summary.disputes.opened) : NA}
+              </p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Disputes Opened</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                {summary?.disputes ? `${whole(summary.disputes.open_now)} open right now` : NA}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
+                <Percent className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[10px] font-bold text-gray-400">vs previous period</span>
+            </div>
+            <div>
+              <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
+                {summary?.previous ? peso(summary.previous.gmv) : NA}
+              </p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Previous Period GMV</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                {summary?.previous ? `${formatDay(summary.previous.range.from)} to ${formatDay(summary.previous.range.to)}` : NA}
+              </p>
             </div>
           </div>
         </div>
@@ -221,170 +406,140 @@ export default function AdminReportsPage() {
       {loading ? (
         <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-72 animate-pulse" />
       ) : (
-        <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
+        <div id="trend" className={`${sectionClass} bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-gray-100">
             <div>
               <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Platform Revenue Over Time</h2>
               <p className="text-[11px] text-gray-400">Gross Merchandise Value (GMV) vs Platform Commission Net</p>
             </div>
 
-            {range !== '12m' && (
-              <div className="flex items-center gap-1 bg-gray-100/80 p-0.5 rounded-lg text-[11px] font-bold border border-gray-200/50">
-                <button
-                  onClick={() => setInterval('daily')}
-                  className={`px-2.5 py-1 rounded-md transition-all ${
-                    interval === 'daily' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  Daily
-                </button>
-                <button
-                  onClick={() => setInterval('monthly')}
-                  className={`px-2.5 py-1 rounded-md transition-all ${
-                    interval === 'monthly' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  Monthly
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-1 bg-gray-100/80 p-0.5 rounded-lg text-[11px] font-bold border border-gray-200/50">
+              <button
+                onClick={() => setIntervalMode('daily')}
+                className={`px-2.5 py-1 rounded-md transition-all ${
+                  interval === 'daily' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                onClick={() => setIntervalMode('monthly')}
+                className={`px-2.5 py-1 rounded-md transition-all ${
+                  interval === 'monthly' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
           </div>
 
-          {/* Chart area with no black focus outline */}
-          <div className="h-60 w-full pt-2 [&_.recharts-surface]:outline-none [&_svg]:outline-none [&_.recharts-wrapper]:outline-none focus:outline-none select-none">
-            <ResponsiveContainer width="100%" height="100%" style={{ outline: 'none' }}>
-              <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -15, bottom: 0 }} style={{ outline: 'none' }}>
-                <defs>
-                  <linearGradient id="gmvGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#007DFE" stopOpacity={0.18} />
-                    <stop offset="95%" stopColor="#007DFE" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="commGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#A32D2D" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#A32D2D" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="#9ca3af"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `₱${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
-                />
-                <Tooltip
-                  formatter={(value: any, name: any) => [
-                    `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-                    name === 'gmv' ? 'Gross GMV' : 'Platform Commission',
-                  ]}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 11, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
-                />
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  wrapperStyle={{ paddingBottom: 6, fontSize: 11 }}
-                  formatter={(val) => (val === 'gmv' ? 'GMV Volume' : 'Platform Commission')}
-                />
-                <Area type="monotone" dataKey="gmv" stroke="#007DFE" strokeWidth={2} fillOpacity={1} fill="url(#gmvGrad)" />
-                <Area type="monotone" dataKey="commission" stroke="#A32D2D" strokeWidth={2.5} fillOpacity={1} fill="url(#commGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {chartData.every((p) => p.gmv === 0 && p.commission === 0) ? (
+            <p className="py-16 text-center text-xs text-gray-400">No sales recorded in this period.</p>
+          ) : (
+            <div className="h-60 w-full pt-2 [&_.recharts-surface]:outline-none [&_svg]:outline-none [&_.recharts-wrapper]:outline-none focus:outline-none select-none">
+              <ResponsiveContainer width="100%" height="100%" style={{ outline: 'none' }}>
+                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -15, bottom: 0 }} style={{ outline: 'none' }}>
+                  <defs>
+                    <linearGradient id="gmvGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#007DFE" stopOpacity={0.18} />
+                      <stop offset="95%" stopColor="#007DFE" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="commGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#A32D2D" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#A32D2D" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis
+                    stroke="#9ca3af"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `₱${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => [peso(Number(value)), name === 'gmv' ? 'Gross GMV' : 'Platform Commission']}
+                    contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 11, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    iconType="circle"
+                    wrapperStyle={{ paddingBottom: 6, fontSize: 11 }}
+                    formatter={(val) => (val === 'gmv' ? 'GMV Volume' : 'Platform Commission')}
+                  />
+                  <Area type="monotone" dataKey="gmv" stroke="#007DFE" strokeWidth={2} fillOpacity={1} fill="url(#gmvGrad)" />
+                  <Area type="monotone" dataKey="commission" stroke="#A32D2D" strokeWidth={2.5} fillOpacity={1} fill="url(#commGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── 4. Category Breakdown & Payment Channels (2-Column) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Category Breakdown (2 cols) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
+      {/* ── 4. Pipeline & Payment Channels (2-Column) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Order pipeline */}
+        <div id="pipeline" className={`${sectionClass} bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3`}>
           <div className="flex items-center justify-between pb-2 border-b border-gray-100">
             <div>
-              <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Category Sales &amp; Commission Breakdown</h2>
-              <p className="text-[11px] text-gray-400">
-                Food &amp; Grocery has an 8% commission override vs 10% standard rate
-              </p>
+              <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Order Pipeline</h2>
+              <p className="text-[11px] text-gray-400">Orders placed in this period, by where they are now</p>
             </div>
-            <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
-              <Layers className="w-3.5 h-3.5" />
+            <span className="px-2 py-0.5 text-[10px] font-bold text-gray-700 bg-gray-100 rounded-md">
+              {summary?.pipeline ? `${whole(summary.pipeline.total)} total` : NA}
+            </span>
+          </div>
+          {!summary?.pipeline ? (
+            <p className="py-6 text-center text-xs text-gray-400">{NA}</p>
+          ) : summary.pipeline.total === 0 ? (
+            <p className="py-6 text-center text-xs text-gray-400">No orders placed in this period.</p>
+          ) : (
+            <div className="space-y-2">
+              {summary.pipeline.groups.map((g) => {
+                const max = Math.max(...summary.pipeline!.groups.map((x) => x.count), 1);
+                const pct = Math.round((g.count / summary.pipeline!.total) * 100);
+                return (
+                  <div key={g.key} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-medium text-gray-700">{g.label}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-gray-900">{g.count}</span>
+                        <span className="text-[10px] text-gray-400 font-medium w-8 text-right">{pct}%</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 overflow-hidden bg-gray-100 rounded-full">
+                      <div className="h-full rounded-full" style={{ width: `${(g.count / max) * 100}%`, background: PIPELINE_COLORS[g.key] ?? '#9CA3AF' }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-gray-100">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px]">
-                <tr>
-                  <th className="px-3.5 py-2.5">Category</th>
-                  <th className="px-3.5 py-2.5">Rate</th>
-                  <th className="px-3.5 py-2.5">Gross Sales</th>
-                  <th className="px-3.5 py-2.5">Units</th>
-                  <th className="px-3.5 py-2.5 text-right">Commission</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {categories.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-xs">
-                      No category sales recorded in this period.
-                    </td>
-                  </tr>
-                ) : (
-                  categories.map((cat, i) => (
-                    <tr key={i} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="px-3.5 py-2.5 font-bold text-gray-900 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
-                        {cat.category}
-                      </td>
-                      <td className="px-3.5 py-2.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                          cat.commission_rate <= 8 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {cat.commission_rate}% {cat.commission_rate <= 8 ? '(Override)' : ''}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-2.5 font-semibold text-gray-900">
-                        ₱{cat.gross_sales.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-gray-600">
-                        {cat.units_sold.toLocaleString()}
-                      </td>
-                      <td className="px-3.5 py-2.5 font-bold text-brand-red text-right">
-                        ₱{cat.commission_earned.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          )}
         </div>
 
-        {/* Payment Methods Split Bar (1 col) */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs flex flex-col justify-between gap-3">
+        {/* Payment Methods Split Bar */}
+        <div id="payments" className={`${sectionClass} bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs flex flex-col justify-between gap-3`}>
           <div>
             <div className="flex items-center justify-between mb-0.5">
               <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Payment Channels</h2>
               <PieChartIcon className="w-3.5 h-3.5 text-gray-400" />
             </div>
-            <p className="text-[11px] text-gray-400">GCash Direct Scan vs Cash on Delivery</p>
+            <p className="text-[11px] text-gray-400">GCash vs Cash on Delivery, on the orders that count</p>
           </div>
 
           <div className="space-y-3">
             <div className="p-3 rounded-xl bg-sky-50/50 border border-sky-100 space-y-1">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-[#007DFE] flex items-center gap-1"><QrCode className="w-3 h-3" /> GCash</span>
-                <span className="font-mono text-gray-500 text-[10px]">{paymentSplit?.gcash.count ?? 0} orders</span>
+                <span className="font-mono text-gray-500 text-[10px]">{paymentSplit ? `${whole(paymentSplit.gcash.count)} orders` : NA}</span>
               </div>
-              <p className="text-base font-black text-gray-900">
-                ₱{(paymentSplit?.gcash.volume ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-              </p>
+              <p className="text-base font-black text-gray-900">{peso(paymentSplit?.gcash.volume)}</p>
               <div className="w-full bg-sky-200/50 h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-[#007DFE] h-full"
-                  style={{
-                    width: `${paymentSplit?.total_volume ? ((paymentSplit.gcash.volume / paymentSplit.total_volume) * 100) : 50}%`,
-                  }}
+                  style={{ width: `${paymentSplit?.total_volume ? (paymentSplit.gcash.volume / paymentSplit.total_volume) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -392,17 +547,13 @@ export default function AdminReportsPage() {
             <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 space-y-1">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-blue-700 flex items-center gap-1"><Truck className="w-3 h-3" /> COD</span>
-                <span className="font-mono text-gray-500 text-[10px]">{paymentSplit?.cod.count ?? 0} orders</span>
+                <span className="font-mono text-gray-500 text-[10px]">{paymentSplit ? `${whole(paymentSplit.cod.count)} orders` : NA}</span>
               </div>
-              <p className="text-base font-black text-gray-900">
-                ₱{(paymentSplit?.cod.volume ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-              </p>
+              <p className="text-base font-black text-gray-900">{peso(paymentSplit?.cod.volume)}</p>
               <div className="w-full bg-blue-200/50 h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-blue-600 h-full"
-                  style={{
-                    width: `${paymentSplit?.total_volume ? ((paymentSplit.cod.volume / paymentSplit.total_volume) * 100) : 50}%`,
-                  }}
+                  style={{ width: `${paymentSplit?.total_volume ? (paymentSplit.cod.volume / paymentSplit.total_volume) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -410,17 +561,74 @@ export default function AdminReportsPage() {
 
           <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-bold text-gray-700">
             <span>Total Captured:</span>
-            <span>₱{(paymentSplit?.total_volume ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+            <span>{peso(paymentSplit?.total_volume)}</span>
           </div>
         </div>
       </div>
 
-      {/* ── 5. Seller Performance Leaderboard ── */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
+      {/* ── 5. Category Breakdown ── */}
+      <div id="categories" className={`${sectionClass} bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3`}>
+        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+          <div>
+            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Category Sales &amp; Commission Breakdown</h2>
+            <p className="text-[11px] text-gray-400">
+              Rate is the stored commission divided by the stored sales of each category
+            </p>
+          </div>
+          <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
+            <Layers className="w-3.5 h-3.5" />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px]">
+              <tr>
+                <th className="px-3.5 py-2.5">Category</th>
+                <th className="px-3.5 py-2.5">Rate</th>
+                <th className="px-3.5 py-2.5">Gross Sales</th>
+                <th className="px-3.5 py-2.5">Units</th>
+                <th className="px-3.5 py-2.5 text-right">Commission</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {categories.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-xs">
+                    No category sales recorded in this period.
+                  </td>
+                </tr>
+              ) : (
+                categories.map((cat, i) => (
+                  <tr key={cat.category} className="hover:bg-gray-50/70 transition-colors">
+                    <td className="px-3.5 py-2.5 font-bold text-gray-900">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
+                        {cat.category}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-700">
+                        {percent(cat.commission_rate)}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5 font-semibold text-gray-900">{peso(cat.gross_sales)}</td>
+                    <td className="px-3.5 py-2.5 text-gray-600">{whole(cat.units_sold)}</td>
+                    <td className="px-3.5 py-2.5 font-bold text-brand-red text-right">{peso(cat.commission_earned)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── 6. Seller Performance Leaderboard ── */}
+      <div id="sellers" className={`${sectionClass} bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3`}>
         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
           <div>
             <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Top Seller Performance Leaderboard</h2>
-            <p className="text-[11px] text-gray-400">Ranked by gross sales volume and platform commission generated</p>
+            <p className="text-[11px] text-gray-400">Ranked by item sales (shipping not included) and the commission they generated</p>
           </div>
           <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
             <Award className="w-3.5 h-3.5" />
@@ -444,7 +652,7 @@ export default function AdminReportsPage() {
               {sellers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-xs">
-                    No active seller revenue records found for this period.
+                    No seller sales recorded in this period.
                   </td>
                 </tr>
               ) : (
@@ -455,23 +663,13 @@ export default function AdminReportsPage() {
                     </td>
                     <td className="px-3.5 py-2.5">
                       <p className="font-bold text-gray-900">{s.shop_name}</p>
-                      <p className="text-[10px] text-gray-400">{s.seller_name} · {s.email}</p>
+                      <p className="text-[10px] text-gray-400">{s.seller_name} · {s.email ?? NA}</p>
                     </td>
-                    <td className="px-3.5 py-2.5 font-bold text-gray-900">
-                      ₱{s.gross_sales.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-3.5 py-2.5 text-gray-600 font-medium">
-                      {s.orders_count}
-                    </td>
-                    <td className="px-3.5 py-2.5 text-gray-600">
-                      {s.units_sold}
-                    </td>
-                    <td className="px-3.5 py-2.5 font-bold text-brand-red">
-                      ₱{s.commission_generated.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-3.5 py-2.5 font-bold text-emerald-600 text-right">
-                      ₱{s.net_payout_credited.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                    </td>
+                    <td className="px-3.5 py-2.5 font-bold text-gray-900">{peso(s.gross_sales)}</td>
+                    <td className="px-3.5 py-2.5 text-gray-600 font-medium">{whole(s.orders_count)}</td>
+                    <td className="px-3.5 py-2.5 text-gray-600">{whole(s.units_sold)}</td>
+                    <td className="px-3.5 py-2.5 font-bold text-brand-red">{peso(s.commission_generated)}</td>
+                    <td className="px-3.5 py-2.5 font-bold text-emerald-600 text-right">{peso(s.net_payout_credited)}</td>
                   </tr>
                 ))
               )}

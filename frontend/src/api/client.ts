@@ -53,6 +53,7 @@ import type {
   PayoutRequest,
   AdminPaymentListItem,
   AdminReportSummary,
+  ReportRangeParams,
   AdminRevenueChartPoint,
   CategoryBreakdownItem,
   TopSellerItem,
@@ -740,20 +741,21 @@ export const getAdminPaymentListApi = (params?: { status?: string; method?: stri
 
 // ─── Admin Reports ─────────────────────────────────────────────────────────────
 
-export const getAdminReportSummaryApi = (range?: string) =>
-  http.get<{ data: AdminReportSummary }>('/admin/reports/summary', { params: { range } }).then((r) => r.data.data);
+// Every report takes the same range: explicit `from`/`to` (Manila days, YYYY-MM-DD) or a `range` preset.
+export const getAdminReportSummaryApi = (params?: ReportRangeParams) =>
+  http.get<{ data: AdminReportSummary }>('/admin/reports/summary', { params }).then((r) => r.data.data);
 
-export const getAdminRevenueChartApi = (params?: { range?: string; interval?: string }) =>
+export const getAdminRevenueChartApi = (params?: ReportRangeParams & { interval?: string }) =>
   http.get<{ data: AdminRevenueChartPoint[] }>('/admin/reports/revenue-chart', { params }).then((r) => r.data.data);
 
-export const getAdminCategoryBreakdownApi = (range?: string) =>
-  http.get<{ data: CategoryBreakdownItem[] }>('/admin/reports/category-breakdown', { params: { range } }).then((r) => r.data.data);
+export const getAdminCategoryBreakdownApi = (params?: ReportRangeParams) =>
+  http.get<{ data: CategoryBreakdownItem[] }>('/admin/reports/category-breakdown', { params }).then((r) => r.data.data);
 
-export const getAdminTopSellersApi = (range?: string) =>
-  http.get<{ data: TopSellerItem[] }>('/admin/reports/top-sellers', { params: { range } }).then((r) => r.data.data);
+export const getAdminTopSellersApi = (params?: ReportRangeParams) =>
+  http.get<{ data: TopSellerItem[] }>('/admin/reports/top-sellers', { params }).then((r) => r.data.data);
 
-export const getAdminPaymentSplitApi = (range?: string) =>
-  http.get<{ data: PaymentMethodSplit }>('/admin/reports/payment-method-split', { params: { range } }).then((r) => r.data.data);
+export const getAdminPaymentSplitApi = (params?: ReportRangeParams) =>
+  http.get<{ data: PaymentMethodSplit }>('/admin/reports/payment-method-split', { params }).then((r) => r.data.data);
 
 // ─── Admin Commission Settings ────────────────────────────────────────────────
 

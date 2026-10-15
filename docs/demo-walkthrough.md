@@ -145,7 +145,7 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 
 ### Admin (`admin` / `admin123`, then `/admin`)
 
-- [ ] **Dashboard** loads with numbers and a recent-activity feed, no errors in the browser console.
+- [ ] **Dashboard** loads with the last 30 days of numbers (GMV, commission, orders, active buyers and sellers, payment split, pipeline), a chart and a recent-activity feed, no errors in the browser console. Click GMV, a chart link or the pipeline card: **Reports** opens with the same dates in the address bar and scrolls to that section, showing the same figures.
 - [ ] **Orders** lists the demo orders (29 if the database held nothing else). Filter by status; open a PLACED, a DELIVERED and a DISPUTED one. The status history shows who did what.
 - [ ] **Payments** loads and lists the GCash orders (14 in the seed, 2 of them not yet verified). *(See "Known problems" below: the seeded GCash orders are stored as `pending`, so a filter for `pending_verification` will not match them.)*
 - [ ] **Disputes** shows 1 open dispute (buyer 2, "Item not as described"). Open it; try resolving it, then run `php artisan demo:seed` again to put it back.
@@ -153,7 +153,7 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
 - [ ] **Sellers**, **Buyers**, **Riders** list the demo accounts. The **Riders** page also shows each rider's hub and hub-application status, and lets you suspend or reactivate the account. There is no "Rider Applications" page: a rider is approved by the hub they chose (hub **Riders** page), so approve `rider3` as `hub1`, not as the admin.
 - [ ] **Sorting center applications** and **Seller applications** show the approved demo hub and the two approved shops (nothing pending).
 - [ ] **Categories** shows the taxonomy. **Settings** shows the commission settings.
-- [ ] **Reports** loads. **Activity log** loads.
+- [ ] **Reports** loads with presets and a From/To date picker; the dates in the address bar (`?from=- [ ] **Reports** loads. **Activity log** loads.to=`) drive every figure. **Activity log** loads.
 - [ ] **Messages** loads (the rider-buyer chat is private to its two participants, so it is **not** listed here).
 
 ### Seller 1 (`seller1` / `seller123`, then `/seller`)

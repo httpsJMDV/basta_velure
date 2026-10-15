@@ -25,6 +25,68 @@ export interface AdminStats {
   cod_volume?: number;
   pending_payment_verifications?: number;
   pending_payout_requests?: number;
+  /** The dashboard window (the last 30 Manila days) and its figures, from the same service as the reports page. */
+  window?: AnalyticsRange;
+  metrics?: AnalyticsSummary;
+  previous?: AnalyticsPrevious;
+  pipeline?: OrderPipeline;
+  payment_split?: PaymentMethodSplit;
+  disputes?: AnalyticsDisputes;
+}
+
+/** An inclusive Asia/Manila day range, as the admin analytics endpoints echo it back. */
+export interface AnalyticsRange {
+  from: string;
+  to: string;
+  days: number;
+  timezone: string;
+  preset: string | null;
+}
+
+export interface AnalyticsSummary {
+  gmv: number;
+  /** Orders that count toward GMV (not cancelled or returned). */
+  orders: number;
+  /** Every order placed in the range, whatever its status. */
+  orders_placed: number;
+  cancelled_orders: number;
+  returned_orders: number;
+  commission: number;
+  seller_earnings: number;
+  units_sold: number;
+  /** Commission as a share of GMV; null when there was no GMV. */
+  avg_commission_rate: number | null;
+  active_buyers: number;
+  active_sellers: number;
+}
+
+export interface AnalyticsPrevious {
+  range: AnalyticsRange;
+  gmv: number;
+  orders: number;
+  commission: number;
+  active_buyers: number;
+  active_sellers: number;
+}
+
+export interface PipelineGroup {
+  key: string;
+  label: string;
+  statuses: string[];
+  count: number;
+}
+
+export interface OrderPipeline {
+  total: number;
+  by_status: Record<string, number>;
+  groups: PipelineGroup[];
+}
+
+export interface AnalyticsDisputes {
+  /** Disputes opened in the range. */
+  opened: number;
+  /** Disputes open right now, whatever the range. */
+  open_now: number;
 }
 
 export interface DashboardAttentionItem {
@@ -41,8 +103,11 @@ export interface DashboardAttentionItem {
 export interface DashboardChartPoint {
   date: string;
   new_sellers: number;
+  /** Orders that count toward GMV (not cancelled or returned). */
   orders: number;
+  orders_placed?: number;
   gmv: number;
+  commission?: number;
 }
 
 export interface DashboardFeed {
@@ -1631,7 +1696,24 @@ export interface AdminReportSummary {
   total_seller_earnings: number;
   total_orders: number;
   total_units_sold: number;
-  avg_commission_rate: number;
+  /** Commission as a share of GMV; null when there was no GMV. */
+  avg_commission_rate: number | null;
+  range?: AnalyticsRange;
+  orders_placed?: number;
+  cancelled_orders?: number;
+  returned_orders?: number;
+  active_buyers?: number;
+  active_sellers?: number;
+  previous?: AnalyticsPrevious;
+  pipeline?: OrderPipeline;
+  disputes?: AnalyticsDisputes;
+}
+
+/** What selects the range of an admin report: explicit Manila days, or a preset (7d, 30d, 90d, 12m, all). */
+export interface ReportRangeParams {
+  range?: string;
+  from?: string;
+  to?: string;
 }
 
 export interface AdminRevenueChartPoint {
@@ -1639,7 +1721,9 @@ export interface AdminRevenueChartPoint {
   iso_date?: string;
   gmv: number;
   commission: number;
+  /** Orders that count toward GMV (not cancelled or returned). */
   orders_count: number;
+  orders_placed?: number;
 }
 
 export interface CategoryBreakdownItem {
