@@ -72,6 +72,11 @@ class Rider extends Model
         'vehicle_type',
         'plate_number',
         'vehicle_updated_at',
+        'last_latitude',
+        'last_longitude',
+        'last_heading',
+        'last_accuracy_m',
+        'last_located_at',
         'or_cr_path',
         'drivers_license_path',
         'status',
@@ -86,6 +91,7 @@ class Rider extends Model
         return [
             'reviewed_at'  => 'datetime',
             'vehicle_updated_at' => 'datetime',
+            'last_located_at'    => 'datetime',
             'submitted_at' => 'datetime',
         ];
     }
