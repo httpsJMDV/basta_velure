@@ -18,6 +18,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\Rider;
+use App\Models\Review;
 use App\Models\RiderAreaAssignment;
 use App\Models\SellerProfile;
 use App\Models\SortingCenter;
@@ -33,7 +34,7 @@ use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
- * Fills the database with a realistic demo dataset: every role, and at least one order at every status.
+ * Fills the database with a realistic demo dataset: every role, at least one order at every status, and a few reviews.
  *
  * It builds the data through the same code the app uses wherever that code is reusable: every status change goes
  * through OrderStateMachine (so history rows, parcels, tracking numbers, rider earnings and escrow dates are real), and
@@ -74,7 +75,8 @@ class DemoDataService
     private int $phoneCounter = 0;
     /** The real "now" when seeding began; every step's time is measured back from this, not from the frozen clock. */
     private Carbon $baseNow;
-    private ?string $passwordHash = null;
+    /** @var array<string, string> plain password => its hash (hashing is slow on purpose, and five accounts share each one) */
+    private array $passwordHashes = [];
 
     public function __construct(
         private readonly OrderStateMachine $machine,
@@ -88,7 +90,7 @@ class DemoDataService
     /**
      * Removes any earlier demo data, then builds the dataset again, so running it twice never duplicates.
      *
-     * @return array{removed: array<string, int>, categories_seeded: bool, statuses: array<string, int>, totals: array<string, int>, credentials: array<int, array{role: string, email: string, password: string}>}
+     * @return array{removed: array<string, int>, categories_seeded: bool, statuses: array<string, int>, totals: array<string, int>, credentials: array<int, array{role: string, username: string, email: string, password: string}>}
      */
     public function seed(): array
     {
@@ -99,8 +101,7 @@ class DemoDataService
         $this->baseNow = Carbon::now()->startOfSecond();
         $this->phoneCounter = 0;
         $this->fileCounter = 0;
-        // Hashing is slow on purpose; every demo account shares one password, so hash it once.
-        $this->passwordHash = Hash::make((string) config('demo.password'));
+        $this->passwordHashes = [];
 
         try {
             $categoriesSeeded = $this->ensureCategories();
@@ -114,6 +115,7 @@ class DemoDataService
                 $this->createPeopleAndPlaces();
                 $this->createCatalog();
                 $this->runScenarios();
+                $this->createReviews();
             });
         } catch (\Throwable $e) {
             // The transaction rolled the rows back; do not leave their files behind.
@@ -181,23 +183,51 @@ class DemoDataService
         return $local . '@' . config('demo.email_domain');
     }
 
-    private function newUser(string $key, string $role, string $first, string $last, string $sex): User
+    /** The hash of this account's demo password (config 'demo.accounts'), computed once per distinct password. */
+    private function passwordHashFor(string $key): string
+    {
+        $password = (string) config("demo.accounts.{$key}.password");
+
+        return $this->passwordHashes[$password] ??= Hash::make($password);
+    }
+
+    /**
+     * @param array<string, mixed> $extra more columns, forced on (the profile fields of a real buyer, for instance)
+     */
+    private function newUser(string $key, string $role, string $first, string $last, string $sex, array $extra = []): User
     {
         $user = new User();
         $user->forceFill([
             'first_name'        => $first,
             'last_name'         => $last,
             'email'             => $this->email($key),
+            // The only place a username is ever written: it is not fillable and no request can reach it.
+            'username'          => mb_strtolower((string) config("demo.accounts.{$key}.username")),
             'phone'             => sprintf('0999000%04d', ++$this->phoneCounter),
-            'password'          => $this->passwordHash,
+            'password'          => $this->passwordHashFor($key),
             'date_of_birth'     => '1990-05-15',
             'sex'               => $sex,
             'role'              => $role,
             'status'            => 'active',
             'email_verified_at' => now(),
-        ])->save();
+        ] + $extra)->save();
 
         return $this->users[$key] = $user;
+    }
+
+    /**
+     * The profile fields a buyer has after registration and admin approval. Without them the web app treats a buyer's
+     * profile as incomplete and sends every visit to /complete-profile.
+     *
+     * @return array<string, string>
+     */
+    private function buyerProfile(string $key): array
+    {
+        return [
+            'government_id_type'       => 'national_id',
+            'government_id_image_path' => $this->storeFile('ids', 'ids', "{$key}-buyer-id", 90, 110, 160),
+            'buyer_application_status' => 'approved',
+        ];
     }
 
     private function storeFile(string $disk, string $folder, string $name, int $r, int $g, int $b, int $w = 320, int $h = 240): string
@@ -214,10 +244,14 @@ class DemoDataService
 
         $admin = $this->newUser('admin', 'admin', 'Demo', 'Admin', 'female');
 
-        // Sellers: an approved shop each, with a pickup address in Area A and Area B.
+        // Sellers: an approved shop each, with a pickup address in Area A and Area B. A seller is a buyer whose seller
+        // application was approved, exactly as the real flow leaves the database: users.role stays "buyer" (nothing
+        // ever sets "seller"), the buyer profile fields of registration are filled, there is a default address, and
+        // the seller_profiles row below carries the approval. So the account can shop as well as sell.
         foreach (['s1' => ['seller1', 'Marco', 'Santos', 'Marco Gadgets', 'A', 'male', 'Electronics and accessories'],
                   's2' => ['seller2', 'Liza', 'Reyes', 'Liza Pantry & Home', 'B', 'female', 'Snacks, pantry and home goods']] as $key => [$local, $first, $last, $shop, $area, $sex, $category]) {
-            $user = $this->newUser($local, 'seller', $first, $last, $sex);
+            $user = $this->newUser($local, 'buyer', $first, $last, $sex, $this->buyerProfile($local));
+            $this->addresses[$key . $area] = $this->newAddress($user, $area, 'home', $key === 's1' ? '12 Rizal Street' : '48 Mabini Street', true);
             $place = DemoPlaces::area($area);
 
             SellerProfile::forceCreate([
@@ -248,8 +282,8 @@ class DemoDataService
         }
 
         // Buyers, each with saved addresses carrying PSGC codes.
-        $b1 = $this->newUser('buyer1', 'buyer', 'Ana', 'Cruz', 'female');
-        $b2 = $this->newUser('buyer2', 'buyer', 'Ben', 'Dela Cruz', 'male');
+        $b1 = $this->newUser('buyer1', 'buyer', 'Ana', 'Cruz', 'female', $this->buyerProfile('buyer1'));
+        $b2 = $this->newUser('buyer2', 'buyer', 'Ben', 'Dela Cruz', 'male', $this->buyerProfile('buyer2'));
         $this->addresses['b1A'] = $this->newAddress($b1, 'A', 'home', '5 Sampaguita Street', true);
         $this->addresses['b1B'] = $this->newAddress($b1, 'B', 'home', '21 Narra Avenue', false);
         $this->addresses['b2A'] = $this->newAddress($b2, 'A', 'office', '9 Acacia Street', false);
@@ -258,7 +292,7 @@ class DemoDataService
         $this->addresses['b1C'] = $this->newAddress($b1, 'C', 'office', '2 Ipil Street', false);
 
         // The hub and its owner (a hub owner holds the buyer role, as in registration).
-        $owner = $this->newUser('hub', 'buyer', 'Hector', 'Bautista', 'male');
+        $owner = $this->newUser('hub', 'buyer', 'Hector', 'Bautista', 'male', $this->buyerProfile('hub'));
         $home = DemoPlaces::area('A');
         $this->hub = SortingCenter::create([
             'user_id'            => $owner->id,
@@ -742,6 +776,58 @@ class DemoDataService
         $this->machine->transition(Order::find($order->id), $to, $actor, $user->id, $note, $meta);
     }
 
+    // ── Reviews ──────────────────────────────────────────────────────────────
+
+    /**
+     * A few reviews on the COMPLETED demo orders, so the admin Reviews page has something to show.
+     *
+     * Buyers cannot submit reviews yet (there is no endpoint), so these rows are written straight into the Review
+     * model the admin page reads. They are written here and nowhere else, they hang off demo buyers and demo products
+     * (so demo:reset removes them), and they cover every rating band and moderation status, with one flagged review
+     * waiting for moderation.
+     */
+    private function createReviews(): void
+    {
+        $buyerIds = collect($this->users)->only(['buyer1', 'buyer2'])->pluck('id');
+        $orders = Order::whereIn('buyer_id', $buyerIds)
+            ->where('status', OrderStatus::COMPLETED->value)
+            ->with('items')
+            ->orderBy('id')
+            ->get();
+
+        // rating, moderation status, flagged, days ago, comment, flag reason
+        $plan = [
+            [5, 'visible',        false, 6, 'Fast delivery and exactly as described. Will order again!', null],
+            [4, 'visible',        false, 5, 'Good quality. The packaging could be a little better.', null],
+            [5, 'visible',        false, 4, 'Great value for the price. The seller answered all my questions.', null],
+            [3, 'pending_review', false, 3, 'The item is okay, but it arrived a day later than promised.', null],
+            [2, 'pending_review', true,  2, 'Worst shop ever, total scam, do not buy from them!!!', 'Possible abusive language; reported by the seller.'],
+            [1, 'hidden',         false, 1, 'This review was about a different product, so it was hidden.', null],
+        ];
+
+        foreach ($plan as $i => [$rating, $moderation, $flagged, $days, $comment, $flagReason]) {
+            $order = $orders[$i] ?? null;
+            $item = $order?->items->first();
+            $product = $item ? Product::where('seller_id', $item->seller_id)->where('name', $item->product_name)->first() : null;
+            if (! $order || ! $product) {
+                continue;
+            }
+
+            $this->at($this->daysAgo($days));
+            Review::forceCreate([
+                'buyer_id'          => $order->buyer_id,
+                'product_id'        => $product->id,
+                'order_id'          => $order->id,
+                'rating'            => $rating,
+                'comment'           => $comment,
+                'verified_purchase' => true,
+                'flagged'           => $flagged,
+                'flag_reason'       => $flagReason,
+                'moderation_status' => $moderation,
+            ]);
+        }
+    }
+
     // ── Chat ─────────────────────────────────────────────────────────────────
 
     /**
@@ -806,10 +892,11 @@ class DemoDataService
             'delivery_logs' => DB::table('delivery_logs')->whereIn('rider_id', collect($this->riders)->pluck('id'))->count(),
             'conversations' => DB::table('conversations')->whereIn('rider_id', $demoUsers)->count(),
             'disputes'      => DB::table('disputes')->whereIn('order_id', $orderIds)->count(),
+            'reviews'       => DB::table('reviews')->whereIn('buyer_id', $demoUsers)->count(),
         ];
     }
 
-    /** @return array<int, array{role: string, email: string, password: string}> */
+    /** @return array<int, array{role: string, username: string, email: string, password: string}> */
     private function credentials(): array
     {
         $labels = [
@@ -820,8 +907,9 @@ class DemoDataService
 
         return array_map(fn (string $key) => [
             'role'     => $labels[$key],
+            'username' => (string) $this->users[$key]->username,
             'email'    => $this->users[$key]->email,
-            'password' => (string) config('demo.password'),
+            'password' => (string) config("demo.accounts.{$key}.password"),
         ], array_keys($labels));
     }
 }

@@ -45,6 +45,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import axios from 'axios';
+import { PageHero } from '../../components/admin/dashboardKit';
 
 const PRESET_AREA_LABELS = [
   'Area A - Central District',
@@ -298,7 +299,7 @@ function SecureDocRow({
           <button
             type="button"
             onClick={() => onViewImage(blobUrl, label)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-red text-white hover:bg-brand-red-dark transition-colors"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Inspect</span>
@@ -619,30 +620,12 @@ export default function HubRidersPage() {
 
   return (
     <div className="space-y-6">
-      {/* ─── Hero Header ────────────────────────────────────────────── */}
-      <div
-        className="rounded-2xl px-6 py-6 sm:px-8 sm:py-7 overflow-hidden relative shadow-sm border border-neutral-800"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #172554 100%)' }}
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">
-            Logistics Fleet Operations
-          </span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-gray-300 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> Courier Verification Station
-          </span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white shrink-0">
-            <Bike className="w-5 h-5 text-blue-400" />
-          </div>
-          Riders & Fleet Management
-        </h1>
-        <p className="text-xs sm:text-sm text-gray-300/80 mt-2 max-w-xl leading-relaxed">
-          Review delivery courier applications, verify Land Transportation Office (LTO) credentials, and map active couriers to designated barangay delivery sectors.
-        </p>
-      </div>
-
+      <PageHero
+        icon={Bike}
+        eyebrow="People"
+        title="Riders & Fleet"
+        subtitle="Review courier applications, verify their documents, and map active couriers to the barangays they deliver in."
+      />
       {/* ─── Summary Metrics Cards ──────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
@@ -782,7 +765,7 @@ export default function HubRidersPage() {
       {/* ─── Main Content: Couriers Table & Mobile Cards ───────────── */}
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-xs space-y-3">
-          <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mx-auto" />
+          <RefreshCw className="w-6 h-6 animate-spin text-brand-red mx-auto" />
           <p className="text-xs text-gray-500 font-medium">Loading courier applications…</p>
         </div>
       ) : error ? (
@@ -843,7 +826,7 @@ export default function HubRidersPage() {
                           <Truck className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                           <span>{r.vehicle_type}</span>
                         </div>
-                        <div className="font-mono text-[11px] text-blue-600 font-medium">
+                        <div className="font-mono text-[11px] text-brand-red font-medium">
                           {r.plate_number}
                         </div>
                       </td>
@@ -1022,7 +1005,7 @@ export default function HubRidersPage() {
 
             {detailLoading ? (
               <div className="py-16 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                <RefreshCw className="w-4 h-4 animate-spin text-brand-red" />
                 <span>Loading application profile and verification documents…</span>
               </div>
             ) : !detailData ? (
@@ -1062,7 +1045,7 @@ export default function HubRidersPage() {
 
                 {/* Section 1: Personal & Residential Info */}
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5" /> Personal Credentials
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-gray-50/70 p-3.5 rounded-xl border border-gray-100 text-xs">
@@ -1097,7 +1080,7 @@ export default function HubRidersPage() {
 
                 {/* Section 2: Vehicle Information */}
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider flex items-center gap-1.5">
                     <Truck className="w-3.5 h-3.5" /> Delivery Vehicle
                   </h3>
                   <div className="grid grid-cols-2 gap-3 bg-gray-50/70 p-3.5 rounded-xl border border-gray-100 text-xs">
@@ -1114,7 +1097,7 @@ export default function HubRidersPage() {
 
                 {/* Section 3: Verification Documents */}
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5" /> Document Verification
                   </h3>
                   <div className="space-y-2">
@@ -1134,14 +1117,14 @@ export default function HubRidersPage() {
                 {/* Section 4: Delivery Area Assignments (For ACTIVE or PENDING) */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <h3 className="text-xs font-bold text-brand-red uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5" /> Delivery Area Coverage
                     </h3>
                     {detailData.status === 'ACTIVE' && (
                       <button
                         type="button"
                         onClick={openCreateAreaModal}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                        className="text-xs font-bold text-brand-red hover:text-brand-red-dark flex items-center gap-1 transition-colors"
                       >
                         <Plus className="w-3.5 h-3.5" /> Assign Delivery Area
                       </button>
@@ -1187,7 +1170,7 @@ export default function HubRidersPage() {
                               <button
                                 type="button"
                                 onClick={() => openEditAreaModal(area)}
-                                className="p-1.5 text-gray-500 hover:text-blue-600 rounded-lg hover:bg-gray-100 transition-colors"
+                                className="p-1.5 text-gray-500 hover:text-brand-red rounded-lg hover:bg-gray-100 transition-colors"
                                 title="Edit Area"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
@@ -1238,7 +1221,7 @@ export default function HubRidersPage() {
                         setApproveSelectedBarangays([]);
                         setApproveConfirmOpen(true);
                       }}
-                      className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+                      className="px-5 py-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
                     >
                       <Check className="w-4 h-4" />
                       <span>Approve Courier</span>
@@ -1316,7 +1299,7 @@ export default function HubRidersPage() {
                           onClick={() => toggleApproveBarangay(bgy)}
                           className={`px-2 py-0.5 rounded text-[11px] font-mono font-medium transition-all ${
                             selected
-                              ? 'bg-blue-600 text-white shadow-2xs'
+                              ? 'bg-brand-red text-white shadow-2xs'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
@@ -1509,7 +1492,7 @@ export default function HubRidersPage() {
                     <button
                       type="button"
                       onClick={() => setAreaFormBarangays(hubCoverage.coverage_barangays)}
-                      className="text-blue-600 hover:underline font-semibold"
+                      className="text-brand-red hover:underline font-semibold"
                     >
                       Select All
                     </button>
@@ -1536,7 +1519,7 @@ export default function HubRidersPage() {
                         onClick={() => toggleBarangay(code)}
                         className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all ${
                           isSelected
-                            ? 'bg-blue-600 text-white shadow-2xs'
+                            ? 'bg-brand-red text-white shadow-2xs'
                             : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-100'
                         }`}
                       >
@@ -1565,7 +1548,7 @@ export default function HubRidersPage() {
               <Button
                 disabled={savingArea}
                 onClick={handleSaveArea}
-                className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                className="text-xs bg-brand-red hover:bg-brand-red-dark text-white font-bold"
               >
                 {savingArea ? (
                   <>

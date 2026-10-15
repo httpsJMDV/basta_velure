@@ -15,6 +15,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { getHubDashboardMetricsApi } from '../../api/client';
 import type { HubDashboardMetrics } from '../../types';
 import HubMetricCards from '../../components/logistics/HubMetricCards';
+import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 
 export default function HubDashboardPage() {
   const { user } = useAuth();
@@ -59,53 +60,32 @@ export default function HubDashboardPage() {
   return (
     <div className="space-y-6">
       {/* ── Top Hero Banner ── */}
-      <div
-        className="rounded-2xl px-6 py-6 sm:px-8 sm:py-7 overflow-hidden relative shadow-sm border border-neutral-800 text-white"
-        style={{ background: 'linear-gradient(135deg, #0e131f 0%, #1a2236 50%, #291b22 100%)' }}
+      <PageHero
+        icon={Building2}
+        eyebrow="Live command center"
+        title={hub?.hub_name || 'Sorting Center Hub'}
+        subtitle={
+          hub?.address_city ? (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin className="w-3 h-3" aria-hidden="true" />
+              {hub.address_street ? `${hub.address_street}, ` : ''}
+              {hub.address_barangay}, {hub.address_city}, {hub.address_province} · times in Asia/Manila
+            </span>
+          ) : (
+            'Times in Asia/Manila'
+          )
+        }
       >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Command Center
-              </span>
-              <span className="text-[11px] text-gray-400">
-                Timezone: Asia/Manila (PST)
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
-              <Building2 className="w-6 h-6 text-brand-red shrink-0" />
-              {hub?.hub_name || 'Sorting Center Hub'}
-            </h1>
-            {hub?.address_city && (
-              <p className="text-xs sm:text-sm text-gray-300/80 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                {hub.address_street ? `${hub.address_street}, ` : ''}
-                {hub.address_barangay}, {hub.address_city}, {hub.address_province}
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            {lastRefreshed && (
-              <span className="hidden sm:inline text-[11px] text-gray-400">
-                Updated {lastRefreshed.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            )}
-            <button
-              onClick={() => fetchMetrics()}
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50"
-              title="Refresh live metrics"
-            >
-              <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
+        {lastRefreshed && (
+          <span className="hidden sm:inline text-[11px] text-neutral-400">
+            Updated {lastRefreshed.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </span>
+        )}
+        <button onClick={() => fetchMetrics()} disabled={loading} className={HERO_BUTTON} title="Refresh live metrics">
+          <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <span>Refresh</span>
+        </button>
+      </PageHero>
       {/* ── Error Banner with Retry Action ── */}
       {error && (
         <div className="rounded-2xl p-4 sm:p-5 bg-red-50 border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-900">
@@ -179,7 +159,7 @@ export default function HubDashboardPage() {
                 Route parcels into geographic bins by city, cluster, and destination barangay.
               </p>
             </div>
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-blue-600">
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-brand-red">
               <span>Open Sorting Station</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>

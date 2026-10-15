@@ -452,7 +452,7 @@ The Seller Studio features a clean, high-contrast white/pearl-gray command bar (
 | `GET` | `/api/v1/shops/{shop}/reviews` | Aggregated customer reviews for a specific store |
 | `GET` | `/api/v1/platform/policies` | Public return, dispute, and regulatory platform policies |
 | `POST` | `/api/v1/auth/register` | Buyer registration |
-| `POST` | `/api/v1/auth/login` | User authentication and Sanctum token issuance |
+| `POST` | `/api/v1/auth/login` | User authentication and Sanctum token issuance (email or username; see `api/auth-login.md`) |
 | `POST` | `/api/v1/auth/forgot-password` | Password reset link dispatch |
 | `POST` | `/api/v1/auth/reset-password` | Password reset confirmation |
 | `POST` | `/api/v1/auth/google` | Google OAuth single sign-on authentication |

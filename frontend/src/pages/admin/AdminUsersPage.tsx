@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { getAdminUsersApi, suspendUserApi, reactivateUserApi } from '../../api/client';
-import type { User, Role, UserStatus } from '../../types';
+import type { User, Role, UserStatus, RiderStatus } from '../../types';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import CustomSelect from '../../components/ui/CustomSelect';
@@ -12,6 +12,18 @@ import { getBuyerIdImageUrl, getBuyerIdImageBackUrl } from '../../api/client';
 const STATUS_BADGE: Record<UserStatus, 'approved' | 'rejected'> = {
   active:    'approved',
   suspended: 'rejected',
+};
+
+const RIDER_STATUS_LABEL: Record<RiderStatus, string> = {
+  PENDING: 'Pending hub approval',
+  ACTIVE: 'Approved by hub',
+  DISAPPROVED: 'Not approved by hub',
+};
+
+const RIDER_STATUS_BADGE: Record<RiderStatus, 'pending' | 'approved' | 'rejected'> = {
+  PENDING: 'pending',
+  ACTIVE: 'approved',
+  DISAPPROVED: 'rejected',
 };
 
 const REQUIRES_BACK_ID_TYPES = new Set([
@@ -327,8 +339,11 @@ function BuyerDetailsModal({
   const [frontBlobUrl, setFrontBlobUrl] = useState<string | null | undefined>(undefined);
   const [backBlobUrl,  setBackBlobUrl]  = useState<string | null | undefined>(undefined);
 
-  // Fetch front ID image
+  const isRider = user.role === 'rider';
+
+  // Fetch front ID image (riders have none here: their documents are reviewed by their hub)
   useEffect(() => {
+    if (isRider) { setFrontBlobUrl(null); return; }
     const token = localStorage.getItem('token');
     let objectUrl: string;
     fetch(getBuyerIdImageUrl(user.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
@@ -336,11 +351,11 @@ function BuyerDetailsModal({
       .then((blob) => { objectUrl = URL.createObjectURL(blob); setFrontBlobUrl(objectUrl); })
       .catch(() => setFrontBlobUrl(null));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [user.id]);
+  }, [user.id, isRider]);
 
   // Fetch back ID image only if the ID type requires it
   useEffect(() => {
-    if (!REQUIRES_BACK_ID_TYPES.has(user.government_id_type ?? '')) { setBackBlobUrl(null); return; }
+    if (isRider || !REQUIRES_BACK_ID_TYPES.has(user.government_id_type ?? '')) { setBackBlobUrl(null); return; }
     const token = localStorage.getItem('token');
     let objectUrl: string;
     fetch(getBuyerIdImageBackUrl(user.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
@@ -348,7 +363,7 @@ function BuyerDetailsModal({
       .then((blob) => { objectUrl = URL.createObjectURL(blob); setBackBlobUrl(objectUrl); })
       .catch(() => setBackBlobUrl(null));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [user.id, user.government_id_type]);
+  }, [user.id, user.government_id_type, isRider]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !lightboxUrl && !confirm) onClose(); };
@@ -372,8 +387,8 @@ function BuyerDetailsModal({
           {/* Header */}
           <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Buyer Details</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Registered account information</p>
+              <h2 className="text-lg font-bold text-gray-900">{isRider ? 'Rider Details' : 'Buyer Details'}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{isRider ? 'Account and courier profile' : 'Registered account information'}</p>
             </div>
             <div className="flex items-center gap-3">
               <Badge
@@ -470,6 +485,23 @@ function BuyerDetailsModal({
 
                 <div className="border-t border-gray-100" />
 
+                {isRider && user.rider ? (
+                  <div>
+                    <SectionHeading>Courier Profile</SectionHeading>
+                    <div className="grid grid-cols-2 gap-4">
+                      <InfoRow label="Logistics Hub" value={user.rider.hub_name} />
+                      <InfoRow label="Hub Application" value={RIDER_STATUS_LABEL[user.rider.status]} />
+                      <InfoRow label="Vehicle" value={user.rider.vehicle_type} />
+                      <InfoRow label="Plate Number" value={user.rider.plate_number} />
+                    </div>
+                    <p className="mt-3 text-xs text-gray-400 leading-relaxed">
+                      A rider is approved by the logistics hub they chose, which also reviews their documents. The admin
+                      can only suspend or reactivate the account.
+                    </p>
+                  </div>
+                ) : isRider ? (
+                  <p className="text-sm text-gray-400 italic">No courier profile on file.</p>
+                ) : (
                 <div>
                   <SectionHeading>ID Verification</SectionHeading>
                   <div className="space-y-3">
@@ -489,6 +521,7 @@ function BuyerDetailsModal({
                     )}
                   </div>
                 </div>
+                )}
 
                 <div className="border-t border-gray-100" />
 
@@ -739,7 +772,13 @@ export default function AdminUsersPage() {
                 <tr className="border-b border-gray-100 text-left bg-gray-50/60">
                   <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">User</th>
                   <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Role</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Status</th>
+                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Account</th>
+                  {pathRole === 'rider' && (
+                    <>
+                      <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Hub</th>
+                      <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Hub application</th>
+                    </>
+                  )}
                   <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden md:table-cell">Phone</th>
                   <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden lg:table-cell">Registered</th>
                   <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Actions</th>
@@ -779,6 +818,18 @@ export default function AdminUsersPage() {
                         variant={STATUS_BADGE[user.status]}
                       />
                     </td>
+                    {pathRole === 'rider' && (
+                      <>
+                        <td className="px-5 py-3.5 text-stone-700 text-xs font-medium">{user.rider?.hub_name ?? 'n/a'}</td>
+                        <td className="px-5 py-3.5">
+                          {user.rider ? (
+                            <Badge label={RIDER_STATUS_LABEL[user.rider.status]} variant={RIDER_STATUS_BADGE[user.rider.status]} />
+                          ) : (
+                            <span className="text-xs text-stone-400">n/a</span>
+                          )}
+                        </td>
+                      </>
+                    )}
                     <td className="px-5 py-3.5 hidden md:table-cell text-stone-600 text-xs font-medium">{user.phone || '—'}</td>
                     <td className="px-5 py-3.5 hidden lg:table-cell text-stone-500 text-xs">
                       {formatDate(user.created_at)}

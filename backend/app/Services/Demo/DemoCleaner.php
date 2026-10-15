@@ -262,6 +262,9 @@ class DemoCleaner
             'orders'        => $ids['orders']->count(),
             'parcels'       => $ids['parcels']->count(),
             'conversations' => $ids['conversations']->count(),
+            'reviews'       => DB::table('reviews')
+                ->where(fn ($q) => $q->whereIn('order_id', $ids['orders'])->orWhereIn('buyer_id', $ids['users'])->orWhereIn('product_id', $ids['products']))
+                ->count(),
         ];
 
         return array_filter($counts, fn (int $n) => $n > 0);

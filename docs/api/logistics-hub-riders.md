@@ -3,6 +3,7 @@
 ## Overview
 This document specifies the backend API endpoints for Logistics / Sorting Center Hubs to inspect, review, approve, disapprove, and assign delivery coverage areas to courier applicants who selected their hub.
 
+- **Who approves a rider**: only the hub the rider chose, through `POST /hub/riders/{rider}/approve` and `/disapprove` below. There is no admin route that approves or disapproves a rider, and an admin token on these hub routes gets `403` (the admin owns no hub). The admin only suspends or reactivates the account (`docs/api/admin-riders.md`).
 - **Base Prefix**: `/api/v1/hub`
 - **Authentication**: `auth:sanctum`
 - **Authorization**: `approved_sorting_center` middleware (strictly scoped to the authenticated hub manager's hub account with `status = 'APPROVED'`).

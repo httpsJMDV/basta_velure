@@ -112,7 +112,12 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        if (! Auth::guard('web')->attempt($request->only('email', 'password'))) {
+        // The identifier is an email or a username, matched case-insensitively. Unknown identifiers fall through to the
+        // same attempt() as a wrong password, so the response (and the work done) is the same.
+        $identifier = $request->identifier();
+        $account = User::findByLoginIdentifier($identifier);
+
+        if (! Auth::guard('web')->attempt(['email' => $account?->email ?? $identifier, 'password' => $request->input('password')])) {
             return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 

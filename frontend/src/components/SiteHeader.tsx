@@ -180,6 +180,14 @@ export default function SiteHeader() {
               <Headphones className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
               <span className="group-hover:underline">Help &amp; Support</span>
             </Link>
+            <span className="text-neutral-700">|</span>
+            <nav aria-label="Partner with us" className="flex items-center gap-3">
+              <Link to="/partner" className="font-semibold text-neutral-200 hover:text-white hover:underline transition-colors">
+                Partner with us
+              </Link>
+              <Link to="/register/rider" className="hover:text-white hover:underline transition-colors">Become a rider</Link>
+              <Link to="/register/hub" className="hover:text-white hover:underline transition-colors">Logistics partner</Link>
+            </nav>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <button
@@ -342,6 +350,12 @@ export default function SiteHeader() {
             {SHORTCUTS.map((s) => (
               <button key={s} className="py-1 text-sm text-left text-white/90">{s}</button>
             ))}
+            <div className="flex flex-col gap-1 pt-3 border-t border-white/10">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Partner with us</p>
+              <Link to="/partner" className="py-1 text-sm font-semibold text-white" onClick={() => setMenuOpen(false)}>Partner with us</Link>
+              <Link to="/register/rider" className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>Become a rider</Link>
+              <Link to="/register/hub" className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>Logistics partner</Link>
+            </div>
             <div className="flex flex-col gap-2 pt-3 border-t border-white/10">
               {user ? (
                 <>

@@ -37,6 +37,7 @@ import type {
   HubDeliveryOutRow,
   HubDispatchRider,
 } from '../../types';
+import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 
 const POLL_MS = 30000;
 const NOTE_MAX = 500;
@@ -297,19 +298,13 @@ export default function HubDeliveriesPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Truck className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 ref={headingRef} tabIndex={-1} className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight focus:outline-none">
-              Deliveries
-            </h1>
-            <p className="text-xs text-gray-500">Watch parcels on the road and decide what happens to failed deliveries.</p>
-          </div>
-        </div>
+      <PageHero
+        icon={Truck}
+        eyebrow="Operations"
+        title="Deliveries"
+        headingRef={headingRef}
+        subtitle="Watch parcels on the road and decide what happens to failed deliveries."
+      >
         <button
           type="button"
           onClick={() => {
@@ -317,12 +312,12 @@ export default function HubDeliveriesPage() {
             if (tab === 'out') void fetchOut(false);
             else void fetchFailed(false);
           }}
-          className="self-start sm:self-auto min-h-11 inline-flex items-center gap-2 px-4 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          className={HERO_BUTTON}
         >
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
           Refresh
         </button>
-      </div>
+      </PageHero>
 
       {/* Tabs */}
       <div role="tablist" aria-label="Delivery views" className="flex items-center border-b border-gray-200">
@@ -340,13 +335,13 @@ export default function HubDeliveriesPage() {
             aria-controls="deliveries-panel"
             onClick={() => switchTab(t.key)}
             className={`min-h-11 px-4 text-xs font-bold flex items-center gap-2 transition-colors ${
-              tab === t.key ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-800'
+              tab === t.key ? 'text-brand-red border-b-2 border-brand-red' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
             <span>{t.label}</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                tab === t.key ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                tab === t.key ? 'bg-red-100 text-brand-red-dark' : 'bg-gray-100 text-gray-600'
               }`}
             >
               {t.count}
@@ -372,7 +367,7 @@ export default function HubDeliveriesPage() {
                     value={outSearchInput}
                     onChange={(e) => setOutSearchInput(e.target.value)}
                     placeholder="Tracking, order, recipient, barangay or rider"
-                    className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
                   />
                 </div>
               </div>
@@ -384,7 +379,7 @@ export default function HubDeliveriesPage() {
                   id="out-rider"
                   value={riderFilter}
                   onChange={(e) => setRiderFilter(e.target.value)}
-                  className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
                 >
                   <option value="">All riders</option>
                   {(out.data?.meta.riders ?? []).map((r) => (
@@ -479,7 +474,7 @@ export default function HubDeliveriesPage() {
                     value={failedSearchInput}
                     onChange={(e) => setFailedSearchInput(e.target.value)}
                     placeholder="Tracking, order, recipient, barangay or rider"
-                    className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full min-h-11 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
                   />
                 </div>
               </div>
@@ -494,7 +489,7 @@ export default function HubDeliveriesPage() {
                     setReasonFilter(e.target.value);
                     setFailedPage(1);
                   }}
-                  className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
                 >
                   <option value="">All reasons</option>
                   {(failed.data?.meta.reasons ?? []).map((r) => (
@@ -592,7 +587,7 @@ export default function HubDeliveriesPage() {
                             onClick={(e) => openDialog({ kind: 'reschedule', parcel: p }, e.currentTarget)}
                             disabled={!p.can_reschedule || dialog !== null}
                             aria-describedby={!p.can_reschedule ? hintId : undefined}
-                            className="min-h-12 inline-flex items-center justify-center gap-2 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+                            className="min-h-12 inline-flex items-center justify-center gap-2 px-5 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
                           >
                             <CalendarClock className="w-4 h-4" aria-hidden="true" />
                             Reschedule
@@ -676,7 +671,7 @@ function ErrorPanel({ title, message, onRetry }: { title: string; message: strin
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
+        className="inline-flex items-center justify-center gap-1.5 min-h-11 px-5 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold"
       >
         <RefreshCw className="w-4 h-4" aria-hidden="true" />
         Try again
@@ -841,7 +836,7 @@ function RescheduleDialog({ parcel, onClose, onConflict, onDone }: DialogBase & 
           <button
             type="button"
             onClick={() => void loadRiders()}
-            className="inline-flex items-center gap-1.5 min-h-11 px-4 rounded-xl bg-blue-600 text-white text-xs font-bold"
+            className="inline-flex items-center gap-1.5 min-h-11 px-4 rounded-xl bg-brand-red text-white text-xs font-bold"
           >
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
@@ -863,7 +858,7 @@ function RescheduleDialog({ parcel, onClose, onConflict, onDone }: DialogBase & 
               <label
                 key={rider.id}
                 className={`flex items-start gap-3 p-3 min-h-12 rounded-xl border cursor-pointer bg-white ${
-                  checked ? 'border-blue-600 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'
+                  checked ? 'border-brand-red ring-2 ring-red-200' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <input
@@ -871,7 +866,7 @@ function RescheduleDialog({ parcel, onClose, onConflict, onDone }: DialogBase & 
                   name="reschedule-rider"
                   checked={checked}
                   onChange={() => setRiderId(rider.id)}
-                  className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0"
+                  className="w-5 h-5 mt-0.5 accent-brand-red shrink-0"
                 />
                 <span className="flex-1 min-w-0 space-y-0.5">
                   <span className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
@@ -922,7 +917,7 @@ function RescheduleDialog({ parcel, onClose, onConflict, onDone }: DialogBase & 
           type="button"
           onClick={() => void submit()}
           disabled={!chosen || submitting}
-          className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+          className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
         >
           {submitting && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
           <span>{chosen ? `Reschedule with ${chosen.name}` : 'Choose a rider'}</span>
@@ -998,7 +993,7 @@ function ReturnDialog({ parcel, onClose, onConflict, onDone }: DialogBase & { on
           maxLength={NOTE_MAX}
           rows={3}
           disabled={submitting}
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red disabled:opacity-60"
         />
         <p className="text-right text-[11px] text-gray-500">
           {note.length}/{NOTE_MAX}

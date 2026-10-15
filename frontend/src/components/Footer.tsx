@@ -38,18 +38,33 @@ export const Footer: React.FC = () => {
               </Link>
             </li>
             <li>
+              <Link to="/partner" className="text-white/70 text-sm hover:text-white hover:underline transition-colors font-medium">
+                Partner with us
+              </Link>
+            </li>
+            <li>
               <Link to="/register/seller" className="text-white/70 text-sm hover:text-white transition-colors">
                 Sell on Loved-IT
               </Link>
             </li>
             <li>
-              <Link to="/register/hub" className="text-white/70 text-sm hover:text-white transition-colors">
-                Logistics Hub Partner
+              <Link to="/register/rider" className="text-white/70 text-sm hover:text-white transition-colors">
+                Become a rider
               </Link>
             </li>
             <li>
-              <Link to="/register/rider" className="text-white/70 text-sm hover:text-white transition-colors">
-                Be a Delivery Rider
+              <Link to="/register/hub" className="text-white/70 text-sm hover:text-white transition-colors">
+                Logistics partner
+              </Link>
+            </li>
+            <li>
+              <Link to="/rider/login" className="text-white/70 text-sm hover:text-white transition-colors">
+                Courier sign in
+              </Link>
+            </li>
+            <li>
+              <Link to="/hub/login" className="text-white/70 text-sm hover:text-white transition-colors">
+                Hub sign in
               </Link>
             </li>
           </ul>

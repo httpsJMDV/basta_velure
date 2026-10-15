@@ -20,6 +20,7 @@ import { getRiderMeApi, logoutApi } from '../../api/client';
 import type { RiderProfileData } from '../../types';
 import LovedItLogo from '../../components/LovedItLogo';
 import { useToast } from '../../components/ui/Toast';
+import { ShellTopBar } from '../../components/shell/PortalChrome';
 
 export interface RiderOutletContext {
   riderData: RiderProfileData | null;
@@ -258,53 +259,36 @@ export default function RiderLayout() {
 
       {/* ─── Main column ───────────────────────────────────────────────── */}
       <div className="flex-1 lg:ml-56 flex flex-col min-h-screen min-w-0">
-        <header className="h-14 shrink-0 flex items-center gap-3 px-4 sm:px-5 bg-white border-b border-gray-200 sticky top-0 z-20 shadow-2xs">
-          <Link to="/rider/dashboard" className="lg:hidden shrink-0" aria-label="Courier dashboard">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 flex items-center justify-center p-0.5 shadow-xs">
-              <LovedItLogo variant="light" type="icon" size="custom" showText={false} imgClassName="w-5 h-5 object-contain" />
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-gray-500 text-[13px] hidden sm:block">Loved-IT Courier</span>
-            <span className="text-gray-300 hidden sm:block" aria-hidden="true">
-              /
-            </span>
-            <span className="text-gray-900 font-bold text-[15px] sm:text-[16px] truncate">{pageLabel}</span>
-          </div>
-
-          <div className="ml-auto flex items-center gap-1.5 shrink-0">
-            <Link
-              to="/rider/account"
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors relative"
-              title="Messages"
-              aria-label={chat.total > 0 ? `Messages, ${chat.total} unread` : 'Messages'}
-            >
-              <MessageSquare className="w-[17px] h-[17px]" aria-hidden="true" />
-              {chat.total > 0 && (
-                <span
-                  className="absolute top-1 right-1 min-w-[15px] h-[15px] px-0.5 bg-brand-red text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white"
-                  aria-hidden="true"
-                >
-                  {chat.total > 9 ? '9+' : chat.total}
-                </span>
-              )}
+        <ShellTopBar
+          rootLabel="Loved-IT Courier"
+          pageLabel={pageLabel}
+          roleLabel={hubName ?? 'Courier'}
+          user={{ name: fullName || 'Courier', email: user?.email, initials }}
+          alerts={
+            chat.total > 0
+              ? [{
+                  icon: MessageSquare,
+                  tone: 'bg-blue-500/20 text-blue-300',
+                  title: `${chat.total} unread message${chat.total > 1 ? 's' : ''}`,
+                  detail: 'About your parcels',
+                  to: '/rider/account',
+                }]
+              : []
+          }
+          messages={{ to: '/rider/account', unread: chat.total }}
+          menuLinks={[
+            { icon: UserIcon, label: 'My account', to: '/rider/account' },
+            { icon: Wallet, label: 'Earnings', to: '/rider/earnings' },
+          ]}
+          leading={
+            <Link to="/rider/dashboard" className="lg:hidden shrink-0" aria-label="Courier dashboard">
+              <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center p-0.5">
+                <LovedItLogo variant="dark" type="icon" size="custom" showText={false} imgClassName="w-5 h-5 object-contain" />
+              </div>
             </Link>
-
-            <div className="flex items-center gap-2 pl-2 sm:pl-3 ml-1 border-l border-gray-200">
-              <div className="text-right hidden sm:block">
-                <p className="text-[12px] font-semibold text-gray-800 leading-tight truncate max-w-[130px]">{fullName}</p>
-                <p className="text-[10px] text-gray-500 truncate max-w-[130px]">{hubName ?? 'Courier'}</p>
-              </div>
-              <div
-                className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-2 ring-red-100 shadow-2xs"
-                aria-hidden="true"
-              >
-                {initials}
-              </div>
-            </div>
-          </div>
-        </header>
+          }
+          onLogout={handleLogout}
+        />
 
         <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6">
           <AnimatePresence mode="wait" initial={false}>

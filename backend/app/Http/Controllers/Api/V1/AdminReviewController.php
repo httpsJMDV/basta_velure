@@ -10,18 +10,40 @@ use Illuminate\Http\Request;
 
 class AdminReviewController extends Controller
 {
+    /**
+     * GET /api/v1/admin/reviews
+     *
+     * Filters (all optional): moderation_status (visible, hidden, pending_review), flagged=true, rating (1 to 5),
+     * search (buyer name or email, comment, product name, shop name), per_page (1 to 100, default 20).
+     */
     public function index(Request $request): JsonResponse
     {
-        $reviews = Review::with(['buyer'])
+        $request->validate([
+            'moderation_status' => ['nullable', 'in:visible,hidden,pending_review'],
+            'rating'            => ['nullable', 'integer', 'between:1,5'],
+            'per_page'          => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search'            => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $like = $request->filled('search') ? '%' . addcslashes((string) $request->search, '\\%_') . '%' : null;
+
+        $reviews = Review::with(['buyer', 'order:id,order_number', 'product.seller.sellerProfile'])
             ->when($request->moderation_status, fn ($q) => $q->where('moderation_status', $request->moderation_status))
             ->when($request->flagged === 'true', fn ($q) => $q->where('flagged', true))
-            ->when($request->search, fn ($q) => $q->whereHas('buyer', fn ($q2) =>
-                $q2->where('first_name', 'like', "%{$request->search}%")
-                   ->orWhere('last_name',  'like', "%{$request->search}%")
-                   ->orWhere('email',      'like', "%{$request->search}%")
-            ))
+            ->when($request->rating, fn ($q) => $q->where('rating', (int) $request->rating))
+            ->when($like, fn ($q) => $q->where(function ($w) use ($like) {
+                $w->where('comment', 'like', $like)
+                    ->orWhereHas('buyer', fn ($b) => $b
+                        ->where('first_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like)
+                        ->orWhere('email', 'like', $like))
+                    ->orWhereHas('product', fn ($p) => $p
+                        ->where('name', 'like', $like)
+                        ->orWhereHas('seller.sellerProfile', fn ($sp) => $sp->where('shop_name', 'like', $like)));
+            }))
             ->latest()
-            ->paginate(20);
+            ->latest('id')
+            ->paginate((int) ($request->per_page ?? 20));
 
         return response()->json([
             'data' => $reviews->map(fn ($r) => $this->format($r)),
@@ -29,6 +51,9 @@ class AdminReviewController extends Controller
                 'current_page' => $reviews->currentPage(),
                 'last_page'    => $reviews->lastPage(),
                 'total'        => $reviews->total(),
+                'per_page'     => $reviews->perPage(),
+                'from'         => $reviews->firstItem(),
+                'to'           => $reviews->lastItem(),
             ],
         ]);
     }
@@ -50,7 +75,7 @@ class AdminReviewController extends Controller
             'meta'        => ['product_id' => $review->product_id],
         ]);
 
-        return response()->json(['data' => $this->format($review->fresh('buyer'))]);
+        return response()->json(['data' => $this->format($review->fresh(['buyer', 'order:id,order_number', 'product.seller.sellerProfile']))]);
     }
 
     public function stats(): JsonResponse
@@ -68,8 +93,45 @@ class AdminReviewController extends Controller
         ]);
     }
 
+    /**
+     * GET /api/v1/admin/reviews/summary: the cards, chip counts and rating distribution of the Reviews page.
+     *
+     * Every figure covers all reviews that exist (soft-deleted ones excepted), whatever their moderation status, so
+     * the distribution adds up to `total` and `by_status` adds up to `total` too. `flagged` counts flagged reviews in
+     * any status (a review can be flagged and pending, or flagged and already hidden). `average_rating` is null,
+     * never 0, when there are no reviews.
+     */
+    public function summary(): JsonResponse
+    {
+        $byStatus = Review::selectRaw('moderation_status, COUNT(*) as total')->groupBy('moderation_status')->pluck('total', 'moderation_status');
+        $byRating = Review::selectRaw('rating, COUNT(*) as total')->groupBy('rating')->pluck('total', 'rating');
+
+        $distribution = [];
+        foreach (range(1, 5) as $stars) {
+            $distribution[(string) $stars] = (int) ($byRating[$stars] ?? 0);
+        }
+        $total = array_sum($distribution);
+        $average = $total > 0 ? round((float) Review::avg('rating'), 2) : null;
+
+        return response()->json([
+            'data' => [
+                'total'               => $total,
+                'average_rating'      => $average,
+                'rating_distribution' => $distribution,
+                'by_status'           => [
+                    'pending_review' => (int) ($byStatus['pending_review'] ?? 0),
+                    'visible'        => (int) ($byStatus['visible'] ?? 0),
+                    'hidden'         => (int) ($byStatus['hidden'] ?? 0),
+                ],
+                'flagged'             => Review::where('flagged', true)->count(),
+            ],
+        ]);
+    }
+
     private function format(Review $r): array
     {
+        $seller = $r->product?->seller;
+
         return [
             'id'                => $r->id,
             'product_id'        => $r->product_id,
@@ -86,6 +148,10 @@ class AdminReviewController extends Controller
                 'last_name'  => $r->buyer->last_name,
                 'email'      => $r->buyer->email,
             ] : null,
+            // Added for the redesigned page: what was reviewed, whose shop sold it, and the order it came from.
+            'product' => $r->product ? ['id' => $r->product->id, 'name' => $r->product->name] : null,
+            'shop'    => $seller ? ['id' => $seller->id, 'name' => $seller->sellerProfile?->shop_name ?? trim($seller->first_name . ' ' . $seller->last_name)] : null,
+            'order'   => $r->order ? ['id' => $r->order->id, 'order_number' => $r->order->order_number] : null,
         ];
     }
 }

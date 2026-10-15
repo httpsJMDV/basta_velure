@@ -659,7 +659,7 @@ export default function HubRegisterPage() {
 
               <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
                 <span>Already have an approved account?</span>
-                <Link to="/login" className="font-semibold text-brand-red hover:underline inline-flex items-center gap-1">
+                <Link to="/hub/login" className="font-semibold text-brand-red hover:underline inline-flex items-center gap-1">
                   Log in <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>

@@ -1,4 +1,9 @@
-import type { OrderStatus } from '../types';
+import {
+  Clock, CheckCircle2, Package, PackageCheck, Truck, Warehouse, ListChecks, Bike, Navigation,
+  PackageOpen, BadgeCheck, AlertTriangle, Undo2, XCircle, ShieldAlert,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { AdminOrderGroupKey, OrderStatus } from '../types';
 
 export interface OrderStatusMeta {
   label: string;
@@ -170,3 +175,35 @@ export const ALLOWED_ADMIN_NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
   CANCELLED:         [],
 };
 
+// ─── Admin Orders page groups and icons ───────────────────────────────────────
+
+/**
+ * The groups the admin Orders page filters and counts by. They partition every status, and the backend uses the same
+ * lists (AdminOrderController::statusGroups()); the page sends the group key and shows the count the API returns.
+ */
+export const ADMIN_ORDER_GROUPS: { key: AdminOrderGroupKey; label: string; statuses: OrderStatus[] }[] = [
+  { key: 'awaiting_action',     label: 'Awaiting action',      statuses: ['PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'] },
+  { key: 'in_transit',          label: 'In transit',           statuses: ['PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY'] },
+  { key: 'delivered_completed', label: 'Delivered / completed', statuses: ['DELIVERED', 'COMPLETED'] },
+  { key: 'problem',             label: 'Problem orders',       statuses: ['DELIVERY_FAILED', 'RETURNED', 'DISPUTED'] },
+  { key: 'cancelled',           label: 'Cancelled',            statuses: ['CANCELLED'] },
+];
+
+/** An icon per status, so a status badge never relies on colour alone. */
+export const ORDER_STATUS_ICON: Record<OrderStatus, LucideIcon> = {
+  PLACED:            Clock,
+  CONFIRMED:         CheckCircle2,
+  PREPARING:         Package,
+  READY_FOR_PICKUP:  PackageCheck,
+  PICKED_UP:         Truck,
+  AT_SORTING_CENTER: Warehouse,
+  SORTED:            ListChecks,
+  ASSIGNED_TO_RIDER: Bike,
+  OUT_FOR_DELIVERY:  Navigation,
+  DELIVERED:         PackageOpen,
+  COMPLETED:         BadgeCheck,
+  DELIVERY_FAILED:   AlertTriangle,
+  RETURNED:          Undo2,
+  CANCELLED:         XCircle,
+  DISPUTED:          ShieldAlert,
+};

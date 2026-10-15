@@ -1,16 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  getAdminStatsApi, getAdminDashboardFeedApi,
-  getAdminOrderStatsApi, getAdminPaymentStatsApi,
-  getAdminDisputeStatsApi, getAdminReviewStatsApi,
-} from '../../api/client';
+import { getAdminStatsApi, getAdminDashboardFeedApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
-import type {
-  AdminStats, DashboardFeed, DashboardChartPoint,
-  AdminOrderStats, AdminPaymentStats, AdminDisputeStats, AdminReviewStats,
-} from '../../types';
+import type { AdminStats, DashboardFeed, DashboardChartPoint } from '../../types';
+import { NA, peso, whole, percent, reportsHref, percentChange } from '../../utils/adminReports';
+import { StatCard, StatCardSkeleton, SectionHeader, ChartEmptyState } from '../../components/admin/dashboardKit';
 import {
   UserPlus, Package,
   Users, TrendingUp, TrendingDown,
@@ -27,18 +22,13 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function trend(current: number, previous: number): { pct: number; dir: 'up' | 'down' | 'flat' } {
-  if (previous === 0) return { pct: current > 0 ? 100 : 0, dir: current > 0 ? 'up' : 'flat' };
-  const pct = Math.round(((current - previous) / previous) * 100);
-  return { pct: Math.abs(pct), dir: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat' };
-}
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function chartDateLabel(iso: string) {
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  // The chart's dates are Asia/Manila calendar days (YYYY-MM-DD): format them as that day, in any browser timezone.
+  return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
 }
 
 function greeting() {
@@ -47,8 +37,6 @@ function greeting() {
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
-
-const WEEKLY_GMV_GOAL = 50_000;
 
 // ─── Compact Hero Band ────────────────────────────────────────────────────────
 
@@ -62,11 +50,11 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
       (stats.pending_payout_requests || 0)
     : 0;
   const hasIssues = pendingTotal > 0;
-  const animatedGmv        = useCountUp(stats?.gmv_today ?? 0);
-  const animatedCommission = useCountUp(stats?.commission_today ?? 0);
-  const animatedOrders     = useCountUp(stats?.orders_today ?? 0);
+  const metrics = stats?.metrics;
+  const animatedGmv        = useCountUp(metrics?.gmv ?? 0);
+  const animatedCommission = useCountUp(metrics?.commission ?? 0);
+  const animatedOrders     = useCountUp(metrics?.orders ?? 0);
   const animatedPending    = useCountUp(pendingTotal);
-  const gmvGoalPct         = Math.min(Math.round(((stats?.gmv_today ?? 0) / WEEKLY_GMV_GOAL) * 100), 100);
 
   return (
     <div
@@ -104,7 +92,7 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
             Buyer IDs ({stats?.pending_buyer_applications ?? 0})
           </Link>
           <Link
-            to="/admin/product-reviews"
+            to="/admin/products"
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
           >
             <Package className="w-3 h-3" />
@@ -120,30 +108,27 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
         </div>
       </div>
 
-      {/* Right: Inline Today's Key Performance Numbers */}
+      {/* Right: the last 30 days, each figure linking to the same section of the reports page */}
       {stats && (
         <div className="flex items-center self-end justify-between w-full gap-3 pt-1 text-xs border-t sm:gap-4 shrink-0 md:self-auto md:pt-0 md:border-t-0 border-neutral-800/80 md:w-auto md:justify-end">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] uppercase font-bold text-neutral-400">GMV Today</span>
-            <span className="text-xs font-black text-white sm:text-sm">₱{animatedGmv.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-neutral-300 ml-0.5" title="Weekly GMV Target Progress">
-              {gmvGoalPct}% Goal
-            </span>
-          </div>
+          <Link to={reportsHref(stats.window, 'sales')} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" title="Open in Analytics & Reports">
+            <span className="text-[10px] uppercase font-bold text-neutral-400">GMV · 30 days</span>
+            <span className="text-xs font-black text-white sm:text-sm">{metrics ? peso(animatedGmv) : NA}</span>
+          </Link>
 
           <div className="w-px h-4 bg-neutral-800" />
 
-          <div className="flex items-center gap-1.5">
+          <Link to={reportsHref(stats.window, 'commission')} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" title="Open in Analytics & Reports">
             <span className="text-[10px] uppercase font-bold text-neutral-400">Net Commission</span>
-            <span className="text-xs font-bold text-emerald-400 sm:text-sm">₱{animatedCommission.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
-          </div>
+            <span className="text-xs font-bold text-emerald-400 sm:text-sm">{metrics ? peso(animatedCommission) : NA}</span>
+          </Link>
 
           <div className="w-px h-4 bg-neutral-800" />
 
-          <div className="flex items-center gap-1.5">
+          <Link to={reportsHref(stats.window, 'orders')} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" title="Open in Analytics & Reports">
             <span className="text-[10px] uppercase font-bold text-neutral-400">Orders</span>
-            <span className="text-xs font-bold text-violet-300 sm:text-sm">{animatedOrders}</span>
-          </div>
+            <span className="text-xs font-bold text-violet-300 sm:text-sm">{metrics ? whole(animatedOrders) : NA}</span>
+          </Link>
         </div>
       )}
     </div>
@@ -152,8 +137,10 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
 
 // ─── Trend Badge ──────────────────────────────────────────────────────────────
 
-function TrendBadge({ current, previous, label }: { current: number; previous: number; label: string }) {
-  const { pct, dir } = trend(current, previous);
+function TrendBadge({ current, previous, label }: { current: number | null | undefined; previous: number | null | undefined; label: string }) {
+  const change = percentChange(current, previous);
+  if (!change) return <span className="text-[10px] text-gray-400">{NA} vs {label}</span>;
+  const { pct, dir } = change;
   if (dir === 'flat') {
     return (
       <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
@@ -228,88 +215,22 @@ function ActionCard({
   );
 }
 
-// ─── Compact Financial / Velocity Metric Card ─────────────────────────────────
-
-interface StatCardProps {
-  icon: React.ElementType;
-  label: string;
-  value: number | string;
-  subtext?: string;
-  prefix?: string;
-  trendEl?: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-}
-
-function StatCard({ icon: Icon, label, value, subtext, prefix, trendEl, iconBg, iconColor }: StatCardProps) {
-  const numericTarget = typeof value === 'number' ? value : 0;
-  const animated = useCountUp(numericTarget);
-  const displayValue = typeof value === 'number'
-    ? (prefix ? `${prefix}${animated.toLocaleString('en-PH', { minimumFractionDigits: prefix ? 2 : 0 })}` : animated.toLocaleString())
-    : value;
-
-  return (
-    <div className="flex flex-col justify-between p-3.5 bg-white border shadow-xs rounded-xl border-gray-200/80">
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
-            <Icon className="w-3.5 h-3.5" />
-          </div>
-          {trendEl && <div>{trendEl}</div>}
-        </div>
-        <p className="text-xl font-black leading-none tracking-tight text-gray-900 sm:text-2xl">{displayValue}</p>
-        <p className="mt-1 text-xs font-bold text-gray-800">{label}</p>
-        {subtext && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{subtext}</p>}
-      </div>
-    </div>
-  );
-}
-
-// ─── Compact Section Header ───────────────────────────────────────────────────
-
-function SectionHeader({ title, to, icon: Icon }: { title: string; to?: string; icon?: React.ElementType }) {
-  return (
-    <div className="flex items-center justify-between mb-2.5">
-      <div className="flex items-center gap-2">
-        <div className="w-1 h-3.5 rounded-full bg-brand-red" />
-        {Icon && <Icon className="w-3.5 h-3.5 text-gray-500" />}
-        <h2 className="text-[11px] font-bold tracking-wider text-gray-800 uppercase">{title}</h2>
-      </div>
-      {to && (
-        <Link to={to} className="text-[11px] font-bold text-brand-red hover:text-[#801f1f] flex items-center gap-1 transition-colors">
-          View all <ArrowRight className="w-3 h-3" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
-// ─── Compact Shared Empty State ───────────────────────────────────────────────
-
-function ChartEmptyState({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-1.5 py-8 text-center">
-      <div className="flex items-center justify-center w-8 h-8 border border-gray-100 rounded-xl bg-gray-50">
-        <Activity className="w-4 h-4 text-gray-300" />
-      </div>
-      <p className="text-[11px] font-semibold text-gray-400">{message}</p>
-    </div>
-  );
-}
-
 // ─── Compact Multi-Metric Analytics Chart ─────────────────────────────────────
 
-type ChartRange = '7d' | '14d';
-type MetricView = 'gmv' | 'orders' | 'new_sellers';
+type ChartRange = '7d' | '14d' | '30d';
+type MetricView = 'gmv' | 'orders' | 'commission';
 
 function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
-  const [range, setRange] = useState<ChartRange>('14d');
+  const [range, setRange] = useState<ChartRange>('30d');
   const [metric, setMetric] = useState<MetricView>('gmv');
 
   const sliced = useMemo(() => {
-    const n = range === '7d' ? 7 : 14;
-    return data.slice(-n).map((d) => ({ ...d, date: chartDateLabel(d.date) }));
+    const n = range === '7d' ? 7 : range === '14d' ? 14 : 30;
+    return data.slice(-n).map((d) => ({ ...d, commission: d.commission ?? 0, label: chartDateLabel(d.date) }));
   }, [data, range]);
+
+  // The reports page opens on exactly the days this chart shows.
+  const shownDays = sliced.length > 0 ? { from: sliced[0].date, to: sliced[sliced.length - 1].date } : null;
 
   const metricConfig = {
     gmv: {
@@ -317,29 +238,29 @@ function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
       sub: 'Daily platform sales volume',
       color: '#A32D2D',
       dataKey: 'gmv',
-      formatter: (v: number) => `₱${Number(v || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+      formatter: (v: number) => peso(Number(v || 0)),
     },
     orders: {
-      label: 'Orders Processed',
-      sub: 'Daily completed order volume',
+      label: 'Orders',
+      sub: 'Daily orders, not counting cancelled or returned',
       color: '#7C3AED',
       dataKey: 'orders',
-      formatter: (v: number) => `${Number(v || 0).toLocaleString()} orders`,
+      formatter: (v: number) => `${whole(Number(v || 0))} orders`,
     },
-    new_sellers: {
-      label: 'Store Partner Registrations',
-      sub: 'Daily merchant partner signups',
+    commission: {
+      label: 'Net Commission (₱)',
+      sub: 'Daily platform fees from the same orders',
       color: '#059669',
-      dataKey: 'new_sellers',
-      formatter: (v: number) => `${Number(v || 0).toLocaleString()} stores`,
+      dataKey: 'commission',
+      formatter: (v: number) => peso(Number(v || 0)),
     },
   }[metric];
 
   const totalPeriod = useMemo(() => {
-    return sliced.reduce((acc, curr) => acc + (Number((curr as any)[metricConfig.dataKey]) || 0), 0);
+    return sliced.reduce((acc, curr) => acc + (Number(curr[metricConfig.dataKey as MetricView]) || 0), 0);
   }, [sliced, metricConfig.dataKey]);
 
-  const isEmpty = sliced.every((d) => ((d as any)[metricConfig.dataKey] ?? 0) === 0);
+  const isEmpty = sliced.length === 0 || sliced.every((d) => (d[metricConfig.dataKey as MetricView] ?? 0) === 0);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
@@ -370,18 +291,18 @@ function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
               Orders
             </button>
             <button
-              onClick={() => setMetric('new_sellers')}
+              onClick={() => setMetric('commission')}
               className={`px-2.5 py-1 rounded-md transition-all ${
-                metric === 'new_sellers' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+                metric === 'commission' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              Sellers
+              Commission
             </button>
           </div>
 
           {/* Timeframe Selector */}
           <div className="flex p-0.5 text-[11px] font-bold border bg-gray-100/80 rounded-lg border-gray-200/50">
-            {(['7d', '14d'] as ChartRange[]).map((r) => (
+            {(['7d', '14d', '30d'] as ChartRange[]).map((r) => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
@@ -410,7 +331,7 @@ function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
               <YAxis
                 tick={{ fontSize: 10, fill: '#9ca3af' }}
                 tickLine={false}
@@ -426,7 +347,7 @@ function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
                   backgroundColor: '#ffffff',
                 }}
                 labelStyle={{ fontWeight: 700, color: '#111827' }}
-                formatter={(val: any) => [metricConfig.formatter(Number(val)), metricConfig.label]}
+                formatter={(val) => [metricConfig.formatter(Number(val)), metricConfig.label]}
               />
               <Area
                 type="monotone"
@@ -443,9 +364,15 @@ function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
 
           {/* Period Summary Footprint */}
           <div className="flex items-center justify-between pt-2 mt-2 text-[11px] text-gray-500 border-t border-gray-100">
-            <span>Period Aggregate ({range}):</span>
+            <span>Period total ({range}):</span>
             <span className="font-bold text-gray-900">{metricConfig.formatter(totalPeriod)}</span>
           </div>
+          <Link
+            to={reportsHref(shownDays, 'trend')}
+            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]"
+          >
+            Open these days in Reports <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
       )}
     </div>
@@ -570,17 +497,8 @@ function AttentionFeedHub({ items }: { items: DashboardFeed['attention_items'] }
 // ─── Compact Commission Revenue Breakdown Card ────────────────────────────────
 
 export function CommissionRevenueCard({ stats }: { stats: AdminStats }) {
-  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'lifetime'>('month');
-
-  const value = period === 'today'
-    ? (stats.commission_today ?? 0)
-    : period === 'week'
-    ? (stats.commission_this_week ?? 0)
-    : period === 'month'
-    ? (stats.commission_this_month ?? 0)
-    : (stats.commission_lifetime ?? 0);
-
-  const animated = useCountUp(value);
+  const metrics = stats.metrics;
+  const animated = useCountUp(metrics?.commission ?? 0);
 
   return (
     <div className="flex flex-col justify-between h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
@@ -591,43 +509,38 @@ export function CommissionRevenueCard({ stats }: { stats: AdminStats }) {
           </div>
           <div>
             <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Platform Commission Net</h3>
-            <p className="text-[11px] text-gray-400">Net revenue captured from completed orders</p>
+            <p className="text-[11px] text-gray-400">Fees on the orders that count, last 30 days</p>
           </div>
         </div>
-
-        <div className="flex items-center self-start gap-1 p-0.5 text-[11px] font-bold bg-gray-100/80 border rounded-lg sm:self-auto border-gray-200/50">
-          {(['today', 'week', 'month', 'lifetime'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-2.5 py-1 rounded-md capitalize transition-all ${
-                period === p ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              {p === 'lifetime' ? 'All Time' : p}
-            </button>
-          ))}
-        </div>
+        <Link
+          to={reportsHref(stats.window, 'commission')}
+          className="inline-flex items-center self-start gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f] sm:self-auto"
+        >
+          View in Reports <ArrowRight className="w-3 h-3" />
+        </Link>
       </div>
 
       <div className="flex flex-col justify-between gap-3 pt-3 sm:flex-row sm:items-end">
         <div>
-          <span className="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">
-            {period === 'today' ? "Today's Net" : period === 'week' ? "This Week's Net" : period === 'month' ? "This Month's Net" : "Lifetime Net Platform Fees"}
-          </span>
+          <span className="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">Last 30 days</span>
           <p className="mt-0.5 text-2xl font-black tracking-tight text-gray-900">
-            ₱{animated.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            {metrics ? peso(animated) : NA}
           </p>
+          <div className="mt-1">
+            <TrendBadge current={metrics?.commission} previous={stats.previous?.commission} label="previous 30 days" />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 p-2 text-xs border border-gray-100 bg-gray-50/70 rounded-xl">
           <div>
             <span className="text-[9px] text-gray-400 block font-bold uppercase">Today</span>
-            <span className="text-xs font-bold text-gray-900">₱{(stats.commission_today ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+            <span className="text-xs font-bold text-gray-900">{peso(stats.commission_today)}</span>
           </div>
           <div>
-            <span className="text-[9px] text-gray-400 block font-bold uppercase">Lifetime</span>
-            <span className="text-xs font-bold text-brand-red">₱{(stats.commission_lifetime ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+            <span className="text-[9px] text-gray-400 block font-bold uppercase">All time</span>
+            <Link to="/admin/reports?range=all#commission" className="text-xs font-bold text-brand-red hover:underline">
+              {peso(stats.commission_lifetime)}
+            </Link>
           </div>
         </div>
       </div>
@@ -638,15 +551,14 @@ export function CommissionRevenueCard({ stats }: { stats: AdminStats }) {
 // ─── Compact Payment Split & Liquidity Card ───────────────────────────────────
 
 export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
-  const gcashVol   = stats.gcash_volume ?? 0;
-  const codVol     = stats.cod_volume ?? 0;
-  const totalVol   = gcashVol + codVol;
-  const gcashCount = stats.gcash_orders_count ?? 0;
-  const codCount   = stats.cod_orders_count ?? 0;
-  const totalCount = gcashCount + codCount;
+  const split = stats.payment_split;
+  const gcashVol   = split?.gcash.volume;
+  const codVol     = split?.cod.volume;
+  const totalVol   = split ? split.gcash.volume + split.cod.volume : null;
+  const totalCount = split?.total_orders ?? null;
 
-  const gcashPct = totalVol > 0 ? Math.round((gcashVol / totalVol) * 100) : 0;
-  const codPct   = totalVol > 0 ? 100 - gcashPct : 0;
+  const gcashPct = totalVol ? Math.round(((gcashVol ?? 0) / totalVol) * 100) : 0;
+  const codPct   = totalVol ? 100 - gcashPct : 0;
 
   return (
     <div className="flex flex-col justify-between h-full gap-3 p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
@@ -657,11 +569,11 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
           </div>
           <div>
             <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Payment Breakdown</h3>
-            <p className="text-[11px] text-gray-400">GCash Direct Scan vs Cash on Delivery (COD)</p>
+            <p className="text-[11px] text-gray-400">GCash vs Cash on Delivery, last 30 days</p>
           </div>
         </div>
         <span className="px-2 py-0.5 text-[10px] font-bold text-gray-500 bg-gray-100 rounded-md">
-          {totalCount} Total
+          {totalCount === null ? NA : `${whole(totalCount)} Total`}
         </span>
       </div>
 
@@ -669,8 +581,8 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
         {/* Progress distribution bar */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[11px] font-bold">
-            <span className="flex items-center gap-1 text-blue-600"><QrCode className="w-3 h-3" /> GCash ({gcashPct}%)</span>
-            <span className="flex items-center gap-1 text-emerald-700"><Truck className="w-3 h-3" /> COD ({codPct}%)</span>
+            <span className="flex items-center gap-1 text-blue-600"><QrCode className="w-3 h-3" /> GCash ({totalVol ? percent(gcashPct) : NA})</span>
+            <span className="flex items-center gap-1 text-emerald-700"><Truck className="w-3 h-3" /> COD ({totalVol ? percent(codPct) : NA})</span>
           </div>
           <div className="flex w-full h-2 overflow-hidden bg-gray-100 rounded-full">
             <div className="h-full transition-all duration-700 bg-blue-600" style={{ width: `${gcashPct}%` }} />
@@ -683,23 +595,23 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
           <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100">
             <div className="flex items-center justify-between mb-0.5 text-xs">
               <span className="font-bold text-blue-700 text-[11px]">GCash</span>
-              <span className="text-[10px] text-gray-500">{gcashCount} orders</span>
+              <span className="text-[10px] text-gray-500">{split ? `${whole(split.gcash.count)} orders` : NA}</span>
             </div>
-            <p className="text-sm font-black text-gray-900 sm:text-base">
-              ₱{gcashVol.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-            </p>
+            <p className="text-sm font-black text-gray-900 sm:text-base">{peso(gcashVol)}</p>
           </div>
 
           <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
             <div className="flex items-center justify-between mb-0.5 text-xs">
               <span className="font-bold text-emerald-700 text-[11px]">Cash on Delivery</span>
-              <span className="text-[10px] text-gray-500">{codCount} orders</span>
+              <span className="text-[10px] text-gray-500">{split ? `${whole(split.cod.count)} orders` : NA}</span>
             </div>
-            <p className="text-sm font-black text-gray-900 sm:text-base">
-              ₱{codVol.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-            </p>
+            <p className="text-sm font-black text-gray-900 sm:text-base">{peso(codVol)}</p>
           </div>
         </div>
+
+        <Link to={reportsHref(stats.window, 'payments')} className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]">
+          View in Reports <ArrowRight className="w-3 h-3" />
+        </Link>
       </div>
     </div>
   );
@@ -707,18 +619,20 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
 
 // ─── Compact Orders Fulfillment Status Pipeline ───────────────────────────────
 
-function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
-  const rows: Array<{ keys: string[]; label: string; hex: string }> = [
-    { keys: ['PLACED', 'pending'],                                                         label: 'Pending Confirmation', hex: '#F59E0B' },
-    { keys: ['CONFIRMED', 'PREPARING', 'packed'],                                          label: 'Order Processing',     hex: '#3B82F6' },
-    { keys: ['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'shipped'], label: 'Hub & First-Mile',     hex: '#8B5CF6' },
-    { keys: ['ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'out_for_delivery'],                 label: 'Out for Delivery',     hex: '#F97316' },
-    { keys: ['DELIVERED', 'COMPLETED', 'delivered'],                                       label: 'Delivered / Completed',hex: '#10B981' },
-    { keys: ['DELIVERY_FAILED', 'RETURNED', 'CANCELLED', 'DISPUTED', 'cancelled'],         label: 'Cancelled / Returned', hex: '#EF4444' },
-  ];
-  const counts     = rows.map(r => r.keys.reduce((sum, k) => sum + (stats.by_status[k as never] ?? 0), 0));
-  const realTotal  = counts.reduce((a, b) => a + b, 0);
-  const max        = Math.max(...counts, 1);
+const PIPELINE_COLORS: Record<string, string> = {
+  awaiting_confirmation: '#F59E0B',
+  processing:            '#3B82F6',
+  hub_first_mile:        '#8B5CF6',
+  out_for_delivery:      '#F97316',
+  delivered_completed:   '#10B981',
+  cancelled_problem:     '#EF4444',
+};
+
+function OrdersBreakdownCard({ stats }: { stats: AdminStats }) {
+  const pipeline = stats.pipeline;
+  const groups = pipeline?.groups ?? [];
+  const realTotal = pipeline?.total ?? 0;
+  const max = Math.max(...groups.map((g) => g.count), 1);
   const animatedTotal = useCountUp(realTotal);
 
   return (
@@ -726,33 +640,34 @@ function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Fulfillment Pipeline</h3>
-          <p className="text-[11px] text-gray-400">Live order state distribution</p>
+          <p className="text-[11px] text-gray-400">Orders placed in the last 30 days, by where they are now</p>
         </div>
         <span className="px-2 py-0.5 text-[10px] font-bold text-gray-700 bg-gray-100 rounded-md">
-          {animatedTotal} Total
+          {pipeline ? `${whole(animatedTotal)} Total` : NA}
         </span>
       </div>
 
-      {realTotal === 0 ? (
-        <ChartEmptyState message="No orders recorded yet" />
+      {!pipeline ? (
+        <ChartEmptyState message={`Pipeline ${NA}`} />
+      ) : realTotal === 0 ? (
+        <ChartEmptyState message="No orders placed in the last 30 days" />
       ) : (
         <div className="space-y-2">
-          {rows.map((r, i) => {
-            const count = counts[i];
-            const pct = Math.round((count / realTotal) * 100);
+          {groups.map((g) => {
+            const pct = Math.round((g.count / realTotal) * 100);
             return (
-              <div key={r.label} className="space-y-0.5">
+              <div key={g.key} className="space-y-0.5">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-medium text-gray-700">{r.label}</span>
+                  <span className="font-medium text-gray-700">{g.label}</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-gray-900">{count}</span>
+                    <span className="font-bold text-gray-900">{g.count}</span>
                     <span className="text-[10px] text-gray-400 font-medium w-6 text-right">{pct}%</span>
                   </div>
                 </div>
                 <div className="h-1.5 overflow-hidden bg-gray-100 rounded-full">
                   <div
                     className="h-full transition-all duration-700 rounded-full"
-                    style={{ width: `${(count / max) * 100}%`, background: r.hex }}
+                    style={{ width: `${(g.count / max) * 100}%`, background: PIPELINE_COLORS[g.key] ?? '#9CA3AF' }}
                   />
                 </div>
               </div>
@@ -760,6 +675,10 @@ function OrdersBreakdownCard({ stats }: { stats: AdminOrderStats }) {
           })}
         </div>
       )}
+
+      <Link to={reportsHref(stats.window, 'pipeline')} className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]">
+        View in Reports <ArrowRight className="w-3 h-3" />
+      </Link>
     </div>
   );
 }
@@ -814,51 +733,41 @@ function RecentActivityStream({ activities }: { activities: DashboardFeed['recen
 export default function AdminDashboardPage() {
   const { user } = useAuth();
   const userName = user ? `${user.first_name} ${user.last_name}` : '';
-  const [stats, setStats]           = useState<AdminStats | null>(null);
-  const [feed, setFeed]             = useState<DashboardFeed | null>(null);
-  const [orderStats, setOrderStats] = useState<AdminOrderStats | null>(null);
-  const [, setPayStats]             = useState<AdminPaymentStats | null>(null);
-  const [, setDispStats]            = useState<AdminDisputeStats | null>(null);
-  const [, setRevStats]             = useState<AdminReviewStats | null>(null);
-  const [loading, setLoading]       = useState(true);
+  const [stats, setStats]     = useState<AdminStats | null>(null);
+  const [feed, setFeed]       = useState<DashboardFeed | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed]   = useState(false);
 
   const pageRef = useMountAnim();
 
-  useEffect(() => {
-    Promise.all([
-      getAdminStatsApi(),
-      getAdminDashboardFeedApi(),
-      getAdminOrderStatsApi(),
-      getAdminPaymentStatsApi(),
-      getAdminDisputeStatsApi(),
-      getAdminReviewStatsApi(),
-    ])
-      .then(([s, f, os, ps, ds, rs]) => {
-        setStats(s); setFeed(f);
-        setOrderStats(os); setPayStats(ps);
-        setDispStats(ds); setRevStats(rs);
-      })
+  function load() {
+    setLoading(true);
+    setFailed(false);
+    Promise.all([getAdminStatsApi(), getAdminDashboardFeedApi()])
+      .then(([s, f]) => { setStats(s); setFeed(f); })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
-  }, []);
+  }
 
-  const skeletonCard = (key: number) => (
-    <div key={key} className="bg-white border border-gray-200/80 rounded-xl p-3.5 h-[96px] animate-pulse flex flex-col justify-between">
-      <div className="flex items-center justify-between">
-        <div className="w-7 h-7 bg-gray-100 rounded-lg" />
-        <div className="w-12 h-3.5 bg-gray-100 rounded" />
-      </div>
-      <div className="space-y-1.5">
-        <div className="w-20 h-5 bg-gray-200 rounded" />
-        <div className="w-28 h-2.5 bg-gray-100 rounded" />
-      </div>
-    </div>
-  );
+  useEffect(load, []);
+
+  const skeletonCard = (key: number) => <StatCardSkeleton key={key} />;
+
+  const metrics = stats?.metrics;
+  const previous = stats?.previous;
 
   return (
     <div ref={pageRef} className="pb-8 space-y-4">
 
       {/* ── 1. Compact Executive Hero Header ── */}
       <HeroBand stats={stats} userName={userName} />
+
+      {failed && (
+        <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
+          <span>The dashboard figures could not be loaded.</span>
+          <button onClick={load} className="px-3 py-1 text-xs font-bold text-white bg-brand-red rounded-lg hover:bg-[#8e2424]">Retry</button>
+        </div>
+      )}
 
       {/* ── 2. Moderation Action Center (Top Priority) ── */}
       <div>
@@ -898,7 +807,7 @@ export default function AdminDashboardPage() {
               icon={Package}
               label="Product Reviews"
               value={stats.pending_products ?? 0}
-              to="/admin/product-reviews"
+              to="/admin/products"
               badgeLabel="Review"
               iconBg="bg-amber-50"
               iconColor="text-amber-600"
@@ -920,10 +829,11 @@ export default function AdminDashboardPage() {
         ) : null}
       </div>
 
-      {/* ── 3. Marketplace Velocity & Core Performance ── */}
+      {/* ── 3. Marketplace Velocity & Core Performance (last 30 days) ── */}
       <div>
         <SectionHeader
-          title="Marketplace Performance"
+          title="Marketplace Performance · Last 30 Days"
+          to={reportsHref(stats?.window, undefined)}
           icon={Activity}
         />
         {loading ? (
@@ -934,39 +844,48 @@ export default function AdminDashboardPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
               icon={Wallet}
-              label="Gross Sales (GMV Today)"
-              value={stats.gmv_today}
-              prefix="₱"
-              subtext="Total marketplace sales"
+              label="Gross Sales (GMV)"
+              value={metrics?.gmv}
+              money
+              subtext="Orders that count, shipping included"
               iconBg="bg-rose-50"
               iconColor="text-brand-red"
-              trendEl={<TrendBadge current={stats.gmv_today} previous={stats.gmv_yesterday} label="yesterday" />}
+              trendEl={<TrendBadge current={metrics?.gmv} previous={previous?.gmv} label="prior 30 days" />}
+              to={reportsHref(stats.window, 'sales')}
+            actionLabel="View in Reports"
             />
             <StatCard
               icon={Coins}
               label="Platform Net Commission"
-              value={stats.commission_today ?? 0}
-              prefix="₱"
-              subtext="Take-rate fees captured"
+              value={metrics?.commission}
+              money
+              subtext="Stored fees on those orders"
               iconBg="bg-emerald-50"
               iconColor="text-emerald-600"
+              trendEl={<TrendBadge current={metrics?.commission} previous={previous?.commission} label="prior 30 days" />}
+              to={reportsHref(stats.window, 'commission')}
+            actionLabel="View in Reports"
             />
             <StatCard
               icon={PackageCheck}
-              label="Orders Processed Today"
-              value={stats.orders_today}
-              subtext="Confirmed and fulfilled"
+              label="Orders"
+              value={metrics?.orders}
+              subtext={metrics ? `${whole(metrics.orders_placed)} placed, ${whole(metrics.cancelled_orders)} cancelled, ${whole(metrics.returned_orders)} returned` : undefined}
               iconBg="bg-violet-50"
               iconColor="text-violet-600"
-              trendEl={<TrendBadge current={stats.orders_today} previous={stats.orders_yesterday} label="yesterday" />}
+              trendEl={<TrendBadge current={metrics?.orders} previous={previous?.orders} label="prior 30 days" />}
+              to={reportsHref(stats.window, 'orders')}
+            actionLabel="View in Reports"
             />
             <StatCard
               icon={Users}
-              label="Active Marketplace Users"
-              value={`${stats.total_buyers.toLocaleString()} Buyers · ${stats.total_sellers.toLocaleString()} Sellers`}
-              subtext="Total registered accounts"
+              label="Active Buyers · Sellers"
+              value={metrics ? `${whole(metrics.active_buyers)} Buyers · ${whole(metrics.active_sellers)} Sellers` : null}
+              subtext={`Ordered or sold in 30 days · ${whole(stats.total_buyers)} buyer accounts, ${whole(stats.total_sellers)} shops`}
               iconBg="bg-indigo-50"
               iconColor="text-indigo-600"
+              to={reportsHref(stats.window, 'activity')}
+            actionLabel="View in Reports"
             />
           </div>
         ) : null}
@@ -1008,9 +927,9 @@ export default function AdminDashboardPage() {
           <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
           <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
         </div>
-      ) : orderStats && feed ? (
+      ) : stats && feed ? (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <OrdersBreakdownCard stats={orderStats} />
+          <OrdersBreakdownCard stats={stats} />
           <RecentActivityStream activities={feed.recent_activity} />
         </div>
       ) : null}

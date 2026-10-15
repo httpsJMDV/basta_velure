@@ -27,6 +27,7 @@ import {
   validateRange,
   type RangePreset,
 } from './reports/reportFormat';
+import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 
 interface Applied {
   from: string;
@@ -198,22 +199,18 @@ export default function HubReportsPage() {
         <p className="text-sm text-gray-600">{rangeLabel} (Asia/Manila)</p>
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-xl font-black text-gray-900 flex items-center gap-2">
-            <BarChart2 className="w-5 h-5 text-gray-400" aria-hidden="true" />
-            Hub reports
-          </h1>
-          <p className="text-xs text-gray-500">Throughput, on-time delivery and rider efficiency for {rangeLabel}.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="min-h-11 px-4 inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 hover:bg-gray-50"
+      <div className="print:hidden">
+        <PageHero
+          icon={BarChart2}
+          eyebrow="Insights"
+          title="Hub reports"
+          subtitle={<>Throughput, on-time delivery and rider efficiency for {rangeLabel}.</>}
         >
-          <Printer className="w-4 h-4" aria-hidden="true" />
-          Print
-        </button>
+          <button type="button" onClick={() => window.print()} className={HERO_BUTTON}>
+            <Printer className="w-4 h-4" aria-hidden="true" />
+            Print
+          </button>
+        </PageHero>
       </div>
 
       {/* Date range */}

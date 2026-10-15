@@ -18,6 +18,10 @@ import type {
   AdminDisputeStats,
   AdminReview,
   AdminReviewStats,
+  AdminReviewSummary,
+  AdminReviewListParams,
+  AdminOrderSummary,
+  AdminOrderListParams,
   OrderStatus,
   PaymentStatus,
   DisputeStatus,
@@ -53,6 +57,7 @@ import type {
   PayoutRequest,
   AdminPaymentListItem,
   AdminReportSummary,
+  ReportRangeParams,
   AdminRevenueChartPoint,
   CategoryBreakdownItem,
   TopSellerItem,
@@ -129,7 +134,10 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // A 401 from the sign-in call itself just means "wrong credentials": the page shows the message. Redirecting
+    // here would reload the page (or pull a rider off /rider/login) and throw the message away.
+    const isSignIn = err.config?.url === '/auth/login';
+    if (err.response?.status === 401 && !isSignIn) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
@@ -138,8 +146,9 @@ http.interceptors.response.use(
 );
 
 // Auth
-export const loginApi = (email: string, password: string) =>
-  http.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data);
+/** `identifier` is an email address or a username (docs/api/auth-login.md). */
+export const loginApi = (identifier: string, password: string) =>
+  http.post<AuthResponse>('/auth/login', { identifier, password }).then((r) => r.data);
 
 export const registerBuyerApi = (data: Record<string, string> | FormData) =>
   http.post<AuthResponse>('/auth/register', data, {
@@ -312,8 +321,12 @@ export const getOrdersApi = (params?: { status?: string; search?: string }) =>
   );
 
 // Admin — orders
-export const getAdminOrdersApi = (params?: { status?: OrderStatus; search?: string; page?: number }) =>
+export const getAdminOrdersApi = (params?: AdminOrderListParams) =>
   http.get<PaginatedResponse<AdminOrder>>('/admin/orders', { params }).then((r) => r.data);
+
+/** The KPI row and chip counts for the same filters as the list (the status and group filters are ignored). */
+export const getAdminOrderSummaryApi = (params?: Omit<AdminOrderListParams, 'status' | 'group' | 'sort' | 'direction' | 'page' | 'per_page'>) =>
+  http.get<{ data: AdminOrderSummary }>('/admin/orders/summary', { params }).then((r) => r.data.data);
 
 export const getAdminOrderApi = (id: number) =>
   http.get<{ data: AdminOrder }>(`/admin/orders/${id}`).then((r) => r.data.data);
@@ -348,11 +361,14 @@ export const getAdminDisputeStatsApi = () =>
   http.get<{ data: AdminDisputeStats }>('/admin/disputes/stats').then((r) => r.data.data);
 
 // Admin — reviews
-export const getAdminReviewsApi = (params?: { moderation_status?: ModerationStatus; flagged?: boolean; search?: string; page?: number }) =>
+export const getAdminReviewsApi = (params?: AdminReviewListParams) =>
   http.get<PaginatedResponse<AdminReview>>('/admin/reviews', { params: { ...params, flagged: params?.flagged ? 'true' : undefined } }).then((r) => r.data);
 
 export const moderateReviewApi = (id: number, moderation_status: ModerationStatus) =>
   http.patch<{ data: AdminReview }>(`/admin/reviews/${id}/moderate`, { moderation_status }).then((r) => r.data.data);
+
+export const getAdminReviewSummaryApi = () =>
+  http.get<{ data: AdminReviewSummary }>('/admin/reviews/summary').then((r) => r.data.data);
 
 export const getAdminReviewStatsApi = () =>
   http.get<{ data: AdminReviewStats }>('/admin/reviews/stats').then((r) => r.data.data);
@@ -736,20 +752,21 @@ export const getAdminPaymentListApi = (params?: { status?: string; method?: stri
 
 // ─── Admin Reports ─────────────────────────────────────────────────────────────
 
-export const getAdminReportSummaryApi = (range?: string) =>
-  http.get<{ data: AdminReportSummary }>('/admin/reports/summary', { params: { range } }).then((r) => r.data.data);
+// Every report takes the same range: explicit `from`/`to` (Manila days, YYYY-MM-DD) or a `range` preset.
+export const getAdminReportSummaryApi = (params?: ReportRangeParams) =>
+  http.get<{ data: AdminReportSummary }>('/admin/reports/summary', { params }).then((r) => r.data.data);
 
-export const getAdminRevenueChartApi = (params?: { range?: string; interval?: string }) =>
+export const getAdminRevenueChartApi = (params?: ReportRangeParams & { interval?: string }) =>
   http.get<{ data: AdminRevenueChartPoint[] }>('/admin/reports/revenue-chart', { params }).then((r) => r.data.data);
 
-export const getAdminCategoryBreakdownApi = (range?: string) =>
-  http.get<{ data: CategoryBreakdownItem[] }>('/admin/reports/category-breakdown', { params: { range } }).then((r) => r.data.data);
+export const getAdminCategoryBreakdownApi = (params?: ReportRangeParams) =>
+  http.get<{ data: CategoryBreakdownItem[] }>('/admin/reports/category-breakdown', { params }).then((r) => r.data.data);
 
-export const getAdminTopSellersApi = (range?: string) =>
-  http.get<{ data: TopSellerItem[] }>('/admin/reports/top-sellers', { params: { range } }).then((r) => r.data.data);
+export const getAdminTopSellersApi = (params?: ReportRangeParams) =>
+  http.get<{ data: TopSellerItem[] }>('/admin/reports/top-sellers', { params }).then((r) => r.data.data);
 
-export const getAdminPaymentSplitApi = (range?: string) =>
-  http.get<{ data: PaymentMethodSplit }>('/admin/reports/payment-method-split', { params: { range } }).then((r) => r.data.data);
+export const getAdminPaymentSplitApi = (params?: ReportRangeParams) =>
+  http.get<{ data: PaymentMethodSplit }>('/admin/reports/payment-method-split', { params }).then((r) => r.data.data);
 
 // ─── Admin Commission Settings ────────────────────────────────────────────────
 
