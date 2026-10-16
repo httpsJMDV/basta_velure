@@ -235,8 +235,10 @@ class HubRiderVettingTest extends TestCase
             'email'    => $riderUser->email,
             'password' => $password,
         ]);
-        $loginRes->assertStatus(403);
-        $this->assertStringContainsString('not approved', $loginRes->json('message'));
+        // Signing in still works (the courier keeps their buyer account), but the rider routes stay closed.
+        $loginRes->assertOk()->assertJsonPath('data.rider.status', 'DISAPPROVED');
+        $this->withHeader('Authorization', 'Bearer ' . $loginRes->json('token'))
+            ->getJson('/api/v1/rider/me')->assertStatus(403);
 
         // Assert disapproval email was queued
         Mail::assertQueued(RiderApplicationMail::class, function ($mail) use ($riderUser, $reason) {

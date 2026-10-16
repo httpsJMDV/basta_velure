@@ -131,43 +131,16 @@ class AuthController extends Controller
             ], 403);
         }
 
+        // Hub and courier applicants apply from their buyer account, so a pending, rejected or disapproved application
+        // never blocks sign-in: they keep shopping and see the application status on the hub or courier page. The hub
+        // and rider routes stay closed to them (approved_sorting_center, approved_rider). Only a suspended hub is
+        // refused here, as an admin action.
         if ($user->sortingCenter) {
             $hubStatus = $user->sortingCenter->status;
-            if ($hubStatus === \App\Models\SortingCenter::STATUS_PENDING) {
-                Auth::guard('web')->logout();
-                return response()->json([
-                    'message' => 'Your sorting center application is currently pending administrative approval. You will receive an email notification once reviewed.',
-                ], 403);
-            }
-
-            if ($hubStatus === \App\Models\SortingCenter::STATUS_REJECTED) {
-                Auth::guard('web')->logout();
-                return response()->json([
-                    'message' => 'Your sorting center application was not approved. Please check your email for details or contact support.',
-                ], 403);
-            }
-
             if ($hubStatus === \App\Models\SortingCenter::STATUS_SUSPENDED) {
                 Auth::guard('web')->logout();
                 return response()->json([
                     'message' => 'Your sorting center hub account has been suspended. Please contact platform administration.',
-                ], 403);
-            }
-        }
-
-        if ($user->rider) {
-            $riderStatus = $user->rider->status;
-            if ($riderStatus === \App\Models\Rider::STATUS_PENDING) {
-                Auth::guard('web')->logout();
-                return response()->json([
-                    'message' => 'Your rider application is currently pending hub approval. You will receive an email notification once reviewed.',
-                ], 403);
-            }
-
-            if ($riderStatus === \App\Models\Rider::STATUS_DISAPPROVED) {
-                Auth::guard('web')->logout();
-                return response()->json([
-                    'message' => 'Your rider application was not approved. Please check your email for details or contact support.',
                 ], 403);
             }
         }

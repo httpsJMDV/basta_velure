@@ -86,13 +86,13 @@ class AdminSortingCenterApprovalTest extends TestCase
 
         [$user, $hub, $password] = $this->createHub(SortingCenter::STATUS_PENDING);
 
-        // Verify login is blocked while PENDING
+        // While PENDING the owner can sign in (they apply from their buyer account) and sees the pending status
         $preLogin = $this->postJson('/api/v1/auth/login', [
             'email'    => $user->email,
             'password' => $password,
         ]);
-        $preLogin->assertStatus(403)
-            ->assertJsonPath('message', 'Your sorting center application is currently pending administrative approval. You will receive an email notification once reviewed.');
+        $preLogin->assertOk()->assertJsonPath('data.sorting_center.status', 'PENDING');
+        $this->app['auth']->forgetGuards();
 
         // Admin approves
         Sanctum::actingAs($this->admin);
@@ -145,13 +145,15 @@ class AdminSortingCenterApprovalTest extends TestCase
         $this->assertEquals($reasonText, $hub->rejection_reason);
         $this->assertEquals($this->admin->id, $hub->reviewed_by);
 
-        // Login remains blocked with rejected message (without leaking internal details)
+        // The owner can still sign in to their buyer account and sees the rejection; hub routes stay closed
+        $this->app['auth']->forgetGuards();
         $loginRes = $this->postJson('/api/v1/auth/login', [
             'email'    => $user->email,
             'password' => $password,
         ]);
-        $loginRes->assertStatus(403)
-            ->assertJsonPath('message', 'Your sorting center application was not approved. Please check your email for details or contact support.');
+        $loginRes->assertOk()->assertJsonPath('data.sorting_center.status', 'REJECTED');
+        Sanctum::actingAs($user->fresh());
+        $this->getJson('/api/v1/hub/dashboard/metrics')->assertStatus(403);
 
         // Rejection email dispatched with reason
         Mail::assertQueued(SortingCenterApplicationMail::class, function ($mail) use ($user, $reasonText) {

@@ -144,7 +144,7 @@ class LoginIdentifierTest extends TestCase
 
     // ── Gating is unchanged, whichever way the person identifies themselves ─
 
-    public function test_suspended_pending_and_rejected_accounts_are_still_blocked_by_username_and_by_email(): void
+    public function test_suspended_accounts_are_blocked_and_applicants_sign_in_by_username_and_by_email(): void
     {
         $owner = $this->makeUser('buyer', 'hub.owner');
         $hub = $this->makeHub($owner);
@@ -167,13 +167,10 @@ class LoginIdentifierTest extends TestCase
         $activeRider = $this->makeUser('rider', 'active.rider');
         $this->makeRider($activeRider, $hub, Rider::STATUS_ACTIVE);
 
+        // A suspended account or hub is an admin decision: refused, however the person identifies themselves.
         $blocked = [
             [$suspended, 'suspended.user', 'has been suspended'],
-            [$pendingHubOwner, 'pending.hub', 'sorting center application is currently pending'],
-            [$rejectedHubOwner, 'rejected.hub', 'sorting center application was not approved'],
             [$suspendedHubOwner, 'suspended.hub', 'hub account has been suspended'],
-            [$pendingRider, 'pending.rider', 'rider application is currently pending hub approval'],
-            [$rejectedRider, 'rejected.rider', 'rider application was not approved'],
         ];
         foreach ($blocked as [$user, $username, $text]) {
             foreach ([['identifier' => $username], ['identifier' => strtoupper($username)], ['email' => $user->email]] as $identity) {
@@ -183,7 +180,21 @@ class LoginIdentifierTest extends TestCase
                 $this->assertNull($response->json('token'));
             }
         }
-        $this->assertSame(0, $pendingHub->fresh()->user->tokens()->count());
+
+        // Hub and courier applicants apply from their own account, so a pending or refused application never blocks
+        // sign-in; the payload carries the status the hub or courier page shows.
+        $applicants = [
+            [$pendingHubOwner, 'pending.hub', 'data.sorting_center.status', 'PENDING'],
+            [$rejectedHubOwner, 'rejected.hub', 'data.sorting_center.status', 'REJECTED'],
+            [$pendingRider, 'pending.rider', 'data.rider.status', 'PENDING'],
+            [$rejectedRider, 'rejected.rider', 'data.rider.status', 'DISAPPROVED'],
+        ];
+        foreach ($applicants as [$user, $username, $path, $status]) {
+            foreach ([['identifier' => $username], ['email' => $user->email]] as $identity) {
+                $this->login($identity + ['password' => self::PASSWORD])->assertOk()->assertJsonPath($path, $status);
+            }
+        }
+        $this->assertGreaterThan(0, $pendingHub->fresh()->user->tokens()->count());
 
         // The approved hub owner and the active rider get in, with their portals' data.
         $this->login(['identifier' => 'hub.owner', 'password' => self::PASSWORD])->assertOk()->assertJsonPath('data.sorting_center.status', 'APPROVED');
@@ -211,14 +222,10 @@ class LoginIdentifierTest extends TestCase
 
     public function test_registration_endpoints_ignore_a_submitted_username(): void
     {
-        $hubRegistration = $this->postJson('/api/v1/auth/register-sorting-center', [
-            'first_name'            => 'Ramon', 'last_name' => 'Magsaysay', 'sex' => 'male',
-            'email'                 => 'ramon.' . uniqid() . '@example.com',
-            'phone'                 => '+63917' . random_int(1000000, 9999999),
-            'date_of_birth'         => '1990-01-01',
-            'password'              => self::PASSWORD, 'password_confirmation' => self::PASSWORD,
-            'government_id_type'    => 'national_id',
-            'government_id_image'   => UploadedFile::fake()->create('id.jpg', 100, 'image/jpeg'),
+        // The hub and courier applications act on the signed-in account; a smuggled username or role is ignored.
+        $hubApplicant = $this->makeUser('buyer');
+        $hubApplicant->forceFill(['government_id_image_path' => 'ids/front.jpg', 'date_of_birth' => '1990-01-01'])->save();
+        $this->actingAs($hubApplicant, 'sanctum')->postJson('/api/v1/auth/apply-hub', [
             'hub_name'              => 'Hub Z', 'address_province' => 'Laguna', 'address_city' => 'Santa Cruz',
             'address_barangay'      => 'Poblacion I', 'address_street' => '1 Street',
             'dti_permit'            => UploadedFile::fake()->create('permit.pdf', 100, 'application/pdf'),
@@ -226,24 +233,21 @@ class LoginIdentifierTest extends TestCase
             'username'              => 'sneaky.hub',
             'role'                  => 'admin',
         ])->assertCreated();
-        $hubOwner = User::where('email', $hubRegistration->json('data.user.email'))->firstOrFail();
-        $this->assertNull($hubOwner->username);
-        $this->assertSame('buyer', $hubOwner->role);
+        $this->assertNull($hubApplicant->fresh()->username);
+        $this->assertSame('buyer', $hubApplicant->fresh()->role);
 
         $hub = $this->makeHub($this->makeUser('buyer'));
-        $riderRegistration = $this->postJson('/api/v1/auth/register-rider', [
-            'first_name'            => 'Danilo', 'last_name' => 'Reyes', 'sex' => 'male',
-            'email'                 => 'danilo.' . uniqid() . '@example.com',
-            'phone'                 => '+63918' . random_int(1000000, 9999999),
-            'date_of_birth'         => '1995-03-20',
-            'password'              => self::PASSWORD, 'password_confirmation' => self::PASSWORD,
-            'address_province'      => 'Laguna', 'address_city' => 'Calamba', 'address_barangay' => 'Real', 'address_street' => '2 Street',
+        $riderApplicant = $this->makeUser('buyer');
+        $riderApplicant->forceFill(['date_of_birth' => '1995-03-20'])->save();
+        $this->actingAs($riderApplicant, 'sanctum')->postJson('/api/v1/auth/apply-rider', [
             'sorting_center_id'     => $hub->id, 'vehicle_type' => 'Motorcycle', 'plate_number' => 'ND 1234',
             'or_cr_image'           => UploadedFile::fake()->create('or_cr.jpg', 100, 'image/jpeg'),
             'drivers_license_image' => UploadedFile::fake()->create('license.pdf', 100, 'application/pdf'),
             'username'              => 'sneaky.rider',
+            'role'                  => 'admin',
         ])->assertCreated();
-        $this->assertNull(User::where('email', $riderRegistration->json('data.user.email'))->firstOrFail()->username);
+        $this->assertNull($riderApplicant->fresh()->username);
+        $this->assertSame('buyer', $riderApplicant->fresh()->role);
         $this->assertSame(0, User::whereIn('username', ['sneaky.hub', 'sneaky.rider'])->count());
     }
 

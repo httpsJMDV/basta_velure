@@ -16,7 +16,8 @@ class EnsureApprovedRider
     {
         $user = $request->user();
 
-        if (! $user || $user->role !== 'rider') {
+        // A courier is a buyer (or an older role "rider" account) with a riders row; the row decides, not the role.
+        if (! $user || ! in_array($user->role, ['rider', 'buyer'], true)) {
             abort(403, 'Access denied. Rider account required.');
         }
 

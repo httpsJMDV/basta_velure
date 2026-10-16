@@ -90,6 +90,7 @@ class UserResource extends JsonResource
                 'plate_number'      => $this->rider->plate_number,
                 'sorting_center_id' => $this->rider->sorting_center_id,
                 'hub_name'          => $this->rider->sortingCenter?->hub_name,
+                'rejection_reason'  => $this->rider->rejection_reason,
                 'submitted_at'      => $this->rider->submitted_at?->toIso8601String(),
                 'created_at'        => $this->rider->created_at?->toIso8601String(),
             ]),
