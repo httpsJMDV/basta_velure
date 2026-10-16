@@ -12,7 +12,7 @@ class Product extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'seller_id', 'category_id', 'name', 'description', 'base_price', 'original_price',
+        'seller_id', 'category_id', 'name', 'description', 'base_price', 'original_price', 'discount_percent',
         'status', 'rejection_reason', 'archive_reason', 'archived_by', 'weight_kg',
         'dimension_l_cm', 'dimension_w_cm', 'dimension_h_cm', 'sku',
         'fda_lto_path', 'fda_cpr_path', 'net_weight_volume',
@@ -22,6 +22,7 @@ class Product extends Model
     protected $casts = [
         'base_price'     => 'float',
         'original_price' => 'float',
+        'discount_percent' => 'integer',
         'avg_rating'     => 'float',
         'review_count'   => 'integer',
         'weight_kg'      => 'float',

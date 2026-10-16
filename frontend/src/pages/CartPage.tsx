@@ -159,10 +159,10 @@ export default function CartPage() {
               <p className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Popular Categories</p>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {[
-                  { label: 'Tech & Gadgets', to: '/search?category=tech-gadgets' },
-                  { label: 'Fashion & Apparel', to: '/search?category=fashion-apparel' },
-                  { label: 'Home & Living', to: '/search?category=home-living' },
-                  { label: 'Beauty & Wellness', to: '/search?category=beauty-wellness' },
+                  { label: 'Tech & Gadgets', to: '/category/mobile-gadgets-computers' },
+                  { label: 'Fashion & Apparel', to: '/category/womens-fashion' },
+                  { label: 'Home & Living', to: '/category/home-living' },
+                  { label: 'Beauty & Wellness', to: '/category/health-beauty' },
                 ].map((chip) => (
                   <Link
                     key={chip.label}

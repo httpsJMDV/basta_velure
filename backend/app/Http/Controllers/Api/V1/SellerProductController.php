@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ProductImage;
+use App\Support\ProductDiscount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,7 @@ class SellerProductController extends Controller
             'description'         => $this->descriptionRules(),
             'category_slug'       => 'nullable|string|max:100',
             'base_price'          => 'nullable|numeric|min:0',
+            'discount_percent'    => 'nullable|integer|min:0|max:' . ProductDiscount::MAX_PERCENT,
             'weight_kg'           => 'nullable|numeric|min:0',
             'dimension_l_cm'      => 'nullable|numeric|min:0',
             'dimension_w_cm'      => 'nullable|numeric|min:0',
@@ -107,7 +109,7 @@ class SellerProductController extends Controller
                 }
             }
 
-            // Replace variants
+            // Replace variants (their prices are the regular prices; the discount is applied below)
             if (!empty($data['variants'])) {
                 $product->variants()->delete();
                 foreach ($data['variants'] as $v) {
@@ -118,7 +120,10 @@ class SellerProductController extends Controller
                         'sku'            => $v['sku'] ?? null,
                     ]);
                 }
+            } else {
+                ProductDiscount::restoreRegularPrices($product);
             }
+            ProductDiscount::apply($product, array_key_exists('discount_percent', $data) ? $data['discount_percent'] : $product->discount_percent);
 
             // Append new images
             if ($request->hasFile('images')) {
@@ -153,6 +158,7 @@ class SellerProductController extends Controller
             'description'         => $this->descriptionRules(),
             'category_slug'       => 'nullable|string|max:100',
             'base_price'          => 'nullable|numeric|min:0',
+            'discount_percent'    => 'nullable|integer|min:0|max:' . ProductDiscount::MAX_PERCENT,
             'weight_kg'           => 'nullable|numeric|min:0',
             'dimension_l_cm'      => 'nullable|numeric|min:0',
             'dimension_w_cm'      => 'nullable|numeric|min:0',
@@ -213,6 +219,7 @@ class SellerProductController extends Controller
                     'sku'            => $v['sku'] ?? null,
                 ]);
             }
+            ProductDiscount::apply($product, $data['discount_percent'] ?? null);
 
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $i => $file) {
@@ -258,9 +265,11 @@ class SellerProductController extends Controller
         $data = $request->validate(['price' => 'required|numeric|min:0.01']);
 
         DB::transaction(function () use ($product, $data) {
-            $product->update(['base_price' => $data['price']]);
             if ($product->variants->count() === 1) {
-                $product->variants->first()->update(['price' => $data['price']]);
+                $product->variants->first()->update(['price' => $data['price'], 'original_price' => null]);
+                ProductDiscount::apply($product, $product->discount_percent);
+            } else {
+                $product->update(['base_price' => $data['price']]);
             }
         });
 
@@ -359,6 +368,8 @@ class SellerProductController extends Controller
             'category_id'          => $product->category?->slug ?? '',
             'thumbnail_url'        => $primaryImage ? asset('storage/' . $primaryImage->path) : null,
             'base_price'           => (float) $product->base_price,
+            'original_price'       => $product->original_price !== null ? (float) $product->original_price : null,
+            'discount_percent'     => $product->discount_percent,
             'status'               => $product->status,
             'units_sold'           => $product->units_sold,
             'rejection_reason'     => $product->rejection_reason,
@@ -390,6 +401,7 @@ class SellerProductController extends Controller
                 'sku'            => $v->sku,
                 'stock_quantity' => $v->stock_quantity,
                 'price'          => (float) $v->price,
+                'regular_price'  => ProductDiscount::regularPrice($v),
             ])->values(),
         ];
     }

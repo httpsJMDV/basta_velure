@@ -237,9 +237,9 @@ export default function CartModal({
                   {/* Category Quick Chips */}
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-6 max-w-xs">
                     {[
-                      { label: 'Tech & Gadgets', to: '/search?category=tech-gadgets' },
-                      { label: 'Fashion', to: '/search?category=fashion-apparel' },
-                      { label: 'Home Living', to: '/search?category=home-living' },
+                      { label: 'Tech & Gadgets', to: '/category/mobile-gadgets-computers' },
+                      { label: 'Fashion', to: '/category/womens-fashion' },
+                      { label: 'Home Living', to: '/category/home-living' },
                     ].map((chip) => (
                       <Link
                         key={chip.label}

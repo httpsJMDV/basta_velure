@@ -15,6 +15,7 @@ import Button from '../components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
 import { resolveShortLocation } from '../utils/psgc';
+import { shopUrl, shopUrlLabel } from '../utils/shopLink';
 import {
   getPublicShopProfileApi,
   getShopReviewsApi,
@@ -353,8 +354,7 @@ export default function ShopProfilePage() {
   // Copy slug URL handler
   function handleCopyUrl() {
     if (!profile) return;
-    const url = `${window.location.origin}/shop/${profile.shop_slug}`;
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(shopUrl(profile.shop_slug));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -541,19 +541,30 @@ export default function ShopProfilePage() {
 
             {/* Store Link with Copy Button */}
             <div className="mt-4 pt-3.5 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-400">Store link:</span>
-                <button
-                  onClick={handleCopyUrl}
-                  className="flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 font-mono font-medium transition-colors"
-                >
-                  <span>loved-it.com/shop/{profile.shop_slug}</span>
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5 text-gray-400" />
-                  )}
-                </button>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-medium text-gray-400 shrink-0">Store link:</span>
+                <div className="flex items-center min-w-0 bg-gray-50 rounded-lg border border-gray-200 font-mono font-medium">
+                  <a
+                    href={shopUrl(profile.shop_slug)}
+                    className="px-3 py-1.5 text-gray-700 hover:text-brand-red hover:underline truncate"
+                    title={shopUrl(profile.shop_slug)}
+                  >
+                    {shopUrlLabel(profile.shop_slug)}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleCopyUrl}
+                    title={copied ? 'Copied' : 'Copy link'}
+                    aria-label="Copy store link"
+                    className="shrink-0 self-stretch px-2.5 border-l border-gray-200 rounded-r-lg hover:bg-gray-100 transition-colors"
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 text-gray-400" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

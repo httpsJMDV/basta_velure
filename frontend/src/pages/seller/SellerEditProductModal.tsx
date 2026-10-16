@@ -78,7 +78,8 @@ function buildInitialForm(p: SellerProduct): EditForm {
   const variantRows: EditVariantRow[] = hasVariants
     ? p.variants.map((v) => ({
         combination: v.label,
-        price: String(v.price),
+        // Regular prices: the shop's discount (kept as it is) is applied again on save.
+        price: String(v.regular_price ?? v.price),
         stock: String(v.stock_quantity),
       }))
     : [];
@@ -89,7 +90,7 @@ function buildInitialForm(p: SellerProduct): EditForm {
     parentCategoryId: parentEntry?.id ?? '',
     leafCategoryId: p.category_id ?? '',
     hasVariants,
-    price: hasVariants ? '' : String(p.variants[0]?.price ?? p.base_price),
+    price: hasVariants ? '' : String(p.variants[0]?.regular_price ?? p.variants[0]?.price ?? p.base_price),
     stock: hasVariants ? '' : String(p.variants[0]?.stock_quantity ?? 0),
     variantTypes: [],
     variantRows,
@@ -341,7 +342,16 @@ export default function SellerEditProductModal({
           )}
           {step === 0 && <Step0Images form={form} patch={patch} errors={errors} clearError={clearError} />}
           {step === 1 && <Step1BasicInfo form={form} patch={patch} errors={errors} clearError={clearError} />}
-          {step === 2 && <Step2Variants form={form} patch={patch} errors={errors} clearError={clearError} />}
+          {step === 2 && (
+            <>
+              {product.discount_percent ? (
+                <p className="mb-3 px-3 py-2 rounded-xl bg-rose-50 border border-rose-100 text-[12px] text-rose-700">
+                  These are regular prices. Your {product.discount_percent}% shop discount still applies on top; change it on the full product page.
+                </p>
+              ) : null}
+              <Step2Variants form={form} patch={patch} errors={errors} clearError={clearError} />
+            </>
+          )}
           {step === 3 && <Step3Shipping form={form} patch={patch} errors={errors} clearError={clearError} />}
           {step === 4 && needsFda && <Step4Fda form={form} patch={patch} errors={errors} clearError={clearError} />}
         </div>
