@@ -77,7 +77,7 @@ class AdminProductController extends Controller
 
         $product->update(['status' => 'active', 'rejection_reason' => null]);
 
-        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller']))]);
+        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
 
     /** POST /admin/products/{product}/reject */
@@ -88,7 +88,7 @@ class AdminProductController extends Controller
         $data = $request->validate(['reason' => 'required|string|max:1000']);
         $product->update(['status' => 'rejected', 'rejection_reason' => $data['reason']]);
 
-        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller']))]);
+        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
 
     /** POST /admin/products/{product}/archive */
@@ -108,7 +108,7 @@ class AdminProductController extends Controller
             'archived_by'    => 'admin',
         ]);
 
-        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller']))]);
+        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
 
     /** POST /admin/products/{product}/reactivate */
@@ -126,7 +126,7 @@ class AdminProductController extends Controller
             'archived_by'    => null,
         ]);
 
-        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller']))]);
+        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
 
     /** GET /admin/products/{product}/fda-lto */
@@ -189,8 +189,21 @@ class AdminProductController extends Controller
                 'email'      => $product->seller->email,
                 'phone'      => $product->seller->phone,
                 'shop_name'  => $product->seller->sellerProfile?->shop_name,
-                'shop_slug'  => $product->seller->sellerProfile?->shop_slug,
+                // Shop pages are addressed by the slugged shop name, as everywhere else (/shop/{slug}).
+                'shop_slug'  => $product->seller->sellerProfile?->shop_name ? \Illuminate\Support\Str::slug($product->seller->sellerProfile->shop_name) : null,
                 'avatar_url' => $product->seller->avatar_path ? asset('storage/' . $product->seller->avatar_path) : null,
+                // The public face of the shop, for the admin's shop profile card.
+                'shop'       => $product->seller->sellerProfile ? [
+                    'logo_url'       => $product->seller->sellerProfile->logo_url,
+                    'banner_url'     => $product->seller->sellerProfile->banner_url,
+                    'category'       => $product->seller->sellerProfile->shop_category,
+                    'bio'            => $product->seller->sellerProfile->shop_bio ?: $product->seller->sellerProfile->shop_description,
+                    'city'           => $product->seller->sellerProfile->address_city,
+                    'province'       => $product->seller->sellerProfile->address_province,
+                    'contact_number' => $product->seller->sellerProfile->shop_contact_number,
+                    'response_time'  => $product->seller->sellerProfile->response_time,
+                    'approved_at'    => $product->seller->sellerProfile->reviewed_at?->toIso8601String(),
+                ] : null,
             ] : null,
             'created_at'           => $product->created_at,
             // FDA / food compliance
