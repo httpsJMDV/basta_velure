@@ -258,6 +258,13 @@ const STATUS_NOTE: Record<string, string> = {
   archived: 'Hidden from buyers',
 };
 
+/** Answers sellers type when a product has no allergens ("wala" is Filipino for "none"). */
+const NO_ALLERGEN_WORDS = new Set(['wala', 'wala po', 'none', 'n/a', 'na', 'no', 'nil', 'nothing', 'no allergens', 'not applicable', '-', '--']);
+
+function shortDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 /** A plain white panel with a hairline border; the heading is text, not an icon badge. */
 function Panel({ title, action, children, flush }: { title: string; action?: React.ReactNode; children: React.ReactNode; flush?: boolean }) {
   return (
@@ -271,12 +278,47 @@ function Panel({ title, action, children, flush }: { title: string; action?: Rea
   );
 }
 
-/** One row of the spec sheet: the label on the left, the value right-aligned. */
-function Row({ label, children, strong }: { label: string; children: React.ReactNode; strong?: boolean }) {
+/** One row of a spec sheet: the label on the left, the value right-aligned. */
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2.5 border-b border-gray-100 last:border-0">
       <dt className="text-[13px] text-gray-500 shrink-0">{label}</dt>
-      <dd className={`text-right tabular-nums ${strong ? 'text-[15px] font-bold text-gray-900' : 'text-[13px] font-medium text-gray-800'}`}>{children}</dd>
+      <dd className="text-right text-[13px] font-medium text-gray-800 tabular-nums min-w-0 break-words">{children}</dd>
+    </div>
+  );
+}
+
+/** The seller's allergen statement: "none" answers read as a clear all-clear, real allergens as tags. */
+function AllergenDeclaration({ text }: { text: string }) {
+  const raw = text.trim();
+  const none = NO_ALLERGEN_WORDS.has(raw.toLowerCase().replace(/[.!]+$/, ''));
+
+  if (none) {
+    return (
+      <div className="flex items-center gap-3 p-3 border rounded-lg border-emerald-200 bg-emerald-50/60">
+        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 shrink-0" aria-hidden="true">
+          <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" /></svg>
+        </span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-emerald-900">No allergens declared</p>
+          <p className="text-[12px] text-emerald-800/70">The seller answered &ldquo;{raw}&rdquo;.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const items = raw.split(/\s*(?:,|;|\/|\band\b|&)\s*/i).map((s) => s.trim()).filter(Boolean);
+  return (
+    <div className="p-3 border rounded-lg border-amber-200 bg-amber-50/60">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] font-semibold text-amber-900">Contains allergens</p>
+        <span className="text-[11px] text-amber-800/70">As declared by the seller</span>
+      </div>
+      <ul className="flex flex-wrap gap-1.5 mt-2">
+        {items.map((item) => (
+          <li key={item} className="px-2.5 py-1 rounded-md bg-white border border-amber-200 text-[12px] font-medium text-amber-900">{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -359,13 +401,13 @@ export default function AdminProductReviewPage() {
   if (loading) {
     return (
       <div className="pb-10 space-y-6">
-        <div className="h-[104px] rounded-xl bg-neutral-900 animate-pulse" />
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="h-[168px] rounded-2xl bg-neutral-900 animate-pulse" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
-            <div className="h-[420px] bg-white border border-gray-200 rounded-xl animate-pulse" />
+            <div className="h-[340px] bg-white border border-gray-200 rounded-xl animate-pulse" />
             <div className="h-48 bg-white border border-gray-200 rounded-xl animate-pulse" />
           </div>
-          <div className="bg-white border border-gray-200 h-80 rounded-xl animate-pulse" />
+          <div className="bg-white border border-gray-200 h-96 rounded-xl animate-pulse" />
         </div>
       </div>
     );
@@ -384,7 +426,7 @@ export default function AdminProductReviewPage() {
   }
 
   const images = product.images;
-  const cover = images[activeImgIdx]?.url ?? product.thumbnail_url;
+  const cover = images.find((img) => img.is_primary)?.url ?? images[0]?.url ?? product.thumbnail_url;
   const statusLabel = STATUS_STYLES[product.status]?.label ?? product.status;
   const prices = product.variants.map((v) => Number(v.price));
   const minPrice = prices.length ? Math.min(...prices) : Number(product.base_price);
@@ -404,101 +446,123 @@ export default function AdminProductReviewPage() {
     { type: 'fda-lto', name: 'License to Operate', short: 'FDA LTO', onFile: Boolean(product.fda_lto_on_file) },
     { type: 'fda-cpr', name: 'Certificate of Product Registration', short: 'FDA CPR', onFile: Boolean(product.fda_cpr_on_file) },
   ];
+  const seller = product.seller;
+  const shop = seller?.shop ?? null;
+  const shopName = seller?.shop_name || seller?.full_name || 'Unknown shop';
+  const shopPlace = [shop?.city, shop?.province].filter(Boolean).join(', ');
 
-  const ghost = 'inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-white/15 text-white/90 text-[13px] font-semibold hover:bg-white/10 transition-colors disabled:opacity-50';
-  const solid = 'inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-white text-[13px] font-semibold transition-colors disabled:opacity-50';
+  const figures: { label: string; value: React.ReactNode; tone?: string }[] = [
+    { label: 'Price', value: minPrice === maxPrice ? fmt(minPrice) : `${fmt(minPrice)} – ${fmt(maxPrice)}` },
+    { label: 'In stock', value: totalStock, tone: totalStock === 0 ? 'text-red-300' : undefined },
+    { label: 'Units sold', value: product.units_sold },
+    { label: 'Variants', value: product.variants.length || 1 },
+  ];
+
+  const ghost = 'inline-flex items-center gap-1.5 h-10 px-4 rounded-lg border border-white/15 bg-white/5 text-white text-[13px] font-semibold hover:bg-white/10 transition-colors disabled:opacity-50';
+  const solid = 'inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold shadow-sm shadow-black/30 transition-colors disabled:opacity-50';
 
   return (
     <div ref={pageRef} className="pb-12">
-      {/* ── Header: the theme's dark band, typographic rather than decorated ── */}
+      {/* ── Header: identity and actions above, the key figures as a strip below ── */}
       <header
-        className="px-5 py-4 border rounded-xl border-neutral-800 sm:px-6"
+        className="overflow-hidden border rounded-2xl border-neutral-800"
         style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
       >
-        <button type="button" onClick={() => navigate('/admin/products')} className="inline-flex items-center gap-1 text-[12px] text-white/50 hover:text-white">
-          <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" /> Products
-        </button>
-
-        <div className="flex flex-col gap-4 mt-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center min-w-0 gap-4">
-            <div className="w-14 h-14 overflow-hidden bg-white rounded-lg shrink-0">
-              {cover ? <img src={cover} alt="" className="object-cover w-full h-full" /> : <div className="w-full h-full bg-neutral-200" />}
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight text-white truncate sm:text-2xl">{product.name}</h1>
-              <p className="mt-1 text-[13px] text-white/55 truncate">
-                {product.seller?.shop_name || 'Unknown shop'}
-                {product.category && <> · {product.category.name}</>}
-                <> · #{product.id}</>
-              </p>
-            </div>
+        <div className="px-5 pt-4 pb-5 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <button type="button" onClick={() => navigate('/admin/products')} className="inline-flex items-center gap-1 text-[12px] font-medium text-white/50 hover:text-white transition-colors">
+              <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" /> All products
+            </button>
+            <span className="font-mono text-[11px] text-white/35">#{product.id}</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <span className="inline-flex items-center gap-2 mr-2 text-[13px] text-white/80">
-              <span className={`w-2 h-2 rounded-full ${STATUS_DOT[product.status] ?? 'bg-neutral-400'}`} aria-hidden="true" />
-              <span className="font-semibold text-white">{statusLabel}</span>
-              <span className="hidden text-white/45 sm:inline">{STATUS_NOTE[product.status] ?? ''}</span>
-            </span>
-            {product.status === 'pending_review' && (
-              <>
-                <button type="button" disabled={actioning} onClick={() => setShowRejectModal(true)} className={ghost}>Reject</button>
-                <button type="button" disabled={actioning} onClick={handleApprove} className={`${solid} bg-brand-red hover:bg-brand-red-dark`}>
-                  {actioning && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Approve
+          <div className="flex flex-col gap-5 mt-4 md:flex-row md:items-end md:justify-between">
+            <div className="flex items-center min-w-0 gap-4">
+              <div className="w-[76px] h-[76px] p-1.5 bg-white rounded-xl ring-1 ring-white/10 shrink-0">
+                {cover ? <img src={cover} alt="" className="object-contain w-full h-full" /> : <div className="w-full h-full rounded-lg bg-neutral-100" />}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 pl-2 pr-2.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-[11px] font-semibold text-white">
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[product.status] ?? 'bg-neutral-400'}`} aria-hidden="true" />
+                    {statusLabel}
+                  </span>
+                  <span className="text-[12px] text-white/45">{STATUS_NOTE[product.status] ?? ''}</span>
+                </div>
+                <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white truncate sm:text-[28px] leading-tight">{product.name}</h1>
+                <p className="mt-0.5 text-[13px] text-white/55 truncate">
+                  {product.category?.name ?? 'Uncategorised'} · by <span className="text-white/80">{shopName}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {product.status === 'pending_review' && (
+                <>
+                  <button type="button" disabled={actioning} onClick={() => setShowRejectModal(true)} className={ghost}>Reject</button>
+                  <button type="button" disabled={actioning} onClick={handleApprove} className={solid}>
+                    {actioning && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Approve product
+                  </button>
+                </>
+              )}
+              {product.status === 'active' && (
+                <button type="button" disabled={actioning} onClick={() => setShowArchiveModal(true)} className={ghost}>Archive product</button>
+              )}
+              {(product.status === 'archived' || product.status === 'rejected') && (
+                <button type="button" disabled={actioning} onClick={handleReactivate} className={solid}>
+                  {actioning && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Reactivate
                 </button>
-              </>
-            )}
-            {product.status === 'active' && (
-              <button type="button" disabled={actioning} onClick={() => setShowArchiveModal(true)} className={ghost}>Archive</button>
-            )}
-            {(product.status === 'archived' || product.status === 'rejected') && (
-              <button type="button" disabled={actioning} onClick={handleReactivate} className={`${solid} bg-brand-red hover:bg-brand-red-dark`}>
-                {actioning && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Reactivate
-              </button>
-            )}
+              )}
+            </div>
           </div>
         </div>
+
+        <dl className="grid grid-cols-2 border-t sm:grid-cols-4 border-white/10 bg-black/25">
+          {figures.map((f, i) => (
+            <div key={f.label} className={`px-5 py-3 sm:px-6 ${i % 2 === 1 ? 'border-l' : ''} ${i >= 2 ? 'border-t sm:border-t-0' : ''} sm:border-l first:sm:border-l-0 border-white/10`}>
+              <dt className="text-[11px] font-medium text-white/45">{f.label}</dt>
+              <dd className={`mt-0.5 text-[16px] font-semibold tabular-nums ${f.tone ?? 'text-white'}`}>{f.value}</dd>
+            </div>
+          ))}
+        </dl>
       </header>
 
       {/* ── Notes that change what the admin does next ── */}
-      <div className="mt-4 space-y-2 empty:hidden">
-        {actionError && (
-          <div role="alert" className="flex items-center justify-between gap-3 py-2.5 pl-4 pr-2 text-[13px] text-red-800 bg-red-50 border-l-2 border-red-500 rounded-r-lg">
-            {actionError}
-            <button type="button" onClick={() => setActionError('')} aria-label="Dismiss" className="p-1 rounded hover:bg-red-100"><X className="w-3.5 h-3.5" /></button>
-          </div>
-        )}
-        {product.status === 'rejected' && product.rejection_reason && (
-          <p className="py-2.5 px-4 text-[13px] text-red-800 bg-red-50 border-l-2 border-red-500 rounded-r-lg">
-            <span className="font-semibold">Rejected:</span> {product.rejection_reason}
-          </p>
-        )}
-        {product.status === 'archived' && product.archive_reason && (
-          <p className="py-2.5 px-4 text-[13px] text-gray-700 bg-gray-100 border-l-2 border-gray-400 rounded-r-lg">
-            <span className="font-semibold">Archived by {product.archived_by === 'admin' ? 'an administrator' : 'the seller'}:</span> {product.archive_reason}
-          </p>
-        )}
-        {product.allergen_info && (
-          <p className="py-2.5 px-4 text-[13px] text-amber-900 bg-amber-50 border-l-2 border-amber-500 rounded-r-lg">
-            <span className="font-semibold">Allergens:</span> {product.allergen_info}
-          </p>
-        )}
-      </div>
+      {(actionError || (product.status === 'rejected' && product.rejection_reason) || (product.status === 'archived' && product.archive_reason)) && (
+        <div className="mt-4 space-y-2">
+          {actionError && (
+            <div role="alert" className="flex items-center justify-between gap-3 py-2.5 pl-4 pr-2 text-[13px] text-red-800 bg-red-50 border-l-2 border-red-500 rounded-r-lg">
+              {actionError}
+              <button type="button" onClick={() => setActionError('')} aria-label="Dismiss" className="p-1 rounded hover:bg-red-100"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          )}
+          {product.status === 'rejected' && product.rejection_reason && (
+            <p className="py-2.5 px-4 text-[13px] text-red-800 bg-red-50 border-l-2 border-red-500 rounded-r-lg">
+              <span className="font-semibold">Rejected:</span> {product.rejection_reason}
+            </p>
+          )}
+          {product.status === 'archived' && product.archive_reason && (
+            <p className="py-2.5 px-4 text-[13px] text-gray-700 bg-gray-100 border-l-2 border-gray-400 rounded-r-lg">
+              <span className="font-semibold">Archived by {product.archived_by === 'admin' ? 'an administrator' : 'the seller'}:</span> {product.archive_reason}
+            </p>
+          )}
+        </div>
+      )}
 
-      <div className="grid items-start gap-6 mt-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        {/* ═══ Main column ═══ */}
+      {/* ── Two columns: the product on the left, a fixed column of facts on the right ── */}
+      <div className="grid items-start gap-6 mt-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
-          {/* Gallery: one stage, a filmstrip under it */}
-          <section>
-            <div className="flex items-center justify-center overflow-hidden bg-white border border-gray-200 rounded-xl aspect-[4/3]">
+          {/* Gallery */}
+          <section className="p-3 bg-white border border-gray-200 rounded-xl">
+            <div className="flex items-center justify-center h-64 overflow-hidden rounded-lg sm:h-[300px] bg-gray-50">
               {images.length > 0 ? (
-                <img src={images[activeImgIdx]?.url} alt={product.name} className="object-contain w-full h-full p-4" />
+                <img src={images[activeImgIdx]?.url} alt={product.name} className="object-contain w-full h-full p-3" />
               ) : (
                 <p className="text-[13px] text-gray-400">No photos uploaded.</p>
               )}
             </div>
             {images.length > 1 && (
-              <div className="flex gap-2 mt-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              <div className="flex gap-2 mt-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                 {images.map((img, i) => (
                   <button
                     key={img.id}
@@ -511,7 +575,7 @@ export default function AdminProductReviewPage() {
                     <img
                       src={img.url}
                       alt=""
-                      className={`w-16 h-16 rounded-lg object-cover border transition-opacity ${i === activeImgIdx ? 'border-gray-300' : 'border-gray-200 opacity-60 hover:opacity-100'}`}
+                      className={`w-14 h-14 rounded-lg object-cover border transition-opacity ${i === activeImgIdx ? 'border-gray-300' : 'border-gray-200 opacity-60 hover:opacity-100'}`}
                     />
                     <span className={`absolute left-2 right-2 bottom-0 h-0.5 rounded-full ${i === activeImgIdx ? 'bg-brand-red' : 'bg-transparent'}`} aria-hidden="true" />
                   </button>
@@ -556,7 +620,7 @@ export default function AdminProductReviewPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-gray-200">
-                    <td colSpan={3} className="px-4 py-2.5 text-gray-500">Total in stock</td>
+                    <td colSpan={3} className="px-4 py-2.5 text-gray-500">Total in stock{soldOut > 0 && <span className="text-red-600"> · {soldOut} sold out</span>}</td>
                     <td className="px-4 py-2.5 font-semibold text-right text-gray-900 tabular-nums">{totalStock}</td>
                   </tr>
                 </tfoot>
@@ -566,29 +630,38 @@ export default function AdminProductReviewPage() {
             )}
           </Panel>
 
-          {safety.length > 0 && (
+          {(safety.length > 0 || product.allergen_info) && (
             <Panel title="Food & safety">
-              <dl className="grid gap-x-8 sm:grid-cols-2">
-                {safety.map(([label, value]) => (
-                  <div key={label} className="py-2.5 border-b border-gray-100 last:border-0 sm:[&:nth-last-child(2)]:border-0">
-                    <dt className="text-[12px] text-gray-500">{label}</dt>
-                    <dd className="mt-0.5 text-[13px] text-gray-900 leading-relaxed">{value}</dd>
-                  </div>
-                ))}
-              </dl>
+              {product.allergen_info && (
+                <div className="pb-3">
+                  <p className="mb-2 text-[12px] text-gray-500">Allergens</p>
+                  <AllergenDeclaration text={product.allergen_info} />
+                </div>
+              )}
+              {safety.length > 0 && (
+                <dl className={`grid gap-x-8 sm:grid-cols-2 ${product.allergen_info ? 'pt-1 border-t border-gray-100' : ''}`}>
+                  {safety.map(([label, value]) => (
+                    <div key={label} className="py-2.5">
+                      <dt className="text-[12px] text-gray-500">{label}</dt>
+                      <dd className="mt-0.5 text-[13px] text-gray-900 leading-relaxed">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </Panel>
           )}
         </div>
 
-        {/* ═══ Side column ═══ */}
-        <aside className="space-y-4 lg:sticky lg:top-20">
+        {/* ═══ Fixed side column ═══ */}
+        <aside
+          className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1 lg:-mr-1 lg:pb-1"
+          style={{ scrollbarWidth: 'thin' }}
+        >
           <Panel title="Summary">
             <dl>
-              <Row label="Price" strong>{minPrice === maxPrice ? fmt(minPrice) : `${fmt(minPrice)} – ${fmt(maxPrice)}`}</Row>
-              <Row label="In stock">{totalStock}{soldOut > 0 && <span className="ml-1.5 text-red-600">({soldOut} sold out)</span>}</Row>
-              <Row label="Sold">{product.units_sold}</Row>
               <Row label="Category">{product.category?.name ?? '—'}</Row>
               {product.sku && <Row label="SKU"><span className="font-mono text-[12px]">{product.sku}</span></Row>}
+              <Row label="Photos">{images.length}</Row>
               <Row label="Weight">{product.weight_kg ? `${product.weight_kg} kg` : '—'}</Row>
               <Row label="Dimensions">{dims ?? '—'}</Row>
               <Row label="Submitted">{fmtDate(product.created_at)}</Row>
@@ -599,16 +672,19 @@ export default function AdminProductReviewPage() {
             <ul>
               {docs.map((d) => (
                 <li key={d.type} className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 first:border-0">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-gray-900">{d.short}</p>
-                    <p className="text-[12px] text-gray-500 truncate">{d.name}</p>
+                  <div className="flex items-center min-w-0 gap-2.5">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${d.onFile ? 'bg-emerald-500' : 'bg-gray-300'}`} aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-gray-900">{d.short}</p>
+                      <p className="text-[12px] text-gray-500 truncate">{d.name}</p>
+                    </div>
                   </div>
                   {d.onFile ? (
                     <button
                       type="button"
                       disabled={loadingDocType === d.type}
                       onClick={() => handleViewDoc(d.type, `${d.short} - ${product.name}`)}
-                      className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand-red hover:underline disabled:opacity-50 shrink-0"
+                      className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-gray-200 text-[12px] font-semibold text-gray-700 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-50 shrink-0"
                     >
                       {loadingDocType === d.type && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                       View
@@ -621,32 +697,64 @@ export default function AdminProductReviewPage() {
             </ul>
           </Panel>
 
-          <Panel
-            title="Seller"
-            action={product.seller?.shop_slug ? (
-              <Link to={`/shop/${product.seller.shop_slug}`} target="_blank" className="inline-flex items-center gap-1 text-[12px] font-semibold text-brand-red hover:underline">
-                Storefront <ExternalLink className="w-3 h-3" aria-hidden="true" />
-              </Link>
-            ) : undefined}
-          >
-            {product.seller ? (
+          <Panel title="Seller">
+            {seller ? (
               <>
                 <div className="flex items-center gap-3">
-                  <Avatar name={product.seller.full_name} src={product.seller.avatar_url} size="md" />
+                  <Avatar name={seller.full_name} src={seller.avatar_url} size="md" />
                   <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-gray-900 truncate">{product.seller.shop_name || product.seller.full_name}</p>
-                    <p className="text-[12px] text-gray-500 truncate">{product.seller.full_name}</p>
+                    <p className="text-[13px] font-semibold text-gray-900 truncate">{seller.full_name}</p>
+                    <p className="text-[12px] text-gray-500">Account owner</p>
                   </div>
                 </div>
                 <dl className="mt-3">
-                  <Row label="Email"><a href={`mailto:${product.seller.email}`} className="hover:text-brand-red break-all">{product.seller.email}</a></Row>
-                  {product.seller.phone && <Row label="Phone">{product.seller.phone}</Row>}
+                  <Row label="Email"><a href={`mailto:${seller.email}`} className="hover:text-brand-red">{seller.email}</a></Row>
+                  {seller.phone && <Row label="Phone">{seller.phone}</Row>}
                 </dl>
               </>
             ) : (
               <p className="text-[13px] text-gray-500">No seller account is tied to this product.</p>
             )}
           </Panel>
+
+          {seller && (
+            <section className="overflow-hidden bg-white border border-gray-200 rounded-xl">
+              <div
+                className="h-20 bg-center bg-cover"
+                style={shop?.banner_url
+                  ? { backgroundImage: `url(${shop.banner_url})` }
+                  : { background: 'linear-gradient(135deg, #2d1515 0%, #3d1a1a 55%, #8e2424 100%)' }}
+                aria-hidden="true"
+              />
+              <div className="px-4 pb-4">
+                <div className="flex items-end justify-between gap-3 -mt-7">
+                  <div className="w-14 h-14 overflow-hidden bg-white border-2 border-white rounded-xl shadow-sm shrink-0">
+                    {shop?.logo_url
+                      ? <img src={shop.logo_url} alt="" className="object-cover w-full h-full" />
+                      : <Avatar name={shopName} size="xl" />}
+                  </div>
+                  {seller.shop_slug && (
+                    <Link
+                      to={`/shop/${seller.shop_slug}`}
+                      target="_blank"
+                      className="inline-flex items-center gap-1 mb-1 text-[12px] font-semibold text-brand-red hover:underline"
+                    >
+                      Visit shop <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    </Link>
+                  )}
+                </div>
+                <h2 className="mt-2 text-[15px] font-bold text-gray-900">{shopName}</h2>
+                <p className="text-[12px] text-gray-500">Shop profile{shop?.category ? ` · ${shop.category}` : ''}</p>
+                {shop?.bio && <p className="mt-2 text-[13px] leading-relaxed text-gray-600 line-clamp-3">{shop.bio}</p>}
+                <dl className="mt-2">
+                  {shopPlace && <Row label="Location">{shopPlace}</Row>}
+                  {shop?.contact_number && <Row label="Shop contact">{shop.contact_number}</Row>}
+                  {shop?.response_time && <Row label="Replies">{shop.response_time}</Row>}
+                  {shop?.approved_at && <Row label="Selling since">{shortDate(shop.approved_at)}</Row>}
+                </dl>
+              </div>
+            </section>
+          )}
         </aside>
       </div>
 
