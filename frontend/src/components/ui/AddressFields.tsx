@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CustomSelect from './CustomSelect';
 import Input from './Input';
 import { NCR_PROVINCE_CODE } from '../../utils/psgc';
@@ -12,20 +12,39 @@ export interface AddressValue {
   street_address: string;
 }
 
+/** The display names of the chosen places; `value` holds their PSGC codes. */
+export interface AddressNames {
+  province: string;
+  city_municipality: string;
+  barangay: string;
+}
+
 interface Props {
   value: AddressValue;
   onChange: (val: AddressValue) => void;
+  /** Reports the names behind the selected codes whenever they change (empty until the lists load). */
+  onNamesChange?: (names: AddressNames) => void;
   errors?: Partial<Record<keyof AddressValue, string>>;
   streetLabel?: string;
   streetRequired?: boolean;
 }
 
-export default function AddressFields({ value, onChange, errors = {}, streetLabel = 'Street / House No. (optional)', streetRequired = false }: Props) {
+export default function AddressFields({ value, onChange, onNamesChange, errors = {}, streetLabel = 'Street / House No. (optional)', streetRequired = false }: Props) {
   const [provinces, setProvinces] = useState<PsgcItem[]>([]);
   const [cities, setCities]       = useState<PsgcItem[]>([]);
   const [barangays, setBarangays] = useState<PsgcItem[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingBrgy, setLoadingBrgy]     = useState(false);
+
+  const namesRef = useRef(onNamesChange);
+  useEffect(() => { namesRef.current = onNamesChange; });
+  useEffect(() => {
+    namesRef.current?.({
+      province: provinces.find((p) => p.code === value.province)?.name ?? '',
+      city_municipality: cities.find((c) => c.code === value.city_municipality)?.name ?? '',
+      barangay: barangays.find((b) => b.code === value.barangay)?.name ?? '',
+    });
+  }, [value.province, value.city_municipality, value.barangay, provinces, cities, barangays]);
 
   useEffect(() => {
     fetch('https://psgc.gitlab.io/api/provinces/')
