@@ -32,6 +32,7 @@ import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../../utils/orderStatus';
 import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
+import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
 
 type OrderTab = 'all' | 'pending_verification' | 'to_ship' | 'in_transit' | 'delivered' | 'cancelled';
 
@@ -536,16 +537,13 @@ export default function SellerOrdersPage() {
                           )}
 
                           {['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(normalizeOrderStatus(o.status)) && (
-                            <a
-                              href={`/seller/orders/${o.id}/waybill`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 py-1 px-2 text-[11px] font-bold bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg shadow-xs transition-colors"
-                              title="Print Waybill"
+                            <PrintWaybillButton
+                              orderId={o.id}
+                              onError={showToast}
+                              className="inline-flex items-center gap-1 py-1 px-2 text-[11px] font-bold bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg shadow-xs transition-colors disabled:opacity-60"
                             >
-                              <Printer className="w-3 h-3 text-gray-500" />
-                              <span>Waybill</span>
-                            </a>
+                              Waybill
+                            </PrintWaybillButton>
                           )}
 
                           <button
@@ -824,13 +822,20 @@ export default function SellerOrdersPage() {
                 {selectedOrder.tracking_number && (
                   <TrackPackageButton trackingNumber={selectedOrder.tracking_number} variant="button" className="w-full" />
                 )}
+                <PrintWaybillButton
+                  orderId={selectedOrder.id}
+                  onError={showToast}
+                  className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-bold text-white bg-gray-900 hover:bg-black rounded-xl shadow-xs transition-colors disabled:opacity-60"
+                >
+                  Print waybill (A6)
+                </PrintWaybillButton>
                 <a
                   href={`/seller/orders/${selectedOrder.id}/waybill`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-bold text-gray-800 bg-white border border-gray-300 hover:bg-gray-100 rounded-xl shadow-xs transition-colors"
+                  className="flex items-center justify-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gray-800"
                 >
-                  <Printer className="w-3.5 h-3.5 text-gray-600" /> Open Printable Waybill (A6)
+                  <Printer className="w-3 h-3" aria-hidden="true" /> Preview full page
                 </a>
               </div>
             )}

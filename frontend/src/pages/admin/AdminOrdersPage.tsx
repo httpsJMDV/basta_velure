@@ -23,6 +23,7 @@ import {
 } from '../../utils/orderStatus';
 import { NA, peso, whole, lastDays, formatDay, manilaToday } from '../../utils/adminReports';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
+import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
 
 const PER_PAGE = 20;
 
@@ -183,14 +184,11 @@ function OrderDetailDrawer({
                 <span className="font-mono font-bold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded">
                   {order.tracking_number}
                 </span>
-                <a
-                  href={`/seller/orders/${order.id}/waybill`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-bold text-brand-red hover:underline ml-auto"
-                >
-                  View Waybill ↗
-                </a>
+                <span className="ml-auto">
+                  <PrintWaybillButton orderId={order.id} className="inline-flex items-center gap-1 text-xs font-bold text-brand-red hover:underline disabled:opacity-60">
+                    Print waybill
+                  </PrintWaybillButton>
+                </span>
                 <TrackPackageButton trackingNumber={order.tracking_number} />
               </div>
             )}
