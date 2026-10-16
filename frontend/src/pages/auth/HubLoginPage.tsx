@@ -55,17 +55,13 @@ export default function HubLoginPage() {
       // Only a hub owner belongs here.
       if (!hub) {
         clearAuth();
-        fail('not_hub', 'This sign-in is only for logistics hub owners. If you are a buyer, seller or courier, please use your own sign-in.');
+        fail('not_hub', 'This account has no logistics hub yet. Sign in on the main page, then apply to run a hub from your account.');
         return;
       }
-      if (hub.status === 'PENDING') {
-        clearAuth();
-        fail('pending', 'Your hub application is currently pending approval by Loved-IT administration. You will receive an email notification once reviewed.');
-        return;
-      }
-      if (hub.status === 'REJECTED') {
-        clearAuth();
-        fail('rejected', 'Your hub application was not approved. Please check your email for details or contact support.');
+      // A pending or rejected applicant stays signed in and sees the application status (and can resubmit).
+      if (hub.status === 'PENDING' || hub.status === 'REJECTED') {
+        setAuth(res.data, res.token);
+        navigate('/register/hub');
         return;
       }
       if (hub.status === 'SUSPENDED') {
@@ -141,7 +137,7 @@ export default function HubLoginPage() {
               <p className="font-medium leading-relaxed">{errorMessage}</p>
 
               {errorType === 'pending' && (
-                <Link to="/register/hub/pending" className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 underline hover:text-amber-900">
+                <Link to="/register/hub" className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 underline hover:text-amber-900">
                   View application status
                   <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
                 </Link>

@@ -191,6 +191,8 @@ export interface RiderSummary {
   plate_number: string;
   sorting_center_id: number;
   hub_name?: string | null;
+  /** The hub's reason when it disapproved the application. */
+  rejection_reason?: string | null;
   submitted_at?: string | null;
   created_at?: string | null;
 }
@@ -205,13 +207,8 @@ export interface PublicApprovedHub {
 export interface RiderRegistrationResponse {
   message: string;
   data: {
-    user: {
-      id: number;
-      first_name: string;
-      last_name: string;
-      email: string;
-      role: Role;
-    };
+    /** The signed-in account, refreshed with its new rider profile. */
+    user: User;
     rider: RiderSummary;
   };
 }

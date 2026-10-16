@@ -167,13 +167,14 @@ export const applyAsSellerApi = (form: FormData) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 
-export const registerSortingCenterApi = (form: FormData) =>
-  http.post<SortingCenterRegistrationResponse>('/auth/register-sorting-center', form, {
+// Hubs and couriers apply from the signed-in buyer account, like sellers (no second account or email).
+export const applyHubApi = (form: FormData) =>
+  http.post<SortingCenterRegistrationResponse>('/auth/apply-hub', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 
-export const registerRiderApi = (form: FormData) =>
-  http.post<RiderRegistrationResponse>('/auth/register-rider', form, {
+export const applyRiderApi = (form: FormData) =>
+  http.post<RiderRegistrationResponse>('/auth/apply-rider', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 
