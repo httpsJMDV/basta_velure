@@ -23,6 +23,7 @@ class SortingCenterApplicationSummaryResource extends JsonResource
             'city_province'   => implode(', ', $cityProvince),
             'applicant_name'  => $applicantName,
             'applicant_email' => $this->user?->email,
+            'applicant_avatar_url' => $this->user?->avatar_url,
             'submitted_date'  => $this->created_at?->toIso8601String(),
             'created_at'      => $this->created_at?->toIso8601String(),
             'status'          => $this->status,
