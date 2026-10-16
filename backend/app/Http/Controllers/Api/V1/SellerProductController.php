@@ -40,7 +40,7 @@ class SellerProductController extends Controller
 
         $data = $request->validate([
             'name'                => 'required|string|max:255',
-            'description'         => 'nullable|string|max:1500',
+            'description'         => $this->descriptionRules(),
             'category_slug'       => 'nullable|string|max:100',
             'base_price'          => 'nullable|numeric|min:0',
             'weight_kg'           => 'nullable|numeric|min:0',
@@ -150,7 +150,7 @@ class SellerProductController extends Controller
     {
         $data = $request->validate([
             'name'                => 'required|string|max:255',
-            'description'         => 'nullable|string|max:1500',
+            'description'         => $this->descriptionRules(),
             'category_slug'       => 'nullable|string|max:100',
             'base_price'          => 'nullable|numeric|min:0',
             'weight_kg'           => 'nullable|numeric|min:0',
@@ -323,6 +323,25 @@ class SellerProductController extends Controller
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
+
+    /**
+     * The description is rich text (bold, lists, embedded images), so the 1,500-character limit the seller sees applies
+     * to the visible text, as the form counts it. The HTML itself (tags, image URLs) gets a much larger ceiling.
+     */
+    private function descriptionRules(): array
+    {
+        return [
+            'nullable',
+            'string',
+            'max:20000',
+            function (string $attribute, mixed $value, \Closure $fail) {
+                $text = trim(html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                if (mb_strlen($text) > 1500) {
+                    $fail('Description must not exceed 1,500 characters.');
+                }
+            },
+        ];
+    }
 
     private function authorizeProduct(Product $product, Request $request): void
     {
