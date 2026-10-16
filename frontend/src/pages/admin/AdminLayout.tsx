@@ -656,6 +656,7 @@ const ML_COLLAPSED        = 'lg:ml-16';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingSellers, setPendingSellers] = useState(0);
   const [pendingBuyers,  setPendingBuyers]  = useState(0);
@@ -674,6 +675,7 @@ export default function AdminLayout() {
     });
   }
 
+  // Reload the badges on every page change, so an approval on one page is reflected when the admin moves on.
   useEffect(() => {
     getAdminStatsApi()
       .then((s) => setPendingSellers(s.pending_seller_applications))
@@ -681,7 +683,7 @@ export default function AdminLayout() {
     getBuyerApplicationsApi({ status: 'pending', per_page: 1 })
       .then((r) => setPendingBuyers(r.summary?.pending_total ?? 0))
       .catch(() => {});
-  }, []);
+  }, [pathname]);
 
   const nav = buildNav(pendingSellers, pendingBuyers);
 
