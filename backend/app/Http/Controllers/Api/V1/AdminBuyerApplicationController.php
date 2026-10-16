@@ -80,7 +80,9 @@ class AdminBuyerApplicationController extends Controller
         // Notify applicant
         try {
             Mail::to($user->email)->queue(new \App\Mail\BuyerApplicationMail($user, 'approved'));
-        } catch (\Throwable) {}
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
 
         return response()->json(['message' => 'Application approved.']);
     }
@@ -109,7 +111,9 @@ class AdminBuyerApplicationController extends Controller
 
         try {
             Mail::to($user->email)->queue(new \App\Mail\BuyerApplicationMail($user, 'rejected', $request->reason));
-        } catch (\Throwable) {}
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
 
         return response()->json(['message' => 'Application rejected.']);
     }

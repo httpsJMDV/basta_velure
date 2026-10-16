@@ -17,7 +17,9 @@ class BuyerApplicationMail extends Mailable
         public readonly User   $user,
         public readonly string $decision,       // 'approved' | 'rejected'
         public readonly ?string $reason = null,
-    ) {}
+    ) {
+        $this->afterCommit();
+    }
 
     public function envelope(): Envelope
     {
@@ -30,11 +32,11 @@ class BuyerApplicationMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(markdown: 'emails.buyer-application', with: [
+        return new Content(view: 'emails.buyer-application', text: 'emails.buyer-application-text', with: [
             'firstName' => $this->user->first_name,
             'decision'  => $this->decision,
             'reason'    => $this->reason,
-            'loginUrl'  => env('FRONTEND_URL', 'http://localhost:5173') . '/login',
+            'loginUrl'  => rtrim(config('app.frontend_url') ?: config('app.url'), '/') . '/login',
         ]);
     }
 }

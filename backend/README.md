@@ -247,3 +247,27 @@ routes/
 storage/
 └── app/private/                — Government ID scans (never publicly reachable)
 ```
+
+## Buyer application decision emails
+
+Admin approval (`POST /api/v1/admin/buyer-applications/{user}/approve`) queues a
+`BuyerApplicationMail` to the buyer's registered email after the approval commits.
+Rejection uses the same branded template with review feedback. The email includes
+the website logo as an inline attachment, so it does not depend on a public image URL.
+
+For delivery, configure the SMTP values described above and set `MAIL_MAILER=smtp`.
+`MAIL_MAILER=log` only writes email output to the application log; it does not deliver
+messages. Mailtrap sandbox captures test messages rather than delivering to buyers.
+Set `FRONTEND_URL` to the public website URL so the sign-in button opens the correct site.
+After changing environment settings, run `php artisan config:clear`.
+
+With `QUEUE_CONNECTION=database`, run a worker (and keep it running in production):
+
+```bash
+php artisan queue:work --tries=3 --backoff=60
+```
+
+Restart workers after deployments with `php artisan queue:restart`. Inspect delivery
+failures with `php artisan queue:failed` and retry resolved failures with
+`php artisan queue:retry <job-id>`. Queue submission errors are reported to the
+application log; email transport failures do not undo a successful buyer approval.
