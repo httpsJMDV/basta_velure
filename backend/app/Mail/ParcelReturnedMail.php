@@ -36,7 +36,8 @@ class ParcelReturnedMail extends Mailable
         // FRONTEND_URL comes from config; fall back to APP_URL, never to a hardcoded host.
         $baseUrl = config('app.frontend_url') ?: config('app.url');
 
-        return new Content(markdown: 'emails.parcel-returned', with: [
+        return new Content(view: 'emails.parcel-returned', text: 'emails.text', with: [
+            'template' => 'emails.parcel-returned',
             'firstName'      => $this->seller->first_name,
             'shopName'       => $this->shopName,
             'orderNumber'    => $this->orderNumber,

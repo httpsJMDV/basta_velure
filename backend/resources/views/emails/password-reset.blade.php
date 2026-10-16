@@ -1,23 +1,10 @@
-<x-mail::message>
-<div style="text-align:center; padding-bottom: 24px;">
-  <span style="font-size: 28px; font-weight: 700; color: #A32D2D; letter-spacing: -0.5px;">Loved-IT</span>
-</div>
-
-# Reset your password, {{ $name }}
-
-We received a request to reset the password for your Loved-IT account. Click the button below to choose a new password.
-
-<x-mail::button :url="$resetUrl" color="red">
-Reset Password
-</x-mail::button>
-
-This link will expire in **60 minutes**. If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged.
-
-For your security, never share this link with anyone.
-
-— The Loved-IT Team
-
----
-
-<small style="color: #999;">If the button doesn't work, copy and paste this URL into your browser:<br>{{ $resetUrl }}</small>
-</x-mail::message>
+@php
+$recipientName = $name;
+$label = 'Account security'; $title = 'Reset your password.';
+$paragraphs = ['We received a request to reset the password for your Loved-IT account. Use the button below to choose a new password.'];
+$details = ['Link expiry' => '60 minutes']; $actionLabel = 'Reset password'; $actionUrl = $resetUrl;
+$note = 'If you did not request this reset, you can ignore this message. Your password will stay the same. Never share your reset link.';
+$footer = 'You received this email because a password reset was requested for your Loved-IT account.';
+$preview = $paragraphs[0];
+@endphp
+@include(!empty($plainText) ? 'emails.layouts.plain' : 'emails.layouts.branded')

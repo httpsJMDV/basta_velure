@@ -37,12 +37,13 @@ class ParcelsAssignedMail extends Mailable
         // FRONTEND_URL comes from config; fall back to APP_URL, never to a hardcoded host.
         $baseUrl = config('app.frontend_url') ?: config('app.url');
 
-        return new Content(markdown: 'emails.parcels-assigned', with: [
+        return new Content(view: 'emails.parcels-assigned', text: 'emails.text', with: [
+            'template' => 'emails.parcels-assigned',
             'firstName'    => $this->riderUser->first_name,
             'hubName'      => $this->sortingCenter->hub_name,
             'parcelCount'  => $this->parcelCount,
             'barangayName' => $this->barangayName,
-            'loginUrl'     => rtrim((string) $baseUrl, '/') . '/login',
+            'loginUrl'     => rtrim((string) $baseUrl, '/') . '/rider/login',
         ]);
     }
 }

@@ -1,29 +1,12 @@
-<x-mail::message>
-# {{ $decision === 'approved' ? 'Sorting Center Application Approved!' : 'Update on Your Sorting Center Application' }}
-
-Hi {{ $firstName }},
-
-@if ($decision === 'approved')
-Congratulations! Your application to operate **{{ $hubName }}** as an authorized Loved-IT Regional Sorting Center has been **approved**.
-
-Your hub account is now active. You can log in to your account to begin managing parcel routing, inbound processing, and last-mile delivery rider dispatch.
-
-<x-mail::button :url="$loginUrl" color="red">
-Log In to Loved-IT
-</x-mail::button>
-@else
-Thank you for your interest in joining the Loved-IT Logistics Network and applying to operate **{{ $hubName }}**.
-
-After careful administrative review of your application and submitted documentation, we regret to inform you that your application was not approved at this time.
-
-@if ($reason)
-**Reason for Decision:**
-> {{ $reason }}
-@endif
-
-If you have questions regarding this decision, would like clarification, or wish to submit updated documentation, please contact our support team.
-@endif
-
-Thanks,<br>
-**The Loved-IT Team**
-</x-mail::message>
+@php
+$recipientName = $firstName; $approved = $decision === 'approved';
+$label = 'Logistics hub application'; $title = $approved ? 'Your hub is approved.' : 'An update on your hub application.';
+$paragraphs = $approved ? ['Our admin team has approved your application to operate ' . $hubName . ' as a Loved-IT logistics sorting center.', 'Sign in to your hub portal to manage parcels, review courier applications, and coordinate delivery operations.'] : ['Thank you for applying to operate ' . $hubName . '. After reviewing your application and submitted documents, our admin team was unable to approve it at this time.'];
+$details = ['Logistics hub' => $hubName, 'Application status' => $approved ? 'Approved' : 'Not approved'];
+if (!$approved && $reason) $details['Review feedback'] = $reason;
+$actionLabel = 'Sign in to hub portal'; $actionUrl = $approved ? $loginUrl : null;
+$note = 'For questions about this decision, please contact support through the website.';
+$footer = 'You received this email because you submitted a logistics hub application with Loved-IT.';
+$preview = $paragraphs[0];
+@endphp
+@include(!empty($plainText) ? 'emails.layouts.plain' : 'emails.layouts.branded')

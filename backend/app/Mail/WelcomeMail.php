@@ -22,9 +22,10 @@ class WelcomeMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(markdown: 'emails.welcome', with: [
+        return new Content(view: 'emails.welcome', text: 'emails.text', with: [
+            'template' => 'emails.welcome',
             'name'      => $this->user->first_name,
-            'loginUrl'  => env('FRONTEND_URL', 'http://localhost:5173') . '/login',
+            'loginUrl'  => rtrim(config('app.frontend_url') ?: config('app.url'), '/') . '/login',
         ]);
     }
 }

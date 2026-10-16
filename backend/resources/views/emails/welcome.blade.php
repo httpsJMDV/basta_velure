@@ -1,28 +1,10 @@
-<x-mail::message>
-<div style="text-align:center; padding-bottom: 24px;">
-  <span style="font-size: 28px; font-weight: 700; color: #A32D2D; letter-spacing: -0.5px;">Loved-IT</span>
-</div>
-
-# Welcome to Loved-IT, {{ $name }}! 👋
-
-We're thrilled to have you on board. Your account has been created and you're ready to start exploring the latest in women's fashion.
-
-Here's what you can do right now:
-
-- 🛍️ **Browse** thousands of curated styles across 6 categories
-- ❤️ **Wishlist** your favourite pieces
-- 📦 **Track** your orders in real time
-
-<x-mail::button :url="$loginUrl" color="red">
-Start Shopping
-</x-mail::button>
-
-If you have any questions, our support team is always here to help.
-
-Warm regards,
-**The Loved-IT Team**
-
----
-
-<small style="color: #999;">You received this email because an account was created with this address on Loved-IT. If this wasn't you, please ignore this email.</small>
-</x-mail::message>
+@php
+$recipientName = $name;
+$label = 'Account registration'; $title = 'Welcome to Loved-IT.';
+$paragraphs = ['Thank you for joining Loved-IT. Your account has been created.', 'If you have not completed your buyer application, sign in to finish your profile and submit the required information. Submitted applications are reviewed by our admin team before shopping access is approved.'];
+$details = []; $actionLabel = 'Sign in to Loved-IT'; $actionUrl = $loginUrl;
+$note = 'Account creation does not mean your buyer application has been approved.';
+$footer = 'You received this email because an account was created using this email address on Loved-IT.';
+$preview = $paragraphs[0];
+@endphp
+@include(!empty($plainText) ? 'emails.layouts.plain' : 'emails.layouts.branded')

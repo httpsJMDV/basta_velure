@@ -29,6 +29,39 @@ class BuyerApplicationEmailTest extends TestCase
         Mail::assertQueuedCount(1);
     }
 
+    public function test_non_admin_cannot_approve_or_queue_a_confirmation(): void
+    {
+        Mail::fake();
+        $buyer = $this->makeUser('buyer');
+        $buyer->forceFill(['buyer_application_status' => 'pending'])->save();
+
+        $this->actingAs($buyer, 'sanctum')
+            ->postJson("/api/v1/admin/buyer-applications/{$buyer->id}/approve")
+            ->assertForbidden();
+
+        $this->assertSame('pending', $buyer->fresh()->buyer_application_status);
+        Mail::assertNothingQueued();
+    }
+
+    public function test_rejection_queues_feedback_to_the_registered_buyer(): void
+    {
+        Mail::fake();
+        $admin = $this->makeUser('admin');
+        $buyer = $this->makeUser('buyer');
+        $buyer->forceFill(['buyer_application_status' => 'pending'])->save();
+        $reason = 'Please submit a clearer ID image.';
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/admin/buyer-applications/{$buyer->id}/reject", ['reason' => $reason])
+            ->assertOk();
+
+        $this->assertSame('rejected', $buyer->fresh()->buyer_application_status);
+        Mail::assertQueued(BuyerApplicationMail::class, fn ($mail) =>
+            $mail->hasTo($buyer->email) && $mail->decision === 'rejected' && $mail->reason === $reason
+        );
+        Mail::assertQueuedCount(1);
+    }
+
     public function test_email_contains_branding_safe_name_and_configured_login_url(): void
     {
         config(['app.frontend_url' => 'https://shop.example.com/']);

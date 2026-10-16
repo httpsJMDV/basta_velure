@@ -586,7 +586,7 @@ class HubDispatchTest extends TestCase
             $this->assertStringContainsString($this->hub->hub_name, $html);
             $this->assertStringContainsString('3 parcels', $html);
             $this->assertStringContainsString('Real', $html);
-            $this->assertStringContainsString('https://app.lovedit.example/login', $html);
+            $this->assertStringContainsString('https://app.lovedit.example/rider/login', $html);
             $this->assertStringNotContainsString('localhost', $html);
 
             return true;
@@ -639,7 +639,7 @@ class HubDispatchTest extends TestCase
             $html = $mail->render();
             $this->assertStringContainsString('1 parcel', $html);
             $this->assertStringNotContainsString('1 parcels', $html);
-            $this->assertStringContainsString('https://api.lovedit.example/login', $html);
+            $this->assertStringContainsString('https://api.lovedit.example/rider/login', $html);
 
             return true;
         });

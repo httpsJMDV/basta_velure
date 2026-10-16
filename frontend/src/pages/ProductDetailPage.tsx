@@ -710,11 +710,14 @@ function ReviewsTab({ productId, avgRating, reviewCount }: {
 }
 
 function ReviewItem({ review }: { review: ProductReview }) {
-  const name = `${review.buyer.first_name} ${review.buyer.last_name[0]}.`;
+  const nameParts = (review.buyer?.name ?? '').trim().split(/\s+/).filter(Boolean);
+  const name = nameParts.length > 1
+    ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.`
+    : nameParts[0] || 'Anonymous Buyer';
   return (
     <div className="flex gap-3">
       <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center text-xs font-bold text-gray-500">
-        {review.buyer.avatar_url
+        {review.buyer?.avatar_url
           ? <img src={review.buyer.avatar_url} alt={name} className="w-full h-full object-cover" />
           : name[0].toUpperCase()
         }
@@ -731,9 +734,9 @@ function ReviewItem({ review }: { review: ProductReview }) {
         </div>
         <StarRow rating={review.rating} />
         {review.comment && <p className="text-sm text-gray-700 mt-1.5 leading-relaxed">{review.comment}</p>}
-        {review.images.length > 0 && (
+        {(review.images?.length ?? 0) > 0 && (
           <div className="flex gap-2 mt-2 flex-wrap">
-            {review.images.map((url, i) => (
+            {review.images?.map((url, i) => (
               <img key={i} src={url} alt="" className="w-16 h-16 rounded-xl object-cover border border-gray-100" />
             ))}
           </div>

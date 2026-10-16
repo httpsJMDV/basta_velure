@@ -32,12 +32,13 @@ class SortingCenterApplicationMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(markdown: 'emails.sorting-center-application', with: [
+        return new Content(view: 'emails.sorting-center-application', text: 'emails.text', with: [
+            'template' => 'emails.sorting-center-application',
             'firstName' => $this->user->first_name,
             'hubName'   => $this->sortingCenter?->hub_name ?? 'Sorting Center Hub',
             'decision'  => $this->decision,
             'reason'    => $this->reason,
-            'loginUrl'  => env('FRONTEND_URL', 'http://localhost:5173') . '/login',
+            'loginUrl'  => rtrim(config('app.frontend_url') ?: config('app.url'), '/') . '/hub/login',
         ]);
     }
 }
