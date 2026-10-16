@@ -38,7 +38,7 @@ class HubEarningsController extends Controller
 
         return response()->json(['data' => [
             'delivery_fee' => ShippingSplit::fee(),
-            'split'        => ['rider_percent' => $riderPercent, 'hub_percent' => 100 - $riderPercent],
+            'split'        => ['rider_percent' => $riderPercent, 'pickup_percent' => ShippingSplit::pickupPercent(), 'delivery_percent' => ShippingSplit::deliveryPercent(), 'hub_percent' => 100 - $riderPercent],
             'today'        => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::DAY)),
             'week'         => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::WEEK)),
             'month'        => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::MONTH)),

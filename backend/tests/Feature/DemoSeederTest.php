@@ -249,18 +249,24 @@ class DemoSeederTest extends TestCase
     {
         $result = $this->demo->seed();
 
-        // Credentials: nine accounts on the demo domain, each with its own simple username and password; the active
+        // Credentials: ten accounts on the demo domain, each with its own simple username and password; the active
         // ones can sign in with the email or the username.
-        $this->assertCount(9, $result['credentials']);
+        $this->assertCount(10, $result['credentials']);
         foreach ($result['credentials'] as $credential) {
             $this->assertStringEndsWith('@demo.loved-it.test', $credential['email']);
             $this->assertTrue(Hash::check($credential['password'], User::where('email', $credential['email'])->value('password')));
         }
-        foreach (['admin', 'seller1', 'seller2', 'buyer1', 'buyer2', 'hub', 'rider1', 'rider2'] as $local) {
+        foreach (['admin', 'seller1', 'seller2', 'buyer1', 'buyer2', 'courier', 'hub', 'rider1', 'rider2'] as $local) {
             $password = config("demo.accounts.{$local}.password");
             $this->postJson('/api/v1/auth/login', ['email' => $this->email($local), 'password' => $password])->assertOk();
             $this->postJson('/api/v1/auth/login', ['identifier' => config("demo.accounts.{$local}.username"), 'password' => $password])->assertOk();
         }
+
+        // Courier admin: runs the demo partner courier (Loved-IT has no courier of its own), which the demo hub belongs to.
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'courier1', 'password' => 'courier123'])
+            ->assertOk()->assertJsonPath('data.logistics_company.status', 'APPROVED')->assertJsonPath('data.logistics_company.role', 'owner');
+        $hubs = collect($this->as('courier')->getJson('/api/v1/logistics/network/hubs')->assertOk()->json('data'));
+        $this->assertTrue($hubs->pluck('id')->contains(SortingCenter::where('user_id', $this->user('hub')->id)->value('id')));
 
         // Rider: her assigned and out-for-delivery parcels come back through the real endpoint, and they are hers.
         $assigned = $this->as('rider1')->getJson('/api/v1/rider/deliveries?view=assigned')->assertOk();
@@ -343,7 +349,7 @@ class DemoSeederTest extends TestCase
             'admin'   => ['admin', 'admin123'],
             'buyer1'  => ['buyer1', 'buyer123'], 'buyer2' => ['buyer2', 'buyer123'],
             'seller1' => ['seller1', 'seller123'], 'seller2' => ['seller2', 'seller123'],
-            'hub'     => ['hub1', 'hub123'],
+            'courier' => ['courier1', 'courier123'], 'hub' => ['hub1', 'hub123'],
             'rider1'  => ['rider1', 'rider123'], 'rider2' => ['rider2', 'rider123'], 'rider3' => ['rider3', 'rider123'],
         ];
         $this->assertEqualsCanonicalizing(
@@ -375,7 +381,7 @@ class DemoSeederTest extends TestCase
             $this->assertNotNull($seller->addresses()->where('is_default', true)->whereNotNull('barangay_code')->first());
         }
         // The same goes for the demo buyers and the hub owner: nothing sends them to /complete-profile.
-        foreach (['buyer1', 'buyer2', 'hub'] as $local) {
+        foreach (['buyer1', 'buyer2', 'courier', 'hub'] as $local) {
             $this->assertNotNull($this->user($local)->government_id_type, "{$local} profile is complete");
         }
 
@@ -505,7 +511,7 @@ class DemoSeederTest extends TestCase
 
         // 3. Now it removes everything demo: every table and both disks are exactly as before the demo.
         $deleted = $this->demo->reset();
-        $this->assertSame(9, $deleted['users']);
+        $this->assertSame(10, $deleted['users']);
         $this->assertArrayHasKey('files', $deleted);
         $this->assertSame(0, $this->demoUserIds()->count());
         $this->assertSame($before, $this->rowCounts());

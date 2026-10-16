@@ -18,8 +18,8 @@ import Button from '../components/ui/Button';
 import LovedItLogo from '../components/LovedItLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
-import { getAddressesApi, placeOrderApi } from '../api/client';
-import type { Address, Order } from '../types';
+import { getAddressesApi, placeOrderApi, getCouriersApi } from '../api/client';
+import type { Address, Order, CourierOption } from '../types';
 import { DELIVERY_FEE } from '../utils/shipping';
 
 export default function CheckoutPage() {
@@ -51,6 +51,15 @@ export default function CheckoutPage() {
   const [copiedNumber, setCopiedNumber] = useState(false);
 
   // State
+  // The courier that delivers this checkout; the partner with the biggest network (listed first) is preselected.
+  const [couriers, setCouriers] = useState<CourierOption[] | null>(null);
+  const [courierId, setCourierId] = useState<number | null>(null);
+  useEffect(() => {
+    getCouriersApi()
+      .then((list) => { setCouriers(list); setCourierId(list[0]?.id ?? null); })
+      .catch(() => setCouriers([]));
+  }, []);
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successOrders, setSuccessOrders] = useState<Order[] | null>(null);
@@ -202,6 +211,7 @@ export default function CheckoutPage() {
     try {
       const formData = new FormData();
       formData.append('payment_method', paymentMethod);
+      if (courierId) formData.append('logistics_company_id', String(courierId));
       formData.append('shipping_name', shippingName.trim());
       formData.append('shipping_phone', shippingPhone.trim());
       formData.append('shipping_address', shippingAddress.trim());
@@ -533,6 +543,49 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Delivery courier: same fee for every courier; only the chosen courier's riders collect the parcels */}
+              {couriers && couriers.length > 0 && (
+                <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-3xl">
+                  <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-red-50 text-brand-red">
+                        <Truck className="w-4 h-4" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-bold text-gray-900">Delivery Courier</h2>
+                        <p className="text-xs text-gray-400">Every courier charges the same ₱{DELIVERY_FEE} per shop</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Delivery courier">
+                    {couriers.map((c) => {
+                      const selected = courierId === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => setCourierId(c.id)}
+                          className={`flex items-center gap-3 p-3 text-left border-2 rounded-2xl transition-all ${selected ? 'border-brand-red bg-red-50/40' : 'border-gray-100 hover:border-gray-200'}`}
+                        >
+                          <span className="flex items-center justify-center w-10 h-10 overflow-hidden text-[11px] font-black text-white rounded-xl bg-gray-900 shrink-0">
+                            {c.logo_url ? <img src={c.logo_url} alt="" className="object-cover w-full h-full" /> : c.code}
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold text-gray-900 truncate">{c.name}</span>
+                            <span className="block text-[11px] text-gray-500">{c.hubs_count} hub{c.hubs_count === 1 ? '' : 's'} in its network</span>
+                          </span>
+                          <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selected ? 'border-brand-red bg-brand-red' : 'border-gray-300'}`}>
+                            {selected && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Payment Method Card */}
               <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">

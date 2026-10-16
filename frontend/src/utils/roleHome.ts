@@ -11,6 +11,7 @@ import type { User } from '../types';
 export function roleHomePath(user: User): string {
   if (user.role === 'admin') return '/admin';
   if (user.role === 'seller' || user.seller_profile?.application_status === 'approved') return '/seller';
+  if (user.logistics_company?.status === 'APPROVED') return '/logistics';
   if (user.sorting_center?.status === 'APPROVED') return '/hub/dashboard';
   if (user.rider?.status === 'ACTIVE') return '/rider/dashboard';
   return '/';

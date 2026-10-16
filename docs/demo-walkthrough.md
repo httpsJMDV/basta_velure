@@ -69,6 +69,7 @@ Every account signs in with its **username** or its **email**, at the normal sig
 | Buyer 2 (Ben Dela Cruz) | `buyer2` | `buyer2@demo.loved-it.test` | `buyer123` | `/login` |
 | Seller 1 (Marco Gadgets, pickup in Area A) | `seller1` | `seller1@demo.loved-it.test` | `seller123` | `/login` |
 | Seller 2 (Liza Pantry & Home, pickup in Area B) | `seller2` | `seller2@demo.loved-it.test` | `seller123` | `/login` |
+| Courier admin (Carmela Ramos, Demo Courier Co.) | `courier1` | `courier@demo.loved-it.test` | `courier123` | `/login` (lands on `/logistics`) |
 | Hub owner (Hector Bautista, Demo Sorting Hub - Santa Cruz) | `hub1` | `hub@demo.loved-it.test` | `hub123` | `/hub/login` (or `/login`) |
 | Rider 1 (Juan Dela Rosa, Motorcycle, covers Area A) | `rider1` | `rider1@demo.loved-it.test` | `rider123` | `/rider/login` (or `/login`) |
 | Rider 2 (Pedro Mendoza, Tricycle, covers Area B) | `rider2` | `rider2@demo.loved-it.test` | `rider123` | `/rider/login` (or `/login`) |

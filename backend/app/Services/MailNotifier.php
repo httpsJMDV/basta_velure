@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\OrderStatus;
 use App\Mail\NoticeMail;
+use App\Models\LogisticsCompany;
 use App\Models\Order;
 use App\Models\PayoutRequest;
 use App\Models\Product;
@@ -115,16 +116,19 @@ class MailNotifier
 
     public function hubApplicationReceived(SortingCenter $hub): void
     {
+        $courier = LogisticsCompany::summaryFor($hub->logistics_company_id)['name'] ?? 'the courier company';
+
         $this->send($hub->user, 'We received your Loved-IT hub application', 'hub_received', [
             'tone' => 'info',
             'label' => 'Hub application received',
             'title' => 'Your hub application is with us.',
             'paragraphs' => [
-                'Thank you for applying to run ' . $hub->hub_name . ' on the Loved-IT logistics network.',
-                'An admin will check your DTI permit, coverage area and the ID on your account. We will email you the decision.',
+                'Thank you for applying to run ' . $hub->hub_name . ' for ' . $courier . '.',
+                'The courier company will check your DTI permit, coverage area and the ID on your account. We will email you the decision.',
             ],
             'details' => [
                 'Hub' => $hub->hub_name,
+                'Courier' => $courier,
                 'Location' => trim($hub->address_city . ', ' . $hub->address_province, ', '),
                 'Coverage' => count($hub->coverage_barangays ?? []) . ' barangay(s)',
                 'Status' => 'Under review',
@@ -139,10 +143,10 @@ class MailNotifier
     {
         $hubName = $rider->sortingCenter?->hub_name ?? 'the hub';
 
-        $this->send($rider->user, 'We received your Loved-IT courier application', 'rider_received', [
+        $this->send($rider->user, 'We received your Loved-IT rider application', 'rider_received', [
             'tone' => 'info',
-            'label' => 'Courier application received',
-            'title' => 'Your courier application is in.',
+            'label' => 'Rider application received',
+            'title' => 'Your rider application is in.',
             'paragraphs' => [
                 'Thank you for applying to deliver for ' . $hubName . '.',
                 'The hub reviews your OR/CR and driver\'s license and will email you its decision. You can keep shopping meanwhile.',
@@ -150,7 +154,7 @@ class MailNotifier
             'details' => ['Hub' => $hubName, 'Vehicle' => $rider->vehicle_type . ' · ' . $rider->plate_number, 'Status' => 'Waiting for the hub'],
             'actionUrl' => $this->url('/register/rider'),
             'actionLabel' => 'View application status',
-            'footer' => 'You received this email because you applied to be a courier on Loved-IT.',
+            'footer' => 'You received this email because you applied to be a rider on Loved-IT.',
         ]);
 
         // The hub that must review it.
@@ -165,6 +169,70 @@ class MailNotifier
                 'actionUrl' => $this->url('/hub/riders'),
                 'actionLabel' => 'Review application',
                 'footer' => 'You received this email because you run ' . $hubName . ' on Loved-IT.',
+            ]);
+        }
+    }
+
+    // ── Courier companies ────────────────────────────────────────────────────
+
+    public function courierApplicationReceived(LogisticsCompany $company): void
+    {
+        $company->loadMissing('owner');
+        $this->send($company->owner, 'We received your courier company application', 'courier_received', [
+            'tone' => 'info',
+            'label' => 'Rider application received',
+            'title' => $company->name . ' is under review.',
+            'paragraphs' => [
+                'Thank you for applying to deliver for Loved-IT shops as ' . $company->name . '.',
+                'Our admin team checks your business permit and company details, then emails you the decision. Once approved, you can open your courier portal and start onboarding hubs.',
+            ],
+            'details' => ['Company' => $company->name, 'Code' => $company->code, 'Status' => 'Under review'],
+            'actionUrl' => $this->url('/register/courier'),
+            'actionLabel' => 'View application status',
+            'footer' => 'You received this email because you applied to run a courier company on Loved-IT.',
+        ]);
+    }
+
+    public function courierApplicationDecided(LogisticsCompany $company, bool $approved, ?string $reason = null): void
+    {
+        $company->loadMissing('owner');
+        $this->send($company->owner, $approved ? $company->name . ' is approved on Loved-IT' : 'Update on your courier company application', $approved ? 'courier_approved' : 'courier_rejected', array_filter([
+            'tone' => $approved ? 'success' : 'danger',
+            'label' => $approved ? 'Courier company approved' : 'Courier application update',
+            'title' => $approved ? 'Your courier company is live.' : 'An update on your application.',
+            'paragraphs' => $approved
+                ? ['Our admin team approved ' . $company->name . '. Open your courier portal to review hub applications and watch your network.', 'Hubs can now choose ' . $company->name . ' when they apply.']
+                : ['After reviewing your application, we were unable to approve ' . $company->name . ' at this time.', 'You can fix the issue below and resubmit from your account.'],
+            'highlight' => (! $approved && $reason) ? ['title' => 'Review feedback', 'body' => $reason] : null,
+            'details' => ['Company' => $company->name, 'Code' => $company->code, 'Status' => $approved ? 'Approved' : 'Not approved'],
+            'actionUrl' => $this->url($approved ? '/logistics' : '/register/courier'),
+            'actionLabel' => $approved ? 'Open courier portal' : 'Review and resubmit',
+            'footer' => 'You received this email because you applied to run a courier company on Loved-IT.',
+        ]));
+    }
+
+    /** A hub chose this courier: tell the courier's team there is an application to review. */
+    public function courierNewHubApplication(SortingCenter $hub): void
+    {
+        $company = $hub->logisticsCompany;
+        if (! $company) {
+            return;
+        }
+        $members = $company->members()->with('user')->get()->pluck('user')->filter();
+        foreach ($members as $member) {
+            $this->send($member, 'New hub application: ' . $hub->hub_name, 'courier_new_hub', [
+                'tone' => 'info',
+                'label' => 'New hub application',
+                'title' => 'A hub wants to join ' . $company->name . '.',
+                'paragraphs' => [$hub->hub_name . ' applied to run a hub in your network. Review its permit, coverage and owner ID.'],
+                'details' => [
+                    'Hub' => $hub->hub_name,
+                    'Location' => trim($hub->address_city . ', ' . $hub->address_province, ', '),
+                    'Coverage' => count($hub->coverage_barangays ?? []) . ' barangay(s)',
+                ],
+                'actionUrl' => $this->url('/logistics/hubs'),
+                'actionLabel' => 'Review application',
+                'footer' => 'You received this email because you run ' . $company->name . ' on Loved-IT.',
             ]);
         }
     }

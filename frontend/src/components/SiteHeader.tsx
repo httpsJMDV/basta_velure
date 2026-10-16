@@ -105,6 +105,16 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
                   <Warehouse className="w-4 h-4 shrink-0" /> Hub Status (Pending)
                 </button>
               )}
+              {user.logistics_company?.status === 'APPROVED' && (
+                <button onClick={() => { navigate('/logistics'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-violet-600 font-semibold hover:bg-violet-50 transition-colors">
+                  <Truck className="w-4 h-4 shrink-0" /> Courier Portal
+                </button>
+              )}
+              {user.logistics_company?.status === 'PENDING' && (
+                <button onClick={() => { navigate('/register/courier'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
+                  <Truck className="w-4 h-4 shrink-0" /> Courier Company (Pending)
+                </button>
+              )}
               {user.rider?.status === 'ACTIVE' && (
                 <button onClick={() => { navigate('/rider/dashboard'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-blue-600 font-semibold hover:bg-blue-50 transition-colors">
                   <Bike className="w-4 h-4 shrink-0" /> Courier Station

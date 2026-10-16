@@ -280,6 +280,8 @@ class OrderStateMachine
                 $trackingNumber = $this->trackingNumberGenerator->generate();
 
                 Parcel::create([
+                    // The buyer's chosen courier: only that courier's riders are offered the pickup.
+                    'logistics_company_id'      => \App\Models\LogisticsCompany::effectiveId($order->logistics_company_id),
                     'tracking_number'           => $trackingNumber,
                     'order_id'                  => $order->id,
                     'seller_id'                 => $seller->id,
@@ -306,6 +308,12 @@ class OrderStateMachine
         // 3. Escrow timing (Feature 2.8). Only WHEN funds become available changes here; amounts,
         //    commission and payout requests are untouched, and payout_status is never moved by a transition.
         //
+        //    AT_SORTING_CENTER: the pickup rider's leg is done, so they earn their share of the delivery fee now (kept
+        //    even if the delivery later fails). It adds a rider_earnings row only. Idempotent.
+        if ($toStatus === OrderStatus::AT_SORTING_CENTER->value) {
+            app(RiderEarningsRecorder::class)->recordForReceivedOrder($order);
+        }
+
         //    DELIVERED: record the delivery time only. Funds stay in escrow (pending_release).
         if ($toStatus === OrderStatus::DELIVERED->value) {
             OrderItem::where('order_id', $order->id)->update(['delivered_at' => now()]);
@@ -316,7 +324,7 @@ class OrderStateMachine
             // No delivery log is written here: a log means a rider reported the outcome.
             Parcel::where('order_id', $order->id)->whereNull('delivered_at')->update(['delivered_at' => now()]);
 
-            // Feature 2.9: the rider earns a flat fee for the delivery, recorded now (not at the buyer's
+            // Feature 2.9: the delivery rider and the hub earn their shares of the fee, recorded now (not at the buyer's
             // confirmation, and never clawed back by a later return). It adds a rider_earnings row and
             // touches no buyer, seller or platform money. Idempotent, whichever actor triggered DELIVERED.
             app(RiderEarningsRecorder::class)->recordForDeliveredOrder($order);

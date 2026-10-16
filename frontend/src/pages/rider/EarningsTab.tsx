@@ -272,11 +272,11 @@ export default function EarningsTab() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
-                <p className="text-[11px] font-semibold text-gray-600">Deliveries</p>
+                <p className="text-[11px] font-semibold text-gray-600">Pickups &amp; deliveries</p>
                 <p className="font-black text-lg text-gray-900">{summary.deliveries_count}</p>
               </div>
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
-                <p className="text-[11px] font-semibold text-gray-600">Average per delivery</p>
+                <p className="text-[11px] font-semibold text-gray-600">Average per job</p>
                 <p className="font-black text-lg text-gray-900">{formatPeso(summary.average_per_delivery)}</p>
               </div>
             </div>
@@ -294,20 +294,23 @@ export default function EarningsTab() {
           </p>
 
           {/* Deliveries in the period */}
-          <section aria-label="Deliveries in this period" className="space-y-2">
-            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Deliveries</h2>
+          <section aria-label="Earnings in this period" className="space-y-2">
+            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Pickups &amp; deliveries</h2>
             {rows.length === 0 ? (
               <StateCard
                 icon={Package}
-                title={`No deliveries ${summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}`}
-                message="Each parcel you deliver earns you 85% of its delivery fee and shows up here."
+                title={`No earnings ${summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}`}
+                message="A pickup earns you 20% of the delivery fee once the hub receives the parcel; a delivery earns 65% (85% if you also picked it up)."
               />
             ) : (
               <ul className="space-y-2">
                 {rows.map((r) => (
                   <li key={r.id} className="bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-xs flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-sm font-black text-gray-900 font-mono truncate">{r.tracking_number}</p>
+                      <p className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-black text-gray-900 font-mono truncate">{r.tracking_number}</span>
+                        <span className={`shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${r.kind === 'pickup' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{r.kind === 'pickup' ? 'Pickup' : 'Delivery'}</span>
+                      </p>
                       <p className="flex items-center gap-1 text-xs text-gray-600">
                         <MapPin className="w-3.5 h-3.5 text-gray-500 shrink-0" aria-hidden="true" />
                         <span className="truncate">

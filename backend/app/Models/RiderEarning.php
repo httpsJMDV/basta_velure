@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $id
  * @property int $rider_id
  * @property int|null $parcel_id
+ * @property string $kind  pickup (seller to hub) or delivery (hub to buyer)
  * @property string $amount
  * @property \Carbon\Carbon $earned_at
  * @property string|null $notes
@@ -29,11 +30,17 @@ class RiderEarning extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /** Collected the parcel from the seller and brought it to the hub. */
+    public const KIND_PICKUP = 'pickup';
+    /** Delivered the parcel from the hub to the buyer. */
+    public const KIND_DELIVERY = 'delivery';
+
     protected $table = 'rider_earnings';
 
     protected $fillable = [
         'rider_id',
         'parcel_id',
+        'kind',
         'amount',
         'earned_at',
         'notes',

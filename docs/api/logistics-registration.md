@@ -9,7 +9,7 @@ details and government ID are reused, so the request only carries the hub itself
 - Route: `POST /api/v1/auth/apply-hub` (`auth:sanctum`, `throttle:auth` + `throttle:upload`), `multipart/form-data`.
 - The guest endpoints `POST /auth/register-sorting-center` and `POST /auth/logistics/register` are **removed** (404).
 - The account keeps `users.role = "buyer"`. The `sorting_centers` row (status `PENDING`) is what makes it a hub.
-- The admin review shows the government ID already on the account (`/admin/sorting-center-applications/{id}/id-image`).
+- The hub joins a courier company and **that company's team reviews it** in the courier portal (`docs/api/courier-companies.md`); the platform admin can still decide from `/admin/sorting-center-applications`. The review shows the government ID already on the account.
 - Signing in is never blocked by a `PENDING` or `REJECTED` application: the owner keeps shopping and sees the status on
   `/register/hub`. Hub routes (`approved_sorting_center`) stay closed until an admin approves. Only a `SUSPENDED` hub is
   refused at sign-in.
@@ -32,6 +32,7 @@ permit, `rejection_reason`, `reviewed_by` and `reviewed_at` cleared) and the old
 
 | Field | Rules |
 |---|---|
+| `logistics_company_id` | required, an approved courier company (`GET /logistics/couriers`); its team reviews the application |
 | `hub_name` (alias `business_name`) | required, string, max 150 |
 | `address_province` (alias `province`) | required, string, max 100 |
 | `address_city` (aliases `city_municipality`, `city`) | required, string, max 100 |

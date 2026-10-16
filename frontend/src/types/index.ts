@@ -179,6 +179,112 @@ export interface User {
   seller_profile?: SellerProfileSummary;
   sorting_center?: SortingCenterSummary;
   rider?: RiderSummary;
+  /** The courier company this account runs (its portal is /logistics once approved). */
+  logistics_company?: UserLogisticsCompany | null;
+}
+
+// ─── Courier companies ─────────────────────────────────────────────────────────
+
+export type LogisticsCompanyStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+
+export interface UserLogisticsCompany {
+  id: number;
+  name: string;
+  code: string;
+  logo_url: string | null;
+  status: LogisticsCompanyStatus;
+  rejection_reason: string | null;
+  role: 'owner' | 'staff';
+}
+
+/** A courier as a buyer, seller or hub sees it. */
+export interface CourierSummary {
+  id: number;
+  name: string;
+  code: string;
+  logo_url: string | null;
+}
+
+/** An approved courier to choose at checkout or on the hub application. */
+export interface CourierOption extends CourierSummary {
+  hubs_count: number;
+}
+
+/** A courier company in full, for the admin and the company's own team. */
+export interface LogisticsCompanyDetail extends CourierSummary {
+  slug: string;
+  status: LogisticsCompanyStatus;
+  description: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  address_province: string | null;
+  address_city: string | null;
+  address_barangay: string | null;
+  address_street: string | null;
+  rejection_reason: string | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  business_permit_url: string | null;
+  owner?: { id: number; name: string; email: string; phone: string | null; avatar_url: string | null } | null;
+  hubs_count?: number;
+  approved_hubs_count?: number;
+}
+
+export interface LogisticsDashboard {
+  hubs: { approved: number; pending: number; suspended: number; rejected: number };
+  riders: { active: number; pending: number };
+  parcels_now: { awaiting_pickup: number; at_hubs: number; out_for_delivery: number; failed: number };
+  last_30_days: { delivered: number; returned: number };
+}
+
+export interface LogisticsHubRow {
+  id: number;
+  hub_name: string;
+  status: SortingCenterStatus;
+  city_province: string;
+  coverage_count: number;
+  active_riders: number;
+  active_parcels: number;
+  applicant_name: string | null;
+  applicant_email: string | null;
+  applicant_avatar_url: string | null;
+  rejection_reason: string | null;
+  submitted_at: string | null;
+}
+
+export interface LogisticsRiderRow {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  status: RiderStatus;
+  vehicle_type: string;
+  plate_number: string;
+  hub_id: number;
+  hub_name: string | null;
+  account_status: string | null;
+}
+
+export interface LogisticsParcelRow {
+  id: number;
+  tracking_number: string;
+  status: string;
+  order_number: string | null;
+  payment_method: string | null;
+  cod_amount: number | null;
+  hub_id: number | null;
+  hub_name: string | null;
+  barangay: string | null;
+  attempts: number;
+  updated_at: string | null;
+}
+
+export interface LogisticsReport {
+  range: { from: string; to: string; days: number };
+  sla_hours: number;
+  totals: { received: number; delivered: number; failed_attempts: number; returned: number; on_time_deliveries: number; on_time_rate: number | null; success_rate: number | null };
+  hubs: Array<{ hub_id: number; hub_name: string; received: number; delivered: number; failed_attempts: number; returned: number; on_time_deliveries: number; on_time_rate: number | null; success_rate: number | null; avg_delivery_hours: number | null }>;
 }
 
 export type RiderStatus = 'PENDING' | 'ACTIVE' | 'DISAPPROVED';
@@ -202,6 +308,8 @@ export interface PublicApprovedHub {
   hub_name: string;
   address_city: string;
   address_province: string;
+  /** The courier company the hub belongs to. */
+  courier?: { id: number; name: string; code: string } | null;
 }
 
 export interface RiderRegistrationResponse {
@@ -678,6 +786,8 @@ export interface SortingCenterApplicationSummaryItem {
   applicant_email: string | null;
   /** The applicant's profile photo, or null when they never uploaded one. */
   applicant_avatar_url: string | null;
+  /** The courier company the hub joins; its team reviews the application. */
+  courier?: CourierSummary | null;
   submitted_date: string | null;
   created_at: string | null;
   status: SortingCenterStatus;
@@ -813,6 +923,8 @@ export interface Order {
   checkout_group_id?: string | null;
   order_number: string;
   tracking_number?: string | null;
+  /** The courier the buyer chose at checkout. */
+  courier?: CourierSummary | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -864,6 +976,8 @@ export interface SellerOrderItem {
 
 export interface SellerOrder {
   id: number;
+  /** The courier the buyer chose; only its riders collect the parcel. */
+  courier?: CourierSummary | null;
   checkout_group_id?: string | null;
   checkout_group_total?: number | null;
   checkout_orders_count?: number | null;
@@ -955,6 +1069,8 @@ export interface WaybillData {
     format: string;
     value: string;
   };
+  /** The courier that carries the parcel, printed on the label. */
+  courier?: CourierSummary | null;
 }
 
 export interface SellerEarningsSummary {
@@ -2064,6 +2180,8 @@ export interface RiderPageMeta {
 
 export interface RiderEarnedDelivery {
   id: number;
+  /** pickup: collected from the seller and brought to the hub; delivery: brought to the buyer. */
+  kind: 'pickup' | 'delivery';
   tracking_number: string;
   order_number: string | null;
   destination: { barangay_name: string; city: string };
@@ -2324,7 +2442,7 @@ export interface HubEarningsRow {
 
 export interface HubEarningsSummary {
   delivery_fee: string;
-  split: { rider_percent: number; hub_percent: number };
+  split: { rider_percent: number; pickup_percent: number; delivery_percent: number; hub_percent: number };
   today: HubEarningsTotals;
   week: HubEarningsTotals;
   month: HubEarningsTotals;

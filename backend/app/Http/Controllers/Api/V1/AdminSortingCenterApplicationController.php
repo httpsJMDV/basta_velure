@@ -5,14 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SortingCenterApplicationResource;
 use App\Http\Resources\SortingCenterApplicationSummaryResource;
-use App\Mail\SortingCenterApplicationMail;
-use App\Models\AdminActivityLog;
 use App\Models\SortingCenter;
+use App\Services\HubApplicationReviewer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -67,55 +63,12 @@ class AdminSortingCenterApplicationController extends Controller
     }
 
     /**
-     * Approve a pending sorting center application.
+     * Approve a pending sorting center application. Normally the hub's courier company decides (logistics portal);
+     * the platform admin can still decide as oversight. Both go through HubApplicationReviewer.
      */
-    public function approve(Request $request, SortingCenter $sortingCenter): JsonResponse
+    public function approve(Request $request, SortingCenter $sortingCenter, HubApplicationReviewer $reviewer): JsonResponse
     {
-        abort_if(
-            $sortingCenter->status !== SortingCenter::STATUS_PENDING,
-            422,
-            'Only pending sorting center applications can be approved.'
-        );
-
-        $adminId = $request->user()->id;
-        $user = $sortingCenter->user;
-
-        DB::transaction(function () use ($sortingCenter, $adminId, $user) {
-            $sortingCenter->update([
-                'status'           => SortingCenter::STATUS_APPROVED,
-                'rejection_reason' => null,
-                'reviewed_by'      => $adminId,
-                'reviewed_at'      => now(),
-            ]);
-
-            if ($user) {
-                $user->update(['status' => 'active']);
-            }
-
-            AdminActivityLog::create([
-                'admin_id'    => $adminId,
-                'action'      => 'approve_sorting_center',
-                'target_type' => 'sorting_center',
-                'target_id'   => $sortingCenter->id,
-                'description' => "Approved sorting center application for hub \"{$sortingCenter->hub_name}\".",
-                'meta'        => [
-                    'sorting_center_id' => $sortingCenter->id,
-                    'hub_name'          => $sortingCenter->hub_name,
-                    'user_id'           => $user?->id,
-                ],
-            ]);
-        });
-
-        // Dispatch approval email after commit; fail-safe logging
-        if ($user && $user->email) {
-            try {
-                Mail::to($user->email)->queue(
-                    new SortingCenterApplicationMail($user, 'approved', null, $sortingCenter)
-                );
-            } catch (\Throwable $e) {
-                Log::error("Failed sending sorting center approval email: {$e->getMessage()}");
-            }
-        }
+        $reviewer->approve($sortingCenter, $request->user());
 
         return response()->json([
             'message' => 'Sorting center application approved successfully.',
@@ -123,9 +76,9 @@ class AdminSortingCenterApplicationController extends Controller
     }
 
     /**
-     * Reject a pending sorting center application.
+     * Reject a pending sorting center application with a reason.
      */
-    public function reject(Request $request, SortingCenter $sortingCenter): JsonResponse
+    public function reject(Request $request, SortingCenter $sortingCenter, HubApplicationReviewer $reviewer): JsonResponse
     {
         abort_if(
             $sortingCenter->status !== SortingCenter::STATUS_PENDING,
@@ -140,43 +93,7 @@ class AdminSortingCenterApplicationController extends Controller
             'reason.max'      => 'The rejection reason may not exceed 500 characters.',
         ]);
 
-        $adminId = $request->user()->id;
-        $reason  = $validated['reason'];
-        $user    = $sortingCenter->user;
-
-        DB::transaction(function () use ($sortingCenter, $adminId, $reason, $user) {
-            $sortingCenter->update([
-                'status'           => SortingCenter::STATUS_REJECTED,
-                'rejection_reason' => $reason,
-                'reviewed_by'      => $adminId,
-                'reviewed_at'      => now(),
-            ]);
-
-            AdminActivityLog::create([
-                'admin_id'    => $adminId,
-                'action'      => 'reject_sorting_center',
-                'target_type' => 'sorting_center',
-                'target_id'   => $sortingCenter->id,
-                'description' => "Rejected sorting center application for hub \"{$sortingCenter->hub_name}\".",
-                'meta'        => [
-                    'sorting_center_id' => $sortingCenter->id,
-                    'hub_name'          => $sortingCenter->hub_name,
-                    'user_id'           => $user?->id,
-                    'reason'            => $reason,
-                ],
-            ]);
-        });
-
-        // Dispatch rejection email after commit; fail-safe logging
-        if ($user && $user->email) {
-            try {
-                Mail::to($user->email)->queue(
-                    new SortingCenterApplicationMail($user, 'rejected', $reason, $sortingCenter)
-                );
-            } catch (\Throwable $e) {
-                Log::error("Failed sending sorting center rejection email: {$e->getMessage()}");
-            }
-        }
+        $reviewer->reject($sortingCenter, $request->user(), $validated['reason']);
 
         return response()->json([
             'message' => 'Sorting center application rejected successfully.',

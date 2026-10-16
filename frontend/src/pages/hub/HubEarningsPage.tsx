@@ -38,7 +38,7 @@ export default function HubEarningsPage() {
         title="Earnings"
         subtitle={
           data
-            ? `Your hub keeps ${data.split.hub_percent}% of the ${peso(data.delivery_fee)} delivery fee on every parcel it handles that is delivered. The rider gets ${data.split.rider_percent}%.`
+            ? `Your hub keeps ${data.split.hub_percent}% of the ${peso(data.delivery_fee)} delivery fee on every parcel it handles that is delivered. The riders get ${data.split.rider_percent}%: ${data.split.pickup_percent}% to the pickup rider, ${data.split.delivery_percent}% to the delivery rider.`
             : 'Your hub’s share of the delivery fee on delivered parcels.'
         }
       >

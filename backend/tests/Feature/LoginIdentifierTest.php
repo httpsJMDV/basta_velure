@@ -226,7 +226,8 @@ class LoginIdentifierTest extends TestCase
         $hubApplicant = $this->makeUser('buyer');
         $hubApplicant->forceFill(['government_id_image_path' => 'ids/front.jpg', 'date_of_birth' => '1990-01-01'])->save();
         $this->actingAs($hubApplicant, 'sanctum')->postJson('/api/v1/auth/apply-hub', [
-            'hub_name'              => 'Hub Z', 'address_province' => 'Laguna', 'address_city' => 'Santa Cruz',
+            'logistics_company_id' => \App\Models\LogisticsCompany::defaultId(),
+            'hub_name'              => 'hub z', 'address_province' => 'Laguna', 'address_city' => 'Santa Cruz',
             'address_barangay'      => 'Poblacion I', 'address_street' => '1 Street',
             'dti_permit'            => UploadedFile::fake()->create('permit.pdf', 100, 'application/pdf'),
             'coverage_barangays'    => ['043404001'],

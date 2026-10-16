@@ -30,4 +30,19 @@ return [
 
     'rider_share_percent' => (int) env('SHIPPING_RIDER_SHARE_PERCENT', 85),
 
+    /*
+    |--------------------------------------------------------------------------
+    | The pickup rider's part of the riders' share
+    |--------------------------------------------------------------------------
+    |
+    | The rider who collects the parcel from the seller and brings it to the hub
+    | earns this percentage of the fee as soon as the hub receives it; the rider
+    | who delivers it earns the rest of the riders' share. 20 (of 85) means 20%
+    | pickup, 65% delivery, 15% hub: 10.00, 32.50 and 7.50 on a 50.00 fee. One
+    | rider doing both earns both. Set SHIPPING_PICKUP_SHARE_PERCENT in .env.
+    |
+    */
+
+    'pickup_share_percent' => (int) env('SHIPPING_PICKUP_SHARE_PERCENT', 20),
+
 ];

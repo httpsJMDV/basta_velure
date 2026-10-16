@@ -200,6 +200,7 @@ class SellerOrderController extends Controller
                     'is_cod' => $order->payment_method === 'cod',
                     'amount' => $order->payment_method === 'cod' ? (float) ($parcel->cod_amount ?? $order->total) : 0.00,
                 ],
+                'courier' => \App\Models\LogisticsCompany::summaryFor($parcel->logistics_company_id ?? $order->logistics_company_id),
                 'barcode' => [
                     'format' => 'CODE128',
                     'value'  => $parcel->tracking_number,
@@ -433,6 +434,7 @@ class SellerOrderController extends Controller
             'checkout_orders_count' => $checkoutOrdersCount,
             'order_number'          => $o->order_number,
             'tracking_number'       => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
+            'courier'               => \App\Models\LogisticsCompany::summaryFor($o->logistics_company_id),
             'status'                => $statusStr,
             'payment_method'        => $o->payment_method,
             'payment_status'        => $o->payment_status,

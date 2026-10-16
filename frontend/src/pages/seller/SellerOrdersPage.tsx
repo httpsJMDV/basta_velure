@@ -619,6 +619,7 @@ export default function SellerOrdersPage() {
                   </span>
                   <span className="text-[11px] font-semibold text-gray-500">
                     {selectedOrder.payment_method === 'cod' ? 'Cash on delivery' : 'GCash'}
+                    {selectedOrder.courier && <> · {selectedOrder.courier.name}</>}
                   </span>
                 </div>
               </div>

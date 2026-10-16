@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\LogisticsCompany;
 use App\Models\Rider;
+use Illuminate\Validation\Rule;
 use App\Models\SortingCenter;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
@@ -56,6 +58,8 @@ class RegisterSortingCenterRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // The courier company the hub joins; that company's team reviews the application.
+            'logistics_company_id'       => ['required', 'integer', Rule::exists('logistics_companies', 'id')->where('status', LogisticsCompany::STATUS_APPROVED)],
             'hub_name'                   => ['required', 'string', 'max:150'],
 
             // Address Details (PSGC aligned)
@@ -115,6 +119,8 @@ class RegisterSortingCenterRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'logistics_company_id.required'       => 'Choose the courier company your hub will join.',
+            'logistics_company_id.exists'         => 'The selected courier company is not available.',
             'hub_name.required'                   => 'Hub name is required.',
             'address_province.required'           => 'Province is required.',
             'address_city.required'               => 'City / Municipality is required.',

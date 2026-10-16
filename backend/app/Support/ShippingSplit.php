@@ -11,6 +11,7 @@ final class ShippingSplit
 {
     public const DEFAULT_FEE = '50.00';
     public const DEFAULT_RIDER_PERCENT = 85;
+    public const DEFAULT_PICKUP_PERCENT = 20;
 
     /** The delivery fee a buyer pays per seller order, in centavos. An unusable setting is logged and the default used. */
     public static function feeCents(): int
@@ -46,16 +47,42 @@ final class ShippingSplit
     }
 
     /**
-     * Splits a fee into the rider's and the hub's shares. The rider's share is rounded half up to the centavo and
-     * the hub gets exactly what is left, so nothing is lost or invented.
+     * The pickup rider's percentage of the fee, taken out of the riders' share (the delivery rider gets the rest of
+     * it). Outside 0 to the riders' percentage it is logged and the default (capped at the riders' percentage) used.
+     */
+    public static function pickupPercent(): int
+    {
+        $rider = self::riderPercent();
+        $percent = config('shipping.pickup_share_percent', self::DEFAULT_PICKUP_PERCENT);
+
+        if (! is_numeric($percent) || $percent < 0 || $percent > $rider) {
+            Log::error("shipping.pickup_share_percent must be between 0 and the rider share ({$rider}); using " . min(self::DEFAULT_PICKUP_PERCENT, $rider) . '.');
+
+            return min(self::DEFAULT_PICKUP_PERCENT, $rider);
+        }
+
+        return (int) $percent;
+    }
+
+    /** The delivery rider's percentage of the fee: the riders' share minus the pickup rider's. */
+    public static function deliveryPercent(): int
+    {
+        return self::riderPercent() - self::pickupPercent();
+    }
+
+    /**
+     * Splits a fee into the riders' and the hub's shares, and the riders' share into the pickup and delivery riders'.
+     * Each share is rounded half up to the centavo and the last one gets exactly what is left, so nothing is lost or
+     * invented: pickup + delivery = rider, and rider + hub = the fee.
      *
-     * @return array{rider: int, hub: int}
+     * @return array{rider: int, hub: int, pickup: int, delivery: int}
      */
     public static function split(int $feeCents): array
     {
         $feeCents = max(0, $feeCents);
         $rider = intdiv($feeCents * self::riderPercent() + 50, 100);
+        $pickup = min($rider, intdiv($feeCents * self::pickupPercent() + 50, 100));
 
-        return ['rider' => $rider, 'hub' => $feeCents - $rider];
+        return ['rider' => $rider, 'hub' => $feeCents - $rider, 'pickup' => $pickup, 'delivery' => $rider - $pickup];
     }
 }

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Store, Bike, Warehouse, FileText, UserCheck, ArrowRight, LogIn, Info } from 'lucide-react';
+import { Store, Bike, Warehouse, Truck, FileText, UserCheck, ArrowRight, LogIn, Info } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
@@ -68,11 +68,28 @@ const OPTIONS: PartnerOption[] = [
       'Hub name and full address',
       'The barangays your hub covers',
     ],
-    approval: 'Loved-IT administration reviews the application. Once approved, you also approve the riders who choose your hub.',
+    approval: 'The courier company you join reviews the application. Once approved, you also approve the riders who choose your hub.',
     registerTo: '/register/hub',
     registerLabel: 'Register a hub',
     signInTo: '/hub/login',
     signInLabel: 'Hub sign in',
+  },
+  {
+    id: 'courier',
+    icon: Truck,
+    title: 'Run a courier company',
+    pitch: 'Bring your courier brand to Loved-IT, like J&T or Flash: approve the hubs that join you, watch every parcel in your network, and get picked by buyers at checkout.',
+    requirements: [
+      'DTI, SEC or Mayor’s permit for the company',
+      'Company name and a short code (for example JNT)',
+      'Operations email, contact number and head office address',
+      'A Loved-IT buyer account to apply from',
+    ],
+    approval: 'Loved-IT administration reviews the company. Once approved, you review the hubs that want to join your network.',
+    registerTo: '/register/courier',
+    registerLabel: 'Apply as a courier',
+    signInTo: '/login?next=%2Flogistics',
+    signInLabel: 'Courier portal sign in',
   },
 ];
 
@@ -89,12 +106,12 @@ export default function PartnerPage() {
           </div>
           <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">Grow with Loved-IT</h1>
           <p className="text-base sm:text-lg text-gray-600 leading-relaxed">
-            Sell products, deliver parcels or run a sorting hub. Pick the way you want to work with us, see what you
+            Sell products, deliver parcels, run a sorting hub or bring your courier company. Pick the way you want to work with us, see what you
             need to apply and who approves it, then register or sign in.
           </p>
         </section>
 
-        <section aria-label="Ways to partner with Loved-IT" className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <section aria-label="Ways to partner with Loved-IT" className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           {OPTIONS.map((option) => {
             const Icon = option.icon;
             return (

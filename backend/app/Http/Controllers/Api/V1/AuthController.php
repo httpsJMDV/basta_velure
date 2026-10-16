@@ -149,7 +149,7 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'data'  => new UserResource($user->load(['sellerProfile', 'sortingCenter', 'rider'])),
+            'data'  => new UserResource($user->load(['sellerProfile', 'sortingCenter', 'rider', 'logisticsMembership.company'])),
             'token' => $token,
         ]);
     }
@@ -170,7 +170,7 @@ class AuthController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
         return response()->json([
-            'data' => new UserResource($user->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses'])),
+            'data' => new UserResource($user->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses', 'logisticsMembership.company'])),
         ]);
     }
 

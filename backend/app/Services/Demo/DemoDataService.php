@@ -9,6 +9,8 @@ use App\Models\Category;
 use App\Models\Conversation;
 use App\Models\DeliveryLog;
 use App\Models\Dispute;
+use App\Models\LogisticsCompany;
+use App\Models\LogisticsCompanyMember;
 use App\Models\Message;
 use App\Models\Order;
 use App\Models\Parcel;
@@ -297,10 +299,24 @@ class DemoDataService
         $this->addresses['b2C'] = $this->newAddress($b2, 'C', 'home', '7 Gumamela Street', false);
         $this->addresses['b1C'] = $this->newAddress($b1, 'C', 'office', '2 Ipil Street', false);
 
+        // The demo partner courier (every courier is a partner; this one is the default for rows without a company)
+        // and its admin, who approves the courier's hubs at /logistics. A courier admin holds the buyer role, as in
+        // registration.
+        $courier = LogisticsCompany::find(LogisticsCompany::defaultId()) ?? LogisticsCompany::create([
+            'name' => 'Demo Courier Co.', 'code' => 'DCC', 'slug' => 'demo-courier-co', 'is_default' => true,
+            'status' => LogisticsCompany::STATUS_APPROVED, 'reviewed_at' => now(), 'submitted_at' => now(),
+        ]);
+        $courierAdmin = $this->newUser('courier', 'buyer', 'Carmela', 'Ramos', 'female', $this->buyerProfile('courier'));
+        LogisticsCompanyMember::create(['logistics_company_id' => $courier->id, 'user_id' => $courierAdmin->id, 'role' => 'owner']);
+        if ($courier->owner_user_id === null) {
+            $courier->forceFill(['owner_user_id' => $courierAdmin->id])->save();
+        }
+
         // The hub and its owner (a hub owner holds the buyer role, as in registration).
         $owner = $this->newUser('hub', 'buyer', 'Hector', 'Bautista', 'male', $this->buyerProfile('hub'));
         $home = DemoPlaces::area('A');
         $this->hub = SortingCenter::create([
+            'logistics_company_id' => $courier->id,
             'user_id'            => $owner->id,
             'hub_name'           => 'Demo Sorting Hub - Santa Cruz',
             'address_province'   => $home['province'],
@@ -905,7 +921,7 @@ class DemoDataService
     {
         $labels = [
             'admin' => 'Admin', 'seller1' => 'Seller 1 (Marco Gadgets, Area A)', 'seller2' => 'Seller 2 (Liza Pantry & Home, Area B)',
-            'buyer1' => 'Buyer 1', 'buyer2' => 'Buyer 2', 'hub' => 'Hub (owner)',
+            'buyer1' => 'Buyer 1', 'buyer2' => 'Buyer 2', 'courier' => 'Courier admin (Demo Courier Co.)', 'hub' => 'Hub (owner)',
             'rider1' => 'Rider 1 (active, Area A)', 'rider2' => 'Rider 2 (active, Area B)', 'rider3' => 'Rider 3 (applicant, PENDING)',
         ];
 

@@ -88,6 +88,12 @@ class User extends Authenticatable
         return $this->hasOne(Rider::class);
     }
 
+    /** The courier company this account runs, through its membership (one company per account). */
+    public function logisticsMembership(): HasOne
+    {
+        return $this->hasOne(LogisticsCompanyMember::class);
+    }
+
     public function addresses(): HasMany
     {
         return $this->hasMany(Address::class);

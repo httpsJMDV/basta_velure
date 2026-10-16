@@ -246,6 +246,7 @@ class RiderPickupController extends Controller
         // Verify seller has parcels in rider's assigned areas at all
         $sellerInArea = Parcel::where('seller_id', $sellerId)
             ->whereIn('pickup_barangay_code', $activeCodes)
+            ->forRiderCourier($rider)
             ->exists();
 
         if (! $sellerInArea) {
@@ -258,6 +259,7 @@ class RiderPickupController extends Controller
             $availableParcels = Parcel::where('seller_id', $sellerId)
                 ->where('status', Parcel::STATUS_READY_FOR_PICKUP)
                 ->whereIn('pickup_barangay_code', $activeCodes)
+                ->forRiderCourier($rider)
                 ->whereNull('pickup_rider_id')
                 ->whereDoesntHave('declines', function ($sub) use ($rider) {
                     $sub->where('rider_id', $rider->id);
@@ -270,6 +272,7 @@ class RiderPickupController extends Controller
                 $claimedByOther = Parcel::where('seller_id', $sellerId)
                     ->where('status', Parcel::STATUS_READY_FOR_PICKUP)
                     ->whereIn('pickup_barangay_code', $activeCodes)
+                    ->forRiderCourier($rider)
                     ->whereNotNull('pickup_rider_id')
                     ->where('pickup_rider_id', '!=', $rider->id)
                     ->exists();

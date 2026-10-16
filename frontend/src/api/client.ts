@@ -1,5 +1,12 @@
 import axios from 'axios';
 import type {
+  CourierOption,
+  LogisticsCompanyDetail,
+  LogisticsDashboard,
+  LogisticsHubRow,
+  LogisticsRiderRow,
+  LogisticsParcelRow,
+  LogisticsReport,
   AuthResponse,
   BuyerApplicationsResponse,
   PaginatedResponse,
@@ -177,6 +184,55 @@ export const applyRiderApi = (form: FormData) =>
   http.post<RiderRegistrationResponse>('/auth/apply-rider', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
+
+// ─── Courier companies ─────────────────────────────────────────────────────────
+
+/** Approved couriers: the choices at checkout and on the hub application. */
+export const getCouriersApi = () =>
+  http.get<{ data: CourierOption[] }>('/logistics/couriers').then((r) => r.data.data);
+
+/** The signed-in buyer applies to run a courier company. */
+export const applyCourierApi = (form: FormData) =>
+  http.post<{ message: string; data: { user: User; company: LogisticsCompanyDetail } }>('/auth/apply-courier', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+
+export interface CourierApplicationsResponse {
+  data: LogisticsCompanyDetail[];
+  meta: { current_page: number; last_page: number; per_page: number; total: number; from: number | null; to: number | null };
+  counts: { pending: number; approved: number; rejected: number; suspended: number };
+}
+
+export const getAdminCourierApplicationsApi = (params: { status?: string; search?: string; page?: number; per_page?: number; sort?: string }) =>
+  http.get<CourierApplicationsResponse>('/admin/courier-applications', { params }).then((r) => r.data);
+export const getAdminCourierApplicationApi = (id: number) =>
+  http.get<{ data: LogisticsCompanyDetail }>(`/admin/courier-applications/${id}`).then((r) => r.data.data);
+export const decideAdminCourierApi = (id: number, action: 'approve' | 'reject' | 'suspend' | 'reactivate', reason?: string) =>
+  http.post<{ message: string; data: LogisticsCompanyDetail }>(`/admin/courier-applications/${id}/${action}`, reason ? { reason } : {}).then((r) => r.data.data);
+
+// The courier company's own portal (/logistics)
+export const getLogisticsMeApi = () => http.get<{ data: LogisticsCompanyDetail }>('/logistics/me').then((r) => r.data.data);
+export const getLogisticsDashboardApi = () => http.get<{ data: LogisticsDashboard }>('/logistics/dashboard').then((r) => r.data.data);
+export const getLogisticsHubsApi = (params?: { status?: string; search?: string }) =>
+  http.get<{ data: LogisticsHubRow[] }>('/logistics/network/hubs', { params }).then((r) => r.data.data);
+export const getLogisticsHubApi = (id: number) =>
+  http.get<{ data: SortingCenterApplicationDetail }>(`/logistics/network/hubs/${id}`).then((r) => r.data.data);
+export const decideLogisticsHubApi = (id: number, action: 'approve' | 'reject' | 'suspend' | 'reactivate', reason?: string) =>
+  http.post<{ message: string }>(`/logistics/network/hubs/${id}/${action}`, reason ? { reason } : {}).then((r) => r.data);
+export const getLogisticsRidersApi = (params?: { status?: string; search?: string; hub_id?: number }) =>
+  http.get<{ data: LogisticsRiderRow[] }>('/logistics/riders', { params }).then((r) => r.data.data);
+export const getLogisticsParcelsApi = (params?: { search?: string; status?: string; hub_id?: number; problems?: 0 | 1; page?: number; per_page?: number }) =>
+  http.get<{ data: LogisticsParcelRow[]; meta: CourierApplicationsResponse['meta'] }>('/logistics/parcels', { params }).then((r) => r.data);
+export const getLogisticsReportsApi = (params?: { from?: string; to?: string }) =>
+  http.get<{ data: LogisticsReport }>('/logistics/reports', { params }).then((r) => r.data.data);
+
+/** Opens a private document (permit, ID) that needs the signed-in token, in a new tab. */
+export async function openAuthorizedFile(url: string): Promise<void> {
+  const res = await http.get(url, { responseType: 'blob', baseURL: '' });
+  const objectUrl = URL.createObjectURL(res.data as Blob);
+  window.open(objectUrl, '_blank', 'noopener');
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
 
 export const getPublicApprovedHubsApi = (params?: { search?: string; limit?: number }) =>
   http.get<{ data: PublicApprovedHub[] }>('/logistics/hubs', { params }).then((r) => r.data.data);

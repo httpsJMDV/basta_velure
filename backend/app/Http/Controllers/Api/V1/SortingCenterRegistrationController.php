@@ -31,6 +31,7 @@ class SortingCenterRegistrationController extends Controller
         try {
             $sortingCenter = DB::transaction(function () use ($user, $validated, $permitPath, &$previousPermit) {
                 $fields = [
+                    'logistics_company_id' => (int) $validated['logistics_company_id'],
                     'hub_name'           => $validated['hub_name'],
                     'address_province'   => $validated['address_province'],
                     'address_city'       => $validated['address_city'],
@@ -63,7 +64,9 @@ class SortingCenterRegistrationController extends Controller
         }
 
         // The reopened application no longer points at the old permit.
-        app(\App\Services\MailNotifier::class)->hubApplicationReceived($sortingCenter->load('user'));
+        $sortingCenter->load(['user', 'logisticsCompany']);
+        app(\App\Services\MailNotifier::class)->hubApplicationReceived($sortingCenter);
+        app(\App\Services\MailNotifier::class)->courierNewHubApplication($sortingCenter);
 
         if ($previousPermit && $previousPermit !== $permitPath) {
             Storage::disk('ids')->delete($previousPermit);
@@ -72,7 +75,7 @@ class SortingCenterRegistrationController extends Controller
         return response()->json([
             'message' => 'Hub application submitted. Please wait for administrator approval.',
             'data' => [
-                'user'           => new UserResource($user->fresh()->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses'])),
+                'user'           => new UserResource($user->fresh()->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses', 'logisticsMembership.company'])),
                 'sorting_center' => [
                     'id'                 => $sortingCenter->id,
                     'hub_name'           => $sortingCenter->hub_name,

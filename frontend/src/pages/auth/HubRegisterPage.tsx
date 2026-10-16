@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import LovedItLogo from '../../components/LovedItLogo';
@@ -12,7 +12,8 @@ import type { SelectedBarangay } from '../../components/logistics/CoverageBarang
 import {
   SignInRequired, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus,
 } from '../../components/apply/ApplyKit';
-import { applyHubApi } from '../../api/client';
+import { applyHubApi, getCouriersApi } from '../../api/client';
+import type { CourierOption } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import { Building2, FileText, AlertCircle, Truck, MapPin, ShieldCheck, Mail, Warehouse } from 'lucide-react';
 import axios from 'axios';
@@ -68,6 +69,8 @@ export default function HubRegisterPage() {
   const { user, setUser, loading } = useAuth();
   const [reapplying, setReapplying] = useState(false);
 
+  const [couriers, setCouriers] = useState<CourierOption[] | null>(null);
+  const [courierId, setCourierId] = useState<number | null>(null);
   const [hubName, setHubName] = useState('');
   const [dtiPermit, setDtiPermit] = useState<File | null>(null);
   const [hubAddress, setHubAddress] = useState<HubAddressValue>(EMPTY_ADDRESS);
@@ -76,6 +79,13 @@ export default function HubRegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // The courier companies a hub can join; with only one, it is chosen for the applicant.
+  useEffect(() => {
+    getCouriersApi()
+      .then((list) => { setCouriers(list); if (list.length === 1) setCourierId(list[0].id); })
+      .catch(() => setCouriers([]));
+  }, []);
 
   if (loading) return <Shell><p className="text-sm text-gray-400">Loading…</p></Shell>;
   if (!user) return <Shell><SignInRequired what="hub operator" /></Shell>;
@@ -89,7 +99,7 @@ export default function HubRegisterPage() {
           <PendingStatus
             title={`We're reviewing ${hub.hub_name}`}
             steps={[
-              { icon: ShieldCheck, label: 'Permit and coverage check', sub: 'An admin reviews your DTI permit and area' },
+              { icon: ShieldCheck, label: 'Permit and coverage check', sub: 'Your courier company reviews your permit and area' },
               { icon: Mail, label: 'Decision via email', sub: 'Approval or feedback sent to you' },
               { icon: Warehouse, label: 'Open your hub dashboard', sub: 'Receive, sort and dispatch parcels' },
             ]}
@@ -127,6 +137,7 @@ export default function HubRegisterPage() {
   // ── Form ──
   function validateForm(): boolean {
     const errs: Record<string, string> = {};
+    if (!courierId) errs.logistics_company_id = 'Choose the courier company your hub will join.';
     if (!hubName.trim()) errs.hub_name = 'Hub or business name is required.';
     else if (hubName.length > 150) errs.hub_name = 'Hub name must not exceed 150 characters.';
     if (!hubAddress.province && !hubAddress.provinceName) errs.address_province = 'Province is required for hub address.';
@@ -149,6 +160,7 @@ export default function HubRegisterPage() {
     setSubmitting(true);
     try {
       const formData = new FormData();
+      if (courierId) formData.append('logistics_company_id', String(courierId));
       formData.append('hub_name', hubName.trim());
       formData.append('address_province', hubAddress.provinceName || hubAddress.province);
       formData.append('address_city', hubAddress.cityName || hubAddress.city);
@@ -205,6 +217,45 @@ export default function HubRegisterPage() {
       )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-7">
+        {/* ── Courier company: who the hub works for and who reviews it ── */}
+        <div className="space-y-3.5 pt-2">
+          <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+            <Truck className="w-4 h-4 text-brand-red" />
+            <h2 className="text-xs font-bold tracking-wider text-gray-700 uppercase">Courier Company</h2>
+          </div>
+          <p className="-mt-1 text-[12px] text-gray-500">Your hub sorts and delivers parcels for this courier, and its team reviews your application.</p>
+          {!couriers ? (
+            <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+          ) : couriers.length === 0 ? (
+            <p className="text-[13px] text-gray-500">No courier companies are accepting hubs right now.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Courier company">
+              {couriers.map((c) => {
+                const selected = courierId === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => { setCourierId(c.id); setErrors((p) => ({ ...p, logistics_company_id: '' })); }}
+                    className={`flex items-center gap-3 p-3 text-left border rounded-xl transition-all ${selected ? 'border-brand-red bg-rose-50/60 ring-2 ring-brand-red/20' : 'border-gray-200 hover:border-gray-300'}`}
+                  >
+                    <span className="flex items-center justify-center w-10 h-10 overflow-hidden text-[11px] font-black text-white rounded-lg bg-gray-900 shrink-0">
+                      {c.logo_url ? <img src={c.logo_url} alt="" className="object-cover w-full h-full" /> : c.code}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold text-gray-900 truncate">{c.name}</span>
+                      <span className="block text-[11px] text-gray-500">{c.hubs_count} hub{c.hubs_count === 1 ? '' : 's'}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {errors.logistics_company_id && <p className="text-xs text-red-600" role="alert">{errors.logistics_company_id}</p>}
+        </div>
+
         {/* ── Hub details & PSGC address ── */}
         <div className="space-y-3.5 pt-2">
           <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
@@ -267,7 +318,7 @@ export default function HubRegisterPage() {
         <div className="rounded-xl bg-amber-50/80 border border-amber-200/90 p-3.5 text-xs text-amber-800 leading-relaxed space-y-1">
           <p className="font-semibold text-amber-900">Administrative Vetting Notice:</p>
           <p>
-            An admin checks your DTI permit, your coverage area and the ID on your account. You can keep shopping while the
+            Your courier company checks your DTI permit, your coverage area and the ID on your account. You can keep shopping while the
             application is <strong>PENDING</strong>; the hub dashboard opens once it is approved.
           </p>
         </div>
