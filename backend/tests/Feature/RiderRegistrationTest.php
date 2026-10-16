@@ -9,11 +9,18 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
+/**
+ * A signed-in buyer applies to deliver for a hub from their own account (POST /auth/apply-rider), like applying as a
+ * seller. The account keeps its buyer role; the riders row is what makes it a courier.
+ */
 class RiderRegistrationTest extends TestCase
 {
     use DatabaseTransactions;
+
+    private const URL = '/api/v1/auth/apply-rider';
 
     protected SortingCenter $approvedHub;
     protected SortingCenter $pendingHub;
@@ -73,28 +80,44 @@ class RiderRegistrationTest extends TestCase
         ]);
     }
 
+    private function buyer(array $overrides = []): User
+    {
+        return User::forceCreate(array_merge([
+            'first_name'    => 'Danilo',
+            'last_name'     => 'Reyes',
+            'email'         => 'danilo.buyer.' . uniqid() . '@example.com',
+            'phone'         => '+63918' . rand(1000000, 9999999),
+            'password'      => Hash::make('Secret123!'),
+            'date_of_birth' => '1995-03-20',
+            'sex'           => 'male',
+            'role'          => 'buyer',
+            'status'        => 'active',
+        ], $overrides));
+    }
+
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
-            'first_name'            => 'Danilo',
-            'middle_name'           => 'Santos',
-            'last_name'             => 'Reyes',
-            'sex'                   => 'male',
-            'email'                 => 'danilo.rider.' . uniqid() . '@example.com',
-            'phone'                 => '+63918' . rand(1000000, 9999999),
-            'date_of_birth'         => '1995-03-20',
-            'password'              => 'Password123!',
-            'password_confirmation' => 'Password123!',
-            'address_province'      => 'Laguna',
-            'address_city'          => 'Calamba',
-            'address_barangay'      => 'Real',
-            'address_street'        => '789 Rider St',
             'sorting_center_id'     => $this->approvedHub->id,
             'vehicle_type'          => 'Motorcycle',
             'plate_number'          => 'ND 1234',
             'or_cr_image'           => UploadedFile::fake()->create('or_cr.jpg', 500, 'image/jpeg'),
             'drivers_license_image' => UploadedFile::fake()->create('drivers_license.pdf', 1024, 'application/pdf'),
         ], $overrides);
+    }
+
+    private function riderFor(User $user, string $status, string $plate = 'XYZ 999'): Rider
+    {
+        return Rider::create([
+            'user_id'              => $user->id,
+            'sorting_center_id'    => $this->approvedHub->id,
+            'vehicle_type'         => 'Motorcycle',
+            'plate_number'         => $plate,
+            'or_cr_path'           => 'rider_or_cr/sample.jpg',
+            'drivers_license_path' => 'rider_licenses/sample.jpg',
+            'status'               => $status,
+            'submitted_at'         => now(),
+        ]);
     }
 
     public function test_public_hubs_endpoint_returns_only_approved_hubs_without_sensitive_fields(): void
@@ -129,176 +152,135 @@ class RiderRegistrationTest extends TestCase
         $this->assertEquals($this->approvedHub->id, $data[0]['id']);
     }
 
-    public function test_valid_registration_creates_rider_and_user_and_stores_files(): void
+    public function test_signed_in_buyer_applies_with_their_own_account_and_keeps_the_buyer_role(): void
     {
-        $payload = $this->validPayload();
+        $buyer = $this->buyer();
+        $usersBefore = User::count();
+        Sanctum::actingAs($buyer);
 
-        $response = $this->postJson('/api/v1/auth/register-rider', $payload);
-
-        $response->assertStatus(201);
-        $response->assertJsonStructure([
-            'message',
-            'data' => [
-                'user'  => ['id', 'first_name', 'last_name', 'email', 'role'],
-                'rider' => ['id', 'status', 'vehicle_type', 'plate_number', 'sorting_center_id', 'hub_name', 'submitted_at'],
-            ],
-        ]);
-
-        // Assert NO token returned
+        $response = $this->postJson(self::URL, $this->validPayload())->assertStatus(201)
+            ->assertJsonStructure([
+                'message',
+                'data' => [
+                    'user'  => ['id', 'email', 'role', 'rider'],
+                    'rider' => ['id', 'status', 'vehicle_type', 'plate_number', 'sorting_center_id', 'hub_name', 'submitted_at'],
+                ],
+            ])
+            ->assertJsonPath('data.user.id', $buyer->id)
+            ->assertJsonPath('data.user.role', 'buyer')
+            ->assertJsonPath('data.user.rider.status', Rider::STATUS_PENDING);
         $this->assertArrayNotHasKey('token', $response->json());
 
-        // Assert User created
-        $userId = $response->json('data.user.id');
-        $user = User::find($userId);
-        $this->assertNotNull($user);
-        $this->assertEquals('rider', $user->role);
-        $this->assertEquals($payload['email'], $user->email);
+        $this->assertSame($usersBefore, User::count());
+        $this->assertSame('buyer', $buyer->fresh()->role);
 
-        // Assert Rider profile created with PENDING
-        $rider = Rider::where('user_id', $userId)->first();
-        $this->assertNotNull($rider);
+        $rider = Rider::where('user_id', $buyer->id)->firstOrFail();
         $this->assertEquals(Rider::STATUS_PENDING, $rider->status);
         $this->assertEquals($this->approvedHub->id, $rider->sorting_center_id);
         $this->assertEquals('Motorcycle', $rider->vehicle_type);
         $this->assertEquals('ND 1234', $rider->plate_number);
-
-        // Assert files stored on 'ids' disk
         $this->assertTrue(Storage::disk('ids')->exists($rider->or_cr_path));
         $this->assertTrue(Storage::disk('ids')->exists($rider->drivers_license_path));
-
-        // Assert default address was created
-        $this->assertDatabaseHas('addresses', [
-            'user_id'  => $userId,
-            'province' => 'Laguna',
-            'district' => 'Calamba',
-            'ward'     => 'Real',
-            'address'  => '789 Rider St',
-        ]);
     }
 
-    public function test_registration_fails_if_age_is_under_18(): void
+    public function test_guests_cannot_apply_and_the_old_guest_endpoint_is_gone(): void
     {
-        $payload = $this->validPayload([
-            'date_of_birth' => now()->subYears(17)->format('Y-m-d'),
-        ]);
-
-        $response = $this->postJson('/api/v1/auth/register-rider', $payload);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['date_of_birth']);
+        $this->postJson(self::URL, $this->validPayload())->assertStatus(401);
+        $this->postJson('/api/v1/auth/register-rider', $this->validPayload())->assertStatus(404);
     }
 
-    public function test_registration_fails_if_hub_is_not_approved(): void
+    public function test_application_fails_for_an_account_under_18_or_without_a_birthday(): void
     {
-        $payload = $this->validPayload([
-            'sorting_center_id' => $this->pendingHub->id,
-        ]);
+        Sanctum::actingAs($this->buyer(['date_of_birth' => now()->subYears(17)->format('Y-m-d')]));
+        $this->postJson(self::URL, $this->validPayload())->assertStatus(422)->assertJsonValidationErrors(['account']);
 
-        $response = $this->postJson('/api/v1/auth/register-rider', $payload);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['sorting_center_id']);
+        Sanctum::actingAs($this->buyer(['date_of_birth' => null]));
+        $this->postJson(self::URL, $this->validPayload())->assertStatus(422)->assertJsonValidationErrors(['account']);
     }
 
-    public function test_registration_fails_if_vehicle_type_is_invalid(): void
+    public function test_application_fails_if_hub_is_not_approved(): void
     {
-        $payload = $this->validPayload([
-            'vehicle_type' => 'Bicycle',
-        ]);
-
-        $response = $this->postJson('/api/v1/auth/register-rider', $payload);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['vehicle_type']);
+        Sanctum::actingAs($this->buyer());
+        $this->postJson(self::URL, $this->validPayload(['sorting_center_id' => $this->pendingHub->id]))
+            ->assertStatus(422)->assertJsonValidationErrors(['sorting_center_id']);
     }
 
-    public function test_registration_fails_if_files_missing(): void
+    public function test_application_fails_if_vehicle_type_is_invalid(): void
     {
+        Sanctum::actingAs($this->buyer());
+        $this->postJson(self::URL, $this->validPayload(['vehicle_type' => 'Bicycle']))
+            ->assertStatus(422)->assertJsonValidationErrors(['vehicle_type']);
+    }
+
+    public function test_application_fails_if_files_missing(): void
+    {
+        Sanctum::actingAs($this->buyer());
         $payload = $this->validPayload();
         unset($payload['or_cr_image'], $payload['drivers_license_image']);
 
-        $response = $this->postJson('/api/v1/auth/register-rider', $payload);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['or_cr_image', 'drivers_license_image']);
+        $this->postJson(self::URL, $payload)->assertStatus(422)->assertJsonValidationErrors(['or_cr_image', 'drivers_license_image']);
     }
 
-    public function test_login_gating_blocks_pending_rider(): void
+    public function test_account_rules_block_a_second_application_and_a_hub_owner(): void
     {
-        $email = 'pending.rider.' . uniqid() . '@example.com';
-        $password = 'Secret123!';
+        $buyer = $this->buyer();
+        Sanctum::actingAs($buyer);
+        $this->postJson(self::URL, $this->validPayload())->assertStatus(201);
+        $this->postJson(self::URL, $this->validPayload())->assertStatus(422)->assertJsonValidationErrors(['account']);
+        $this->assertSame(1, Rider::where('user_id', $buyer->id)->count());
 
-        $user = User::create([
-            'first_name'    => 'Pedro',
-            'last_name'     => 'Penduko',
-            'email'         => $email,
-            'phone'         => '+63919' . rand(1000000, 9999999),
-            'password'      => Hash::make($password),
-            'date_of_birth' => '1992-04-10',
-            'sex'           => 'male',
-            'role'          => 'rider',
-            'status'        => 'active',
+        $hubOwner = $this->buyer();
+        SortingCenter::create([
+            'user_id' => $hubOwner->id, 'hub_name' => 'Owner Hub', 'address_province' => 'Laguna', 'address_city' => 'Calamba',
+            'address_barangay' => 'Real', 'address_street' => '1 St', 'dti_permit_path' => 'p.pdf',
+            'status' => SortingCenter::STATUS_PENDING, 'coverage_barangays' => ['043405003'],
         ]);
-
-        Rider::create([
-            'user_id'              => $user->id,
-            'sorting_center_id'    => $this->approvedHub->id,
-            'vehicle_type'         => 'Motorcycle',
-            'plate_number'         => 'XYZ 999',
-            'or_cr_path'           => 'rider_or_cr/sample.jpg',
-            'drivers_license_path' => 'rider_licenses/sample.jpg',
-            'status'               => Rider::STATUS_PENDING,
-            'submitted_at'         => now(),
-        ]);
-
-        $response = $this->postJson('/api/v1/auth/login', [
-            'email'    => $email,
-            'password' => $password,
-        ]);
-
-        $response->assertStatus(403);
-        $response->assertJson([
-            'message' => 'Your rider application is currently pending hub approval. You will receive an email notification once reviewed.',
-        ]);
+        Sanctum::actingAs($hubOwner);
+        $this->postJson(self::URL, $this->validPayload())->assertStatus(422)->assertJsonValidationErrors(['account']);
     }
 
-    public function test_login_gating_blocks_disapproved_rider(): void
+    public function test_a_disapproved_courier_reapplies_on_the_same_rider_row(): void
     {
-        $email = 'disapproved.rider.' . uniqid() . '@example.com';
-        $password = 'Secret123!';
+        $buyer = $this->buyer();
+        $rider = $this->riderFor($buyer, Rider::STATUS_DISAPPROVED);
+        $rider->forceFill(['rejection_reason' => 'Blurry license'])->save();
+        Sanctum::actingAs($buyer);
 
-        $user = User::create([
-            'first_name'    => 'Juan',
-            'last_name'     => 'Tamad',
-            'email'         => $email,
-            'phone'         => '+63919' . rand(1000000, 9999999),
-            'password'      => Hash::make($password),
-            'date_of_birth' => '1992-04-10',
-            'sex'           => 'male',
-            'role'          => 'rider',
-            'status'        => 'active',
-        ]);
+        $this->postJson(self::URL, $this->validPayload(['plate_number' => 'NEW 4321']))->assertStatus(201)
+            ->assertJsonPath('data.rider.id', $rider->id);
 
-        Rider::create([
-            'user_id'              => $user->id,
-            'sorting_center_id'    => $this->approvedHub->id,
-            'vehicle_type'         => 'Motorcycle',
-            'plate_number'         => 'XYZ 888',
-            'or_cr_path'           => 'rider_or_cr/sample.jpg',
-            'drivers_license_path' => 'rider_licenses/sample.jpg',
-            'status'               => Rider::STATUS_DISAPPROVED,
-            'submitted_at'         => now(),
-        ]);
+        $rider->refresh();
+        $this->assertSame(1, Rider::where('user_id', $buyer->id)->count());
+        $this->assertSame(Rider::STATUS_PENDING, $rider->status);
+        $this->assertSame('NEW 4321', $rider->plate_number);
+        $this->assertNull($rider->rejection_reason);
+    }
 
-        $response = $this->postJson('/api/v1/auth/login', [
-            'email'    => $email,
-            'password' => $password,
-        ]);
+    public function test_pending_and_disapproved_couriers_can_sign_in_but_not_reach_rider_routes(): void
+    {
+        foreach ([Rider::STATUS_PENDING, Rider::STATUS_DISAPPROVED] as $status) {
+            $buyer = $this->buyer();
+            $this->riderFor($buyer, $status, 'P ' . rand(100, 999));
 
-        $response->assertStatus(403);
-        $response->assertJson([
-            'message' => 'Your rider application was not approved. Please check your email for details or contact support.',
-        ]);
+            $this->app['auth']->forgetGuards();
+            $this->postJson('/api/v1/auth/login', ['email' => $buyer->email, 'password' => 'Secret123!'])
+                ->assertOk()->assertJsonPath('data.rider.status', $status);
+
+            Sanctum::actingAs($buyer->fresh());
+            $this->getJson('/api/v1/rider/me')->assertStatus(403);
+        }
+    }
+
+    public function test_an_approved_courier_who_is_a_buyer_reaches_rider_routes(): void
+    {
+        $buyer = $this->buyer();
+        $this->riderFor($buyer, Rider::STATUS_ACTIVE, 'OK 777');
+
+        $this->postJson('/api/v1/auth/login', ['email' => $buyer->email, 'password' => 'Secret123!'])
+            ->assertOk()->assertJsonPath('data.role', 'buyer')->assertJsonPath('data.rider.status', 'ACTIVE');
+
+        Sanctum::actingAs($buyer->fresh());
+        $this->getJson('/api/v1/rider/me')->assertOk();
     }
 
     public function test_login_allows_active_rider(): void
@@ -317,17 +299,7 @@ class RiderRegistrationTest extends TestCase
             'role'          => 'rider',
             'status'        => 'active',
         ]);
-
-        Rider::create([
-            'user_id'              => $user->id,
-            'sorting_center_id'    => $this->approvedHub->id,
-            'vehicle_type'         => 'Motorcycle',
-            'plate_number'         => 'XYZ 777',
-            'or_cr_path'           => 'rider_or_cr/sample.jpg',
-            'drivers_license_path' => 'rider_licenses/sample.jpg',
-            'status'               => Rider::STATUS_ACTIVE,
-            'submitted_at'         => now(),
-        ]);
+        $this->riderFor($user, Rider::STATUS_ACTIVE, 'XYZ 777');
 
         $response = $this->postJson('/api/v1/auth/login', [
             'email'    => $email,

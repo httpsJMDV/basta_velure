@@ -45,32 +45,20 @@ export default function RiderLoginPage() {
     try {
       const res = await loginApi(identifier.trim(), password);
 
-      // Verify the authenticated account has the rider role
-      if (res.data.role !== 'rider') {
+      // A courier is a buyer account (or an older role "rider" account) with a rider profile.
+      if (!res.data.rider) {
         clearAuth();
         setErrorType('not_rider');
-        setErrorMessage('This sign-in is only for delivery couriers. If you are a buyer, seller or hub owner, please use your own sign-in.');
+        setErrorMessage('This account has no courier profile yet. Sign in on the main page, then apply as a courier from your account.');
         return;
       }
 
-      // Check rider profile status (if returned by backend)
-      if (res.data.rider) {
-        if (res.data.rider.status === 'PENDING') {
-          clearAuth();
-          setErrorType('pending');
-          setErrorMessage('Your rider application is currently pending hub approval. You will receive an email notification once reviewed.');
-          return;
-        }
-
-        if (res.data.rider.status === 'DISAPPROVED') {
-          clearAuth();
-          setErrorType('disapproved');
-          setErrorMessage('Your rider application was not approved. Please check your email for details or contact support.');
-          return;
-        }
-      }
-
+      // A pending or disapproved applicant stays signed in and sees the application status (and can resubmit).
       setAuth(res.data, res.token);
+      if (res.data.rider.status !== 'ACTIVE') {
+        navigate('/register/rider');
+        return;
+      }
       showToast(`Welcome back, Courier ${res.data.first_name}!`, 'success');
       navigate('/rider/dashboard');
     } catch (err: unknown) {

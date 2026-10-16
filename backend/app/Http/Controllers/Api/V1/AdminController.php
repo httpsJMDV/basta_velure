@@ -245,7 +245,9 @@ class AdminController extends Controller
             ->when($request->role === 'seller', fn ($q) => $q
                 ->whereHas('sellerProfile', fn ($sp) => $sp->where('application_status', 'approved'))
             )
-            ->when($request->role && $request->role !== 'seller', fn ($q) => $q->where('role', $request->role))
+            ->when($request->role && ! in_array($request->role, ['seller', 'rider'], true), fn ($q) => $q->where('role', $request->role))
+            // A courier is a buyer with a riders row (older courier accounts carry role "rider").
+            ->when($request->role === 'rider', fn ($q) => $q->where(fn ($r) => $r->where('role', 'rider')->orWhereHas('rider')))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->search, fn ($q) => $q->where(function ($q2) use ($request) {
                 $q2->where('first_name', 'like', "%{$request->search}%")

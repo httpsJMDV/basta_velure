@@ -4,9 +4,9 @@ import type { User } from '../types';
  * Where a signed-in account lands: admin, then an approved seller, an approved hub owner, an active rider, and
  * everyone else (buyers, and applicants whose application is not approved yet) on the storefront.
  *
- * A seller is a buyer whose seller application was approved (users.role stays "buyer"), so the seller check reads the
- * profile, not the role. Pending, rejected and suspended hub and rider accounts never get this far: the server
- * refuses their sign-in with a message.
+ * Sellers, hub owners and couriers are buyers whose application was approved (users.role stays "buyer"; older courier
+ * accounts carry "rider"), so these checks read the profile, not the role. A pending or refused applicant lands on the
+ * storefront and sees the status on the application page; only a suspended hub is refused at sign-in.
  */
 export function roleHomePath(user: User): string {
   if (user.role === 'admin') return '/admin';

@@ -205,8 +205,12 @@ class RiderAuthTest extends TestCase
             $res = $this->withHeader('Authorization', "Bearer {$token}")
                 ->getJson('/api/v1/rider/me');
 
+            // A buyer could become a courier (the riders row decides), so a buyer without one is told the profile is
+            // missing; any other role is refused outright.
             $res->assertStatus(403)
-                ->assertJsonPath('message', 'Access denied. Rider account required.');
+                ->assertJsonPath('message', $type === 'buyer' || ($type === 'hub' && $user->role === 'buyer')
+                    ? 'Rider profile not found.'
+                    : 'Access denied. Rider account required.');
         }
     }
 
@@ -259,21 +263,19 @@ class RiderAuthTest extends TestCase
 
     public function test_login_gating_from_feature_2_2_still_functions(): void
     {
-        // 1. Pending rider login
+        // 1. A pending applicant signs in (an application never blocks sign-in) and sees the status
         [$pendingUser, , $pendingPass] = $this->createRiderUser(Rider::STATUS_PENDING);
         $this->postJson('/api/v1/auth/login', [
             'email'    => $pendingUser->email,
             'password' => $pendingPass,
-        ])->assertStatus(403)
-            ->assertJsonPath('message', 'Your rider application is currently pending hub approval. You will receive an email notification once reviewed.');
+        ])->assertOk()->assertJsonPath('data.rider.status', 'PENDING');
 
-        // 2. Disapproved rider login
+        // 2. So does a disapproved one; the rider routes stay closed to both (see the middleware tests above)
         [$disapprovedUser, , $disapprovedPass] = $this->createRiderUser(Rider::STATUS_DISAPPROVED);
         $this->postJson('/api/v1/auth/login', [
             'email'    => $disapprovedUser->email,
             'password' => $disapprovedPass,
-        ])->assertStatus(403)
-            ->assertJsonPath('message', 'Your rider application was not approved. Please check your email for details or contact support.');
+        ])->assertOk()->assertJsonPath('data.rider.status', 'DISAPPROVED');
 
         // 3. Active rider login succeeds
         [$activeUser, , $activePass] = $this->createRiderUser(Rider::STATUS_ACTIVE);

@@ -101,7 +101,7 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
                 </button>
               )}
               {user.sorting_center?.status === 'PENDING' && (
-                <button onClick={() => { navigate('/register/hub/pending'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
+                <button onClick={() => { navigate('/register/hub'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
                   <Warehouse className="w-4 h-4 shrink-0" /> Hub Status (Pending)
                 </button>
               )}
@@ -111,7 +111,7 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
                 </button>
               )}
               {user.rider?.status === 'PENDING' && (
-                <button onClick={() => { navigate('/register/rider/pending'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
+                <button onClick={() => { navigate('/register/rider'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
                   <Bike className="w-4 h-4 shrink-0" /> Courier Status (Pending)
                 </button>
               )}

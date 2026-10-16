@@ -8,7 +8,7 @@ import Input from '../../components/ui/Input';
 import CustomSelect from '../../components/ui/CustomSelect';
 import AddressFields from '../../components/ui/AddressFields';
 import LovedItLogo from '../../components/LovedItLogo';
-import type { AddressValue } from '../../components/ui/AddressFields';
+import type { AddressValue, AddressNames } from '../../components/ui/AddressFields';
 import type { GovernmentIdType } from '../../types';
 import { UploadCloud, FileText, X, Image as ImageIcon, CheckCircle, AlertCircle, Store, Clock, FileCheck, Mail, ArrowRight, RotateCcw } from 'lucide-react';
 
@@ -303,6 +303,8 @@ export default function SellerRegisterPage() {
   const [loading, setLoading] = useState(false);
   // Allow rejected users to resubmit by resetting to form view
   const [forceForm, setForceForm] = useState(false);
+  // The picker holds PSGC codes; the API wants the names and the codes separately.
+  const [addressNames, setAddressNames] = useState<AddressNames>({ province: '', city_municipality: '', barangay: '' });
 
   // Redirect unauthenticated users to login
   if (!user) {
@@ -396,9 +398,12 @@ export default function SellerRegisterPage() {
     const data = new FormData();
     data.append('shop_name', form.shop_name);
     data.append('shop_description', form.shop_description);
-    data.append('address_province', form.address.province);
-    data.append('address_city', form.address.city_municipality);
-    data.append('address_barangay', form.address.barangay);
+    data.append('address_province', addressNames.province || form.address.province);
+    data.append('address_city', addressNames.city_municipality || form.address.city_municipality);
+    data.append('address_barangay', addressNames.barangay || form.address.barangay);
+    data.append('address_province_code', form.address.province);
+    data.append('address_city_code', form.address.city_municipality);
+    data.append('address_barangay_code', form.address.barangay);
     if (form.address.street_address) data.append('address_street', form.address.street_address);
     data.append('government_id_type', form.government_id_type);
     if (form.government_id_image)        data.append('government_id_image', form.government_id_image);
@@ -417,14 +422,16 @@ export default function SellerRegisterPage() {
         const mapped: Partial<Record<keyof FormState, string>> = {};
         const addrMapped: Partial<Record<keyof AddressValue, string>> = {};
         Object.entries(resp.errors).forEach(([k, v]) => {
-          if (k === 'address_province')        addrMapped.province          = v[0];
-          else if (k === 'address_city')       addrMapped.city_municipality = v[0];
-          else if (k === 'address_barangay')   addrMapped.barangay          = v[0];
+          if (k === 'address_province' || k === 'address_province_code')       addrMapped.province          = v[0];
+          else if (k === 'address_city' || k === 'address_city_code')          addrMapped.city_municipality = v[0];
+          else if (k === 'address_barangay' || k === 'address_barangay_code')  addrMapped.barangay          = v[0];
           else if (k === 'address_street')     addrMapped.street_address    = v[0];
           else mapped[k as keyof FormState] = v[0];
         });
         setErrors(mapped);
         setAddressErrors(addrMapped);
+        // Also show the summary, so an error for a field the form does not display is never silent.
+        setServerError(resp.message ?? 'Please check the highlighted fields.');
       } else {
         setServerError(resp?.message ?? 'Submission failed. Please try again.');
       }
@@ -514,6 +521,7 @@ export default function SellerRegisterPage() {
         <AddressFields
           value={form.address}
           onChange={(addr) => { setForm((f) => ({ ...f, address: addr })); setAddressErrors({}); }}
+          onNamesChange={setAddressNames}
           errors={addressErrors}
           streetLabel="Street / House No. (optional)"
         />

@@ -3,62 +3,36 @@
 namespace App\Http\Requests\Auth;
 
 use App\Http\Requests\Concerns\ValidatesRiderVehicle;
+use App\Models\Rider;
 use App\Models\SortingCenter;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
+/**
+ * A signed-in buyer applies to deliver for a logistics hub, like applying as a seller: the account and its personal
+ * details are reused, so only the hub, the vehicle and the driving documents are asked for.
+ */
 class RegisterRiderRequest extends FormRequest
 {
     use ValidatesRiderVehicle;
 
     public function authorize(): bool
     {
-        return true;
+        return $this->user() !== null;
     }
 
     protected function prepareForValidation(): void
     {
-        $merge = [];
-
-        // Address aliases
-        if (! $this->filled('address_province') && $this->filled('province')) {
-            $merge['address_province'] = $this->input('province');
-        }
-        if (! $this->filled('address_city')) {
-            $city = $this->input('city_municipality') ?? $this->input('city');
-            if ($city) {
-                $merge['address_city'] = $city;
-            }
-        }
-        if (! $this->filled('address_barangay') && $this->filled('barangay')) {
-            $merge['address_barangay'] = $this->input('barangay');
-        }
-        if (! $this->filled('address_street')) {
-            $street = $this->input('street_address') ?? $this->input('street');
-            if ($street) {
-                $merge['address_street'] = $street;
-            }
-        }
-
-        // Contact and Birthday aliases
-        if (! $this->filled('phone') && $this->filled('contact_number')) {
-            $merge['phone'] = $this->input('contact_number');
-        }
-        if (! $this->filled('phone') && $this->filled('contact_no')) {
-            $merge['phone'] = $this->input('contact_no');
-        }
-        if (! $this->filled('date_of_birth') && $this->filled('birthday')) {
-            $merge['date_of_birth'] = $this->input('birthday');
-        }
+        $merge = $this->normalizedVehicleInput();
 
         // Hub selection alias
         if (! $this->filled('sorting_center_id') && $this->filled('hub_id')) {
             $merge['sorting_center_id'] = $this->input('hub_id');
         }
 
-        $merge += $this->normalizedVehicleInput();
-
-        if (! empty($merge)) {
+        if ($merge) {
             $this->merge($merge);
         }
     }
@@ -66,27 +40,6 @@ class RegisterRiderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Personal Details
-            'first_name'            => ['required', 'string', 'max:50'],
-            'middle_name'           => ['nullable', 'string', 'max:50'],
-            'last_name'             => ['required', 'string', 'max:50'],
-            'sex'                   => ['required', 'in:male,female'],
-            'email'                 => ['required', 'email', 'max:100', 'unique:users,email'],
-            'phone'                 => ['required', 'string', 'regex:/^(\+?[1-9]\d{6,14}|09\d{9})$/', 'unique:users,phone'],
-            'date_of_birth'         => ['required', 'date', 'before:today', function ($attr, $value, $fail) {
-                $age = Carbon::parse($value)->age;
-                if ($age < 18) {
-                    $fail('Courier applicant must be at least 18 years old to register.');
-                }
-            }],
-            'password'              => ['required', 'string', 'min:8', 'confirmed'],
-
-            // Address Details
-            'address_province'      => ['required', 'string', 'max:100'],
-            'address_city'          => ['required', 'string', 'max:100'],
-            'address_barangay'      => ['required', 'string', 'max:100'],
-            'address_street'        => ['required', 'string', 'max:255'],
-
             // Hub Selection
             'sorting_center_id'     => [
                 'required',
@@ -109,33 +62,42 @@ class RegisterRiderRequest extends FormRequest
         ];
     }
 
+    /** The account must be an adult buyer with no courier or hub application in force. */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator) {
+                /** @var User $user */
+                $user = $this->user();
+
+                if ($user->role !== 'buyer') {
+                    $validator->errors()->add('account', 'Only a buyer account can apply to become a courier.');
+                    return;
+                }
+                if (! $user->date_of_birth) {
+                    $validator->errors()->add('account', 'Add your birthday to your account before applying.');
+                } elseif (Carbon::parse($user->date_of_birth)->age < 18) {
+                    $validator->errors()->add('account', 'Courier applicants must be at least 18 years old.');
+                }
+
+                $rider = Rider::where('user_id', $user->id)->latest('id')->first();
+                if ($rider && $rider->status !== Rider::STATUS_DISAPPROVED) {
+                    $validator->errors()->add('account', $rider->status === Rider::STATUS_ACTIVE
+                        ? 'Your account is already an approved courier.'
+                        : 'You already have a courier application waiting for the hub.');
+                }
+
+                $hub = SortingCenter::where('user_id', $user->id)->latest('id')->first();
+                if ($hub && $hub->status !== SortingCenter::STATUS_REJECTED) {
+                    $validator->errors()->add('account', 'A logistics hub account cannot also be a courier.');
+                }
+            },
+        ];
+    }
+
     public function messages(): array
     {
         return [
-            'first_name.required'             => 'First name is required.',
-            'first_name.max'                  => 'First name must not exceed 50 characters.',
-            'middle_name.max'                 => 'Middle name must not exceed 50 characters.',
-            'last_name.required'              => 'Last name is required.',
-            'last_name.max'                   => 'Last name must not exceed 50 characters.',
-            'sex.required'                    => 'Please select your biological sex.',
-            'sex.in'                          => 'Selected biological sex must be either male or female.',
-            'email.required'                  => 'Email address is required.',
-            'email.email'                     => 'Please provide a valid email address.',
-            'email.max'                       => 'Email address must not exceed 100 characters.',
-            'email.unique'                    => 'This email address is already registered to an existing account.',
-            'phone.required'                  => 'Contact number is required.',
-            'phone.regex'                     => 'Please enter a valid Philippine mobile number (e.g., 09171234567 or +639171234567).',
-            'phone.unique'                    => 'This mobile phone number is already registered.',
-            'date_of_birth.required'          => 'Date of birth is required.',
-            'date_of_birth.date'              => 'Please provide a valid date format for date of birth.',
-            'date_of_birth.before'            => 'Date of birth must be a date before today.',
-            'password.required'               => 'Password is required.',
-            'password.min'                    => 'Password must be at least 8 characters long.',
-            'password.confirmed'              => 'Password confirmation does not match.',
-            'address_province.required'       => 'Province is required.',
-            'address_city.required'           => 'City / Municipality is required.',
-            'address_barangay.required'       => 'Barangay is required.',
-            'address_street.required'         => 'Street address is required.',
             'sorting_center_id.required'      => 'Please select the logistics hub you wish to apply to.',
             'sorting_center_id.integer'       => 'Invalid logistics hub identifier.',
             'sorting_center_id.exists'        => 'The selected logistics hub does not exist.',

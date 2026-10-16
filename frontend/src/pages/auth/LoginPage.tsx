@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { loginApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/ui/Button';
@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 export default function LoginPage() {
   const { setAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [identifier, setIdentifier] = useState('');
   const [identifierError, setIdentifierError] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +34,9 @@ export default function LoginPage() {
       const res = await loginApi(identifier.trim(), password);
       setAuth(res.data, res.token);
       showToast(`Welcome back, ${res.data.first_name}!`);
-      navigate(roleHomePath(res.data));
+      // ?next=/register/hub (from "Sign in to apply") returns there; only same-site paths are followed.
+      const next = new URLSearchParams(location.search).get('next');
+      navigate(next && next.startsWith('/') && !next.startsWith('//') ? next : roleHomePath(res.data));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message ?? 'Login failed.';

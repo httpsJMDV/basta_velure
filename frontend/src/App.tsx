@@ -6,10 +6,8 @@ import RegisterPage from './pages/auth/RegisterPage';
 import CompleteProfilePage from './pages/auth/CompleteProfilePage';
 import SellerRegisterPage from './pages/auth/SellerRegisterPage';
 import HubRegisterPage from './pages/auth/HubRegisterPage';
-import HubPendingPage from './pages/auth/HubPendingPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
 import RiderRegisterPage from './pages/auth/RiderRegisterPage';
-import RiderPendingPage from './pages/auth/RiderPendingPage';
 import RiderLoginPage from './pages/auth/RiderLoginPage';
 import RiderLayout from './pages/rider/RiderLayout';
 import RiderDashboardPage from './pages/rider/RiderDashboardPage';
@@ -105,7 +103,8 @@ function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/hub/login" replace />;
   if (!user.sorting_center) return <Navigate to="/register/hub" replace />;
-  if (user.sorting_center.status === 'PENDING') return <Navigate to="/register/hub/pending" replace />;
+  // The hub application page shows the pending or rejected status of the signed-in account's application.
+  if (user.sorting_center.status === 'PENDING') return <Navigate to="/register/hub" replace />;
   if (user.sorting_center.status === 'REJECTED') return <Navigate to="/register/hub" replace />;
   if (user.sorting_center.status === 'SUSPENDED') {
     return (
@@ -135,35 +134,12 @@ function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
 }
 
 function RequireActiveRider({ children }: { children: ReactNode }) {
-  const { user, loading, clearAuth } = useAuth();
+  const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/rider/login" replace />;
-  if (!user.rider) return <Navigate to="/register/rider" replace />;
-  if (user.rider.status === 'PENDING') return <Navigate to="/register/rider/pending" replace />;
-  if (user.rider.status === 'DISAPPROVED') {
-    return (
-      <div className="flex items-center justify-center min-h-screen p-6 bg-gray-50">
-        <div className="w-full max-w-md p-8 text-center bg-white border border-red-200 shadow-xl rounded-2xl">
-          <div className="flex items-center justify-center mx-auto mb-4 w-14 h-14 rounded-2xl bg-red-50 text-brand-red">
-            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-            </svg>
-          </div>
-          <h1 className="mb-2 text-xl font-black text-gray-900">Application Not Approved</h1>
-          <p className="mb-6 text-sm text-gray-500">
-            Your rider application was not approved by the logistics hub. Please check your email for details or contact support.
-          </p>
-          <button
-            onClick={() => { clearAuth(); window.location.href = '/login'; }}
-            className="w-full py-2.5 px-4 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl transition-colors"
-          >
-            Log Out
-          </button>
-        </div>
-      </div>
-    );
-  }
-  if (user.rider.status !== 'ACTIVE') return <Navigate to="/register/rider" replace />;
+  // Anything but an active courier goes to the courier application page, which shows the pending or disapproved
+  // status (with the hub's reason and a resubmit button) or the form.
+  if (!user.rider || user.rider.status !== 'ACTIVE') return <Navigate to="/register/rider" replace />;
   return <>{children}</>;
 }
 
@@ -243,10 +219,10 @@ function AppRoutes() {
       <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
       <Route path="/register/seller" element={<SellerRegisterPage />} />
       <Route path="/register/hub" element={<HubRegisterPage />} />
-      <Route path="/register/hub/pending" element={<HubPendingPage />} />
+      <Route path="/register/hub/pending" element={<Navigate to="/register/hub" replace />} />
       <Route path="/register/sorting-center" element={<Navigate to="/register/hub" replace />} />
       <Route path="/register/rider" element={<RiderRegisterPage />} />
-      <Route path="/register/rider/pending" element={<RiderPendingPage />} />
+      <Route path="/register/rider/pending" element={<Navigate to="/register/rider" replace />} />
       <Route path="/register/courier" element={<Navigate to="/register/rider" replace />} />
       <Route path="/rider/login" element={<RiderLoginPage />} />
       <Route path="/hub/login" element={<HubLoginPage />} />

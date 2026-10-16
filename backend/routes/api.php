@@ -81,9 +81,6 @@ Route::prefix('v1')->group(function () {
     // Public auth routes
     Route::middleware('throttle:auth')->group(function () {
         Route::post('/auth/register', [AuthController::class, 'registerBuyer']);
-        Route::post('/auth/register-sorting-center', [SortingCenterRegistrationController::class, 'register'])->middleware('throttle:upload');
-        Route::post('/auth/logistics/register', [SortingCenterRegistrationController::class, 'register'])->middleware('throttle:upload');
-        Route::post('/auth/register-rider', [RiderRegistrationController::class, 'register'])->middleware('throttle:upload');
         Route::post('/auth/login', [AuthController::class, 'login']);
         Route::post('/auth/forgot-password', [PasswordController::class, 'forgot']);
         Route::post('/auth/reset-password', [PasswordController::class, 'reset']);
@@ -106,6 +103,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/avatar', [AuthController::class, 'uploadAvatar'])->middleware('throttle:upload');
         Route::post('/auth/complete-profile', [AuthController::class, 'completeProfile'])->middleware('throttle:upload');
         Route::post('/auth/apply-seller', [AuthController::class, 'applyAsSeller'])->middleware('throttle:upload');
+        // Logistics hubs and couriers apply from their buyer account, like sellers (no separate account or email)
+        Route::post('/auth/apply-hub', [SortingCenterRegistrationController::class, 'register'])->middleware('throttle:upload');
+        Route::post('/auth/apply-rider', [RiderRegistrationController::class, 'register'])->middleware('throttle:upload');
 
         // Wishlist
         Route::get('/wishlist', [WishlistController::class, 'index']);

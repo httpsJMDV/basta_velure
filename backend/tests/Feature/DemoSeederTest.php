@@ -355,12 +355,12 @@ class DemoSeederTest extends TestCase
             $user = $this->user($local);
             $this->assertSame($username, $user->username);
             $this->assertTrue(Hash::check($password, $user->password));
-            // The three riders and the admin etc. sign in by username in any case, except the pending applicant.
-            $status = $local === 'rider3' ? 403 : 200;
-            $this->postJson('/api/v1/auth/login', ['identifier' => strtoupper($username), 'password' => $password])->assertStatus($status);
+            // Every demo account signs in by username in any case, the pending courier applicant included (an
+            // application never blocks sign-in; the rider routes stay closed until the hub approves).
+            $this->postJson('/api/v1/auth/login', ['identifier' => strtoupper($username), 'password' => $password])->assertStatus(200);
         }
         $this->postJson('/api/v1/auth/login', ['identifier' => 'rider3', 'password' => 'rider123'])
-            ->assertStatus(403)->assertJsonPath('message', 'Your rider application is currently pending hub approval. You will receive an email notification once reviewed.');
+            ->assertOk()->assertJsonPath('data.rider.status', 'PENDING');
 
         // A demo seller is what a real approved seller is: a buyer account (role never becomes "seller") with an
         // approved seller profile, a complete buyer profile and a default address.

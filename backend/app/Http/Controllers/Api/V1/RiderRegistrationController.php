@@ -10,64 +10,31 @@ use App\Models\SortingCenter;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
 class RiderRegistrationController extends Controller
 {
     /**
-     * Handle registration of a new courier / delivery rider.
+     * The signed-in buyer applies to deliver for a logistics hub. The account keeps its buyer role (the riders row is
+     * what makes it a courier); a disapproved application is reopened instead of adding a second rider profile.
      *
-     * POST /api/v1/auth/register-rider
+     * POST /api/v1/auth/apply-rider
      */
     public function register(RegisterRiderRequest $request): JsonResponse
     {
-        $storedFiles = [];
+        /** @var User $user */
+        $user = $request->user();
+        $validated = $request->validated();
+
+        $orCrPath = $request->file('or_cr_image')->store('rider_or_cr', 'ids');
+        $licensePath = $request->file('drivers_license_image')->store('rider_licenses', 'ids');
+        $previousFiles = [];
 
         try {
-            $result = DB::transaction(function () use ($request, &$storedFiles) {
-                $validated = $request->validated();
-
-                // 1. Store OR/CR document on private 'ids' disk
-                $orCrPath = $request->file('or_cr_image')->store('rider_or_cr', 'ids');
-                $storedFiles[] = ['disk' => 'ids', 'path' => $orCrPath];
-
-                // 2. Store Driver's License / ID document on private 'ids' disk
-                $licensePath = $request->file('drivers_license_image')->store('rider_licenses', 'ids');
-                $storedFiles[] = ['disk' => 'ids', 'path' => $licensePath];
-
-                // 3. Create User account with role 'rider'
-                $user = User::create([
-                    'first_name'    => $validated['first_name'],
-                    'middle_name'   => $validated['middle_name'] ?? null,
-                    'last_name'     => $validated['last_name'],
-                    'sex'           => $validated['sex'],
-                    'email'         => $validated['email'],
-                    'phone'         => $validated['phone'],
-                    'password'      => Hash::make($validated['password']),
-                    'date_of_birth' => $validated['date_of_birth'],
-                    'status'        => 'active',
-                ]);
-                $user->role = 'rider';
-                $user->save();
-
-                // 4. Create default address record for the rider
-                $user->addresses()->create([
-                    'full_name'  => $user->first_name . ' ' . $user->last_name,
-                    'phone'      => $user->phone,
-                    'address'    => $validated['address_street'],
-                    'province'   => $validated['address_province'],
-                    'district'   => $validated['address_city'],
-                    'ward'       => $validated['address_barangay'],
-                    'label'      => 'home',
-                    'is_default' => true,
-                ]);
-
-                // 5. Create the rider profile record with status PENDING
+            [$rider, $hub] = DB::transaction(function () use ($user, $validated, $orCrPath, $licensePath, &$previousFiles) {
                 $hub = SortingCenter::findOrFail($validated['sorting_center_id']);
 
-                $rider = Rider::create([
-                    'user_id'              => $user->id,
+                $fields = [
                     'sorting_center_id'    => $hub->id,
                     'vehicle_type'         => $validated['vehicle_type'],
                     'plate_number'         => $validated['plate_number'],
@@ -75,48 +42,47 @@ class RiderRegistrationController extends Controller
                     'drivers_license_path' => $licensePath,
                     'status'               => Rider::STATUS_PENDING,
                     'submitted_at'         => now(),
-                ]);
+                ];
 
-                return [$user, $rider, $hub];
-            });
+                $disapproved = Rider::where('user_id', $user->id)
+                    ->where('status', Rider::STATUS_DISAPPROVED)
+                    ->latest('id')
+                    ->lockForUpdate()
+                    ->first();
 
-            /** @var User $user */
-            /** @var Rider $rider */
-            /** @var SortingCenter $hub */
-            [$user, $rider, $hub] = $result;
+                if ($disapproved) {
+                    $previousFiles = array_filter([$disapproved->or_cr_path, $disapproved->drivers_license_path]);
+                    $disapproved->forceFill($fields + ['rejection_reason' => null, 'reviewed_by' => null, 'reviewed_at' => null])->save();
 
-            return response()->json([
-                'message' => 'Courier registration submitted successfully. Your application is pending hub approval.',
-                'data' => [
-                    'user'  => [
-                        'id'         => $user->id,
-                        'first_name' => $user->first_name,
-                        'last_name'  => $user->last_name,
-                        'email'      => $user->email,
-                        'role'       => $user->role,
-                    ],
-                    'rider' => [
-                        'id'                => $rider->id,
-                        'status'            => $rider->status,
-                        'vehicle_type'      => $rider->vehicle_type,
-                        'plate_number'      => $rider->plate_number,
-                        'sorting_center_id' => $hub->id,
-                        'hub_name'          => $hub->hub_name,
-                        'submitted_at'      => $rider->submitted_at?->toIso8601String(),
-                    ],
-                ],
-            ], 201);
-        } catch (\Throwable $e) {
-            // Clean up files from storage if transaction fails
-            foreach ($storedFiles as $file) {
-                try {
-                    Storage::disk($file['disk'])->delete($file['path']);
-                } catch (\Throwable) {
-                    // Ignore storage deletion errors during rollback
+                    return [$disapproved, $hub];
                 }
-            }
 
+                return [Rider::create(['user_id' => $user->id] + $fields), $hub];
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('ids')->delete([$orCrPath, $licensePath]);
             throw $e;
         }
+
+        // The reopened application no longer points at the old documents.
+        if ($previousFiles) {
+            Storage::disk('ids')->delete(array_values(array_diff($previousFiles, [$orCrPath, $licensePath])));
+        }
+
+        return response()->json([
+            'message' => 'Courier application submitted. Your application is pending hub approval.',
+            'data' => [
+                'user'  => new UserResource($user->fresh()->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses'])),
+                'rider' => [
+                    'id'                => $rider->id,
+                    'status'            => $rider->status,
+                    'vehicle_type'      => $rider->vehicle_type,
+                    'plate_number'      => $rider->plate_number,
+                    'sorting_center_id' => $hub->id,
+                    'hub_name'          => $hub->hub_name,
+                    'submitted_at'      => $rider->submitted_at?->toIso8601String(),
+                ],
+            ],
+        ], 201);
     }
 }
