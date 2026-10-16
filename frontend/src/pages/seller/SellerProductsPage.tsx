@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import SellerEditProductModal from './SellerEditProductModal';
 import {
@@ -224,7 +225,8 @@ export function DeleteModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  return (
+  // On <body>: the page root keeps a transform from its entry animation, which would trap a "fixed" overlay.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 max-w-sm w-full p-6 space-y-4">
         <div className="w-11 h-11 rounded-2xl bg-red-50 flex items-center justify-center">
@@ -251,7 +253,8 @@ export function DeleteModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
