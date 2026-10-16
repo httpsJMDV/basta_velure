@@ -10,7 +10,7 @@ All three endpoints are **read-only**, require Sanctum authentication and the `a
 - `403 Forbidden`: rider is `PENDING` or `DISAPPROVED`.
 
 ## Rules
-- **Fee.** `config('rider.delivery_fee')` (env `RIDER_DELIVERY_FEE`, default `50.00`, pesos). An unusable value is logged and the default is used; it never blocks a delivery.
+- **Fee.** The rider earns **85%** of the delivery fee the buyer paid on that order (`shipping.rider_share_percent`, env `SHIPPING_RIDER_SHARE_PERCENT`; the hub gets the rest), so ₱42.50 of the default ₱50.00. This replaces the old flat `RIDER_DELIVERY_FEE`. An unusable setting is logged and the default is used; it never blocks a delivery. See `docs/api/delivery-fee-split.md`.
 - **Snapshot.** The fee is copied onto the `rider_earnings` row when it is created. Changing the setting later never changes an existing row.
 - **When it is created.** When the order enters `DELIVERED`, inside `OrderStateMachine`'s transaction, whoever triggered it (rider, hub, admin). Creation is idempotent: one row per parcel, enforced by a unique index on `rider_earnings.parcel_id`. Entering `DELIVERED` a second time (for example a dispute that is rejected) never adds a second row.
 - **Who earns it.** The parcel's `assigned_rider_id`. A parcel with no assigned rider earns nobody anything.

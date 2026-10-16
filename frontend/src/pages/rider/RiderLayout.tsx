@@ -17,7 +17,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderChatUnread, type RiderChatUnread } from '../../hooks/useRiderChatUnread';
 import { useRiderLocationBeacon } from '../../hooks/useRiderLocationBeacon';
-import { RiderLocationGate, RiderSharingBar } from './RiderLocationGate';
+import { RiderLocationGate } from './RiderLocationGate';
 import { getRiderMeApi, logoutApi } from '../../api/client';
 import type { RiderProfileData } from '../../types';
 import LovedItLogo from '../../components/LovedItLogo';
@@ -309,7 +309,6 @@ export default function RiderLayout() {
         />
 
         <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6">
-          {beacon.required && beacon.state === 'sharing' && !locationExempt && <RiderSharingBar activeParcels={beacon.activeParcels} />}
           {locationLocked ? (
             <RiderLocationGate state={beacon.state} activeParcels={beacon.activeParcels} onAsk={beacon.ask} />
           ) : (

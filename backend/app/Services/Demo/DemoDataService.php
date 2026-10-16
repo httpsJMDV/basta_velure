@@ -596,7 +596,7 @@ class DemoDataService
         }
 
         $subtotal = round($subtotal, 2);
-        $shipping = 99.00;
+        $shipping = (float) \App\Support\ShippingSplit::fee();
         $total = round($subtotal + $shipping, 2);
         $gcash = $spec['payment'] === 'gcash';
 

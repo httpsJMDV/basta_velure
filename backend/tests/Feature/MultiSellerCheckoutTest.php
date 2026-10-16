@@ -171,17 +171,17 @@ class MultiSellerCheckoutTest extends TestCase
         $this->assertStringEndsWith('-1', $orderA->order_number);
         $this->assertStringEndsWith('-2', $orderB->order_number);
 
-        // Verify Order A totals (subtotal 400 + 99 shipping = 499)
+        // Verify Order A totals (subtotal 400 + 50 shipping = 450)
         $this->assertEquals(400.00, (float) $orderA->subtotal);
-        $this->assertEquals(99.00, (float) $orderA->shipping_fee);
-        $this->assertEquals(499.00, (float) $orderA->total);
+        $this->assertEquals(50.00, (float) $orderA->shipping_fee);
+        $this->assertEquals(450.00, (float) $orderA->total);
         $this->assertCount(1, $orderA->items);
         $this->assertEquals($this->sellerA->id, $orderA->items->first()->seller_id);
 
-        // Verify Order B totals (subtotal 300 + 99 shipping = 399)
+        // Verify Order B totals (subtotal 300 + 50 shipping = 350)
         $this->assertEquals(300.00, (float) $orderB->subtotal);
-        $this->assertEquals(99.00, (float) $orderB->shipping_fee);
-        $this->assertEquals(399.00, (float) $orderB->total);
+        $this->assertEquals(50.00, (float) $orderB->shipping_fee);
+        $this->assertEquals(350.00, (float) $orderB->total);
         $this->assertCount(1, $orderB->items);
         $this->assertEquals($this->sellerB->id, $orderB->items->first()->seller_id);
 
@@ -194,8 +194,8 @@ class MultiSellerCheckoutTest extends TestCase
         $this->assertEquals($this->sellerB->id, $orderB->seller->id);
 
         // Verify payments created
-        $this->assertDatabaseHas('payments', ['order_id' => $orderA->id, 'amount' => 499.00]);
-        $this->assertDatabaseHas('payments', ['order_id' => $orderB->id, 'amount' => 399.00]);
+        $this->assertDatabaseHas('payments', ['order_id' => $orderA->id, 'amount' => 450.00]);
+        $this->assertDatabaseHas('payments', ['order_id' => $orderB->id, 'amount' => 350.00]);
     }
 
     public function test_single_seller_checkout_is_unchanged_with_no_order_number_suffix(): void
@@ -233,8 +233,8 @@ class MultiSellerCheckoutTest extends TestCase
         $createdOrder = Order::find($orders[0]['id']);
         $this->assertStringNotContainsString('-1', $createdOrder->order_number);
         $this->assertEquals(500.00, (float) $createdOrder->subtotal);
-        $this->assertEquals(99.00, (float) $createdOrder->shipping_fee);
-        $this->assertEquals(599.00, (float) $createdOrder->total);
+        $this->assertEquals(50.00, (float) $createdOrder->shipping_fee);
+        $this->assertEquals(550.00, (float) $createdOrder->total);
         $this->assertNotEmpty($createdOrder->checkout_group_id);
     }
 
@@ -306,12 +306,12 @@ class MultiSellerCheckoutTest extends TestCase
                 [
                     'product_id' => $productA->id,
                     'variant_id' => $variantA->id,
-                    'quantity'   => 1, // 150 + 99 = 249
+                    'quantity'   => 1, // 150 + 50 = 200
                 ],
                 [
                     'product_id' => $productB->id,
                     'variant_id' => $variantB->id,
-                    'quantity'   => 1, // 250 + 99 = 349
+                    'quantity'   => 1, // 250 + 50 = 300
                 ],
             ],
         ];
@@ -332,7 +332,7 @@ class MultiSellerCheckoutTest extends TestCase
 
         $orderAData = $sellerAOrders->firstWhere('id', $orderAId);
         $this->assertEquals(2, $orderAData['checkout_orders_count']);
-        $this->assertEquals(598.00, (float) $orderAData['checkout_group_total']); // 249 + 349
+        $this->assertEquals(500.00, (float) $orderAData['checkout_group_total']); // 200 + 300
 
         // Check Seller B's view
         Sanctum::actingAs($this->sellerB);
@@ -345,6 +345,6 @@ class MultiSellerCheckoutTest extends TestCase
 
         $orderBData = $sellerBOrders->firstWhere('id', $orderBId);
         $this->assertEquals(2, $orderBData['checkout_orders_count']);
-        $this->assertEquals(598.00, (float) $orderBData['checkout_group_total']);
+        $this->assertEquals(500.00, (float) $orderBData['checkout_group_total']);
     }
 }

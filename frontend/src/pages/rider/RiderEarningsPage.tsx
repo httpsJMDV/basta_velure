@@ -6,7 +6,7 @@ import { PageHero, TabBar } from './RiderUi';
 
 type TabKey = 'earnings' | 'history';
 
-/** Rider earnings (flat fee per delivered parcel) and the full delivery history. Read-only. */
+/** Rider earnings (the rider's share of each delivered parcel's delivery fee) and the full delivery history. Read-only. */
 export default function RiderEarningsPage() {
   const [tab, setTab] = useState<TabKey>('earnings');
   // The History tab is only loaded once it is opened, then kept so its filters survive switching back.

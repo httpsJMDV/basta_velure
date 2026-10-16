@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Creates the earnings rows that are missing for parcels delivered before Feature 2.9 existed.
- * Uses the fee in force today (the old deliveries had no fee at the time) and the parcel's own
- * delivery time as the earned time. Parcels that already have a row are skipped, so it is safe to
+ * Each row is the rider's share of the delivery fee the buyer paid on that order, and the parcel's own
+ * delivery time is the earned time. The hub's share is added too when the parcel has a hub and none yet. Parcels that already have a row are skipped, so it is safe to
  * run repeatedly.
  */
 class BackfillRiderEarnings extends Command
@@ -30,7 +30,11 @@ class BackfillRiderEarnings extends Command
         Parcel::where('status', Parcel::STATUS_DELIVERED)
             ->whereNotNull('assigned_rider_id')
             ->whereHas('order', fn ($q) => $q->whereIn('status', [OrderStatus::DELIVERED->value, OrderStatus::COMPLETED->value]))
-            ->whereDoesntHave('earning')
+            ->where(function ($q) {
+                $q->whereDoesntHave('earning')->orWhere(function ($q2) {
+                    $q2->whereNotNull('sorting_center_id')->whereNotIn('id', \App\Models\HubEarning::withTrashed()->whereNotNull('parcel_id')->select('parcel_id'));
+                });
+            })
             ->chunkById(200, function (Collection $parcels) use ($recorder, &$created) {
                 foreach ($parcels as $parcel) {
                     $row = $recorder->recordForParcel($parcel, $parcel->delivered_at ?? $parcel->updated_at);
@@ -40,7 +44,7 @@ class BackfillRiderEarnings extends Command
                 }
             });
 
-        $message = "riders:backfill-earnings: created {$created} earnings row(s) at the current fee of ₱{$recorder->currentFee()}.";
+        $message = "riders:backfill-earnings: created {$created} rider earnings row(s) (" . \App\Support\ShippingSplit::riderPercent() . '% of each delivery fee).';
         $this->info($message);
         Log::info($message);
 

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import LovedItLogo from '../components/LovedItLogo';
 import { useCart } from '../hooks/useCart';
+import { DELIVERY_FEE } from '../utils/shipping';
 
 const FREE_SHIPPING_THRESHOLD = 499;
 
@@ -66,7 +67,7 @@ export default function CartPage() {
   const progressPercent = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
   const amountToFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
 
-  const shippingCost = isFreeShipping || subtotal === 0 ? 0 : 99;
+  const shippingCost = isFreeShipping || subtotal === 0 ? 0 : DELIVERY_FEE;
   const discountAmount = promoApplied ? Math.round(subtotal * promoDiscount) : 0;
   const grandTotal = Math.max(0, subtotal - discountAmount + shippingCost);
 

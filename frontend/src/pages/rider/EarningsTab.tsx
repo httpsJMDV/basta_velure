@@ -300,7 +300,7 @@ export default function EarningsTab() {
               <StateCard
                 icon={Package}
                 title={`No deliveries ${summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}`}
-                message="Each parcel you deliver earns a flat fee and shows up here."
+                message="Each parcel you deliver earns you 85% of its delivery fee and shows up here."
               />
             ) : (
               <ul className="space-y-2">

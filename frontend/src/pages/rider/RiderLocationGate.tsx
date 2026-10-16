@@ -1,4 +1,4 @@
-import { LocateFixed, Loader2, Lock, MapPinOff, Radio } from 'lucide-react';
+import { LocateFixed, Loader2, Lock, MapPinOff } from 'lucide-react';
 import type { BeaconState } from '../../hooks/useRiderLocationBeacon';
 
 interface RiderLocationGateProps {
@@ -61,7 +61,7 @@ export function RiderLocationGate({ state, activeParcels, onAsk }: RiderLocation
         <p className="text-sm text-gray-600 leading-relaxed">{c.body}</p>
       </div>
       <p className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl p-3">
-        You have <span className="font-bold text-gray-800">{parcels}</span> to collect or deliver. Keep this page open while you ride so the map stays current.
+        You have <span className="font-bold text-gray-800">{parcels}</span> to collect or deliver. Your phone shares its position with the map while you carry them.
       </p>
       {c.action && (
         <button
@@ -73,22 +73,6 @@ export function RiderLocationGate({ state, activeParcels, onAsk }: RiderLocation
           {c.action}
         </button>
       )}
-    </div>
-  );
-}
-
-/** A slim reminder shown on every courier page while the location is being shared. */
-export function RiderSharingBar({ activeParcels }: { activeParcels: number }) {
-  return (
-    <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs text-emerald-900" role="status">
-      <span className="relative flex w-2.5 h-2.5" aria-hidden="true">
-        <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-60" />
-        <span className="relative w-2.5 h-2.5 rounded-full bg-emerald-600" />
-      </span>
-      <Radio className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-      <span>
-        Sharing your location for <span className="font-bold">{activeParcels} parcel{activeParcels === 1 ? '' : 's'}</span>. Keep this page open.
-      </span>
     </div>
   );
 }

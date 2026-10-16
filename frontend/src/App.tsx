@@ -25,6 +25,7 @@ import HubDispatchPage from './pages/hub/HubDispatchPage';
 import HubSortingPage from './pages/hub/HubSortingPage';
 import HubRidersPage from './pages/hub/HubRidersPage';
 import HubReportsPage from './pages/hub/HubReportsPage';
+import HubEarningsPage from './pages/hub/HubEarningsPage';
 import HubMessagesPage from './pages/hub/HubMessagesPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
@@ -362,6 +363,7 @@ function AppRoutes() {
         <Route path="deliveries" element={<HubDeliveriesPage />} />
         <Route path="riders" element={<HubRidersPage />} />
         <Route path="reports" element={<HubReportsPage />} />
+        <Route path="earnings" element={<HubEarningsPage />} />
         <Route path="messages" element={<HubMessagesPage />} />
       </Route>
 

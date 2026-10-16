@@ -10,6 +10,7 @@ import type { RiderOutletContext } from './RiderLayout';
 import RiderChatSheet from './RiderChatSheet';
 import { PageHero, StateCard } from './RiderUi';
 import { BTN_PRIMARY } from './riderStyles';
+import CustomSelect from '../../components/ui/CustomSelect';
 
 const VEHICLE_TYPES: RiderVehicleType[] = ['Motorcycle', 'Tricycle', 'Car', 'Van'];
 const PLATE_PATTERN = /^[A-Za-z0-9\s-]+$/;
@@ -170,26 +171,16 @@ function VehicleForm({
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        <div className="space-y-1">
-          <label htmlFor="vehicle-type" className="block text-xs font-bold text-gray-700">Vehicle type</label>
-          <select
-            id="vehicle-type"
-            value={type}
-            onChange={(e) => {
-              setType(e.target.value as RiderVehicleType);
-              setSaved(false);
-            }}
-            aria-invalid={errors.vehicle_type ? true : undefined}
-            aria-describedby={errors.vehicle_type ? 'vehicle-type-error' : undefined}
-            className="w-full min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-red/40"
-          >
-            {VEHICLE_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-          {errors.vehicle_type && <p id="vehicle-type-error" role="alert" className="text-xs font-semibold text-red-700">{errors.vehicle_type}</p>}
-        </div>
-
+        <CustomSelect
+          label="Vehicle type"
+          value={type}
+          onChange={(v) => {
+            setType(v as RiderVehicleType);
+            setSaved(false);
+          }}
+          options={VEHICLE_TYPES.map((t) => ({ value: t, label: t }))}
+          error={errors.vehicle_type}
+        />
         <div className="space-y-1">
           <label htmlFor="plate-number" className="block text-xs font-bold text-gray-700">Plate number</label>
           <input

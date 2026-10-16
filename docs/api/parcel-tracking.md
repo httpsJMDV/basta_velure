@@ -85,5 +85,5 @@ Only the **latest** point is stored (`riders.last_latitude`, `last_longitude`, `
 
 ## Limits
 
-- The rider must keep the courier page open for the phone to report its position (a browser cannot track in the background). The app tells them so.
+- A browser only reports a position while the courier page is open (the screen is kept awake where the phone allows), so the rider app has to stay open for the map to move.
 - A phone without GPS reports a rough position from wifi or the cell tower, and `accuracy_m` shows it.

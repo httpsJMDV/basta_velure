@@ -91,7 +91,7 @@ class RiderEarningsTest extends TestCase
 
         $order = Order::forceCreate([
             'order_number' => 'VEL-' . strtoupper(uniqid()), 'buyer_id' => $buyer->id, 'status' => $orderStatus->value,
-            'subtotal' => 1150.00, 'shipping_fee' => 99.00, 'total' => 1249.00, 'payment_method' => $payment,
+            'subtotal' => 1150.00, 'shipping_fee' => 50.00, 'total' => 1200.00, 'payment_method' => $payment,
             'shipping_name' => 'Ana Buyer', 'shipping_phone' => '09998887777', 'shipping_address' => '12 Sampaguita St',
             'shipping_province' => 'Metro Manila', 'shipping_city' => 'Makati City', 'shipping_barangay' => 'Poblacion',
             'shipping_province_code' => '130000000', 'shipping_city_code' => '137602000', 'shipping_barangay_code' => '137602015',
@@ -108,7 +108,7 @@ class RiderEarningsTest extends TestCase
             'destination_barangay_code' => '137602015', 'pickup_address_snapshot' => ['shop_name' => "Maria's Shop"],
             'recipient_snapshot' => ['name' => 'Ana Buyer', 'phone' => '09998887777', 'street' => '12 Sampaguita St',
                 'barangay' => 'Poblacion', 'city' => 'Makati City', 'province' => 'Metro Manila'],
-            'cod_amount' => $payment === 'cod' ? 1249.00 : null, 'sorting_center_id' => $this->hub->id,
+            'cod_amount' => $payment === 'cod' ? 1200.00 : null, 'sorting_center_id' => $this->hub->id,
             'assigned_rider_id' => $rider?->id, 'out_for_delivery_at' => now()->subHour(),
         ], $parcelOverrides));
     }
@@ -138,7 +138,7 @@ class RiderEarningsTest extends TestCase
 
     // ─── earnings creation ────────────────────────────────────────────────────
 
-    public function test_delivered_creates_exactly_one_earnings_row_with_the_configured_fee_as_a_snapshot(): void
+    public function test_delivered_creates_one_rider_row_and_one_hub_row_that_split_the_delivery_fee_85_15(): void
     {
         [, $rider] = $this->makeRider();
         $parcel = $this->makeParcel($rider);
@@ -148,8 +148,29 @@ class RiderEarningsTest extends TestCase
         $rows = RiderEarning::where('parcel_id', $parcel->id)->get();
         $this->assertCount(1, $rows);
         $this->assertSame($rider->id, $rows[0]->rider_id);
-        $this->assertSame('50.00', (string) $rows[0]->amount);
+        // The order paid a 50.00 delivery fee: 85% to the rider, the rest to the hub, and the two add up to the fee.
+        $this->assertSame('42.50', (string) $rows[0]->amount);
         $this->assertEqualsWithDelta(now()->getTimestamp(), $rows[0]->earned_at->getTimestamp(), 5);
+
+        $hubRows = \App\Models\HubEarning::where('parcel_id', $parcel->id)->get();
+        $this->assertCount(1, $hubRows);
+        $this->assertSame($this->hub->id, $hubRows[0]->sorting_center_id);
+        $this->assertSame('7.50', (string) $hubRows[0]->amount);
+    }
+
+    public function test_the_split_always_adds_up_to_the_fee_to_the_centavo(): void
+    {
+        foreach ([5000, 9900, 3333, 1, 0, 12345] as $fee) {
+            $split = \App\Support\ShippingSplit::split($fee);
+            $this->assertSame($fee, $split['rider'] + $split['hub'], "fee {$fee}");
+        }
+        $this->assertSame(['rider' => 8415, 'hub' => 1485], \App\Support\ShippingSplit::split(9900));
+
+        // The percentage is a setting. Outside 0 to 100 it falls back to 85.
+        config(['shipping.rider_share_percent' => 70]);
+        $this->assertSame(['rider' => 3500, 'hub' => 1500], \App\Support\ShippingSplit::split(5000));
+        config(['shipping.rider_share_percent' => 150]);
+        $this->assertSame(['rider' => 4250, 'hub' => 750], \App\Support\ShippingSplit::split(5000));
     }
 
     public function test_transitioning_again_never_creates_a_second_row_and_a_config_change_never_rewrites_history(): void
@@ -164,13 +185,14 @@ class RiderEarningsTest extends TestCase
         $machine->transition($first->order->fresh(), OrderStatus::DELIVERED, 'admin', 1, 'Claim rejected');
         $this->assertSame(1, RiderEarning::where('parcel_id', $first->id)->count());
 
-        // The fee changes. The old row keeps its snapshot; only new deliveries use the new fee.
-        config(['rider.delivery_fee' => '80.00']);
+        // The rider's percentage changes. The old row keeps its snapshot; only new deliveries use the new share.
+        config(['shipping.rider_share_percent' => 90]);
         $second = $this->makeParcel($rider);
         $this->deliverVia($second);
 
-        $this->assertSame('50.00', (string) RiderEarning::where('parcel_id', $first->id)->value('amount'));
-        $this->assertSame('80.00', (string) RiderEarning::where('parcel_id', $second->id)->value('amount'));
+        $this->assertSame('42.50', (string) RiderEarning::where('parcel_id', $first->id)->value('amount'));
+        $this->assertSame('45.00', (string) RiderEarning::where('parcel_id', $second->id)->value('amount'));
+        $this->assertSame(1, \App\Models\HubEarning::where('parcel_id', $first->id)->count());
         $this->assertSame(1, RiderEarning::where('parcel_id', $first->id)->count());
     }
 
@@ -219,7 +241,7 @@ class RiderEarningsTest extends TestCase
         $machine->transition($delivered->order->fresh(), OrderStatus::RETURNED, 'seller', 1, 'Return accepted');
 
         $this->assertSame(1, RiderEarning::where('parcel_id', $delivered->id)->count());
-        $this->assertSame('50.00', (string) RiderEarning::where('parcel_id', $delivered->id)->value('amount'));
+        $this->assertSame('42.50', (string) RiderEarning::where('parcel_id', $delivered->id)->value('amount'));
     }
 
     public function test_creating_the_fee_changes_no_buyer_seller_or_platform_money(): void
@@ -235,16 +257,16 @@ class RiderEarningsTest extends TestCase
         $this->assertEquals($before[1], $order->items()->first()->only(['subtotal', 'commission_amount', 'seller_earnings', 'payout_status']));
     }
 
-    public function test_an_unusable_fee_setting_is_logged_and_never_blocks_a_delivery(): void
+    public function test_an_unusable_share_setting_is_logged_and_never_blocks_a_delivery(): void
     {
         [, $rider] = $this->makeRider();
-        config(['rider.delivery_fee' => 'abc']);
+        config(['shipping.rider_share_percent' => 'abc']);
         $parcel = $this->makeParcel($rider);
 
         $this->deliverVia($parcel);
 
         $this->assertEquals(OrderStatus::DELIVERED, $parcel->order->fresh()->status);
-        $this->assertSame('50.00', (string) RiderEarning::where('parcel_id', $parcel->id)->value('amount'));
+        $this->assertSame('42.50', (string) RiderEarning::where('parcel_id', $parcel->id)->value('amount'));
     }
 
     // ─── summary ──────────────────────────────────────────────────────────────
@@ -475,7 +497,7 @@ class RiderEarningsTest extends TestCase
         app(OrderStateMachine::class)->transition($f->order, OrderStatus::DELIVERY_FAILED, 'rider', 1, 'Failed');
         $this->makeParcel($riderA);
 
-        $fee = (string) config('rider.delivery_fee');
+        $fee = '42.50'; // 85% of the 50.00 delivery fee on every order here
         foreach ([[$userA, $riderA, $mineA, $mineB], [$userB, $riderB, $mineB, $mineA]] as [$user, $rider, $own, $foreign]) {
             $rawDelivered = Parcel::where('assigned_rider_id', $rider->id)->where('status', Parcel::STATUS_DELIVERED)->count();
             $expectedCents = $rawDelivered * Money::toCents($fee);
@@ -539,7 +561,7 @@ class RiderEarningsTest extends TestCase
         $delivered = $rows[0];
         $this->assertSame($p['delivered']->tracking_number, $delivered['tracking_number']);
         $this->assertSame('50.00', $delivered['fee']);
-        $this->assertSame('1249.00', $delivered['cod_collected']);
+        $this->assertSame('1200.00', $delivered['cod_collected']);
         $this->assertNull($delivered['failure_reason']);
         $this->assertSame('Poblacion', $delivered['destination']['barangay_name']);
         $this->assertSame('Makati City', $delivered['destination']['city']);
@@ -687,19 +709,19 @@ class RiderEarningsTest extends TestCase
         $failed = $this->makeParcel($rider, OrderStatus::DELIVERY_FAILED, Parcel::STATUS_DELIVERY_FAILED);
         $returned = $this->makeParcel($rider, OrderStatus::RETURNED, Parcel::STATUS_RETURNED);
 
-        config(['rider.delivery_fee' => '55.00']);
-        $this->artisan('riders:backfill-earnings')->expectsOutputToContain('created 2 earnings row(s) at the current fee of ₱55.00')->assertSuccessful();
+        $this->artisan('riders:backfill-earnings')->expectsOutputToContain('created 2 rider earnings row(s) (85% of each delivery fee)')->assertSuccessful();
 
         $this->assertSame('60.00', (string) RiderEarning::where('parcel_id', $already->id)->value('amount'), 'existing row untouched');
-        $this->assertSame('55.00', (string) RiderEarning::where('parcel_id', $old1->id)->value('amount'));
-        $this->assertSame('55.00', (string) RiderEarning::where('parcel_id', $old2->id)->value('amount'));
+        $this->assertSame('42.50', (string) RiderEarning::where('parcel_id', $old1->id)->value('amount'));
+        $this->assertSame('42.50', (string) RiderEarning::where('parcel_id', $old2->id)->value('amount'));
+        $this->assertSame('7.50', (string) \App\Models\HubEarning::where('parcel_id', $old1->id)->value('amount'), 'the hub share is added too');
         $this->assertEquals($old1->delivered_at->getTimestamp(), RiderEarning::where('parcel_id', $old1->id)->first()->earned_at->getTimestamp(), 'earned at the parcel\'s own delivery time');
         foreach ([$noRider, $out, $failed, $returned] as $skipped) {
             $this->assertSame(0, RiderEarning::where('parcel_id', $skipped->id)->count());
         }
 
         $total = RiderEarning::count();
-        $this->artisan('riders:backfill-earnings')->expectsOutputToContain('created 0 earnings row(s)')->assertSuccessful();
+        $this->artisan('riders:backfill-earnings')->expectsOutputToContain('created 0 rider earnings row(s)')->assertSuccessful();
         $this->assertSame($total, RiderEarning::count());
     }
 
@@ -721,15 +743,15 @@ class RiderEarningsTest extends TestCase
 
         $summary = $this->summary($user, 'day')->json('data');
         $this->assertSame(1, $summary['deliveries_count']);
-        $this->assertSame('50.00', $summary['total_earned']);
+        $this->assertSame('42.50', $summary['total_earned']);
 
         $earnings = collect($this->actingAs($user, 'sanctum')->getJson('/api/v1/rider/earnings/deliveries?period=day')->json('data'))->pluck('tracking_number')->all();
         $this->assertSame([$deliver->tracking_number], $earnings);
 
         $history = collect($this->history($user)->json('data'));
         $this->assertEqualsCanonicalizing(['delivered', 'failed'], $history->pluck('outcome')->all());
-        $this->assertSame('50.00', $history->firstWhere('outcome', 'delivered')['fee']);
-        $this->assertSame('1249.00', $history->firstWhere('outcome', 'delivered')['cod_collected']);
+        $this->assertSame('42.50', $history->firstWhere('outcome', 'delivered')['fee']);
+        $this->assertSame('1200.00', $history->firstWhere('outcome', 'delivered')['cod_collected']);
         $this->assertSame('REFUSED', $history->firstWhere('outcome', 'failed')['failure_reason']['code']);
         $this->assertSame($fail->tracking_number, $history->firstWhere('outcome', 'failed')['tracking_number']);
 
