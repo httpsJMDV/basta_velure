@@ -43,6 +43,8 @@ class BuyerOrderController extends Controller
             'shipping_city_code'     => ['required', 'string', 'regex:/^\d{9,10}$/'],
             'shipping_barangay_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
             'notes'                  => ['nullable', 'string', 'max:500'],
+            // The courier that delivers this checkout (same flat fee for every courier). Omitted: the default courier.
+            'logistics_company_id'   => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('logistics_companies', 'id')->where('status', \App\Models\LogisticsCompany::STATUS_APPROVED)],
             'items'                  => ['required', 'array', 'min:1'],
             'items.*.product_id'     => ['required', 'integer', 'exists:products,id'],
             'items.*.variant_id'     => ['nullable', 'integer'],
@@ -147,6 +149,7 @@ class BuyerOrderController extends Controller
                     $orderIdx++;
 
                     $order = Order::create([
+                        'logistics_company_id' => isset($data['logistics_company_id']) ? (int) $data['logistics_company_id'] : \App\Models\LogisticsCompany::defaultId(),
                         'buyer_id'          => $user->id,
                         'checkout_group_id' => $checkoutGroupId,
                         'order_number'      => $orderNumber,
@@ -392,6 +395,7 @@ class BuyerOrderController extends Controller
             'checkout_group_id'   => $o->checkout_group_id,
             'order_number'        => $o->order_number,
             'tracking_number'     => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
+            'courier'             => \App\Models\LogisticsCompany::summaryFor($o->logistics_company_id),
             'status'              => $statusStr,
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,

@@ -75,7 +75,7 @@ class RiderRegistrationController extends Controller
         return response()->json([
             'message' => 'Courier application submitted. Your application is pending hub approval.',
             'data' => [
-                'user'  => new UserResource($user->fresh()->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses'])),
+                'user'  => new UserResource($user->fresh()->load(['sellerProfile', 'sortingCenter', 'rider', 'addresses', 'logisticsMembership.company'])),
                 'rider' => [
                     'id'                => $rider->id,
                     'status'            => $rider->status,

@@ -77,6 +77,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/platform/policies',           [AdminPlatformSettingController::class, 'getPublicPlatformPolicies']);
     // Public logistics hubs
     Route::get('/logistics/hubs',              [PublicSortingCenterController::class, 'index']);
+    // Approved courier companies: the choices at checkout and on the hub application
+    Route::get('/logistics/couriers',          [PublicSortingCenterController::class, 'couriers']);
 
     // Public auth routes
     Route::middleware('throttle:auth')->group(function () {
@@ -106,6 +108,24 @@ Route::prefix('v1')->group(function () {
         // Logistics hubs and couriers apply from their buyer account, like sellers (no separate account or email)
         Route::post('/auth/apply-hub', [SortingCenterRegistrationController::class, 'register'])->middleware('throttle:upload');
         Route::post('/auth/apply-rider', [RiderRegistrationController::class, 'register'])->middleware('throttle:upload');
+        Route::post('/auth/apply-courier', [\App\Http\Controllers\Api\V1\CourierCompanyApplicationController::class, 'store'])->middleware('throttle:upload');
+
+        // Courier company portal (the company's own team)
+        Route::middleware('logistics_member')->prefix('logistics')->group(function () {
+            $portal = \App\Http\Controllers\Api\V1\LogisticsPortalController::class;
+            Route::get('/me', [$portal, 'me']);
+            Route::get('/dashboard', [$portal, 'dashboard']);
+            Route::get('/network/hubs', [$portal, 'hubsIndex']);
+            Route::get('/network/hubs/{hub}', [$portal, 'hubShow'])->whereNumber('hub');
+            Route::get('/network/hubs/{hub}/documents/{doc}', [$portal, 'hubDocument'])->whereNumber('hub')->whereIn('doc', ['permit', 'id', 'id-back']);
+            Route::post('/network/hubs/{hub}/approve', [$portal, 'approveHub'])->whereNumber('hub');
+            Route::post('/network/hubs/{hub}/reject', [$portal, 'rejectHub'])->whereNumber('hub');
+            Route::post('/network/hubs/{hub}/suspend', [$portal, 'suspendHub'])->whereNumber('hub');
+            Route::post('/network/hubs/{hub}/reactivate', [$portal, 'reactivateHub'])->whereNumber('hub');
+            Route::get('/riders', [$portal, 'riders']);
+            Route::get('/parcels', [$portal, 'parcels']);
+            Route::get('/reports', [$portal, 'reports']);
+        });
 
         // Wishlist
         Route::get('/wishlist', [WishlistController::class, 'index']);
@@ -180,6 +200,17 @@ Route::prefix('v1')->group(function () {
                 ->name('admin.seller-applications.dti-sec-registration');
             Route::get('/seller-applications/{sellerProfile}/fda-lto', [AdminSellerApplicationController::class, 'fdaLto'])
                 ->name('admin.seller-applications.fda-lto');
+
+            // Courier companies (J&T, Flash, ...): applications and oversight
+            $couriers = \App\Http\Controllers\Api\V1\AdminCourierApplicationController::class;
+            Route::get('/courier-applications', [$couriers, 'index']);
+            Route::get('/courier-applications/{company}', [$couriers, 'show'])->whereNumber('company');
+            Route::post('/courier-applications/{company}/approve', [$couriers, 'approve'])->whereNumber('company');
+            Route::post('/courier-applications/{company}/reject', [$couriers, 'reject'])->whereNumber('company');
+            Route::post('/courier-applications/{company}/suspend', [$couriers, 'suspend'])->whereNumber('company');
+            Route::post('/courier-applications/{company}/reactivate', [$couriers, 'reactivate'])->whereNumber('company');
+            Route::get('/courier-applications/{company}/permit', [$couriers, 'permit'])->whereNumber('company')
+                ->name('admin.courier-applications.permit');
 
             // Sorting Center (Logistics Hub) applications
             Route::get('/sorting-center-applications', [AdminSortingCenterApplicationController::class, 'index']);

@@ -162,7 +162,8 @@ export default function WaybillPage() {
         <div className="border-b-2 border-black pb-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Package className="w-4 h-4 text-black stroke-[2.5]" />
-            <span className="text-sm font-black tracking-tight uppercase">LOVED-IT EXPRESS</span>
+            <span className="text-sm font-black tracking-tight uppercase">{waybill.courier?.name ?? 'Courier'}</span>
+            {waybill.courier?.code && <span className="text-[9px] font-bold border border-black px-1 rounded-sm">{waybill.courier.code}</span>}
           </div>
           <div className="text-right">
             <span className="text-[9px] font-black uppercase tracking-wider block bg-black text-white px-1.5 py-0.5 rounded-sm">

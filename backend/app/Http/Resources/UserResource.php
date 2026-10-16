@@ -94,6 +94,16 @@ class UserResource extends JsonResource
                 'submitted_at'      => $this->rider->submitted_at?->toIso8601String(),
                 'created_at'        => $this->rider->created_at?->toIso8601String(),
             ]),
+            // The courier company this account runs (its portal is /logistics once approved).
+            'logistics_company' => $this->whenLoaded('logisticsMembership', fn () => $this->logisticsMembership?->company ? [
+                'id'               => $this->logisticsMembership->company->id,
+                'name'             => $this->logisticsMembership->company->name,
+                'code'             => $this->logisticsMembership->company->code,
+                'logo_url'         => $this->logisticsMembership->company->logo_url,
+                'status'           => $this->logisticsMembership->company->status,
+                'rejection_reason' => $this->logisticsMembership->company->rejection_reason,
+                'role'             => $this->logisticsMembership->role,
+            ] : null),
         ];
     }
 }

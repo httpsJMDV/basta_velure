@@ -24,6 +24,8 @@ class SortingCenterApplicationSummaryResource extends JsonResource
             'applicant_name'  => $applicantName,
             'applicant_email' => $this->user?->email,
             'applicant_avatar_url' => $this->user?->avatar_url,
+            // The courier company the hub belongs to (and whose team reviews it).
+            'courier'         => \App\Models\LogisticsCompany::summaryFor($this->logistics_company_id),
             'submitted_date'  => $this->created_at?->toIso8601String(),
             'created_at'      => $this->created_at?->toIso8601String(),
             'status'          => $this->status,

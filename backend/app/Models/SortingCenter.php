@@ -50,6 +50,7 @@ class SortingCenter extends Model
     ];
 
     protected $fillable = [
+        'logistics_company_id',
         'user_id',
         'hub_name',
         'name',
@@ -91,6 +92,12 @@ class SortingCenter extends Model
     public function reviewedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /** The courier company this hub belongs to (null reads as the default courier). */
+    public function logisticsCompany(): BelongsTo
+    {
+        return $this->belongsTo(LogisticsCompany::class);
     }
 
     public function parcels(): HasMany

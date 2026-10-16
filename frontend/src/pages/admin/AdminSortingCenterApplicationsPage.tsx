@@ -931,7 +931,7 @@ export default function AdminSortingCenterApplicationsPage() {
 
   return (
     <div className="pb-8 space-y-3">
-      <PageHero icon={Warehouse} eyebrow="Applications · Logistics" title="Hub Applications" subtitle="Check permits and IDs before a sorting center hub can receive parcels">
+      <PageHero icon={Warehouse} eyebrow="Applications · Logistics" title="Hub Applications" subtitle="Each courier company reviews the hubs that join it; you can step in on any of them">
         <button type="button" onClick={() => { fetchApplications(); fetchCounts(); }} disabled={loading} className={HERO_BUTTON}>
           <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
           Refresh
@@ -1007,6 +1007,7 @@ export default function AdminSortingCenterApplicationsPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                          {app.courier && <DocChip icon={Layers} label={app.courier.name} />}
                           <DocChip icon={MapPin} label={location(app)} />
                           <DocChip icon={FileText} label="DTI permit" />
                           <DocChip icon={ShieldCheck} label="Owner ID" />

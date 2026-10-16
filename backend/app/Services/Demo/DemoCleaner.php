@@ -170,6 +170,9 @@ class DemoCleaner
         $del('riders', DB::table('riders')->whereIn('id', $ids['riders']));
         $del('sorting_centers', DB::table('sorting_centers')->whereIn('id', $ids['hubs']));
         $del('seller_profiles', DB::table('seller_profiles')->whereIn('user_id', $u));
+        // The demo courier admin's seat on the demo partner courier (the company itself is not demo data and stays).
+        $del('logistics_company_members', DB::table('logistics_company_members')->whereIn('user_id', $u));
+        DB::table('logistics_companies')->whereIn('owner_user_id', $u)->update(['owner_user_id' => null]);
 
         $del('personal_access_tokens', DB::table('personal_access_tokens')
             ->where('tokenable_type', 'App\\Models\\User')->whereIn('tokenable_id', $u));

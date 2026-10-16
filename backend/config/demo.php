@@ -32,6 +32,7 @@ return [
         'seller1' => ['username' => 'seller1', 'password' => 'seller123'],
         'seller2' => ['username' => 'seller2', 'password' => 'seller123'],
         'hub'     => ['username' => 'hub1',   'password' => 'hub123'],
+        'courier' => ['username' => 'courier1', 'password' => 'courier123'],
         'rider1'  => ['username' => 'rider1', 'password' => 'rider123'],
         'rider2'  => ['username' => 'rider2', 'password' => 'rider123'],
         'rider3'  => ['username' => 'rider3', 'password' => 'rider123'],

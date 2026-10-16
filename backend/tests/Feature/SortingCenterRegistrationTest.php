@@ -54,7 +54,8 @@ class SortingCenterRegistrationTest extends TestCase
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
-            'hub_name'           => 'Central Laguna Sorting Hub',
+            'logistics_company_id' => \App\Models\LogisticsCompany::defaultId(),
+            'hub_name'           => 'central laguna sorting hub',
             'address_province'   => 'Laguna',
             'address_city'       => 'Santa Cruz',
             'address_barangay'   => 'Poblacion I',

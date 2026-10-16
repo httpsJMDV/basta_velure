@@ -6,7 +6,7 @@ import {
   ShieldAlert, Star, Flag, Settings, ScrollText,
   Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, ChevronRight,
   Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X,
-  Warehouse,
+  Warehouse, Truck,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -27,6 +27,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/admin/buyer-applications':          'Buyer Applications',
   '/admin/seller-applications':         'Seller Applications',
   '/admin/sorting-center-applications': 'Hub Applications',
+  '/admin/courier-applications':        'Courier Applications',
   '/admin/sellers':                'Sellers',
   '/admin/buyers':                 'Buyers',
   '/admin/riders':                 'Riders',
@@ -70,6 +71,7 @@ function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
       items: [
         { icon: UserCheck,   label: 'Buyer Applications',  to: '/admin/buyer-applications',  badge: pendingBuyers },
         { icon: UserCheck,   label: 'Seller Applications', to: '/admin/seller-applications', badge: pendingSellers },
+        { icon: Truck,       label: 'Courier Applications', to: '/admin/courier-applications' },
         { icon: Warehouse,   label: 'Hub Applications',    to: '/admin/sorting-center-applications' },
         { icon: Store,       label: 'Sellers',             to: '/admin/sellers' },
         { icon: Users,       label: 'Buyers',              to: '/admin/buyers' },
@@ -268,6 +270,7 @@ function AdminSearchBar() {
     { label: 'Messages & Inquiries', to: '/admin/messages', group: 'Navigation', icon: MessageSquare },
     { label: 'Buyer Verification Applications', to: '/admin/buyer-applications', group: 'People', icon: UserCheck },
     { label: 'Seller Store Applications', to: '/admin/seller-applications', group: 'People', icon: UserCheck },
+    { label: 'Courier Company Applications (J&T, Flash, …)', to: '/admin/courier-applications', group: 'People', icon: Truck },
     { label: 'Manage Riders Directory', to: '/admin/riders', group: 'People', icon: Bike },
     { label: 'Manage Sellers Directory', to: '/admin/sellers', group: 'People', icon: Store },
     { label: 'Manage Buyers Directory', to: '/admin/buyers', group: 'People', icon: Users },

@@ -158,19 +158,49 @@ class RiderEarningsTest extends TestCase
         $this->assertSame('7.50', (string) $hubRows[0]->amount);
     }
 
+    public function test_the_pickup_rider_earns_at_the_hub_and_the_delivery_rider_earns_the_rest_at_delivery(): void
+    {
+        [, $picker] = $this->makeRider(first: 'Pickup');
+        [, $deliverer] = $this->makeRider(first: 'Delivery');
+        $parcel = $this->makeParcel(null, OrderStatus::PICKED_UP, Parcel::STATUS_PICKED_UP, 'cod', ['pickup_rider_id' => $picker->id]);
+
+        // The hub receives it: the pickup rider's 20% of the 50.00 fee, kept whatever happens next.
+        app(OrderStateMachine::class)->transition($parcel->order, OrderStatus::AT_SORTING_CENTER, 'hub', 1, 'Received');
+        $pickup = RiderEarning::where('parcel_id', $parcel->id)->sole();
+        $this->assertSame([$picker->id, RiderEarning::KIND_PICKUP, '10.00'], [$pickup->rider_id, $pickup->kind, (string) $pickup->amount]);
+
+        // Delivered by another rider: 65% to them, 15% to the hub, and the pickup is not paid twice.
+        $parcel->order->forceFill(['status' => OrderStatus::OUT_FOR_DELIVERY->value])->save();
+        $parcel->update(['assigned_rider_id' => $deliverer->id, 'status' => Parcel::STATUS_OUT_FOR_DELIVERY]);
+        $this->deliverVia($parcel->fresh());
+        $rows = RiderEarning::where('parcel_id', $parcel->id)->orderBy('id')->get();
+        $this->assertSame([['pickup', $picker->id, '10.00'], ['delivery', $deliverer->id, '32.50']],
+            $rows->map(fn ($r) => [$r->kind, $r->rider_id, (string) $r->amount])->all());
+        $this->assertSame('7.50', (string) \App\Models\HubEarning::where('parcel_id', $parcel->id)->value('amount'));
+
+        // One rider doing both legs earns both shares (85%); a parcel received before pickups earned is paid in full
+        // at delivery.
+        [, $both] = $this->makeRider(first: 'Both');
+        $solo = $this->makeParcel($both, parcelOverrides: ['pickup_rider_id' => $both->id]);
+        $this->deliverVia($solo);
+        $this->assertSame('42.50', (string) RiderEarning::where('parcel_id', $solo->id)->sum('amount'));
+        $this->assertSame(2, RiderEarning::where('parcel_id', $solo->id)->where('rider_id', $both->id)->count());
+    }
+
     public function test_the_split_always_adds_up_to_the_fee_to_the_centavo(): void
     {
         foreach ([5000, 9900, 3333, 1, 0, 12345] as $fee) {
             $split = \App\Support\ShippingSplit::split($fee);
             $this->assertSame($fee, $split['rider'] + $split['hub'], "fee {$fee}");
+            $this->assertSame($split['rider'], $split['pickup'] + $split['delivery'], "fee {$fee} riders");
         }
-        $this->assertSame(['rider' => 8415, 'hub' => 1485], \App\Support\ShippingSplit::split(9900));
+        $this->assertSame(['rider' => 8415, 'hub' => 1485, 'pickup' => 1980, 'delivery' => 6435], \App\Support\ShippingSplit::split(9900));
 
         // The percentage is a setting. Outside 0 to 100 it falls back to 85.
         config(['shipping.rider_share_percent' => 70]);
-        $this->assertSame(['rider' => 3500, 'hub' => 1500], \App\Support\ShippingSplit::split(5000));
+        $this->assertSame(['rider' => 3500, 'hub' => 1500, 'pickup' => 1000, 'delivery' => 2500], \App\Support\ShippingSplit::split(5000));
         config(['shipping.rider_share_percent' => 150]);
-        $this->assertSame(['rider' => 4250, 'hub' => 750], \App\Support\ShippingSplit::split(5000));
+        $this->assertSame(['rider' => 4250, 'hub' => 750, 'pickup' => 1000, 'delivery' => 3250], \App\Support\ShippingSplit::split(5000));
     }
 
     public function test_transitioning_again_never_creates_a_second_row_and_a_config_change_never_rewrites_history(): void

@@ -75,6 +75,7 @@ class Parcel extends Model
     ];
 
     protected $fillable = [
+        'logistics_company_id',
         'tracking_number',
         'order_id',
         'seller_id',
@@ -166,9 +167,21 @@ class Parcel extends Model
         return $query->where('status', self::STATUS_READY_FOR_PICKUP)
             ->whereNull('pickup_rider_id')
             ->whereIn('pickup_barangay_code', $activeBarangayCodes)
+            ->forRiderCourier($rider)
             ->whereDoesntHave('declines', function ($sub) use ($rider) {
                 $sub->where('rider_id', $rider->id);
             });
+    }
+
+    /**
+     * Only parcels of the rider's courier company: the hub the rider works for decides which courier's pickups they
+     * see (a parcel or hub without a company is the default courier's).
+     */
+    public function scopeForRiderCourier($query, Rider $rider)
+    {
+        $companyId = LogisticsCompany::effectiveId($rider->sortingCenter?->logistics_company_id);
+
+        return $companyId === null ? $query : LogisticsCompany::constrain($query, $companyId);
     }
 
     public function seller(): BelongsTo
@@ -179,6 +192,11 @@ class Parcel extends Model
     public function sortingCenter(): BelongsTo
     {
         return $this->belongsTo(SortingCenter::class, 'sorting_center_id');
+    }
+
+    public function logisticsCompany(): BelongsTo
+    {
+        return $this->belongsTo(LogisticsCompany::class);
     }
 
     public function order(): BelongsTo

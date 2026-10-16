@@ -100,6 +100,7 @@ class RiderHistoryController extends Controller
             ->join('parcels as p', 'p.id', '=', 're.parcel_id')
             ->join('orders as o', 'o.id', '=', 'p.order_id')
             ->where('re.rider_id', $rider->id)
+            ->where('re.kind', 'delivery') // a pickup row is earned at the hub, not a delivery
             ->whereNull('re.deleted_at')
             ->whereNull('p.deleted_at')
             ->select([

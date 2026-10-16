@@ -27,7 +27,7 @@ class Order extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'buyer_id', 'checkout_group_id', 'order_number', 'subtotal', 'shipping_fee',
+        'logistics_company_id', 'buyer_id', 'checkout_group_id', 'order_number', 'subtotal', 'shipping_fee',
         'total', 'payment_method', 'payment_status', 'status',
         'payment_reference', 'payment_proof_path', 'payment_verified_at',
         'payment_verified_by', 'verification_rejection_reason',
@@ -55,5 +55,7 @@ class Order extends Model
     public function payment(): HasOne            { return $this->hasOne(Payment::class); }
     public function dispute(): HasOne            { return $this->hasOne(Dispute::class); }
     public function parcel(): HasOne             { return $this->hasOne(Parcel::class); }
+    /** The courier the buyer chose at checkout (null reads as the default courier). */
+    public function logisticsCompany(): BelongsTo { return $this->belongsTo(LogisticsCompany::class); }
     public function statusHistories(): HasMany   { return $this->hasMany(OrderStatusHistory::class)->orderBy('created_at', 'asc'); }
 }

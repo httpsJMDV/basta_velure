@@ -69,6 +69,7 @@ class RiderEarningsController extends Controller
             ->where('re.earned_at', '<', $period->endUtc())
             ->select([
                 're.id',
+                're.kind',
                 'p.tracking_number',
                 'o.order_number',
                 'p.destination_barangay as barangay_name',
@@ -83,6 +84,8 @@ class RiderEarningsController extends Controller
         return response()->json([
             'data' => collect($paginated->items())->map(fn ($row) => [
                 'id'              => (int) $row->id,
+                // pickup: collected from the seller and brought to the hub; delivery: brought to the buyer.
+                'kind'            => (string) $row->kind,
                 'tracking_number' => $row->tracking_number,
                 'order_number'    => $row->order_number,
                 'destination'     => [

@@ -15,7 +15,7 @@ type ErrorType = 'pending' | 'disapproved' | 'not_rider' | 'invalid' | 'general'
 
 const PERKS = [
   { icon: MapPin, text: 'Pickups and drop-offs in your service areas' },
-  { icon: Wallet, text: '85% of the delivery fee on every parcel you deliver' },
+  { icon: Wallet, text: 'Paid for every parcel: 20% of the fee per pickup, 65% per delivery' },
 ];
 
 /** Sign-in for delivery couriers. Same layout as the buyer and logistics hub sign-in. */

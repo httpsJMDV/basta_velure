@@ -91,7 +91,7 @@ class HubEarningsTest extends TestCase
             ->assertJsonPath('data.month', ['total' => '30.00', 'deliveries_count' => 4])
             ->assertJsonPath('data.lifetime', ['total' => '37.50', 'deliveries_count' => 5])
             ->assertJsonPath('data.delivery_fee', '50.00')
-            ->assertJsonPath('data.split', ['rider_percent' => 85, 'hub_percent' => 15]);
+            ->assertJsonPath('data.split', ['rider_percent' => 85, 'pickup_percent' => 20, 'delivery_percent' => 65, 'hub_percent' => 15]);
         $this->assertCount(5, $res->json('data.recent'));
         $this->assertSame('2026-10-14T01:00:00+00:00', $res->json('data.recent.0.earned_at'));
         $this->assertSame('50.00', $res->json('data.recent.0.delivery_fee'));
@@ -118,7 +118,7 @@ class HubEarningsTest extends TestCase
         $this->assertSame('50.00', ShippingSplit::fee());
         config(['shipping.fee' => '65.50']);
         $this->assertSame('65.50', ShippingSplit::fee());
-        $this->assertSame(['rider' => 5568, 'hub' => 982], ShippingSplit::split(ShippingSplit::feeCents()));
+        $this->assertSame(['rider' => 5568, 'hub' => 982, 'pickup' => 1310, 'delivery' => 4258], ShippingSplit::split(ShippingSplit::feeCents()));
 
         config(['shipping.fee' => 'free']);
         $this->assertSame('50.00', ShippingSplit::fee());

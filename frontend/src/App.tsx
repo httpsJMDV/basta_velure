@@ -6,6 +6,14 @@ import RegisterPage from './pages/auth/RegisterPage';
 import CompleteProfilePage from './pages/auth/CompleteProfilePage';
 import SellerRegisterPage from './pages/auth/SellerRegisterPage';
 import HubRegisterPage from './pages/auth/HubRegisterPage';
+import CourierRegisterPage from './pages/auth/CourierRegisterPage';
+import LogisticsLayout from './pages/logistics/LogisticsLayout';
+import LogisticsDashboardPage from './pages/logistics/LogisticsDashboardPage';
+import LogisticsHubsPage from './pages/logistics/LogisticsHubsPage';
+import LogisticsRidersPage from './pages/logistics/LogisticsRidersPage';
+import LogisticsParcelsPage from './pages/logistics/LogisticsParcelsPage';
+import LogisticsReportsPage from './pages/logistics/LogisticsReportsPage';
+import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
 import RiderRegisterPage from './pages/auth/RiderRegisterPage';
 import RiderLoginPage from './pages/auth/RiderLoginPage';
@@ -108,6 +116,15 @@ function RequireSellerOrAdmin({ children }: { children: ReactNode }) {
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'admin' || user.role === 'seller' || user.seller_profile?.application_status === 'approved') return <>{children}</>;
   return <Navigate to="/" replace />;
+}
+
+/** The courier company portal: only the team of an approved courier; anyone else sees their application status. */
+function RequireApprovedCourier({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
+  if (!user) return <Navigate to="/login?next=%2Flogistics" replace />;
+  if (user.logistics_company?.status !== 'APPROVED') return <Navigate to="/register/courier" replace />;
+  return <>{children}</>;
 }
 
 function RequireApprovedSortingCenter({ children }: { children: ReactNode }) {
@@ -231,6 +248,7 @@ function AppRoutes() {
       <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
       <Route path="/register/seller" element={<SellerRegisterPage />} />
       <Route path="/register/hub" element={<HubRegisterPage />} />
+      <Route path="/register/courier" element={<CourierRegisterPage />} />
       <Route path="/register/hub/pending" element={<Navigate to="/register/hub" replace />} />
       <Route path="/register/sorting-center" element={<Navigate to="/register/hub" replace />} />
       <Route path="/register/rider" element={<RiderRegisterPage />} />
@@ -318,6 +336,7 @@ function AppRoutes() {
         <Route path="buyer-applications"          element={<AdminBuyerApplicationsPage />} />
         <Route path="seller-applications"         element={<AdminSellerApplicationsPage />} />
         <Route path="sorting-center-applications" element={<AdminSortingCenterApplicationsPage />} />
+        <Route path="courier-applications"        element={<AdminCourierApplicationsPage />} />
         <Route path="sellers"             element={<AdminUsersPage />} />
         <Route path="buyers"              element={<AdminUsersPage />} />
         <Route path="riders"              element={<AdminUsersPage />} />
@@ -332,6 +351,22 @@ function AppRoutes() {
         <Route path="reports"             element={<AdminReportsPage />} />
         <Route path="settings"            element={<AdminPlatformSettingsPage />} />
         <Route path="activity-log"        element={<AdminActivityLogPage />} />
+      </Route>
+
+      {/* Courier company portal (J&T, Flash, the default courier): its own hubs, riders and parcels */}
+      <Route
+        path="/logistics"
+        element={
+          <RequireApprovedCourier>
+            <LogisticsLayout />
+          </RequireApprovedCourier>
+        }
+      >
+        <Route index element={<LogisticsDashboardPage />} />
+        <Route path="hubs" element={<LogisticsHubsPage />} />
+        <Route path="riders" element={<LogisticsRidersPage />} />
+        <Route path="parcels" element={<LogisticsParcelsPage />} />
+        <Route path="reports" element={<LogisticsReportsPage />} />
       </Route>
 
       {/* Logistics / Sorting Center Hub Portal */}
