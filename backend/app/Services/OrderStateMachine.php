@@ -145,6 +145,10 @@ class OrderStateMachine
             // 5. Post-transition hooks
             $this->handlePostTransition($lockedOrder, $currentStatus, $toStatus, $actorType, $actorId, $meta);
 
+            // 6. Email the buyer and seller about the steps they care about. Queued after commit, so a rollback
+            //    sends nothing, and a mail failure never blocks the transition.
+            app(MailNotifier::class)->orderStatusChanged($lockedOrder, $currentStatus, $toStatus);
+
             return $lockedOrder->fresh(['items', 'statusHistories']);
         });
     }

@@ -65,6 +65,9 @@ class RiderRegistrationController extends Controller
         }
 
         // The reopened application no longer points at the old documents.
+        // "Application received" to the applicant, and "new courier application" to the hub owner.
+        app(\App\Services\MailNotifier::class)->riderApplicationReceived($rider->load(['user', 'sortingCenter.user']));
+
         if ($previousFiles) {
             Storage::disk('ids')->delete(array_values(array_diff($previousFiles, [$orCrPath, $licensePath])));
         }

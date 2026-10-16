@@ -520,7 +520,7 @@ class HubDispatchTest extends TestCase
         $this->assertEquals([200, 422, 422], $codes);
         $this->assertEquals(1, OrderStatusHistory::where('order_id', $p->order_id)
             ->where('to_status', OrderStatus::ASSIGNED_TO_RIDER->value)->count());
-        Mail::assertQueuedCount(1);
+        $this->assertSame(1, Mail::queued(\App\Mail\ParcelsAssignedMail::class)->count() + Mail::queued(\App\Mail\ParcelReturnedMail::class)->count()); // hub mails only; order-status notices are NoticeMail
     }
 
     public function test_assign_validates_shape_and_size(): void
@@ -577,7 +577,7 @@ class HubDispatchTest extends TestCase
 
         $this->dispatchTo($rider, [$p1->tracking_number, $p2->tracking_number, $p3->tracking_number])->assertOk();
 
-        Mail::assertQueuedCount(1);
+        $this->assertSame(1, Mail::queued(\App\Mail\ParcelsAssignedMail::class)->count() + Mail::queued(\App\Mail\ParcelReturnedMail::class)->count()); // hub mails only; order-status notices are NoticeMail
         Mail::assertQueued(ParcelsAssignedMail::class, function (ParcelsAssignedMail $mail) use ($riderUser) {
             $html = $mail->render();
 
@@ -661,7 +661,7 @@ class HubDispatchTest extends TestCase
         [, $rider] = $this->eligibleRider();
         $p = $this->createParcel($this->hub, self::CODE_A);
 
-        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp is down'));
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp is down'));
         Log::spy();
 
         $this->dispatchTo($rider, [$p->tracking_number])
@@ -764,7 +764,7 @@ class HubDispatchTest extends TestCase
         $this->assertSame(1, $batch['eligible_riders']);
 
         $this->dispatchTo($rider, [$tracking])->assertOk()->assertJsonPath('assigned_count', 1);
-        Mail::assertQueuedCount(1);
+        $this->assertSame(1, Mail::queued(\App\Mail\ParcelsAssignedMail::class)->count() + Mail::queued(\App\Mail\ParcelReturnedMail::class)->count()); // hub mails only; order-status notices are NoticeMail
 
         $sellerView = $this->actingAs($seller, 'sanctum')->getJson("/api/v1/seller/orders/{$order->id}");
         $sellerView->assertOk()->assertJsonPath('data.status', OrderStatus::ASSIGNED_TO_RIDER->value);

@@ -288,6 +288,8 @@ class AdminController extends Controller
             ]);
         });
 
+        app(\App\Services\MailNotifier::class)->accountSuspended($user);
+
         return response()->json(['data' => new UserResource($user->fresh(['rider.sortingCenter']))]);
     }
 
@@ -306,6 +308,8 @@ class AdminController extends Controller
                 'meta'        => ['role' => $user->role, 'email' => $user->email],
             ]);
         });
+
+        app(\App\Services\MailNotifier::class)->accountReactivated($user);
 
         return response()->json(['data' => new UserResource($user->fresh(['rider.sortingCenter']))]);
     }

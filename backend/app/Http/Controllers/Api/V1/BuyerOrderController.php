@@ -198,6 +198,9 @@ class BuyerOrderController extends Controller
                     $createdOrders[] = $order;
                 }
 
+                // Receipt to the buyer and a "new order" to each seller, queued once the checkout commits.
+                app(\App\Services\MailNotifier::class)->ordersPlaced($createdOrders);
+
                 $formattedOrders = array_map(
                     fn ($o) => $this->formatOrder($o->fresh(['items.seller.sellerProfile', 'buyer', 'statusHistories'])),
                     $createdOrders
@@ -313,6 +316,8 @@ class BuyerOrderController extends Controller
                 $user->id,
                 "Return requested: {$data['reason']}"
             );
+
+            app(\App\Services\MailNotifier::class)->returnRequested($order, $data['reason'] . ' — ' . $data['description']);
         });
 
         return response()->json([

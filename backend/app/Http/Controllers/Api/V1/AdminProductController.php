@@ -76,6 +76,7 @@ class AdminProductController extends Controller
         abort_if($product->status !== 'pending_review', 422, 'Product is not pending review.');
 
         $product->update(['status' => 'active', 'rejection_reason' => null]);
+        app(\App\Services\MailNotifier::class)->productApproved($product->loadMissing('seller'));
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
@@ -87,6 +88,7 @@ class AdminProductController extends Controller
 
         $data = $request->validate(['reason' => 'required|string|max:1000']);
         $product->update(['status' => 'rejected', 'rejection_reason' => $data['reason']]);
+        app(\App\Services\MailNotifier::class)->productRejected($product->loadMissing('seller'), $data['reason']);
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
@@ -107,6 +109,7 @@ class AdminProductController extends Controller
             'archive_reason' => $data['reason'],
             'archived_by'    => 'admin',
         ]);
+        app(\App\Services\MailNotifier::class)->productArchived($product->loadMissing('seller'), $data['reason']);
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
@@ -125,6 +128,7 @@ class AdminProductController extends Controller
             'archive_reason' => null,
             'archived_by'    => null,
         ]);
+        app(\App\Services\MailNotifier::class)->productReactivated($product->loadMissing('seller'));
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }

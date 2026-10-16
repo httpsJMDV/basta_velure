@@ -4,13 +4,16 @@ namespace App\Console\Commands;
 
 use App\Enums\OrderStatus;
 use App\Models\OrderItem;
+use App\Models\User;
+use App\Services\MailNotifier;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Makes escrowed earnings available once their hold has ended. This is the only place a payout moves
- * from pending_release to available. Amounts and commission are never read or changed.
+ * from pending_release to available. Amounts and commission are never changed; each seller's released
+ * earnings are only read to email them what became available.
  *
  * Only items that are still pending_release, due and on a COMPLETED order are released. Disbursed items,
  * and items of cancelled, returned, disputed or merely delivered orders, are never touched.
@@ -33,18 +36,30 @@ class ReleaseDuePayouts extends Command
         $holdDays = max(0, (int) config('payouts.escrow_hold_days', 7));
         $released = 0;
         $repaired = 0;
+        // seller_id => [amount, items]: only items this run actually released, for the "earnings available" email.
+        $bySeller = [];
+        $tally = function (OrderItem $item) use (&$bySeller) {
+            $bySeller[$item->seller_id] ??= [0.0, 0];
+            $bySeller[$item->seller_id][0] += (float) $item->seller_earnings;
+            $bySeller[$item->seller_id][1]++;
+        };
 
         // 1. The normal path: a release date that has passed.
         OrderItem::where('payout_status', 'pending_release')
             ->whereNotNull('escrow_release_at')
             ->where('escrow_release_at', '<=', $now)
             ->whereHas('order', fn ($q) => $q->where('status', OrderStatus::COMPLETED->value))
-            ->chunkById(200, function (Collection $items) use (&$released) {
+            ->chunkById(200, function (Collection $items) use (&$released, $tally) {
                 // The status guard is repeated in the update so a concurrent run cannot release twice
                 // or overwrite an item that changed state in the meantime.
-                $released += OrderItem::whereIn('id', $items->pluck('id'))
+                $changed = OrderItem::whereIn('id', $items->pluck('id'))
                     ->where('payout_status', 'pending_release')
                     ->update(['payout_status' => 'available']);
+                $released += $changed;
+                // Only tell sellers about a chunk released whole; a partial one raced another run.
+                if ($changed === $items->count()) {
+                    $items->each($tally);
+                }
             });
 
         // 2. Safety net: completed orders whose items have no release date. Date them from completed_at.
@@ -55,7 +70,7 @@ class ReleaseDuePayouts extends Command
                 ->where('status', OrderStatus::COMPLETED->value)
                 ->whereNotNull('completed_at')
                 ->where('completed_at', '<=', $now->copy()->subDays($holdDays)))
-            ->chunkById(200, function (Collection $items) use (&$released, &$repaired, $holdDays) {
+            ->chunkById(200, function (Collection $items) use (&$released, &$repaired, $holdDays, $tally) {
                 foreach ($items as $item) {
                     $dueAt = $item->order->completed_at->copy()->addDays($holdDays);
 
@@ -66,6 +81,9 @@ class ReleaseDuePayouts extends Command
 
                     $released += $changed;
                     $repaired += $changed;
+                    if ($changed) {
+                        $tally($item);
+                    }
                 }
             });
 
@@ -85,6 +103,13 @@ class ReleaseDuePayouts extends Command
             $warning = "payouts:release-due: {$undatable} pending item(s) on COMPLETED orders have neither a release date nor a completion time and were left alone. Check them by hand.";
             $this->warn($warning);
             Log::warning($warning);
+        }
+
+        // One "earnings available" email per seller for what this run released.
+        $notifier = app(MailNotifier::class);
+        foreach (User::whereIn('id', array_keys($bySeller))->get() as $seller) {
+            [$amount, $count] = $bySeller[$seller->id];
+            $notifier->earningsReleased($seller, round($amount, 2), $count);
         }
 
         return self::SUCCESS;
