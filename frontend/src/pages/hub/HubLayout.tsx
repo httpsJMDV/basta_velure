@@ -14,6 +14,7 @@ import {
   UserCheck,
   AlertTriangle,
   MapPin,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useHubChatUnread } from '../../hooks/useHubChatUnread';
@@ -46,6 +47,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/hub/riders': 'Riders & Fleet',
   '/hub/messages': 'Rider Messages',
   '/hub/reports': 'Performance Reports',
+  '/hub/earnings': 'Earnings',
 };
 
 const SIDEBAR_W_EXPANDED = 'w-60';
@@ -118,7 +120,13 @@ export default function HubLayout() {
         { icon: MessageSquare, label: 'Messages', to: '/hub/messages', badge: chat.total },
       ],
     },
-    { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/hub/reports' }] },
+    {
+      heading: 'Insights',
+      items: [
+        { icon: BarChart2, label: 'Reports', to: '/hub/reports' },
+        { icon: Wallet, label: 'Earnings', to: '/hub/earnings' },
+      ],
+    },
   ], [failedDeliveries, pendingRiders, chat.total]);
 
   const searchItems: ShellSearchItem[] = [
@@ -130,6 +138,7 @@ export default function HubLayout() {
     { label: 'Riders and applications', to: '/hub/riders', group: 'People', icon: Bike },
     { label: 'Rider Messages', to: '/hub/messages', group: 'People', icon: MessageSquare },
     { label: 'Performance Reports', to: '/hub/reports', group: 'Insights', icon: BarChart2 },
+    { label: 'Earnings: your share of delivery fees', to: '/hub/earnings', group: 'Insights', icon: Wallet },
   ];
 
   const alerts: ShellAlert[] = [];

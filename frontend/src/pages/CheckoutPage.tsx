@@ -20,6 +20,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import { getAddressesApi, placeOrderApi } from '../api/client';
 import type { Address, Order } from '../types';
+import { DELIVERY_FEE } from '../utils/shipping';
 
 export default function CheckoutPage() {
   const { user } = useAuth();
@@ -82,7 +83,7 @@ export default function CheckoutPage() {
           sellerId: item.sellerId,
           items: [],
           subtotal: 0,
-          shippingFee: 99,
+          shippingFee: DELIVERY_FEE,
           total: 0,
         };
       }
@@ -769,7 +770,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex justify-between text-gray-500">
                     <span>
-                      Shipping Fee {shopGroups.length > 1 ? `(${shopGroups.length} shops × ₱99)` : '(Standard)'}
+                      Shipping Fee {shopGroups.length > 1 ? `(${shopGroups.length} shops × ₱${DELIVERY_FEE})` : '(Standard)'}
                     </span>
                     <span className="font-medium text-gray-800">₱{totalShippingFee.toLocaleString()}</span>
                   </div>

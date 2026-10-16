@@ -2306,3 +2306,29 @@ export interface HubAwaitingRider {
   rider: { id: number; name: string };
   parcels: HubAwaitingParcel[];
 }
+
+// ─── Hub earnings (the hub's share of the delivery fee) ──────────────────────────
+
+export interface HubEarningsTotals {
+  total: string;
+  deliveries_count: number;
+}
+
+export interface HubEarningsRow {
+  tracking_number: string | null;
+  order_number: string | null;
+  rider_name: string | null;
+  delivery_fee: string | null;
+  amount: string;
+  earned_at: string | null;
+}
+
+export interface HubEarningsSummary {
+  delivery_fee: string;
+  split: { rider_percent: number; hub_percent: number };
+  today: HubEarningsTotals;
+  week: HubEarningsTotals;
+  month: HubEarningsTotals;
+  lifetime: HubEarningsTotals;
+  recent: HubEarningsRow[];
+}

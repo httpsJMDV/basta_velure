@@ -138,7 +138,7 @@ class BuyerOrderController extends Controller
 
                 foreach ($sellerGroups as $sellerId => $sellerItems) {
                     $orderSubtotal = round((float) $sellerItems->sum('subtotal'), 2);
-                    $shippingFee = 99.00; // Flat shipping rate per seller order
+                    $shippingFee = (float) \App\Support\ShippingSplit::fee(); // One flat delivery fee per seller order (config/shipping.php)
                     $orderTotal = round($orderSubtotal + $shippingFee, 2);
 
                     $orderNumber = $groupCount > 1

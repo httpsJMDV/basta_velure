@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\HubRiderAreaAssignmentController;
 use App\Http\Controllers\Api\V1\RiderController;
 use App\Http\Controllers\Api\V1\DeliveryProofController;
 use App\Http\Controllers\Api\V1\ParcelTrackingController;
+use App\Http\Controllers\Api\V1\HubEarningsController;
 use App\Http\Controllers\Api\V1\RiderLocationController;
 use App\Http\Controllers\Api\V1\RiderDeliveryController;
 use App\Http\Controllers\Api\V1\RiderEarningsController;
@@ -347,6 +348,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/dispatch/batches/{barangay_code}/riders',       [HubDispatchController::class, 'batchRiders']);
             Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
             Route::get('/dispatch/awaiting-pickup',                      [HubDispatchController::class, 'awaitingPickup']);
+
+            // The hub's share of the delivery fee
+            Route::get('/earnings', [HubEarningsController::class, 'summary']);
 
             // Hub reports (Feature 1.10)
             Route::get('/reports/summary', [HubReportController::class, 'summary']);

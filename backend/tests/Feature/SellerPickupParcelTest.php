@@ -125,8 +125,8 @@ class SellerPickupParcelTest extends TestCase
             'buyer_id'          => $this->buyer->id,
             'order_number'      => 'VEL-TEST-' . substr(uniqid(), -8),
             'subtotal'          => 500.00,
-            'shipping_fee'      => 99.00,
-            'total'             => 599.00,
+            'shipping_fee'      => 50.00,
+            'total'             => 550.00,
             'payment_method'    => $paymentMethod,
             'payment_status'    => $paymentMethod === 'gcash' ? 'paid' : 'pending',
             'status'            => $status,
@@ -177,7 +177,7 @@ class SellerPickupParcelTest extends TestCase
         $this->assertEquals($this->seller->id, $parcel->seller_id);
         $this->assertEquals('Poblacion', $parcel->pickup_barangay);
         $this->assertEquals('Batasan Hills', $parcel->destination_barangay);
-        $this->assertEquals(599.00, (float) $parcel->cod_amount);
+        $this->assertEquals(550.00, (float) $parcel->cod_amount);
         $this->assertNotNull($parcel->ready_at);
 
         // Check snapshots
@@ -352,7 +352,7 @@ class SellerPickupParcelTest extends TestCase
             ]);
 
         $this->assertTrue($sellerRes->json('data.cod.is_cod'));
-        $this->assertEquals(599.00, $sellerRes->json('data.cod.amount'));
+        $this->assertEquals(550.00, $sellerRes->json('data.cod.amount'));
         $this->assertEquals('CODE128', $sellerRes->json('data.barcode.format'));
         $this->assertNotEmpty($sellerRes->json('data.barcode.value'));
 
@@ -485,7 +485,7 @@ class SellerPickupParcelTest extends TestCase
         $waybill1Res = $this->getJson("/api/v1/seller/orders/{$order1Id}/waybill");
         $waybill1Res->assertStatus(200);
         $this->assertEquals($tracking1, $waybill1Res->json('data.parcel.tracking_number'));
-        $this->assertEquals(399.00, $waybill1Res->json('data.cod.amount')); // 300 + 99 shipping
+        $this->assertEquals(350.00, $waybill1Res->json('data.cod.amount')); // 300 + 50 shipping
 
         // 4. Verify Seller 2 only sees Order 2, confirms COD, prepares, and marks ready for pickup
         Sanctum::actingAs($this->otherSeller);
@@ -516,7 +516,7 @@ class SellerPickupParcelTest extends TestCase
         $waybill2Res = $this->getJson("/api/v1/seller/orders/{$order2Id}/waybill");
         $waybill2Res->assertStatus(200);
         $this->assertEquals($tracking2, $waybill2Res->json('data.parcel.tracking_number'));
-        $this->assertEquals(499.00, $waybill2Res->json('data.cod.amount')); // 400 + 99 shipping
+        $this->assertEquals(450.00, $waybill2Res->json('data.cod.amount')); // 400 + 50 shipping
 
         // Seller 2 CANNOT access Seller 1's waybill
         $this->getJson("/api/v1/seller/orders/{$order1Id}/waybill")->assertStatus(403);

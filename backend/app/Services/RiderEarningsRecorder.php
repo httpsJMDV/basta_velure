@@ -2,27 +2,29 @@
 
 namespace App\Services;
 
+use App\Models\HubEarning;
 use App\Models\Order;
 use App\Models\Parcel;
 use App\Models\RiderEarning;
 use App\Support\Money;
+use App\Support\ShippingSplit;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\Log;
 
 /**
- * Records what a rider earns for a delivered parcel: one flat fee, copied onto the row at the moment of
- * delivery so a later change to the configured fee never rewrites history.
+ * Shares the delivery fee of a delivered parcel: the rider who delivered it earns their percentage (85% by default)
+ * and the logistics hub that handled it earns the rest. The split is of the delivery fee the buyer actually paid on
+ * that order, copied onto the earnings rows at the moment of delivery, so a later change to the fee or the percentage
+ * never rewrites history.
  *
- * It only ever adds a rider_earnings row. It reads and changes no buyer, seller or platform money.
+ * It only ever adds earnings rows (one per parcel for the rider, one per parcel for the hub). It reads and changes no
+ * buyer, seller or platform money.
  */
 class RiderEarningsRecorder
 {
-    public const DEFAULT_FEE = '50.00';
-
     /**
-     * Create the earnings row for the parcel of a just-delivered order. Idempotent: a parcel earns once,
-     * however many times it enters DELIVERED (for example an admin restoring a disputed order) and
-     * whichever actor triggered the transition. A parcel with no assigned rider earns nobody anything.
+     * Create the earnings rows for the parcel of a just-delivered order. Idempotent: a parcel earns once, however many
+     * times it enters DELIVERED (for example an admin restoring a disputed order) and whichever actor triggered the
+     * transition.
      */
     public function recordForDeliveredOrder(Order $order): ?RiderEarning
     {
@@ -31,8 +33,19 @@ class RiderEarningsRecorder
         return $parcel ? $this->recordForParcel($parcel) : null;
     }
 
+    /**
+     * Returns the rider's new row, or null when there is none to add (no rider, or already recorded). The hub's row is
+     * added next to it when the parcel has a hub and none yet.
+     */
     public function recordForParcel(Parcel $parcel, ?\DateTimeInterface $earnedAt = null): ?RiderEarning
     {
+        $earnedAt ??= now();
+        $feeCents = Money::toCents((string) ($parcel->order?->shipping_fee ?? 0));
+        $shares = ShippingSplit::split($feeCents);
+
+        $this->recordHub($parcel, $shares['hub'], $earnedAt);
+
+        // A parcel with no assigned rider earns the rider nobody anything.
         if (! $parcel->assigned_rider_id) {
             return null;
         }
@@ -46,9 +59,9 @@ class RiderEarningsRecorder
             return RiderEarning::create([
                 'rider_id'  => $parcel->assigned_rider_id,
                 'parcel_id' => $parcel->id,
-                'amount'    => $this->currentFee(),
-                'earned_at' => $earnedAt ?? now(),
-                'notes'     => 'Flat delivery fee',
+                'amount'    => Money::fromCents($shares['rider']),
+                'earned_at' => $earnedAt,
+                'notes'     => ShippingSplit::riderPercent() . '% of the delivery fee',
             ]);
         } catch (QueryException $e) {
             // Two requests recorded the same parcel at once; the unique index kept it to one row.
@@ -60,20 +73,28 @@ class RiderEarningsRecorder
         }
     }
 
-    /**
-     * The flat fee in force right now, as a decimal string with two places. An unusable config value
-     * must not stop a delivery, so it is logged loudly and the default is used instead.
-     */
-    public function currentFee(): string
+    private function recordHub(Parcel $parcel, int $hubCents, \DateTimeInterface $earnedAt): void
     {
-        $configured = trim((string) config('rider.delivery_fee', self::DEFAULT_FEE));
-
-        if (! preg_match('/^\d+(\.\d{1,2})?$/', $configured)) {
-            Log::error("rider.delivery_fee is not a valid peso amount ('{$configured}'); using " . self::DEFAULT_FEE . '.');
-
-            return self::DEFAULT_FEE;
+        if (! $parcel->sorting_center_id) {
+            return;
         }
 
-        return Money::fromCents(Money::toCents($configured));
+        if (HubEarning::withTrashed()->where('parcel_id', $parcel->id)->exists()) {
+            return;
+        }
+
+        try {
+            HubEarning::create([
+                'sorting_center_id' => $parcel->sorting_center_id,
+                'parcel_id'         => $parcel->id,
+                'amount'            => Money::fromCents($hubCents),
+                'earned_at'         => $earnedAt,
+                'notes'             => (100 - ShippingSplit::riderPercent()) . '% of the delivery fee',
+            ]);
+        } catch (QueryException $e) {
+            if (($e->errorInfo[0] ?? null) !== '23000') {
+                throw $e;
+            }
+        }
     }
 }

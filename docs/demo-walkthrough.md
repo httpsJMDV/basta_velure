@@ -210,6 +210,7 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
   - [ ] Rider table: **Pedro Mendoza** delivered 6, failed 3, **Juan Dela Rosa** delivered 5, failed 4.
   - [ ] **Export daily CSV** and **Export riders CSV** download files that open in Excel.
   - [ ] **Print** hides the sidebar and the controls.
+- [ ] **Earnings** (`/hub/earnings`): the hub's 15% of the ₱50 delivery fee on each delivered parcel. At seed time, **₱82.50** all time (11 deliveries at ₱7.50), with the latest deliveries listed (tracking number, rider, fee).
 - [ ] **Messages** (`/hub/messages`): empty state at first. It fills when a rider messages the hub (see the live flow).
 
 ### Rider 1 (`rider1` / `rider123`, then `/rider/login`)
@@ -227,14 +228,14 @@ Tick each box as you go. Write down anything that looks wrong or breaks (what yo
   - [ ] **Map** on a stop card opens Track package: the timeline and the map with the route.
   - [ ] **Location**: while rider 1 has a parcel to collect or carry, the courier pages ask for the phone's location and stay locked until it is shared (open the site on `https://` or `localhost`; a phone on `http://192.168...` cannot share a location).
   - [ ] **Delivery failed**: pick a reason, submit (use a different parcel, or reseed afterwards).
-- [ ] **Earnings**: lifetime **₱250** (5 deliveries at the default ₱50 fee), with a day/week/month breakdown. **History** lists deliveries and failed attempts.
+- [ ] **Earnings**: lifetime **₱212.50** (5 deliveries at 85% of the ₱50 delivery fee, ₱42.50 each), with a day/week/month breakdown. **History** lists deliveries and failed attempts.
 - [ ] **Account**: profile, vehicle form (change the plate, see "saved"), Messages list, **Log out** asks to confirm.
 
 ### Rider 2 (`rider2` / `rider123`)
 
 - [ ] **Deliveries**: *To collect* 1, *Out for delivery* 1 (prepaid, nothing to collect).
 - [ ] **Pickups > Picked up**: 1 parcel waiting to be scanned at the hub.
-- [ ] **Earnings**: lifetime **₱300** (6 deliveries).
+- [ ] **Earnings**: lifetime **₱255.00** (6 deliveries).
 
 ### Rider 3 (`rider3` / `rider123`, pending applicant)
 
@@ -258,7 +259,7 @@ Take a brand-new order from placement to COMPLETED. Use **COD** (see "Known prob
 9. [ ] **Rider 1**: **Message > hub**, ask a question. **Hub** > Messages: the thread appears with an unread badge; reply. The rider sees the reply within a few seconds.
 10. [ ] **Rider 1**: **Delivered** with a photo and the COD confirmation. **Check:** the buyer thread now says **"This conversation is closed"** and has no compose box, for both rider and buyer.
 11. [ ] **Buyer 1** > Orders: **Track package** shows the timeline (newest first) and, while rider 1 is out for delivery with their location on, the truck on the map moving as rider 1 moves, with the road route and an ETA. The seller, the hub and the admin can open the same view from their order or delivery pages. Once DELIVERED, the *Delivered* step shows both proof photos (tap to enlarge). The order is **DELIVERED** with the proof photos. **Confirm Order Received**. Status: COMPLETED.
-12. [ ] **Seller 1** > Earnings: the order shows a **release date** (7 days after completion by default). **Rider 1** > Earnings: the new delivery adds ₱50. **Hub** > Reports > Last 30 days: Delivered and Received each went up by 1.
+12. [ ] **Seller 1** > Earnings: the order shows a **release date** (7 days after completion by default). **Rider 1** > Earnings: the new delivery adds ₱42.50 (85% of the ₱50 delivery fee), and **Hub** > Earnings adds ₱7.50 (the hub's 15%). **Hub** > Reports > Last 30 days: Delivered and Received each went up by 1.
 13. [ ] **Admin** > Orders: the order's history shows every step and who did it.
 
 **Failure variant.** Repeat steps 1 to 7, then in step 10 use **Delivery failed** instead. The hub's *Deliveries > Failed* tab lists it; **reschedule** it to the same rider (attempt 2), fail it again, then **return it to the seller**. Reports > Failed attempts goes up by 2, and the order ends RETURNED.

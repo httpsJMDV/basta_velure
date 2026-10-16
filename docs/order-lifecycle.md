@@ -321,7 +321,7 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 
 **No buyer, seller or platform money changes.** This only records and reports what a rider has earned.
 
-- **Decision: flat fee per delivered parcel.** `config('rider.delivery_fee')` (env `RIDER_DELIVERY_FEE`, default `50.00`). No distance, weight or tips.
+- **Decision: the rider's share of the delivery fee.** The buyer pays a flat ₱50 per seller order (`config('shipping.fee')`); when the parcel is delivered the rider earns 85% of the fee that order paid and the hub 15% (`docs/api/delivery-fee-split.md`). This replaces the earlier flat `RIDER_DELIVERY_FEE`. No distance, weight or tips.
 - **Decision: the fee is a snapshot.** It is copied onto the `rider_earnings` row when the row is created, so changing the setting never rewrites history.
 - **Decision: created at `DELIVERED`, by any actor.** `OrderStateMachine` calls `RiderEarningsRecorder` inside its transaction when an order enters `DELIVERED` (rider, hub or admin). It is idempotent: a unique index on `rider_earnings.parcel_id` allows one row per parcel, and entering `DELIVERED` again (a rejected dispute) adds nothing. A parcel with no assigned rider earns nobody anything.
 - **Decision: no clawback.** A later return or dispute does not remove the fee. A failed delivery earns nothing.
