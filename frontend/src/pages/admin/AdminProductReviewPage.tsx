@@ -11,15 +11,10 @@ import {
   type AdminProduct,
 } from '../../api/client';
 import {
-  ChevronLeft, Package, CheckCircle2, XCircle, FileText,
-  Store, Mail, Phone, Calendar, ShieldCheck,
-  AlertTriangle, Eye, Download, X, Layers, ExternalLink,
-  Box, AlertCircle, RotateCcw, Archive, FileCheck,
-  Loader2, TrendingUp, Image as ImageIcon
+  ChevronLeft, XCircle, Download, X, ExternalLink, Archive, FileCheck, Loader2,
 } from 'lucide-react';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
-import { PageHero, StatCard, HERO_BUTTON } from '../../components/admin/dashboardKit';
-import { Pill, Avatar, type PillTone } from '../../components/admin/listKit';
+import { Avatar } from '../../components/admin/listKit';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -251,37 +246,39 @@ function DocumentViewerModal({
 
 // ─── Small pieces of the page ────────────────────────────────────────────────
 
-type DetailTab = 'description' | 'variants' | 'safety' | 'shipping';
+const STATUS_DOT: Record<string, string> = {
+  pending_review: 'bg-amber-400', active: 'bg-emerald-400', rejected: 'bg-red-400', draft: 'bg-sky-400', archived: 'bg-neutral-400',
+};
 
-/** A white card of the right rail, with the brand-red tick heading the dashboard uses. */
-function RailSection({ icon: Icon, title, aside, children }: { icon: React.ElementType; title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+const STATUS_NOTE: Record<string, string> = {
+  pending_review: 'Waiting for review',
+  active: 'Visible to buyers',
+  rejected: 'Hidden from buyers',
+  draft: 'Not submitted yet',
+  archived: 'Hidden from buyers',
+};
+
+/** A plain white panel with a hairline border; the heading is text, not an icon badge. */
+function Panel({ title, action, children, flush }: { title: string; action?: React.ReactNode; children: React.ReactNode; flush?: boolean }) {
   return (
-    <section className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-1 h-3.5 rounded-full bg-brand-red" />
-          <Icon className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />
-          <h2 className="text-[11px] font-bold tracking-wider text-gray-800 uppercase">{title}</h2>
-        </div>
-        {aside}
-      </div>
-      {children}
+    <section className="bg-white border border-gray-200 rounded-xl">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100">
+        <h2 className="text-[13px] font-semibold text-gray-900">{title}</h2>
+        {action}
+      </header>
+      <div className={flush ? '' : 'px-4 py-3'}>{children}</div>
     </section>
   );
 }
 
-/** One label / value pair in a spec grid. */
-function Spec({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+/** One row of the spec sheet: the label on the left, the value right-aligned. */
+function Row({ label, children, strong }: { label: string; children: React.ReactNode; strong?: boolean }) {
   return (
-    <div className={`p-3 rounded-xl bg-gray-50 border border-gray-100 ${wide ? 'sm:col-span-2' : ''}`}>
-      <dt className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">{label}</dt>
-      <dd className="mt-0.5 text-[13px] font-semibold text-gray-800 leading-relaxed">{children}</dd>
+    <div className="flex items-baseline justify-between gap-4 py-2.5 border-b border-gray-100 last:border-0">
+      <dt className="text-[13px] text-gray-500 shrink-0">{label}</dt>
+      <dd className={`text-right tabular-nums ${strong ? 'text-[15px] font-bold text-gray-900' : 'text-[13px] font-medium text-gray-800'}`}>{children}</dd>
     </div>
   );
-}
-
-function stockTone(qty: number): PillTone {
-  return qty > 10 ? 'emerald' : qty > 0 ? 'amber' : 'red';
 }
 
 // ─── Main AdminProductReviewPage Component ───────────────────────────────────
@@ -297,9 +294,7 @@ export default function AdminProductReviewPage() {
   const [actioning, setActioning] = useState(false);
   const [actionError, setActionError] = useState('');
 
-  // Gallery and detail tabs
   const [activeImgIdx, setActiveImgIdx] = useState(0);
-  const [tab, setTab] = useState<DetailTab>('description');
 
   // Modals
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -328,7 +323,7 @@ export default function AdminProductReviewPage() {
     loadProduct();
   }, [loadProduct]);
 
-  /** Runs one moderation action and keeps the page on its result, showing any failure in the page. */
+  /** Runs one moderation action, keeps the page on its result and shows a failure in the page. */
   async function act(run: () => Promise<AdminProduct>, failure: string, after?: () => void) {
     setActioning(true);
     setActionError('');
@@ -363,16 +358,14 @@ export default function AdminProductReviewPage() {
 
   if (loading) {
     return (
-      <div className="pb-8 space-y-3">
-        <div className="h-[72px] rounded-2xl bg-neutral-800 animate-pulse" />
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-3">
-            <div className="bg-white border h-[420px] rounded-2xl border-gray-200/80 animate-pulse" />
-            <div className="h-64 bg-white border rounded-2xl border-gray-200/80 animate-pulse" />
+      <div className="pb-10 space-y-6">
+        <div className="h-[104px] rounded-xl bg-neutral-900 animate-pulse" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-6">
+            <div className="h-[420px] bg-white border border-gray-200 rounded-xl animate-pulse" />
+            <div className="h-48 bg-white border border-gray-200 rounded-xl animate-pulse" />
           </div>
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => <div key={i} className="h-44 bg-white border rounded-2xl border-gray-200/80 animate-pulse" />)}
-          </div>
+          <div className="bg-white border border-gray-200 h-80 rounded-xl animate-pulse" />
         </div>
       </div>
     );
@@ -380,374 +373,280 @@ export default function AdminProductReviewPage() {
 
   if (error || !product) {
     return (
-      <div className="max-w-xl py-16 mx-auto space-y-4 text-center">
-        <div className="flex items-center justify-center mx-auto w-14 h-14 rounded-2xl bg-red-50 text-brand-red">
-          <AlertCircle className="w-7 h-7" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900">Product Not Found</h2>
-        <p className="text-sm text-gray-500">{error ?? 'The requested product could not be loaded.'}</p>
-        <Link
-          to="/admin/products"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-red-dark transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" /> Back to Products
+      <div className="max-w-md py-20 mx-auto text-center">
+        <h2 className="text-lg font-semibold text-gray-900">Product not found</h2>
+        <p className="mt-1 text-sm text-gray-500">{error ?? 'The requested product could not be loaded.'}</p>
+        <Link to="/admin/products" className="inline-flex items-center gap-1.5 mt-5 text-sm font-semibold text-brand-red hover:underline">
+          <ChevronLeft className="w-4 h-4" /> Back to products
         </Link>
       </div>
     );
   }
 
   const images = product.images;
-  const statusInfo = STATUS_STYLES[product.status] ?? { badge: '', label: product.status };
+  const cover = images[activeImgIdx]?.url ?? product.thumbnail_url;
+  const statusLabel = STATUS_STYLES[product.status]?.label ?? product.status;
   const prices = product.variants.map((v) => Number(v.price));
   const minPrice = prices.length ? Math.min(...prices) : Number(product.base_price);
   const maxPrice = prices.length ? Math.max(...prices) : Number(product.base_price);
   const totalStock = product.variants.reduce((sum, v) => sum + v.stock_quantity, 0);
-  const outOfStock = product.variants.filter((v) => v.stock_quantity === 0).length;
-  const hasSafety = Boolean(product.ingredients || product.allergen_info || product.expiry_best_before || product.net_weight_volume || product.storage_instructions);
-  const docsOnFile = Number(Boolean(product.fda_lto_on_file)) + Number(Boolean(product.fda_cpr_on_file));
+  const soldOut = product.variants.filter((v) => v.stock_quantity === 0).length;
   const dims = product.dimension_l_cm && product.dimension_w_cm && product.dimension_h_cm
     ? `${product.dimension_l_cm} × ${product.dimension_w_cm} × ${product.dimension_h_cm} cm`
     : null;
-
-  const tabs: { key: DetailTab; label: string; icon: React.ElementType; count?: number }[] = [
-    { key: 'description', label: 'Description', icon: FileText },
-    { key: 'variants', label: 'Variants & stock', icon: Layers, count: product.variants.length },
-    ...(hasSafety ? [{ key: 'safety' as const, label: 'Safety specs', icon: ShieldCheck }] : []),
-    { key: 'shipping', label: 'Shipping', icon: Box },
+  const safety = [
+    ['Net weight / volume', product.net_weight_volume],
+    ['Expiry / best before', product.expiry_best_before],
+    ['Storage', product.storage_instructions],
+    ['Ingredients', product.ingredients],
+  ].filter(([, v]) => Boolean(v)) as [string, string][];
+  const docs: { type: 'fda-lto' | 'fda-cpr'; name: string; short: string; onFile: boolean }[] = [
+    { type: 'fda-lto', name: 'License to Operate', short: 'FDA LTO', onFile: Boolean(product.fda_lto_on_file) },
+    { type: 'fda-cpr', name: 'Certificate of Product Registration', short: 'FDA CPR', onFile: Boolean(product.fda_cpr_on_file) },
   ];
-  const shownTab = tabs.some((t) => t.key === tab) ? tab : 'description';
 
-  const docs: { type: 'fda-lto' | 'fda-cpr'; name: string; hint: string; onFile: boolean }[] = [
-    { type: 'fda-lto', name: 'FDA License to Operate (LTO)', hint: 'Food, supplements & cosmetics', onFile: Boolean(product.fda_lto_on_file) },
-    { type: 'fda-cpr', name: 'Certificate of Product Registration (CPR)', hint: 'Product-specific registration', onFile: Boolean(product.fda_cpr_on_file) },
-  ];
+  const ghost = 'inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-white/15 text-white/90 text-[13px] font-semibold hover:bg-white/10 transition-colors disabled:opacity-50';
+  const solid = 'inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-white text-[13px] font-semibold transition-colors disabled:opacity-50';
 
   return (
-    <div ref={pageRef} className="pb-10 space-y-3">
-      {/* ── Breadcrumb ── */}
-      <nav className="flex items-center gap-1.5 text-[12px] text-gray-500" aria-label="Breadcrumb">
-        <button type="button" onClick={() => navigate('/admin/products')} className="inline-flex items-center gap-1 font-semibold hover:text-brand-red">
+    <div ref={pageRef} className="pb-12">
+      {/* ── Header: the theme's dark band, typographic rather than decorated ── */}
+      <header
+        className="px-5 py-4 border rounded-xl border-neutral-800 sm:px-6"
+        style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
+      >
+        <button type="button" onClick={() => navigate('/admin/products')} className="inline-flex items-center gap-1 text-[12px] text-white/50 hover:text-white">
           <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" /> Products
         </button>
-        <span aria-hidden="true">/</span>
-        <span className="font-mono text-gray-400">#{product.id}</span>
-      </nav>
 
-      {/* ── Hero: identity, status and the moderation actions ── */}
-      <PageHero
-        icon={Package}
-        eyebrow={`Catalog${product.category ? ` · ${product.category.name}` : ''}`}
-        title={product.name}
-        subtitle={<>Submitted by <span className="font-semibold text-white/90">{product.seller?.shop_name || 'Seller'}</span> · {fmtDate(product.created_at)}</>}
-      >
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusInfo.badge}`}>
-          <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
-          {statusInfo.label}
-        </span>
-        {product.status === 'pending_review' && (
-          <>
-            <button type="button" disabled={actioning} onClick={() => setShowRejectModal(true)} className={`${HERO_BUTTON} text-red-200 hover:bg-red-500/20`}>
-              <XCircle className="w-4 h-4 text-red-300" aria-hidden="true" /> Reject
-            </button>
-            <button
-              type="button"
-              disabled={actioning}
-              onClick={handleApprove}
-              className="min-h-11 inline-flex items-center gap-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
-            >
-              {actioning ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
-              Approve
-            </button>
-          </>
-        )}
-        {product.status === 'active' && (
-          <button type="button" disabled={actioning} onClick={() => setShowArchiveModal(true)} className={HERO_BUTTON}>
-            <Archive className="w-4 h-4" aria-hidden="true" /> Archive
-          </button>
-        )}
-        {(product.status === 'archived' || product.status === 'rejected') && (
-          <button
-            type="button"
-            disabled={actioning}
-            onClick={handleReactivate}
-            className="min-h-11 inline-flex items-center gap-2 px-4 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
-          >
-            {actioning ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <RotateCcw className="w-4 h-4" aria-hidden="true" />}
-            Reactivate
-          </button>
-        )}
-      </PageHero>
+        <div className="flex flex-col gap-4 mt-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center min-w-0 gap-4">
+            <div className="w-14 h-14 overflow-hidden bg-white rounded-lg shrink-0">
+              {cover ? <img src={cover} alt="" className="object-cover w-full h-full" /> : <div className="w-full h-full bg-neutral-200" />}
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight text-white truncate sm:text-2xl">{product.name}</h1>
+              <p className="mt-1 text-[13px] text-white/55 truncate">
+                {product.seller?.shop_name || 'Unknown shop'}
+                {product.category && <> · {product.category.name}</>}
+                <> · #{product.id}</>
+              </p>
+            </div>
+          </div>
 
-      {actionError && (
-        <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
-          <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />{actionError}</span>
-          <button type="button" onClick={() => setActionError('')} aria-label="Dismiss" className="p-1 rounded hover:bg-red-100"><X className="w-3.5 h-3.5" /></button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <span className="inline-flex items-center gap-2 mr-2 text-[13px] text-white/80">
+              <span className={`w-2 h-2 rounded-full ${STATUS_DOT[product.status] ?? 'bg-neutral-400'}`} aria-hidden="true" />
+              <span className="font-semibold text-white">{statusLabel}</span>
+              <span className="hidden text-white/45 sm:inline">{STATUS_NOTE[product.status] ?? ''}</span>
+            </span>
+            {product.status === 'pending_review' && (
+              <>
+                <button type="button" disabled={actioning} onClick={() => setShowRejectModal(true)} className={ghost}>Reject</button>
+                <button type="button" disabled={actioning} onClick={handleApprove} className={`${solid} bg-brand-red hover:bg-brand-red-dark`}>
+                  {actioning && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Approve
+                </button>
+              </>
+            )}
+            {product.status === 'active' && (
+              <button type="button" disabled={actioning} onClick={() => setShowArchiveModal(true)} className={ghost}>Archive</button>
+            )}
+            {(product.status === 'archived' || product.status === 'rejected') && (
+              <button type="button" disabled={actioning} onClick={handleReactivate} className={`${solid} bg-brand-red hover:bg-brand-red-dark`}>
+                {actioning && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Reactivate
+              </button>
+            )}
+          </div>
         </div>
-      )}
+      </header>
 
-      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* ── Notes that change what the admin does next ── */}
+      <div className="mt-4 space-y-2 empty:hidden">
+        {actionError && (
+          <div role="alert" className="flex items-center justify-between gap-3 py-2.5 pl-4 pr-2 text-[13px] text-red-800 bg-red-50 border-l-2 border-red-500 rounded-r-lg">
+            {actionError}
+            <button type="button" onClick={() => setActionError('')} aria-label="Dismiss" className="p-1 rounded hover:bg-red-100"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
+        {product.status === 'rejected' && product.rejection_reason && (
+          <p className="py-2.5 px-4 text-[13px] text-red-800 bg-red-50 border-l-2 border-red-500 rounded-r-lg">
+            <span className="font-semibold">Rejected:</span> {product.rejection_reason}
+          </p>
+        )}
+        {product.status === 'archived' && product.archive_reason && (
+          <p className="py-2.5 px-4 text-[13px] text-gray-700 bg-gray-100 border-l-2 border-gray-400 rounded-r-lg">
+            <span className="font-semibold">Archived by {product.archived_by === 'admin' ? 'an administrator' : 'the seller'}:</span> {product.archive_reason}
+          </p>
+        )}
+        {product.allergen_info && (
+          <p className="py-2.5 px-4 text-[13px] text-amber-900 bg-amber-50 border-l-2 border-amber-500 rounded-r-lg">
+            <span className="font-semibold">Allergens:</span> {product.allergen_info}
+          </p>
+        )}
+      </div>
+
+      <div className="grid items-start gap-6 mt-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* ═══ Main column ═══ */}
-        <div className="min-w-0 space-y-3">
-          {/* ── Overview: gallery + summary ── */}
-          <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
-            <div className="grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-              {/* Gallery: thumbnail rail beside the stage */}
-              <div className="flex gap-3 p-4 border-b border-gray-100 md:border-b-0 md:border-r">
-                {images.length > 1 && (
-                  <div className="flex flex-col gap-2 overflow-y-auto max-h-[380px] pr-0.5" style={{ scrollbarWidth: 'none' }}>
-                    {images.map((img, i) => (
-                      <button
-                        key={img.id}
-                        type="button"
-                        onClick={() => setActiveImgIdx(i)}
-                        aria-label={`Show photo ${i + 1}`}
-                        aria-current={i === activeImgIdx}
-                        className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
-                          i === activeImgIdx ? 'border-brand-red' : 'border-gray-200 opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={img.url} alt="" className="object-cover w-full h-full" />
-                        {img.is_primary && <span className="absolute inset-x-0 bottom-0 bg-brand-red text-white text-[8px] font-bold text-center">MAIN</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="relative flex items-center justify-center flex-1 overflow-hidden border border-gray-100 aspect-square rounded-xl bg-gray-50">
-                  {images.length > 0 ? (
-                    <>
-                      <img src={images[activeImgIdx]?.url} alt={product.name} className="object-contain w-full h-full" />
-                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
-                        {activeImgIdx + 1} / {images.length}
-                      </span>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-gray-400">
-                      <Package className="w-8 h-8 text-gray-300" aria-hidden="true" />
-                      <p className="text-[12px]">No product photos uploaded.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="flex flex-col gap-4 p-5">
-                <div>
-                  <p className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Price</p>
-                  <p className="text-2xl font-black tracking-tight text-gray-900">
-                    {minPrice === maxPrice ? fmt(minPrice) : `${fmt(minPrice)} – ${fmt(maxPrice)}`}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    {product.category && <Pill tone="violet">{product.category.name}</Pill>}
-                    {product.sku && <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-mono">SKU {product.sku}</span>}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <StatCard compact icon={Layers} label="Variants" value={product.variants.length} iconBg="bg-violet-50" iconColor="text-violet-600" />
-                  <StatCard compact icon={Package} label="Units in stock" value={totalStock} subtext={outOfStock ? `${outOfStock} sold out` : undefined} iconBg="bg-sky-50" iconColor="text-sky-600" />
-                  <StatCard compact icon={TrendingUp} label="Units sold" value={product.units_sold} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                  <StatCard compact icon={ImageIcon} label="Photos" value={images.length} iconBg="bg-rose-50" iconColor="text-brand-red" />
-                </div>
-
-                {product.status === 'rejected' && product.rejection_reason && (
-                  <div className="flex items-start gap-2.5 p-3 border border-red-200 rounded-xl bg-red-50">
-                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-                    <div className="text-[12px]">
-                      <p className="font-bold text-red-900">Rejection reason</p>
-                      <p className="mt-0.5 leading-relaxed text-red-700">{product.rejection_reason}</p>
-                    </div>
-                  </div>
-                )}
-                {product.status === 'archived' && product.archive_reason && (
-                  <div className="flex items-start gap-2.5 p-3 border border-gray-200 rounded-xl bg-gray-50">
-                    <Archive className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
-                    <div className="text-[12px]">
-                      <p className="font-bold text-gray-800">Archived by {product.archived_by === 'admin' ? 'an administrator' : 'the seller'}</p>
-                      <p className="mt-0.5 leading-relaxed text-gray-600">{product.archive_reason}</p>
-                    </div>
-                  </div>
-                )}
-                {product.allergen_info && (
-                  <div className="flex items-start gap-2.5 p-3 border rounded-xl bg-amber-50/70 border-amber-200/80">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-                    <p className="text-[12px] text-amber-900"><span className="font-bold">Allergens:</span> {product.allergen_info}</p>
-                  </div>
-                )}
-              </div>
+        <div className="min-w-0 space-y-6">
+          {/* Gallery: one stage, a filmstrip under it */}
+          <section>
+            <div className="flex items-center justify-center overflow-hidden bg-white border border-gray-200 rounded-xl aspect-[4/3]">
+              {images.length > 0 ? (
+                <img src={images[activeImgIdx]?.url} alt={product.name} className="object-contain w-full h-full p-4" />
+              ) : (
+                <p className="text-[13px] text-gray-400">No photos uploaded.</p>
+              )}
             </div>
-          </section>
-
-          {/* ── Details, as tabs ── */}
-          <section className="bg-white border shadow-xs border-gray-200/80 rounded-2xl">
-            <div className="flex gap-1 px-3 pt-3 overflow-x-auto border-b border-gray-100" role="tablist" aria-label="Product details" style={{ scrollbarWidth: 'none' }}>
-              {tabs.map((t) => {
-                const active = t.key === shownTab;
-                return (
+            {images.length > 1 && (
+              <div className="flex gap-2 mt-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                {images.map((img, i) => (
                   <button
-                    key={t.key}
+                    key={img.id}
                     type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setTab(t.key)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2.5 -mb-px border-b-2 text-xs font-bold whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red rounded-t-lg ${
-                      active ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-500 hover:text-gray-800'
-                    }`}
+                    onClick={() => setActiveImgIdx(i)}
+                    aria-label={`Photo ${i + 1}${img.is_primary ? ' (main)' : ''}`}
+                    aria-current={i === activeImgIdx}
+                    className="relative pb-1.5 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red rounded-lg"
                   >
-                    <t.icon className="w-3.5 h-3.5" aria-hidden="true" />
-                    {t.label}
-                    {t.count !== undefined && <span className={`px-1.5 rounded-full text-[10px] ${active ? 'bg-red-50' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>}
+                    <img
+                      src={img.url}
+                      alt=""
+                      className={`w-16 h-16 rounded-lg object-cover border transition-opacity ${i === activeImgIdx ? 'border-gray-300' : 'border-gray-200 opacity-60 hover:opacity-100'}`}
+                    />
+                    <span className={`absolute left-2 right-2 bottom-0 h-0.5 rounded-full ${i === activeImgIdx ? 'bg-brand-red' : 'bg-transparent'}`} aria-hidden="true" />
                   </button>
-                );
-              })}
-            </div>
-
-            <div className="p-5" role="tabpanel">
-              {shownTab === 'description' && (
-                product.description ? (
-                  <div
-                    className="prose prose-sm max-w-none text-gray-700 leading-relaxed [&_img]:rounded-xl [&_img]:max-w-full [&_img]:shadow-sm [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h1]:text-lg [&_h2]:text-base [&_p]:mb-2.5 [&_li]:mb-1"
-                    dangerouslySetInnerHTML={{ __html: product.description }}
-                  />
-                ) : (
-                  <p className="py-6 text-[13px] text-center text-gray-400">No description provided by the seller.</p>
-                )
-              )}
-
-              {shownTab === 'variants' && (
-                product.variants.length > 0 ? (
-                  <div className="overflow-hidden border border-gray-100 rounded-xl">
-                    <table className="w-full text-[13px]">
-                      <thead>
-                        <tr className="text-left bg-gray-50">
-                          {['Option', 'SKU', 'Price', 'Stock'].map((h) => (
-                            <th key={h} scope="col" className={`px-4 py-2.5 text-[10px] font-bold tracking-wide text-gray-500 uppercase ${h === 'Price' ? 'text-right' : ''}`}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {product.variants.map((v) => (
-                          <tr key={v.id} className="hover:bg-gray-50/60">
-                            <td className="px-4 py-2.5 font-semibold text-gray-800">{v.label}</td>
-                            <td className="px-4 py-2.5 font-mono text-[12px] text-gray-500">{v.sku || '—'}</td>
-                            <td className="px-4 py-2.5 font-bold text-right text-gray-900 tabular-nums">{fmt(v.price)}</td>
-                            <td className="px-4 py-2.5"><Pill tone={stockTone(v.stock_quantity)}>{v.stock_quantity === 0 ? 'Sold out' : `${v.stock_quantity} in stock`}</Pill></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-gray-50/60 text-[12px]">
-                          <td className="px-4 py-2.5 font-bold text-gray-600" colSpan={3}>Total stock</td>
-                          <td className="px-4 py-2.5 font-black text-gray-900 tabular-nums">{totalStock}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="py-6 text-[13px] text-center text-gray-400">A single product without variants, at {fmt(product.base_price)}.</p>
-                )
-              )}
-
-              {shownTab === 'safety' && (
-                <dl className="grid gap-2.5 sm:grid-cols-2">
-                  {product.net_weight_volume && <Spec label="Net weight / volume">{product.net_weight_volume}</Spec>}
-                  {product.expiry_best_before && <Spec label="Expiry / best before">{product.expiry_best_before}</Spec>}
-                  {product.storage_instructions && <Spec label="Storage instructions" wide>{product.storage_instructions}</Spec>}
-                  {product.ingredients && <Spec label="Ingredients" wide>{product.ingredients}</Spec>}
-                  {product.allergen_info && <Spec label="Allergen information" wide>{product.allergen_info}</Spec>}
-                </dl>
-              )}
-
-              {shownTab === 'shipping' && (
-                <dl className="grid gap-2.5 sm:grid-cols-3">
-                  <Spec label="Package weight">{product.weight_kg ? `${product.weight_kg} kg` : '—'}</Spec>
-                  <Spec label="Dimensions (L × W × H)">{dims ?? '—'}</Spec>
-                  <Spec label="Base price">{fmt(product.base_price)}</Spec>
-                </dl>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
+
+          <Panel title="Description">
+            {product.description ? (
+              <div
+                className="max-w-prose py-1 text-[14px] text-gray-700 leading-7 [&_img]:rounded-lg [&_img]:max-w-full [&_img]:my-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_li]:mb-1 [&_b]:text-gray-900 [&_strong]:text-gray-900"
+                dangerouslySetInnerHTML={{ __html: product.description }}
+              />
+            ) : (
+              <p className="py-2 text-[13px] text-gray-400">The seller did not write a description.</p>
+            )}
+          </Panel>
+
+          <Panel title={`Variants · ${product.variants.length}`} flush>
+            {product.variants.length > 0 ? (
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th scope="col" className="px-4 py-2.5 font-medium">Option</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">SKU</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium text-right">Price</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium text-right">Stock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {product.variants.map((v) => (
+                    <tr key={v.id} className="border-t border-gray-100">
+                      <td className="px-4 py-2.5 font-medium text-gray-900">{v.label}</td>
+                      <td className="px-4 py-2.5 font-mono text-[12px] text-gray-500">{v.sku || '—'}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-900">{fmt(v.price)}</td>
+                      <td className={`px-4 py-2.5 text-right tabular-nums ${v.stock_quantity === 0 ? 'text-red-600 font-semibold' : v.stock_quantity <= 10 ? 'text-amber-700' : 'text-gray-900'}`}>
+                        {v.stock_quantity === 0 ? 'Sold out' : v.stock_quantity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-gray-200">
+                    <td colSpan={3} className="px-4 py-2.5 text-gray-500">Total in stock</td>
+                    <td className="px-4 py-2.5 font-semibold text-right text-gray-900 tabular-nums">{totalStock}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            ) : (
+              <p className="px-4 py-3 text-[13px] text-gray-500">Sold as a single item at {fmt(product.base_price)}.</p>
+            )}
+          </Panel>
+
+          {safety.length > 0 && (
+            <Panel title="Food & safety">
+              <dl className="grid gap-x-8 sm:grid-cols-2">
+                {safety.map(([label, value]) => (
+                  <div key={label} className="py-2.5 border-b border-gray-100 last:border-0 sm:[&:nth-last-child(2)]:border-0">
+                    <dt className="text-[12px] text-gray-500">{label}</dt>
+                    <dd className="mt-0.5 text-[13px] text-gray-900 leading-relaxed">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Panel>
+          )}
         </div>
 
-        {/* ═══ Right rail ═══ */}
-        <aside className="space-y-3 lg:sticky lg:top-20">
-          <RailSection
-            icon={FileCheck}
-            title="Compliance"
-            aside={<Pill tone={docsOnFile === 2 ? 'emerald' : docsOnFile === 1 ? 'amber' : 'gray'}>{docsOnFile}/2 on file</Pill>}
-          >
-            <ul className="space-y-2">
+        {/* ═══ Side column ═══ */}
+        <aside className="space-y-4 lg:sticky lg:top-20">
+          <Panel title="Summary">
+            <dl>
+              <Row label="Price" strong>{minPrice === maxPrice ? fmt(minPrice) : `${fmt(minPrice)} – ${fmt(maxPrice)}`}</Row>
+              <Row label="In stock">{totalStock}{soldOut > 0 && <span className="ml-1.5 text-red-600">({soldOut} sold out)</span>}</Row>
+              <Row label="Sold">{product.units_sold}</Row>
+              <Row label="Category">{product.category?.name ?? '—'}</Row>
+              {product.sku && <Row label="SKU"><span className="font-mono text-[12px]">{product.sku}</span></Row>}
+              <Row label="Weight">{product.weight_kg ? `${product.weight_kg} kg` : '—'}</Row>
+              <Row label="Dimensions">{dims ?? '—'}</Row>
+              <Row label="Submitted">{fmtDate(product.created_at)}</Row>
+            </dl>
+          </Panel>
+
+          <Panel title="FDA documents" flush>
+            <ul>
               {docs.map((d) => (
-                <li key={d.type} className="flex items-center gap-3 p-2.5 border border-gray-100 rounded-xl bg-gray-50/70">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${d.onFile ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
-                    <FileText className="w-4 h-4" aria-hidden="true" />
+                <li key={d.type} className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 first:border-0">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-gray-900">{d.short}</p>
+                    <p className="text-[12px] text-gray-500 truncate">{d.name}</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-bold leading-tight text-gray-800">{d.name}</p>
-                    <p className="text-[10px] text-gray-400">{d.onFile ? d.hint : 'Not uploaded'}</p>
-                  </div>
-                  {d.onFile && (
+                  {d.onFile ? (
                     <button
                       type="button"
                       disabled={loadingDocType === d.type}
-                      onClick={() => handleViewDoc(d.type, `${d.type === 'fda-lto' ? 'FDA LTO' : 'FDA CPR'} - ${product.name}`)}
-                      aria-label={`Preview ${d.name}`}
-                      className="inline-flex items-center gap-1 px-2.5 min-h-[30px] rounded-lg border border-gray-200 bg-white text-[11px] font-bold text-gray-700 hover:border-brand-red hover:text-brand-red transition-colors"
+                      onClick={() => handleViewDoc(d.type, `${d.short} - ${product.name}`)}
+                      className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand-red hover:underline disabled:opacity-50 shrink-0"
                     >
-                      {loadingDocType === d.type ? <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-red" /> : <Eye className="w-3.5 h-3.5" />}
+                      {loadingDocType === d.type && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                       View
                     </button>
+                  ) : (
+                    <span className="text-[12px] text-gray-400 shrink-0">Not uploaded</span>
                   )}
                 </li>
               ))}
             </ul>
-          </RailSection>
+          </Panel>
 
-          <RailSection
-            icon={Store}
+          <Panel
             title="Seller"
-            aside={product.seller?.shop_slug ? (
-              <Link to={`/shop/${product.seller.shop_slug}`} target="_blank" className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:underline">
+            action={product.seller?.shop_slug ? (
+              <Link to={`/shop/${product.seller.shop_slug}`} target="_blank" className="inline-flex items-center gap-1 text-[12px] font-semibold text-brand-red hover:underline">
                 Storefront <ExternalLink className="w-3 h-3" aria-hidden="true" />
               </Link>
             ) : undefined}
           >
             {product.seller ? (
-              <div className="space-y-3">
+              <>
                 <div className="flex items-center gap-3">
-                  <Avatar name={product.seller.full_name} src={product.seller.avatar_url} size="lg" />
+                  <Avatar name={product.seller.full_name} src={product.seller.avatar_url} size="md" />
                   <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-gray-900 truncate">{product.seller.shop_name || product.seller.full_name}</p>
-                    <p className="text-[11px] text-gray-400 truncate">Owner · {product.seller.full_name}</p>
+                    <p className="text-[13px] font-semibold text-gray-900 truncate">{product.seller.shop_name || product.seller.full_name}</p>
+                    <p className="text-[12px] text-gray-500 truncate">{product.seller.full_name}</p>
                   </div>
                 </div>
-                <ul className="space-y-1.5 text-[12px] text-gray-600">
-                  <li className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" /><span className="truncate">{product.seller.email}</span></li>
-                  {product.seller.phone && <li className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />{product.seller.phone}</li>}
-                </ul>
-              </div>
+                <dl className="mt-3">
+                  <Row label="Email"><a href={`mailto:${product.seller.email}`} className="hover:text-brand-red break-all">{product.seller.email}</a></Row>
+                  {product.seller.phone && <Row label="Phone">{product.seller.phone}</Row>}
+                </dl>
+              </>
             ) : (
-              <p className="text-[12px] text-gray-400">No seller account tied to this product.</p>
+              <p className="text-[13px] text-gray-500">No seller account is tied to this product.</p>
             )}
-          </RailSection>
-
-          <RailSection icon={Calendar} title="Timeline">
-            <ol className="relative space-y-3 pl-4 before:absolute before:left-[5px] before:top-1.5 before:bottom-1.5 before:w-px before:bg-gray-200">
-              <li className="relative">
-                <span className="absolute -left-4 top-1 w-2.5 h-2.5 rounded-full bg-gray-300 ring-2 ring-white" aria-hidden="true" />
-                <p className="text-[12px] font-bold text-gray-800">Submitted</p>
-                <p className="text-[11px] text-gray-400">{fmtDate(product.created_at)}</p>
-              </li>
-              <li className="relative">
-                <span className={`absolute -left-4 top-1 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                  { pending_review: 'bg-amber-500', active: 'bg-emerald-500', rejected: 'bg-red-500', archived: 'bg-gray-400', draft: 'bg-blue-500' }[product.status] ?? 'bg-gray-400'
-                }`} aria-hidden="true" />
-                <p className="text-[12px] font-bold text-gray-800">Now: {statusInfo.label}</p>
-                <p className="text-[11px] text-gray-400">
-                  {product.status === 'pending_review' ? 'Waiting for an admin decision' : product.status === 'active' ? 'Visible to buyers in the store' : product.status === 'draft' ? 'Not submitted for review yet' : 'Hidden from buyers'}
-                </p>
-              </li>
-            </ol>
-          </RailSection>
+          </Panel>
         </aside>
       </div>
 
