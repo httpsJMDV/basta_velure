@@ -24,7 +24,8 @@ class PasswordResetMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(markdown: 'emails.password-reset', with: [
+        return new Content(view: 'emails.password-reset', text: 'emails.text', with: [
+            'template' => 'emails.password-reset',
             'name'     => $this->name,
             'resetUrl' => $this->resetUrl,
         ]);

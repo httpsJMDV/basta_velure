@@ -1,16 +1,11 @@
-<x-mail::message>
-# New parcels assigned to you
-
-Hi {{ $firstName }},
-
-**{{ $hubName }}** has assigned **{{ $parcelCount }} {{ $parcelCount === 1 ? 'parcel' : 'parcels' }}** to you for delivery in **{{ $barangayName }}**.
-
-Log in to Loved-IT to see your assignments. Please collect the parcels from the hub when you are ready to start your run.
-
-<x-mail::button :url="$loginUrl" color="red">
-Log In to Loved-IT
-</x-mail::button>
-
-Thanks,<br>
-**{{ $hubName }} & The Loved-IT Logistics Team**
-</x-mail::message>
+@php
+$recipientName = $firstName;
+$label = 'Delivery assignment'; $title = 'Your next deliveries are ready.';
+$paragraphs = [$hubName . ' has assigned ' . $parcelCount . ' ' . ($parcelCount === 1 ? 'parcel' : 'parcels') . ' to you. Sign in to review your assignments and coordinate collection with your hub.'];
+$details = ['Logistics hub' => $hubName, 'Parcels assigned' => $parcelCount, 'Delivery area' => $barangayName];
+$actionLabel = 'View rider assignments'; $actionUrl = $loginUrl;
+$note = 'Check the latest assignment details in your rider portal before starting your delivery run.';
+$footer = 'You received this operational notification because parcels were assigned to your Loved-IT rider account.';
+$preview = $paragraphs[0];
+@endphp
+@include(!empty($plainText) ? 'emails.layouts.plain' : 'emails.layouts.branded')

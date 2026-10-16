@@ -247,3 +247,68 @@ routes/
 storage/
 └── app/private/                — Government ID scans (never publicly reachable)
 ```
+
+## Buyer application decision emails
+
+Admin approval (`POST /api/v1/admin/buyer-applications/{user}/approve`) queues a
+`BuyerApplicationMail` to the buyer's registered email after the approval commits.
+Rejection uses the same branded template with review feedback. The email includes
+the website logo as an inline attachment, so it does not depend on a public image URL.
+
+For delivery, configure the SMTP values described above and set `MAIL_MAILER=smtp`.
+`MAIL_MAILER=log` only writes email output to the application log; it does not deliver
+messages. Mailtrap sandbox captures test messages rather than delivering to buyers.
+Set `FRONTEND_URL` to the public website URL so the sign-in button opens the correct site.
+After changing environment settings, run `php artisan config:clear`.
+
+With `QUEUE_CONNECTION=database`, run a worker (and keep it running in production):
+
+```bash
+php artisan queue:work --tries=3 --backoff=60
+```
+
+Restart workers after deployments with `php artisan queue:restart`. Inspect delivery
+failures with `php artisan queue:failed` and retry resolved failures with
+`php artisan queue:retry <job-id>`. Queue submission errors are reported to the
+application log; email transport failures do not undo a successful buyer approval.
+
+### Simple Gmail delivery setup
+
+The local mail settings use Gmail SMTP (`smtp.gmail.com`, port `587`, STARTTLS).
+Set only these two values in `backend/.env`:
+
+```env
+MAIL_USERNAME=your-sender@gmail.com
+MAIL_PASSWORD="your-google-app-password"
+```
+
+Use a Google App Password, not your regular Gmail password. Enable 2-Step
+Verification and generate the password for Loved-IT in your Google account:
+https://support.google.com/mail/answer/185833
+
+`MAIL_FROM_ADDRESS="${MAIL_USERNAME}"` uses that same Gmail address as the sender.
+The sender display name is Loved-IT. These are backend secrets; do not put them
+in the frontend environment or commit them to Git.
+
+From the backend directory, reload settings and send yourself a preview:
+
+```bash
+php artisan config:clear
+php artisan mail:check --to=your-sender@gmail.com
+```
+
+The preview uses the actual branded approval template and does not approve or
+create an account. A successful transport submission is not proof of inbox delivery;
+check the inbox and spam folder. Running `php artisan mail:check` without `--to`
+checks settings without sending an email.
+
+For real admin approvals, keep the queue worker running in another terminal:
+
+```bash
+php artisan queue:work --tries=3 --backoff=60
+```
+
+If a worker was already running before changing mail settings, restart it with
+`php artisan queue:restart`. Buyer decision emails retry transient failures up to
+three times with a 60-second delay. Previously consumed log emails are not delivered
+retroactively. Failed jobs can be reviewed with `php artisan queue:failed`.

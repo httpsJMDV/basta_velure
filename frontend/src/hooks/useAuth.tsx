@@ -22,9 +22,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [suspended, setSuspended] = useState(false);
 
   useEffect(() => {
+    let active = true;
     if (!token) { setLoading(false); return; }
     getMeApi()
       .then((u) => {
+        if (!active) return;
         if (u.status === 'suspended') {
           // Token still technically valid but account is suspended —
           // wipe local auth and show the suspended banner.
@@ -37,8 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(u);
         }
       })
-      .catch(() => { localStorage.removeItem('token'); setToken(null); })
-      .finally(() => setLoading(false));
+      .catch((err: { response?: { status?: number } }) => {
+        if (!active) return;
+        if (err.response?.status === 401) {
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        }
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [token]);
 
   const setAuth = (u: User, t: string) => {

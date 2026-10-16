@@ -1392,8 +1392,8 @@ export interface ProductReview {
   comment: string | null;
   verified_purchase: boolean;
   created_at: string;
-  images: string[];
-  buyer: { first_name: string; last_name: string; avatar_url: string | null };
+  images?: string[];
+  buyer: { id: number | null; name: string; avatar_url: string | null };
 }
 
 export interface ProductReviewsResponse {
