@@ -15,9 +15,11 @@ import {
   Store, Mail, Phone, Calendar, ShieldCheck,
   AlertTriangle, Eye, Download, X, Layers, ExternalLink,
   Box, AlertCircle, RotateCcw, Archive, FileCheck,
-  Loader2
+  Loader2, TrendingUp, Image as ImageIcon
 } from 'lucide-react';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
+import { PageHero, StatCard, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { Pill, Avatar, type PillTone } from '../../components/admin/listKit';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -247,6 +249,41 @@ function DocumentViewerModal({
   );
 }
 
+// ─── Small pieces of the page ────────────────────────────────────────────────
+
+type DetailTab = 'description' | 'variants' | 'safety' | 'shipping';
+
+/** A white card of the right rail, with the brand-red tick heading the dashboard uses. */
+function RailSection({ icon: Icon, title, aside, children }: { icon: React.ElementType; title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-3.5 rounded-full bg-brand-red" />
+          <Icon className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />
+          <h2 className="text-[11px] font-bold tracking-wider text-gray-800 uppercase">{title}</h2>
+        </div>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** One label / value pair in a spec grid. */
+function Spec({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={`p-3 rounded-xl bg-gray-50 border border-gray-100 ${wide ? 'sm:col-span-2' : ''}`}>
+      <dt className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">{label}</dt>
+      <dd className="mt-0.5 text-[13px] font-semibold text-gray-800 leading-relaxed">{children}</dd>
+    </div>
+  );
+}
+
+function stockTone(qty: number): PillTone {
+  return qty > 10 ? 'emerald' : qty > 0 ? 'amber' : 'red';
+}
+
 // ─── Main AdminProductReviewPage Component ───────────────────────────────────
 
 export default function AdminProductReviewPage() {
@@ -258,9 +295,11 @@ export default function AdminProductReviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actioning, setActioning] = useState(false);
+  const [actionError, setActionError] = useState('');
 
-  // Gallery
+  // Gallery and detail tabs
   const [activeImgIdx, setActiveImgIdx] = useState(0);
+  const [tab, setTab] = useState<DetailTab>('description');
 
   // Modals
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -270,7 +309,6 @@ export default function AdminProductReviewPage() {
   const [activeDoc, setActiveDoc] = useState<{ title: string; blobUrl: string; mimeType: string } | null>(null);
   const [loadingDocType, setLoadingDocType] = useState<'fda-lto' | 'fda-cpr' | null>(null);
 
-  // Fetch product
   const loadProduct = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -278,6 +316,7 @@ export default function AdminProductReviewPage() {
     try {
       const data = await getAdminProductApi(Number(id));
       setProduct(data);
+      setActiveImgIdx(Math.max(0, data.images.findIndex((img) => img.is_primary)));
     } catch {
       setError('Product not found or unable to load details.');
     } finally {
@@ -289,70 +328,34 @@ export default function AdminProductReviewPage() {
     loadProduct();
   }, [loadProduct]);
 
-  // Actions
-  const handleApprove = async () => {
-    if (!product) return;
+  /** Runs one moderation action and keeps the page on its result, showing any failure in the page. */
+  async function act(run: () => Promise<AdminProduct>, failure: string, after?: () => void) {
     setActioning(true);
+    setActionError('');
     try {
-      const updated = await approveAdminProductApi(product.id);
-      setProduct(updated);
+      setProduct(await run());
+      after?.();
     } catch {
-      alert('Failed to approve product. Please try again.');
+      setActionError(failure);
     } finally {
       setActioning(false);
     }
-  };
+  }
 
-  const handleReject = async (reason: string) => {
-    if (!product) return;
-    setActioning(true);
-    try {
-      const updated = await rejectAdminProductApi(product.id, reason);
-      setProduct(updated);
-      setShowRejectModal(false);
-    } catch {
-      alert('Failed to reject product. Please try again.');
-    } finally {
-      setActioning(false);
-    }
-  };
+  const handleApprove = () => product && act(() => approveAdminProductApi(product.id), 'The product could not be approved. Please try again.');
+  const handleReject = (reason: string) => product && act(() => rejectAdminProductApi(product.id, reason), 'The product could not be rejected. Please try again.', () => setShowRejectModal(false));
+  const handleArchive = (reason: string) => product && act(() => archiveAdminProductApi(product.id, reason), 'The product could not be archived. Please try again.', () => setShowArchiveModal(false));
+  const handleReactivate = () => product && act(() => reactivateAdminProductApi(product.id), 'The product could not be reactivated. Please try again.');
 
-  const handleArchive = async (reason: string) => {
-    if (!product) return;
-    setActioning(true);
-    try {
-      const updated = await archiveAdminProductApi(product.id, reason);
-      setProduct(updated);
-      setShowArchiveModal(false);
-    } catch {
-      alert('Failed to archive product. Please try again.');
-    } finally {
-      setActioning(false);
-    }
-  };
-
-  const handleReactivate = async () => {
-    if (!product) return;
-    setActioning(true);
-    try {
-      const updated = await reactivateAdminProductApi(product.id);
-      setProduct(updated);
-    } catch {
-      alert('Failed to reactivate product. Please try again.');
-    } finally {
-      setActioning(false);
-    }
-  };
-
-  // Preview Document
   const handleViewDoc = async (docType: 'fda-lto' | 'fda-cpr', title: string) => {
     if (!product) return;
     setLoadingDocType(docType);
+    setActionError('');
     try {
       const { url, type } = await getAdminProductDocBlobUrl(product.id, docType);
       setActiveDoc({ title, blobUrl: url, mimeType: type });
     } catch {
-      alert(`Could not load ${title}. File may not exist on server.`);
+      setActionError(`${title} could not be loaded. The file may be missing on the server.`);
     } finally {
       setLoadingDocType(null);
     }
@@ -360,16 +363,15 @@ export default function AdminProductReviewPage() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-6 pb-12">
-        <div className="h-10 w-48 bg-gray-200 rounded-xl animate-pulse" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="h-80 bg-white rounded-2xl border border-gray-100 p-6 animate-pulse" />
-            <div className="h-60 bg-white rounded-2xl border border-gray-100 p-6 animate-pulse" />
+      <div className="pb-8 space-y-3">
+        <div className="h-[72px] rounded-2xl bg-neutral-800 animate-pulse" />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-3">
+            <div className="bg-white border h-[420px] rounded-2xl border-gray-200/80 animate-pulse" />
+            <div className="h-64 bg-white border rounded-2xl border-gray-200/80 animate-pulse" />
           </div>
-          <div className="space-y-6">
-            <div className="h-64 bg-white rounded-2xl border border-gray-100 p-6 animate-pulse" />
-            <div className="h-48 bg-white rounded-2xl border border-gray-100 p-6 animate-pulse" />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-44 bg-white border rounded-2xl border-gray-200/80 animate-pulse" />)}
           </div>
         </div>
       </div>
@@ -378,12 +380,12 @@ export default function AdminProductReviewPage() {
 
   if (error || !product) {
     return (
-      <div className="max-w-xl mx-auto text-center py-16 space-y-4">
-        <div className="w-14 h-14 rounded-2xl bg-red-50 text-brand-red flex items-center justify-center mx-auto">
+      <div className="max-w-xl py-16 mx-auto space-y-4 text-center">
+        <div className="flex items-center justify-center mx-auto w-14 h-14 rounded-2xl bg-red-50 text-brand-red">
           <AlertCircle className="w-7 h-7" />
         </div>
         <h2 className="text-xl font-bold text-gray-900">Product Not Found</h2>
-        <p className="text-gray-500 text-sm">{error ?? 'The requested product could not be loaded.'}</p>
+        <p className="text-sm text-gray-500">{error ?? 'The requested product could not be loaded.'}</p>
         <Link
           to="/admin/products"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-red-dark transition-colors"
@@ -394,458 +396,359 @@ export default function AdminProductReviewPage() {
     );
   }
 
-  const images = product.images.length > 0 ? product.images : [];
-  const statusInfo = STATUS_STYLES[product.status] ?? { badge: 'bg-gray-100 text-gray-700', label: product.status };
+  const images = product.images;
+  const statusInfo = STATUS_STYLES[product.status] ?? { badge: '', label: product.status };
+  const prices = product.variants.map((v) => Number(v.price));
+  const minPrice = prices.length ? Math.min(...prices) : Number(product.base_price);
+  const maxPrice = prices.length ? Math.max(...prices) : Number(product.base_price);
+  const totalStock = product.variants.reduce((sum, v) => sum + v.stock_quantity, 0);
+  const outOfStock = product.variants.filter((v) => v.stock_quantity === 0).length;
+  const hasSafety = Boolean(product.ingredients || product.allergen_info || product.expiry_best_before || product.net_weight_volume || product.storage_instructions);
+  const docsOnFile = Number(Boolean(product.fda_lto_on_file)) + Number(Boolean(product.fda_cpr_on_file));
+  const dims = product.dimension_l_cm && product.dimension_w_cm && product.dimension_h_cm
+    ? `${product.dimension_l_cm} × ${product.dimension_w_cm} × ${product.dimension_h_cm} cm`
+    : null;
+
+  const tabs: { key: DetailTab; label: string; icon: React.ElementType; count?: number }[] = [
+    { key: 'description', label: 'Description', icon: FileText },
+    { key: 'variants', label: 'Variants & stock', icon: Layers, count: product.variants.length },
+    ...(hasSafety ? [{ key: 'safety' as const, label: 'Safety specs', icon: ShieldCheck }] : []),
+    { key: 'shipping', label: 'Shipping', icon: Box },
+  ];
+  const shownTab = tabs.some((t) => t.key === tab) ? tab : 'description';
+
+  const docs: { type: 'fda-lto' | 'fda-cpr'; name: string; hint: string; onFile: boolean }[] = [
+    { type: 'fda-lto', name: 'FDA License to Operate (LTO)', hint: 'Food, supplements & cosmetics', onFile: Boolean(product.fda_lto_on_file) },
+    { type: 'fda-cpr', name: 'Certificate of Product Registration (CPR)', hint: 'Product-specific registration', onFile: Boolean(product.fda_cpr_on_file) },
+  ];
 
   return (
-    <div ref={pageRef} className="max-w-6xl mx-auto space-y-6 pb-20">
-      {/* ── Luxury Hero Band / Navigation ── */}
-      <div
-        className="rounded-3xl p-6 sm:p-7 relative overflow-hidden shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5"
-        style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
+    <div ref={pageRef} className="pb-10 space-y-3">
+      {/* ── Breadcrumb ── */}
+      <nav className="flex items-center gap-1.5 text-[12px] text-gray-500" aria-label="Breadcrumb">
+        <button type="button" onClick={() => navigate('/admin/products')} className="inline-flex items-center gap-1 font-semibold hover:text-brand-red">
+          <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" /> Products
+        </button>
+        <span aria-hidden="true">/</span>
+        <span className="font-mono text-gray-400">#{product.id}</span>
+      </nav>
+
+      {/* ── Hero: identity, status and the moderation actions ── */}
+      <PageHero
+        icon={Package}
+        eyebrow={`Catalog${product.category ? ` · ${product.category.name}` : ''}`}
+        title={product.name}
+        subtitle={<>Submitted by <span className="font-semibold text-white/90">{product.seller?.shop_name || 'Seller'}</span> · {fmtDate(product.created_at)}</>}
       >
-        <div className="flex items-start gap-4 min-w-0">
-          <button
-            onClick={() => navigate('/admin/products')}
-            className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-colors shrink-0 mt-0.5"
-            title="Back to Products"
-          >
-            <ChevronLeft className="w-5 h-5" />
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusInfo.badge}`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
+          {statusInfo.label}
+        </span>
+        {product.status === 'pending_review' && (
+          <>
+            <button type="button" disabled={actioning} onClick={() => setShowRejectModal(true)} className={`${HERO_BUTTON} text-red-200 hover:bg-red-500/20`}>
+              <XCircle className="w-4 h-4 text-red-300" aria-hidden="true" /> Reject
+            </button>
+            <button
+              type="button"
+              disabled={actioning}
+              onClick={handleApprove}
+              className="min-h-11 inline-flex items-center gap-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
+            >
+              {actioning ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
+              Approve
+            </button>
+          </>
+        )}
+        {product.status === 'active' && (
+          <button type="button" disabled={actioning} onClick={() => setShowArchiveModal(true)} className={HERO_BUTTON}>
+            <Archive className="w-4 h-4" aria-hidden="true" /> Archive
           </button>
-          <div className="min-w-0 space-y-1.5">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${statusInfo.badge}`}>
-                {statusInfo.label}
-              </span>
-              {product.category && (
-                <span className="text-[12px] text-white/70 font-medium flex items-center gap-1.5">
-                  <span>·</span>
-                  <span className="text-white/90 font-semibold">{product.category.name}</span>
-                </span>
-              )}
-              <span className="text-[12px] text-white/50">· ID #{product.id}</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight truncate">{product.name}</h1>
-            <p className="text-xs text-white/60">
-              Submitted by <span className="text-white/90 font-semibold">{product.seller?.shop_name || 'Seller'}</span> · Base Price: <span className="text-white font-bold">{fmt(Number(product.base_price))}</span>
-            </p>
-          </div>
-        </div>
+        )}
+        {(product.status === 'archived' || product.status === 'rejected') && (
+          <button
+            type="button"
+            disabled={actioning}
+            onClick={handleReactivate}
+            className="min-h-11 inline-flex items-center gap-2 px-4 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
+          >
+            {actioning ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <RotateCcw className="w-4 h-4" aria-hidden="true" />}
+            Reactivate
+          </button>
+        )}
+      </PageHero>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          {product.status === 'pending_review' && (
-            <>
-              <button
-                disabled={actioning}
-                onClick={() => setShowRejectModal(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-red-500/20 text-red-200 border border-red-400/30 text-xs font-bold transition-all disabled:opacity-50"
-              >
-                <XCircle className="w-4 h-4 text-red-400" /> Reject
-              </button>
-              <button
-                disabled={actioning}
-                onClick={handleApprove}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md disabled:opacity-50"
-              >
-                <CheckCircle2 className="w-4 h-4" /> Approve Product
-              </button>
-            </>
-          )}
-
-          {product.status === 'active' && (
-            <button
-              disabled={actioning}
-              onClick={() => setShowArchiveModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-colors disabled:opacity-50"
-            >
-              <Archive className="w-4 h-4" /> Archive Product
-            </button>
-          )}
-
-          {(product.status === 'archived' || product.status === 'rejected') && (
-            <button
-              disabled={actioning}
-              onClick={handleReactivate}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold transition-colors disabled:opacity-50 shadow-md"
-            >
-              <RotateCcw className="w-4 h-4" /> Reactivate / Approve
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Status Alerts (Rejection / Archive reason) ── */}
-      {product.status === 'rejected' && product.rejection_reason && (
-        <div className="bg-red-50/80 border border-red-200 rounded-2xl p-4.5 flex items-start gap-3.5">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <div className="text-[13px]">
-            <p className="font-bold text-red-900">Product Rejected Reason</p>
-            <p className="text-red-700 mt-0.5 leading-relaxed">{product.rejection_reason}</p>
-          </div>
+      {actionError && (
+        <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
+          <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />{actionError}</span>
+          <button type="button" onClick={() => setActionError('')} aria-label="Dismiss" className="p-1 rounded hover:bg-red-100"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
-      {product.status === 'archived' && product.archive_reason && (
-        <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4.5 flex items-start gap-3.5">
-          <Archive className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
-          <div className="text-[13px]">
-            <p className="font-bold text-gray-800">
-              Archived by {product.archived_by === 'admin' ? 'Administrator' : 'Seller'}
-            </p>
-            <p className="text-gray-600 mt-0.5 leading-relaxed">{product.archive_reason}</p>
-          </div>
-        </div>
-      )}
-
-      {/* ── 2-Column Content Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* ── LEFT COLUMN (Product Photos, Rich Description, Variants, Specs) ── */}
-        <div className="lg:col-span-2 space-y-6">
-
-          {/* 1. Image Gallery Card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                <Package className="w-4 h-4 text-brand-red" /> Product Images ({images.length})
-              </h2>
-            </div>
-
-            {images.length > 0 ? (
-              <div className="space-y-3">
-                <div className="w-full h-80 sm:h-96 rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center p-2">
-                  <img
-                    src={images[activeImgIdx]?.url}
-                    alt={product.name}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {/* ═══ Main column ═══ */}
+        <div className="min-w-0 space-y-3">
+          {/* ── Overview: gallery + summary ── */}
+          <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+            <div className="grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+              {/* Gallery: thumbnail rail beside the stage */}
+              <div className="flex gap-3 p-4 border-b border-gray-100 md:border-b-0 md:border-r">
                 {images.length > 1 && (
-                  <div className="flex items-center gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                  <div className="flex flex-col gap-2 overflow-y-auto max-h-[380px] pr-0.5" style={{ scrollbarWidth: 'none' }}>
                     {images.map((img, i) => (
                       <button
                         key={img.id}
+                        type="button"
                         onClick={() => setActiveImgIdx(i)}
-                        className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${
-                          i === activeImgIdx ? 'border-brand-red ring-2 ring-red-100' : 'border-gray-200 opacity-70 hover:opacity-100'
+                        aria-label={`Show photo ${i + 1}`}
+                        aria-current={i === activeImgIdx}
+                        className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+                          i === activeImgIdx ? 'border-brand-red' : 'border-gray-200 opacity-70 hover:opacity-100'
                         }`}
                       >
-                        <img src={img.url} alt="" className="w-full h-full object-cover" />
-                        {img.is_primary && (
-                          <span className="absolute bottom-0 inset-x-0 bg-brand-red text-white text-[8px] font-bold text-center py-0.2">
-                            MAIN
-                          </span>
-                        )}
+                        <img src={img.url} alt="" className="object-cover w-full h-full" />
+                        {img.is_primary && <span className="absolute inset-x-0 bottom-0 bg-brand-red text-white text-[8px] font-bold text-center">MAIN</span>}
                       </button>
                     ))}
                   </div>
                 )}
-              </div>
-            ) : (
-              <div className="h-48 rounded-2xl bg-gray-50 border border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 gap-2">
-                <Package className="w-8 h-8 text-gray-300" />
-                <p className="text-[13px]">No product photos uploaded.</p>
-              </div>
-            )}
-          </div>
-
-          {/* 2. Rich HTML Description Card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-3">
-            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-brand-red" /> Formatted Description
-            </h2>
-
-            {product.description ? (
-              <div className="rounded-2xl bg-gray-50/60 p-5 border border-gray-100">
-                <div
-                  className="prose prose-sm max-w-none text-gray-700 leading-relaxed [&_img]:rounded-xl [&_img]:max-w-full [&_img]:shadow-sm [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h1]:text-lg [&_h2]:text-base [&_p]:mb-2.5 [&_li]:mb-1"
-                  dangerouslySetInnerHTML={{ __html: product.description }}
-                />
-              </div>
-            ) : (
-              <p className="text-[13px] text-gray-400 italic py-4">No description provided by seller.</p>
-            )}
-          </div>
-
-          {/* 3. Variants & Inventory Card (Full width table) */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-brand-red" /> Variants &amp; Inventory ({product.variants.length})
-              </h2>
-            </div>
-
-            {product.variants.length > 0 ? (
-              <div className="rounded-xl border border-gray-100 overflow-hidden">
-                <table className="w-full text-[13px]">
-                  <thead>
-                    <tr className="bg-gray-50/80 border-b border-gray-100 text-left">
-                      <th className="px-4 py-3 font-bold text-gray-400 text-[11px] uppercase tracking-wider">Option Combination</th>
-                      <th className="px-4 py-3 font-bold text-gray-400 text-[11px] uppercase tracking-wider">SKU</th>
-                      <th className="px-4 py-3 font-bold text-gray-400 text-[11px] uppercase tracking-wider">Price (₱)</th>
-                      <th className="px-4 py-3 font-bold text-gray-400 text-[11px] uppercase tracking-wider">Stock</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {product.variants.map((v) => (
-                      <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-gray-800">{v.label}</td>
-                        <td className="px-4 py-3 text-gray-500 font-mono text-[12px]">{v.sku || '—'}</td>
-                        <td className="px-4 py-3 font-bold text-brand-red">{fmt(v.price)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                            v.stock_quantity > 10
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : v.stock_quantity > 0
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-red-50 text-red-700'
-                          }`}>
-                            {v.stock_quantity} in stock
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-bold text-gray-800">Standard Single Product</p>
-                  <p className="text-[12px] text-gray-400">Base Price: {fmt(product.base_price)}</p>
+                <div className="relative flex items-center justify-center flex-1 overflow-hidden border border-gray-100 aspect-square rounded-xl bg-gray-50">
+                  {images.length > 0 ? (
+                    <>
+                      <img src={images[activeImgIdx]?.url} alt={product.name} className="object-contain w-full h-full" />
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
+                        {activeImgIdx + 1} / {images.length}
+                      </span>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-gray-400">
+                      <Package className="w-8 h-8 text-gray-300" aria-hidden="true" />
+                      <p className="text-[12px]">No product photos uploaded.</p>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* 4. Food & Health Safety Specifications */}
-          {(product.ingredients || product.allergen_info || product.expiry_best_before || product.net_weight_volume || product.storage_instructions) && (
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-brand-red" /> Safety &amp; Regulatory Specifications
-              </h2>
+              {/* Summary */}
+              <div className="flex flex-col gap-4 p-5">
+                <div>
+                  <p className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Price</p>
+                  <p className="text-2xl font-black tracking-tight text-gray-900">
+                    {minPrice === maxPrice ? fmt(minPrice) : `${fmt(minPrice)} – ${fmt(maxPrice)}`}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    {product.category && <Pill tone="violet">{product.category.name}</Pill>}
+                    {product.sku && <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-mono">SKU {product.sku}</span>}
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {product.net_weight_volume && (
-                  <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Net Weight / Volume</p>
-                    <p className="text-[13px] font-semibold text-gray-800 mt-1">{product.net_weight_volume}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <StatCard compact icon={Layers} label="Variants" value={product.variants.length} iconBg="bg-violet-50" iconColor="text-violet-600" />
+                  <StatCard compact icon={Package} label="Units in stock" value={totalStock} subtext={outOfStock ? `${outOfStock} sold out` : undefined} iconBg="bg-sky-50" iconColor="text-sky-600" />
+                  <StatCard compact icon={TrendingUp} label="Units sold" value={product.units_sold} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                  <StatCard compact icon={ImageIcon} label="Photos" value={images.length} iconBg="bg-rose-50" iconColor="text-brand-red" />
+                </div>
+
+                {product.status === 'rejected' && product.rejection_reason && (
+                  <div className="flex items-start gap-2.5 p-3 border border-red-200 rounded-xl bg-red-50">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
+                    <div className="text-[12px]">
+                      <p className="font-bold text-red-900">Rejection reason</p>
+                      <p className="mt-0.5 leading-relaxed text-red-700">{product.rejection_reason}</p>
+                    </div>
                   </div>
                 )}
-                {product.expiry_best_before && (
-                  <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Expiry / Best Before</p>
-                    <p className="text-[13px] font-semibold text-gray-800 mt-1">{product.expiry_best_before}</p>
-                  </div>
-                )}
-                {product.storage_instructions && (
-                  <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100 sm:col-span-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Storage Instructions</p>
-                    <p className="text-[13px] font-semibold text-gray-800 mt-1">{product.storage_instructions}</p>
-                  </div>
-                )}
-                {product.ingredients && (
-                  <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100 sm:col-span-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Ingredients</p>
-                    <p className="text-[13px] text-gray-700 mt-1 leading-relaxed">{product.ingredients}</p>
+                {product.status === 'archived' && product.archive_reason && (
+                  <div className="flex items-start gap-2.5 p-3 border border-gray-200 rounded-xl bg-gray-50">
+                    <Archive className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
+                    <div className="text-[12px]">
+                      <p className="font-bold text-gray-800">Archived by {product.archived_by === 'admin' ? 'an administrator' : 'the seller'}</p>
+                      <p className="mt-0.5 leading-relaxed text-gray-600">{product.archive_reason}</p>
+                    </div>
                   </div>
                 )}
                 {product.allergen_info && (
-                  <div className="bg-amber-50/70 rounded-xl p-3.5 border border-amber-200/80 sm:col-span-2 flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Allergen Information</p>
-                      <p className="text-[13px] text-amber-900 font-semibold mt-0.5 leading-relaxed">{product.allergen_info}</p>
-                    </div>
+                  <div className="flex items-start gap-2.5 p-3 border rounded-xl bg-amber-50/70 border-amber-200/80">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+                    <p className="text-[12px] text-amber-900"><span className="font-bold">Allergens:</span> {product.allergen_info}</p>
                   </div>
                 )}
               </div>
             </div>
-          )}
+          </section>
 
-        </div>
-
-        {/* ── RIGHT COLUMN (Compliance Docs, Seller Info, Logistics) ── */}
-        <div className="space-y-6">
-
-          {/* 1. Compliance & FDA Documents Card */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h2 className="text-[14px] font-bold text-gray-900 flex items-center gap-2">
-                <FileCheck className="w-4 h-4 text-brand-red" /> Compliance Documents
-              </h2>
-              <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 bg-red-50 text-brand-red rounded-full">
-                Regulatory
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {/* FDA LTO */}
-              <div className="p-3.5 rounded-xl border border-gray-100 bg-gray-50 flex flex-col gap-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-[12px] font-bold text-gray-800">FDA License to Operate (LTO)</p>
-                    <p className="text-[11px] text-gray-400">Required for food, supplements &amp; cosmetics</p>
-                  </div>
-                  {product.fda_lto_on_file ? (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-md shrink-0">
-                      ON FILE ✓
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-gray-200 text-gray-600 rounded-md shrink-0">
-                      NOT UPLOADED
-                    </span>
-                  )}
-                </div>
-
-                {product.fda_lto_on_file ? (
+          {/* ── Details, as tabs ── */}
+          <section className="bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+            <div className="flex gap-1 px-3 pt-3 overflow-x-auto border-b border-gray-100" role="tablist" aria-label="Product details" style={{ scrollbarWidth: 'none' }}>
+              {tabs.map((t) => {
+                const active = t.key === shownTab;
+                return (
                   <button
+                    key={t.key}
                     type="button"
-                    disabled={loadingDocType === 'fda-lto'}
-                    onClick={() => handleViewDoc('fda-lto', `FDA LTO - ${product.name}`)}
-                    className="w-full py-2 px-3 rounded-lg bg-white border border-gray-200 hover:border-brand-red hover:text-brand-red text-gray-700 text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTab(t.key)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2.5 -mb-px border-b-2 text-xs font-bold whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red rounded-t-lg ${
+                      active ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
                   >
-                    {loadingDocType === 'fda-lto' ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-red" />
-                    ) : (
-                      <Eye className="w-3.5 h-3.5" />
-                    )}
-                    Preview FDA LTO Document
+                    <t.icon className="w-3.5 h-3.5" aria-hidden="true" />
+                    {t.label}
+                    {t.count !== undefined && <span className={`px-1.5 rounded-full text-[10px] ${active ? 'bg-red-50' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>}
                   </button>
-                ) : (
-                  <p className="text-[11px] text-gray-400 italic">No LTO document submitted for this product.</p>
-                )}
-              </div>
-
-              {/* FDA CPR */}
-              <div className="p-3.5 rounded-xl border border-gray-100 bg-gray-50 flex flex-col gap-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-[12px] font-bold text-gray-800">Certificate of Product Reg. (CPR)</p>
-                    <p className="text-[11px] text-gray-400">Product-specific registration license</p>
-                  </div>
-                  {product.fda_cpr_on_file ? (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-md shrink-0">
-                      ON FILE ✓
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-gray-200 text-gray-600 rounded-md shrink-0">
-                      NOT UPLOADED
-                    </span>
-                  )}
-                </div>
-
-                {product.fda_cpr_on_file ? (
-                  <button
-                    type="button"
-                    disabled={loadingDocType === 'fda-cpr'}
-                    onClick={() => handleViewDoc('fda-cpr', `FDA CPR - ${product.name}`)}
-                    className="w-full py-2 px-3 rounded-lg bg-white border border-gray-200 hover:border-brand-red hover:text-brand-red text-gray-700 text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
-                  >
-                    {loadingDocType === 'fda-cpr' ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-red" />
-                    ) : (
-                      <Eye className="w-3.5 h-3.5" />
-                    )}
-                    Preview FDA CPR Document
-                  </button>
-                ) : (
-                  <p className="text-[11px] text-gray-400 italic">No CPR document submitted for this product.</p>
-                )}
-              </div>
+                );
+              })}
             </div>
-          </div>
 
-          {/* 2. Seller Details Card */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-3.5">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h2 className="text-[14px] font-bold text-gray-900 flex items-center gap-2">
-                <Store className="w-4 h-4 text-brand-red" /> Seller Information
-              </h2>
-              {product.seller?.shop_slug && (
-                <Link
-                  to={`/shop/${product.seller.shop_slug}`}
-                  target="_blank"
-                  className="text-[11px] font-bold text-brand-red hover:underline flex items-center gap-1"
-                >
-                  View Storefront <ExternalLink className="w-3 h-3" />
-                </Link>
+            <div className="p-5" role="tabpanel">
+              {shownTab === 'description' && (
+                product.description ? (
+                  <div
+                    className="prose prose-sm max-w-none text-gray-700 leading-relaxed [&_img]:rounded-xl [&_img]:max-w-full [&_img]:shadow-sm [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h1]:text-lg [&_h2]:text-base [&_p]:mb-2.5 [&_li]:mb-1"
+                    dangerouslySetInnerHTML={{ __html: product.description }}
+                  />
+                ) : (
+                  <p className="py-6 text-[13px] text-center text-gray-400">No description provided by the seller.</p>
+                )
+              )}
+
+              {shownTab === 'variants' && (
+                product.variants.length > 0 ? (
+                  <div className="overflow-hidden border border-gray-100 rounded-xl">
+                    <table className="w-full text-[13px]">
+                      <thead>
+                        <tr className="text-left bg-gray-50">
+                          {['Option', 'SKU', 'Price', 'Stock'].map((h) => (
+                            <th key={h} scope="col" className={`px-4 py-2.5 text-[10px] font-bold tracking-wide text-gray-500 uppercase ${h === 'Price' ? 'text-right' : ''}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {product.variants.map((v) => (
+                          <tr key={v.id} className="hover:bg-gray-50/60">
+                            <td className="px-4 py-2.5 font-semibold text-gray-800">{v.label}</td>
+                            <td className="px-4 py-2.5 font-mono text-[12px] text-gray-500">{v.sku || '—'}</td>
+                            <td className="px-4 py-2.5 font-bold text-right text-gray-900 tabular-nums">{fmt(v.price)}</td>
+                            <td className="px-4 py-2.5"><Pill tone={stockTone(v.stock_quantity)}>{v.stock_quantity === 0 ? 'Sold out' : `${v.stock_quantity} in stock`}</Pill></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gray-50/60 text-[12px]">
+                          <td className="px-4 py-2.5 font-bold text-gray-600" colSpan={3}>Total stock</td>
+                          <td className="px-4 py-2.5 font-black text-gray-900 tabular-nums">{totalStock}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="py-6 text-[13px] text-center text-gray-400">A single product without variants, at {fmt(product.base_price)}.</p>
+                )
+              )}
+
+              {shownTab === 'safety' && (
+                <dl className="grid gap-2.5 sm:grid-cols-2">
+                  {product.net_weight_volume && <Spec label="Net weight / volume">{product.net_weight_volume}</Spec>}
+                  {product.expiry_best_before && <Spec label="Expiry / best before">{product.expiry_best_before}</Spec>}
+                  {product.storage_instructions && <Spec label="Storage instructions" wide>{product.storage_instructions}</Spec>}
+                  {product.ingredients && <Spec label="Ingredients" wide>{product.ingredients}</Spec>}
+                  {product.allergen_info && <Spec label="Allergen information" wide>{product.allergen_info}</Spec>}
+                </dl>
+              )}
+
+              {shownTab === 'shipping' && (
+                <dl className="grid gap-2.5 sm:grid-cols-3">
+                  <Spec label="Package weight">{product.weight_kg ? `${product.weight_kg} kg` : '—'}</Spec>
+                  <Spec label="Dimensions (L × W × H)">{dims ?? '—'}</Spec>
+                  <Spec label="Base price">{fmt(product.base_price)}</Spec>
+                </dl>
               )}
             </div>
-
-            {product.seller ? (
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red to-brand-red-dark text-white font-bold flex items-center justify-center text-[13px] shrink-0 overflow-hidden">
-                    {product.seller.avatar_url ? (
-                      <img src={product.seller.avatar_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span>{product.seller.full_name?.[0] ?? 'S'}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-gray-800 truncate">{product.seller.shop_name || product.seller.full_name}</p>
-                    <p className="text-[11px] text-gray-400 truncate">Owner: {product.seller.full_name}</p>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-gray-50 space-y-1.5 text-[12px]">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span className="truncate">{product.seller.email}</span>
-                  </div>
-                  {product.seller.phone && (
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span>{product.seller.phone}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span>Submitted: {fmtDate(product.created_at)}</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-[12px] text-gray-400 italic">No seller account tied.</p>
-            )}
-          </div>
-
-          {/* 3. Logistics & Parcel Dimensions Card */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-3.5">
-            <h2 className="text-[14px] font-bold text-gray-900 flex items-center gap-2 pb-3 border-b border-gray-100">
-              <Box className="w-4 h-4 text-brand-red" /> Logistics &amp; Package
-            </h2>
-
-            <div className="grid grid-cols-2 gap-3 text-[12.5px]">
-              <div className="p-3 bg-gray-50 rounded-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Base Price</p>
-                <p className="text-[14px] font-black text-gray-900 mt-0.5">{fmt(product.base_price)}</p>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Units Sold</p>
-                <p className="text-[14px] font-black text-gray-900 mt-0.5">{product.units_sold}</p>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Package Weight</p>
-                <p className="text-[13px] font-bold text-gray-800 mt-0.5">
-                  {product.weight_kg ? `${product.weight_kg} kg` : '—'}
-                </p>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Dimensions</p>
-                <p className="text-[12px] font-bold text-gray-800 mt-0.5">
-                  {product.dimension_l_cm && product.dimension_w_cm && product.dimension_h_cm
-                    ? `${product.dimension_l_cm} × ${product.dimension_w_cm} × ${product.dimension_h_cm} cm`
-                    : '—'}
-                </p>
-              </div>
-            </div>
-          </div>
-
+          </section>
         </div>
 
+        {/* ═══ Right rail ═══ */}
+        <aside className="space-y-3 lg:sticky lg:top-20">
+          <RailSection
+            icon={FileCheck}
+            title="Compliance"
+            aside={<Pill tone={docsOnFile === 2 ? 'emerald' : docsOnFile === 1 ? 'amber' : 'gray'}>{docsOnFile}/2 on file</Pill>}
+          >
+            <ul className="space-y-2">
+              {docs.map((d) => (
+                <li key={d.type} className="flex items-center gap-3 p-2.5 border border-gray-100 rounded-xl bg-gray-50/70">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${d.onFile ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                    <FileText className="w-4 h-4" aria-hidden="true" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-bold leading-tight text-gray-800">{d.name}</p>
+                    <p className="text-[10px] text-gray-400">{d.onFile ? d.hint : 'Not uploaded'}</p>
+                  </div>
+                  {d.onFile && (
+                    <button
+                      type="button"
+                      disabled={loadingDocType === d.type}
+                      onClick={() => handleViewDoc(d.type, `${d.type === 'fda-lto' ? 'FDA LTO' : 'FDA CPR'} - ${product.name}`)}
+                      aria-label={`Preview ${d.name}`}
+                      className="inline-flex items-center gap-1 px-2.5 min-h-[30px] rounded-lg border border-gray-200 bg-white text-[11px] font-bold text-gray-700 hover:border-brand-red hover:text-brand-red transition-colors"
+                    >
+                      {loadingDocType === d.type ? <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-red" /> : <Eye className="w-3.5 h-3.5" />}
+                      View
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </RailSection>
+
+          <RailSection
+            icon={Store}
+            title="Seller"
+            aside={product.seller?.shop_slug ? (
+              <Link to={`/shop/${product.seller.shop_slug}`} target="_blank" className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:underline">
+                Storefront <ExternalLink className="w-3 h-3" aria-hidden="true" />
+              </Link>
+            ) : undefined}
+          >
+            {product.seller ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Avatar name={product.seller.full_name} src={product.seller.avatar_url} size="lg" />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-gray-900 truncate">{product.seller.shop_name || product.seller.full_name}</p>
+                    <p className="text-[11px] text-gray-400 truncate">Owner · {product.seller.full_name}</p>
+                  </div>
+                </div>
+                <ul className="space-y-1.5 text-[12px] text-gray-600">
+                  <li className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" /><span className="truncate">{product.seller.email}</span></li>
+                  {product.seller.phone && <li className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />{product.seller.phone}</li>}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-[12px] text-gray-400">No seller account tied to this product.</p>
+            )}
+          </RailSection>
+
+          <RailSection icon={Calendar} title="Timeline">
+            <ol className="relative space-y-3 pl-4 before:absolute before:left-[5px] before:top-1.5 before:bottom-1.5 before:w-px before:bg-gray-200">
+              <li className="relative">
+                <span className="absolute -left-4 top-1 w-2.5 h-2.5 rounded-full bg-gray-300 ring-2 ring-white" aria-hidden="true" />
+                <p className="text-[12px] font-bold text-gray-800">Submitted</p>
+                <p className="text-[11px] text-gray-400">{fmtDate(product.created_at)}</p>
+              </li>
+              <li className="relative">
+                <span className={`absolute -left-4 top-1 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                  { pending_review: 'bg-amber-500', active: 'bg-emerald-500', rejected: 'bg-red-500', archived: 'bg-gray-400', draft: 'bg-blue-500' }[product.status] ?? 'bg-gray-400'
+                }`} aria-hidden="true" />
+                <p className="text-[12px] font-bold text-gray-800">Now: {statusInfo.label}</p>
+                <p className="text-[11px] text-gray-400">
+                  {product.status === 'pending_review' ? 'Waiting for an admin decision' : product.status === 'active' ? 'Visible to buyers in the store' : product.status === 'draft' ? 'Not submitted for review yet' : 'Hidden from buyers'}
+                </p>
+              </li>
+            </ol>
+          </RailSection>
+        </aside>
       </div>
 
       {/* Modals */}
