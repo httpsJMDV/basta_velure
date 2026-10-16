@@ -1,13 +1,18 @@
-import { useEffect, useState, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { getAdminUsersApi, suspendUserApi, reactivateUserApi } from '../../api/client';
 import type { User, Role, UserStatus, RiderStatus } from '../../types';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import CustomSelect from '../../components/ui/CustomSelect';
-import { Search, X, ChevronLeft, ChevronRight, ZoomIn, Users, ShieldOff, CalendarDays } from 'lucide-react';
+import { X, ZoomIn, Users, ShieldOff, CalendarDays, UserCheck, Store, Bike, Phone, MapPin, Warehouse, ArrowRight } from 'lucide-react';
 import { getBuyerIdImageUrl, getBuyerIdImageBackUrl } from '../../api/client';
+import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
+import {
+  type ListMeta, FilterPanel, SearchField, ListCard, ListPager, ListEmpty, ListError, Pill, Avatar, RowAction,
+  SkeletonRows, SkeletonCards, SkeletonTiles, TH, TD, ROW, rowKeys, formatShortDate, useDebouncedSearch, useViewMode, ViewToggle,
+  RailCard, SplitBar, CardGrid, TileShell,
+} from '../../components/admin/listKit';
 
 const STATUS_BADGE: Record<UserStatus, 'approved' | 'rejected'> = {
   active:    'approved',
@@ -20,10 +25,10 @@ const RIDER_STATUS_LABEL: Record<RiderStatus, string> = {
   DISAPPROVED: 'Not approved by hub',
 };
 
-const RIDER_STATUS_BADGE: Record<RiderStatus, 'pending' | 'approved' | 'rejected'> = {
-  PENDING: 'pending',
-  ACTIVE: 'approved',
-  DISAPPROVED: 'rejected',
+const RIDER_STATUS_TONE: Record<RiderStatus, 'amber' | 'emerald' | 'red'> = {
+  PENDING: 'amber',
+  ACTIVE: 'emerald',
+  DISAPPROVED: 'red',
 };
 
 const REQUIRES_BACK_ID_TYPES = new Set([
@@ -32,23 +37,7 @@ const REQUIRES_BACK_ID_TYPES = new Set([
 
 const PER_PAGE_OPTIONS = [30, 50, 100];
 
-interface Meta {
-  current_page: number;
-  last_page: number;
-  per_page: number;
-  total: number;
-  from: number | null;
-  to: number | null;
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-PH', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
-}
 
 export function calcAge(dob: string | null): string {
   if (!dob) return '—';
@@ -56,140 +45,9 @@ export function calcAge(dob: string | null): string {
   return String(Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));
 }
 
-// ── Count-up animation ───────────────────────────────────────────────────────
-
-function useCountUp(target: number, duration = 900): number {
-  const [value, setValue] = useState(0);
-  const rafRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (target === 0) { setValue(0); return; }
-    const start = performance.now();
-    const from = 0;
-    const run = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(from + (target - from) * eased));
-      if (progress < 1) rafRef.current = requestAnimationFrame(run);
-    };
-    rafRef.current = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [target, duration]);
-
-  return value;
-}
-
-// ── Mount fade-slide animation ───────────────────────────────────────────────
-
-function useMountAnim() {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(18px)';
-    el.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
-    const id = requestAnimationFrame(() => {
-      el.style.opacity = '1';
-      el.style.transform = 'translateY(0)';
-    });
-    return () => cancelAnimationFrame(id);
-  }, []);
-  return ref;
-}
-
 function formatIdType(raw: string | null): string {
   if (!raw) return '—';
   return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-// ── Pagination ────────────────────────────────────────────────────────────────
-
-function PaginationBar({
-  meta,
-  perPage,
-  onPage,
-  onPerPage,
-}: {
-  meta: Meta;
-  perPage: number;
-  onPage: (p: number) => void;
-  onPerPage: (n: number) => void;
-}) {
-  const { current_page, last_page, total, from, to } = meta;
-
-  const pages: (number | '…')[] = [];
-  if (last_page <= 7) {
-    for (let i = 1; i <= last_page; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    if (current_page > 3) pages.push('…');
-    for (let i = Math.max(2, current_page - 1); i <= Math.min(last_page - 1, current_page + 1); i++) {
-      pages.push(i);
-    }
-    if (current_page < last_page - 2) pages.push('…');
-    pages.push(last_page);
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-      <p className="text-sm font-semibold text-gray-700">
-        {total === 0
-          ? 'No results'
-          : <>Showing <span className="text-brand-red">{from ?? 0}–{to ?? 0}</span> of <span className="text-brand-red">{total}</span> {total === 1 ? 'buyer' : 'buyers'}</> }
-      </p>
-
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-600">Rows per page:</span>
-          <CustomSelect
-            value={String(perPage)}
-            onChange={(v) => onPerPage(Number(v))}
-            options={PER_PAGE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
-            className="w-24"
-          />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onPage(current_page - 1)}
-            disabled={current_page <= 1}
-            className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          {pages.map((p, i) =>
-            p === '…' ? (
-              <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
-            ) : (
-              <button
-                key={p}
-                onClick={() => onPage(p as number)}
-                className={[
-                  'w-8 h-8 flex items-center justify-center rounded-md text-sm font-medium transition-colors',
-                  p === current_page
-                    ? 'bg-brand-red text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red',
-                ].join(' ')}
-              >
-                {p}
-              </button>
-            )
-          )}
-
-          <button
-            onClick={() => onPage(current_page + 1)}
-            disabled={current_page >= last_page}
-            className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ── ID Lightbox ───────────────────────────────────────────────────────────────
@@ -594,14 +452,38 @@ function BuyerDetailsModal({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+interface PageConfig { title: string; noun: [string, string]; icon: React.ElementType; subtitle: string }
+
+const PAGE_CONFIG: Record<'seller' | 'buyer' | 'rider' | 'all', PageConfig> = {
+  seller: { title: 'Sellers',   noun: ['seller', 'sellers'], icon: Store, subtitle: 'Approved shops and the accounts behind them' },
+  buyer:  { title: 'Buyers',    noun: ['buyer', 'buyers'],   icon: Users, subtitle: 'Shopper accounts registered on the platform' },
+  rider:  { title: 'Riders',    noun: ['rider', 'riders'],   icon: Bike,  subtitle: 'Couriers, approved by the logistics hub they chose' },
+  all:    { title: 'All Users', noun: ['user', 'users'],     icon: Users, subtitle: 'Every account on the platform' },
+};
+
+interface Counts { all: number; active: number; suspended: number }
+
+/** A label over a value, for the details grid on a profile card. */
+function Meta({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="flex items-center gap-1 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
+        <Icon className="w-3 h-3" aria-hidden="true" />{label}
+      </dt>
+      <dd className="mt-0.5 text-[12px] font-medium text-gray-800 truncate">{children}</dd>
+    </div>
+  );
+}
+
 export default function AdminUsersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
 
-  const pathRole: Role | 'all' =
+  const pathRole: 'seller' | 'buyer' | 'rider' | 'all' =
     location.pathname === '/admin/sellers' ? 'seller' :
     location.pathname === '/admin/buyers'  ? 'buyer'  :
     location.pathname === '/admin/riders'  ? 'rider'  : 'all';
+  const config = PAGE_CONFIG[pathRole];
 
   const statusParam  = (searchParams.get('status') ?? '') as UserStatus | '';
   const searchParam  = searchParams.get('search') ?? '';
@@ -609,31 +491,53 @@ export default function AdminUsersPage() {
   const perPageParam = Number(searchParams.get('per_page') ?? 30);
 
   const [users,    setUsers]    = useState<User[]>([]);
-  const [meta,     setMeta]     = useState<Meta>({ current_page: 1, last_page: 1, per_page: 30, total: 0, from: null, to: null });
-  const [loading,  setLoading]  = useState(false);
-  const [search,   setSearch]   = useState(searchParam);
+  const [meta,     setMeta]     = useState<ListMeta>({ current_page: 1, last_page: 1, per_page: 30, total: 0, from: null, to: null });
+  const [counts,   setCounts]   = useState<Counts | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [failed,   setFailed]   = useState(false);
   const [acting,   setActing]   = useState<number | null>(null);
   const [selected,      setSelected]      = useState<User | null>(null);
   const [quickConfirm,  setQuickConfirm]  = useState<{ user: User; action: 'suspend' | 'activate' } | null>(null);
+  const [view, setView] = useViewMode(`people_${pathRole}`);
+
+  const role = pathRole !== 'all' ? (pathRole as Role) : undefined;
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const res = await getAdminUsersApi({
-        role:     pathRole !== 'all' ? pathRole : undefined,
+        role,
         status:   statusParam || undefined,
         search:   searchParam || undefined,
         page:     pageParam,
         per_page: perPageParam,
       });
       setUsers(res.data);
-      setMeta(res.meta as Meta);
+      setMeta(res.meta as ListMeta);
+    } catch {
+      setFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [pathRole, statusParam, searchParam, pageParam, perPageParam]);
+  }, [role, statusParam, searchParam, pageParam, perPageParam]);
+
+  // Totals for the whole role, not just the page on screen.
+  const loadCounts = useCallback(async () => {
+    try {
+      const [all, active, suspended] = await Promise.all([
+        getAdminUsersApi({ role, per_page: 1 }),
+        getAdminUsersApi({ role, status: 'active', per_page: 1 }),
+        getAdminUsersApi({ role, status: 'suspended', per_page: 1 }),
+      ]);
+      setCounts({ all: all.meta.total, active: active.meta.total, suspended: suspended.meta.total });
+    } catch {
+      setCounts(null);
+    }
+  }, [role]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setCounts(null); loadCounts(); }, [loadCounts]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
@@ -655,10 +559,7 @@ export default function AdminUsersPage() {
     setSearchParams(next);
   }
 
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault();
-    setParam('search', search);
-  }
+  const [searchInput, setSearchInput] = useDebouncedSearch(searchParam, (v) => setParam('search', v));
 
   async function handleSuspend(user: User) {
     setActing(user.id);
@@ -666,6 +567,7 @@ export default function AdminUsersPage() {
       const updated = await suspendUserApi(user.id);
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
       setSelected((prev) => (prev?.id === updated.id ? updated : prev));
+      loadCounts();
     } finally { setActing(null); }
   }
 
@@ -675,211 +577,230 @@ export default function AdminUsersPage() {
       const updated = await reactivateUserApi(user.id);
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
       setSelected((prev) => (prev?.id === updated.id ? updated : prev));
+      loadCounts();
     } finally { setActing(null); }
   }
 
-  const pageTitle =
-    pathRole === 'buyer'  ? 'Buyers'  :
-    pathRole === 'seller' ? 'Sellers' :
-    pathRole === 'rider'  ? 'Riders'  : 'All Users';
+  const isSeller = pathRole === 'seller';
+  const isRider  = pathRole === 'rider';
+  const isAll    = pathRole === 'all';
+  const colCount = 5 + (isSeller ? 1 : 0) + (isRider ? 2 : 0) + (isAll ? 1 : 0);
 
-  const activeCount    = useMemo(() => users.filter(u => u.status === 'active').length,    [users]);
-  const suspendedCount = useMemo(() => users.filter(u => u.status === 'suspended').length, [users]);
+  const fullName = (u: User) => `${u.first_name} ${u.last_name}`.trim();
 
-  const animatedTotal     = useCountUp(meta.total);
-  const animatedActive    = useCountUp(activeCount);
-  const animatedSuspended = useCountUp(suspendedCount);
+  const actionFor = (user: User) => user.status === 'active' ? (
+    <RowAction tone="danger" loading={acting === user.id} onClick={() => setQuickConfirm({ user, action: 'suspend' })} label={`Suspend ${fullName(user)}`}>
+      <ShieldOff className="w-3.5 h-3.5" aria-hidden="true" /> Suspend
+    </RowAction>
+  ) : (
+    <RowAction tone="success" loading={acting === user.id} onClick={() => setQuickConfirm({ user, action: 'activate' })} label={`Reactivate ${fullName(user)}`}>
+      <UserCheck className="w-3.5 h-3.5" aria-hidden="true" /> Reactivate
+    </RowAction>
+  );
 
-  const pageRef = useMountAnim();
+  const accountPill = (status: UserStatus) => (
+    <Pill tone={status === 'active' ? 'emerald' : 'red'}>{status === 'active' ? 'Active' : 'Suspended'}</Pill>
+  );
+
+  const filtered = Boolean(searchParam || statusParam);
+  const clearAll = () => { setSearchInput(''); const next = new URLSearchParams(searchParams); next.delete('search'); next.delete('status'); next.delete('page'); setSearchParams(next); };
+  const empty = (
+    <ListEmpty icon={config.icon} title={`No ${config.noun[1]} yet`} hint="Accounts appear here as soon as they register." filtered={filtered} onClear={clearAll} />
+  );
+
+  const listHeading = statusParam === 'active' ? `Active ${config.noun[1]}` : statusParam === 'suspended' ? `Suspended ${config.noun[1]}` : `All ${config.noun[1]}`;
 
   return (
-    <div ref={pageRef} className="space-y-6">
-      {/* Page header band */}
-      <div
-        className="rounded-2xl px-7 py-6 flex items-center justify-between gap-6 overflow-hidden relative"
-        style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
-      >
-        <div className="relative z-10">
-          <p className="text-[11px] font-semibold text-white/40 uppercase tracking-[0.15em] mb-1">
-            User Management
-          </p>
-          <h1 className="text-[26px] font-black text-white leading-tight tracking-tight">{pageTitle}</h1>
-          <p className="text-[12px] text-white/50 mt-1.5">
-            <span className="text-white font-bold">{animatedTotal}</span>
-            {' '}registered {meta.total === 1 ? pageTitle.slice(0, -1).toLowerCase() : pageTitle.toLowerCase()} on the platform
-          </p>
-        </div>
-
-        <div className="relative z-10 hidden sm:flex items-center gap-4">
-          <div className="flex flex-col items-center gap-1 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
-            <div className="flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-[22px] font-black text-white leading-none">
-                {animatedActive}
-              </span>
-            </div>
-            <p className="text-[10px] text-white/40 uppercase tracking-widest">Active</p>
-          </div>
-          <div className="flex flex-col items-center gap-1 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
-            <div className="flex items-center gap-1.5">
-              <ShieldOff className="w-3.5 h-3.5 text-red-400" />
-              <span className="text-[22px] font-black text-white leading-none">
-                {animatedSuspended}
-              </span>
-            </div>
-            <p className="text-[10px] text-white/40 uppercase tracking-widest">Suspended</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Search + status filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <form onSubmit={submitSearch} className="flex gap-2 flex-1">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, email, phone…"
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-            />
-          </div>
-          <Button type="submit" variant="primary" className="shrink-0">Search</Button>
-        </form>
-
-        <CustomSelect
-          value={statusParam}
-          onChange={(v) => setParam('status', v)}
-          options={[
-            { value: '', label: 'All statuses' },
-            { value: 'active', label: 'Active' },
-            { value: 'suspended', label: 'Suspended' },
-          ]}
-          className="sm:w-44"
-        />
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
-        ) : users.length === 0 ? (
-          <div className="p-8 text-center text-sm text-gray-400">No users found.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-left bg-gray-50/60">
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">User</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Role</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Account</th>
-                  {pathRole === 'rider' && (
-                    <>
-                      <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Hub</th>
-                      <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Hub application</th>
-                    </>
-                  )}
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden md:table-cell">Phone</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden lg:table-cell">Registered</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {users.map((user) => (
-                  <tr
-                    key={user.id}
-                    onClick={() => setSelected(user)}
-                    className="hover:bg-red-50/40 transition-colors cursor-pointer group"
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-neutral-800 to-neutral-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                          {user.first_name?.[0]?.toUpperCase() ?? 'U'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-stone-900 group-hover:text-brand-red transition-colors text-sm truncate">
-                            {user.first_name} {user.last_name}
-                          </p>
-                          <p className="text-xs text-stone-400 mt-0.5 truncate">{user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-semibold bg-stone-100 text-stone-700 capitalize">
-                        {user.role}
-                      </span>
-                      {user.seller_profile && (
-                        <p className="text-[11px] text-stone-400 mt-0.5 font-medium truncate max-w-[140px]">{user.seller_profile.shop_name}</p>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <Badge
-                        label={user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                        variant={STATUS_BADGE[user.status]}
-                      />
-                    </td>
-                    {pathRole === 'rider' && (
-                      <>
-                        <td className="px-5 py-3.5 text-stone-700 text-xs font-medium">{user.rider?.hub_name ?? 'n/a'}</td>
-                        <td className="px-5 py-3.5">
-                          {user.rider ? (
-                            <Badge label={RIDER_STATUS_LABEL[user.rider.status]} variant={RIDER_STATUS_BADGE[user.rider.status]} />
-                          ) : (
-                            <span className="text-xs text-stone-400">n/a</span>
-                          )}
-                        </td>
-                      </>
-                    )}
-                    <td className="px-5 py-3.5 hidden md:table-cell text-stone-600 text-xs font-medium">{user.phone || '—'}</td>
-                    <td className="px-5 py-3.5 hidden lg:table-cell text-stone-500 text-xs">
-                      {formatDate(user.created_at)}
-                    </td>
-                    <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
-                      {user.status === 'active' ? (
-                        <Button
-                          variant="danger"
-                          className="!min-h-[36px] !px-3 text-xs"
-                          loading={acting === user.id}
-                          onClick={() => setQuickConfirm({ user, action: 'suspend' })}
-                        >
-                          Suspend
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          className="!min-h-[36px] !px-3 text-xs"
-                          loading={acting === user.id}
-                          onClick={() => setQuickConfirm({ user, action: 'activate' })}
-                        >
-                          Reactivate
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+    <div className="pb-8 space-y-3">
+      <PageHero icon={config.icon} eyebrow="People" title={config.title} subtitle={config.subtitle}>
+        {counts && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-white/80 border border-white/10">
+            <Users className="w-3 h-3" aria-hidden="true" />
+            {counts.all} {counts.all === 1 ? config.noun[0] : config.noun[1]}
+          </span>
         )}
+      </PageHero>
+
+      <div className="grid items-start gap-3 lg:grid-cols-[250px_minmax(0,1fr)]">
+        {/* ── Overview rail ── */}
+        <aside className="space-y-3 lg:sticky lg:top-20">
+          <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+            {!counts ? (
+              [1, 2, 3].map((i) => <StatCardSkeleton key={i} />)
+            ) : (
+              <>
+                <StatCard compact icon={config.icon} label={`All ${config.noun[1]}`} value={counts.all} subtext="Registered"
+                  iconBg="bg-violet-50" iconColor="text-violet-600" onClick={() => setParam('status', '')} active={statusParam === ''} />
+                <StatCard compact icon={UserCheck} label="Active" value={counts.active} subtext="Can sign in"
+                  iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => setParam('status', 'active')} active={statusParam === 'active'} />
+                <StatCard compact icon={ShieldOff} label="Suspended" value={counts.suspended} subtext="Blocked"
+                  iconBg="bg-red-50" iconColor="text-red-600" onClick={() => setParam('status', 'suspended')} active={statusParam === 'suspended'} />
+              </>
+            )}
+          </div>
+          {counts && (
+            <RailCard title="Account health">
+              <SplitBar parts={[
+                { label: 'Active', value: counts.active, color: 'bg-emerald-500' },
+                { label: 'Suspended', value: counts.suspended, color: 'bg-red-500' },
+              ]} />
+            </RailCard>
+          )}
+          {isRider && (
+            <RailCard title="Who approves riders">
+              <p className="text-[11px] leading-relaxed text-gray-500">
+                A rider is approved by the logistics hub they chose, which also checks their documents. Here you can only
+                suspend or reactivate the account.
+              </p>
+            </RailCard>
+          )}
+        </aside>
+
+        {/* ── Directory ── */}
+        <section className="min-w-0 space-y-3">
+          <FilterPanel>
+            <div className="flex items-center gap-2">
+              <SearchField
+                value={searchInput}
+                onChange={setSearchInput}
+                label={`Search ${config.noun[1]}`}
+                placeholder={isSeller ? 'Search name, email, phone or shop…' : 'Search name, email or phone…'}
+              />
+              <ViewToggle value={view} onChange={setView} />
+            </div>
+          </FilterPanel>
+
+          {failed ? (
+            <ListError message={`The ${config.noun[1]} could not be loaded.`} onRetry={load} />
+          ) : (
+            <ListCard title={listHeading} count={meta.total} busy={loading}>
+              {view === 'grid' ? (
+                users.length === 0 && !loading ? empty : (
+                  <CardGrid>
+                    {loading && users.length === 0 && <SkeletonTiles />}
+                    {users.map((user) => (
+                      <TileShell key={user.id} onOpen={() => setSelected(user)} dimmed={loading}>
+                        <div className="flex items-start gap-3 p-4">
+                          <Avatar name={fullName(user)} src={user.avatar_url} size="lg" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-[14px] font-bold leading-tight truncate text-brand-black group-hover:text-brand-red">{fullName(user)}</p>
+                              {accountPill(user.status)}
+                            </div>
+                            <p className="text-[11px] text-gray-400 truncate mt-0.5">{user.email}</p>
+                            {isSeller && user.seller_profile && (
+                              <p className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-red-50 text-brand-red text-[11px] font-semibold max-w-full">
+                                <Store className="w-3 h-3 shrink-0" aria-hidden="true" /><span className="truncate">{user.seller_profile.shop_name}</span>
+                              </p>
+                            )}
+                            {isAll && <p className="mt-1 text-[11px] font-semibold text-gray-500 capitalize">{user.role}</p>}
+                          </div>
+                        </div>
+
+                        <dl className="grid grid-cols-2 px-4 pb-3 gap-x-3 gap-y-2.5">
+                          <Meta icon={Phone} label="Phone">{user.phone || '—'}</Meta>
+                          <Meta icon={CalendarDays} label="Joined">{formatShortDate(user.created_at)}</Meta>
+                          {isRider && <Meta icon={Warehouse} label="Hub">{user.rider?.hub_name ?? '—'}</Meta>}
+                          {isRider && <Meta icon={Bike} label="Vehicle">{user.rider ? `${user.rider.vehicle_type} · ${user.rider.plate_number}` : '—'}</Meta>}
+                          {!isRider && user.default_address && (
+                            <Meta icon={MapPin} label="Location">{user.default_address.city_municipality}, {user.default_address.province}</Meta>
+                          )}
+                        </dl>
+
+                        <div className="flex items-center justify-between gap-2 px-4 py-2.5 mt-auto border-t border-gray-100 bg-gray-50/60 rounded-b-2xl">
+                          {isRider && user.rider ? (
+                            <Pill tone={RIDER_STATUS_TONE[user.rider.status]}>{RIDER_STATUS_LABEL[user.rider.status]}</Pill>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 group-hover:text-brand-red">
+                              View profile <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                            </span>
+                          )}
+                          {actionFor(user)}
+                        </div>
+                      </TileShell>
+                    ))}
+                  </CardGrid>
+                )
+              ) : (
+                <>
+                  <div className="hidden md:block max-h-[68vh] overflow-auto">
+                    <table className="w-full text-[13px]">
+                      <thead>
+                        <tr>
+                          <th scope="col" className={TH}>{config.noun[0]}</th>
+                          {isSeller && <th scope="col" className={TH}>Shop</th>}
+                          {isAll && <th scope="col" className={TH}>Role</th>}
+                          {isRider && <th scope="col" className={TH}>Hub</th>}
+                          {isRider && <th scope="col" className={TH}>Hub application</th>}
+                          <th scope="col" className={`${TH} hidden lg:table-cell`}>Phone</th>
+                          <th scope="col" className={TH}>Account</th>
+                          <th scope="col" className={TH}>Joined</th>
+                          <th scope="col" className={`${TH} text-right`}><span className="sr-only">Actions</span></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {loading && users.length === 0 && <SkeletonRows cols={colCount} />}
+                        {!loading && users.length === 0 && <tr><td colSpan={colCount}>{empty}</td></tr>}
+                        {users.map((user) => (
+                          <tr key={user.id} {...rowKeys(() => setSelected(user))} className={`${ROW} ${loading ? 'opacity-60' : ''}`}>
+                            <td className={TD}>
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Avatar name={fullName(user)} src={user.avatar_url} size="md" />
+                                <div className="min-w-0">
+                                  <p className="font-semibold truncate text-brand-black">{fullName(user)}</p>
+                                  <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            {isSeller && <td className={`${TD} text-gray-700`}>{user.seller_profile?.shop_name ?? <span className="text-gray-300">—</span>}</td>}
+                            {isAll && <td className={`${TD} capitalize text-gray-700`}>{user.role}</td>}
+                            {isRider && <td className={`${TD} text-gray-700`}>{user.rider?.hub_name ?? <span className="text-gray-300">—</span>}</td>}
+                            {isRider && (
+                              <td className={TD}>
+                                {user.rider ? <Pill tone={RIDER_STATUS_TONE[user.rider.status]}>{RIDER_STATUS_LABEL[user.rider.status]}</Pill> : <span className="text-gray-300">—</span>}
+                              </td>
+                            )}
+                            <td className={`${TD} hidden lg:table-cell text-gray-600 tabular-nums`}>{user.phone || <span className="text-gray-300">—</span>}</td>
+                            <td className={TD}>{accountPill(user.status)}</td>
+                            <td className={`${TD} text-gray-500 whitespace-nowrap`}>{formatShortDate(user.created_at)}</td>
+                            <td className={`${TD} text-right`}>{actionFor(user)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Below md the list view falls back to compact rows */}
+                  <div className="divide-y divide-gray-100 md:hidden">
+                    {loading && users.length === 0 && <SkeletonCards />}
+                    {!loading && users.length === 0 && empty}
+                    {users.map((user) => (
+                      <div key={user.id} {...rowKeys(() => setSelected(user))} className={`flex items-center gap-3 p-3 ${ROW} ${loading ? 'opacity-60' : ''}`}>
+                        <Avatar name={fullName(user)} src={user.avatar_url} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold truncate text-brand-black">{fullName(user)}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
+                        </div>
+                        {accountPill(user.status)}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <ListPager meta={meta} perPage={perPageParam} perPageOptions={PER_PAGE_OPTIONS} onPage={setPage} onPerPage={setPerPage} noun={config.noun} />
+            </ListCard>
+          )}
+        </section>
       </div>
 
-      {/* Pagination */}
-      {!loading && meta.total > 0 && (
-        <PaginationBar
-          meta={meta}
-          perPage={perPageParam}
-          onPage={setPage}
-          onPerPage={setPerPage}
-        />
-      )}
-
-      {/* Standalone confirm — triggered from table row buttons only */}
+      {/* Standalone confirm — triggered from the row and card buttons */}
       {quickConfirm && createPortal(
         <ConfirmDialog
+          title={quickConfirm.action === 'suspend' ? 'Suspend account?' : 'Reactivate account?'}
           message={
             quickConfirm.action === 'suspend'
-              ? `Suspend ${quickConfirm.user.first_name} ${quickConfirm.user.last_name}'s account? They will not be able to log in until reactivated.`
-              : `Reactivate ${quickConfirm.user.first_name} ${quickConfirm.user.last_name}'s account?`
+              ? `${fullName(quickConfirm.user)} will not be able to sign in until the account is reactivated.`
+              : `${fullName(quickConfirm.user)} will be able to sign in again.`
           }
           confirmLabel={quickConfirm.action === 'suspend' ? 'Suspend Account' : 'Reactivate Account'}
           confirmVariant={quickConfirm.action === 'suspend' ? 'danger' : 'primary'}
@@ -893,7 +814,7 @@ export default function AdminUsersPage() {
         />
       , document.body)}
 
-      {/* Buyer Details Modal — row click only, has its own internal confirm */}
+      {/* Details Modal — has its own internal confirm */}
       {selected && createPortal(
         <BuyerDetailsModal
           user={selected}

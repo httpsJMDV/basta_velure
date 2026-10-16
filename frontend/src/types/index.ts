@@ -679,6 +679,8 @@ export interface SortingCenterApplicationSummaryItem {
   city_province: string;
   applicant_name: string | null;
   applicant_email: string | null;
+  /** The applicant's profile photo, or null when they never uploaded one. */
+  applicant_avatar_url: string | null;
   submitted_date: string | null;
   created_at: string | null;
   status: SortingCenterStatus;

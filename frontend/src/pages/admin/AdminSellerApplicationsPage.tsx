@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -15,18 +15,15 @@ import type { ApplicationStatus, SellerApplication } from '../../types';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import CustomSelect from '../../components/ui/CustomSelect';
-import { Search, X, ChevronLeft, ChevronRight, ZoomIn, Clock, Store, CheckCircle } from 'lucide-react';
+import { X, ZoomIn, Clock, Store, CheckCircle, XCircle, IdCard, Camera, FileText, ArrowRight } from 'lucide-react';
+import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
+import {
+  type ListMeta, type PillTone, FilterPanel, SearchField, ListCard, ListPager, ListEmpty, ListError, Pill, Avatar, RowAction,
+  SkeletonRows, SkeletonCards, SkeletonTiles, TH, TD, ROW, rowKeys, useDebouncedSearch, useViewMode, ViewToggle,
+  RailCard, Checklist, WaitingBadge, DocChip, CardGrid, TileShell,
+} from '../../components/admin/listKit';
 
 const PER_PAGE_OPTIONS = [20, 30, 50];
-
-interface Meta {
-  current_page: number;
-  last_page: number;
-  per_page: number;
-  total: number;
-  from: number | null;
-  to: number | null;
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -69,171 +66,6 @@ function formatIdType(raw: string | null): string {
 }
 
 // ── Mount animation ───────────────────────────────────────────────────────────
-
-function useMountAnim() {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(18px)';
-    el.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
-    const id = requestAnimationFrame(() => {
-      el.style.opacity = '1';
-      el.style.transform = 'translateY(0)';
-    });
-    return () => cancelAnimationFrame(id);
-  }, []);
-  return ref;
-}
-
-// ── Count-up ──────────────────────────────────────────────────────────────────
-
-function useCountUp(target: number, duration = 900): number {
-  const [value, setValue] = useState(0);
-  const rafRef = useRef<number>(0);
-  useEffect(() => {
-    if (target === 0) { setValue(0); return; }
-    const start = performance.now();
-    const run = (now: number) => {
-      const p = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(target * eased));
-      if (p < 1) rafRef.current = requestAnimationFrame(run);
-    };
-    rafRef.current = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [target, duration]);
-  return value;
-}
-
-function SummaryCards({ counts }: { counts: { pending: number; approved: number; rejected: number } }) {
-  const pending  = useCountUp(counts.pending);
-  const approved = useCountUp(counts.approved);
-  const rejected = useCountUp(counts.rejected);
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {/* Card 1 */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
-        <div className="space-y-1">
-          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Pending Review</span>
-          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{pending}</p>
-          <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-1 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Awaiting approval
-          </p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100 shadow-2xs">
-          <Clock className="w-6 h-6" />
-        </div>
-      </div>
-
-      {/* Card 2 */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
-        <div className="space-y-1">
-          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Approved Merchants</span>
-          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{approved}</p>
-          <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active verified shops
-          </p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 shadow-2xs">
-          <CheckCircle className="w-6 h-6" />
-        </div>
-      </div>
-
-      {/* Card 3 */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
-        <div className="space-y-1">
-          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Rejected Applications</span>
-          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{rejected}</p>
-          <p className="text-[11px] text-stone-500 font-semibold flex items-center gap-1 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-stone-400" /> Requires resubmission
-          </p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-600 flex items-center justify-center shrink-0 border border-stone-200 shadow-2xs">
-          <Store className="w-6 h-6" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Pagination ────────────────────────────────────────────────────────────────
-
-function PaginationBar({
-  meta, perPage, onPage, onPerPage,
-}: {
-  meta: Meta; perPage: number;
-  onPage: (p: number) => void; onPerPage: (n: number) => void;
-}) {
-  const { current_page, last_page, total, from, to } = meta;
-  const pages: (number | '…')[] = [];
-  if (last_page <= 7) {
-    for (let i = 1; i <= last_page; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    if (current_page > 3) pages.push('…');
-    for (let i = Math.max(2, current_page - 1); i <= Math.min(last_page - 1, current_page + 1); i++) pages.push(i);
-    if (current_page < last_page - 2) pages.push('…');
-    pages.push(last_page);
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-      <p className="text-sm font-semibold text-gray-700">
-        {total === 0 ? 'No results' : (
-          <>Showing <span className="text-brand-red">{from ?? 0}–{to ?? 0}</span> of <span className="text-brand-red">{total}</span> {total === 1 ? 'application' : 'applications'}</>
-        )}
-      </p>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-600">Rows per page:</span>
-          <CustomSelect
-            value={String(perPage)}
-            onChange={(v) => onPerPage(Number(v))}
-            options={PER_PAGE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
-            className="w-24"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onPage(current_page - 1)}
-            disabled={current_page <= 1}
-            className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          {pages.map((p, i) =>
-            p === '…' ? (
-              <span key={`e-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
-            ) : (
-              <button
-                key={p}
-                onClick={() => onPage(p as number)}
-                className={[
-                  'w-8 h-8 flex items-center justify-center rounded-md text-sm font-medium transition-colors',
-                  p === current_page
-                    ? 'bg-brand-red text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red',
-                ].join(' ')}
-              >
-                {p}
-              </button>
-            )
-          )}
-          <button
-            onClick={() => onPage(current_page + 1)}
-            disabled={current_page >= last_page}
-            className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── ID Lightbox ───────────────────────────────────────────────────────────────
 
@@ -646,10 +478,14 @@ function ReviewModal({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const TABS: { label: string; value: ApplicationStatus }[] = [
-  { label: 'Pending',  value: 'pending'  },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
+const STATUS_TONE: Record<ApplicationStatus, PillTone> = { pending: 'amber', approved: 'emerald', rejected: 'red' };
+const STATUS_LABEL: Record<ApplicationStatus, string> = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
+
+const SELLER_CHECKLIST = [
+  'The ID and the selfie show the same person.',
+  'The name on the ID matches the account.',
+  'The business permit or DTI/SEC paper names this shop or owner.',
+  'The shop name is not misleading or a copy of another brand.',
 ];
 
 export default function AdminSellerApplicationsPage() {
@@ -662,16 +498,16 @@ export default function AdminSellerApplicationsPage() {
   const perPageParam = Number(searchParams.get('per_page') ?? 20);
 
   const [applications, setApplications] = useState<SellerApplication[]>([]);
-  const [meta,         setMeta]         = useState<Meta>({ current_page: 1, last_page: 1, per_page: 20, total: 0, from: null, to: null });
-  const [counts,       setCounts]       = useState({ pending: 0, approved: 0, rejected: 0 });
-  const [loading,      setLoading]      = useState(false);
-  const [search,       setSearch]       = useState(searchParam);
+  const [meta,         setMeta]         = useState<ListMeta>({ current_page: 1, last_page: 1, per_page: 20, total: 0, from: null, to: null });
+  const [counts,       setCounts]       = useState<Record<ApplicationStatus, number> | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [failed,       setFailed]       = useState(false);
   const [selected,     setSelected]     = useState<SellerApplication | null>(null);
-
-  const pageRef = useMountAnim();
+  const [view, setView] = useViewMode('seller_applications');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const res = await getSellerApplicationsApi({
         status:   tabParam,
@@ -681,13 +517,15 @@ export default function AdminSellerApplicationsPage() {
         per_page: perPageParam,
       });
       setApplications(res.data);
-      setMeta(res.meta as Meta);
+      setMeta(res.meta as ListMeta);
+    } catch {
+      setFailed(true);
     } finally {
       setLoading(false);
     }
   }, [tabParam, searchParam, sortParam, pageParam, perPageParam]);
 
-  // Load counts for summary cards once on mount
+  // Counts for the rail.
   useEffect(() => {
     Promise.all([
       getSellerApplicationsApi({ status: 'pending',  per_page: 1 }),
@@ -711,7 +549,6 @@ export default function AdminSellerApplicationsPage() {
     const next = new URLSearchParams();
     next.set('status', value);
     setSearchParams(next);
-    setSearch('');
   }
 
   function setPage(p: number) {
@@ -727,182 +564,187 @@ export default function AdminSellerApplicationsPage() {
     setSearchParams(next);
   }
 
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault();
-    setParam('search', search);
-  }
+  const [searchInput, setSearchInput] = useDebouncedSearch(searchParam, (v) => setParam('search', v));
 
-  function handleApproved(id: number) {
+  function handleDecided(id: number, outcome: 'approved' | 'rejected') {
     setSelected(null);
     setApplications((prev) => prev.filter((a) => a.id !== id));
-    setCounts((prev) => ({ ...prev, pending: Math.max(0, prev.pending - 1), approved: prev.approved + 1 }));
+    setCounts((prev) => prev && ({ ...prev, pending: Math.max(0, prev.pending - 1), [outcome]: prev[outcome] + 1 }));
     setMeta((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
   }
 
-  function handleRejected(id: number) {
-    setSelected(null);
-    setApplications((prev) => prev.filter((a) => a.id !== id));
-    setCounts((prev) => ({ ...prev, pending: Math.max(0, prev.pending - 1), rejected: prev.rejected + 1 }));
-    setMeta((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
-  }
+  const clearSearch = () => { setSearchInput(''); setParam('search', ''); };
+  const empty = (
+    <ListEmpty icon={Store} title={`No ${tabParam} applications`}
+      hint={tabParam === 'pending' ? 'All caught up. New shop applications appear here for review.' : 'Nothing here yet.'}
+      filtered={Boolean(searchParam)} onClear={clearSearch} />
+  );
+  const applicant = (a: SellerApplication) => `${a.user.first_name} ${a.user.last_name}`.trim();
+  const actionLabel = (a: SellerApplication) => (a.application_status === 'pending' ? 'Review' : 'View');
 
   return (
-    <div ref={pageRef} className="space-y-6">
+    <div className="pb-8 space-y-3">
+      <PageHero icon={Store} eyebrow="Applications" title="Seller Applications" subtitle="Check shop documents and IDs before a seller can list products" />
 
-      {/* Page header */}
-      <div
-        className="rounded-2xl px-7 py-6 overflow-hidden relative"
-        style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
-      >
-        <p className="text-[11px] font-semibold text-white/40 uppercase tracking-[0.15em] mb-1">
-          Admin / Applications
-        </p>
-        <h1 className="text-[26px] font-black text-white leading-tight tracking-tight">
-          Seller Applications
-        </h1>
-        <p className="text-[12px] text-white/50 mt-1.5">
-          Review and verify pending seller registrations
-        </p>
-      </div>
-
-      {/* Summary cards */}
-      <SummaryCards counts={counts} />
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white rounded-xl p-1 w-fit shadow-sm border border-gray-100">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setTab(t.value)}
-            className={[
-              'min-h-[40px] px-5 rounded-lg text-sm font-semibold transition-colors',
-              tabParam === t.value ? 'bg-brand-red text-white' : 'text-gray-500 hover:text-brand-black',
-            ].join(' ')}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search + sort toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <form onSubmit={submitSearch} className="flex gap-2 flex-1">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search shop name, name, email…"
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-            />
+      <div className="grid items-start gap-3 lg:grid-cols-[250px_minmax(0,1fr)]">
+        {/* ── Rail: the status cards are the tabs ── */}
+        <aside className="space-y-3 lg:sticky lg:top-20">
+          <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+            {!counts ? (
+              [1, 2, 3].map((i) => <StatCardSkeleton key={i} />)
+            ) : (
+              <>
+                <StatCard compact icon={Clock} label="Pending review" value={counts.pending} subtext="Awaiting a decision" iconBg="bg-amber-50" iconColor="text-amber-600"
+                  onClick={() => setTab('pending')} active={tabParam === 'pending'} />
+                <StatCard compact icon={CheckCircle} label="Approved shops" value={counts.approved} subtext="Verified and selling" iconBg="bg-emerald-50" iconColor="text-emerald-600"
+                  onClick={() => setTab('approved')} active={tabParam === 'approved'} />
+                <StatCard compact icon={XCircle} label="Rejected" value={counts.rejected} subtext="Need to apply again" iconBg="bg-red-50" iconColor="text-red-600"
+                  onClick={() => setTab('rejected')} active={tabParam === 'rejected'} />
+              </>
+            )}
           </div>
-          <Button type="submit" variant="primary" className="shrink-0">Search</Button>
-        </form>
+          <RailCard title="What to check">
+            <Checklist items={SELLER_CHECKLIST} />
+          </RailCard>
+        </aside>
 
-        <CustomSelect
-          value={sortParam}
-          onChange={(v) => setParam('sort', v)}
-          options={[
-            { value: 'newest', label: 'Newest first' },
-            { value: 'oldest', label: 'Oldest first' },
-          ]}
-          className="sm:w-44"
-        />
-      </div>
+        {/* ── Queue ── */}
+        <section className="min-w-0 space-y-3">
+          <FilterPanel>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <SearchField value={searchInput} onChange={setSearchInput} label="Search seller applications" placeholder="Search shop, name or email…" />
+              <div className="flex items-center gap-2">
+                <CustomSelect
+                  value={sortParam}
+                  onChange={(v) => setParam('sort', v)}
+                  options={[
+                    { value: 'newest', label: 'Newest first' },
+                    { value: 'oldest', label: 'Oldest first' },
+                  ]}
+                  className="flex-1 sm:w-40"
+                />
+                <ViewToggle value={view} onChange={setView} />
+              </div>
+            </div>
+          </FilterPanel>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-800 capitalize">{tabParam} Applications</h2>
-          {!loading && (
-            <span className="text-xs text-gray-400 font-medium">{meta.total} total</span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="p-10 text-center text-sm text-gray-400">Loading…</div>
-        ) : applications.length === 0 ? (
-          <div className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-500">No {tabParam} applications</p>
-            <p className="text-xs text-gray-400 mt-1">Nothing here yet.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-left bg-gray-50/60">
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Shop</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden sm:table-cell">Applicant</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden md:table-cell">Submitted</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Status</th>
-                  <th className="px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wide">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {applications.map((app) => (
-                  <tr
-                    key={app.id}
-                    onClick={() => setSelected(app)}
-                    className="hover:bg-red-50/40 transition-colors cursor-pointer group"
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-100 text-brand-red flex items-center justify-center shrink-0 shadow-2xs">
-                          <Store className="w-4 h-4" />
+          {failed ? (
+            <ListError message="The seller applications could not be loaded." onRetry={load} />
+          ) : (
+            <ListCard title={`${STATUS_LABEL[tabParam]} applications`} count={meta.total} busy={loading}>
+              {view === 'grid' ? (
+                applications.length === 0 && !loading ? empty : (
+                  <CardGrid>
+                    {loading && applications.length === 0 && <SkeletonTiles />}
+                    {applications.map((app) => (
+                      <TileShell key={app.id} onOpen={() => setSelected(app)} dimmed={loading}>
+                        <div className="flex items-start gap-3 p-4">
+                          <div className="relative shrink-0">
+                            <Avatar name={applicant(app)} src={app.user.avatar_url} size="xl" />
+                            <span className="absolute flex items-center justify-center w-6 h-6 text-white border-2 border-white rounded-lg -bottom-1 -right-1 bg-brand-red" aria-hidden="true">
+                              <Store className="w-3 h-3" />
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-[14px] font-bold leading-tight truncate text-brand-black group-hover:text-brand-red">{app.shop_name}</p>
+                              <Pill tone={STATUS_TONE[app.application_status]}>{STATUS_LABEL[app.application_status]}</Pill>
+                            </div>
+                            <p className="text-[12px] font-medium text-gray-700 truncate mt-0.5">{applicant(app)}</p>
+                            <p className="text-[11px] text-gray-400 truncate">{app.user.email}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-stone-900 group-hover:text-brand-red transition-colors text-sm">
-                            {app.shop_name}
-                          </p>
-                          <p className="text-[11px] text-stone-400">Merchant Store</p>
+                        <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                          <DocChip icon={IdCard} label="ID" ok={Boolean(app.government_id_image_url)} />
+                          <DocChip icon={Camera} label="Selfie" ok={Boolean(app.selfie_with_id_url)} />
+                          <DocChip icon={FileText} label="Permit" ok={Boolean(app.business_permit_url)} />
+                          <DocChip icon={FileText} label="DTI / SEC" ok={Boolean(app.dti_sec_registration_url)} />
                         </div>
+                        <div className="flex items-center justify-between gap-2 px-4 py-2.5 mt-auto border-t border-gray-100 bg-gray-50/60 rounded-b-2xl">
+                          {app.application_status === 'pending'
+                            ? <WaitingBadge since={app.submitted_at} />
+                            : <span className="text-[11px] text-gray-500">Reviewed {formatDate(app.reviewed_at)}</span>}
+                          <RowAction onClick={() => setSelected(app)} label={`${actionLabel(app)} ${app.shop_name}`}>{actionLabel(app)} <ArrowRight className="w-3 h-3" aria-hidden="true" /></RowAction>
+                        </div>
+                      </TileShell>
+                    ))}
+                  </CardGrid>
+                )
+              ) : (
+                <>
+                  <div className="hidden md:block max-h-[68vh] overflow-auto">
+                    <table className="w-full text-[13px]">
+                      <thead>
+                        <tr>
+                          <th scope="col" className={TH}>Shop and applicant</th>
+                          <th scope="col" className={`${TH} hidden lg:table-cell`}>Documents</th>
+                          <th scope="col" className={TH}>Submitted</th>
+                          <th scope="col" className={TH}>Status</th>
+                          <th scope="col" className={`${TH} text-right`}><span className="sr-only">Actions</span></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {loading && applications.length === 0 && <SkeletonRows cols={5} />}
+                        {!loading && applications.length === 0 && <tr><td colSpan={5}>{empty}</td></tr>}
+                        {applications.map((app) => (
+                          <tr key={app.id} {...rowKeys(() => setSelected(app))} className={`${ROW} ${loading ? 'opacity-60' : ''}`}>
+                            <td className={TD}>
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Avatar name={applicant(app)} src={app.user.avatar_url} size="md" />
+                                <div className="min-w-0">
+                                  <p className="font-semibold truncate text-brand-black">{app.shop_name}</p>
+                                  <p className="text-[11px] text-gray-400 truncate">{applicant(app)} · {app.user.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className={`${TD} hidden lg:table-cell`}>
+                              <div className="flex flex-wrap gap-1">
+                                <DocChip icon={IdCard} label="ID" ok={Boolean(app.government_id_image_url)} />
+                                <DocChip icon={Camera} label="Selfie" ok={Boolean(app.selfie_with_id_url)} />
+                                <DocChip icon={FileText} label="Permit" ok={Boolean(app.business_permit_url)} />
+                              </div>
+                            </td>
+                            <td className={TD}>
+                              <p className="text-gray-700 whitespace-nowrap">{formatDate(app.submitted_at)}</p>
+                              <p className="text-[11px] text-gray-400">{relativeTime(app.submitted_at)}</p>
+                            </td>
+                            <td className={TD}><Pill tone={STATUS_TONE[app.application_status]}>{STATUS_LABEL[app.application_status]}</Pill></td>
+                            <td className={`${TD} text-right`}><RowAction onClick={() => setSelected(app)} label={`${actionLabel(app)} ${app.shop_name}`}>{actionLabel(app)}</RowAction></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="divide-y divide-gray-100 md:hidden">
+                    {loading && applications.length === 0 && <SkeletonCards />}
+                    {!loading && applications.length === 0 && empty}
+                    {applications.map((app) => (
+                      <div key={app.id} {...rowKeys(() => setSelected(app))} className={`flex items-center gap-3 p-3 ${ROW}`}>
+                        <Avatar name={applicant(app)} src={app.user.avatar_url} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold truncate text-brand-black">{app.shop_name}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{applicant(app)}</p>
+                        </div>
+                        <Pill tone={STATUS_TONE[app.application_status]}>{STATUS_LABEL[app.application_status]}</Pill>
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5 hidden sm:table-cell">
-                      <p className="text-xs font-semibold text-stone-800">{app.user.first_name} {app.user.last_name}</p>
-                      <p className="text-[11px] text-stone-400 mt-0.5">{app.user.email}</p>
-                    </td>
-                    <td className="px-5 py-4 hidden md:table-cell">
-                      <p className="text-sm text-gray-700">{formatDate(app.submitted_at)}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{relativeTime(app.submitted_at)}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <Badge label={app.application_status} variant={app.application_status} />
-                    </td>
-                    <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="primary"
-                        className="!min-h-[34px] !px-4 text-xs"
-                        onClick={() => setSelected(app)}
-                      >
-                        Review
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
-      {/* Pagination */}
-      {!loading && meta.total > 0 && (
-        <PaginationBar
-          meta={meta}
-          perPage={perPageParam}
-          onPage={setPage}
-          onPerPage={setPerPage}
-        />
-      )}
+              <ListPager meta={meta} perPage={perPageParam} perPageOptions={PER_PAGE_OPTIONS} onPage={setPage} onPerPage={setPerPage} noun={['application', 'applications']} />
+            </ListCard>
+          )}
+        </section>
+      </div>
 
       {/* Review Modal */}
       {selected && createPortal(
         <ReviewModal
           app={selected}
           onClose={() => setSelected(null)}
-          onApproved={handleApproved}
-          onRejected={handleRejected}
+          onApproved={(id) => handleDecided(id, 'approved')}
+          onRejected={(id) => handleDecided(id, 'rejected')}
         />,
         document.body
       )}

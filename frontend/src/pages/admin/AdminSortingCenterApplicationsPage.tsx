@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -16,13 +16,9 @@ import type {
   SortingCenterApplicationDetail,
 } from '../../types';
 import Button from '../../components/ui/Button';
-import CustomSelect from '../../components/ui/CustomSelect';
 import { useToast } from '../../components/ui/Toast';
 import {
-  Search,
   X,
-  ChevronLeft,
-  ChevronRight,
   ZoomIn,
   Clock,
   CheckCircle,
@@ -38,18 +34,16 @@ import {
   Mail,
   User as UserIcon,
   XCircle,
+  ArrowRight,
 } from 'lucide-react';
+import { PageHero, StatCard, StatCardSkeleton, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import {
+  type ListMeta, FilterPanel, SearchField, ListCard, ListPager, ListEmpty, ListError, Pill, Avatar, RowAction,
+  SkeletonRows, SkeletonCards, SkeletonTiles, TH, TD, ROW, rowKeys, useDebouncedSearch, useViewMode, ViewToggle,
+  RailCard, Checklist, WaitingBadge, DocChip, CardGrid, TileShell,
+} from '../../components/admin/listKit';
 
 const PER_PAGE_OPTIONS = [20, 30, 50, 100];
-
-interface Meta {
-  current_page: number;
-  last_page: number;
-  per_page: number;
-  total: number;
-  from: number | null;
-  to: number | null;
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -100,227 +94,14 @@ function formatIdType(raw: string | null | undefined): string {
 
 function HubStatusBadge({ status }: { status: SortingCenterStatus }) {
   switch (status) {
-    case 'PENDING':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-          Pending Review
-        </span>
-      );
-    case 'APPROVED':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-          <CheckCircle className="w-3 h-3 text-emerald-600" />
-          Approved
-        </span>
-      );
-    case 'REJECTED':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
-          <XCircle className="w-3 h-3 text-red-600" />
-          Rejected
-        </span>
-      );
-    case 'SUSPENDED':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-stone-200 text-stone-700 border border-stone-300">
-          Suspended
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
-          {status}
-        </span>
-      );
+    case 'PENDING':   return <Pill tone="amber">Pending review</Pill>;
+    case 'APPROVED':  return <Pill tone="emerald">Approved</Pill>;
+    case 'REJECTED':  return <Pill tone="red">Rejected</Pill>;
+    case 'SUSPENDED': return <Pill tone="gray">Suspended</Pill>;
+    default:          return <Pill tone="gray">{status}</Pill>;
   }
 }
 
-// ── Mount Animation ───────────────────────────────────────────────────────────
-
-function useMountAnim() {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(18px)';
-    el.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
-    const id = requestAnimationFrame(() => {
-      el.style.opacity = '1';
-      el.style.transform = 'translateY(0)';
-    });
-    return () => cancelAnimationFrame(id);
-  }, []);
-  return ref;
-}
-
-// ── Count-up ──────────────────────────────────────────────────────────────────
-
-function useCountUp(target: number, duration = 900): number {
-  const [value, setValue] = useState(0);
-  const rafRef = useRef<number>(0);
-  useEffect(() => {
-    if (target === 0) {
-      setValue(0);
-      return;
-    }
-    const start = performance.now();
-    const run = (now: number) => {
-      const p = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(target * eased));
-      if (p < 1) rafRef.current = requestAnimationFrame(run);
-    };
-    rafRef.current = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [target, duration]);
-  return value;
-}
-
-function SummaryCards({ counts }: { counts: { pending: number; approved: number; rejected: number } }) {
-  const pending  = useCountUp(counts.pending);
-  const approved = useCountUp(counts.approved);
-  const rejected = useCountUp(counts.rejected);
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {/* Card 1: Pending */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
-        <div className="space-y-1">
-          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Pending Hubs</span>
-          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{pending}</p>
-          <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-1 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Awaiting vetting
-          </p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100 shadow-2xs">
-          <Clock className="w-6 h-6" />
-        </div>
-      </div>
-
-      {/* Card 2: Approved */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
-        <div className="space-y-1">
-          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Authorized Hubs</span>
-          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{approved}</p>
-          <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active sorting centers
-          </p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 shadow-2xs">
-          <CheckCircle className="w-6 h-6" />
-        </div>
-      </div>
-
-      {/* Card 3: Rejected */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex items-center justify-between">
-        <div className="space-y-1">
-          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Declined Hubs</span>
-          <p className="text-2xl sm:text-3xl font-black text-stone-900 leading-none">{rejected}</p>
-          <p className="text-[11px] text-stone-500 font-semibold flex items-center gap-1 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-stone-400" /> Rejected submissions
-          </p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-600 flex items-center justify-center shrink-0 border border-stone-200 shadow-2xs">
-          <Warehouse className="w-6 h-6" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Pagination Bar ────────────────────────────────────────────────────────────
-
-function PaginationBar({
-  meta,
-  perPage,
-  onPage,
-  onPerPage,
-}: {
-  meta: Meta;
-  perPage: number;
-  onPage: (p: number) => void;
-  onPerPage: (n: number) => void;
-}) {
-  const { current_page, last_page, total, from, to } = meta;
-  const pages: (number | '…')[] = [];
-  if (last_page <= 7) {
-    for (let i = 1; i <= last_page; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    if (current_page > 3) pages.push('…');
-    for (let i = Math.max(2, current_page - 1); i <= Math.min(last_page - 1, current_page + 1); i++) {
-      pages.push(i);
-    }
-    if (current_page < last_page - 2) pages.push('…');
-    pages.push(last_page);
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-200">
-      <p className="text-xs sm:text-sm font-semibold text-gray-700">
-        {total === 0 ? (
-          'No results'
-        ) : (
-          <>
-            Showing <span className="text-brand-red">{from ?? 0}–{to ?? 0}</span> of{' '}
-            <span className="text-brand-red">{total}</span> {total === 1 ? 'application' : 'applications'}
-          </>
-        )}
-      </p>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs sm:text-sm font-semibold text-gray-600">Per page:</span>
-          <CustomSelect
-            value={String(perPage)}
-            onChange={(v) => onPerPage(Number(v))}
-            options={PER_PAGE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
-            className="w-20"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onPage(current_page - 1)}
-            disabled={current_page <= 1}
-            aria-label="Previous Page"
-            className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          {pages.map((p, i) =>
-            p === '…' ? (
-              <span key={`e-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">
-                …
-              </span>
-            ) : (
-              <button
-                key={p}
-                onClick={() => onPage(p as number)}
-                className={[
-                  'w-8 h-8 flex items-center justify-center rounded-md text-sm font-medium transition-colors',
-                  p === current_page
-                    ? 'bg-brand-red text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red',
-                ].join(' ')}
-              >
-                {p}
-              </button>
-            )
-          )}
-          <button
-            onClick={() => onPage(current_page + 1)}
-            disabled={current_page >= last_page}
-            aria-label="Next Page"
-            className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── ID & Permit Lightbox ──────────────────────────────────────────────────────
 
@@ -1036,53 +817,40 @@ function ReviewModal({ appId, onClose, onApproved, onRejected }: ReviewModalProp
 
 // ── Main Page Component ───────────────────────────────────────────────────────
 
+type HubTab = 'PENDING' | 'APPROVED' | 'REJECTED' | 'all';
+
+const HUB_CHECKLIST = [
+  'The DTI permit is readable and names this hub or its owner.',
+  'The owner\'s ID matches the applicant\'s name.',
+  'The address is a real place inside the barangays it will cover.',
+  'The barangays it will cover are near enough for its riders to reach.',
+];
+
 export default function AdminSortingCenterApplicationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const mountRef = useMountAnim();
 
-  // URL state
-  const statusParam  = (searchParams.get('status') as SortingCenterStatus | 'all') || 'PENDING';
+  const statusParam  = ((searchParams.get('status') as HubTab | null) || 'PENDING');
   const pageParam    = parseInt(searchParams.get('page') || '1', 10);
   const perPageParam = parseInt(searchParams.get('per_page') || '30', 10);
   const searchParam  = searchParams.get('search') || '';
 
-  // Local state
-  const [searchInput, setSearchInput] = useState(searchParam);
   const [applications, setApplications] = useState<SortingCenterApplicationSummaryItem[]>([]);
-  const [meta, setMeta] = useState<Meta>({
-    current_page: 1,
-    last_page: 1,
-    per_page: perPageParam,
-    total: 0,
-    from: null,
-    to: null,
-  });
+  const [meta, setMeta] = useState<ListMeta>({ current_page: 1, last_page: 1, per_page: perPageParam, total: 0, from: null, to: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Summary counts
-  const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
-
-  // Review modal detail
+  const [counts, setCounts] = useState<{ pending: number; approved: number; rejected: number } | null>(null);
   const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
+  const [view, setView] = useViewMode('hub_applications');
 
-  // Debounced search sync
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInput !== searchParam) {
-        setSearchParams((prev) => {
-          const next = new URLSearchParams(prev);
-          if (searchInput.trim()) next.set('search', searchInput.trim());
-          else next.delete('search');
-          next.set('page', '1');
-          return next;
-        });
-      }
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchInput, searchParam, setSearchParams]);
+  const [searchInput, setSearchInput] = useDebouncedSearch(searchParam, (v) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (v) next.set('search', v); else next.delete('search');
+      next.set('page', '1');
+      return next;
+    });
+  });
 
-  // Fetch applications list
   const fetchApplications = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -1094,18 +862,16 @@ export default function AdminSortingCenterApplicationsPage() {
         page: pageParam,
         per_page: perPageParam,
       });
-
       setApplications(res.data);
       setMeta(res.meta);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to load sorting center applications.';
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'The sorting center applications could not be loaded.';
       setError(msg);
     } finally {
       setLoading(false);
     }
   }, [statusParam, searchParam, pageParam, perPageParam]);
 
-  // Fetch aggregate counts for summary cards
   const fetchCounts = useCallback(async () => {
     try {
       const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
@@ -1113,26 +879,16 @@ export default function AdminSortingCenterApplicationsPage() {
         getSortingCenterApplicationsApi({ status: 'APPROVED', per_page: 1 }),
         getSortingCenterApplicationsApi({ status: 'REJECTED', per_page: 1 }),
       ]);
-      setCounts({
-        pending: pendingRes.meta.total,
-        approved: approvedRes.meta.total,
-        rejected: rejectedRes.meta.total,
-      });
+      setCounts({ pending: pendingRes.meta.total, approved: approvedRes.meta.total, rejected: rejectedRes.meta.total });
     } catch {
-      // Non-critical, ignore summary count error
+      // Non-critical: the list still works without the counts.
     }
   }, []);
 
-  useEffect(() => {
-    fetchApplications();
-  }, [fetchApplications]);
+  useEffect(() => { fetchApplications(); }, [fetchApplications]);
+  useEffect(() => { fetchCounts(); }, [fetchCounts]);
 
-  useEffect(() => {
-    fetchCounts();
-  }, [fetchCounts]);
-
-  // Query parameter updates
-  const handleStatusChange = (newStatus: string) => {
+  const handleStatusChange = (newStatus: HubTab) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('status', newStatus);
@@ -1158,285 +914,176 @@ export default function AdminSortingCenterApplicationsPage() {
     });
   };
 
-  // State updates after action
   const handleActionComplete = (updatedHub: SortingCenterApplicationDetail) => {
-    // Update list item in place
-    setApplications((prev) =>
-      prev.map((app) =>
-        app.id === updatedHub.id
-          ? {
-              ...app,
-              status: updatedHub.status,
-            }
-          : app
-      )
-    );
-    // Refresh aggregate counts
+    setApplications((prev) => prev.map((app) => (app.id === updatedHub.id ? { ...app, status: updatedHub.status } : app)));
     fetchCounts();
   };
 
+  const location = (app: SortingCenterApplicationSummaryItem) => app.city_province || `${app.address_city}, ${app.address_province}`;
+  const submitted = (app: SortingCenterApplicationSummaryItem) => app.submitted_date || app.created_at;
+  const actionLabel = (app: SortingCenterApplicationSummaryItem) => (app.status === 'PENDING' ? 'Review' : 'View');
+  const empty = (
+    <ListEmpty icon={Warehouse} title="No applications found"
+      hint={statusParam === 'PENDING' ? 'No sorting center hubs are waiting for review.' : 'Try another status.'}
+      filtered={Boolean(searchParam)} onClear={() => setSearchInput('')} />
+  );
+  const heading = statusParam === 'all' ? 'All applications' : `${statusParam.charAt(0)}${statusParam.slice(1).toLowerCase()} applications`;
+
   return (
-    <div ref={mountRef} className="space-y-6 pb-12">
-      {/* Page Title & Context Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              Sorting Center Applications
-            </h1>
-            <span className="text-xs font-bold bg-red-100 text-brand-red px-2.5 py-0.5 rounded-full border border-red-200">
-              Logistics Queue
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Review, inspect business permits, and approve regional logistics sorting center hub registrations.
-          </p>
-        </div>
-
-        <button
-          onClick={() => {
-            fetchApplications();
-            fetchCounts();
-          }}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 self-start sm:self-auto text-xs font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:border-gray-300 rounded-xl px-3.5 py-2 shadow-2xs transition-colors"
-        >
-          <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Queue
+    <div className="pb-8 space-y-3">
+      <PageHero icon={Warehouse} eyebrow="Applications · Logistics" title="Hub Applications" subtitle="Check permits and IDs before a sorting center hub can receive parcels">
+        <button type="button" onClick={() => { fetchApplications(); fetchCounts(); }} disabled={loading} className={HERO_BUTTON}>
+          <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          Refresh
         </button>
-      </div>
+      </PageHero>
 
-      {/* Summary KPI Cards */}
-      <SummaryCards counts={counts} />
-
-      {/* Filter & Search Bar */}
-      <div className="bg-white rounded-2xl border border-gray-200/90 p-4 shadow-2xs space-y-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by hub name, city, province, or applicant…"
-              className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-gray-50 border border-gray-200 rounded-xl placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={() => setSearchInput('')}
-                aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+      <div className="grid items-start gap-3 lg:grid-cols-[250px_minmax(0,1fr)]">
+        {/* ── Rail: the status cards are the tabs ── */}
+        <aside className="space-y-3 lg:sticky lg:top-20">
+          <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+            {!counts ? (
+              [1, 2, 3].map((i) => <StatCardSkeleton key={i} />)
+            ) : (
+              <>
+                <StatCard compact icon={Clock} label="Pending hubs" value={counts.pending} subtext="Awaiting vetting" iconBg="bg-amber-50" iconColor="text-amber-600"
+                  onClick={() => handleStatusChange('PENDING')} active={statusParam === 'PENDING'} />
+                <StatCard compact icon={CheckCircle} label="Authorized hubs" value={counts.approved} subtext="Active sorting centers" iconBg="bg-emerald-50" iconColor="text-emerald-600"
+                  onClick={() => handleStatusChange('APPROVED')} active={statusParam === 'APPROVED'} />
+                <StatCard compact icon={XCircle} label="Declined" value={counts.rejected} subtext="Rejected submissions" iconBg="bg-red-50" iconColor="text-red-600"
+                  onClick={() => handleStatusChange('REJECTED')} active={statusParam === 'REJECTED'} />
+              </>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => handleStatusChange('all')}
+            aria-pressed={statusParam === 'all'}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+              statusParam === 'all' ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <span className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" aria-hidden="true" />Show every application</span>
+            {counts && <span className="tabular-nums">{counts.pending + counts.approved + counts.rejected}</span>}
+          </button>
+          <RailCard title="What to check">
+            <Checklist items={HUB_CHECKLIST} />
+          </RailCard>
+        </aside>
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status:</span>
-            <CustomSelect
-              value={statusParam}
-              onChange={handleStatusChange}
-              options={[
-                { value: 'PENDING', label: 'Pending Review' },
-                { value: 'APPROVED', label: 'Approved Hubs' },
-                { value: 'REJECTED', label: 'Rejected Hubs' },
-                { value: 'all', label: 'All Applications' },
-              ]}
-              className="w-44"
-            />
-          </div>
-        </div>
-
-        {/* Error Alert */}
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 flex items-center justify-between gap-3 text-xs text-red-700">
+        {/* ── Queue ── */}
+        <section className="min-w-0 space-y-3">
+          <FilterPanel>
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-              <span>{error}</span>
+              <SearchField value={searchInput} onChange={setSearchInput} label="Search hub applications" placeholder="Search hub, city, province or applicant…" />
+              <ViewToggle value={view} onChange={setView} />
             </div>
-            <button
-              onClick={fetchApplications}
-              className="font-bold underline hover:text-red-900 shrink-0"
-            >
-              Retry
-            </button>
-          </div>
-        )}
+          </FilterPanel>
 
-        {/* Desktop Table View */}
-        <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4">Hub Facility</th>
-                <th className="py-3 px-4">Location</th>
-                <th className="py-3 px-4">Applicant & Contact</th>
-                <th className="py-3 px-4">Submitted Date</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                Array.from({ length: 5 }).map((_, idx) => (
-                  <tr key={idx} className="animate-pulse">
-                    <td className="py-4 px-4"><div className="h-4 bg-gray-200 rounded-md w-36" /></td>
-                    <td className="py-4 px-4"><div className="h-4 bg-gray-200 rounded-md w-28" /></td>
-                    <td className="py-4 px-4"><div className="h-4 bg-gray-200 rounded-md w-32" /></td>
-                    <td className="py-4 px-4"><div className="h-4 bg-gray-200 rounded-md w-24" /></td>
-                    <td className="py-4 px-4"><div className="h-5 bg-gray-200 rounded-full w-24" /></td>
-                    <td className="py-4 px-4 text-right"><div className="h-8 bg-gray-200 rounded-lg w-20 ml-auto" /></td>
-                  </tr>
-                ))
-              ) : applications.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-500">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <Warehouse className="w-10 h-10 text-gray-300 mx-auto" />
-                      <p className="font-bold text-sm text-gray-800">No applications found</p>
-                      <p className="text-xs text-gray-400">
-                        {statusParam === 'PENDING'
-                          ? 'There are currently no pending sorting center hub applications in the queue.'
-                          : 'Try changing your status filter or clearing your search term.'}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                applications.map((app) => (
-                  <tr
-                    key={app.id}
-                    onClick={() => setSelectedAppId(app.id)}
-                    className="hover:bg-red-50/30 cursor-pointer transition-colors group"
-                  >
-                    {/* Hub Name */}
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-red-50 text-brand-red border border-red-200 flex items-center justify-center shrink-0">
-                          <Warehouse className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900 group-hover:text-brand-red transition-colors">
-                            {app.hub_name}
-                          </p>
-                          <p className="text-[10px] text-gray-400 font-mono">ID: #{app.id}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Location */}
-                    <td className="py-3.5 px-4 text-gray-700">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span>{app.city_province || `${app.address_city}, ${app.address_province}`}</span>
-                      </div>
-                    </td>
-
-                    {/* Applicant */}
-                    <td className="py-3.5 px-4">
-                      <p className="font-semibold text-gray-900">{app.applicant_name || '—'}</p>
-                      <p className="text-[11px] text-gray-400">{app.applicant_email || '—'}</p>
-                    </td>
-
-                    {/* Submitted Date */}
-                    <td className="py-3.5 px-4 text-gray-600">
-                      <span title={formatDateTime(app.submitted_date || app.created_at)}>
-                        {relativeTime(app.submitted_date || app.created_at)}
-                      </span>
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="py-3.5 px-4">
-                      <HubStatusBadge status={app.status} />
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setSelectedAppId(app.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-red bg-white border border-brand-red/30 hover:bg-brand-red hover:text-white transition-all shadow-2xs active:scale-95"
-                      >
-                        Inspect & Review
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Card List View */}
-        <div className="block md:hidden space-y-3">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="rounded-xl border border-gray-200 p-4 space-y-2.5 animate-pulse bg-gray-50/50">
-                <div className="h-4 bg-gray-200 rounded-md w-2/3" />
-                <div className="h-3 bg-gray-200 rounded-md w-1/2" />
-                <div className="h-7 bg-gray-200 rounded-lg w-full" />
-              </div>
-            ))
-          ) : applications.length === 0 ? (
-            <div className="py-8 text-center text-gray-500">
-              <Warehouse className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="font-bold text-xs text-gray-700">No applications found</p>
-            </div>
+          {error ? (
+            <ListError message={error} onRetry={fetchApplications} />
           ) : (
-            applications.map((app) => (
-              <div
-                key={app.id}
-                onClick={() => setSelectedAppId(app.id)}
-                className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs space-y-3 cursor-pointer hover:border-brand-red/40 transition-all"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900">{app.hub_name}</h3>
-                    <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 text-gray-400" />
-                      {app.city_province || `${app.address_city}, ${app.address_province}`}
-                    </p>
+            <ListCard title={heading} count={meta.total} busy={loading}>
+              {view === 'grid' ? (
+                applications.length === 0 && !loading ? empty : (
+                  <CardGrid>
+                    {loading && applications.length === 0 && <SkeletonTiles />}
+                    {applications.map((app) => (
+                      <TileShell key={app.id} onOpen={() => setSelectedAppId(app.id)} dimmed={loading}>
+                        <div className="flex items-start gap-3 p-4">
+                          <div className="relative shrink-0">
+                            <Avatar name={app.applicant_name || app.hub_name} src={app.applicant_avatar_url} size="xl" />
+                            <span className="absolute flex items-center justify-center w-6 h-6 text-white border-2 border-white rounded-lg -bottom-1 -right-1 bg-neutral-800" aria-hidden="true">
+                              <Warehouse className="w-3 h-3" />
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-[14px] font-bold leading-tight truncate text-brand-black group-hover:text-brand-red">{app.hub_name}</p>
+                              <HubStatusBadge status={app.status} />
+                            </div>
+                            <p className="text-[12px] font-medium text-gray-700 truncate mt-0.5">{app.applicant_name || '—'}</p>
+                            <p className="text-[11px] text-gray-400 truncate">{app.applicant_email || '—'}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                          <DocChip icon={MapPin} label={location(app)} />
+                          <DocChip icon={FileText} label="DTI permit" />
+                          <DocChip icon={ShieldCheck} label="Owner ID" />
+                          <span className="text-[10px] font-mono text-gray-400 self-center">#{app.id}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 px-4 py-2.5 mt-auto border-t border-gray-100 bg-gray-50/60 rounded-b-2xl">
+                          {app.status === 'PENDING'
+                            ? <WaitingBadge since={submitted(app)} />
+                            : <span className="text-[11px] text-gray-500" title={formatDateTime(submitted(app))}>Submitted {formatDate(submitted(app))}</span>}
+                          <RowAction onClick={() => setSelectedAppId(app.id)} label={`${actionLabel(app)} ${app.hub_name}`}>{actionLabel(app)} <ArrowRight className="w-3 h-3" aria-hidden="true" /></RowAction>
+                        </div>
+                      </TileShell>
+                    ))}
+                  </CardGrid>
+                )
+              ) : (
+                <>
+                  <div className="hidden md:block max-h-[68vh] overflow-auto">
+                    <table className="w-full text-[13px]">
+                      <thead>
+                        <tr>
+                          <th scope="col" className={TH}>Hub and applicant</th>
+                          <th scope="col" className={TH}>Location</th>
+                          <th scope="col" className={TH}>Submitted</th>
+                          <th scope="col" className={TH}>Status</th>
+                          <th scope="col" className={`${TH} text-right`}><span className="sr-only">Actions</span></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {loading && applications.length === 0 && <SkeletonRows cols={5} />}
+                        {!loading && applications.length === 0 && <tr><td colSpan={5}>{empty}</td></tr>}
+                        {applications.map((app) => (
+                          <tr key={app.id} {...rowKeys(() => setSelectedAppId(app.id))} className={`${ROW} ${loading ? 'opacity-60' : ''}`}>
+                            <td className={TD}>
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Avatar name={app.applicant_name || app.hub_name} src={app.applicant_avatar_url} size="md" />
+                                <div className="min-w-0">
+                                  <p className="font-semibold truncate text-brand-black">{app.hub_name}</p>
+                                  <p className="text-[11px] text-gray-400 truncate">{app.applicant_name || '—'} · {app.applicant_email || '—'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className={`${TD} text-gray-700`}>
+                              <span className="inline-flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />{location(app)}</span>
+                            </td>
+                            <td className={TD}>
+                              <p className="text-gray-700 whitespace-nowrap">{formatDate(submitted(app))}</p>
+                              <p className="text-[11px] text-gray-400">{relativeTime(submitted(app))}</p>
+                            </td>
+                            <td className={TD}><HubStatusBadge status={app.status} /></td>
+                            <td className={`${TD} text-right`}><RowAction onClick={() => setSelectedAppId(app.id)} label={`${actionLabel(app)} ${app.hub_name}`}>{actionLabel(app)}</RowAction></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <HubStatusBadge status={app.status} />
-                </div>
+                  <div className="divide-y divide-gray-100 md:hidden">
+                    {loading && applications.length === 0 && <SkeletonCards />}
+                    {!loading && applications.length === 0 && empty}
+                    {applications.map((app) => (
+                      <div key={app.id} {...rowKeys(() => setSelectedAppId(app.id))} className={`flex items-center gap-3 p-3 ${ROW}`}>
+                        <Avatar name={app.applicant_name || app.hub_name} src={app.applicant_avatar_url} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold truncate text-brand-black">{app.hub_name}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{location(app)}</p>
+                        </div>
+                        <HubStatusBadge status={app.status} />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
-                <div className="text-xs text-gray-600 border-t border-gray-100 pt-2 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Applicant:</span>
-                    <span className="font-semibold text-gray-800">{app.applicant_name || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Submitted:</span>
-                    <span>{relativeTime(app.submitted_date || app.created_at)}</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedAppId(app.id);
-                  }}
-                  className="w-full py-2 rounded-lg text-xs font-bold text-brand-red bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
-                >
-                  Inspect & Review Hub
-                </button>
-              </div>
-            ))
+              <ListPager meta={meta} perPage={perPageParam} perPageOptions={PER_PAGE_OPTIONS} onPage={handlePageChange} onPerPage={handlePerPageChange} noun={['application', 'applications']} />
+            </ListCard>
           )}
-        </div>
-
-        {/* Pagination Bar */}
-        {meta.total > 0 && (
-          <PaginationBar
-            meta={meta}
-            perPage={perPageParam}
-            onPage={handlePageChange}
-            onPerPage={handlePerPageChange}
-          />
-        )}
+        </section>
       </div>
 
       {/* Review Modal Dialog */}

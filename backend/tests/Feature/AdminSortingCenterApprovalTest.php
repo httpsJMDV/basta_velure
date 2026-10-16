@@ -314,6 +314,23 @@ class AdminSortingCenterApprovalTest extends TestCase
     }
 
     /**
+     * The list carries the applicant's profile photo (or null) so the admin table can show it.
+     */
+    public function test_list_includes_applicant_avatar_url_or_null(): void
+    {
+        [$withPhoto, $hubWithPhoto] = $this->createHub();
+        $withPhoto->forceFill(['avatar_path' => 'avatars/ramon.jpg'])->save();
+        [, $hubWithout] = $this->createHub();
+
+        Sanctum::actingAs($this->admin);
+        $rows = collect($this->getJson('/api/v1/admin/sorting-center-applications?per_page=100')->assertOk()->json('data'))->keyBy('id');
+
+        $this->assertStringEndsWith('/storage/avatars/ramon.jpg', $rows[$hubWithPhoto->id]['applicant_avatar_url']);
+        $this->assertArrayHasKey('applicant_avatar_url', $rows[$hubWithout->id]);
+        $this->assertNull($rows[$hubWithout->id]['applicant_avatar_url']);
+    }
+
+    /**
      * 7. A mail failure does not undo the status change.
      */
     public function test_mail_failure_does_not_rollback_status_change(): void

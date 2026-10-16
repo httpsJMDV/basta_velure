@@ -40,6 +40,7 @@ Retrieves a paginated list of hub applications with filtering and search capabil
       "city_province": "Santa Cruz, Laguna",
       "applicant_name": "Juan Dela Cruz",
       "applicant_email": "juan.hub@example.com",
+      "applicant_avatar_url": "http://localhost:8000/storage/avatars/juan.jpg",
       "submitted_date": "2026-10-05T01:00:00+08:00",
       "created_at": "2026-10-05T01:00:00+08:00",
       "status": "PENDING"
