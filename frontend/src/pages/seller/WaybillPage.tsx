@@ -1,17 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 import { Printer, ArrowLeft, AlertCircle, Package } from 'lucide-react';
 import { getSellerOrderWaybillApi } from '../../api/client';
 import type { WaybillData } from '../../types';
 
+/** Tells the page that opened this one in a hidden frame (PrintWaybillButton) how printing went. */
+function tellOpener(message: { type: 'waybill:printed' } | { type: 'waybill:error'; message: string }) {
+  if (window.parent !== window) window.parent.postMessage(message, window.location.origin);
+}
+
 export default function WaybillPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // ?print=1: opened by PrintWaybillButton in a hidden frame; print as soon as the label is drawn.
+  const [searchParams] = useSearchParams();
+  const autoPrint = searchParams.get('print') === '1';
   const [waybill, setWaybill] = useState<WaybillData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [barcodeReady, setBarcodeReady] = useState(false);
+  const [qrSrc, setQrSrc] = useState<string | null>(null);
   const barcodeRef = useRef<SVGSVGElement | null>(null);
+  const printedRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
@@ -21,22 +33,23 @@ export default function WaybillPage() {
       .then((data) => {
         setWaybill(data);
       })
-      .catch((err: any) => {
+      .catch((err: { response?: { data?: { message?: string } } }) => {
         const msg = err.response?.data?.message || 'Failed to load waybill data.';
         setError(msg);
+        if (autoPrint) tellOpener({ type: 'waybill:error', message: msg });
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [id]);
+  }, [id, autoPrint]);
 
   useEffect(() => {
     if (!loading && waybill?.barcode?.value && barcodeRef.current) {
       try {
         JsBarcode(barcodeRef.current, waybill.barcode.value, {
           format: 'CODE128',
-          width: 1.8,
-          height: 48,
+          width: 1.6,
+          height: 46,
           displayValue: true,
           font: 'monospace',
           fontSize: 12,
@@ -46,8 +59,32 @@ export default function WaybillPage() {
       } catch (err) {
         console.error('Barcode render error:', err);
       }
+      setBarcodeReady(true);
     }
   }, [loading, waybill]);
+
+  // The same tracking number as a QR: phone cameras at the hub and riders' phones read it more reliably than a barcode.
+  useEffect(() => {
+    const value = waybill?.barcode?.value;
+    if (!value) return;
+    let cancelled = false;
+    QRCode.toDataURL(value, { width: 240, margin: 0, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } })
+      .then((url) => { if (!cancelled) setQrSrc(url); })
+      .catch(() => { if (!cancelled) setQrSrc(''); });
+    return () => { cancelled = true; };
+  }, [waybill]);
+
+  // Print once everything on the label is drawn, then tell the opener (the dialog blocks until it closes).
+  useEffect(() => {
+    if (!autoPrint || printedRef.current || !waybill || !barcodeReady || qrSrc === null) return;
+    printedRef.current = true;
+    const done = () => tellOpener({ type: 'waybill:printed' });
+    window.addEventListener('afterprint', done, { once: true });
+    window.setTimeout(() => {
+      window.print();
+      done();
+    }, 150);
+  }, [autoPrint, waybill, barcodeReady, qrSrc]);
 
   const handlePrint = () => {
     window.print();
@@ -134,10 +171,18 @@ export default function WaybillPage() {
           </div>
         </div>
 
-        {/* Barcode & Tracking Number Section */}
-        <div className="py-2.5 text-center border-b border-black">
-          <div className="flex justify-center items-center">
-            <svg ref={barcodeRef} className="max-w-full" />
+        {/* Barcode & QR: the same tracking number, for laser scanners and phone cameras */}
+        <div className="py-2.5 border-b border-black">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-center flex-1 min-w-0">
+              <svg ref={barcodeRef} className="max-w-full" />
+            </div>
+            {qrSrc && (
+              <div className="flex flex-col items-center shrink-0">
+                <img src={qrSrc} alt={`QR code for ${waybill.barcode.value}`} className="w-[22mm] h-[22mm]" />
+                <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider text-gray-600">Scan</span>
+              </div>
+            )}
           </div>
           <div className="mt-1 flex items-center justify-between text-[9px] text-gray-600 px-1">
             <span>Order #{order.order_number}</span>

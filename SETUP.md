@@ -109,6 +109,19 @@ php artisan reverb:start
 
 > **Note:** The Reverb server must stay running in its own terminal window on port `8080` so messages, read receipts, and live inbox notifications appear instantly in real-time.
 
+### Start the queue worker (emails)
+
+Every email (welcome, application decisions, orders, payments, returns, payouts) is queued. With
+`QUEUE_CONNECTION=database` nothing is sent until a worker runs, so keep this open in its own terminal too:
+
+```bash
+cd basta_velure/backend
+php artisan queue:work --tries=3
+```
+
+Emails queued while the worker was off are sent as soon as it starts. Check what is waiting with
+`php artisan tinker --execute="echo DB::table('jobs')->count();"`.
+
 ---
 
 ## Step 4 — Set Up the Frontend (React)
@@ -257,6 +270,8 @@ php artisan test
 |------|--------|---------|
 | Start backend | `backend/` | `php artisan serve` |
 | Start websocket server | `backend/` | `php artisan reverb:start` |
+| Send queued emails | `backend/` | `php artisan queue:work --tries=3` |
+| Run hourly jobs (escrow, auto-complete) | `backend/` | `php artisan schedule:work` |
 | Start frontend | `frontend/` | `npm run dev` |
 | Re-link storage | `backend/` | `php artisan storage:link` |
 

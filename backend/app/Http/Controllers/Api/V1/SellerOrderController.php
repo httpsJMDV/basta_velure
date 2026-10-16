@@ -233,6 +233,7 @@ class SellerOrderController extends Controller
 
         $currentStatus = $order->status instanceof OrderStatus ? $order->status->value : (string) $order->status;
         if ($currentStatus === OrderStatus::PLACED->value) {
+            // The "Order confirmed" email from the transition already tells a GCash buyer the payment was received.
             $this->stateMachine->transition(
                 $order,
                 OrderStatus::CONFIRMED,
@@ -242,6 +243,8 @@ class SellerOrderController extends Controller
                     ? 'COD order confirmed by merchant'
                     : 'Payment verified and confirmed by merchant'
             );
+        } elseif ($order->payment_method === 'gcash') {
+            app(\App\Services\MailNotifier::class)->gcashPaymentConfirmed($order);
         }
 
         return response()->json([
@@ -274,6 +277,8 @@ class SellerOrderController extends Controller
                 'status' => 'failed',
             ]);
         }
+
+        app(\App\Services\MailNotifier::class)->gcashPaymentRejected($order, $data['reason']);
 
         return response()->json([
             'message' => 'Payment marked as not received / verification failed.',
@@ -325,6 +330,13 @@ class SellerOrderController extends Controller
                 'resolution_note' => "Seller offered partial refund of ₱" . number_format($data['partial_amount'], 2) . ": {$data['reason']}.",
             ]);
         }
+
+        app(\App\Services\MailNotifier::class)->returnResolved(
+            $order,
+            ['accept' => 'accepted', 'reject' => 'rejected', 'partial_refund' => 'partial'][$data['action']],
+            $data['reason'] ?? null,
+            isset($data['partial_amount']) ? (float) $data['partial_amount'] : null,
+        );
 
         return response()->json([
             'message' => 'Return response recorded successfully.',

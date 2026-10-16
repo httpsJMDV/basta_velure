@@ -558,6 +558,18 @@ export interface AdminProduct {
     shop_name?: string | null;
     shop_slug?: string | null;
     avatar_url?: string | null;
+    /** The shop's public profile (null when the seller has no seller profile). */
+    shop?: {
+      logo_url: string | null;
+      banner_url: string | null;
+      category: string | null;
+      bio: string | null;
+      city: string | null;
+      province: string | null;
+      contact_number: string | null;
+      response_time: string | null;
+      approved_at: string | null;
+    } | null;
   } | null;
   created_at: string;
   fda_lto_on_file?: boolean;

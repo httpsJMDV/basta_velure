@@ -64,7 +64,9 @@ return [
     |
     */
 
-    'frontend_url' => env('FRONTEND_URL'),
+    // FRONTEND_URL may list several origins for CORS ("https://loved-it.shop,http://localhost:5173"); email links
+    // use the first one.
+    'frontend_url' => trim(explode(',', (string) env('FRONTEND_URL', ''))[0]) ?: null,
 
     /*
     |--------------------------------------------------------------------------

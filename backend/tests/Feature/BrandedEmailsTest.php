@@ -19,13 +19,19 @@ class BrandedEmailsTest extends TestCase
             [new SellerApplicationMail($user), 'Sample Shop', '/login'],
             [new PasswordResetMail('<Alex>', 'https://shop.example.test/reset-password?token=test&email=test%40example.test'), '60 minutes', '/reset-password?token=test&email=test%40example.test'],
             [new RiderApplicationMail($user, 'approved', null, $hub), 'You are ready to ride.', '/rider/login'],
-            [new RiderApplicationMail($user, 'disapproved', '<script>feedback</script>', $hub), 'Not approved', null],
+            // A refusal shows the escaped feedback and a "Review and resubmit" link to the portal.
+            [new RiderApplicationMail($user, 'disapproved', '<script>feedback</script>', $hub), 'Not approved', '/rider/login', true],
             [new SortingCenterApplicationMail($user, 'approved', null, $hub), 'Your hub is approved.', '/hub/login'],
-            [new SortingCenterApplicationMail($user, 'rejected', '<script>feedback</script>', $hub), 'Not approved', null],
+            [new SortingCenterApplicationMail($user, 'rejected', '<script>feedback</script>', $hub), 'Not approved', '/hub/login', true],
             [new ParcelsAssignedMail($user, $hub, 2, 'Sample Area'), '2 parcels', '/rider/login'],
             [new ParcelReturnedMail($user, $hub, 'Sample Shop', 'ORDER-123', 'TRACK-123', 'Delivery failed'), 'TRACK-123', '/login'],
         ];
-        foreach ($cases as [$mail, $content, $path]) {
+        foreach ($cases as $case) {
+            [$mail, $content, $path] = $case;
+            if (! empty($case[3])) {
+                $mail->assertSeeInHtml('&lt;script&gt;feedback&lt;/script&gt;', false);
+                $mail->assertDontSeeInHtml('<script>', false);
+            }
             $mail->assertSeeInHtml('#C0001A');
             $mail->assertSeeInHtml('alt="Loved-IT"', false);
             $mail->assertSeeInHtml('&lt;Alex&gt;', false);

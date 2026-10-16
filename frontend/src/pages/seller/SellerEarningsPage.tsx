@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Wallet,
   Clock,
@@ -498,7 +499,7 @@ export default function SellerEarningsPage() {
       </div>
 
       {/* ── 4. Request Withdrawal Modal ── */}
-      {showPayoutModal && (
+      {showPayoutModal && createPortal(
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 border border-gray-200 shadow-xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
@@ -620,7 +621,8 @@ export default function SellerEarningsPage() {
               </form>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

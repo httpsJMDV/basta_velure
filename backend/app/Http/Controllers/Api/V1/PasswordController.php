@@ -26,7 +26,7 @@ class PasswordController extends Controller
             $user->reset_token_expires_at = now()->addMinutes(60);
             $user->save();
 
-            $resetUrl = env('FRONTEND_URL', 'http://localhost:5173')
+            $resetUrl = rtrim(config('app.frontend_url') ?: 'http://localhost:5173', '/')
                 . '/reset-password?token=' . $token
                 . '&email=' . urlencode($user->email);
 

@@ -438,7 +438,7 @@ class HubDeliveryTest extends TestCase
         $this->assertEquals('hub', $history->actor_type);
         $this->assertEquals($this->hubUser->id, $history->actor_id);
 
-        Mail::assertQueuedCount(1);
+        $this->assertSame(1, Mail::queued(\App\Mail\ParcelsAssignedMail::class)->count() + Mail::queued(\App\Mail\ParcelReturnedMail::class)->count()); // hub mails only; order-status notices are NoticeMail
         Mail::assertQueued(ParcelsAssignedMail::class, function (ParcelsAssignedMail $mail) use ($newUser) {
             $this->assertTrue($mail->hasTo($newUser->email));
             $html = $mail->render();
@@ -568,7 +568,7 @@ class HubDeliveryTest extends TestCase
         [, $rider] = $this->eligibleRider();
         $parcel = $this->createParcel($rider);
 
-        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp is down'));
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp is down'));
         Log::spy();
 
         $this->reschedule($parcel->tracking_number, $rider->id)->assertOk();
@@ -651,7 +651,7 @@ class HubDeliveryTest extends TestCase
 
         $this->returnIt($parcel->tracking_number, ['note' => 'Hub-only internal note'])->assertOk();
 
-        Mail::assertQueuedCount(1);
+        $this->assertSame(1, Mail::queued(\App\Mail\ParcelsAssignedMail::class)->count() + Mail::queued(\App\Mail\ParcelReturnedMail::class)->count()); // hub mails only; order-status notices are NoticeMail
         Mail::assertQueued(ParcelReturnedMail::class, function (ParcelReturnedMail $mail) use ($seller, $parcel) {
             $html = $mail->render();
 
@@ -677,7 +677,7 @@ class HubDeliveryTest extends TestCase
         [, $rider] = $this->eligibleRider();
         $parcel = $this->createParcel($rider);
 
-        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp is down'));
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp is down'));
         Log::spy();
 
         $this->returnIt($parcel->tracking_number)->assertOk();
@@ -727,7 +727,7 @@ class HubDeliveryTest extends TestCase
 
         $this->returnIt($returned->tracking_number)->assertStatus(409);
         $this->reschedule($returned->tracking_number, $rider->id)->assertStatus(409);
-        Mail::assertQueuedCount(2); // one rider mail + one seller mail
+        $this->assertSame(2, Mail::queued(\App\Mail\ParcelsAssignedMail::class)->count() + Mail::queued(\App\Mail\ParcelReturnedMail::class)->count()); // one rider mail + one seller mail (order-status notices are NoticeMail)
     }
 
     // ─── metrics ──────────────────────────────────────────────────────────────

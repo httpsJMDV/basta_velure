@@ -1,6 +1,6 @@
 @php
 $recipientName = $firstName;
-$label = 'Seller application'; $title = 'Your application is with us.';
+$tone = 'info'; $label = 'Seller application received'; $title = 'Your application is with us.';
 $paragraphs = ['Thank you for applying to sell on Loved-IT. Our admin team will review your shop information and submitted documents.', 'Seller features become available once your shop is approved.'];
 $details = ['Shop' => $shopName, 'Application status' => 'Under review'];
 $actionLabel = 'Sign in to Loved-IT'; $actionUrl = $loginUrl;

@@ -52,6 +52,7 @@ class AdminSellerApplicationController extends Controller
     public function approve(SellerProfile $sellerProfile, Request $request): JsonResponse
     {
         $this->reviewService->approve($sellerProfile, $request->user()->id);
+        app(\App\Services\MailNotifier::class)->sellerApplicationApproved($sellerProfile->fresh('user'));
         return response()->json(['message' => 'Application approved.']);
     }
 
@@ -59,6 +60,7 @@ class AdminSellerApplicationController extends Controller
     {
         $request->validate(['reason' => ['required', 'string', 'max:500']]);
         $this->reviewService->reject($sellerProfile, $request->user()->id, $request->reason);
+        app(\App\Services\MailNotifier::class)->sellerApplicationRejected($sellerProfile->fresh('user'), $request->reason);
         return response()->json(['message' => 'Application rejected.']);
     }
 

@@ -1,6 +1,6 @@
 @php
 $recipientName = $firstName;
-$label = 'Delivery assignment'; $title = 'Your next deliveries are ready.';
+$tone = 'info'; $label = 'Delivery assignment'; $title = 'Your next deliveries are ready.';
 $paragraphs = [$hubName . ' has assigned ' . $parcelCount . ' ' . ($parcelCount === 1 ? 'parcel' : 'parcels') . ' to you. Sign in to review your assignments and coordinate collection with your hub.'];
 $details = ['Logistics hub' => $hubName, 'Parcels assigned' => $parcelCount, 'Delivery area' => $barangayName];
 $actionLabel = 'View rider assignments'; $actionUrl = $loginUrl;

@@ -94,6 +94,12 @@ class DemoDataService
      */
     public function seed(): array
     {
+        // Demo orders move through the real state machine; their order emails must not go to the demo accounts.
+        return \App\Services\MailNotifier::muted(fn () => $this->seedData());
+    }
+
+    private function seedData(): array
+    {
         $this->assertNotProduction();
 
         $removed = $this->cleaner->reset();

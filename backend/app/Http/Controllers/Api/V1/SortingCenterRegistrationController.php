@@ -63,6 +63,8 @@ class SortingCenterRegistrationController extends Controller
         }
 
         // The reopened application no longer points at the old permit.
+        app(\App\Services\MailNotifier::class)->hubApplicationReceived($sortingCenter->load('user'));
+
         if ($previousPermit && $previousPermit !== $permitPath) {
             Storage::disk('ids')->delete($previousPermit);
         }
