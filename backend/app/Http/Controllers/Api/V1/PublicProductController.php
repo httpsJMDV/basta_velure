@@ -3,41 +3,35 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
+use App\Services\ProductSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PublicProductController extends Controller
 {
     /** GET /products */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, ProductSearch $searcher): JsonResponse
     {
         $query = Product::with(['variants', 'images', 'seller.sellerProfile'])
             ->where('status', 'active')
             ->whereHas('seller', fn ($q) => $q->where('status', 'active'))
             ->whereHas('seller.sellerProfile', fn ($q) => $q->where('application_status', 'approved'));
 
-        // Free-text search
+        // Free-text search: word by word, forgiving typos, best match first (ProductSearch).
+        $search = null;
         if ($request->filled('q')) {
-            $s = (string) $request->input('q');
-            $like = "%{$s}%";
-            $query->where(function ($q) use ($like) {
-                $q->where('name', 'like', $like)
-                  ->orWhere('description', 'like', $like)
-                  ->orWhereHas('seller.sellerProfile', function ($sq) use ($like) {
-                      $sq->where('shop_name', 'like', $like);
-                  });
-            });
+            $search = $searcher->search((string) $request->input('q'));
+            $query->whereIn('id', $search['ids'] ?: [0]);
         }
 
-        // Category filters
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->input('category_id'));
-        } elseif ($request->filled('parent_category_id')) {
-            // parent_category_id is a string slug — match against category_id prefix
-            $query->where('category_id', 'like', $request->input('parent_category_id') . '%');
+        // Category filters: a slug (what the web app sends) or an id; a parent category includes its subcategories.
+        if ($categoryIds = $this->requestedCategoryIds($request)) {
+            $query->whereIn('category_id', $categoryIds);
         }
 
         // Price range
@@ -113,15 +107,22 @@ class PublicProductController extends Controller
             'newest'        => $query->latest(),
             'best_selling'  => $query->orderByDesc('units_sold')->orderBy('id'),
             'highest_rated' => $query->orderByDesc('avg_rating'),
-            'random'        => $query->inRandomOrder(),
-            default         => $query->orderByDesc('units_sold')->orderByDesc('avg_rating'),
+            // A seed keeps the shuffle stable across pages, so "View more" never repeats a product.
+            'random'        => $request->filled('seed') ? $query->orderByRaw('RAND(?)', [(int) $request->input('seed')])->orderBy('id') : $query->inRandomOrder(),
+            // Most sold, then most reviewed and best rated, then discounted, then newest.
+            'trending'      => $query->orderByDesc('units_sold')->orderByDesc('review_count')->orderByDesc('avg_rating')
+                ->orderByRaw('CASE WHEN original_price > base_price THEN 0 ELSE 1 END')->latest(),
+            // Best match: a search keeps its relevance order; otherwise the best sellers come first.
+            default         => $search && $search['ids']
+                ? $query->orderByRaw('FIELD(id, ' . implode(',', array_map('intval', $search['ids'])) . ')')
+                : $query->orderByDesc('units_sold')->orderByDesc('avg_rating'),
         };
 
         $perPage   = min((int) $request->input('per_page', 28), 100);
         $paginated = $query->paginate($perPage);
 
         // Facets — sellers and location macro-regions
-        $facets = $this->buildFacets($request);
+        $facets = $this->buildFacets($request, $search ? ($search['ids'] ?: [0]) : null);
 
         // Related shops (when user searched a keyword)
         $relatedShops = [];
@@ -132,6 +133,8 @@ class PublicProductController extends Controller
         return response()->json([
             'data'          => collect($paginated->items())->map(fn ($p) => $this->formatProduct($p)),
             'related_shops' => $relatedShops,
+            // The query as the catalog spells it, when a typo was forgiven ("Showing results for ...").
+            'search'        => $search ? ['corrected' => $search['corrected']] : null,
             'meta'          => [
                 'current_page' => $paginated->currentPage(),
                 'last_page'    => $paginated->lastPage(),
@@ -281,17 +284,41 @@ class PublicProductController extends Controller
         })->toArray();
     }
 
-    private function buildFacets(Request $request): array
+    /**
+     * The category ids a request filters on: category_id (a slug or an id) or parent_category_id; a parent category
+     * includes its subcategories. Null when the request has no category filter; [0] (matches nothing) when the
+     * category does not exist.
+     *
+     * @return array<int, int>|null
+     */
+    private function requestedCategoryIds(Request $request): ?array
+    {
+        $value = $request->filled('category_id') ? $request->input('category_id') : $request->input('parent_category_id');
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $category = Category::where(is_numeric($value) ? 'id' : 'slug', $value)->first(['id']);
+        if (! $category) {
+            return [0];
+        }
+
+        return Category::where('parent_id', $category->id)->pluck('id')->push($category->id)->all();
+    }
+
+    /** @param array<int, int>|null $productIds the search's matches, when there is a search */
+    private function buildFacets(Request $request, ?array $productIds = null): array
     {
         $base = Product::with(['seller.sellerProfile'])
             ->where('status', 'active')
             ->whereHas('seller', fn ($q) => $q->where('status', 'active'))
             ->whereHas('seller.sellerProfile', fn ($q) => $q->where('application_status', 'approved'));
 
-        if ($request->category_id) {
-            $base->where('category_id', $request->category_id);
-        } elseif ($request->parent_category_id) {
-            $base->where('category_id', 'like', $request->parent_category_id . '%');
+        if ($categoryIds = $this->requestedCategoryIds($request)) {
+            $base->whereIn('category_id', $categoryIds);
+        }
+        if ($productIds !== null) {
+            $base->whereIn('id', $productIds);
         }
 
         $products = $base->get();
@@ -468,7 +495,18 @@ class PublicProductController extends Controller
         $base    = $this->formatProduct($product);
         $profile = $product->seller?->sellerProfile;
 
+        $category = $product->category()->with('parent:id,name,slug')->first(['id', 'name', 'slug', 'parent_id']);
+        $shopProducts = Product::where('seller_id', $product->seller_id)->where('status', 'active');
+        $shopRating = Review::whereIn('product_id', (clone $shopProducts)->select('id'))->avg('rating');
+
         return array_merge($base, [
+            'discount_percent' => $product->discount_percent,
+            // Where it sits in the catalog (breadcrumb, specifications).
+            'category' => $category ? [
+                'slug'   => $category->slug,
+                'name'   => $category->name,
+                'parent' => $category->parent ? ['slug' => $category->parent->slug, 'name' => $category->parent->name] : null,
+            ] : null,
             'images' => $product->images->map(fn ($img) => [
                 'id'         => $img->id,
                 'url'        => asset('storage/' . $img->path),
@@ -502,6 +540,10 @@ class PublicProductController extends Controller
             'seller' => [
                 'id'              => $product->seller?->id,
                 'shop_name'       => $profile?->shop_name ?? '',
+                'shop_slug'       => Str::slug($profile?->shop_name ?? ('shop-' . $product->seller_id)),
+                'product_count'   => (clone $shopProducts)->count(),
+                'avg_rating'      => $shopRating !== null ? round((float) $shopRating, 1) : null,
+                'joined_at'       => ($profile?->reviewed_at ?? $profile?->created_at)?->toIso8601String(),
                 'avatar_url'      => $profile?->logo_path ? asset('storage/' . $profile->logo_path) : null,
                 'city'            => $profile?->address_city ?? null,
                 'province'        => $profile?->address_province ?? null,

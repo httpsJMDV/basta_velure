@@ -10,6 +10,8 @@ import CartModal from './CartModal';
 import type { CartItem as ModalCartItem } from './CartModal';
 import LovedItLogo from './LovedItLogo';
 import { useToast } from './ui/Toast';
+import CategoriesMenu, { NAV_PILL } from './storefront/CategoriesMenu';
+import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
 
@@ -44,7 +46,7 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-white/90 hover:text-white transition-colors text-sm font-medium"
+        className={`${NAV_PILL} flex items-center gap-1.5 text-white/90 hover:text-white transition-colors text-sm font-medium ${open ? 'before:opacity-100 before:scale-100' : ''}`}
       >
         <UserAvatar firstName={user.first_name} lastName={user.last_name} avatarUrl={user.avatar_url} size="sm" />
         <span className="hidden sm:block max-w-[120px] truncate">{user.first_name} {user.last_name}</span>
@@ -148,6 +150,7 @@ export default function SiteHeader() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const mobileCategories = useStorefrontCategories();
 
   function handleSearch(e?: React.FormEvent) {
     e?.preventDefault();
@@ -239,6 +242,8 @@ export default function SiteHeader() {
             />
           </Link>
 
+          <CategoriesMenu />
+
           {/* Large Pill Search Field */}
           <form onSubmit={handleSearch} className="flex-1 max-w-2xl mx-auto relative">
             <input
@@ -258,7 +263,7 @@ export default function SiteHeader() {
           </form>
 
           {/* Right utility items */}
-          <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {user ? (
               <div className="hidden sm:block">
                 <UserDropdown user={user} />
@@ -266,7 +271,7 @@ export default function SiteHeader() {
             ) : (
               <Link
                 to="/login"
-                className="hidden sm:flex items-center gap-2 text-white hover:text-white/90 transition-colors group"
+                className={`${NAV_PILL} hidden sm:flex items-center gap-2 text-white hover:text-white/90 transition-colors group`}
               >
                 <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
                   <User className="w-4 h-4 text-white" />
@@ -281,7 +286,7 @@ export default function SiteHeader() {
             {/* Cart Button */}
             <button
               onClick={openCart}
-              className="flex items-center gap-2 text-white hover:text-white/90 transition-colors py-1 px-1.5 rounded-xl group"
+              className={`${NAV_PILL} flex items-center gap-2 text-white hover:text-white/90 transition-colors group`}
               title="View Cart"
             >
               <div className="relative">
@@ -360,6 +365,16 @@ export default function SiteHeader() {
             {SHORTCUTS.map((s) => (
               <button key={s} className="py-1 text-sm text-left text-white/90">{s}</button>
             ))}
+            {mobileCategories && mobileCategories.length > 0 && (
+              <div className="flex flex-col gap-1 pt-3 border-t border-white/10">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Categories</p>
+                <div className="grid grid-cols-2 gap-x-3">
+                  {mobileCategories.map((c) => (
+                    <Link key={c.id} to={`/category/${c.slug}`} className="py-1 text-sm text-white/90 truncate" onClick={() => setMenuOpen(false)}>{c.name}</Link>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-1 pt-3 border-t border-white/10">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Partner with us</p>
               <Link to="/partner" className="py-1 text-sm font-semibold text-white" onClick={() => setMenuOpen(false)}>Partner with us</Link>

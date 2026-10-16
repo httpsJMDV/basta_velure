@@ -43,7 +43,7 @@ const EMPTY_FORM: AddProductFormState = {
   parentCategoryId: '', leafCategoryId: '',
   hasVariants: false,
   variantTypes: [], variantRows: [],
-  price: '', stock: '',
+  price: '', stock: '', discountPercent: '',
   weightValue: '', weightUnit: 'kg',
   dimensionL: '', dimensionW: '', dimensionH: '', sku: '',
   fdaLtoFile: null, fdaLtoOnFile: false, fdaCprFile: null,
@@ -52,6 +52,73 @@ const EMPTY_FORM: AddProductFormState = {
 };
 
 type FieldErrors = Partial<Record<string, string>>;
+
+const MAX_DISCOUNT = 90;
+const DISCOUNT_PRESETS = [5, 10, 15, 20, 30, 50];
+
+/**
+ * The shop's discount: a percentage off every variant. Sellers type regular prices above; buyers pay the discounted
+ * price, shown struck through against the regular one on product cards.
+ */
+function DiscountField({ value, onChange, error, regularPrices }: {
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  regularPrices: number[];
+}) {
+  const percent = Number(value) || 0;
+  const prices = regularPrices.filter((p) => p > 0);
+  const regular = prices.length ? Math.min(...prices) : 0;
+  const sale = Math.round(regular * (100 - percent)) / 100;
+  const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+
+  return (
+    <div className="mt-5 pt-5 border-t border-gray-100">
+      <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+        <div className="sm:w-52">
+          <FieldWrap label="Shop discount" error={error} hint="Optional. Applies to every variant.">
+            <div className="relative">
+              <input
+                type="number" min="0" max={MAX_DISCOUNT} step="1" placeholder="0"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className={inputCls(error) + ' pr-9'}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">%</span>
+            </div>
+          </FieldWrap>
+        </div>
+        <div className="flex flex-wrap gap-1.5 sm:pb-6">
+          {DISCOUNT_PRESETS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onChange(percent === p ? '' : String(p))}
+              className={`h-8 px-3 rounded-full border text-[12px] font-semibold transition-colors ${
+                percent === p ? 'bg-brand-red border-brand-red text-white' : 'border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'
+              }`}
+            >
+              {p}% off
+            </button>
+          ))}
+          {percent > 0 && (
+            <button type="button" onClick={() => onChange('')} className="h-8 px-3 rounded-full text-[12px] font-semibold text-gray-500 hover:text-gray-800">
+              No discount
+            </button>
+          )}
+        </div>
+      </div>
+      {percent > 0 && percent <= MAX_DISCOUNT && regular > 0 && (
+        <p className="mt-1 text-[12px] text-gray-600">
+          Buyers see <span className="font-bold text-gray-900">{fmt(sale)}</span>{' '}
+          <span className="text-gray-400 line-through">{fmt(regular)}</span>{' '}
+          <span className="px-1 rounded border border-brand-red/50 text-brand-red text-[11px] font-semibold">-{percent}%</span>
+          {prices.length > 1 && <span className="text-gray-400"> (cheapest variant)</span>}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,6 +194,10 @@ function validate(form: AddProductFormState): { errors: FieldErrors; firstSectio
     if (!form.stock || isNaN(Number(form.stock)) || Number(form.stock) < 0)
       errors.stock = 'Enter a valid stock quantity.';
   }
+  if (form.discountPercent !== '') {
+    const d = Number(form.discountPercent);
+    if (!Number.isInteger(d) || d < 0 || d > MAX_DISCOUNT) errors.discountPercent = `Use a whole number from 0 to ${MAX_DISCOUNT}.`;
+  }
 
   if (!form.weightValue || isNaN(Number(form.weightValue)) || Number(form.weightValue) <= 0)
     errors.weightValue = 'Weight is required.';
@@ -141,7 +212,7 @@ function validate(form: AddProductFormState): { errors: FieldErrors; firstSectio
   const sectionErrors: Record<string, string[]> = {
     basic: ['name', 'description', 'images'],
     category: ['leafCategoryId'],
-    variants: ['variantTypes', 'price', 'stock',
+    variants: ['variantTypes', 'price', 'stock', 'discountPercent',
       ...Object.keys(errors).filter((k) => k.startsWith('variantRow_'))],
     shipping: ['weightValue'],
     fda: ['fdaLtoFile', 'fdaCprFile'],
@@ -172,6 +243,7 @@ function formFieldForServerKey(key: string, hasVariants: boolean): string {
   const direct: Record<string, string> = {
     category_slug: 'leafCategoryId',
     base_price: 'price',
+    discount_percent: 'discountPercent',
     weight_kg: 'weightValue',
     fda_lto: 'fdaLtoFile',
     fda_cpr: 'fdaCprFile',
@@ -1031,12 +1103,14 @@ export default function SellerAddProductPage() {
           images: [],
           existingImages: [...(p.images ?? [])].sort((a, b) => a.sort_order - b.sort_order),
           deletedImageIds: [],
-          price: hasVariants ? '' : String(p.variants[0]?.price ?? p.base_price),
+          // The form edits regular prices; the shop's discount is applied on save.
+          price: hasVariants ? '' : String(p.variants[0]?.regular_price ?? p.variants[0]?.price ?? p.base_price),
           stock: hasVariants ? '' : String(p.variants[0]?.stock_quantity ?? 0),
+          discountPercent: p.discount_percent ? String(p.discount_percent) : '',
           variantRows: hasVariants ? p.variants.map((v) => ({
             combination: v.label,
             options: {},
-            price: String(v.price),
+            price: String(v.regular_price ?? v.price),
             stock: String(v.stock_quantity),
             imagePreview: undefined,
           })) : [],
@@ -1144,6 +1218,7 @@ export default function SellerAddProductPage() {
         fd.append('variants[0][price]', form.price || '0');
         fd.append('variants[0][stock]', form.stock || '0');
       }
+      fd.append('discount_percent', form.discountPercent || '0');
 
       if (form.weightValue) {
         const kg = form.weightUnit === 'g'
@@ -1344,6 +1419,14 @@ export default function SellerAddProductPage() {
             </FieldWrap>
           </div>
         </div>
+
+        {/* The shop's own discount (there are no platform vouchers) */}
+        <DiscountField
+          value={form.discountPercent}
+          onChange={(v) => { set('discountPercent', v); clearError('discountPercent'); }}
+          error={errors.discountPercent}
+          regularPrices={form.hasVariants ? form.variantRows.map((r) => Number(r.price)) : [Number(form.price)]}
+        />
       </SectionCard>
 
       {/* ── 4. Shipping ───────────────────────────────────────────────────── */}

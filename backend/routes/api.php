@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\SellerProductController;
 use App\Http\Controllers\Api\V1\SellerDashboardController;
 use App\Http\Controllers\Api\V1\SellerOrderController;
 use App\Http\Controllers\Api\V1\SellerEarningsController;
+use App\Http\Controllers\Api\V1\PublicCategoryController;
 use App\Http\Controllers\Api\V1\PublicProductController;
 use App\Http\Controllers\Api\V1\PublicShopController;
 use App\Http\Controllers\Api\V1\AdminPlatformSettingController;
@@ -68,6 +69,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/products/{product}',          [PublicProductController::class, 'show']);
     Route::get('/products/{product}/reviews',  [PublicProductController::class, 'reviews']);
     Route::get('/products/{product}/related',  [PublicProductController::class, 'related']);
+    Route::get('/categories',                  [PublicCategoryController::class, 'index']);
 
     // Public shop profile & reviews (no auth required)
     Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);

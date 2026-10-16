@@ -40,7 +40,7 @@ const SLIDES: SlideData[] = [
     sub: 'High-performance smartphones, smart wearables, and audio gear backed by authentic merchant warranties.',
     primaryCta: 'Shop Electronics',
     secondaryCta: 'Explore Categories',
-    primaryTo: '/category/electronics',
+    primaryTo: '/category/mobile-gadgets-computers',
     secondaryTo: '#categories',
   },
   {
@@ -51,7 +51,7 @@ const SLIDES: SlideData[] = [
     sub: 'Curated everyday apparel, designer leather bags, and premium footwear tailored for your style.',
     primaryCta: 'Explore Fashion',
     secondaryCta: 'Explore Categories',
-    primaryTo: '/category/fashion-apparel',
+    primaryTo: '/category/womens-fashion',
     secondaryTo: '#categories',
   },
   {

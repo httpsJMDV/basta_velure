@@ -22,6 +22,7 @@ import AvatarWithFallback from '../ui/AvatarWithFallback';
 import ChatAttachmentBubble from './ChatAttachmentBubble';
 import EmojiPickerPopover from './EmojiPickerPopover';
 import ChatAttachmentModal from './ChatAttachmentModal';
+import FloatingToolbar from './FloatingToolbar';
 import RiderThreadPane from './RiderThreadPane';
 import { isRiderThread } from '../../lib/riderThread';
 
@@ -81,7 +82,8 @@ export default function BuyerFloatingChat() {
     location.pathname.startsWith('/seller') ||
     // The rider and hub apps have their own chat; a shopper's bubble would only get in the way there.
     location.pathname.startsWith('/rider') ||
-    location.pathname.startsWith('/hub')
+    location.pathname.startsWith('/hub') ||
+    location.pathname.startsWith('/logistics')
   ) {
     return null;
   }
@@ -194,10 +196,10 @@ export default function BuyerFloatingChat() {
   const lastMyMessageId = [...messages].reverse().find((m) => m.sender_id === user?.id)?.id;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
-      {/* Floating Chat Modal */}
+    <div className="fixed bottom-6 right-4 sm:right-6 z-40 flex flex-col sm:flex-row items-end gap-3 pointer-events-none">
+      {/* Floating Chat Modal (above the toolbar on phones, beside it on larger screens) */}
       {isChatOpen && (
-        <div className="pointer-events-auto mb-3 w-[calc(100vw-32px)] sm:w-[390px] h-[580px] max-h-[calc(100vh-100px)] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="pointer-events-auto w-[calc(100vw-32px)] sm:w-[390px] h-[580px] max-h-[calc(100vh-260px)] sm:max-h-[calc(100vh-100px)] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
           {/* SCREEN 1: CONVERSATION LIST */}
           {!activeConversation ? (
             <div className="flex flex-col h-full">
@@ -725,25 +727,8 @@ export default function BuyerFloatingChat() {
         </div>
       )}
 
-      {/* Floating Launcher Button */}
-      <button
-        onClick={toggleChat}
-        className="pointer-events-auto group relative w-14 h-14 rounded-full bg-brand-red hover:bg-[#8a2424] text-white shadow-xl shadow-red-900/20 flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
-        aria-label="Open Loved-IT Chat"
-      >
-        {isChatOpen ? (
-          <X className="w-6 h-6 transition-transform duration-200 rotate-0 group-hover:rotate-90" />
-        ) : (
-          <MessageSquare className="w-6 h-6 transition-transform duration-200 group-hover:scale-110" />
-        )}
-
-        {/* Unread Counter Badge */}
-        {!isChatOpen && unreadTotal > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1.5 rounded-full bg-white text-brand-red border-2 border-brand-red text-[11px] font-black flex items-center justify-center shadow-md animate-bounce">
-            {unreadTotal > 99 ? '99+' : unreadTotal}
-          </span>
-        )}
-      </button>
+      {/* Side toolbar: Messages, Feedback and (once scrolled) Top */}
+      <FloatingToolbar chatOpen={isChatOpen} unread={unreadTotal} onMessages={toggleChat} />
     </div>
   );
 }

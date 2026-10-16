@@ -44,6 +44,7 @@ import type {
   ThreadAdapter,
   ProductFilters,
   CatalogResponse,
+  StorefrontCategory,
   ProductDetail,
   ProductReviewsResponse,
   CatalogMeta,
@@ -454,8 +455,13 @@ export const getProductsApi = (filters: ProductFilters = {}) => {
   if (filters.sort)               params.sort               = filters.sort;
   if (filters.page)               params.page               = filters.page;
   if (filters.per_page)           params.per_page           = filters.per_page;
+  if (filters.seed != null)       params.seed               = filters.seed;
   return http.get<CatalogResponse>('/products', { params }).then((r) => r.data);
 };
+
+// Storefront category tree with product counts and cover photos (landing page, header Categories menu)
+export const getStorefrontCategoriesApi = () =>
+  http.get<{ data: StorefrontCategory[] }>('/categories').then((r) => r.data.data);
 
 // Products — detail & reviews
 export const getProductApi = (id: number) =>

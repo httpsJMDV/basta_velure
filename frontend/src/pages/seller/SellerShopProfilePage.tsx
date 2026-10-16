@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { useAuth } from '../../hooks/useAuth';
+import { shopUrl, shopUrlLabel } from '../../utils/shopLink';
 import {
   getSellerShopProfileApi,
   updateSellerShopProfileApi,
@@ -395,7 +396,7 @@ export default function SellerShopProfilePage() {
 
   const handleCopySlug = () => {
     const slug = profile?.shop_slug ?? '';
-    navigator.clipboard.writeText(`loved-it.com/shop/${slug}`);
+    navigator.clipboard.writeText(shopUrl(slug));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -507,7 +508,15 @@ export default function SellerShopProfilePage() {
             <InlineBio value={shopBio} onChange={setShopBio} />
             {profile?.shop_slug && (
               <div className="flex items-center gap-1.5 mt-2">
-                <span className="text-[11px] text-gray-400 truncate">loved-it.com/shop/{profile.shop_slug}</span>
+                <a
+                  href={shopUrl(profile.shop_slug)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-gray-400 hover:text-brand-red hover:underline truncate"
+                  title="Open your public shop page"
+                >
+                  {shopUrlLabel(profile.shop_slug)}
+                </a>
                 <button type="button" onClick={handleCopySlug} className="text-gray-300 hover:text-brand-red transition-colors shrink-0">
                   {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                 </button>

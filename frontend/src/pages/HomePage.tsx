@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Truck,
   Banknote,
@@ -7,33 +7,25 @@ import {
   BadgeCheck,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Star,
   ShoppingCart,
   Check,
   ArrowRight,
+  Loader2,
+  Package,
 } from 'lucide-react';
 
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import HeroCarousel from '../components/HeroCarousel';
 import ProductCard from '../components/ui/ProductCard';
-import { useCart } from '../hooks/useCart';
+import CategoryArt from '../components/storefront/CategoryArt';
+import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
+import { useQuickAdd } from '../hooks/useQuickAdd';
 import { getProductsApi } from '../api/client';
+import { pesoCompact, discountPercent } from '../utils/pricing';
 import type { Product } from '../types';
-
-// Category Studio Cutout Images (Pure White / Transparent Backgrounds)
-import techGadgetsImg from '../assets/categories/tech-gadgets.png';
-import homeLivingImg from '../assets/categories/home-living.png';
-import fashionImg from '../assets/categories/fashion.png';
-import beautyImg from '../assets/categories/beauty-wellness.png';
-import sportsImg from '../assets/categories/sports-outdoors.png';
-import foodImg from '../assets/categories/food-grocery.png';
-
-// Trending Products Studio Images
-import headphonesImg from '../assets/products/trending/wireless-headphones.jpg';
-import smartwatchImg from '../assets/products/trending/smartwatch.jpg';
-import sneakersImg from '../assets/products/trending/casual-sneakers.jpg';
-import serumImg from '../assets/products/trending/face-serum.jpg';
 
 // ─── 1. Trust Benefits Strip (Smaller height, longer horizontal span) ──────────
 const TRUST_BENEFITS = [
@@ -95,356 +87,170 @@ function TrustBenefitsStrip() {
   );
 }
 
-// ─── 2. Categories Data & Horizontal Scrollable Carousel ───────────────────────
-const CATEGORIES = [
-  {
-    id: 'tech',
-    name: 'Tech & Gadgets',
-    image: techGadgetsImg,
-    to: '/search?category=tech-gadgets',
-  },
-  {
-    id: 'home',
-    name: 'Home & Living',
-    image: homeLivingImg,
-    to: '/search?category=home-living',
-  },
-  {
-    id: 'fashion',
-    name: 'Fashion',
-    image: fashionImg,
-    to: '/search?category=fashion-apparel',
-  },
-  {
-    id: 'beauty',
-    name: 'Beauty & Wellness',
-    image: beautyImg,
-    to: '/search?category=beauty-wellness',
-  },
-  {
-    id: 'sports',
-    name: 'Sports & Outdoors',
-    image: sportsImg,
-    to: '/search?category=sports-outdoors',
-  },
-  {
-    id: 'grocery',
-    name: 'Food & Grocery',
-    image: foodImg,
-    to: '/search?category=food-grocery',
-  },
-];
 
+// ─── 2. Shop by Category: every main category, with its picture and how much is in it ─────────────
 function CategoriesSection() {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollRef.current) {
-      const amount = direction === 'left' ? -320 : 320;
-      scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
-    }
-  };
+  const categories = useStorefrontCategories();
 
   return (
-    <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-10 sm:pt-14">
-      {/* Header with Title and View All */}
+    <section id="categories" className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-10 sm:pt-14 scroll-mt-32">
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E1B18] tracking-tight">
           Shop by Category
         </h2>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/search"
-            className="text-xs sm:text-sm font-bold text-brand-red hover:underline flex items-center gap-1 group"
-          >
-            <span>View all categories</span>
-            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-          {/* Navigation arrow buttons */}
-          <div className="hidden sm:flex items-center gap-1.5 ml-2">
-            <button
-              onClick={() => scroll('left')}
-              title="Scroll left"
-              className="w-8 h-8 rounded-full bg-white hover:bg-stone-50 border border-stone-200 text-gray-700 hover:text-brand-red flex items-center justify-center shadow-xs transition-all active:scale-95 cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => scroll('right')}
-              title="Scroll right"
-              className="w-8 h-8 rounded-full bg-white hover:bg-stone-50 border border-stone-200 text-gray-700 hover:text-brand-red flex items-center justify-center shadow-xs transition-all active:scale-95 cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        <Link
+          to="/search"
+          className="text-xs sm:text-sm font-bold text-brand-red hover:underline flex items-center gap-1 group"
+        >
+          <span>Browse all products</span>
+          <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
       </div>
 
-      {/* Categories Row / Scrollable Carousel without scrollbar */}
-      <div
-        ref={scrollRef}
-        className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-2 scrollbar-none no-scrollbar scroll-smooth"
-      >
-        {CATEGORIES.map((cat) => (
-          <Link
-            key={cat.id}
-            to={cat.to}
-            className="group flex-1 min-w-[210px] sm:min-w-[230px] lg:min-w-0 bg-stone-50/70 hover:bg-white border border-stone-200 hover:border-brand-red/50 rounded-2xl p-3 sm:p-4 shadow-2xs hover:shadow-md transition-all duration-300 flex items-center gap-3.5"
-          >
-            {/* Image cleanly isolated on pure white with anti-drag protection */}
-            <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0 relative select-none">
-              <img
-                src={cat.image}
-                alt={cat.name}
-                draggable={false}
-                onContextMenu={(e) => e.preventDefault()}
-                onDragStart={(e) => e.preventDefault()}
-                className="w-full h-full object-contain select-none protected-image no-save group-hover:scale-110 transition-transform duration-300"
-              />
-              <div
-                className="absolute inset-0 bg-transparent select-none z-10"
-                onContextMenu={(e) => e.preventDefault()}
-                draggable={false}
-              />
-            </div>
-            {/* Category Title */}
-            <span className="text-sm sm:text-[15px] font-semibold text-[#2B2825] group-hover:text-brand-red transition-colors leading-snug">
-              {cat.name}
-            </span>
-          </Link>
-        ))}
+      {/* A swipeable row on phones; every category in a grid from tablets up. */}
+      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 sm:gap-4 sm:overflow-visible sm:pb-0">
+        {categories === null
+          ? Array.from({ length: 14 }, (_, i) => (
+            <div key={i} className="min-w-[170px] sm:min-w-0 h-[76px] rounded-2xl bg-stone-100 animate-pulse" />
+          ))
+          : categories.map((cat) => (
+            <Link
+              key={cat.id}
+              to={`/category/${cat.slug}`}
+              className="group min-w-[170px] sm:min-w-0 bg-stone-50/70 hover:bg-white border border-stone-200 hover:border-brand-red/50 rounded-2xl p-2.5 shadow-2xs hover:shadow-md transition-all duration-300 flex items-center gap-3"
+            >
+              <span className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center select-none transition-transform duration-300 group-hover:scale-110">
+                <CategoryArt category={cat} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold text-[#2B2825] group-hover:text-brand-red transition-colors leading-snug line-clamp-2">
+                  {cat.name}
+                </span>
+                <span className="block text-[11px] text-gray-400 mt-0.5">
+                  {cat.product_count > 0 ? `${cat.product_count.toLocaleString()} item${cat.product_count === 1 ? '' : 's'}` : 'Coming soon'}
+                </span>
+              </span>
+            </Link>
+          ))}
       </div>
     </section>
   );
 }
 
-// ─── 3. Trending Now (Horizontal Cards matching user's media attachment) ────────
-interface TrendingProduct {
-  id: string;
-  name: string;
-  badge: string;
-  price: number;
-  originalPrice: number;
-  rating: number;
-  image: string;
-  productId: number;
-  variantId: number;
+// ─── 3. Trending Now: the most bought, best rated and discounted products right now ─────────────────
+function TrendingCard({ product }: { product: Product }) {
+  const { add, added, soldOut } = useQuickAdd(product);
+  const off = discountPercent(product.base_price, product.original_price);
+  const rating = product.avg_rating ?? 0;
+
+  return (
+    <Link
+      to={`/products/${product.id}`}
+      className="w-[300px] sm:w-[360px] bg-white rounded-2xl sm:rounded-3xl border border-stone-200/90 p-4 shadow-xs hover:shadow-lg hover:border-brand-red/30 transition-all duration-300 relative shrink-0 flex items-center gap-4 group select-none"
+    >
+      {off > 0 && (
+        <span className="absolute top-3 left-3 bg-[#B91C1C] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-md shadow-2xs z-10">
+          {off}% OFF
+        </span>
+      )}
+      <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-xl overflow-hidden bg-stone-50 mt-2">
+        {product.thumbnail_url
+          ? <img src={product.thumbnail_url} alt={product.name} loading="lazy" draggable={false} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          : <div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-gray-300" /></div>}
+      </div>
+      <div className="flex-1 flex flex-col min-w-0">
+        <h3 className="text-[13px] sm:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug group-hover:text-brand-red transition-colors">
+          {product.name}
+        </h3>
+        <div className="flex items-baseline gap-2 mt-2">
+          <span className="text-base sm:text-lg font-bold text-brand-red">{pesoCompact(product.base_price)}</span>
+          {off > 0 && <span className="text-xs text-gray-400 line-through">{pesoCompact(product.original_price!)}</span>}
+        </div>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-100">
+          {product.review_count > 0 ? (
+            <span className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Star key={i} className={`w-3 h-3 ${i <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'fill-gray-200 text-gray-200'}`} />
+              ))}
+              <span className="text-[11px] text-gray-500 ml-1">({rating.toFixed(1)})</span>
+            </span>
+          ) : (
+            <span className="text-[11px] text-gray-400 truncate">{product.seller.shop_name}</span>
+          )}
+          <button
+            type="button"
+            onClick={add}
+            disabled={soldOut}
+            title={soldOut ? 'Sold out' : 'Add to cart'}
+            aria-label={`Add ${product.name} to cart`}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-white flex items-center justify-center shadow-xs active:scale-90 transition-all ${
+              soldOut ? 'bg-gray-300 cursor-not-allowed' : added ? 'bg-emerald-500' : 'bg-brand-red hover:bg-[#801818]'
+            }`}
+          >
+            {added ? <Check className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
-const TRENDING_PRODUCTS: TrendingProduct[] = [
-  {
-    id: 'tp-1',
-    name: 'boAt Rockerz 550 Wireless Headphones',
-    badge: '20% OFF',
-    price: 1599,
-    originalPrice: 1999,
-    rating: 4.6,
-    image: headphonesImg,
-    productId: 101,
-    variantId: 1001,
-  },
-  {
-    id: 'tp-2',
-    name: 'Fire-Boltt Ninja Pro Max Smartwatch',
-    badge: '15% OFF',
-    price: 1699,
-    originalPrice: 1999,
-    rating: 4.5,
-    image: smartwatchImg,
-    productId: 102,
-    variantId: 1002,
-  },
-  {
-    id: 'tp-3',
-    name: "Red Tape Men's Casual Sneakers",
-    badge: '25% OFF',
-    price: 1874,
-    originalPrice: 2499,
-    rating: 4.4,
-    image: sneakersImg,
-    productId: 103,
-    variantId: 1003,
-  },
-  {
-    id: 'tp-4',
-    name: 'Minimalist 2% Salicylic Acid Face Serum',
-    badge: '10% OFF',
-    price: 359,
-    originalPrice: 399,
-    rating: 4.7,
-    image: serumImg,
-    productId: 104,
-    variantId: 1004,
-  },
-];
-
 function TrendingSection() {
-  const { addItem } = useCart();
-  const [addedId, setAddedId] = useState<string | null>(null);
+  const [products, setProducts] = useState<Product[] | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const handleAddToCart = (e: React.MouseEvent, item: TrendingProduct) => {
-    e.preventDefault();
-    e.stopPropagation();
-    addItem({
-      variantId: item.variantId,
-      productId: item.productId,
-      name: item.name,
-      variant: 'Standard',
-      price: item.price,
-      quantity: 1,
-      image: item.image,
-    });
-    setAddedId(item.id);
-    setTimeout(() => setAddedId(null), 1500);
-  };
+  useEffect(() => {
+    let alive = true;
+    getProductsApi({ sort: 'trending', per_page: 12 })
+      .then((res) => { if (alive) setProducts(res.data); })
+      .catch(() => { if (alive) setProducts([]); });
+    return () => { alive = false; };
+  }, []);
 
   const scroll = (direction: 'left' | 'right') => {
-    if (trackRef.current) {
-      const amount = direction === 'left' ? -380 : 380;
-      trackRef.current.scrollBy({ left: amount, behavior: 'smooth' });
-    }
+    trackRef.current?.scrollBy({ left: direction === 'left' ? -380 : 380, behavior: 'smooth' });
   };
 
-  // Combine products for continuous smooth marquee effect
-  const displayProducts = [...TRENDING_PRODUCTS, ...TRENDING_PRODUCTS, ...TRENDING_PRODUCTS];
+  if (products !== null && products.length === 0) return null;
 
   return (
     <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-10 sm:pt-14">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E1B18] tracking-tight">
           Trending now
         </h2>
         <div className="flex items-center gap-3">
           <Link
-            to="/search?sort=trending"
+            to="/search?sort=best_selling"
             className="text-xs sm:text-sm font-bold text-brand-red hover:underline flex items-center gap-1 group"
           >
             <span>View all</span>
             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </Link>
-          {/* Arrow navigation buttons */}
           <div className="hidden sm:flex items-center gap-1.5 ml-2">
-            <button
-              onClick={() => scroll('left')}
-              title="Scroll left"
-              className="w-8 h-8 rounded-full bg-white hover:bg-stone-50 border border-stone-200 text-gray-700 hover:text-brand-red flex items-center justify-center shadow-xs transition-all active:scale-95 cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => scroll('right')}
-              title="Scroll right"
-              className="w-8 h-8 rounded-full bg-white hover:bg-stone-50 border border-stone-200 text-gray-700 hover:text-brand-red flex items-center justify-center shadow-xs transition-all active:scale-95 cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            {(['left', 'right'] as const).map((dir) => (
+              <button
+                key={dir}
+                onClick={() => scroll(dir)}
+                title={dir === 'left' ? 'Scroll left' : 'Scroll right'}
+                className="w-8 h-8 rounded-full bg-white hover:bg-stone-50 border border-stone-200 text-gray-700 hover:text-brand-red flex items-center justify-center shadow-xs transition-all active:scale-95 cursor-pointer"
+              >
+                {dir === 'left' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Outer wrapper with subtle relative arrows for direct edge clicks */}
-      <div className="relative group/carousel">
-        {/* Floating side arrows */}
-        <button
-          onClick={() => scroll('left')}
-          title="Scroll previous"
-          className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white hover:bg-stone-50 text-brand-red border border-stone-200/80 shadow-md items-center justify-center z-20 opacity-0 group-hover/carousel:opacity-100 transition-opacity active:scale-90 cursor-pointer"
-        >
-          <ChevronLeft className="w-5 h-5 text-brand-red" />
-        </button>
-        <button
-          onClick={() => scroll('right')}
-          title="Scroll next"
-          className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white hover:bg-stone-50 text-brand-red border border-stone-200/80 shadow-md items-center justify-center z-20 opacity-0 group-hover/carousel:opacity-100 transition-opacity active:scale-90 cursor-pointer"
-        >
-          <ChevronRight className="w-5 h-5 text-brand-red" />
-        </button>
-
-        {/* Scroll Track with Auto-scroll Marquee animation (NO scrollbar visible!) */}
-        <div
-          ref={trackRef}
-          className="flex gap-5 overflow-x-auto pb-2 scrollbar-none no-scrollbar scroll-smooth items-stretch"
-        >
-          <div className="flex gap-5 animate-marquee-slow hover:[animation-play-state:paused] shrink-0">
-            {displayProducts.map((p, idx) => (
-              <div
-                key={`${p.id}-${idx}`}
-                className="w-[340px] sm:w-[390px] bg-white rounded-2xl sm:rounded-3xl border border-stone-200/90 p-4 sm:p-5 shadow-xs hover:shadow-lg hover:border-brand-red/30 transition-all duration-300 relative shrink-0 flex items-center gap-4 group cursor-pointer select-none"
-              >
-                {/* Discount Badge */}
-                <span className="absolute top-3 left-3 bg-[#B91C1C] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-md shadow-2xs z-10">
-                  {p.badge}
-                </span>
-
-                {/* Left: Product Image on Pure White Background with Anti-Drag */}
-                <div className="w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center shrink-0 relative mt-2">
-                  <img
-                    src={p.image}
-                    alt={p.name}
-                    draggable={false}
-                    onContextMenu={(e) => e.preventDefault()}
-                    onDragStart={(e) => e.preventDefault()}
-                    className="w-full h-full object-contain select-none protected-image no-save group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div
-                    className="absolute inset-0 bg-transparent select-none z-10"
-                    onContextMenu={(e) => e.preventDefault()}
-                    draggable={false}
-                  />
-                </div>
-
-                {/* Right: Product Details */}
-                <div className="flex-1 flex flex-col justify-between h-full min-w-0 pr-1">
-                  <h3 className="text-xs sm:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug group-hover:text-brand-red transition-colors">
-                    {p.name}
-                  </h3>
-
-                  {/* Price Row */}
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-base sm:text-lg font-bold text-brand-red">
-                      ₱{p.price.toLocaleString()}
-                    </span>
-                    <span className="text-xs sm:text-sm text-gray-400 line-through">
-                      ₱{p.originalPrice.toLocaleString()}
-                    </span>
-                  </div>
-
-                  {/* Star Rating & Cart Button Row */}
-                  <div className="flex items-center justify-between mt-2 pt-1 border-t border-stone-100">
-                    <div className="flex items-center gap-1">
-                      <div className="flex items-center text-amber-400">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-amber-400 text-amber-400"
-                          />
-                        ))}
-                      </div>
-                      <span className="text-xs text-gray-500 font-medium ml-1">
-                        ({p.rating})
-                      </span>
-                    </div>
-
-                    {/* Red Cart Action Button */}
-                    <button
-                      onClick={(e) => handleAddToCart(e, p)}
-                      title="Add to cart"
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-red hover:bg-[#801818] text-white flex items-center justify-center shadow-xs active:scale-90 transition-all cursor-pointer"
-                    >
-                      {addedId === p.id ? (
-                        <Check className="w-4 h-4 text-white" />
-                      ) : (
-                        <ShoppingCart className="w-4 h-4 text-white" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+      <div ref={trackRef} className="flex gap-5 overflow-x-auto pb-2 no-scrollbar scroll-smooth items-stretch">
+        {products === null ? (
+          Array.from({ length: 4 }, (_, i) => <div key={i} className="w-[300px] sm:w-[360px] h-[150px] shrink-0 rounded-3xl bg-stone-100 animate-pulse" />)
+        ) : (
+          // The list twice, so the marquee loops seamlessly (it slides by half its width); hovering pauses it.
+          <div className="flex gap-5 animate-marquee-slow shrink-0 pr-5">
+            {[...products, ...products].map((p, idx) => <TrendingCard key={`${p.id}-${idx}`} product={p} />)}
           </div>
-        </div>
+        )}
       </div>
     </section>
   );
@@ -517,55 +323,116 @@ function CampaignCtaBanner() {
   );
 }
 
-// ─── 5. Featured Products Grid (Live database products) ─────────────────────────
+
+// ─── 5. Discover More Products: the whole catalog, shuffled, 100 at a time ─────────────────────────
+const DISCOVER_PAGE = 100; // 20 rows of 5
+
 function FeaturedProductsSection() {
+  // One shuffle per visit: the seed keeps "View more" from repeating a product.
+  const [seed] = useState(() => Math.floor(Math.random() * 1_000_000_000));
   const [products, setProducts] = useState<Product[]>([]);
+  const [page, setPage] = useState(0);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Fetches one page of the shuffle and appends it (state is only set once the response is in).
+  const fetchPage = useCallback((next: number, alive: () => boolean = () => true) =>
+    getProductsApi({ sort: 'random', seed, per_page: DISCOVER_PAGE, page: next })
+      .then((res) => {
+        if (!alive()) return;
+        setProducts((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return next === 1 ? res.data : [...prev, ...res.data.filter((p) => !seen.has(p.id))];
+        });
+        setPage(res.meta.current_page);
+        setLastPage(res.meta.last_page);
+        setTotal(res.meta.total);
+      })
+      .catch(() => { if (alive()) setError(true); })
+      .finally(() => { if (alive()) setLoading(false); }), [seed]);
 
   useEffect(() => {
-    let mounted = true;
-    getProductsApi()
-      .then((res) => {
-        if (mounted && res?.data) {
-          setProducts(res.data.slice(0, 10));
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    let alive = true;
+    fetchPage(1, () => alive);
+    return () => { alive = false; };
+  }, [fetchPage]);
 
-  if (loading || products.length === 0) return null;
+  const loadPage = (next: number) => {
+    setLoading(true);
+    setError(false);
+    fetchPage(next);
+  };
+
+  if (!loading && !error && products.length === 0) return null;
+
+  const firstLoad = loading && products.length === 0;
+  const shownPct = total > 0 ? Math.min(100, Math.round((products.length / total) * 100)) : 0;
 
   return (
     <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pb-16">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-end justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E1B18] tracking-tight">
             Discover More Products
           </h2>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Freshly added merchandise from accredited community stores
+            A fresh mix from every shop, every time you visit
           </p>
         </div>
         <Link
           to="/search"
-          className="text-xs sm:text-sm font-bold text-brand-red hover:underline flex items-center gap-1 group"
+          className="text-xs sm:text-sm font-bold text-brand-red hover:underline flex items-center gap-1 group shrink-0"
         >
           <span>Explore all</span>
           <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
-        {products.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-3 sm:gap-x-4 gap-y-6">
+        {firstLoad
+          ? Array.from({ length: 10 }, (_, i) => (
+            <div key={i} className="space-y-2">
+              <div className="aspect-square rounded-xl bg-stone-100 animate-pulse" />
+              <div className="h-3 w-4/5 rounded bg-stone-100 animate-pulse" />
+              <div className="h-3 w-1/2 rounded bg-stone-100 animate-pulse" />
+            </div>
+          ))
+          : products.map((product) => <ProductCard key={product.id} product={product} />)}
       </div>
+
+      {error && (
+        <p className="mt-8 text-center text-sm text-gray-500">
+          Could not load more products.{' '}
+          <button type="button" onClick={() => loadPage(page + 1 || 1)} className="font-semibold text-brand-red hover:underline">Try again</button>
+        </p>
+      )}
+
+      {!firstLoad && page < lastPage && (
+        <div className="mt-12 flex flex-col items-center gap-3">
+          <p className="text-xs text-gray-500">
+            You&apos;ve seen <span className="font-semibold text-gray-800">{products.length.toLocaleString()}</span> of {total.toLocaleString()} products
+          </p>
+          <div className="w-48 h-1 rounded-full bg-stone-200 overflow-hidden" aria-hidden="true">
+            <div className="h-full rounded-full bg-brand-red transition-all duration-500" style={{ width: `${shownPct}%` }} />
+          </div>
+          <button
+            type="button"
+            onClick={() => loadPage(page + 1)}
+            disabled={loading}
+            className="group mt-1 inline-flex items-center gap-2 h-11 pl-7 pr-6 rounded-full bg-white border border-stone-300 text-sm font-semibold text-gray-800 shadow-sm hover:border-brand-red hover:text-brand-red hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-70"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            <span>{loading ? 'Loading more' : 'View more'}</span>
+            {!loading && <ChevronDown className="w-4 h-4 transition-transform duration-300 group-hover:translate-y-0.5" />}
+          </button>
+        </div>
+      )}
+
+      {!firstLoad && page >= lastPage && total > DISCOVER_PAGE && (
+        <p className="mt-10 text-center text-xs text-gray-400">You&apos;ve seen all {total.toLocaleString()} products. <Link to="/search" className="font-semibold text-brand-red hover:underline">Search the catalog</Link></p>
+      )}
     </section>
   );
 }
@@ -582,19 +449,17 @@ export default function HomePage() {
 
       {/* ── Main Middle Content Area (Clean Pure White Background) ── */}
       <main className="flex-1 bg-white">
-        {/* Trust Benefits Strip (Sleeker height, longer horizontal span) */}
         <TrustBenefitsStrip />
 
-        {/* Shop by Category (Pure White Background, Navigation Arrows & Isolated Images) */}
+        {/* Every main category, from the live catalog */}
         <CategoriesSection />
 
-        {/* Trending Now (Bigger Cards with Discounts, Ratings, Cart Button, & Auto-Scroll without scrollbars) */}
+        {/* The most bought, best rated and discounted products */}
         <TrendingSection />
 
-        {/* Campaign Banner (With Random Star Diamonds and Sleeker Proportions) */}
         <CampaignCtaBanner />
 
-        {/* Live Marketplace Products Grid */}
+        {/* The whole catalog, shuffled, 100 at a time */}
         <FeaturedProductsSection />
       </main>
 

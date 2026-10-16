@@ -1447,6 +1447,12 @@ export interface ProductVariantGroup {
 export interface ProductDetailSeller {
   id: number;
   shop_name: string;
+  shop_slug?: string;
+  /** Active products in the shop. */
+  product_count?: number;
+  /** Average review rating across the shop's products (null when unrated). */
+  avg_rating?: number | null;
+  joined_at?: string | null;
   avatar_url: string | null;
   city: string | null;
   province: string | null;
@@ -1497,6 +1503,10 @@ export interface ProductDetail extends Omit<Product, 'variants' | 'thumbnail_url
   return_policy: string | null;
   warranty: string | null;
   is_wishlisted: boolean;
+  /** The shop's own discount, in percent. */
+  discount_percent?: number | null;
+  /** Where it sits in the catalog. */
+  category?: { slug: string; name: string; parent: { slug: string; name: string } | null } | null;
 }
 
 export interface ProductReview {
@@ -1535,9 +1545,21 @@ export interface ProductFilters {
   new_arrivals?: boolean;
   shipped_from?: string[];
   provinces?: string[];
-  sort?: 'best_match' | 'price_asc' | 'price_desc' | 'newest' | 'best_selling' | 'highest_rated';
+  sort?: 'best_match' | 'price_asc' | 'price_desc' | 'newest' | 'best_selling' | 'highest_rated' | 'random' | 'trending';
+  /** With sort=random: keeps the shuffle stable across pages. */
+  seed?: number;
   page?: number;
   per_page?: number;
+}
+
+/** A category on the storefront (GET /categories): its cover is a photo of its best-selling product, if it has any. */
+export interface StorefrontCategory {
+  id: number;
+  slug: string;
+  name: string;
+  product_count: number;
+  image_url: string | null;
+  children?: StorefrontCategory[];
 }
 
 export interface CatalogMeta {
@@ -1581,6 +1603,8 @@ export interface CatalogResponse {
   related_shops?: RelatedShop[];
   meta: CatalogMeta;
   facets: CatalogFacets;
+  /** With a search: the query as the catalog spells it when a typo was forgiven. */
+  search?: { corrected: string | null } | null;
 }
 
 // ─── Seller Balance & Payouts ────────────────────────────────────────────────
@@ -1649,7 +1673,10 @@ export interface SellerProductVariant {
   label: string;          // e.g. "Red / M"
   sku: string | null;
   stock_quantity: number;
+  /** What buyers pay (after the shop's discount). */
   price: number;
+  /** The price before the discount: what the seller's form edits. */
+  regular_price?: number;
 }
 
 export interface SellerProduct {
@@ -1660,6 +1687,10 @@ export interface SellerProduct {
   thumbnail_url: string | null;
   images: ProductImage[];
   base_price: number;
+  /** The cheapest variant's price before the discount (null when not on sale). */
+  original_price?: number | null;
+  /** The shop's own discount, in percent (null when none). */
+  discount_percent?: number | null;
   status: SellerProductStatus;
   units_sold: number;
   rejection_reason: string | null;
@@ -1735,6 +1766,8 @@ export interface AddProductFormState {
   // Simple price/stock (no variants)
   price: string;
   stock: string;
+  /** The shop's discount on every variant, in percent ('' = none). */
+  discountPercent: string;
   // Shipping
   weightValue: string;
   weightUnit: 'kg' | 'g';
