@@ -12,6 +12,7 @@ import {
 import CustomSelect from '../../components/ui/CustomSelect';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { CATEGORY_TREE, leafRequiresFda } from '../../data/categories';
+import { downscaleImage } from '../../utils/imageDownscale';
 import {
   createSellerProductApi,
   getSellerProductApi,
@@ -152,6 +153,30 @@ function validate(form: AddProductFormState): { errors: FieldErrors; firstSectio
   }
 
   return { errors, firstSection };
+}
+
+/** Product photos are shrunk in the browser to this long edge before upload (the server allows 5 MB each). */
+const PRODUCT_MAX_EDGE = 2000;
+const PRODUCT_JPEG_QUALITY = 0.85;
+
+/** The form field that shows a server validation error, so nested keys like "images.2" are never lost. */
+function formFieldForServerKey(key: string, hasVariants: boolean): string {
+  const variant = key.match(/^variants\.(\d+)\.(price|stock|label)$/);
+  if (variant) {
+    const [, i, part] = variant;
+    if (part === 'label') return 'variantTypes';
+    return hasVariants ? `variantRow_${part}_${i}` : part;
+  }
+  if (key === 'variants' || key.startsWith('variants.')) return hasVariants ? 'variantTypes' : 'price';
+  if (key === 'images' || key.startsWith('images.')) return 'images';
+  const direct: Record<string, string> = {
+    category_slug: 'leafCategoryId',
+    base_price: 'price',
+    weight_kg: 'weightValue',
+    fda_lto: 'fdaLtoFile',
+    fda_cpr: 'fdaCprFile',
+  };
+  return direct[key] ?? key;
 }
 
 // ─── Shared UI primitives ─────────────────────────────────────────────────────
@@ -828,7 +853,8 @@ function RichTextEditor({
   const insertImage = async (file: File) => {
     try {
       setUploadingImage(true);
-      const { url } = await uploadDescriptionImageApi(file);
+      const { file: upload } = await downscaleImage(file, PRODUCT_MAX_EDGE, PRODUCT_JPEG_QUALITY);
+      const { url } = await uploadDescriptionImageApi(upload);
       editorRef.current?.focus();
       document.execCommand(
         'insertHTML',
@@ -969,6 +995,9 @@ export default function SellerAddProductPage() {
   const [form, setForm] = useState<AddProductFormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  // The server's summary, shown above the form so an error for a field without its own slot is never silent.
+  const [serverError, setServerError] = useState('');
+  const serverErrorRef = useRef<HTMLDivElement>(null);
   const [loadingProduct, setLoadingProduct] = useState(isEdit);
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [fdaOpen, setFdaOpen] = useState(false);
@@ -1090,7 +1119,11 @@ export default function SellerAddProductPage() {
       }
     }
     setSubmitting(true);
+    setServerError('');
     try {
+      // Phone photos are often over the 5 MB limit (or HEIC): shrink them to a JPEG first, like delivery proofs.
+      const uploads = await Promise.all(form.images.map((img) => downscaleImage(img.file, PRODUCT_MAX_EDGE, PRODUCT_JPEG_QUALITY)));
+
       const fd = new FormData();
       fd.append('name', form.name);
       fd.append('description', form.description);
@@ -1123,7 +1156,7 @@ export default function SellerAddProductPage() {
       if (form.dimensionH) fd.append('dimension_h_cm', form.dimensionH);
       if (form.sku)        fd.append('sku', form.sku);
 
-      form.images.forEach((img) => fd.append('images[]', img.file));
+      uploads.forEach((u) => fd.append('images[]', u.file));
       form.deletedImageIds.forEach((id) => fd.append('delete_image_ids[]', String(id)));
 
       if (form.fdaLtoFile)           fd.append('fda_lto', form.fdaLtoFile);
@@ -1141,15 +1174,22 @@ export default function SellerAddProductPage() {
       }
       navigate('/seller/products');
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { errors?: Record<string, string[]> } } };
+      const axiosErr = err as { response?: { status?: number; data?: { message?: string; errors?: Record<string, string[]> } } };
       const serverErrors = axiosErr?.response?.data?.errors;
       if (serverErrors) {
         const mapped: FieldErrors = {};
-        Object.entries(serverErrors).forEach(([k, v]) => { mapped[k] = v[0]; });
+        Object.entries(serverErrors).forEach(([k, v]) => {
+          const field = formFieldForServerKey(k, form.hasVariants);
+          if (!mapped[field]) mapped[field] = v[0];
+        });
         setErrors(mapped);
+        setServerError(axiosErr.response?.data?.message ?? 'Please check the highlighted fields.');
+      } else if (axiosErr?.response?.status === 413) {
+        setServerError('The photos are too large to upload together. Remove a few or use smaller photos.');
       } else {
-        setErrors({ name: 'Something went wrong. Please try again.' });
+        setServerError(axiosErr?.response?.data?.message ?? 'Something went wrong. Please try again.');
       }
+      window.setTimeout(() => serverErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
     } finally {
       setSubmitting(false);
     }
@@ -1170,6 +1210,13 @@ export default function SellerAddProductPage() {
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-black text-gray-900">{isEdit ? 'Edit Product' : 'Add Product'}</h1>
       </div>
+
+      {serverError && (
+        <div ref={serverErrorRef} role="alert" className="px-4 py-3 text-sm text-red-700 border border-red-200 bg-red-50 rounded-xl">
+          <p className="font-bold">The product could not be saved</p>
+          <p className="mt-0.5">{serverError}</p>
+        </div>
+      )}
 
       {/* ── 1. Basic Info ─────────────────────────────────────────────────── */}
       <SectionCard id="basic" step={1} icon={Package} title="Basic Info">
