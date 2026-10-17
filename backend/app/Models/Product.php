@@ -57,6 +57,14 @@ class Product extends Model
         return $this->images->firstWhere('is_primary', true) ?? $this->images->first();
     }
 
+    /** Full URL of the primary photo (the first photo when none is marked primary), or null without photos. */
+    public function primaryImageUrl(): ?string
+    {
+        $image = $this->primaryImage();
+
+        return $image ? asset('storage/' . $image->path) : null;
+    }
+
     /** Aggregated total stock across all variants */
     public function getTotalStockAttribute(): int
     {

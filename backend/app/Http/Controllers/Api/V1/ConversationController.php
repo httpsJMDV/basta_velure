@@ -265,8 +265,8 @@ class ConversationController extends Controller
                     $attachmentData = [
                         'id'        => $prod->id,
                         'name'      => $prod->name,
-                        'price'     => (float) $prod->price,
-                        'image'     => $prod->main_image_url ?? $prod->images->first()?->image_path,
+                        'price'     => (float) $prod->base_price,
+                        'image'     => $prod->primaryImageUrl(),
                         'category'  => $prod->category?->name,
                     ];
                 }
@@ -425,8 +425,8 @@ class ConversationController extends Controller
             $attachmentData = [
                 'id'       => $prod->id,
                 'name'     => $prod->name,
-                'price'    => (float) $prod->price,
-                'image'    => $prod->main_image_url ?? $prod->images->first()?->image_path,
+                'price'    => (float) $prod->base_price,
+                'image'    => $prod->primaryImageUrl(),
                 'category' => $prod->category?->name,
             ];
             if (empty($body)) {
@@ -460,6 +460,7 @@ class ConversationController extends Controller
                 'status'        => $ord->status,
                 'items_count'   => $items ? $items->count() : ($attachmentData['items_count'] ?? 1),
                 'items_summary' => $itemsSummary,
+                'image'         => $items?->first()?->image_url,
             ];
             if (empty($body)) {
                 $body = 'Shared Order #' . $ord->order_number;
@@ -506,30 +507,24 @@ class ConversationController extends Controller
         if (!$sellerId && $user->role === 'seller') {
             $sellerId = $user->id;
         }
+        $search = trim((string) $request->query('q', ''));
 
-        if (!$sellerId) {
-            // If buyer chatting with admin, return recently active marketplace products
-            $products = Product::where('status', 'active')
-                ->with('images', 'category')
-                ->latest()
-                ->limit(20)
-                ->get();
-        } else {
-            $products = Product::where('seller_id', $sellerId)
-                ->where('status', 'active')
-                ->with('images', 'category')
-                ->latest()
-                ->limit(30)
-                ->get();
-        }
+        // A shop chat shares that shop's products; a support chat (no shop) shares any listed product.
+        $products = Product::where('status', 'active')
+            ->when($sellerId, fn ($q) => $q->where('seller_id', $sellerId))
+            ->when($search !== '', fn ($q) => $q->where('name', 'like', '%' . addcslashes($search, '%_\\') . '%'))
+            ->with('images', 'category', 'variants')
+            ->latest()
+            ->limit(30)
+            ->get();
 
         return response()->json([
             'data' => $products->map(fn ($p) => [
                 'id'       => $p->id,
                 'name'     => $p->name,
-                'price'    => (float) $p->price,
-                'stock'    => (int) $p->stock,
-                'image'    => $p->main_image_url ?? $p->images->first()?->image_path,
+                'price'    => (float) $p->base_price,
+                'stock'    => (int) $p->total_stock,
+                'image'    => $p->primaryImageUrl(),
                 'category' => $p->category?->name,
             ]),
         ]);
@@ -544,27 +539,38 @@ class ConversationController extends Controller
         $user = $request->user();
 
         $query = Order::with('items');
+        // Orders have no seller column: an order belongs to a shop through its items.
+        $ofShop = fn ($q, $shopId) => $q->whereHas('items', fn ($i) => $i->where('seller_id', $shopId));
 
         if ($user->role === 'buyer') {
             $query->where('buyer_id', $user->id);
             if ($conversation->type === 'buyer_seller' && $conversation->seller_id) {
-                $query->where('seller_id', $conversation->seller_id);
+                $ofShop($query, $conversation->seller_id);
             }
         } elseif ($user->role === 'seller') {
-            $query->where('seller_id', $user->id);
+            $ofShop($query, $user->id);
             if ($conversation->buyer_id) {
                 $query->where('buyer_id', $conversation->buyer_id);
             }
         } else {
-            // Admin
-            if ($conversation->order_id) {
-                $query->where('id', $conversation->order_id);
-            } elseif ($conversation->buyer_id) {
+            // Admin: the buyer's orders in a buyer chat, the shop's orders in a seller chat.
+            if ($conversation->buyer_id) {
                 $query->where('buyer_id', $conversation->buyer_id);
+            } elseif ($conversation->seller_id) {
+                $ofShop($query, $conversation->seller_id);
+            } elseif ($conversation->order_id) {
+                $query->where('id', $conversation->order_id);
             }
         }
 
-        $orders = $query->latest()->limit(20)->get();
+        $search = trim((string) $request->query('q', ''));
+        if ($search !== '') {
+            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $query->where(fn ($q) => $q->where('order_number', 'like', $like)
+                ->orWhereHas('items', fn ($i) => $i->where('product_name', 'like', $like)));
+        }
+
+        $orders = $query->latest()->limit(30)->get();
 
         return response()->json([
             'data' => $orders->map(fn ($o) => [
@@ -573,8 +579,9 @@ class ConversationController extends Controller
                 'total'        => (float) $o->total,
                 'status'       => $o->status,
                 'created_at'   => $o->created_at->toISOString(),
-                'items_count'  => $o->items->count(),
+                'items_count'  => (int) $o->items->sum('quantity'),
                 'items_summary'=> $o->items->pluck('product_name')->take(2)->implode(', '),
+                'image'        => $o->items->first()?->image_url,
             ]),
         ]);
     }
@@ -625,61 +632,41 @@ class ConversationController extends Controller
             'latestMessage.sender',
         ]);
 
-        $this->safeBroadcast(function () use ($conversation) {
-            if ($conversation->buyer_id) {
-                ConversationUpdated::dispatch(
-                    $conversation->buyer_id,
-                    $conversation,
-                    (int) $conversation->buyer_unread
-                );
+        // Each inbox is told separately, so one failed broadcast does not leave the other participants stale.
+        $recipients = [];
+        if ($conversation->buyer_id) {
+            $recipients[$conversation->buyer_id] = (int) $conversation->buyer_unread;
+        }
+        if ($conversation->seller_id) {
+            $recipients[$conversation->seller_id] = (int) $conversation->seller_unread;
+        }
+        if ($conversation->type === 'buyer_admin' || $conversation->type === 'seller_admin') {
+            foreach (User::where('role', 'admin')->pluck('id') as $adminId) {
+                $recipients[$adminId] = (int) $conversation->admin_unread;
             }
+        }
 
-            if ($conversation->seller_id) {
-                ConversationUpdated::dispatch(
-                    $conversation->seller_id,
-                    $conversation,
-                    (int) $conversation->seller_unread
-                );
-            }
-
-            if ($conversation->type === 'buyer_admin' || $conversation->type === 'seller_admin') {
-                $adminUsers = User::where('role', 'admin')->get();
-                foreach ($adminUsers as $admin) {
-                    ConversationUpdated::dispatch(
-                        $admin->id,
-                        $conversation,
-                        (int) $conversation->admin_unread
-                    );
-                }
-            }
-        });
+        foreach ($recipients as $userId => $unread) {
+            $this->safeBroadcast(fn () => ConversationUpdated::dispatch((int) $userId, $conversation, $unread));
+        }
     }
 
     private function incrementUnread(Conversation $conversation, User $sender): void
     {
-        $updates = ['last_message_at' => now()];
+        $column = match ($conversation->type) {
+            'buyer_seller' => (int) $sender->id === (int) $conversation->buyer_id ? 'seller_unread' : 'buyer_unread',
+            'buyer_admin'  => (int) $sender->id === (int) $conversation->buyer_id ? 'admin_unread' : 'buyer_unread',
+            'seller_admin' => (int) $sender->id === (int) $conversation->seller_id ? 'admin_unread' : 'seller_unread',
+            default        => null,
+        };
 
-        if ($conversation->type === 'buyer_seller') {
-            if ($sender->id === $conversation->buyer_id) {
-                $updates['seller_unread'] = DB::raw('seller_unread + 1');
-            } else {
-                $updates['buyer_unread'] = DB::raw('buyer_unread + 1');
-            }
-        } elseif ($conversation->type === 'buyer_admin') {
-            if ($sender->id === $conversation->buyer_id) {
-                $updates['admin_unread'] = DB::raw('admin_unread + 1');
-            } else {
-                $updates['buyer_unread'] = DB::raw('buyer_unread + 1');
-            }
-        } elseif ($conversation->type === 'seller_admin') {
-            if ($sender->id === $conversation->seller_id) {
-                $updates['admin_unread'] = DB::raw('admin_unread + 1');
-            } else {
-                $updates['seller_unread'] = DB::raw('seller_unread + 1');
-            }
+        // increment() keeps the model's counter a number. A DB::raw() update left an Expression on the model, which
+        // made broadcastConversationUpdates() throw, so the other side's inbox never updated live.
+        if ($column) {
+            $conversation->increment($column, 1, ['last_message_at' => now()]);
+        } else {
+            $conversation->update(['last_message_at' => now()]);
         }
-
-        $conversation->update($updates);
     }
 
     private function authorizeConversation(Request $request, Conversation $conversation): void
@@ -773,8 +760,8 @@ class ConversationController extends Controller
             $productContext = [
                 'id'       => $c->product->id,
                 'name'     => $c->product->name,
-                'price'    => (float) $c->product->price,
-                'image'    => $c->product->main_image_url ?? $c->product->images->first()?->image_path,
+                'price'    => (float) $c->product->base_price,
+                'image'    => $c->product->primaryImageUrl(),
                 'category' => $c->product->category?->name,
             ];
         }

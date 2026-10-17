@@ -260,7 +260,7 @@ class ShowcaseSeeder
                 'address_barangay_code'     => $place['barangay_code'],
                 'shop_contact_number'       => $seller->phone,
                 'return_policy'             => 'Returns accepted within 7 days of delivery for items that arrive damaged or not as described.',
-                'shipping_policy'           => 'Orders are packed within 1 to 2 days and handed to the courier you chose at checkout.',
+                'shipping_policy'           => 'Orders are packed within 1 to 2 days and handed to the partner courier that covers your area.',
                 'business_hours'            => 'Mon to Sat, 8:00 AM to 6:00 PM',
                 'payout_gcash_number'       => $seller->phone,
                 'application_status'        => 'approved',

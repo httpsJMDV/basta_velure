@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageSquareText, SquarePen, ChevronUp, X, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useChat } from '../../hooks/useChat';
+import { sendFeedbackApi } from '../../api/client';
 import { useToast } from '../ui/Toast';
 
 const SHOW_TOP_AFTER = 480; // px scrolled
@@ -41,7 +41,6 @@ function ToolButton({ icon: Icon, label, onClick, active, badge }: {
  */
 export default function FloatingToolbar({ chatOpen, unread, onMessages }: { chatOpen: boolean; unread: number; onMessages: () => void }) {
   const { user } = useAuth();
-  const { openChatWithSupport } = useChat();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
@@ -71,14 +70,15 @@ export default function FloatingToolbar({ chatOpen, unread, onMessages }: { chat
     const text = note.trim();
     if (!text) return;
     setSending(true);
-    const conversation = await openChatWithSupport(undefined, `Feedback: ${text}`);
-    setSending(false);
-    if (conversation) {
+    try {
+      await sendFeedbackApi(text, window.location.href);
       setNote('');
       setFeedbackOpen(false);
-      showToast('Thanks! Your feedback was sent to Loved-IT support.', 'success');
-    } else {
+      showToast('Thanks! Your feedback reached the Loved-IT team.', 'success');
+    } catch {
       showToast('Could not send your feedback. Please try again.', 'error');
+    } finally {
+      setSending(false);
     }
   }
 
@@ -98,7 +98,7 @@ export default function FloatingToolbar({ chatOpen, unread, onMessages }: { chat
             <div className="flex items-start justify-between gap-3 mb-2">
               <div>
                 <p className="text-sm font-bold text-gray-900">Share your feedback</p>
-                <p className="text-[12px] text-gray-500 mt-0.5">Tell us what we can do better. It goes straight to our support team.</p>
+                <p className="text-[12px] text-gray-500 mt-0.5">Tell us what we can do better. The Loved-IT team reads every note.</p>
               </div>
               <button type="button" onClick={() => setFeedbackOpen(false)} className="p-1 -m-1 text-gray-400 hover:text-gray-700" aria-label="Close">
                 <X className="w-4 h-4" />

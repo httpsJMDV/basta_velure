@@ -55,7 +55,7 @@ class Order extends Model
     public function payment(): HasOne            { return $this->hasOne(Payment::class); }
     public function dispute(): HasOne            { return $this->hasOne(Dispute::class); }
     public function parcel(): HasOne             { return $this->hasOne(Parcel::class); }
-    /** The courier the buyer chose at checkout (null reads as the default courier). */
+    /** The courier assigned at checkout by CourierAssigner (null reads as the default courier). */
     public function logisticsCompany(): BelongsTo { return $this->belongsTo(LogisticsCompany::class); }
     public function statusHistories(): HasMany   { return $this->hasMany(OrderStatusHistory::class)->orderBy('created_at', 'asc'); }
 }

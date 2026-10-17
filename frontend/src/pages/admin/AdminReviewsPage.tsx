@@ -1,19 +1,22 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  getAdminReviewsApi, getAdminReviewSummaryApi, getAdminReviewShopsApi, getAdminReviewShopApi,
+  getAdminReviewsApi, getAdminReviewSummaryApi, getAdminReviewShopsApi, getAdminReviewShopApi, getAdminFeedbackApi, updateAdminFeedbackApi,
 } from '../../api/client';
-import type { AdminReview, AdminReviewShop, AdminReviewShopSort, AdminReviewSummary } from '../../types';
-import Button from '../../components/ui/Button';
+import type { AdminReview, AdminReviewShop, AdminReviewShopSort, AdminReviewSummary, AdminFeedback } from '../../types';
 import CustomSelect from '../../components/ui/CustomSelect';
-import { PageHero, StatCard, StatCardSkeleton, ChartEmptyState, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { PageHero, StatCard, StatCardSkeleton, HERO_BUTTON } from '../../components/admin/dashboardKit';
 import {
-  Search, X, ChevronLeft, ChevronRight, Star, MessageSquare, Store, AlertCircle, ArrowLeft, ExternalLink,
-  Package, User as UserIcon, ShoppingBag,
+  type ListMeta, FilterPanel, SearchField, StatusTabs, ListCard, ListPager, ListEmpty, ListError, Pill, Avatar, RowAction,
+  CardGrid, TileShell, SkeletonTiles, SkeletonCards, RailCard, useViewMode, ViewToggle, TH, TD, ROW, rowKeys, relativeTime,
+} from '../../components/admin/listKit';
+import {
+  ChevronRight, Star, MessageSquare, Store, ArrowLeft, ExternalLink, Package, ShoppingBag, MessageSquareText, Inbox, CheckCheck,
+  Link2, Undo2,
 } from 'lucide-react';
 import { NA, whole } from '../../utils/adminReports';
 
-const PER_PAGE = 20;
+const PER_PAGE_OPTIONS = [12, 24, 48];
 
 const SORT_OPTIONS: { value: AdminReviewShopSort; label: string }[] = [
   { value: 'reviews', label: 'Most reviews' },
@@ -27,7 +30,8 @@ const RATING_OPTIONS = [
   ...[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n} star${n === 1 ? '' : 's'}` })),
 ];
 
-function formatDate(iso: string) {
+function formatDate(iso: string | null | undefined) {
+  if (!iso) return NA;
   return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
 }
 
@@ -39,7 +43,7 @@ function Stars({ rating, size = 'w-3.5 h-3.5' }: { rating: number; size?: string
         const fill = Math.max(0, Math.min(1, rating - i));
         return (
           <span key={i} className={`relative inline-block ${size}`}>
-            <Star className={`absolute inset-0 w-full h-full text-gray-200 fill-gray-200`} />
+            <Star className="absolute inset-0 w-full h-full text-gray-200 fill-gray-200" />
             <span className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
               <Star className={`${size} text-amber-400 fill-amber-400 max-w-none`} />
             </span>
@@ -50,38 +54,27 @@ function Stars({ rating, size = 'w-3.5 h-3.5' }: { rating: number; size?: string
   );
 }
 
-function ShopLogo({ shop, size = 'w-10 h-10' }: { shop: Pick<AdminReviewShop, 'shop_name' | 'logo_url'>; size?: string }) {
-  const [broken, setBroken] = useState(false);
-  if (shop.logo_url && !broken) {
-    return <img src={shop.logo_url} alt="" onError={() => setBroken(true)} className={`${size} rounded-xl object-cover border border-gray-200 bg-gray-50 shrink-0`} />;
-  }
-  return (
-    <span className={`${size} rounded-xl bg-gradient-to-br from-neutral-800 to-neutral-700 text-white flex items-center justify-center font-bold text-sm shrink-0`} aria-hidden="true">
-      {shop.shop_name?.[0]?.toUpperCase() ?? 'S'}
-    </span>
-  );
-}
-
-function RatingBadge({ rating, count }: { rating: number | null; count: number }) {
-  if (rating === null || count === 0) return <span className="text-xs text-gray-400">No reviews yet</span>;
+function RatingLine({ rating, count }: { rating: number | null; count: number }) {
+  if (rating === null || count === 0) return <span className="text-[12px] text-gray-400">No reviews yet</span>;
   return (
     <span className="inline-flex items-center gap-1.5">
       <Stars rating={rating} />
-      <span className="text-sm font-black text-gray-900">{rating.toFixed(2)}</span>
+      <span className="text-[13px] font-bold text-gray-900">{rating.toFixed(2)}</span>
+      <span className="text-[12px] text-gray-400">({whole(count)})</span>
     </span>
   );
 }
 
-/** A comment that shows a few lines and expands on request. */
-function Comment({ text }: { text: string | null }) {
+/** A long text that shows a few lines and expands on request. */
+function Expandable({ text, empty = 'No comment' }: { text: string | null; empty?: string }) {
   const [open, setOpen] = useState(false);
-  if (!text) return <p className="text-sm italic text-gray-400">No comment</p>;
-  const long = text.length > 140;
+  if (!text) return <p className="text-[13px] italic text-gray-400">{empty}</p>;
+  const long = text.length > 160;
   return (
     <div>
-      <p className={`text-sm leading-relaxed text-gray-700 whitespace-pre-line ${!open && long ? 'line-clamp-2' : ''}`}>{text}</p>
+      <p className={`text-[13px] leading-relaxed text-gray-700 whitespace-pre-line ${!open && long ? 'line-clamp-3' : ''}`}>{text}</p>
       {long && (
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-0.5 text-xs font-bold text-brand-red hover:underline">
+        <button type="button" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} aria-expanded={open} className="mt-1 text-[12px] font-bold text-brand-red hover:underline">
           {open ? 'Show less' : 'Show more'}
         </button>
       )}
@@ -89,91 +82,88 @@ function Comment({ text }: { text: string | null }) {
   );
 }
 
-function Pagination({ meta, loading, onPage, noun }: {
-  meta: { current_page: number; last_page: number; total: number; from: number | null; to: number | null };
-  loading: boolean;
-  onPage: (page: number) => void;
-  noun: string;
-}) {
-  if (meta.total === 0) return null;
+/** Shop logo with the owner's photo pinned to its corner. */
+function ShopIdentity({ shop, size = 'lg' }: { shop: Pick<AdminReviewShop, 'shop_name' | 'logo_url' | 'owner_name' | 'owner_avatar_url'>; size?: 'md' | 'lg' | 'xl' }) {
   return (
-    <div className="flex flex-col items-center justify-between gap-2 px-4 py-3 border-t border-gray-100 sm:flex-row">
-      <p className="text-[12px] text-gray-500">
-        Showing <span className="font-semibold text-gray-800">{meta.from ?? 0}–{meta.to ?? 0}</span> of <span className="font-semibold text-gray-800">{whole(meta.total)}</span> {noun}{meta.total === 1 ? '' : 's'}
-      </p>
-      <div className="flex items-center gap-2">
-        <button disabled={meta.current_page <= 1 || loading} onClick={() => onPage(meta.current_page - 1)} aria-label="Previous page"
-          className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
-          <ChevronLeft className="w-3.5 h-3.5 text-gray-500" />
-        </button>
-        <span className="text-[12px] text-gray-600">Page {meta.current_page} of {meta.last_page}</span>
-        <button disabled={meta.current_page >= meta.last_page || loading} onClick={() => onPage(meta.current_page + 1)} aria-label="Next page"
-          className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
-          <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
-        </button>
-      </div>
-    </div>
+    <span className="relative shrink-0">
+      <Avatar name={shop.shop_name} src={shop.logo_url} icon={shop.logo_url ? undefined : Store} size={size} />
+      <span className="absolute -bottom-1 -right-1 rounded-lg ring-2 ring-white overflow-hidden" title={shop.owner_name}>
+        <Avatar name={shop.owner_name || shop.shop_name} src={shop.owner_avatar_url} size="sm" />
+      </span>
+    </span>
   );
 }
 
-function Distribution({ distribution, total, rating, onPick, title }: {
+function Distribution({ distribution, total, rating, onPick }: {
   distribution: Record<'1' | '2' | '3' | '4' | '5', number> | undefined;
   total: number;
   rating?: number | null;
   onPick?: (stars: number) => void;
-  title: string;
 }) {
-  const max = distribution ? Math.max(...Object.values(distribution), 1) : 1;
   return (
-    <div className="p-3.5 bg-white border shadow-xs border-gray-200/80 rounded-xl">
-      <h2 className="mb-2 text-xs font-bold tracking-wider text-gray-900 uppercase">{title}</h2>
+    <RailCard title="Rating distribution">
       {!distribution ? (
         <div className="space-y-2 animate-pulse">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-3 bg-gray-100 rounded" />)}</div>
       ) : total === 0 ? (
-        <p className="py-3 text-xs text-center text-gray-400">{NA}</p>
+        <p className="py-3 text-xs text-center text-gray-400">No reviews yet</p>
       ) : (
         <ul className="space-y-1">
           {([5, 4, 3, 2, 1] as const).map((stars) => {
             const count = distribution[String(stars) as '1' | '2' | '3' | '4' | '5'];
-            const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+            const pct = Math.round((count / total) * 100);
             const row = (
               <>
                 <span className="flex items-center w-7 gap-0.5 font-bold text-gray-700">{stars}<Star className="w-3 h-3 text-amber-400 fill-amber-400" aria-hidden="true" /></span>
-                <span className="flex-1 h-1.5 overflow-hidden bg-gray-100 rounded-full">
-                  <span className="block h-full rounded-full bg-amber-400" style={{ width: `${(count / max) * 100}%` }} />
-                </span>
-                <span className="w-14 font-medium text-right text-gray-500">{count} · {pct}%</span>
+                <span className="flex-1 h-1.5 overflow-hidden bg-gray-100 rounded-full"><span className="block h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} /></span>
+                <span className="w-12 font-medium text-right text-gray-500 tabular-nums">{pct}%</span>
               </>
             );
             return (
               <li key={stars}>
                 {onPick ? (
-                  <button type="button" onClick={() => onPick(stars)} aria-pressed={rating === stars} aria-label={`${stars} star reviews: ${count}`}
-                    className={`flex items-center w-full gap-2 px-1 py-0.5 text-[11px] rounded transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${rating === stars ? 'bg-rose-50' : ''}`}>
+                  <button type="button" onClick={() => onPick(stars)} aria-pressed={rating === stars}
+                    className={`flex items-center w-full gap-2 px-1.5 py-1 text-[11px] rounded-lg transition-colors hover:bg-gray-50 ${rating === stars ? 'bg-rose-50 ring-1 ring-brand-red/20' : ''}`}>
                     {row}
                   </button>
-                ) : (
-                  <div className="flex items-center w-full gap-2 px-1 py-0.5 text-[11px]">{row}</div>
-                )}
+                ) : <div className="flex items-center w-full gap-2 px-1.5 py-1 text-[11px]">{row}</div>}
               </li>
             );
           })}
         </ul>
       )}
-    </div>
+    </RailCard>
   );
 }
 
-type Meta = { current_page: number; last_page: number; total: number; from: number | null; to: number | null };
-const EMPTY_META: Meta = { current_page: 1, last_page: 1, total: 0, from: null, to: null };
+type Meta = ListMeta;
+const EMPTY_META: Meta = { current_page: 1, last_page: 1, per_page: 12, total: 0, from: null, to: null };
 const toMeta = (m: unknown): Meta => {
   const x = m as Partial<Meta>;
-  return { current_page: x.current_page ?? 1, last_page: x.last_page ?? 1, total: x.total ?? 0, from: x.from ?? null, to: x.to ?? null };
+  return { current_page: x.current_page ?? 1, last_page: x.last_page ?? 1, per_page: x.per_page ?? 12, total: x.total ?? 0, from: x.from ?? null, to: x.to ?? null };
 };
+
+type Tab = 'reviews' | 'feedback';
+
+/** The two halves of the page, under the hero. */
+function PageTabs({ tab, onTab, newFeedback }: { tab: Tab; onTab: (t: Tab) => void; newFeedback: number | null }) {
+  return (
+    <FilterPanel>
+      <StatusTabs<Tab>
+        label="Reviews or feedback"
+        value={tab}
+        onChange={onTab}
+        options={[
+          { value: 'reviews', label: 'Shop reviews' },
+          { value: 'feedback', label: 'Site feedback', count: newFeedback ?? undefined },
+        ]}
+      />
+    </FilterPanel>
+  );
+}
 
 // ─── All shops ────────────────────────────────────────────────────────────────
 
-function ShopsView({ onOpen }: { onOpen: (id: number) => void }) {
+function ShopsView({ onOpen, tabs }: { onOpen: (id: number) => void; tabs: React.ReactNode }) {
   const [summary, setSummary] = useState<AdminReviewSummary | null>(null);
   const [summaryFailed, setSummaryFailed] = useState(false);
   const [shops, setShops] = useState<AdminReviewShop[]>([]);
@@ -184,160 +174,149 @@ function ShopsView({ onOpen }: { onOpen: (id: number) => void }) {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<AdminReviewShopSort>('reviews');
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(12);
+  const [view, setView] = useViewMode('reviews_shops');
 
   useEffect(() => {
     const id = window.setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 300);
     return () => window.clearTimeout(id);
   }, [searchInput]);
 
-  const loadSummary = useCallback(async () => {
+  const loadSummary = useCallback(() => {
     setSummaryFailed(false);
-    try { setSummary(await getAdminReviewSummaryApi()); } catch { setSummaryFailed(true); }
+    getAdminReviewSummaryApi().then(setSummary).catch(() => setSummaryFailed(true));
   }, []);
 
-  const loadShops = useCallback(async () => {
+  const loadShops = useCallback(() => {
     setLoading(true);
     setFailed(false);
-    try {
-      const res = await getAdminReviewShopsApi({ search: search || undefined, sort, direction: sort === 'name' ? 'asc' : 'desc', page, per_page: PER_PAGE });
-      setShops(res.data);
-      setMeta(toMeta(res.meta));
-    } catch { setFailed(true); } finally { setLoading(false); }
-  }, [search, sort, page]);
+    getAdminReviewShopsApi({ search: search || undefined, sort, direction: sort === 'name' ? 'asc' : 'desc', page, per_page: perPage })
+      .then((res) => { setShops(res.data); setMeta(toMeta(res.meta)); })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  }, [search, sort, page, perPage]);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
   useEffect(() => { loadShops(); }, [loadShops]);
 
+  const empty = <ListEmpty icon={Store} title={search ? 'No shop matches that search' : 'No shops yet'} hint={search ? "Check the spelling, or search by the owner's name." : 'Shops appear here once a seller application is approved.'} filtered={Boolean(search)} onClear={() => setSearchInput('')} />;
+
   return (
     <div className="pb-8 space-y-3">
-      <PageHero
-        icon={Star}
-        eyebrow="Trust & Safety"
-        title="Shop Reviews"
-        subtitle="What buyers say about each shop. Reviews are honest feedback: the admin can read them, never edit or hide them."
-      />
+      <PageHero icon={Star} eyebrow="Trust & Safety" title="Reviews & Feedback"
+        subtitle="What buyers say about each shop, and what users say about Loved-IT. Reviews are honest feedback: read them, never edit or hide them." />
+      {tabs}
 
-      {summaryFailed ? (
-        <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
-          <span>The review totals could not be loaded.</span>
-          <button onClick={loadSummary} className="px-3 py-1 text-xs font-bold text-white bg-brand-red rounded-lg hover:bg-[#8e2424]">Retry</button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-4">
-          <div className="grid grid-cols-3 gap-2.5 lg:col-span-3">
-            {!summary ? [1, 2, 3].map((i) => <StatCardSkeleton key={i} />) : (
-              <>
-                <StatCard compact icon={Star} label="Average rating" value={summary.average_rating === null ? null : `${summary.average_rating.toFixed(2)} / 5`}
-                  subtext={summary.average_rating === null ? 'No reviews yet' : 'Across every shop'} iconBg="bg-amber-50" iconColor="text-amber-500" />
-                <StatCard compact icon={MessageSquare} label="Total reviews" value={summary.total} subtext="From buyers" iconBg="bg-violet-50" iconColor="text-violet-600" />
-                <StatCard compact icon={Store} label="Shops reviewed" value={`${whole(summary.shops_reviewed)} of ${whole(summary.shops)}`} subtext="Shops with at least one review" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-              </>
-            )}
-          </div>
-          <Distribution title="Rating distribution" distribution={summary?.rating_distribution} total={summary?.total ?? 0} />
-        </div>
-      )}
-
-      <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl lg:flex-row lg:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search shops"
-            placeholder="Search a shop or its owner"
-            className="w-full min-h-[44px] pl-10 pr-9 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent bg-white"
-          />
-          {searchInput && (
-            <button type="button" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700">
-              <X className="w-3.5 h-3.5" />
-            </button>
+      <div className="grid items-start gap-3 lg:grid-cols-[270px_minmax(0,1fr)]">
+        <aside className="space-y-3 lg:sticky lg:top-4">
+          {summaryFailed ? (
+            <ListError message="The review totals could not be loaded." onRetry={loadSummary} />
+          ) : (
+            <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+              {!summary ? [1, 2, 3].map((i) => <StatCardSkeleton key={i} />) : (
+                <>
+                  <StatCard compact icon={Star} label="Average rating" value={summary.average_rating === null ? null : `${summary.average_rating.toFixed(2)} / 5`}
+                    subtext={summary.average_rating === null ? 'No reviews yet' : 'Across every shop'} iconBg="bg-amber-50" iconColor="text-amber-500" />
+                  <StatCard compact icon={MessageSquare} label="Total reviews" value={summary.total} subtext="From buyers" iconBg="bg-violet-50" iconColor="text-violet-600" />
+                  <StatCard compact icon={Store} label="Shops reviewed" value={`${whole(summary.shops_reviewed)} of ${whole(summary.shops)}`} subtext="With at least one review" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                </>
+              )}
+            </div>
           )}
-        </div>
-        <CustomSelect className="lg:w-60" value={sort} onChange={(v) => { setSort(v as AdminReviewShopSort); setPage(1); }} options={SORT_OPTIONS} />
-      </div>
+          <Distribution distribution={summary?.rating_distribution} total={summary?.total ?? 0} />
+        </aside>
 
-      {failed ? (
-        <div role="alert" className="flex flex-col items-center gap-3 px-4 py-12 text-center bg-white border border-red-200 rounded-xl">
-          <AlertCircle className="w-6 h-6 text-red-500" />
-          <p className="text-sm text-gray-700">The shops could not be loaded.</p>
-          <Button variant="primary" onClick={loadShops}>Retry</Button>
-        </div>
-      ) : (
-        <div className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl" aria-busy={loading}>
-          {/* Table from md up */}
-          <div className="hidden md:block max-h-[64vh] overflow-auto">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="text-left">
-                  {['Shop', 'Rating', 'Reviews', 'Latest review'].map((h) => (
-                    <th key={h} scope="col" className="sticky top-0 z-10 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-100">{h}</th>
-                  ))}
-                  <th scope="col" className="sticky top-0 z-10 w-10 bg-gray-50 border-b border-gray-100"><span className="sr-only">Open</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {loading && shops.length === 0 && [0, 1, 2, 3].map((i) => (
-                  <tr key={i} className="animate-pulse">{[0, 1, 2, 3, 4].map((c) => <td key={c} className="px-4 py-4"><div className="h-3 bg-gray-100 rounded w-3/4" /></td>)}</tr>
-                ))}
-                {!loading && shops.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-12"><ShopsEmpty searching={Boolean(search)} /></td></tr>
-                )}
-                {shops.map((s) => (
-                  <tr
-                    key={s.id}
-                    tabIndex={0}
-                    onClick={() => onOpen(s.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(s.id); } }}
-                    className={`cursor-pointer transition-colors hover:bg-red-50/40 focus:outline-none focus-visible:bg-red-50/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-red ${loading ? 'opacity-60' : ''}`}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <ShopLogo shop={s} />
-                        <div className="min-w-0">
-                          <p className="font-bold text-gray-900 truncate">{s.shop_name}</p>
-                          <p className="text-xs text-gray-500 truncate">{s.owner_name}</p>
+        <section className="min-w-0 space-y-3">
+          <FilterPanel>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <SearchField value={searchInput} onChange={setSearchInput} label="Search shops" placeholder="Search a shop, its owner or email…" />
+              <div className="flex items-center gap-2">
+                <CustomSelect className="flex-1 sm:w-48" value={sort} onChange={(v) => { setSort(v as AdminReviewShopSort); setPage(1); }} options={SORT_OPTIONS} />
+                <ViewToggle value={view} onChange={setView} />
+              </div>
+            </div>
+          </FilterPanel>
+
+          {failed ? <ListError message="The shops could not be loaded." onRetry={loadShops} /> : (
+            <ListCard title="Shops" count={meta.total} busy={loading}>
+              {view === 'grid' ? (
+                shops.length === 0 && !loading ? empty : (
+                  <CardGrid>
+                    {loading && shops.length === 0 && <SkeletonTiles />}
+                    {shops.map((s) => (
+                      <TileShell key={s.id} onOpen={() => onOpen(s.id)} dimmed={loading}>
+                        <div className="flex items-start gap-3 p-4">
+                          <ShopIdentity shop={s} size="xl" />
+                          <div className="flex-1 min-w-0 pl-1">
+                            <p className="text-[14px] font-bold leading-tight truncate text-brand-black group-hover:text-brand-red">{s.shop_name}</p>
+                            <p className="text-[12px] text-gray-500 truncate mt-0.5">{s.owner_name}</p>
+                            <div className="mt-2"><RatingLine rating={s.average_rating} count={s.review_count} /></div>
+                          </div>
                         </div>
+                        <div className="flex items-center justify-between gap-2 px-4 py-2.5 mt-auto border-t border-gray-100 bg-gray-50/60 rounded-b-2xl">
+                          <span className="text-[11px] text-gray-500">{s.last_review_at ? `Latest ${relativeTime(s.last_review_at)}` : 'No reviews yet'}</span>
+                          <RowAction onClick={() => onOpen(s.id)} label={`Open reviews of ${s.shop_name}`}>Reviews <ChevronRight className="w-3 h-3" aria-hidden="true" /></RowAction>
+                        </div>
+                      </TileShell>
+                    ))}
+                  </CardGrid>
+                )
+              ) : (
+                <>
+                  <div className="hidden md:block max-h-[68vh] overflow-auto">
+                    <table className="w-full text-[13px]">
+                      <thead><tr>
+                        <th scope="col" className={TH}>Shop and owner</th>
+                        <th scope="col" className={TH}>Rating</th>
+                        <th scope="col" className={TH}>Reviews</th>
+                        <th scope="col" className={TH}>Latest review</th>
+                        <th scope="col" className={`${TH} text-right`}><span className="sr-only">Open</span></th>
+                      </tr></thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {!loading && shops.length === 0 && <tr><td colSpan={5}>{empty}</td></tr>}
+                        {shops.map((s) => (
+                          <tr key={s.id} {...rowKeys(() => onOpen(s.id))} className={`${ROW} ${loading ? 'opacity-60' : ''}`}>
+                            <td className={TD}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <ShopIdentity shop={s} size="md" />
+                                <div className="min-w-0 pl-1">
+                                  <p className="font-semibold truncate text-brand-black">{s.shop_name}</p>
+                                  <p className="text-[11px] text-gray-400 truncate">{s.owner_name}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className={TD}><RatingLine rating={s.average_rating} count={s.review_count} /></td>
+                            <td className={`${TD} font-semibold text-gray-800`}>{whole(s.review_count)}</td>
+                            <td className={`${TD} text-gray-500 whitespace-nowrap`}>{formatDate(s.last_review_at)}</td>
+                            <td className={`${TD} text-right`}><RowAction onClick={() => onOpen(s.id)} label={`Open reviews of ${s.shop_name}`}>Open</RowAction></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="divide-y divide-gray-100 md:hidden">
+                    {loading && shops.length === 0 && <SkeletonCards />}
+                    {!loading && shops.length === 0 && empty}
+                    {shops.map((s) => (
+                      <div key={s.id} {...rowKeys(() => onOpen(s.id))} className={`flex items-center gap-3 p-3 ${ROW}`}>
+                        <ShopIdentity shop={s} size="md" />
+                        <div className="flex-1 min-w-0 pl-1">
+                          <p className="text-[13px] font-semibold truncate text-brand-black">{s.shop_name}</p>
+                          <RatingLine rating={s.average_rating} count={s.review_count} />
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300" />
                       </div>
-                    </td>
-                    <td className="px-4 py-3"><RatingBadge rating={s.average_rating} count={s.review_count} /></td>
-                    <td className="px-4 py-3 font-semibold text-gray-800">{whole(s.review_count)}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{s.last_review_at ? formatDate(s.last_review_at) : NA}</td>
-                    <td className="px-3 py-3 text-gray-300"><ChevronRight className="w-4 h-4" aria-hidden="true" /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Cards below md */}
-          <div className="md:hidden divide-y divide-gray-100">
-            {loading && shops.length === 0 && [0, 1, 2].map((i) => <div key={i} className="p-4 space-y-2 animate-pulse"><div className="h-3 bg-gray-100 rounded w-1/2" /><div className="h-3 bg-gray-100 rounded w-3/4" /></div>)}
-            {!loading && shops.length === 0 && <div className="px-4 py-10"><ShopsEmpty searching={Boolean(search)} /></div>}
-            {shops.map((s) => (
-              <button key={s.id} type="button" onClick={() => onOpen(s.id)} className={`flex items-center w-full gap-3 p-4 text-left hover:bg-red-50/40 focus:outline-none focus-visible:bg-red-50/60 ${loading ? 'opacity-60' : ''}`}>
-                <ShopLogo shop={s} />
-                <span className="flex-1 min-w-0">
-                  <span className="block font-bold text-gray-900 truncate">{s.shop_name}</span>
-                  <span className="block mt-0.5"><RatingBadge rating={s.average_rating} count={s.review_count} /></span>
-                  <span className="block text-xs text-gray-500">{whole(s.review_count)} review{s.review_count === 1 ? '' : 's'}</span>
-                </span>
-                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-
-          <Pagination meta={meta} loading={loading} onPage={setPage} noun="shop" />
-        </div>
-      )}
+                    ))}
+                  </div>
+                </>
+              )}
+              <ListPager meta={meta} perPage={perPage} perPageOptions={PER_PAGE_OPTIONS} onPage={setPage} onPerPage={(n) => { setPerPage(n); setPage(1); }} noun={['shop', 'shops']} />
+            </ListCard>
+          )}
+        </section>
+      </div>
     </div>
   );
-}
-
-function ShopsEmpty({ searching }: { searching: boolean }) {
-  return searching
-    ? <ChartEmptyState message="No shop matches that search" hint="Check the spelling, or search by the owner's name." />
-    : <ChartEmptyState message="No shops yet" hint="Shops appear here once a seller application is approved." />;
 }
 
 // ─── One shop's reviews ───────────────────────────────────────────────────────
@@ -353,181 +332,306 @@ function ShopReviewsView({ shopId, onBack }: { shopId: number; onBack: () => voi
   const [search, setSearch] = useState('');
   const [rating, setRating] = useState<number | null>(null);
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(12);
 
   useEffect(() => {
     const id = window.setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 300);
     return () => window.clearTimeout(id);
   }, [searchInput]);
 
-  const loadShop = useCallback(async () => {
+  const loadShop = useCallback(() => {
     setShopFailed(false);
-    try { setShop(await getAdminReviewShopApi(shopId)); } catch { setShopFailed(true); }
+    getAdminReviewShopApi(shopId).then(setShop).catch(() => setShopFailed(true));
   }, [shopId]);
 
-  const loadReviews = useCallback(async () => {
+  const loadReviews = useCallback(() => {
     setLoading(true);
     setFailed(false);
-    try {
-      const res = await getAdminReviewsApi({ shop_id: shopId, rating: rating ?? undefined, search: search || undefined, page, per_page: PER_PAGE });
-      setReviews(res.data);
-      setMeta(toMeta(res.meta));
-    } catch { setFailed(true); } finally { setLoading(false); }
-  }, [shopId, rating, search, page]);
+    getAdminReviewsApi({ shop_id: shopId, rating: rating ?? undefined, search: search || undefined, page, per_page: perPage })
+      .then((res) => { setReviews(res.data); setMeta(toMeta(res.meta)); })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  }, [shopId, rating, search, page, perPage]);
 
   useEffect(() => { loadShop(); }, [loadShop]);
   useEffect(() => { loadReviews(); }, [loadReviews]);
 
   const filtersActive = Boolean(rating || search);
   const clearFilters = () => { setRating(null); setSearchInput(''); setSearch(''); setPage(1); };
+  const back = (
+    <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
+      <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> All shops
+    </button>
+  );
 
   if (shopFailed) {
-    return (
-      <div className="pb-8 space-y-3">
-        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline"><ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> All shops</button>
-        <div role="alert" className="flex flex-col items-center gap-3 px-4 py-12 text-center bg-white border border-red-200 rounded-xl">
-          <AlertCircle className="w-6 h-6 text-red-500" />
-          <p className="text-sm text-gray-700">This shop could not be found.</p>
-          <Button variant="primary" onClick={loadShop}>Retry</Button>
-        </div>
-      </div>
-    );
+    return <div className="pb-8 space-y-3">{back}<ListError message="This shop could not be found." onRetry={loadShop} /></div>;
   }
 
   return (
     <div className="pb-8 space-y-3">
-      <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
-        <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> All shops
-      </button>
-
-      <PageHero
-        icon={Store}
-        eyebrow="Shop reviews"
-        title={shop?.shop_name ?? 'Loading shop…'}
-        subtitle={shop ? <>Owned by {shop.owner_name}</> : undefined}
-      >
+      {back}
+      <PageHero icon={Store} eyebrow="Shop reviews" title={shop?.shop_name ?? 'Loading shop…'} subtitle={shop ? <>Owned by {shop.owner_name}</> : undefined}>
         {shop && (
           <Link to={`/shop/${shop.shop_slug}`} target="_blank" rel="noopener noreferrer" className={HERO_BUTTON}>
-            <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
-            Go to shop profile
+            <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Go to shop profile
           </Link>
         )}
       </PageHero>
 
-      <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-4">
-        <div className="grid grid-cols-2 gap-2.5 lg:col-span-3">
-          {!shop ? [1, 2].map((i) => <StatCardSkeleton key={i} />) : (
-            <>
-              <div className="flex items-center gap-3 p-3 bg-white border shadow-xs border-gray-200/80 rounded-xl">
-                <ShopLogo shop={shop} size="w-14 h-14" />
-                <div className="min-w-0">
-                  <p className="font-black text-gray-900 truncate">{shop.shop_name}</p>
-                  <p className="text-xs text-gray-500 truncate">{shop.owner_name}</p>
-                  <div className="mt-1"><RatingBadge rating={shop.average_rating} count={shop.review_count} /></div>
+      <div className="grid items-start gap-3 lg:grid-cols-[270px_minmax(0,1fr)]">
+        <aside className="space-y-3 lg:sticky lg:top-4">
+          <div className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+            {!shop ? <div className="h-16 bg-gray-100 rounded-xl animate-pulse" /> : (
+              <div className="flex items-center gap-3">
+                <ShopIdentity shop={shop} size="xl" />
+                <div className="min-w-0 pl-1">
+                  <p className="font-bold text-gray-900 truncate">{shop.shop_name}</p>
+                  <p className="text-[12px] text-gray-500 truncate">{shop.owner_name}</p>
+                  <div className="mt-1"><RatingLine rating={shop.average_rating} count={shop.review_count} /></div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <StatCard compact icon={Star} label="Average rating" value={shop.average_rating === null ? null : `${shop.average_rating.toFixed(2)} / 5`} subtext="This shop" iconBg="bg-amber-50" iconColor="text-amber-500" />
-                <StatCard compact icon={MessageSquare} label="Reviews" value={shop.review_count} subtext={shop.last_review_at ? `Latest ${formatDate(shop.last_review_at)}` : 'None yet'} iconBg="bg-violet-50" iconColor="text-violet-600" />
-              </div>
-            </>
-          )}
-        </div>
-        <Distribution title="Rating distribution" distribution={shop?.rating_distribution} total={shop?.review_count ?? 0} rating={rating} onPick={(s) => { setRating((c) => (c === s ? null : s)); setPage(1); }} />
-      </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {!shop ? [1, 2].map((i) => <StatCardSkeleton key={i} />) : (
+              <>
+                <StatCard compact icon={Star} label="Average" value={shop.average_rating === null ? null : `${shop.average_rating.toFixed(2)}`} subtext="Out of 5" iconBg="bg-amber-50" iconColor="text-amber-500" />
+                <StatCard compact icon={MessageSquare} label="Reviews" value={shop.review_count} subtext={shop.last_review_at ? `Latest ${relativeTime(shop.last_review_at)}` : 'None yet'} iconBg="bg-violet-50" iconColor="text-violet-600" />
+              </>
+            )}
+          </div>
+          <Distribution distribution={shop?.rating_distribution} total={shop?.review_count ?? 0} rating={rating} onPick={(s) => { setRating((c) => (c === s ? null : s)); setPage(1); }} />
+        </aside>
 
-      <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl lg:flex-row lg:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search this shop's reviews"
-            placeholder="Search comments, products or buyers"
-            className="w-full min-h-[44px] pl-10 pr-9 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent bg-white"
-          />
-          {searchInput && (
-            <button type="button" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-        <CustomSelect className="lg:w-48" value={rating === null ? '' : String(rating)} onChange={(v) => { setRating(v ? Number(v) : null); setPage(1); }} options={RATING_OPTIONS} />
-        {filtersActive && <button type="button" onClick={clearFilters} className="self-start px-2 text-xs font-bold text-brand-red hover:underline lg:self-auto">Clear filters</button>}
-      </div>
-
-      {failed ? (
-        <div role="alert" className="flex flex-col items-center gap-3 px-4 py-12 text-center bg-white border border-red-200 rounded-xl">
-          <AlertCircle className="w-6 h-6 text-red-500" />
-          <p className="text-sm text-gray-700">The reviews could not be loaded.</p>
-          <Button variant="primary" onClick={loadReviews}>Retry</Button>
-        </div>
-      ) : (
-        <div className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl" aria-busy={loading}>
-          {loading && reviews.length === 0 ? (
-            <div className="divide-y divide-gray-100">
-              {[0, 1, 2].map((i) => <div key={i} className="p-4 space-y-2 animate-pulse"><div className="h-3 bg-gray-100 rounded w-1/4" /><div className="h-3 bg-gray-100 rounded w-3/4" /></div>)}
+        <section className="min-w-0 space-y-3">
+          <FilterPanel>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <SearchField value={searchInput} onChange={setSearchInput} label="Search this shop's reviews" placeholder="Search comments, products or buyers…" />
+              <CustomSelect className="sm:w-44" value={rating === null ? '' : String(rating)} onChange={(v) => { setRating(v ? Number(v) : null); setPage(1); }} options={RATING_OPTIONS} />
             </div>
-          ) : reviews.length === 0 ? (
-            <div className="flex flex-col items-center px-4 py-12">
-              {filtersActive ? (
-                <>
-                  <ChartEmptyState message="No reviews match these filters" hint="Try another rating or clear the filters." />
-                  <button type="button" onClick={clearFilters} className="text-xs font-bold text-brand-red hover:underline">Clear filters</button>
-                </>
+          </FilterPanel>
+
+          {failed ? <ListError message="The reviews could not be loaded." onRetry={loadReviews} /> : (
+            <ListCard title="Reviews" count={meta.total} busy={loading}>
+              {loading && reviews.length === 0 ? <SkeletonCards /> : reviews.length === 0 ? (
+                <ListEmpty icon={MessageSquare} title={filtersActive ? 'No reviews match these filters' : 'No reviews for this shop yet'}
+                  hint={filtersActive ? 'Try another rating or clear the filters.' : 'Reviews appear after buyers rate their completed orders.'} filtered={filtersActive} onClear={clearFilters} />
               ) : (
-                <ChartEmptyState message="No reviews for this shop yet" hint="Reviews appear here after buyers rate their completed orders." />
+                <ul className={`divide-y divide-gray-100 ${loading ? 'opacity-60' : ''}`}>
+                  {reviews.map((r) => {
+                    const buyer = r.buyer ? `${r.buyer.first_name} ${r.buyer.last_name}` : 'Deleted account';
+                    return (
+                      <li key={r.id} className="p-4 sm:p-5">
+                        <div className="flex items-start gap-3">
+                          <Avatar name={buyer} src={r.buyer?.avatar_url} size="md" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="text-[13px] font-semibold text-gray-900">{buyer}</span>
+                              {r.verified_purchase && <Pill tone="emerald">Verified purchase</Pill>}
+                              <span className="ml-auto text-[11px] text-gray-400" title={formatDate(r.created_at)}>{relativeTime(r.created_at)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <Stars rating={r.rating} />
+                              <span className="text-[12px] font-bold text-gray-800">{r.rating}.0</span>
+                              <span className="sr-only">out of 5 stars</span>
+                            </div>
+                            <div className="mt-2"><Expandable text={r.comment} /></div>
+                            <div className="flex flex-wrap items-center gap-2 mt-3">
+                              {r.product && (
+                                <Link to={`/products/${r.product.id}`} target="_blank" rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 py-1 pl-1 pr-2.5 rounded-lg bg-gray-50 border border-gray-200 text-[12px] text-gray-700 hover:border-brand-red/40 max-w-full">
+                                  {r.product.thumbnail_url ? <img src={r.product.thumbnail_url} alt="" className="w-7 h-7 rounded-md object-cover" /> : <Package className="w-4 h-4 text-gray-400 m-1.5" />}
+                                  <span className="truncate">{r.product.name}</span>
+                                </Link>
+                              )}
+                              {r.order && (
+                                <Link to={`/admin/orders?search=${encodeURIComponent(r.order.order_number)}`}
+                                  className="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-gray-200 font-mono text-[12px] font-semibold text-brand-red hover:border-brand-red/40">
+                                  <ShoppingBag className="w-3.5 h-3.5" aria-hidden="true" /> {r.order.order_number}
+                                </Link>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
-            </div>
-          ) : (
-            <ul className={`divide-y divide-gray-100 ${loading ? 'opacity-60' : ''}`}>
-              {reviews.map((r) => {
-                const buyer = r.buyer ? `${r.buyer.first_name} ${r.buyer.last_name}` : NA;
-                return (
-                  <li key={r.id} className="p-4 sm:p-5 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Stars rating={r.rating} />
-                        <span className="text-sm font-black text-gray-900">{r.rating}.0</span>
-                        <span className="sr-only">out of 5 stars</span>
-                      </span>
-                      {r.verified_purchase && <span className="text-[11px] font-semibold text-emerald-700">Verified purchase</span>}
-                      <span className="ml-auto text-xs text-gray-400">{formatDate(r.created_at)}</span>
-                    </div>
-                    <Comment text={r.comment} />
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                      <span className="inline-flex items-center gap-1"><Package className="w-3 h-3" aria-hidden="true" /> {r.product?.name ?? NA}</span>
-                      <span className="inline-flex items-center gap-1"><UserIcon className="w-3 h-3" aria-hidden="true" /> {buyer}</span>
-                      {r.order ? (
-                        <Link to={`/admin/orders?search=${encodeURIComponent(r.order.order_number)}`} className="inline-flex items-center gap-1 font-mono font-semibold text-brand-red hover:underline">
-                          <ShoppingBag className="w-3 h-3" aria-hidden="true" /> {r.order.order_number}
-                        </Link>
-                      ) : (
-                        <span className="inline-flex items-center gap-1"><ShoppingBag className="w-3 h-3" aria-hidden="true" /> {NA}</span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+              <ListPager meta={meta} perPage={perPage} perPageOptions={PER_PAGE_OPTIONS} onPage={setPage} onPerPage={(n) => { setPerPage(n); setPage(1); }} noun={['review', 'reviews']} />
+            </ListCard>
           )}
-          <Pagination meta={meta} loading={loading} onPage={setPage} noun="review" />
-        </div>
-      )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// ─── Site feedback ────────────────────────────────────────────────────────────
+
+type FeedbackStatus = 'new' | 'read' | 'all';
+
+function FeedbackView({ tabs, onCounts }: { tabs: React.ReactNode; onCounts: (n: number) => void }) {
+  const [items, setItems] = useState<AdminFeedback[]>([]);
+  const [meta, setMeta] = useState<Meta>(EMPTY_META);
+  const [counts, setCounts] = useState<{ new: number; read: number; all: number } | null>(null);
+  const [status, setStatus] = useState<FeedbackStatus>('new');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(12);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 300);
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setFailed(false);
+    getAdminFeedbackApi({ status, search: search || undefined, page, per_page: perPage })
+      .then((res) => { setItems(res.data); setMeta(toMeta(res.meta)); setCounts(res.meta.counts); onCounts(res.meta.counts.new); })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  }, [status, search, page, perPage, onCounts]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function mark(item: AdminFeedback, next: 'new' | 'read') {
+    setBusyId(item.id);
+    try {
+      await updateAdminFeedbackApi(item.id, next);
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const pick = (s: FeedbackStatus) => { setStatus(s); setPage(1); };
+  const pathOf = (url: string | null) => {
+    if (!url) return null;
+    try { return new URL(url).pathname + new URL(url).search; } catch { return url; }
+  };
+
+  return (
+    <div className="pb-8 space-y-3">
+      <PageHero icon={MessageSquareText} eyebrow="Trust & Safety" title="Reviews & Feedback"
+        subtitle="Notes users send from the Feedback button on the storefront: bugs, ideas and complaints about Loved-IT itself." />
+      {tabs}
+
+      <div className="grid items-start gap-3 lg:grid-cols-[270px_minmax(0,1fr)]">
+        <aside className="space-y-3 lg:sticky lg:top-4">
+          <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+            {!counts ? [1, 2, 3].map((i) => <StatCardSkeleton key={i} />) : (
+              <>
+                <StatCard compact icon={Inbox} label="New" value={counts.new} subtext="Waiting to be read" iconBg="bg-rose-50" iconColor="text-brand-red" onClick={() => pick('new')} active={status === 'new'} />
+                <StatCard compact icon={CheckCheck} label="Read" value={counts.read} subtext="Handled" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => pick('read')} active={status === 'read'} />
+                <StatCard compact icon={MessageSquareText} label="All feedback" value={counts.all} subtext="Since launch" iconBg="bg-violet-50" iconColor="text-violet-600" onClick={() => pick('all')} active={status === 'all'} />
+              </>
+            )}
+          </div>
+          <RailCard title="Working through feedback">
+            <ul className="space-y-1.5 text-[12px] text-gray-600 leading-snug">
+              <li>Open the page it was sent from to see what the user saw.</li>
+              <li>Mark it read once it is handled or passed to the team.</li>
+              <li>Need to reply? Message the user from Messages &amp; Inquiries.</li>
+            </ul>
+          </RailCard>
+        </aside>
+
+        <section className="min-w-0 space-y-3">
+          <FilterPanel>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <StatusTabs<FeedbackStatus>
+                label="Feedback status"
+                value={status}
+                onChange={pick}
+                options={[
+                  { value: 'new', label: 'New', count: counts ? counts.new : null },
+                  { value: 'read', label: 'Read', count: counts ? counts.read : null },
+                  { value: 'all', label: 'All', count: counts ? counts.all : null },
+                ]}
+              />
+              <div className="sm:w-72"><SearchField value={searchInput} onChange={setSearchInput} label="Search feedback" placeholder="Search words, names or emails…" /></div>
+            </div>
+          </FilterPanel>
+
+          {failed ? <ListError message="The feedback could not be loaded." onRetry={load} /> : (
+            <ListCard title={status === 'new' ? 'New feedback' : status === 'read' ? 'Read feedback' : 'All feedback'} count={meta.total} busy={loading}>
+              {loading && items.length === 0 ? <SkeletonCards /> : items.length === 0 ? (
+                <ListEmpty icon={Inbox} title={search ? 'No feedback matches that search' : status === 'new' ? 'You are all caught up' : 'No feedback yet'}
+                  hint={search ? 'Try another word.' : status === 'new' ? 'New notes from users will show up here.' : 'Users send feedback from the storefront toolbar.'}
+                  filtered={Boolean(search)} onClear={() => setSearchInput('')} />
+              ) : (
+                <ul className={`divide-y divide-gray-100 ${loading ? 'opacity-60' : ''}`}>
+                  {items.map((f) => {
+                    const name = f.user?.name || 'Deleted account';
+                    const path = pathOf(f.page_url);
+                    return (
+                      <li key={f.id} className={`p-4 sm:p-5 ${f.status === 'new' ? 'bg-rose-50/30' : ''}`}>
+                        <div className="flex items-start gap-3">
+                          <Avatar name={name} src={f.user?.avatar_url} size="md" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="text-[13px] font-semibold text-gray-900">{name}</span>
+                              {f.user?.email && <span className="text-[12px] text-gray-400 truncate">{f.user.email}</span>}
+                              <span className="ml-auto text-[11px] text-gray-400" title={formatDate(f.created_at)}>{relativeTime(f.created_at)}</span>
+                            </div>
+                            <div className="mt-2"><Expandable text={f.message} empty="(empty)" /></div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Pill tone={f.status === 'new' ? 'red' : 'gray'}>{f.status === 'new' ? 'New' : 'Read'}</Pill>
+                                {path && (
+                                  <a href={f.page_url!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] text-gray-500 hover:text-brand-red truncate max-w-[22rem]" title={f.page_url!}>
+                                    <Link2 className="w-3.5 h-3.5 shrink-0" />{path}
+                                  </a>
+                                )}
+                              </div>
+                              {f.status === 'new'
+                                ? <RowAction tone="success" loading={busyId === f.id} onClick={() => mark(f, 'read')} label="Mark as read"><CheckCheck className="w-3.5 h-3.5" /> Mark read</RowAction>
+                                : <RowAction loading={busyId === f.id} onClick={() => mark(f, 'new')} label="Mark as new"><Undo2 className="w-3.5 h-3.5" /> Mark new</RowAction>}
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <ListPager meta={meta} perPage={perPage} perPageOptions={PER_PAGE_OPTIONS} onPage={setPage} onPerPage={(n) => { setPerPage(n); setPage(1); }} noun={['note', 'notes']} />
+            </ListCard>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-/** All shops first; /admin/reviews?shop=<id> opens one shop's reviews. */
+/** Shop reviews (all shops, then ?shop=<id> for one) and site feedback (?tab=feedback). */
 export default function AdminReviewsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [newFeedback, setNewFeedback] = useState<number | null>(null);
+  const tab: Tab = searchParams.get('tab') === 'feedback' ? 'feedback' : 'reviews';
   const shopParam = Number(searchParams.get('shop'));
   const shopId = Number.isInteger(shopParam) && shopParam > 0 ? shopParam : null;
 
-  if (shopId !== null) {
-    return <ShopReviewsView key={shopId} shopId={shopId} onBack={() => setSearchParams({})} />;
-  }
-  return <ShopsView onOpen={(id) => setSearchParams({ shop: String(id) })} />;
-}
+  // The New count on the Feedback tab, also when the reviews half is open.
+  useEffect(() => {
+    let alive = true;
+    getAdminFeedbackApi({ status: 'new', per_page: 1 }).then((r) => { if (alive) setNewFeedback(r.meta.counts.new); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
+  const setTab = (t: Tab) => setSearchParams(t === 'feedback' ? { tab: 'feedback' } : {});
+  const tabs = <PageTabs tab={tab} onTab={setTab} newFeedback={newFeedback} />;
+
+  if (tab === 'feedback') return <FeedbackView tabs={tabs} onCounts={setNewFeedback} />;
+  if (shopId !== null) return <ShopReviewsView key={shopId} shopId={shopId} onBack={() => setSearchParams({})} />;
+  return <ShopsView tabs={tabs} onOpen={(id) => setSearchParams({ shop: String(id) })} />;
+}

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Menu, X, ShoppingCart, ChevronDown, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck, Warehouse, Bike } from 'lucide-react';
+import { Search, Menu, X, ShoppingCart, ChevronDown, ChevronRight, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck, Warehouse, Bike } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
@@ -15,6 +15,25 @@ import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
 
+type BusinessRow = { key: string; icon: React.ElementType; label: string; to: string; chip?: { text: string; tone: string } };
+
+/** The roles this account can open from the menu, each with where it stands. */
+function businessRows(user: NonNullable<ReturnType<typeof useAuth>['user']>): BusinessRow[] {
+  const rows: BusinessRow[] = [];
+  const seller = user.seller_profile?.application_status ?? 'none';
+  const amber = 'bg-amber-50 text-amber-700';
+  if (seller === 'approved') rows.push({ key: 'seller', icon: Store, label: 'Seller Center', to: '/seller' });
+  else if (seller === 'pending') rows.push({ key: 'seller', icon: Store, label: 'Seller application', to: '/settings', chip: { text: 'In review', tone: amber } });
+  else if (seller === 'rejected') rows.push({ key: 'seller', icon: Store, label: 'Seller application', to: '/register/seller', chip: { text: 'Reapply', tone: 'bg-red-50 text-brand-red' } });
+  if (user.sorting_center?.status === 'APPROVED') rows.push({ key: 'hub', icon: Warehouse, label: 'Hub dashboard', to: '/hub/dashboard' });
+  else if (user.sorting_center?.status === 'PENDING') rows.push({ key: 'hub', icon: Warehouse, label: 'Hub application', to: '/register/hub', chip: { text: 'In review', tone: amber } });
+  if (user.logistics_company?.status === 'APPROVED') rows.push({ key: 'courier', icon: Truck, label: 'Courier portal', to: '/logistics' });
+  else if (user.logistics_company?.status === 'PENDING') rows.push({ key: 'courier', icon: Truck, label: 'Courier application', to: '/register/courier', chip: { text: 'In review', tone: amber } });
+  if (user.rider?.status === 'ACTIVE') rows.push({ key: 'rider', icon: Bike, label: 'Rider app', to: '/rider/dashboard' });
+  else if (user.rider?.status === 'PENDING') rows.push({ key: 'rider', icon: Bike, label: 'Rider application', to: '/register/rider', chip: { text: 'In review', tone: amber } });
+  return rows;
+}
+
 function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -23,117 +42,123 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
   const { showToast } = useToast();
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open]);
 
+  const go = (to: string) => { setOpen(false); navigate(to); };
   const sellerStatus = user.seller_profile?.application_status ?? 'none';
+  const business = businessRows(user);
 
-  const staticItems = [
-    { icon: User,      label: 'Manage Account',             to: '/settings' },
-    { icon: MapPin,    label: 'Address Book',               to: '/settings/addresses' },
-    { icon: Package,   label: 'My Orders',                  to: '/settings/orders' },
-    { icon: RotateCcw, label: 'My Returns',                 to: '/settings/returns' },
-    { icon: XCircle,   label: 'My Cancellations',           to: '/settings/cancellations' },
-    { icon: Star,      label: 'My Reviews',                 to: '/settings/reviews' },
-    { icon: Heart,     label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
+  const shortcuts = [
+    { icon: Package, label: 'Orders', to: '/settings/orders' },
+    { icon: RotateCcw, label: 'Returns', to: '/settings/returns' },
+    { icon: Star, label: 'Reviews', to: '/settings/reviews' },
+    { icon: Heart, label: 'Saved', to: '/settings/wishlist' },
+  ];
+  const links = [
+    { icon: User, label: 'Profile and security', to: '/settings' },
+    { icon: MapPin, label: 'Address book', to: '/settings/addresses' },
+    { icon: XCircle, label: 'Cancellations', to: '/settings/cancellations' },
+    { icon: MessageSquare, label: 'Messages', to: '/settings/messages' },
+    { icon: Headphones, label: 'Help and safety', to: '/help/safety' },
   ];
 
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen(!open)}
-        className={`${NAV_PILL} flex items-center gap-1.5 text-white/90 hover:text-white transition-colors text-sm font-medium ${open ? 'before:opacity-100 before:scale-100' : ''}`}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`${NAV_PILL} flex items-center gap-2 text-white ${open ? 'before:opacity-100 before:scale-100' : ''}`}
       >
-        <UserAvatar firstName={user.first_name} lastName={user.last_name} avatarUrl={user.avatar_url} size="sm" />
-        <span className="hidden sm:block max-w-[120px] truncate">{user.first_name} {user.last_name}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <UserAvatar firstName={user.first_name} lastName={user.last_name} avatarUrl={user.avatar_url} size="sm" className="ring-2 ring-white/25" />
+        <span className="hidden text-left lg:block text-xs leading-tight">
+          <span className="block text-[10.5px] text-white/70 max-w-[120px] truncate">Hi, {user.first_name}</span>
+          <span className="block font-bold">Account &amp; Orders</span>
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-white/80 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            role="menu"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 z-50 mt-2 overflow-hidden bg-white border border-gray-100 shadow-2xl top-full w-60 rounded-2xl"
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformOrigin: 'top right' }}
+            className="absolute right-0 z-50 mt-2.5 top-full w-[320px] overflow-hidden rounded-2xl bg-white border border-stone-200 shadow-[0_24px_60px_-18px_rgba(28,25,23,0.4)]"
           >
-            <div className="px-4 py-3.5 bg-gradient-to-br from-brand-red to-brand-red-dark">
-              <p className="text-sm font-semibold text-white">{user.first_name} {user.last_name}</p>
-              <p className="text-white/70 text-xs truncate mt-0.5">{user.email}</p>
+            {/* Who is signed in */}
+            <button type="button" role="menuitem" onClick={() => go('/settings')} className="flex items-center w-full gap-3 px-4 pt-4 pb-3.5 text-left group">
+              <UserAvatar firstName={user.first_name} lastName={user.last_name} avatarUrl={user.avatar_url} size="md" />
+              <span className="flex-1 min-w-0">
+                <span className="block font-serif text-[16px] font-bold leading-tight text-[#1E1B18] truncate">{user.first_name} {user.last_name}</span>
+                <span className="block text-[12px] text-stone-500 truncate">{user.email}</span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-stone-300 transition-transform group-hover:translate-x-0.5 group-hover:text-stone-600" />
+            </button>
+
+            {/* Orders at a glance */}
+            <div className="grid grid-cols-4 border-y border-stone-100">
+              {shortcuts.map(({ icon: Icon, label, to }) => (
+                <button key={to} type="button" role="menuitem" onClick={() => go(to)} className="flex flex-col items-center gap-1.5 py-3 text-stone-600 hover:bg-stone-50 hover:text-brand-red transition-colors">
+                  <Icon className="w-5 h-5" strokeWidth={1.6} />
+                  <span className="text-[11.5px] font-medium">{label}</span>
+                </button>
+              ))}
             </div>
+
             <div className="py-1.5">
-              {staticItems.map(({ icon: Icon, label, to }) => (
-                <button
-                  key={to}
-                  onClick={() => { navigate(to); setOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-gray-mid hover:bg-gray-50 transition-colors"
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
+              {links.map(({ icon: Icon, label, to }) => (
+                <button key={to} type="button" role="menuitem" onClick={() => go(to)} className="flex items-center w-full gap-3 px-4 py-2 text-[13px] text-stone-700 hover:bg-stone-50 hover:text-stone-900 transition-colors">
+                  <Icon className="w-4 h-4 text-stone-400" strokeWidth={1.8} />
                   {label}
                 </button>
               ))}
-              {sellerStatus === 'none' && (
-                <button onClick={() => { navigate('/register/seller'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors">
-                  <Store className="w-4 h-4 shrink-0" /> Sell on Loved-IT
-                </button>
-              )}
-              {sellerStatus === 'pending' && (
-                <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed select-none">
-                  <Store className="w-4 h-4 shrink-0" /> Seller Application Pending
-                </div>
-              )}
-              {sellerStatus === 'rejected' && (
-                <button onClick={() => { navigate('/register/seller'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors">
-                  <Store className="w-4 h-4 shrink-0" /> Reapply as Seller
-                </button>
-              )}
-              {sellerStatus === 'approved' && (
-                <button onClick={() => { navigate('/seller'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors">
-                  <Store className="w-4 h-4 shrink-0" /> Check Your Sales
-                </button>
-              )}
-              {user.sorting_center?.status === 'APPROVED' && (
-                <button onClick={() => { navigate('/hub/dashboard'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-emerald-600 font-semibold hover:bg-emerald-50 transition-colors">
-                  <Warehouse className="w-4 h-4 shrink-0" /> Hub Command Dashboard
-                </button>
-              )}
-              {user.sorting_center?.status === 'PENDING' && (
-                <button onClick={() => { navigate('/register/hub'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
-                  <Warehouse className="w-4 h-4 shrink-0" /> Hub Status (Pending)
-                </button>
-              )}
-              {user.logistics_company?.status === 'APPROVED' && (
-                <button onClick={() => { navigate('/logistics'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-violet-600 font-semibold hover:bg-violet-50 transition-colors">
-                  <Truck className="w-4 h-4 shrink-0" /> Courier Portal
-                </button>
-              )}
-              {user.logistics_company?.status === 'PENDING' && (
-                <button onClick={() => { navigate('/register/courier'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
-                  <Truck className="w-4 h-4 shrink-0" /> Courier Company (Pending)
-                </button>
-              )}
-              {user.rider?.status === 'ACTIVE' && (
-                <button onClick={() => { navigate('/rider/dashboard'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-blue-600 font-semibold hover:bg-blue-50 transition-colors">
-                  <Bike className="w-4 h-4 shrink-0" /> Courier Station
-                </button>
-              )}
-              {user.rider?.status === 'PENDING' && (
-                <button onClick={() => { navigate('/register/rider'); setOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 font-semibold hover:bg-amber-50 transition-colors">
-                  <Bike className="w-4 h-4 shrink-0" /> Courier Status (Pending)
-                </button>
-              )}
             </div>
-            <div className="border-t border-gray-100 py-1.5">
+
+            {/* Businesses this account runs, or the way to start selling */}
+            {business.length > 0 ? (
+              <div className="py-1.5 border-t border-stone-100">
+                <p className="px-4 pt-1.5 pb-1 text-[10.5px] font-semibold tracking-[0.08em] uppercase text-stone-400">Your business</p>
+                {business.map(({ key, icon: Icon, label, to, chip }) => (
+                  <button key={key} type="button" role="menuitem" onClick={() => go(to)} className="flex items-center w-full gap-3 px-4 py-2 text-[13px] font-medium text-stone-800 hover:bg-stone-50 transition-colors">
+                    <Icon className="w-4 h-4 text-brand-red" strokeWidth={1.8} />
+                    <span className="flex-1 text-left">{label}</span>
+                    {chip ? <span className={`px-1.5 py-0.5 rounded-md text-[10.5px] font-semibold ${chip.tone}`}>{chip.text}</span> : <ChevronRight className="w-3.5 h-3.5 text-stone-300" />}
+                  </button>
+                ))}
+              </div>
+            ) : sellerStatus === 'none' && (
+              <button type="button" role="menuitem" onClick={() => go('/register/seller')} className="flex items-center w-full gap-3 px-4 py-3 text-left border-t border-stone-100 bg-[#FAF8F5] hover:bg-stone-100 transition-colors">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-red text-white shrink-0"><Store className="w-4 h-4" /></span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13px] font-semibold text-stone-900">Sell on Loved-IT</span>
+                  <span className="block text-[11.5px] text-stone-500">Open a shop with your buyer account</span>
+                </span>
+                <ChevronRight className="w-4 h-4 text-stone-400" />
+              </button>
+            )}
+
+            <div className="border-t border-stone-100">
               <button
-                onClick={() => { showToast('You have been logged out.', 'success'); clearAuth(); setOpen(false); navigate('/'); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                type="button"
+                role="menuitem"
+                onClick={() => { setOpen(false); clearAuth(); showToast('You are signed out. See you again soon.'); navigate('/'); }}
+                className="flex items-center w-full gap-3 px-4 py-3 text-[13px] text-stone-500 hover:text-brand-red hover:bg-red-50/50 transition-colors"
               >
-                <LogOut className="w-4 h-4" /> Log Out
+                <LogOut className="w-4 h-4" strokeWidth={1.8} /> Sign out
               </button>
             </div>
           </motion.div>
@@ -175,6 +200,7 @@ export default function SiteHeader() {
     price: i.price,
     quantity: i.quantity,
     image: i.image,
+    shopName: i.shopName,
   }));
 
   const totalCount = items.reduce((s, i) => s + i.quantity, 0);

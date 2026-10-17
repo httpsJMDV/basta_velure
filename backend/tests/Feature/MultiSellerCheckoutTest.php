@@ -231,7 +231,8 @@ class MultiSellerCheckoutTest extends TestCase
         $this->assertCount(1, $orders);
 
         $createdOrder = Order::find($orders[0]['id']);
-        $this->assertStringNotContainsString('-1', $createdOrder->order_number);
+        // No per-shop suffix: VEL-{key}-{timestamp}, not VEL-{key}-{timestamp}-1 (the key itself may contain digits).
+        $this->assertMatchesRegularExpression('/^VEL-[A-Z0-9]+-\d+$/', $createdOrder->order_number);
         $this->assertEquals(500.00, (float) $createdOrder->subtotal);
         $this->assertEquals(50.00, (float) $createdOrder->shipping_fee);
         $this->assertEquals(550.00, (float) $createdOrder->total);

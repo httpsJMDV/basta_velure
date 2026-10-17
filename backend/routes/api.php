@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\SellerDashboardController;
 use App\Http\Controllers\Api\V1\SellerOrderController;
 use App\Http\Controllers\Api\V1\SellerEarningsController;
 use App\Http\Controllers\Api\V1\PublicCategoryController;
+use App\Http\Controllers\Api\V1\SiteFeedbackController;
 use App\Http\Controllers\Api\V1\PublicProductController;
 use App\Http\Controllers\Api\V1\PublicShopController;
 use App\Http\Controllers\Api\V1\AdminPlatformSettingController;
@@ -72,6 +73,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/categories',                  [PublicCategoryController::class, 'index']);
 
     // Public shop profile & reviews (no auth required)
+    Route::get('/shops',                       [PublicShopController::class, 'featured']);
     Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);
     Route::get('/shops/{shop}/reviews',        [PublicShopController::class, 'reviews']);
     Route::get('/stores/{shop}',               [PublicShopController::class, 'show']);
@@ -95,6 +97,9 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         // Broadcast authentication for Echo / WebSockets
         \Illuminate\Support\Facades\Broadcast::routes();
+
+        // Feedback about the site (the storefront's Feedback button)
+        Route::post('/feedback', [SiteFeedbackController::class, 'store'])->middleware('throttle:10,1');
 
         // Delivery proof photo (Feature 2.7): rider, hub, seller, buyer and admin only; authorization is in the controller
         Route::get('/parcels/{tracking}/delivery-proof', [DeliveryProofController::class, 'show']);
@@ -273,6 +278,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/reviews/summary', [AdminReviewController::class, 'summary']);
             Route::get('/reviews/shops', [AdminReviewController::class, 'shops']);
             Route::get('/reviews/shops/{seller}', [AdminReviewController::class, 'shop']);
+            Route::get('/feedback', [SiteFeedbackController::class, 'index']);
+            Route::patch('/feedback/{feedback}', [SiteFeedbackController::class, 'update']);
 
             // Products (admin review)
             Route::get('/products', [AdminProductController::class, 'index']);

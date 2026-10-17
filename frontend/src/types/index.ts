@@ -205,7 +205,7 @@ export interface CourierSummary {
   logo_url: string | null;
 }
 
-/** An approved courier to choose at checkout or on the hub application. */
+/** An approved courier, as listed on the hub application. */
 export interface CourierOption extends CourierSummary {
   hubs_count: number;
 }
@@ -923,7 +923,7 @@ export interface Order {
   checkout_group_id?: string | null;
   order_number: string;
   tracking_number?: string | null;
-  /** The courier the buyer chose at checkout. */
+  /** The courier assigned to the order (matched to the shop and the buyer address, not picked by the buyer). */
   courier?: CourierSummary | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
@@ -976,7 +976,7 @@ export interface SellerOrderItem {
 
 export interface SellerOrder {
   id: number;
-  /** The courier the buyer chose; only its riders collect the parcel. */
+  /** The courier assigned to the order; only its riders collect the parcel. */
   courier?: CourierSummary | null;
   checkout_group_id?: string | null;
   checkout_group_total?: number | null;
@@ -1137,6 +1137,10 @@ export interface AdminOrder {
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
   /** The shop selling on the order (checkout makes one order per seller). */
   shop?: { id: number; name: string } | null;
+  /** The partner courier assigned at checkout. */
+  courier?: CourierSummary | null;
+  /** Where it goes (the detail endpoint only). */
+  shipping?: { name: string | null; phone: string | null; address: string; notes: string | null };
   items: OrderItem[];
   status_history?: OrderStatusHistory[];
   payment?: {
@@ -1243,10 +1247,21 @@ export interface AdminReview {
   comment: string | null;
   verified_purchase: boolean;
   created_at: string;
-  buyer: { id: number; first_name: string; last_name: string; email: string } | null;
-  product?: { id: number; name: string } | null;
+  buyer: { id: number; first_name: string; last_name: string; email: string; avatar_url?: string | null } | null;
+  product?: { id: number; name: string; thumbnail_url?: string | null } | null;
   shop?: { id: number; name: string } | null;
   order?: { id: number; order_number: string } | null;
+}
+
+/** Feedback about the Loved-IT site (the storefront's Feedback button), as the admin reads it. */
+export interface AdminFeedback {
+  id: number;
+  message: string;
+  page_url: string | null;
+  status: 'new' | 'read';
+  read_at: string | null;
+  created_at: string;
+  user: { id: number; name: string; email: string; avatar_url: string | null } | null;
 }
 
 /** GET /admin/reviews/summary: the whole platform's review figures. */
@@ -1267,6 +1282,7 @@ export interface AdminReviewShop {
   shop_slug: string;
   logo_url: string | null;
   owner_name: string;
+  owner_avatar_url?: string | null;
   review_count: number;
   average_rating: number | null;
   last_review_at: string | null;
@@ -1367,6 +1383,28 @@ export interface Conversation {
   is_closed?: boolean;
   can_send?: boolean;
   closed_message?: string | null;
+}
+
+/** A product a chat can share (GET /conversations/{id}/attachable-products). */
+export interface AttachableProduct {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+  image: string | null;
+  category: string | null;
+}
+
+/** An order a chat can share (GET /conversations/{id}/attachable-orders). */
+export interface AttachableOrder {
+  id: number;
+  order_number: string;
+  total: number;
+  status: string;
+  created_at: string;
+  items_count: number;
+  items_summary: string;
+  image: string | null;
 }
 
 export interface ChatMessage {
@@ -2481,4 +2519,19 @@ export interface HubEarningsSummary {
   month: HubEarningsTotals;
   lifetime: HubEarningsTotals;
   recent: HubEarningsRow[];
+}
+
+/** A shop on the storefront's "Shops to know" band (GET /shops). */
+export interface FeaturedShop {
+  seller_id: number;
+  shop_name: string;
+  shop_slug: string;
+  logo_url: string | null;
+  city: string | null;
+  province: string | null;
+  product_count: number;
+  units_sold: number;
+  avg_rating: number | null;
+  review_count: number;
+  products: { id: number; name: string; price: number; image_url: string | null }[];
 }

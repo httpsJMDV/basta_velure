@@ -7,24 +7,14 @@ import {
 } from 'lucide-react';
 import type { StorefrontCategory } from '../../types';
 
-import techGadgetsImg from '../../assets/categories/tech-gadgets.png';
-import homeLivingImg from '../../assets/categories/home-living.png';
-import fashionImg from '../../assets/categories/fashion.png';
-import beautyImg from '../../assets/categories/beauty-wellness.png';
-import sportsImg from '../../assets/categories/sports-outdoors.png';
-import foodImg from '../../assets/categories/food-grocery.png';
+/**
+ * One photo per category: public-domain photos from Openverse, cropped square (see assets/categories/photos/CREDITS.md).
+ * A category without its own photo falls back to its best-selling product's photo, then to an icon.
+ */
+const PHOTOS = import.meta.glob('../../assets/categories/photos/*.jpg', { eager: true, import: 'default' }) as Record<string, string>;
+const photoFor = (slug: string): string | undefined => PHOTOS[`../../assets/categories/photos/${slug}.jpg`];
 
-/** Studio cut-outs for the main categories; every other category shows its best-selling product's photo. */
-const STUDIO: Record<string, string> = {
-  'mobile-gadgets-computers': techGadgetsImg,
-  'home-living': homeLivingImg,
-  'womens-fashion': fashionImg,
-  'health-beauty': beautyImg,
-  'sports-outdoors': sportsImg,
-  'food-grocery': foodImg,
-};
-
-/** Shown for a category nobody sells in yet. */
+/** The last fallback, for a category with neither a photo nor any product. */
 const ICONS: Record<string, LucideIcon> = {
   'mobile-gadgets-computers': Smartphone, smartphones: Smartphone, laptops: Laptop, 'earphones-audio': Headphones,
   'chargers-powerbanks': BatteryCharging, 'phone-accessories': Cable,
@@ -44,35 +34,23 @@ const ICONS: Record<string, LucideIcon> = {
   'pet-supplies': PawPrint, 'pet-food': Bone, 'pet-accessories': PawPrint, 'pet-health-grooming': Scissors,
 };
 
-/** The picture for a category: a studio cut-out, its best-selling product's photo, or an icon. */
-export default function CategoryArt({ category, variant = 'tile', studio = true }: {
+/** The picture for a category: its own photo, its best-selling product's photo, or an icon. */
+export default function CategoryArt({ category, variant = 'tile' }: {
   category: StorefrontCategory;
-  /** tile: square-ish art in a card; circle: round thumbnail for the Categories menu */
+  /** tile: rounded square (landing page); circle: round thumbnail (Categories menu, chips) */
   variant?: 'tile' | 'circle';
-  /** Prefer the studio cut-out for the main categories (landing page). */
-  studio?: boolean;
 }) {
-  const src = (studio ? STUDIO[category.slug] : undefined) ?? category.image_url;
+  const src = photoFor(category.slug) ?? category.image_url;
   const Icon = ICONS[category.slug] ?? Store;
-  const round = variant === 'circle';
+  const shape = variant === 'circle' ? 'rounded-full' : 'rounded-2xl';
 
   if (src) {
-    return (
-      <img
-        src={src}
-        alt=""
-        loading="lazy"
-        draggable={false}
-        className={round
-          ? 'w-full h-full object-cover rounded-full bg-white'
-          : `w-full h-full ${STUDIO[category.slug] && studio ? 'object-contain' : 'object-contain rounded-xl mix-blend-multiply'}`}
-      />
-    );
+    return <img src={src} alt="" loading="lazy" draggable={false} className={`w-full h-full object-cover bg-stone-100 ${shape}`} />;
   }
 
   return (
-    <span className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-amber-50 text-brand-red/80 ${round ? 'rounded-full' : 'rounded-xl'}`}>
-      <Icon className={round ? 'w-7 h-7' : 'w-7 h-7 sm:w-8 sm:h-8'} strokeWidth={1.6} aria-hidden="true" />
+    <span className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-amber-50 text-brand-red/80 ${shape}`}>
+      <Icon className="w-7 h-7" strokeWidth={1.6} aria-hidden="true" />
     </span>
   );
 }
