@@ -5,6 +5,16 @@ import type {
   FeaturedShop,
   PendingReview,
   BuyerReview,
+  ShopPaymentInfo,
+  SellerPaymentSettings,
+  SettlementWeeks,
+  SettlementRecord,
+  SellerCommissionMonth,
+  CommissionPaymentRecord,
+  GcashAccount,
+  CourierPayoutRow,
+  AdminCommissionReport,
+  PayoutAccount,
   CourierOption,
   LogisticsCompanyDetail,
   LogisticsDashboard,
@@ -1266,3 +1276,68 @@ export const createReviewApi = (form: FormData) =>
 
 export const updateReviewApi = (id: number, payload: { rating?: number; comment?: string | null }) =>
   http.patch<{ data: BuyerReview }>(`/buyer/reviews/${id}`, payload).then((r) => r.data.data);
+
+// ─── Direct payments ─────────────────────────────────────────────────────────
+
+/** How each shop in the cart gets paid, and its free delivery minimum. */
+export const getShopPaymentInfoApi = (sellerIds: number[]) =>
+  http.get<{ data: ShopPaymentInfo[] }>('/checkout/shops', { params: { seller_ids: sellerIds.join(',') } }).then((r) => r.data.data);
+
+export const getSellerPaymentSettingsApi = () =>
+  http.get<{ data: SellerPaymentSettings }>('/seller/payment-settings').then((r) => r.data.data);
+
+/** gcash_number, gcash_account_name, gcash_qr (file), remove_qr, free_delivery_min */
+export const updateSellerPaymentSettingsApi = (form: FormData) =>
+  http.post<{ data: SellerPaymentSettings }>('/seller/payment-settings', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data.data);
+
+export const getSellerSettlementsApi = () =>
+  http.get<{ data: SettlementWeeks }>('/seller/settlements').then((r) => r.data.data);
+
+export const paySellerSettlementApi = (payload: { company_id: number; week_start: string; reference: string }) =>
+  http.post<{ data: SettlementRecord }>('/seller/settlements', payload).then((r) => r.data.data);
+
+export const confirmSellerSettlementApi = (id: number) =>
+  http.post<{ data: SettlementRecord }>(`/seller/settlements/${id}/confirm`).then((r) => r.data.data);
+
+export const getSellerCommissionApi = () =>
+  http.get<{ data: { months: SellerCommissionMonth[]; platform_gcash: GcashAccount | null } }>('/seller/commission').then((r) => r.data.data);
+
+export const paySellerCommissionApi = (payload: { period: string; reference: string }) =>
+  http.post<{ data: CommissionPaymentRecord }>('/seller/commission', payload).then((r) => r.data.data);
+
+export const getCourierSettlementsApi = () =>
+  http.get<{ data: SettlementWeeks }>('/logistics/settlements').then((r) => r.data.data);
+
+export const payCourierSettlementApi = (payload: { seller_id: number; week_start: string; reference: string }) =>
+  http.post<{ data: SettlementRecord }>('/logistics/settlements', payload).then((r) => r.data.data);
+
+export const confirmCourierSettlementApi = (id: number) =>
+  http.post<{ data: SettlementRecord }>(`/logistics/settlements/${id}/confirm`).then((r) => r.data.data);
+
+export const getCourierPayoutsApi = () =>
+  http.get<{ data: { riders: CourierPayoutRow[]; hubs: CourierPayoutRow[] } }>('/logistics/payouts').then((r) => r.data.data);
+
+export const payCourierRiderApi = (riderId: number, reference: string) =>
+  http.post<{ data: { paid_count: number } }>(`/logistics/payouts/riders/${riderId}`, { reference }).then((r) => r.data.data);
+
+export const payCourierHubApi = (hubId: number, reference: string) =>
+  http.post<{ data: { paid_count: number } }>(`/logistics/payouts/hubs/${hubId}`, { reference }).then((r) => r.data.data);
+
+/** The GCash a rider ('rider'), hub ('hub') or courier company ('logistics') is paid on. */
+export const getPayoutAccountApi = (who: 'rider' | 'hub' | 'logistics') =>
+  http.get<{ data: PayoutAccount }>(`/${who}/gcash`).then((r) => r.data.data);
+
+export const updatePayoutAccountApi = (who: 'rider' | 'hub' | 'logistics', payload: { gcash_number: string | null; gcash_name: string | null }) =>
+  http.patch<{ data: PayoutAccount }>(`/${who}/gcash`, payload).then((r) => r.data.data);
+
+export const getAdminCommissionApi = (period?: string) =>
+  http.get<{ data: AdminCommissionReport }>('/admin/commission', { params: period ? { period } : undefined }).then((r) => r.data.data);
+
+export const confirmAdminCommissionApi = (id: number) =>
+  http.post<{ data: CommissionPaymentRecord }>(`/admin/commission/${id}/confirm`).then((r) => r.data.data);
+
+export const getAdminPaymentSettingsApi = () =>
+  http.get<{ data: { platform_gcash_number: string | null; platform_gcash_name: string | null } }>('/admin/settings/payments').then((r) => r.data.data);
+
+export const updateAdminPaymentSettingsApi = (payload: { platform_gcash_number: string | null; platform_gcash_name: string | null }) =>
+  http.put<{ data: { platform_gcash_number: string | null; platform_gcash_name: string | null } }>('/admin/settings/payments', payload).then((r) => r.data.data);

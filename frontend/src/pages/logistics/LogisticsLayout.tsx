@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
 import type { LogisticsDashboard } from '../../types';
@@ -19,6 +19,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/logistics/riders': 'Riders',
   '/logistics/parcels': 'Parcels',
   '/logistics/reports': 'Network Reports',
+  '/logistics/money': 'Settlements & Pay',
 };
 
 const POLL_MS = 60000;
@@ -66,6 +67,7 @@ export default function LogisticsLayout() {
       ],
     },
     { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/logistics/reports' }] },
+    { heading: 'Money', items: [{ icon: Banknote, label: 'Settlements & pay', to: '/logistics/money' }] },
   ], [pendingHubs, failed]);
 
   const searchItems: ShellSearchItem[] = [
@@ -74,6 +76,7 @@ export default function LogisticsLayout() {
     { label: 'Riders across the network', to: '/logistics/riders', group: 'Network', icon: Bike },
     { label: 'Find a parcel', to: '/logistics/parcels', group: 'Network', icon: Package },
     { label: 'Network reports', to: '/logistics/reports', group: 'Insights', icon: BarChart2 },
+    { label: 'Shop statements, rider and hub pay', to: '/logistics/money', group: 'Money', icon: Banknote },
   ];
 
   const alerts: ShellAlert[] = [];

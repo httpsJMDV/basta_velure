@@ -38,6 +38,8 @@ class RiderEarning extends Model
     protected $table = 'rider_earnings';
 
     protected $fillable = [
+        'paid_at',
+        'paid_reference',
         'rider_id',
         'parcel_id',
         'kind',
@@ -49,6 +51,7 @@ class RiderEarning extends Model
     protected function casts(): array
     {
         return [
+            'paid_at' => 'datetime',
             'amount'    => 'decimal:2',
             'earned_at' => 'datetime',
         ];

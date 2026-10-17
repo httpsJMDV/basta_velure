@@ -24,6 +24,8 @@ class HubEarning extends Model
     protected $table = 'hub_earnings';
 
     protected $fillable = [
+        'paid_at',
+        'paid_reference',
         'sorting_center_id',
         'parcel_id',
         'amount',
@@ -34,6 +36,7 @@ class HubEarning extends Model
     protected function casts(): array
     {
         return [
+            'paid_at' => 'datetime',
             'amount'    => 'decimal:2',
             'earned_at' => 'datetime',
         ];

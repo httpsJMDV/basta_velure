@@ -11,7 +11,14 @@ class SellerProfile extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /** GCash numbers are only sent where a screen needs them. */
+    protected $hidden = ['gcash_number'];
+
     protected $fillable = [
+        'gcash_number',
+        'gcash_account_name',
+        'gcash_qr_path',
+        'free_delivery_min',
         'user_id',
         'shop_name',
         'shop_category',
@@ -52,6 +59,8 @@ class SellerProfile extends Model
     protected function casts(): array
     {
         return [
+            'gcash_number' => 'encrypted',
+            'free_delivery_min' => 'decimal:2',
             'date_of_birth' => 'date',
             'reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',

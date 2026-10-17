@@ -927,6 +927,10 @@ export interface Order {
   tracking_number?: string | null;
   /** The courier assigned to the order (matched to the shop and the buyer address, not picked by the buyer). */
   courier?: CourierSummary | null;
+  /** "direct": paid to the shop's GCash or the rider; "platform": an order from before direct payments. */
+  settlement?: 'direct' | 'platform';
+  /** The shop paid the delivery fee for the buyer. */
+  free_delivery?: boolean;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -2240,6 +2244,8 @@ export interface RiderEarningsSummary {
   previous: RiderEarningsPeriod & { total_earned: string; deliveries_count: number };
   breakdown: RiderEarningsBreakdownPoint[];
   lifetime_total: string;
+  /** Earned but not yet paid by the courier company (it pays by GCash). */
+  unpaid_total?: string;
 }
 
 export interface RiderEarningsSummaryResponse {
@@ -2265,6 +2271,8 @@ export interface RiderEarnedDelivery {
   /** When the fee was earned (ISO 8601). */
   delivered_at: string;
   fee: string;
+  /** When the courier company paid this share; null while unpaid. */
+  paid_at?: string | null;
 }
 
 export interface RiderEarningsDeliveriesResponse {
@@ -2515,6 +2523,7 @@ export interface HubEarningsRow {
   delivery_fee: string | null;
   amount: string;
   earned_at: string | null;
+  paid_at?: string | null;
 }
 
 export interface HubEarningsSummary {
@@ -2524,6 +2533,7 @@ export interface HubEarningsSummary {
   week: HubEarningsTotals;
   month: HubEarningsTotals;
   lifetime: HubEarningsTotals;
+  unpaid_total?: string;
   recent: HubEarningsRow[];
 }
 
@@ -2565,4 +2575,103 @@ export interface BuyerReview {
   can_edit: boolean;
   order: { id: number; order_number: string } | null;
   product: { id: number; name: string; image_url: string | null } | null;
+}
+
+// ─── Direct payments ─────────────────────────────────────────────────────────
+
+/** A GCash account someone is paid on (number shown as "0917 123 4567"). */
+export interface GcashAccount {
+  name: string | null;
+  number: string;
+  qr_url?: string | null;
+}
+
+/** How a shop in the cart gets paid (GET /checkout/shops). The GCash details only come to signed-in buyers. */
+export interface ShopPaymentInfo {
+  seller_id: number;
+  shop_name: string;
+  accepts_gcash: boolean;
+  free_delivery_min: number | null;
+  gcash: GcashAccount | null;
+}
+
+/** A shop's own payment settings (Seller Center). */
+export interface SellerPaymentSettings {
+  accepts_gcash: boolean;
+  gcash_number: string | null;
+  gcash_account_name: string | null;
+  gcash_qr_url: string | null;
+  free_delivery_min: number | null;
+  delivery_fee: number;
+}
+
+export type SettlementDirection = 'courier_pays' | 'seller_pays' | 'none';
+
+export interface SettlementRecord {
+  id: number;
+  reference: string;
+  amount: number;
+  paid_by: 'courier' | 'seller';
+  paid_at: string | null;
+  confirmed_at: string | null;
+}
+
+/** One courier and one shop in one week: COD cash collected minus the courier's delivery fees. */
+export interface SettlementLine {
+  orders_count: number;
+  cod_collected: number;
+  courier_fees: number;
+  net: number;
+  direction: SettlementDirection;
+  settlement: SettlementRecord | null;
+  company?: { id: number; name: string; code: string; logo_url: string | null; gcash: GcashAccount | null } | null;
+  seller?: { id: number; shop_name: string; logo_url: string | null; gcash: GcashAccount | null };
+}
+
+export interface SettlementWeeks {
+  weeks: { start: string; end: string; lines: SettlementLine[] }[];
+  totals: { to_receive: number; to_pay: number };
+}
+
+export interface CommissionPaymentRecord {
+  id: number;
+  amount: number;
+  reference: string;
+  paid_at: string | null;
+  confirmed_at: string | null;
+}
+
+export interface SellerCommissionMonth {
+  period: string;
+  label: string;
+  in_progress: boolean;
+  orders_count: number;
+  amount: number;
+  payment: CommissionPaymentRecord | null;
+}
+
+export interface CourierPayoutRow {
+  id: number;
+  name: string;
+  avatar_url?: string | null;
+  hub_name?: string | null;
+  gcash: GcashAccount | null;
+  unpaid: number;
+  unpaid_count: number;
+  last_paid_at: string | null;
+}
+
+export interface AdminCommissionReport {
+  period: string;
+  label: string;
+  in_progress: boolean;
+  rows: { seller_id: number; shop_name: string; logo_url: string | null; orders_count: number; amount: number; payment: CommissionPaymentRecord | null }[];
+  totals: { due: number; paid: number; confirmed: number };
+  platform_gcash: GcashAccount | null;
+}
+
+/** The GCash a rider, hub or courier company is paid on. */
+export interface PayoutAccount {
+  gcash_number: string | null;
+  gcash_name: string | null;
 }

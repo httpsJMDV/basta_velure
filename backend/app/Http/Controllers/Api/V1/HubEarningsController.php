@@ -29,7 +29,7 @@ class HubEarningsController extends Controller
 
         $riderPercent = ShippingSplit::riderPercent();
 
-        $recent = HubEarning::with(['parcel.order:id,order_number,shipping_fee', 'parcel.assignedRider.user:id,first_name,last_name'])
+        $recent = HubEarning::with(['parcel.order:id,order_number,shipping_fee,courier_fee', 'parcel.assignedRider.user:id,first_name,last_name'])
             ->where('sorting_center_id', $hub->id)
             ->orderByDesc('earned_at')
             ->orderByDesc('id')
@@ -43,6 +43,8 @@ class HubEarningsController extends Controller
             'week'         => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::WEEK)),
             'month'        => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::MONTH)),
             'lifetime'     => $this->totals($hub, null),
+            // What the courier company has not paid the hub yet (it pays by GCash and records the reference).
+            'unpaid_total' => Money::fromCents(Money::toCents((string) HubEarning::where('sorting_center_id', $hub->id)->whereNull('paid_at')->sum('amount'))),
             'recent'       => $recent->map(function (HubEarning $e) {
                 $rider = $e->parcel?->assignedRider?->user;
                 $name = trim(($rider?->first_name ?? '') . ' ' . ($rider?->last_name ?? ''));
@@ -51,9 +53,10 @@ class HubEarningsController extends Controller
                     'tracking_number' => $e->parcel?->tracking_number,
                     'order_number'    => $e->parcel?->order?->order_number,
                     'rider_name'      => $name !== '' ? $name : null,
-                    'delivery_fee'    => $e->parcel?->order ? Money::fromCents(Money::toCents((string) $e->parcel->order->shipping_fee)) : null,
+                    'delivery_fee'    => $e->parcel?->order ? Money::fromCents(Money::toCents($e->parcel->order->courierFeeAmount())) : null,
                     'amount'          => (string) $e->amount,
                     'earned_at'       => $e->earned_at?->toIso8601String(),
+                    'paid_at'         => $e->paid_at?->toIso8601String(),
                 ];
             })->values()->all(),
         ]]);

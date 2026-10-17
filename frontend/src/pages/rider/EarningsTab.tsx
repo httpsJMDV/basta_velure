@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { IconChip, StateCard } from './RiderUi';
 import { BTN_PRIMARY } from './riderStyles';
 import { getRiderEarningsDeliveriesApi, getRiderEarningsSummaryApi } from '../../api/client';
@@ -280,6 +281,14 @@ export default function EarningsTab() {
                 <p className="font-black text-lg text-gray-900">{formatPeso(summary.average_per_delivery)}</p>
               </div>
             </div>
+            {summary.unpaid_total !== undefined && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+                <p className="text-xs text-gray-600">
+                  Not paid yet by your courier: <span className="font-black text-gray-900">{formatPeso(summary.unpaid_total)}</span>
+                </p>
+                <Link to="/rider/account" className="text-xs font-bold text-brand-red hover:underline">Your GCash</Link>
+              </div>
+            )}
           </section>
           {/* Chart */}
           <section aria-label="Earnings chart" className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs space-y-3">
@@ -322,7 +331,12 @@ export default function EarningsTab() {
                         {formatTime(r.delivered_at)}
                       </p>
                     </div>
-                    <p className="text-sm font-black text-emerald-700 shrink-0">+{formatPeso(r.fee)}</p>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-black text-emerald-700">+{formatPeso(r.fee)}</p>
+                      {r.paid_at !== undefined && (
+                        <p className={`text-[10px] font-bold uppercase tracking-wide ${r.paid_at ? 'text-gray-400' : 'text-amber-600'}`}>{r.paid_at ? 'Paid' : 'Unpaid'}</p>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

@@ -199,6 +199,7 @@ export default function SiteHeader() {
     variant: i.variant,
     price: i.price,
     quantity: i.quantity,
+    sellerId: i.sellerId,
     image: i.image,
     shopName: i.shopName,
   }));

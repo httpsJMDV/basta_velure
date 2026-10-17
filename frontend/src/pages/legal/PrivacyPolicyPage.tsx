@@ -8,7 +8,7 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <LegalPoint title="What you give us">
-          <p>Your name, email, phone number, delivery addresses and date of birth when you sign up and order. To verify your identity we also ask for a government ID. Sellers, riders, hubs and courier companies add the documents their application needs, such as permits, a driver&apos;s license or OR/CR, and a GCash number for payouts.</p>
+          <p>Your name, email, phone number, delivery addresses and date of birth when you sign up and order. To verify your identity we also ask for a government ID. Sellers, riders, hubs and courier companies add the documents their application needs, such as permits, a driver&apos;s license or OR/CR, and the GCash number they are paid on.</p>
         </LegalPoint>
         <LegalPoint title="What we record as you use Loved-IT">
           <p>Your orders, payments (method, amount, GCash reference and receipt), deliveries, messages, reviews and feedback. Our servers also log technical details such as your IP address and browser to keep the service secure. We do not use analytics or advertising trackers.</p>
@@ -37,6 +37,9 @@ const SECTIONS: LegalSection[] = [
       <>
         <LegalPoint title="The shop you buy from">
           <p>Your name, phone number and delivery address, so it can pack and label your order. Shops may only use them for that order.</p>
+        </LegalPoint>
+        <LegalPoint title="Buyers and couriers, if you sell or deliver">
+          <p>A shop&apos;s GCash name, number and QR code are shown to signed-in buyers at checkout so they can pay it, and to the couriers that settle cash-on-delivery money with it. A rider&apos;s or hub&apos;s GCash is seen only by its courier company.</p>
         </LegalPoint>
         <LegalPoint title="Your hub and riders">
           <p>The courier hub and riders handling your parcel see the same delivery details, and only while the parcel is with them.</p>

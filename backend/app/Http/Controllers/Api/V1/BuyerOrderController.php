@@ -49,34 +49,20 @@ class BuyerOrderController extends Controller
             'items.*.quantity'       => ['required', 'integer', 'min:1'],
         ];
 
-        if ($request->payment_method === 'gcash') {
-            // A GCash reference number is 13 digits (receipts print it as "1234 567 890123"); spaces are dropped.
-            if ($request->filled('payment_reference')) {
-                $request->merge(['payment_reference' => preg_replace('/\D+/', '', (string) $request->input('payment_reference'))]);
-            }
-            $rules['payment_reference'] = ['required', 'digits:13'];
-            $rules['payment_proof']     = ['required', 'image', 'max:5120']; // max 5MB image
-        }
-
         $messages = [
             'shipping_barangay_code.required' => 'Selected delivery address is missing a barangay PSGC code. Please re-select or update your delivery address to proceed with checkout.',
             'shipping_city_code.required'     => 'Selected delivery address is missing a city/municipality PSGC code. Please re-select or update your delivery address to proceed with checkout.',
             'shipping_province_code.required' => 'Selected delivery address is missing a province PSGC code. Please re-select or update your delivery address to proceed with checkout.',
-            'payment_reference.required'      => 'Enter the 13-digit reference number from your GCash receipt.',
-            'payment_reference.digits'        => 'A GCash reference number has exactly 13 digits.',
-            'payment_proof.required'          => 'Upload a screenshot of your GCash receipt.',
-            'payment_proof.image'             => 'The receipt must be an image (JPG or PNG).',
         ];
 
         $data = $request->validate($rules, $messages);
 
-        $proofPath = null;
-        if ($request->hasFile('payment_proof')) {
-            $proofPath = $request->file('payment_proof')->store('orders/payment-proofs', 'public');
-        }
+        // GCash goes straight to each shop's own GCash: one reference and one receipt per shop.
+        $gcash = $data['payment_method'] === 'gcash' ? $this->gcashPayments($request, $data['items']) : [];
+        $proofPaths = array_column($gcash, 'proof_path');
 
         try {
-            return DB::transaction(function () use ($user, $data, $proofPath) {
+            return DB::transaction(function () use ($user, $data, $gcash) {
                 $preparedItems = [];
 
                 // Process and validate items
@@ -129,7 +115,8 @@ class BuyerOrderController extends Controller
                         'commission_rate'   => $commissionRate,
                         'commission_amount' => $commissionAmount,
                         'seller_earnings'   => $sellerEarnings,
-                        'payout_status'     => 'pending_release',
+                        // Paid to the shop directly (its GCash, or by the courier for COD), not through Loved-IT.
+                        'payout_status'     => 'direct',
                     ];
 
                     // Increment product sales metric
@@ -149,12 +136,18 @@ class BuyerOrderController extends Controller
 
                 // The courier is assigned per shop from where the parcel starts and ends; the buyer does not pick one.
                 $courierAssigner = app(\App\Services\CourierAssigner::class);
-                $pickupCodes = \App\Models\SellerProfile::whereIn('user_id', $sellerGroups->keys())->pluck('address_barangay_code', 'user_id');
+                $profiles = \App\Models\SellerProfile::whereIn('user_id', $sellerGroups->keys())->get(['user_id', 'address_barangay_code', 'free_delivery_min'])->keyBy('user_id');
 
                 foreach ($sellerGroups as $sellerId => $sellerItems) {
                     $orderSubtotal = round((float) $sellerItems->sum('subtotal'), 2);
-                    $shippingFee = (float) \App\Support\ShippingSplit::fee(); // One flat delivery fee per seller order (config/shipping.php)
+                    // One flat delivery fee per shop order (config/shipping.php). The courier always earns it; a shop
+                    // that offers free delivery from a minimum pays it for the buyer.
+                    $courierFee = (float) \App\Support\ShippingSplit::fee();
+                    $freeFrom = $profiles[$sellerId]->free_delivery_min ?? null;
+                    $freeDelivery = $freeFrom !== null && $orderSubtotal >= (float) $freeFrom;
+                    $shippingFee = $freeDelivery ? 0.0 : $courierFee;
                     $orderTotal = round($orderSubtotal + $shippingFee, 2);
+                    $pay = $gcash[$sellerId] ?? null;
 
                     $orderNumber = $groupCount > 1
                         ? "VEL-{$randomKey}-{$baseTimestamp}-{$orderIdx}"
@@ -162,18 +155,21 @@ class BuyerOrderController extends Controller
                     $orderIdx++;
 
                     $order = Order::create([
-                        'logistics_company_id' => $courierAssigner->forRoute($pickupCodes[$sellerId] ?? null, $data['shipping_barangay_code']),
+                        'logistics_company_id' => $courierAssigner->forRoute($profiles[$sellerId]->address_barangay_code ?? null, $data['shipping_barangay_code']),
                         'buyer_id'          => $user->id,
                         'checkout_group_id' => $checkoutGroupId,
                         'order_number'      => $orderNumber,
                         'subtotal'          => $orderSubtotal,
                         'shipping_fee'      => $shippingFee,
+                        'courier_fee'       => $courierFee,
+                        'free_delivery'     => $freeDelivery,
                         'total'             => $orderTotal,
                         'payment_method'    => $data['payment_method'],
                         'payment_status'    => $paymentStatus,
+                        'settlement'        => Order::SETTLEMENT_DIRECT,
                         'status'            => OrderStatus::PLACED->value,
-                        'payment_reference' => $data['payment_reference'] ?? null,
-                        'payment_proof_path'=> $proofPath,
+                        'payment_reference' => $pay['reference'] ?? null,
+                        'payment_proof_path'=> $pay['proof_path'] ?? null,
                         'shipping_name'          => $data['shipping_name'],
                         'shipping_phone'         => $data['shipping_phone'],
                         'shipping_address'       => $data['shipping_address'],
@@ -206,7 +202,7 @@ class BuyerOrderController extends Controller
                     Payment::create([
                         'order_id'         => $order->id,
                         'method'           => $data['payment_method'],
-                        'reference_number' => $data['payment_reference'] ?? null,
+                        'reference_number' => $pay['reference'] ?? null,
                         'amount'           => $orderTotal,
                         'status'           => 'pending',
                     ]);
@@ -232,11 +228,62 @@ class BuyerOrderController extends Controller
                 ], 201);
             });
         } catch (\Throwable $e) {
-            if ($proofPath) {
-                Storage::disk('public')->delete($proofPath);
+            if ($proofPaths) {
+                Storage::disk('public')->delete($proofPaths);
             }
             throw $e;
         }
+    }
+
+    /**
+     * The GCash payment of each shop in the cart: its 13-digit reference and receipt, sent as gcash[SELLER_ID][reference]
+     * and gcash_proof[SELLER_ID]. A one-shop cart may still send payment_reference and payment_proof. Every shop must
+     * have set up its GCash; the receipts are stored once everything checks out.
+     *
+     * @param  array<int, array{product_id: int}>  $items
+     * @return array<int, array{reference: string, proof_path: string}> keyed by seller id
+     */
+    private function gcashPayments(Request $request, array $items): array
+    {
+        $sellerIds = Product::whereIn('id', array_column($items, 'product_id'))->distinct()->pluck('seller_id')->map(fn ($id) => (int) $id)->all();
+        $profiles = \App\Models\SellerProfile::whereIn('user_id', $sellerIds)->get(['id', 'user_id', 'shop_name', 'gcash_number'])->keyBy('user_id');
+        $single = count($sellerIds) === 1;
+        $errors = [];
+        $found = [];
+
+        foreach ($sellerIds as $sellerId) {
+            $profile = $profiles[$sellerId] ?? null;
+            if (! $profile || ! $profile->gcash_number) {
+                $errors['gcash'][] = ($profile->shop_name ?? 'A shop in your cart') . ' does not take GCash yet. Pay by cash on delivery, or check out its items separately.';
+                continue;
+            }
+
+            $refKey = $single && ! $request->has("gcash.{$sellerId}.reference") ? 'payment_reference' : "gcash.{$sellerId}.reference";
+            $proofKey = $single && ! $request->hasFile("gcash_proof.{$sellerId}") ? 'payment_proof' : "gcash_proof.{$sellerId}";
+            $reference = \App\Support\Gcash::reference($request->input($refKey));
+            $proof = $request->file($proofKey);
+
+            if ($reference === '') {
+                $errors[$refKey][] = "Enter the 13-digit reference number from your GCash receipt for {$profile->shop_name}.";
+            } elseif (strlen($reference) !== 13) {
+                $errors[$refKey][] = 'A GCash reference number has exactly 13 digits.';
+            }
+            if (! $proof) {
+                $errors[$proofKey][] = "Upload a screenshot of your GCash receipt for {$profile->shop_name}.";
+            } elseif (! str_starts_with((string) $proof->getMimeType(), 'image/') || $proof->getSize() > 5 * 1024 * 1024) {
+                $errors[$proofKey][] = 'The receipt must be a JPG or PNG image up to 5 MB.';
+            }
+            $found[$sellerId] = ['reference' => $reference, 'proof' => $proof];
+        }
+
+        if ($errors) {
+            throw \Illuminate\Validation\ValidationException::withMessages($errors);
+        }
+
+        return array_map(fn ($p) => [
+            'reference'  => $p['reference'],
+            'proof_path' => $p['proof']->store('orders/payment-proofs', 'public'),
+        ], $found);
     }
 
     /**
@@ -418,6 +465,9 @@ class BuyerOrderController extends Controller
             'rejection_reason'    => $o->verification_rejection_reason,
             'subtotal'            => (float) $o->subtotal,
             'shipping_fee'        => (float) $o->shipping_fee,
+            'free_delivery'       => (bool) $o->free_delivery,
+            // "direct": paid to the shop's GCash or the rider; "platform": an order from before direct payments.
+            'settlement'          => $o->settlement ?? \App\Models\Order::SETTLEMENT_PLATFORM,
             'total'               => (float) $o->total,
             'shipping_name'       => $o->shipping_name,
             'shipping_phone'      => $o->shipping_phone,

@@ -24,7 +24,7 @@ const CORE_VALUES = [
   {
     title: 'Trust-Driven Commerce',
     description:
-      'Every order is backed by automated escrow protection, strict merchant verification, and tamper-proof buyer reviews.',
+      'Every order is backed by strict merchant verification, 7-day returns, and reviews that only buyers who received the item can write.',
     icon: ShieldCheck,
     accent: 'border-emerald-500/30 text-emerald-600 bg-emerald-50',
   },
@@ -88,7 +88,7 @@ const COMPANY_GOALS = [
     step: '04',
     title: 'Nationwide Trusted Payment Coverage',
     description:
-      'Expand frictionless, secure payment channels nationwide via audited GCash slips and Cash on Delivery with 7-day escrow protection.',
+      'Expand direct payments nationwide: GCash straight to each shop, checked against the buyer\'s receipt, and cash on delivery settled weekly by couriers.',
   },
   {
     step: '05',
@@ -163,7 +163,7 @@ export default function AboutUsPage() {
                 The General Marketplace
               </h1>
               <p className="text-base sm:text-lg text-gray-600 leading-relaxed font-normal">
-                Loved-IT is an independent Philippine multi-vendor marketplace designed to make digital commerce fair, dependable, and accessible. From everyday household essentials to regional specialty finds, we connect accredited Filipino merchants with shoppers nationwide through secure escrow payments, verified seller credentials, and reliable local logistics.
+                Loved-IT is an independent Philippine multi-vendor marketplace designed to make digital commerce fair, dependable, and accessible. From everyday household essentials to regional specialty finds, we connect accredited Filipino merchants with shoppers nationwide through direct GCash and cash-on-delivery payments, verified seller credentials, and reliable local logistics.
               </p>
             </div>
 
@@ -211,7 +211,7 @@ export default function AboutUsPage() {
                   Loved-IT was created to resolve the recurring friction in Philippine e-commerce: unverified product claims, slow dispute resolution, and prohibitive merchant commissions that hurt small local sellers.
                 </p>
                 <p>
-                  Our operational mission is to provide an accessible, high-trust marketplace where every buyer is protected by a 7-day payment escrow hold, regulated consumable goods are pre-screened for safety, and local entrepreneurs are equipped with transparent, low-cost tools to build sustainable digital storefronts.
+                  Our operational mission is to provide an accessible, high-trust marketplace where every buyer is protected by 7-day returns and dispute review, regulated consumable goods are pre-screened for safety, and local entrepreneurs are equipped with transparent, low-cost tools to build sustainable digital storefronts.
                 </p>
               </div>
 
@@ -219,7 +219,7 @@ export default function AboutUsPage() {
                 <div className="flex items-start gap-2.5 text-xs text-gray-600">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Escrow-backed transactions:</strong> Funds are safely released only when buyers confirm receipt of authentic, undamaged items.
+                    <strong>Receipt-checked payments:</strong> Shops confirm every GCash payment against the buyer&apos;s receipt before packing, and couriers settle cash-on-delivery money with shops every week.
                   </span>
                 </div>
                 <div className="flex items-start gap-2.5 text-xs text-gray-600">

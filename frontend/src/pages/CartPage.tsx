@@ -1,32 +1,40 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Trash2, Plus, Minus, Store, ArrowRight, ShieldCheck, Banknote, RotateCcw, ChevronRight } from 'lucide-react';
+import { ShoppingBag, Trash2, Plus, Minus, Store, ArrowRight, ShieldCheck, Banknote, RotateCcw, ChevronRight, Gift } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import { useCart, type CartItem } from '../hooks/useCart';
-import { DELIVERY_FEE } from '../utils/shipping';
+import { useShopPaymentInfo, shopDelivery } from '../hooks/useShopDelivery';
 import { pesoCompact as peso } from '../utils/pricing';
 
 /**
- * The full cart. Items are grouped by shop because every shop ships its own parcel, so the delivery fee is
- * ₱50 per shop: the same total checkout charges. There are no vouchers (only shops set discounts, on their products).
+ * The full cart. Items are grouped by shop because every shop ships its own parcel, so each shop charges one
+ * delivery fee, or none once its own free-delivery minimum is met: the same total checkout charges. There are no
+ * platform vouchers; shops set discounts on their products and their own free-delivery minimum.
  */
 export default function CartPage() {
   const navigate = useNavigate();
   const { items, removeItem, updateQty, clearCart } = useCart();
 
+  const shopInfo = useShopPaymentInfo(items.map((i) => i.sellerId));
   const groups = useMemo(() => {
-    const map = new Map<string, CartItem[]>();
+    const map = new Map<string, { shop: string; sellerId?: number; list: CartItem[] }>();
     items.forEach((i) => {
-      const key = i.shopName || 'Shop';
-      map.set(key, [...(map.get(key) ?? []), i]);
+      const key = String(i.sellerId ?? i.shopName ?? 'Shop');
+      const g = map.get(key) ?? { shop: i.shopName || 'Shop', sellerId: i.sellerId, list: [] };
+      g.list.push(i);
+      map.set(key, g);
     });
-    return [...map.entries()];
-  }, [items]);
+    return [...map.entries()].map(([key, g]) => {
+      const subtotal = g.list.reduce((s, i) => s + i.price * i.quantity, 0);
+      return { key, ...g, subtotal, ...shopDelivery(subtotal, g.sellerId ? shopInfo[g.sellerId] : undefined) };
+    });
+  }, [items, shopInfo]);
 
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const count = items.reduce((s, i) => s + i.quantity, 0);
-  const delivery = items.length ? groups.length * DELIVERY_FEE : 0;
+  const delivery = groups.reduce((s, g) => s + g.fee, 0);
+  const freeShops = groups.filter((g) => g.fee === 0).length;
   const total = subtotal + delivery;
   const setQty = (id: number, qty: number) => (qty <= 0 ? removeItem(id) : updateQty(id, qty));
 
@@ -69,17 +77,19 @@ export default function CartPage() {
           <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-8 items-start">
             {/* Items by shop */}
             <div className="space-y-4">
-              {groups.map(([shop, list]) => {
-                const shopSubtotal = list.reduce((s, i) => s + i.price * i.quantity, 0);
+              {groups.map(({ key, shop, list, subtotal: shopSubtotal, fee, freeFrom, short }) => {
                 return (
-                  <section key={shop} className="rounded-3xl bg-white border border-stone-200 overflow-hidden">
+                  <section key={key} className="rounded-3xl bg-white border border-stone-200 overflow-hidden">
                     <header className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-stone-100">
                       <span className="flex items-center gap-2 min-w-0">
                         <span className="w-8 h-8 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center shrink-0"><Store className="w-4 h-4" /></span>
                         <span className="text-[14px] font-semibold text-stone-900 truncate">{shop}</span>
                       </span>
-                      <span className="text-[12px] text-stone-500 shrink-0">Ships as one parcel · {peso(DELIVERY_FEE)}</span>
+                      {fee === 0
+                        ? <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700 shrink-0"><Gift className="w-3.5 h-3.5" /> Free delivery</span>
+                        : <span className="text-[12px] text-stone-500 shrink-0">Ships as one parcel · {peso(fee)}</span>}
                     </header>
+                    {freeFrom !== null && <FreeDeliveryBar subtotal={shopSubtotal} freeFrom={freeFrom} short={short} />}
                     <ul className="divide-y divide-stone-100">
                       {list.map((item) => (
                         <li key={item.variantId} className="flex gap-4 p-5">
@@ -115,7 +125,7 @@ export default function CartPage() {
                     </ul>
                     <footer className="flex justify-between px-5 py-3 bg-stone-50/70 border-t border-stone-100 text-[13px]">
                       <span className="text-stone-500">Shop subtotal + delivery</span>
-                      <span className="font-semibold text-stone-900 tabular-nums">{peso(shopSubtotal + DELIVERY_FEE)}</span>
+                      <span className="font-semibold text-stone-900 tabular-nums">{peso(shopSubtotal + fee)}</span>
                     </footer>
                   </section>
                 );
@@ -135,9 +145,11 @@ export default function CartPage() {
                   <div className="flex justify-between text-stone-600"><dt>Subtotal ({count} item{count === 1 ? '' : 's'})</dt><dd className="text-stone-900 tabular-nums">{peso(subtotal)}</dd></div>
                   <div className="flex justify-between text-stone-600">
                     <dt>Delivery</dt>
-                    <dd className="text-stone-900 tabular-nums">{peso(delivery)}</dd>
+                    <dd className={delivery === 0 ? 'font-semibold text-emerald-700' : 'text-stone-900 tabular-nums'}>{delivery === 0 ? 'Free' : peso(delivery)}</dd>
                   </div>
-                  <p className="text-[12px] text-stone-400 -mt-1">{peso(DELIVERY_FEE)} per shop · {groups.length} shop{groups.length === 1 ? '' : 's'}</p>
+                  <p className="text-[12px] text-stone-400 -mt-1">
+                    One parcel per shop · {groups.length} shop{groups.length === 1 ? '' : 's'}{freeShops > 0 && groups.length > 1 ? ` · ${freeShops} free` : ''}
+                  </p>
                   <div className="flex justify-between items-baseline pt-3 border-t border-stone-200">
                     <dt className="text-[15px] font-semibold text-stone-900">Total</dt>
                     <dd className="text-[26px] font-bold tracking-tight text-brand-red tabular-nums">{peso(total)}</dd>
@@ -151,7 +163,7 @@ export default function CartPage() {
               </div>
               <ul className="rounded-3xl bg-white border border-stone-200 divide-y divide-stone-100 text-[13px]">
                 {[
-                  { icon: ShieldCheck, title: 'Buyer protection', text: 'The seller is paid only after you receive your order.' },
+                  { icon: ShieldCheck, title: 'Buyer protection', text: 'Verified shops, and our team reviews any return a shop will not settle.' },
                   { icon: Banknote, title: 'Cash on delivery', text: 'Pay the rider when your parcel arrives.' },
                   { icon: RotateCcw, title: '7-day returns', text: 'For items that arrive damaged, wrong or incomplete.' },
                 ].map(({ icon: Icon, title, text }) => (
@@ -167,6 +179,21 @@ export default function CartPage() {
       </main>
 
       <Footer />
+    </div>
+  );
+}
+
+/** How close a shop's items are to its own free-delivery minimum. */
+function FreeDeliveryBar({ subtotal, freeFrom, short }: { subtotal: number; freeFrom: number; short: number }) {
+  const pct = freeFrom > 0 ? Math.min(100, Math.round((subtotal / freeFrom) * 100)) : 100;
+  return (
+    <div className="px-5 py-2.5 bg-emerald-50/50 border-b border-emerald-100/80">
+      <p className="text-[12px] text-emerald-900">
+        {short > 0 ? <>Add <strong className="tabular-nums">{peso(short)}</strong> more from this shop for free delivery.</> : <>This shop delivers your order for free.</>}
+      </p>
+      <div className="mt-1.5 h-1 rounded-full bg-emerald-100 overflow-hidden" aria-hidden>
+        <div className="h-full rounded-full bg-emerald-600 transition-[width] duration-500" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }

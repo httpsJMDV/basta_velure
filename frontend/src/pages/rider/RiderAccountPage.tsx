@@ -3,7 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Bike, CheckCircle2, Lock, LogOut, MessageSquare, RefreshCw, ShieldCheck, User as UserIcon, Warehouse } from 'lucide-react';
-import { getRiderChatThreadsApi, updateRiderVehicleApi } from '../../api/client';
+import { getRiderChatThreadsApi, updateRiderVehicleApi, getPayoutAccountApi, updatePayoutAccountApi } from '../../api/client';
+import { PayoutAccountForm } from '../../components/payments/GcashKit';
 import { useDialogA11y } from '../../hooks/useDialogA11y';
 import type { RiderThread, RiderVehicleType } from '../../types';
 import type { RiderOutletContext } from './RiderLayout';
@@ -20,6 +21,9 @@ const COUNTERPART_LABEL = { seller: 'Seller', buyer: 'Buyer', hub: 'Hub' } as co
 
 type FieldErrors = Partial<Record<'vehicle_type' | 'plate_number', string>>;
 
+const loadGcash = () => getPayoutAccountApi('rider');
+const saveGcash = (p: { gcash_number: string | null; gcash_name: string | null }) => updatePayoutAccountApi('rider', p);
+
 function timeAgo(iso: string | null): string {
   if (!iso) return '';
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -35,7 +39,7 @@ export default function RiderAccountPage() {
 
   return (
     <div className="max-w-3xl w-full mx-auto pb-4 space-y-4">
-      <PageHero icon={UserIcon} title="Account" subtitle="Your profile, your vehicle and your delivery conversations." />
+      <PageHero icon={UserIcon} title="Account" subtitle="Your profile, your vehicle, where you get paid, and your delivery conversations." />
       {loading && !riderData ? (
         <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 animate-pulse" aria-label="Loading your profile">
           <div className="h-4 w-1/3 rounded bg-gray-200" />
@@ -60,6 +64,10 @@ export default function RiderAccountPage() {
             plateNumber={riderData.plate_number}
             onSaved={refreshRider}
           />
+          <section aria-labelledby="gcash-heading" className="space-y-2">
+            <h2 id="gcash-heading" className="px-1 text-xs font-bold text-gray-900 uppercase tracking-wider">GCash payouts</h2>
+            <PayoutAccountForm load={loadGcash} save={saveGcash} who="your courier" tone="gray" />
+          </section>
         </>
       ) : null}
 
