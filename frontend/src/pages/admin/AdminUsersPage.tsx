@@ -14,21 +14,27 @@ import {
   RailCard, SplitBar, CardGrid, TileShell,
 } from '../../components/admin/listKit';
 
-const STATUS_BADGE: Record<UserStatus, 'approved' | 'rejected'> = {
+const STATUS_BADGE: Record<UserStatus, 'approved' | 'rejected' | 'pending'> = {
   active:    'approved',
   suspended: 'rejected',
+  unverified: 'pending',
+  pending_activation: 'pending',
 };
 
 const RIDER_STATUS_LABEL: Record<RiderStatus, string> = {
-  PENDING: 'Pending hub approval',
-  ACTIVE: 'Approved by hub',
-  DISAPPROVED: 'Not approved by hub',
+  PENDING: 'Waiting for verification',
+  ACTIVE: 'Active',
+  DISAPPROVED: 'Not approved',
+  PENDING_ACTIVATION: 'Pending activation',
+  SUSPENDED: 'Suspended by courier',
 };
 
 const RIDER_STATUS_TONE: Record<RiderStatus, 'amber' | 'emerald' | 'red'> = {
   PENDING: 'amber',
   ACTIVE: 'emerald',
   DISAPPROVED: 'red',
+  PENDING_ACTIVATION: 'amber',
+  SUSPENDED: 'red',
 };
 
 const REQUIRES_BACK_ID_TYPES = new Set([

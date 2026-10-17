@@ -1,631 +1,341 @@
-import { useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { applyAsSellerApi } from '../../api/client';
-import { useAuth } from '../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { Store, ShieldCheck, Mail, Clock } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import CustomSelect from '../../components/ui/CustomSelect';
-import AddressFields from '../../components/ui/AddressFields';
-import LovedItLogo from '../../components/LovedItLogo';
-import type { AddressValue, AddressNames } from '../../components/ui/AddressFields';
-import type { GovernmentIdType } from '../../types';
-import { UploadCloud, FileText, X, Image as ImageIcon, CheckCircle, AlertCircle, Store, Clock, FileCheck, Mail, ArrowRight, RotateCcw } from 'lucide-react';
+import PhoneInput from '../../components/ui/PhoneInput';
+import FileUploadZone from '../../components/ui/FileUploadZone';
+import PsgcCascadingAddress from '../../components/logistics/PsgcCascadingAddress';
+import type { HubAddressValue } from '../../components/logistics/PsgcCascadingAddress';
+import { ApplyLayout, ApplySection, ApplyRail, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus } from '../../components/apply/ApplyKit';
+import { FormErrorSummary, PasswordField, TermsConsent } from '../../components/auth/AuthFields';
+import { applyAsSellerApi, getStorefrontCategoriesApi } from '../../api/client';
+import { registerSellerApi } from '../../api/account';
+import { useAuth } from '../../hooks/useAuth';
+import {
+  compact, confirmError, emailError, fileError, firstErrors, formatTin, nameError, passwordError, phoneError, postalError, tinError,
+} from '../../utils/accountRules';
 
-const ID_TYPES: { value: GovernmentIdType; label: string }[] = [
-  { value: 'national_id',     label: 'National ID (PhilSys)' },
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'passport',        label: 'Passport' },
-  { value: 'umid',            label: 'UMID' },
-  { value: 'sss_id',          label: 'SSS ID' },
-  { value: 'philhealth_id',   label: 'PhilHealth ID' },
-  { value: 'voters_id',       label: "Voter's ID" },
-  { value: 'postal_id',       label: 'Postal ID' },
-  { value: 'school_id',       label: 'School ID' },
+type SellerType = 'individual' | 'sole_proprietorship' | 'corporation';
+
+const SELLER_TYPES: { value: SellerType; label: string; docs: string }[] = [
+  { value: 'individual', label: 'Individual', docs: 'Government-issued ID' },
+  { value: 'sole_proprietorship', label: 'Sole Proprietorship', docs: 'ID, DTI certificate, BIR Form 2303' },
+  { value: 'corporation', label: 'Corporation', docs: "Representative's ID, SEC certificate, BIR Form 2303" },
 ];
 
-const REQUIRES_BACK: GovernmentIdType[] = [
-  'drivers_license', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id', 'umid',
-];
-
-interface FormState {
-  shop_name: string;
-  shop_description: string;
-  government_id_type: GovernmentIdType | '';
-  government_id_image: File | null;
-  government_id_image_back: File | null;
-  selfie_with_id: File | null;
-  business_permit: File | null;
-  dti_sec_registration: File | null;
-  address: AddressValue;
-}
-
-const initial: FormState = {
-  shop_name: '',
-  shop_description: '',
-  government_id_type: '',
-  government_id_image: null,
-  government_id_image_back: null,
-  selfie_with_id: null,
-  business_permit: null,
-  dti_sec_registration: null,
-  address: { province: '', city_municipality: '', barangay: '', street_address: '' },
+const EMPTY_ADDRESS: HubAddressValue = {
+  region: '', regionName: '', province: '', provinceName: '', city: '', cityName: '', barangay: '', barangayName: '', street: '',
 };
 
-function IDUploadZone({
-  label, file, onChange, onClear, error, accept = '.jpg,.jpeg,.png,.pdf', hint = 'JPG, PNG, or PDF — max 5MB',
-}: {
-  label: string; file: File | null;
-  onChange: (f: File) => void; onClear: () => void; error?: string; accept?: string; hint?: string;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
+const FIELD_LABELS: Record<string, string> = {
+  first_name: 'First name', last_name: 'Last name', email: 'Email', phone: 'Mobile number', password: 'Password',
+  password_confirmation: 'Confirm password', shop_name: 'Shop name', shop_category: 'Shop category',
+  shop_description: 'Description', seller_type: 'Seller type', tin: 'TIN', address_region: 'Region',
+  address_province: 'Province', address_city: 'City / Municipality', address_barangay: 'Barangay',
+  address_street: 'Street address', address_postal_code: 'Postal code', government_id_image: 'Government-issued ID',
+  dti_certificate: 'DTI certificate', sec_certificate: 'SEC certificate', bir_2303: 'BIR Form 2303', accept_terms: 'Terms',
+  account: 'Account',
+};
 
-  function pick(f: File) {
-    onChange(f);
-    if (f.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreview(ev.target?.result as string);
-      reader.readAsDataURL(f);
-    } else {
-      setPreview(null);
-    }
-  }
-
-  function clear() {
-    setPreview(null);
-    onClear();
-    if (inputRef.current) inputRef.current.value = '';
-  }
-
-  const isPdf = file?.type === 'application/pdf';
-
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-sm font-medium text-brand-gray-mid">
-        {label} <span className="text-brand-red">*</span>
-        <span className="text-xs text-gray-400 font-normal ml-1">({hint})</span>
-      </label>
-      {!file ? (
-        <div
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) pick(f); }}
-          className={[
-            'flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed cursor-pointer',
-            'min-h-[120px] px-4 py-6 transition-all duration-150',
-            dragging ? 'border-brand-red bg-red-50' : error ? 'border-red-400 bg-red-50/30' : 'border-gray-200 bg-gray-50 hover:border-brand-red hover:bg-red-50/20',
-          ].join(' ')}
-        >
-          <UploadCloud className={`w-8 h-8 ${dragging ? 'text-brand-red' : 'text-gray-300'}`} />
-          <p className="text-sm font-semibold text-gray-500">Click to upload or drag & drop</p>
-          <p className="text-xs text-gray-400">{hint}</p>
-          <input ref={inputRef} type="file" accept={accept} className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); }} />
-        </div>
-      ) : (
-        <div className="relative rounded-xl border-2 border-brand-red/30 bg-red-50/20 overflow-hidden">
-          {isPdf ? (
-            <div className="flex items-center gap-3 px-4 py-4">
-              <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-                <FileText className="w-5 h-5 text-brand-red" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-brand-black truncate">{file.name}</p>
-                <p className="text-xs text-gray-400">{(file.size / 1024).toFixed(0)} KB · PDF</p>
-              </div>
-            </div>
-          ) : preview ? (
-            <div className="relative">
-              <img src={preview} alt="preview" className="w-full max-h-48 object-contain bg-gray-50 rounded-t-xl" />
-              <div className="px-4 py-2 flex items-center gap-2">
-                <ImageIcon className="w-3.5 h-3.5 text-gray-400" />
-                <p className="text-xs text-gray-500 truncate flex-1">{file.name}</p>
-                <p className="text-xs text-gray-400">{(file.size / 1024).toFixed(0)} KB</p>
-              </div>
-            </div>
-          ) : null}
-          <button type="button" onClick={clear}
-            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:border-red-400 hover:text-brand-red transition-colors"
-            aria-label="Remove file">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
-    </div>
-  );
+interface Docs {
+  government_id_image: File | null;
+  government_id_image_back: File | null;
+  dti_certificate: File | null;
+  sec_certificate: File | null;
+  bir_2303: File | null;
+  business_permit: File | null;
 }
 
-// ─── Status screens ───────────────────────────────────────────────────────────
+const EMPTY_DOCS: Docs = {
+  government_id_image: null, government_id_image_back: null, dti_certificate: null, sec_certificate: null, bir_2303: null, business_permit: null,
+};
 
-function PendingScreen() {
-  const steps = [
-    { icon: FileCheck, label: 'Application submitted',  sub: 'Your documents are in the queue',   done: true  },
-    { icon: Clock,     label: 'Document verification',  sub: 'Admin reviews your ID & permits',   done: false },
-    { icon: Mail,      label: 'Decision via email',      sub: 'Approval or feedback sent to you',  done: false },
-    { icon: Store,     label: 'Start selling on Loved-IT', sub: 'Access your seller dashboard',      done: false },
-  ];
-
+function Shell({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-7">
-      {/* Hero block */}
-      <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-7 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 bg-amber-400/15 border border-amber-400/30 rounded-full px-3 py-1 mb-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-xs font-semibold text-amber-300 tracking-wide">Under Review</span>
-          </div>
-          <h2 className="text-xl font-bold text-white leading-snug">We're reviewing your<br />application</h2>
-          <p className="text-sm text-white/50 mt-1.5">
-            Typically takes 1–3 business days.
-          </p>
-        </div>
-      </div>
-
-      {/* Steps */}
-      <div className="flex flex-col gap-0">
-        {steps.map(({ icon: Icon, label, sub, done }, i) => (
-          <div key={label} className="flex gap-3">
-            {/* connector */}
-            <div className="flex flex-col items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors ${
-                done
-                  ? 'bg-green-500 border-green-500'
-                  : i === 1
-                  ? 'bg-white border-brand-red'
-                  : 'bg-white border-gray-200'
-              }`}>
-                {done
-                  ? <CheckCircle className="w-4 h-4 text-white" />
-                  : <Icon className={`w-3.5 h-3.5 ${i === 1 ? 'text-brand-red' : 'text-gray-300'}`} />
-                }
-              </div>
-              {i < steps.length - 1 && (
-                <div className={`w-px flex-1 my-1 ${ done ? 'bg-green-200' : 'bg-gray-100' }`} style={{ minHeight: 20 }} />
-              )}
-            </div>
-            {/* content */}
-            <div className="pb-5 pt-1 flex-1 min-w-0">
-              <p className={`text-sm font-semibold leading-none ${
-                done ? 'text-green-700' : i === 1 ? 'text-brand-black' : 'text-gray-400'
-              }`}>{label}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-            </div>
-            {done && (
-              <span className="mt-1 text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 h-fit shrink-0">
-                Done
-              </span>
-            )}
-            {i === 1 && (
-              <span className="mt-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 h-fit shrink-0">
-                In progress
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* CTA */}
-      <Link
-        to="/"
-        className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors"
-      >
-        Continue Shopping <ArrowRight className="w-4 h-4" />
-      </Link>
-    </div>
+    <ApplyLayout
+      icon={Store}
+      kicker="Sell on Loved-IT"
+      title="Open your shop"
+      intro="Tell us about your shop and send the documents for your seller type. We confirm your email first, then an admin reviews the application, usually within 1 to 3 business days."
+      aside={aside}
+    >
+      {children}
+    </ApplyLayout>
   );
 }
-
-function ApprovedScreen() {
-  const navigate = useNavigate();
-  return (
-    <div className="flex flex-col gap-7">
-      <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-7 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="relative">
-          <div className="w-10 h-10 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mb-4">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-          </div>
-          <h2 className="text-xl font-bold text-white leading-snug">You're approved!</h2>
-          <p className="text-sm text-white/50 mt-1.5">Your seller account is now active.</p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm text-gray-600 leading-relaxed">
-        Head to your <span className="font-semibold text-brand-black">Seller Dashboard</span> to set up your shop, add products, and start selling.
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <button
-          onClick={() => navigate('/seller')}
-          className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors"
-        >
-          Go to Seller Dashboard <ArrowRight className="w-4 h-4" />
-        </button>
-        <Link to="/" className="flex items-center justify-center w-full min-h-[40px] rounded-xl text-sm font-semibold text-gray-500 hover:text-brand-black transition-colors">
-          Back to Shopping
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function RejectedScreen({ reason, onReapply }: { reason: string | null; onReapply: () => void }) {
-  return (
-    <div className="flex flex-col gap-7">
-      <div className="rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-7 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="relative">
-          <div className="w-10 h-10 rounded-full bg-brand-red/20 border border-brand-red/30 flex items-center justify-center mb-4">
-            <AlertCircle className="w-5 h-5 text-brand-red" />
-          </div>
-          <h2 className="text-xl font-bold text-white leading-snug">Application not approved</h2>
-          <p className="text-sm text-white/50 mt-1.5">You can correct the issues and resubmit.</p>
-        </div>
-      </div>
-
-      {reason && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-1">Reason for rejection</p>
-          <p className="text-sm text-red-700 leading-relaxed">{reason}</p>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-2">
-        <button
-          onClick={onReapply}
-          className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" /> Resubmit Application
-        </button>
-        <Link to="/" className="flex items-center justify-center w-full min-h-[40px] rounded-xl text-sm font-semibold text-gray-500 hover:text-brand-black transition-colors">
-          Back to Shopping
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function SellerRegisterPage() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, loading } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState<FormState>(initial);
-  const [addressErrors, setAddressErrors] = useState<Partial<Record<keyof AddressValue, string>>>({});
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const guest = !user;
+  const [reapplying, setReapplying] = useState(false);
+
+  const [account, setAccount] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '', password_confirmation: '' });
+  const [shopName, setShopName] = useState('');
+  const [shopCategory, setShopCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [sellerType, setSellerType] = useState<SellerType | ''>('');
+  const [tin, setTin] = useState('');
+  const [address, setAddress] = useState<HubAddressValue>(EMPTY_ADDRESS);
+  const [postal, setPostal] = useState('');
+  const [docs, setDocs] = useState<Docs>(EMPTY_DOCS);
+  const [terms, setTerms] = useState(false);
+
+  const [categories, setCategories] = useState<{ value: string; label: string }[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
-  const [loading, setLoading] = useState(false);
-  // Allow rejected users to resubmit by resetting to form view
-  const [forceForm, setForceForm] = useState(false);
-  // The picker holds PSGC codes; the API wants the names and the codes separately.
-  const [addressNames, setAddressNames] = useState<AddressNames>({ province: '', city_municipality: '', barangay: '' });
+  const [submitting, setSubmitting] = useState(false);
 
-  // Redirect unauthenticated users to login
-  if (!user) {
-    navigate('/login', { replace: true });
-    return null;
+  useEffect(() => {
+    getStorefrontCategoriesApi()
+      .then((list) => setCategories(list.map((c) => ({ value: c.name, label: c.name }))))
+      .catch(() => setCategories([]));
+  }, []);
+
+  const needs = useMemo(() => ({
+    dti: sellerType === 'sole_proprietorship',
+    sec: sellerType === 'corporation',
+    bir: sellerType === 'sole_proprietorship' || sellerType === 'corporation',
+  }), [sellerType]);
+
+  if (loading) return <Shell><p className="text-sm text-stone-400">Loading…</p></Shell>;
+
+  const status = user?.seller_profile?.application_status;
+  if (user && status && !(status === 'rejected' && reapplying)) {
+    if (status === 'pending') {
+      return (
+        <Shell>
+          <PendingStatus
+            title={`We're reviewing ${user.seller_profile?.shop_name ?? 'your shop'}`}
+            steps={[
+              { icon: ShieldCheck, label: 'Document check', sub: 'An admin reviews your ID and business documents' },
+              { icon: Mail, label: 'Decision via email', sub: 'Approval or feedback sent to you' },
+              { icon: Clock, label: 'Start selling', sub: 'Add products from your Seller Center' },
+            ]}
+            note="Your email is verified and the application is Pending Approval. You can keep shopping meanwhile."
+          />
+        </Shell>
+      );
+    }
+    if (status === 'approved') {
+      return <Shell><ApprovedStatus title="Your shop is approved!" text="Open your Seller Center to add products and start selling." to="/seller" cta="Open Seller Center" /></Shell>;
+    }
+    return <Shell><RejectedStatus who="admin team" reason={user.seller_profile?.rejection_reason} onReapply={() => setReapplying(true)} /></Shell>;
   }
 
-  const status = user.seller_profile?.application_status;
+  const clear = (...keys: string[]) => setErrors((prev) => {
+    const next = { ...prev };
+    keys.forEach((k) => delete next[k]);
+    return next;
+  });
 
-  // ── State routing ──────────────────────────────────────────────────────────
-  if (!forceForm) {
-    if (status === 'pending')  return <PageShell><PendingScreen /></PageShell>;
-    if (status === 'approved') return <PageShell><ApprovedScreen /></PageShell>;
-    if (status === 'rejected') return (
-      <PageShell>
-        <RejectedScreen
-          reason={user.seller_profile?.rejection_reason ?? null}
-          onReapply={() => setForceForm(true)}
-        />
-      </PageShell>
-    );
+  function validate(): Record<string, string> {
+    const e: Record<string, string | undefined> = {};
+    if (guest) {
+      e.first_name = nameError(account.first_name, 'First name');
+      e.last_name = nameError(account.last_name, 'Last name');
+      e.email = emailError(account.email);
+      e.phone = phoneError(account.phone);
+      e.password = passwordError(account.password);
+      e.password_confirmation = confirmError(account.password, account.password_confirmation);
+    }
+    const name = shopName.trim();
+    e.shop_name = !name ? 'Shop name is required.' : name.length < 3 || name.length > 30 ? 'Shop name must be 3 to 30 characters.' : undefined;
+    e.shop_category = shopCategory ? undefined : 'Choose a shop category.';
+    e.shop_description = description.length > 500 ? 'The shop description must be 500 characters or fewer.' : undefined;
+    e.seller_type = sellerType ? undefined : 'Choose a seller type.';
+    e.tin = tinError(tin);
+    e.address_region = address.region ? undefined : 'Region is required.';
+    e.address_province = address.province ? undefined : 'Province is required.';
+    e.address_city = address.city ? undefined : 'City / Municipality is required.';
+    e.address_barangay = address.barangay ? undefined : 'Barangay is required.';
+    e.address_street = address.street.trim() ? undefined : 'Street address is required.';
+    e.address_postal_code = postalError(postal);
+    e.government_id_image = fileError(docs.government_id_image, 'a government-issued ID', { pdf: true });
+    e.government_id_image_back = fileError(docs.government_id_image_back, 'the back of the ID', { pdf: true, required: false });
+    e.dti_certificate = fileError(docs.dti_certificate, 'the DTI certificate', { pdf: true, required: needs.dti });
+    e.sec_certificate = fileError(docs.sec_certificate, 'the SEC certificate', { pdf: true, required: needs.sec });
+    e.bir_2303 = fileError(docs.bir_2303, 'BIR Form 2303', { pdf: true, required: needs.bir });
+    e.business_permit = fileError(docs.business_permit, 'the business permit', { pdf: true, required: false });
+    e.accept_terms = terms ? undefined : 'You must accept the Terms of Use and Privacy Policy to apply.';
+    return compact(e);
   }
 
-  // ── Application form ───────────────────────────────────────────────────────
-  function set(field: keyof FormState, value: string) {
-    setForm((f) => ({ ...f, [field]: value }));
-    setErrors((e) => ({ ...e, [field]: undefined }));
-  }
-
-  const needsBack = form.government_id_type !== '' && REQUIRES_BACK.includes(form.government_id_type as GovernmentIdType);
-
-  function validate(): boolean {
-    const errs: Partial<Record<keyof FormState, string>> = {};
-    const addrErrs: Partial<Record<keyof AddressValue, string>> = {};
-    if (!form.shop_name.trim())        errs.shop_name        = 'Shop name is required.';
-    if (!form.shop_description.trim()) errs.shop_description = 'Store description is required.';
-    if (!form.address.province)          addrErrs.province          = 'Province is required.';
-    if (!form.address.city_municipality) addrErrs.city_municipality = 'City / Municipality is required.';
-    if (!form.address.barangay)          addrErrs.barangay          = 'Barangay is required.';
-    if (!form.government_id_type)      errs.government_id_type = 'Please select an ID type.';
-    const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (!form.government_id_image) {
-      errs.government_id_image = 'Please upload your government ID (front).';
-    } else if (!allowed.includes(form.government_id_image.type)) {
-      errs.government_id_image = 'Only JPG, PNG, or PDF files are allowed.';
-    } else if (form.government_id_image.size > 5 * 1024 * 1024) {
-      errs.government_id_image = 'File must be 5MB or smaller.';
-    }
-    if (needsBack) {
-      if (!form.government_id_image_back) {
-        errs.government_id_image_back = 'Please upload the back of your ID.';
-      } else if (!allowed.includes(form.government_id_image_back.type)) {
-        errs.government_id_image_back = 'Only JPG, PNG, or PDF files are allowed.';
-      } else if (form.government_id_image_back.size > 5 * 1024 * 1024) {
-        errs.government_id_image_back = 'File must be 5MB or smaller.';
-      }
-    }
-    const selfieAllowed = ['image/jpeg', 'image/png'];
-    if (!form.selfie_with_id) {
-      errs.selfie_with_id = 'Please upload a selfie holding your ID.';
-    } else if (!selfieAllowed.includes(form.selfie_with_id.type)) {
-      errs.selfie_with_id = 'Only JPG or PNG files are allowed for selfies.';
-    } else if (form.selfie_with_id.size > 5 * 1024 * 1024) {
-      errs.selfie_with_id = 'File must be 5MB or smaller.';
-    }
-    if (!form.business_permit) {
-      errs.business_permit = 'Please upload your business permit.';
-    } else if (!allowed.includes(form.business_permit.type)) {
-      errs.business_permit = 'Only JPG, PNG, or PDF files are allowed.';
-    } else if (form.business_permit.size > 5 * 1024 * 1024) {
-      errs.business_permit = 'File must be 5MB or smaller.';
-    }
-    if (!form.dti_sec_registration) {
-      errs.dti_sec_registration = 'Please upload your DTI or SEC Business Registration.';
-    } else if (!allowed.includes(form.dti_sec_registration.type)) {
-      errs.dti_sec_registration = 'Only JPG, PNG, or PDF files are allowed.';
-    } else if (form.dti_sec_registration.size > 5 * 1024 * 1024) {
-      errs.dti_sec_registration = 'File must be 5MB or smaller.';
-    }
-    setErrors(errs);
-    setAddressErrors(addrErrs);
-    return Object.keys(errs).length === 0 && Object.keys(addrErrs).length === 0;
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function submit(ev: FormEvent) {
+    ev.preventDefault();
+    if (submitting) return;
     setServerError('');
-    if (!validate()) return;
-    setLoading(true);
+    const problems = validate();
+    setErrors(problems);
+    if (Object.keys(problems).length) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
-    const data = new FormData();
-    data.append('shop_name', form.shop_name);
-    data.append('shop_description', form.shop_description);
-    data.append('address_province', addressNames.province || form.address.province);
-    data.append('address_city', addressNames.city_municipality || form.address.city_municipality);
-    data.append('address_barangay', addressNames.barangay || form.address.barangay);
-    data.append('address_province_code', form.address.province);
-    data.append('address_city_code', form.address.city_municipality);
-    data.append('address_barangay_code', form.address.barangay);
-    if (form.address.street_address) data.append('address_street', form.address.street_address);
-    data.append('government_id_type', form.government_id_type);
-    if (form.government_id_image)        data.append('government_id_image', form.government_id_image);
-    if (form.government_id_image_back)   data.append('government_id_image_back', form.government_id_image_back);
-    if (form.selfie_with_id)             data.append('selfie_with_id', form.selfie_with_id);
-    if (form.business_permit)            data.append('business_permit', form.business_permit);
-    if (form.dti_sec_registration)       data.append('dti_sec_registration', form.dti_sec_registration);
+    const fd = new FormData();
+    if (guest) Object.entries(account).forEach(([k, v]) => fd.append(k, k === 'email' ? v.trim().toLowerCase() : v));
+    fd.append('shop_name', shopName.trim());
+    fd.append('shop_category', shopCategory);
+    if (description.trim()) fd.append('shop_description', description.trim());
+    fd.append('seller_type', sellerType);
+    fd.append('tin', tin.trim());
+    fd.append('address_region', address.regionName);
+    fd.append('address_region_code', address.region);
+    fd.append('address_province', address.provinceName);
+    fd.append('address_province_code', address.province);
+    fd.append('address_city', address.cityName);
+    fd.append('address_city_code', address.city);
+    fd.append('address_barangay', address.barangayName);
+    fd.append('address_barangay_code', address.barangay);
+    fd.append('address_street', address.street.trim());
+    fd.append('address_postal_code', postal.trim());
+    (Object.keys(docs) as (keyof Docs)[]).forEach((k) => {
+      const f = docs[k];
+      if (!f) return;
+      if ((k === 'dti_certificate' && !needs.dti) || (k === 'sec_certificate' && !needs.sec) || (k === 'bir_2303' && !needs.bir)) return;
+      fd.append(k, f);
+    });
+    fd.append('accept_terms', '1');
 
+    setSubmitting(true);
     try {
-      const res = await applyAsSellerApi(data);
-      setUser(res.data);
-      setForceForm(false); // let status routing take over → shows PendingScreen
-    } catch (err: unknown) {
-      const resp = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
-      if (resp?.errors) {
-        const mapped: Partial<Record<keyof FormState, string>> = {};
-        const addrMapped: Partial<Record<keyof AddressValue, string>> = {};
-        Object.entries(resp.errors).forEach(([k, v]) => {
-          if (k === 'address_province' || k === 'address_province_code')       addrMapped.province          = v[0];
-          else if (k === 'address_city' || k === 'address_city_code')          addrMapped.city_municipality = v[0];
-          else if (k === 'address_barangay' || k === 'address_barangay_code')  addrMapped.barangay          = v[0];
-          else if (k === 'address_street')     addrMapped.street_address    = v[0];
-          else mapped[k as keyof FormState] = v[0];
-        });
-        setErrors(mapped);
-        setAddressErrors(addrMapped);
-        // Also show the summary, so an error for a field the form does not display is never silent.
-        setServerError(resp.message ?? 'Please check the highlighted fields.');
-      } else {
-        setServerError(resp?.message ?? 'Submission failed. Please try again.');
+      if (guest) {
+        const res = await registerSellerApi(fd);
+        navigate(`/verify-email?email=${encodeURIComponent(res.email)}`, { replace: true, state: { message: res.message } });
+        return;
       }
+      const res = await applyAsSellerApi(fd);
+      setReapplying(false);
+      setUser(res.data);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 422) {
+        const mapped = firstErrors(err.response.data?.errors);
+        setErrors(mapped);
+        setServerError(mapped.account ?? 'Please fix the highlighted fields.');
+      } else if (axios.isAxiosError(err) && err.response?.status === 413) {
+        setServerError('The files are too large to send together. Each document must be 5 MB or smaller.');
+      } else {
+        setServerError((axios.isAxiosError(err) && err.response?.data?.message) || 'The application could not be submitted. Please try again.');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
-  const fullName = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(' ');
+  const checklist = [
+    ...(guest ? [{ label: 'Your account', done: !!(account.first_name && account.last_name && account.email && account.phone && account.password) }] : []),
+    { label: 'Shop name and category', done: shopName.trim().length >= 3 && !!shopCategory },
+    { label: 'Seller type and TIN', done: !!sellerType && !tinError(tin) },
+    { label: 'Pickup address', done: !!(address.barangay && address.street.trim() && !postalError(postal)) },
+    { label: 'Documents', done: !!docs.government_id_image && (!needs.dti || !!docs.dti_certificate) && (!needs.sec || !!docs.sec_certificate) && (!needs.bir || !!docs.bir_2303) },
+    { label: 'Terms accepted', done: terms },
+  ];
 
+  let n = 0;
   return (
-    <PageShell>
-      <h1 className="text-3xl font-bold text-brand-black mb-1">Become a Seller</h1>
-      <p className="text-sm text-gray-500 mb-6">Set up your shop and submit your documents for review.</p>
+    <Shell aside={<ApplyRail checklist={checklist} approver="The Loved-IT admin team checks your documents and emails you the decision." facts={[{ label: 'Commission', value: '5% of item sales' }, { label: 'Payout', value: 'GCash, weekly' }]} />}>
+      {user && <ApplyingAs user={user} />}
+      {serverError && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-800">{serverError}</p>}
+      <FormErrorSummary errors={errors} labels={FIELD_LABELS} />
 
-      {/* Read-only account info */}
-      <div className="rounded-2xl border border-gray-100 bg-white shadow-sm mb-6 overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-          <div className="w-1.5 h-4 rounded-full bg-brand-red" />
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Your Account</p>
-        </div>
-        <div className="grid grid-cols-2 divide-x divide-y divide-gray-100">
-          <div className="px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-0.5">Full Name</p>
-            <p className="text-sm font-semibold text-brand-black leading-snug">{fullName}</p>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-0.5">Email</p>
-            <p className="text-sm font-semibold text-brand-black truncate leading-snug">{user.email}</p>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-0.5">Phone</p>
-            <p className="text-sm font-semibold text-brand-black leading-snug">{user.phone ?? '—'}</p>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-0.5">Date of Birth</p>
-            <p className="text-sm font-semibold text-brand-black leading-snug">{user.date_of_birth ?? '—'}</p>
-          </div>
-        </div>
-        <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center gap-1.5">
-          <svg className="w-3 h-3 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p className="text-[11px] text-gray-400">This information is from your account and cannot be changed here.</p>
-        </div>
-      </div>
-
-      {serverError && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {serverError}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4" encType="multipart/form-data">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Business Information</p>
-
-        <Input label="Shop / Store Name" value={form.shop_name}
-          onChange={(e) => set('shop_name', e.target.value)} error={errors.shop_name} required />
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-brand-gray-mid">
-            Store Description <span className="text-brand-red">*</span>
-          </label>
-          <div className="relative">
-            <textarea
-              value={form.shop_description}
-              onChange={(e) => { if (e.target.value.length <= 200) set('shop_description', e.target.value); }}
-              placeholder="Tell shoppers what your store is about…"
-              rows={3}
-              className={[
-                'w-full rounded-xl border px-4 py-3 text-sm resize-none',
-                'bg-white text-brand-black placeholder-gray-400',
-                'focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent transition-colors',
-                errors.shop_description ? 'border-red-400' : 'border-gray-300',
-              ].join(' ')}
-            />
-            <span className={['absolute bottom-2.5 right-3 text-xs',
-              form.shop_description.length >= 200 ? 'text-brand-red font-semibold' : 'text-gray-400'].join(' ')}>
-              {form.shop_description.length}/200
-            </span>
-          </div>
-          {errors.shop_description && <p className="text-xs text-red-600">{errors.shop_description}</p>}
-        </div>
-
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mt-2">Business / Warehouse Address</p>
-        <p className="text-xs text-gray-400 -mt-2">Where your products will be shipped from. You can update this later.</p>
-        <AddressFields
-          value={form.address}
-          onChange={(addr) => { setForm((f) => ({ ...f, address: addr })); setAddressErrors({}); }}
-          onNamesChange={setAddressNames}
-          errors={addressErrors}
-          streetLabel="Street / House No. (optional)"
-        />
-
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mt-2">Government ID</p>
-        <CustomSelect
-          label="ID Type" required value={form.government_id_type}
-          onChange={(val) => {
-            setForm((f) => ({ ...f, government_id_type: val as GovernmentIdType, government_id_image: null, government_id_image_back: null }));
-            setErrors((e) => ({ ...e, government_id_type: undefined, government_id_image: undefined, government_id_image_back: undefined }));
-          }}
-          options={ID_TYPES} placeholder="Select ID type…" error={errors.government_id_type}
-        />
-
-        {form.government_id_type && (
-          <IDUploadZone
-            label={needsBack ? 'ID Image (Front)' : 'ID Image'}
-            file={form.government_id_image}
-            onChange={(f) => { setForm((s) => ({ ...s, government_id_image: f })); setErrors((e) => ({ ...e, government_id_image: undefined })); }}
-            onClear={() => { setForm((s) => ({ ...s, government_id_image: null })); }}
-            error={errors.government_id_image}
-          />
-        )}
-
-        {needsBack && (
-          <IDUploadZone
-            label="ID Image (Back)"
-            file={form.government_id_image_back}
-            onChange={(f) => { setForm((s) => ({ ...s, government_id_image_back: f })); setErrors((e) => ({ ...e, government_id_image_back: undefined })); }}
-            onClear={() => { setForm((s) => ({ ...s, government_id_image_back: null })); }}
-            error={errors.government_id_image_back}
-          />
-        )}
-
-        {form.government_id_type && (
-          <IDUploadZone
-            label="Selfie Holding Your ID"
-            accept=".jpg,.jpeg,.png"
-            hint="JPG or PNG only — max 5MB"
-            file={form.selfie_with_id}
-            onChange={(f) => { setForm((s) => ({ ...s, selfie_with_id: f })); setErrors((e) => ({ ...e, selfie_with_id: undefined })); }}
-            onClear={() => { setForm((s) => ({ ...s, selfie_with_id: null })); }}
-            error={errors.selfie_with_id}
-          />
-        )}
-
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mt-2">Business Documents</p>
-        <IDUploadZone
-          label="Business Permit (LGU)"
-          file={form.business_permit}
-          onChange={(f) => { setForm((s) => ({ ...s, business_permit: f })); setErrors((e) => ({ ...e, business_permit: undefined })); }}
-          onClear={() => { setForm((s) => ({ ...s, business_permit: null })); }}
-          error={errors.business_permit}
-        />
-        <IDUploadZone
-          label="DTI or SEC Business Registration"
-          file={form.dti_sec_registration}
-          onChange={(f) => { setForm((s) => ({ ...s, dti_sec_registration: f })); setErrors((e) => ({ ...e, dti_sec_registration: undefined })); }}
-          onClear={() => { setForm((s) => ({ ...s, dti_sec_registration: null })); }}
-          error={errors.dti_sec_registration}
-        />
-        <p className="text-[11px] text-gray-400 -mt-2">
-          DTI registers sole proprietors; SEC registers corporations/partnerships. This is separate from your LGU Business Permit.
-        </p>
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-700 leading-relaxed">
-          After submitting, please wait for the administrator's approval. You will be notified via email.
-        </div>
-
-        <Button type="submit" loading={loading} className="w-full mt-2">Submit Application</Button>
-      </form>
-    </PageShell>
-  );
-}
-
-function PageShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen flex">
-      <div className="flex flex-col w-full md:w-1/2 px-6 py-12 sm:px-12 lg:px-16 bg-white overflow-y-auto">
-        <div className="max-w-sm w-full mx-auto">
-          <Link to="/" className="inline-block mb-6 group">
-            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-12 sm:h-14 object-contain group-hover:opacity-95 transition-opacity" />
-          </Link>
-          <div className="flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 rounded-full bg-brand-red/10 flex items-center justify-center">
-              <Store className="w-4 h-4 text-brand-red" />
+      <form onSubmit={submit} noValidate className="space-y-4">
+        {guest && (
+          <ApplySection n={++n} title="Your account" hint="You sign in with this email. We send a 6-digit code to confirm it.">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input id="first_name" label="First name" value={account.first_name} onChange={(e) => { setAccount((a) => ({ ...a, first_name: e.target.value })); clear('first_name'); }} error={errors.first_name} />
+              <Input id="last_name" label="Last name" value={account.last_name} onChange={(e) => { setAccount((a) => ({ ...a, last_name: e.target.value })); clear('last_name'); }} error={errors.last_name} />
+              <Input id="email" label="Email" type="email" value={account.email} onChange={(e) => { setAccount((a) => ({ ...a, email: e.target.value })); clear('email'); }} error={errors.email} />
+              <PhoneInput label="Mobile number" value={account.phone} onChange={(v) => { setAccount((a) => ({ ...a, phone: v })); clear('phone'); }} error={errors.phone} />
+              <PasswordField id="password" label="Password" value={account.password} onChange={(v) => { setAccount((a) => ({ ...a, password: v })); clear('password'); }} error={errors.password} showRules />
+              <PasswordField id="password_confirmation" label="Confirm password" value={account.password_confirmation} onChange={(v) => { setAccount((a) => ({ ...a, password_confirmation: v })); clear('password_confirmation'); }} error={errors.password_confirmation} />
             </div>
-            <span className="text-sm font-semibold text-gray-600">Seller Application</span>
+          </ApplySection>
+        )}
+
+        <ApplySection n={++n} title="Shop details" hint="How buyers will see your shop.">
+          <div className="grid gap-3">
+            <div>
+              <Input id="shop_name" label="Shop name" value={shopName} maxLength={40} onChange={(e) => { setShopName(e.target.value); clear('shop_name'); }} error={errors.shop_name} />
+              <p className={`mt-1 text-right text-[11px] tabular-nums ${shopName.trim().length > 30 ? 'text-red-600' : 'text-stone-400'}`}>{shopName.trim().length}/30</p>
+            </div>
+            <CustomSelect label="Shop category" required value={shopCategory} onChange={(v) => { setShopCategory(v); clear('shop_category'); }} options={categories} placeholder={categories.length ? 'Choose a category' : 'Loading…'} error={errors.shop_category} />
+            <div className="flex flex-col gap-1">
+              <label htmlFor="shop_description" className="text-sm font-medium text-brand-gray-mid">About the shop (optional)</label>
+              <textarea id="shop_description" rows={3} value={description} onChange={(e) => { setDescription(e.target.value); clear('shop_description'); }}
+                className={`w-full rounded-xl border px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent ${errors.shop_description ? 'border-red-500' : 'border-gray-300'}`} />
+              <div className="flex justify-between text-[11px]">
+                <span className="text-red-600">{errors.shop_description}</span>
+                <span className={`tabular-nums ${description.length > 500 ? 'text-red-600' : 'text-stone-400'}`}>{description.length}/500</span>
+              </div>
+            </div>
           </div>
-          {children}
-        </div>
-      </div>
-      <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black sticky top-0 h-screen">
-        <img
-          src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&q=80"
-          alt="Loved-IT marketplace sellers"
-          className="absolute inset-0 w-full h-full object-cover opacity-75"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent flex items-end p-12">
-          <div>
-            <p className="text-brand-white text-3xl font-bold">Start selling on Loved-IT</p>
-            <p className="text-brand-white/70 mt-2 text-base">Reach thousands of shoppers across the Philippines.</p>
+        </ApplySection>
+
+        <ApplySection n={++n} title="Business details" hint="Your seller type decides which documents we need.">
+          <div role="radiogroup" aria-label="Seller type" className="grid sm:grid-cols-3 gap-2">
+            {SELLER_TYPES.map((t) => (
+              <button key={t.value} type="button" role="radio" aria-checked={sellerType === t.value}
+                onClick={() => { setSellerType(t.value); clear('seller_type', 'dti_certificate', 'sec_certificate', 'bir_2303'); }}
+                className={`text-left rounded-2xl border px-3.5 py-3 transition-colors ${sellerType === t.value ? 'border-brand-red bg-red-50/50 ring-1 ring-brand-red' : 'border-stone-200 bg-white hover:border-stone-400'}`}>
+                <span className="block text-[14px] font-semibold text-stone-900">{t.label}</span>
+                <span className="block mt-0.5 text-[12px] leading-snug text-stone-500">{t.docs}</span>
+              </button>
+            ))}
           </div>
-        </div>
-      </div>
-    </div>
+          {errors.seller_type && <p className="mt-1 text-xs text-red-600">{errors.seller_type}</p>}
+          <div className="mt-3 max-w-xs">
+            <Input id="tin" label="TIN" inputMode="numeric" placeholder="000-000-000-000" value={tin} onChange={(e) => { setTin(formatTin(e.target.value)); clear('tin'); }} error={errors.tin} />
+          </div>
+        </ApplySection>
+
+        <ApplySection n={++n} title="Pickup address" hint="Where couriers collect your parcels.">
+          <PsgcCascadingAddress
+            value={address}
+            onChange={(v) => { setAddress(v); clear('address_region', 'address_province', 'address_city', 'address_barangay', 'address_street'); }}
+            errors={{ region: errors.address_region, province: errors.address_province, city: errors.address_city, barangay: errors.address_barangay, street: errors.address_street }}
+            disabled={submitting}
+          />
+          <div className="mt-3 max-w-[10rem]">
+            <Input id="postal" label="Postal code" inputMode="numeric" maxLength={6} value={postal} onChange={(e) => { setPostal(e.target.value); clear('address_postal_code'); }} error={errors.address_postal_code} />
+          </div>
+        </ApplySection>
+
+        <ApplySection n={++n} title="Documents" hint="JPG, PNG or PDF, up to 5 MB each.">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <FileUploadZone label={sellerType === 'corporation' ? "Representative's government ID" : 'Government-issued ID'} required file={docs.government_id_image}
+              onChange={(f) => { setDocs((d) => ({ ...d, government_id_image: f })); clear('government_id_image'); }} onClear={() => setDocs((d) => ({ ...d, government_id_image: null }))} error={errors.government_id_image} />
+            <FileUploadZone label="Back of the ID (optional)" file={docs.government_id_image_back}
+              onChange={(f) => setDocs((d) => ({ ...d, government_id_image_back: f }))} onClear={() => setDocs((d) => ({ ...d, government_id_image_back: null }))} error={errors.government_id_image_back} />
+            {needs.dti && (
+              <FileUploadZone label="DTI certificate" required file={docs.dti_certificate}
+                onChange={(f) => { setDocs((d) => ({ ...d, dti_certificate: f })); clear('dti_certificate'); }} onClear={() => setDocs((d) => ({ ...d, dti_certificate: null }))} error={errors.dti_certificate} />
+            )}
+            {needs.sec && (
+              <FileUploadZone label="SEC certificate" required file={docs.sec_certificate}
+                onChange={(f) => { setDocs((d) => ({ ...d, sec_certificate: f })); clear('sec_certificate'); }} onClear={() => setDocs((d) => ({ ...d, sec_certificate: null }))} error={errors.sec_certificate} />
+            )}
+            {needs.bir && (
+              <FileUploadZone label="BIR Form 2303" required file={docs.bir_2303}
+                onChange={(f) => { setDocs((d) => ({ ...d, bir_2303: f })); clear('bir_2303'); }} onClear={() => setDocs((d) => ({ ...d, bir_2303: null }))} error={errors.bir_2303} />
+            )}
+            <FileUploadZone label="Mayor's / business permit (optional)" file={docs.business_permit}
+              onChange={(f) => setDocs((d) => ({ ...d, business_permit: f }))} onClear={() => setDocs((d) => ({ ...d, business_permit: null }))} error={errors.business_permit} />
+          </div>
+          {!sellerType && <p className="mt-3 text-[12.5px] text-stone-500">Choose your seller type above to see the documents it needs.</p>}
+        </ApplySection>
+
+        <TermsConsent checked={terms} onChange={(v) => { setTerms(v); clear('accept_terms'); }} error={errors.accept_terms} />
+
+        <Button type="submit" loading={submitting} className="w-full min-h-[48px]">
+          {guest ? 'Create account and apply' : 'Submit application'}
+        </Button>
+      </form>
+    </Shell>
   );
 }

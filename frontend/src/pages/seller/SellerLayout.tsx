@@ -3,12 +3,13 @@ import { useAuth } from '../../hooks/useAuth';
 import {
   LayoutDashboard, Package, ShoppingCart,
   Wallet, BarChart2, MessageSquare, Star, Store, Settings,
-  LogOut, Menu, X, ChevronRight, Bell, ShoppingBag, Plus,
+  LogOut, Menu, X, ChevronRight, ShoppingBag, Plus,
   PanelLeft, ExternalLink, Search, CheckCircle2, AlertTriangle, AlertCircle, Banknote,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import LovedItLogo from '../../components/LovedItLogo';
+import NotificationBell from '../../components/notifications/NotificationBell';
 import { getSellerDashboardAttentionApi, getUnreadMessagesCountApi } from '../../api/client';
 import type { SellerAttentionItem } from '../../types';
 
@@ -577,7 +578,10 @@ function TopBar({
             )}
           </Link>
 
-          {/* Notification Button & Popover */}
+          {/* The inbox: every order status change, returns and other updates */}
+          <NotificationBell variant="light" />
+
+          {/* What needs attention right now (new orders, low stock) */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => {
@@ -585,9 +589,10 @@ function TopBar({
                 setUserMenuOpen(false);
               }}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors relative"
-              title="Notifications"
+              title="Needs attention"
+              aria-label="Needs attention"
             >
-              <Bell className="w-[17px] h-[17px]" />
+              <AlertTriangle className="w-[17px] h-[17px]" />
               {totalAlerts > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-red rounded-full ring-2 ring-white" />
               )}

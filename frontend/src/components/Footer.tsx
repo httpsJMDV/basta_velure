@@ -50,7 +50,6 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
     title: 'Work with us',
     links: [
       { label: 'Sell on Loved-IT', to: '/register/seller' },
-      { label: 'Become a rider', to: '/register/rider' },
       { label: 'Run a logistics hub', to: '/register/hub' },
       { label: 'Register a courier company', to: '/register/courier' },
       { label: 'Rider sign in', to: '/rider/login' },

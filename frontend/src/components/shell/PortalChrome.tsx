@@ -5,8 +5,9 @@ import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronRight, LogOut, Menu, MessageSquare, PanelLeft, Search, X } from 'lucide-react';
+import { ChevronRight, LogOut, Menu, MessageSquare, PanelLeft, Search, X } from 'lucide-react';
 import LovedItLogo from '../LovedItLogo';
+import NotificationBell from '../notifications/NotificationBell';
 
 export const SHELL_BG: React.CSSProperties = { background: '#111111' };
 
@@ -467,21 +468,19 @@ export function ShellTopBar({
   onLogout: () => void;
 }) {
   const t = THEMES[theme];
-  const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 
   // Close either popover on an outside click or Escape.
   useEffect(() => {
-    if (!notifOpen && !userMenuOpen) return;
+    if (!userMenuOpen) return;
     const onPointer = (e: MouseEvent) => {
       if (barRef.current && !barRef.current.contains(e.target as Node)) {
-        setNotifOpen(false);
         setUserMenuOpen(false);
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setNotifOpen(false); setUserMenuOpen(false); }
+      if (e.key === 'Escape') setUserMenuOpen(false);
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -489,7 +488,7 @@ export function ShellTopBar({
       document.removeEventListener('mousedown', onPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [notifOpen, userMenuOpen]);
+  }, [userMenuOpen]);
 
   const totalAlerts = alerts.length;
   const iconBtn = `w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg transition-colors relative ${t.iconButton}`;
@@ -549,51 +548,35 @@ export function ShellTopBar({
 
         {theme === 'light' && messagesLink}
 
-        {/* Notifications */}
-        <div className="relative">
-          <button
-            onClick={() => { setNotifOpen((v) => !v); setUserMenuOpen(false); }}
-            aria-label={totalAlerts > 0 ? `${alertsTitle}, ${totalAlerts} need attention` : alertsTitle}
-            aria-expanded={notifOpen}
-            className={iconBtn}
-            title={alertsTitle}
-          >
-            <Bell className="w-[17px] h-[17px]" aria-hidden="true" />
-            {totalAlerts > 0 && <span className={`absolute top-1 right-1 w-2 h-2 bg-brand-red rounded-full ring-2 ${t.ring}`} aria-hidden="true" />}
-          </button>
-
-          {notifOpen && (
-            <div className={`absolute right-0 top-11 w-[min(20rem,calc(100vw-2rem))] rounded-2xl shadow-2xl p-4 z-50 ${t.panel}`}>
-              <div className={`flex items-center justify-between pb-3 ${t.panelHead}`}>
-                <span className={`text-xs font-bold ${t.panelTitle}`}>{alertsTitle}</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.panelCount}`}>
-                  {totalAlerts} Action{totalAlerts === 1 ? '' : 's'}
-                </span>
-              </div>
-              <div className="py-2 space-y-2 max-h-64 overflow-y-auto">
+        {/* Notifications: the inbox (every order and shipment change) and what needs attention right now */}
+        <NotificationBell
+          variant={theme === 'dark' ? 'dark' : 'light'}
+          extra={totalAlerts > 0 ? (
+            <div className="border-t border-stone-100 px-3 py-2.5 bg-stone-50/60">
+              <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">{alertsTitle}</p>
+              <div className="space-y-1">
                 {alerts.map(({ icon: Icon, tone, title, detail, to }) => (
-                  <Link key={to + title} to={to} onClick={() => setNotifOpen(false)} className={`flex items-start gap-2.5 p-2.5 rounded-xl transition-colors ${t.alertRow}`}>
+                  <Link key={to + title} to={to} className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-white transition-colors">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${tone}`}>
                       <Icon className="w-3.5 h-3.5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
-                      <p className={`text-xs font-bold leading-tight ${t.alertTitle}`}>{title}</p>
-                      <p className={`text-[10px] ${t.alertDetail}`}>{detail}</p>
+                      <p className="text-xs font-bold leading-tight text-stone-900">{title}</p>
+                      <p className="text-[11px] text-stone-500">{detail}</p>
                     </div>
                   </Link>
                 ))}
-                {totalAlerts === 0 && <p className={`text-center py-6 text-xs ${t.empty}`}>Nothing needs your attention</p>}
               </div>
             </div>
-          )}
-        </div>
+          ) : null}
+        />
 
         {theme === 'dark' && messagesLink}
 
         {/* User menu */}
         <div className="relative">
           <button
-            onClick={() => { setUserMenuOpen((v) => !v); setNotifOpen(false); }}
+            onClick={() => setUserMenuOpen((v) => !v)}
             aria-expanded={userMenuOpen}
             aria-label="Account menu"
             className={`flex items-center gap-2.5 ml-1 pl-3 border-l hover:opacity-90 transition-opacity ${t.divider}`}

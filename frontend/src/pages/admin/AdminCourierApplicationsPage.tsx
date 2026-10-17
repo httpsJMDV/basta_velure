@@ -53,7 +53,8 @@ function CompanyDrawer({ company, onClose, onDecided }: { company: LogisticsComp
     }
   }
 
-  const address = [company.address_street, company.address_barangay, company.address_city, company.address_province].filter(Boolean).join(', ');
+  const address = [company.address_street, company.address_barangay, company.address_city, company.address_province, company.address_region, company.address_postal_code].filter(Boolean).join(', ');
+  const contact = [company.contact_first_name, company.contact_last_name].filter(Boolean).join(' ');
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex justify-end bg-black/40" onClick={onClose} role="dialog" aria-modal="true" aria-label={company.name}>
@@ -83,9 +84,14 @@ function CompanyDrawer({ company, onClose, onDecided }: { company: LogisticsComp
             <h3 className="mb-2 text-[13px] font-semibold text-gray-900">Company</h3>
             <dl className="text-[13px] divide-y divide-gray-100 border border-gray-200 rounded-xl">
               {[
+                ['SEC registration no.', company.sec_registration_no ?? null],
+                ['TIN', company.tin ?? null],
+                ['Contact person', contact ? `${contact}${company.contact_position ? `, ${company.contact_position}` : ''}` : null],
                 ['Contact email', company.contact_email],
                 ['Contact number', company.contact_phone],
                 ['Head office', address || null],
+                ['Postal code', company.address_postal_code ?? null],
+                ['Service areas', company.service_region_names?.length ? company.service_region_names.join('; ') : null],
                 ['Hubs', company.hubs_count !== undefined ? `${company.approved_hubs_count ?? 0} active of ${company.hubs_count}` : null],
                 ['Applied', company.submitted_at ? new Date(company.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : null],
               ].filter(([, v]) => v).map(([k, v]) => (
@@ -108,16 +114,21 @@ function CompanyDrawer({ company, onClose, onDecided }: { company: LogisticsComp
           )}
 
           <section>
-            <h3 className="mb-2 text-[13px] font-semibold text-gray-900">Business permit</h3>
-            <button
-              type="button"
-              disabled={!company.business_permit_url}
-              onClick={() => company.business_permit_url && openAuthorizedFile(company.business_permit_url).catch(() => setError('The permit could not be opened.'))}
-              className="flex items-center w-full gap-2 px-3 py-2.5 text-left border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 hover:border-brand-red hover:text-brand-red disabled:opacity-40 transition-colors"
-            >
-              <FileText className="w-4 h-4" aria-hidden="true" /> DTI / SEC / Mayor's permit
-              <span className="ml-auto text-[11px] text-gray-400">{company.business_permit_url ? 'Open' : 'None'}</span>
-            </button>
+            <h3 className="mb-2 text-[13px] font-semibold text-gray-900">Documents</h3>
+            <div className="space-y-2">
+              {(company.documents?.length ? company.documents : company.business_permit_url ? [{ key: 'permit', label: "Mayor's / business permit", url: company.business_permit_url }] : []).map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  onClick={() => openAuthorizedFile(d.url).catch(() => setError(`${d.label} could not be opened.`))}
+                  className="flex items-center w-full gap-2 px-3 py-2.5 text-left border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 hover:border-brand-red hover:text-brand-red transition-colors"
+                >
+                  <FileText className="w-4 h-4" aria-hidden="true" /> {d.label}
+                  <span className="ml-auto text-[11px] text-gray-400">Open</span>
+                </button>
+              ))}
+              {!company.documents?.length && !company.business_permit_url && <p className="text-[12.5px] text-gray-400">No documents uploaded.</p>}
+            </div>
           </section>
 
           {reasonFor && (

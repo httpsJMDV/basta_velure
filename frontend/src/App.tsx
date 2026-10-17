@@ -16,7 +16,8 @@ import LogisticsReportsPage from './pages/logistics/LogisticsReportsPage';
 import LogisticsMoneyPage from './pages/logistics/LogisticsMoneyPage';
 import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
-import RiderRegisterPage from './pages/auth/RiderRegisterPage';
+import VerifyEmailPage from './pages/auth/VerifyEmailPage';
+import RiderActivatePage from './pages/auth/RiderActivatePage';
 import RiderLoginPage from './pages/auth/RiderLoginPage';
 import RiderLayout from './pages/rider/RiderLayout';
 import RiderDashboardPage from './pages/rider/RiderDashboardPage';
@@ -96,8 +97,12 @@ import type { Role } from './types';
 import ScrollToTop from './components/ScrollToTop';
 import { ToastProvider } from './components/ui/Toast';
 
+/**
+ * A Google sign-up starts without a mobile number or birthday and finishes them on /complete-profile. Accounts made
+ * with the registration form already have both; identity documents are optional and added from the account.
+ */
 function isProfileIncomplete(user: ReturnType<typeof useAuth>['user']) {
-  return user?.role === 'buyer' && (!user.date_of_birth || !user.sex || !user.government_id_type);
+  return user?.role === 'buyer' && (!user.date_of_birth || !user.phone);
 }
 
 function RequireApprovedSeller({ children }: { children: ReactNode }) {
@@ -168,9 +173,9 @@ function RequireActiveRider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/rider/login" replace />;
-  // Anything but an active courier goes to the courier application page, which shows the pending or disapproved
-  // status (with the hub's reason and a resubmit button) or the form.
-  if (!user.rider || user.rider.status !== 'ACTIVE') return <Navigate to="/register/rider" replace />;
+  // Riders are added by their courier company (A13). Active riders work; a suspended rider still opens the pages to
+  // see why (every action is refused by the API). Anyone else goes back to the rider sign-in page.
+  if (!user.rider || !['ACTIVE', 'SUSPENDED'].includes(user.rider.status)) return <Navigate to="/rider/login" replace />;
   return <>{children}</>;
 }
 
@@ -253,9 +258,11 @@ function AppRoutes() {
       <Route path="/register/courier" element={<CourierRegisterPage />} />
       <Route path="/register/hub/pending" element={<Navigate to="/register/hub" replace />} />
       <Route path="/register/sorting-center" element={<Navigate to="/register/hub" replace />} />
-      <Route path="/register/rider" element={<RiderRegisterPage />} />
-      <Route path="/register/rider/pending" element={<Navigate to="/register/rider" replace />} />
-      <Route path="/register/courier" element={<Navigate to="/register/rider" replace />} />
+      {/* Riders cannot register themselves: their courier company adds them and they activate from an email (A13) */}
+      <Route path="/register/rider" element={<Navigate to="/rider/login" replace />} />
+      <Route path="/register/rider/pending" element={<Navigate to="/rider/login" replace />} />
+      <Route path="/rider/activate" element={<RiderActivatePage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/rider/login" element={<RiderLoginPage />} />
       <Route path="/hub/login" element={<HubLoginPage />} />
       <Route path="/partner" element={<PartnerPage />} />

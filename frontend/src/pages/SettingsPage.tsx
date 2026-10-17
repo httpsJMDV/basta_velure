@@ -17,6 +17,8 @@ import { useCart } from '../hooks/useCart';
 import { useToast } from '../components/ui/Toast';
 import CustomSelect from '../components/ui/CustomSelect';
 import PhoneInput from '../components/ui/PhoneInput';
+import AccountSecurity from '../components/account/AccountSecurity';
+import { fileError, nameError as validateName } from '../utils/accountRules';
 import UserAvatar from '../components/ui/UserAvatar';
 import AvatarCropModal from '../components/ui/AvatarCropModal';
 import SiteHeader from '../components/SiteHeader';
@@ -304,11 +306,17 @@ function AccountPanel() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [savedMessage, setSavedMessage] = useState('');
 
   function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+    // A16: JPG or PNG up to 5 MB; a rejected file keeps the current photo.
+    const problem = fileError(file, 'the profile photo');
+    if (problem) { setAvatarMessage({ ok: false, text: problem }); return; }
+    setAvatarMessage(null);
     setCropFile(file);
   }
 
@@ -318,6 +326,10 @@ function AccountPanel() {
     try {
       const updated = await uploadAvatarApi(blob);
       setUser(updated);
+      setAvatarMessage({ ok: true, text: 'Your profile photo has been updated.' });
+    } catch (err: unknown) {
+      const data = (err as { response?: { data?: { message?: string; errors?: { avatar?: string[] } } } })?.response?.data;
+      setAvatarMessage({ ok: false, text: data?.errors?.avatar?.[0] ?? data?.message ?? 'The photo could not be uploaded.' });
     } finally {
       setUploadingAvatar(false);
     }
@@ -330,12 +342,6 @@ function AccountPanel() {
   const [lastName, setLastName] = useState(user?.last_name ?? '');
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState('');
-
-  // Phone edit state
-  const [editingPhone, setEditingPhone] = useState(false);
-  const [phone, setPhone] = useState(user?.phone ?? '');
-  const [phoneError, setPhoneError] = useState('');
-  const [savingPhone, setSavingPhone] = useState(false);
 
   // Today, fixed for this visit (for the age shown under the birthday).
   const [today] = useState(() => new Date());
@@ -356,31 +362,20 @@ function AccountPanel() {
     SEX_OPTIONS.find((s) => s.value === user?.sex)?.label ?? '—';
 
   async function saveName() {
-    if (!firstName.trim() || !lastName.trim()) { setNameError('First and last name are required.'); return; }
+    const problem = validateName(firstName, 'First name') ?? validateName(middleName, 'Middle name', false) ?? validateName(lastName, 'Last name');
+    if (problem) { setNameError(problem); return; }
     setNameError('');
     setSavingName(true);
     try {
       const updated = await updateProfileApi({ first_name: firstName.trim(), middle_name: middleName.trim() || undefined, last_name: lastName.trim() });
       setUser(updated);
       setEditingName(false);
+      setSavedMessage('Your profile has been updated.');
+    } catch (err: unknown) {
+      const errors = (err as { response?: { data?: { errors?: Record<string, string[]> } } })?.response?.data?.errors;
+      setNameError(errors?.first_name?.[0] ?? errors?.middle_name?.[0] ?? errors?.last_name?.[0] ?? 'Your name could not be saved.');
     } finally {
       setSavingName(false);
-    }
-  }
-
-  async function savePhone() {
-    setPhoneError('');
-    setSavingPhone(true);
-    try {
-      const updated = await updateProfileApi({ phone });
-      setUser(updated);
-      setEditingPhone(false);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { errors?: { phone?: string[] } } } })
-        ?.response?.data?.errors?.phone?.[0] ?? 'Failed to update phone.';
-      setPhoneError(msg);
-    } finally {
-      setSavingPhone(false);
     }
   }
 
@@ -425,7 +420,7 @@ function AccountPanel() {
           <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleAvatarFileChange} />
           <div className="min-w-0 flex-1">
             <p className="text-[15px] font-semibold text-stone-900">Profile photo</p>
-            <p className="text-[12px] text-stone-500 mt-0.5">JPG or PNG. You can crop it before saving.</p>
+            <p className="text-[12px] text-stone-500 mt-0.5">JPG or PNG up to 5 MB. You can crop it before saving.</p>
           </div>
           <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}
             className="h-9 px-4 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-800 hover:border-stone-900 disabled:opacity-50 transition-colors shrink-0">
@@ -433,6 +428,10 @@ function AccountPanel() {
           </button>
         </div>
 
+        {avatarMessage && (
+          <p role={avatarMessage.ok ? 'status' : 'alert'} className={`rounded-xl border px-3.5 py-2.5 text-[13px] ${avatarMessage.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>{avatarMessage.text}</p>
+        )}
+        {savedMessage && <p role="status" className="rounded-xl border bg-emerald-50 border-emerald-200 px-3.5 py-2.5 text-[13px] text-emerald-800">{savedMessage}</p>}
         {cropFile && <AvatarCropModal file={cropFile} onConfirm={handleCropConfirm} onCancel={() => setCropFile(null)} />}
 
         <div className="grid sm:grid-cols-2 gap-3">
@@ -453,24 +452,6 @@ function AccountPanel() {
             {nameError && <p className="text-xs text-red-600">{nameError}</p>}
           </InfoRow>
 
-          <InfoRow
-            label="Phone number"
-            display={user?.phone ?? ''}
-            editing={editingPhone}
-            onEdit={() => { setPhone(user?.phone ?? ''); setEditingPhone(true); }}
-            onCancel={() => { setEditingPhone(false); setPhoneError(''); }}
-            onSave={savePhone}
-            saving={savingPhone}
-          >
-            <PhoneInput value={phone} onChange={setPhone} error={phoneError} />
-          </InfoRow>
-
-          <div className="rounded-2xl border border-stone-200 bg-white p-4">
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-stone-400">Email</p>
-            <p className="mt-1.5 text-[15px] font-medium text-stone-900 break-all">{user?.email}</p>
-            <p className="mt-1 text-[12px] text-stone-500">Used to sign in and for order updates.</p>
-          </div>
-
           <div className="rounded-2xl border border-stone-200 bg-white p-4">
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-stone-400">Birthday</p>
             <p className="mt-1.5 text-[15px] font-medium text-stone-900">{displayDob() || <span className="text-stone-400 font-normal">Not set</span>}</p>
@@ -490,6 +471,12 @@ function AccountPanel() {
               <CustomSelect value={sex} onChange={setSex} options={SEX_OPTIONS} placeholder="Select sex" />
             </div>
           </InfoRow>
+        </div>
+
+        <div className="pt-2">
+          <h3 className="text-[13px] font-semibold text-stone-900">Sign-in and security</h3>
+          <p className="text-[12px] text-stone-500 mb-3">Changing your email or mobile number needs a code we send to your email.</p>
+          <AccountSecurity />
         </div>
       </div>
     </section>

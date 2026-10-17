@@ -26,9 +26,9 @@ interface PartnerOption {
 
 const peso = (n: number) => '₱' + n.toLocaleString('en-PH', { maximumFractionDigits: 2 });
 
-// The documents listed are the ones each registration form requires (see SellerRegisterRequest, RegisterRiderRequest
-// and RegisterSortingCenterRequest); keep this list in step with them. The pay figures follow config/shipping.php
-// (20% pickup leg, 65% delivery leg and 15% hub, of the flat delivery fee).
+// The documents listed are the ones each registration form requires (see SellerRegisterRequest, AddRiderRequest,
+// ApplyCourierCompanyRequest and RegisterSortingCenterRequest); keep this list in step with them. Rider pay follows
+// config/shipping.php (A33: ₱30 per completed pickup, ₱50 per successful delivery).
 const OPTIONS: PartnerOption[] = [
   {
     id: 'sell',
@@ -38,14 +38,14 @@ const OPTIONS: PartnerOption[] = [
     pitch: 'Open a shop, list your products and reach shoppers across the Philippines. Buyers pay you directly by GCash, and the courier hands over cash-on-delivery money every week.',
     earn: { value: 'Your price', label: 'minus a commission set per category, shown before you list' },
     requirements: [
-      'A Loved-IT buyer account to apply from',
-      'Valid government ID (front, and back where it has one) and a selfie holding it',
-      'Business permit and DTI or SEC registration',
-      'FDA or LTO document if you sell regulated products',
-      'Shop name, description and your pickup address',
+      'Shop name (3 to 30 characters), category and TIN',
+      'Individual: a government-issued ID',
+      'Sole proprietorship: ID, DTI certificate and BIR Form 2303',
+      'Corporation: representative’s ID, SEC certificate and BIR Form 2303',
+      'Pickup address with postal code',
     ],
-    steps: ['Apply from your buyer account', 'Loved-IT checks your documents', 'List products and start selling'],
-    note: 'Not a member yet? Create a buyer account first, then apply to sell from it.',
+    steps: ['Apply and confirm your email with a code', 'Loved-IT checks your documents', 'List products and start selling'],
+    note: 'No account yet? The application creates one; already shopping on Loved-IT? Sign in first and apply from your account.',
     registerTo: '/register/seller',
     registerLabel: 'Apply to sell',
     signInTo: '/login',
@@ -54,19 +54,20 @@ const OPTIONS: PartnerOption[] = [
   {
     id: 'rider',
     icon: Bike,
-    title: 'Become a delivery rider',
+    title: 'Ride for a courier company',
     short: 'Pick up and deliver parcels near you',
-    pitch: 'Pick up parcels from shops in your area, bring them to your hub, and deliver them to buyers. Your hub gives you the barangays you cover.',
-    earn: { value: `${peso(DELIVERY_FEE * 0.2)} + ${peso(DELIVERY_FEE * 0.65)}`, label: 'per parcel for the pickup leg and the delivery leg' },
+    pitch: 'Riders work for a partner courier company. The company adds you, you set your password from the email it sends, then you go Online to receive pickup and delivery jobs near you.',
+    earn: { value: `${peso(30)} + ${peso(50)}`, label: 'for each completed pickup and each successful delivery' },
     requirements: [
-      'A Loved-IT buyer account, and you are 18 or older',
-      'Driver’s license (photo or PDF)',
+      'You are 18 or older',
+      'Driver’s license number, expiry date and a copy of the license',
       'Vehicle OR/CR, plus your vehicle type and plate number',
-      'The logistics hub you want to ride for',
+      'A courier company that adds you as its rider',
     ],
-    steps: ['Pick a hub and apply', 'The hub checks your documents', 'Get your areas and start delivering'],
-    registerTo: '/register/rider',
-    registerLabel: 'Apply as a rider',
+    steps: ['Your courier company adds you', 'Set your password from the activation email', 'Go Online and accept jobs'],
+    note: 'Riders cannot sign up on their own. Ask the courier company you work for to add you.',
+    registerTo: '/rider/login',
+    registerLabel: 'I have an activation email',
     signInTo: '/rider/login',
     signInLabel: 'Rider sign in',
   },
@@ -97,12 +98,12 @@ const OPTIONS: PartnerOption[] = [
     pitch: 'Bring your courier brand to Loved-IT, like J&T or Flash: approve the hubs that join you and follow every parcel in your network. Orders in your hubs’ areas are assigned to you automatically.',
     earn: { value: 'Your network', label: 'gets every parcel its hubs cover, with no bidding' },
     requirements: [
-      'DTI, SEC or Mayor’s permit for the company',
-      'Company name and a short code (for example JNT)',
-      'Operations email, contact number and head office address',
-      'A Loved-IT buyer account to apply from',
+      'SEC registration number, TIN and the regions you serve',
+      'SEC certificate, BIR Form 2303 and Mayor’s / business permit',
+      'A valid ID of the authorized representative',
+      'Contact person, position, and head office address with postal code',
     ],
-    steps: ['Apply with your company documents', 'Loved-IT checks the company', 'Approve the hubs that join you'],
+    steps: ['Apply and confirm your email with a code', 'Loved-IT checks the company', 'Add riders, set rates and approve hubs'],
     registerTo: '/register/courier',
     registerLabel: 'Apply as a courier',
     signInTo: '/login?next=%2Flogistics',

@@ -128,7 +128,7 @@ export interface ActivityLogEntry {
 }
 
 export type Role = 'admin' | 'buyer' | 'seller' | 'rider';
-export type UserStatus = 'active' | 'suspended';
+export type UserStatus = 'active' | 'suspended' | 'unverified' | 'pending_activation';
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
 export type SellerStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
@@ -144,6 +144,9 @@ export interface SellerProfileSummary {
   rejection_reason: string | null;
   submitted_at: string;
   address_needs_update?: boolean;
+  seller_type?: 'individual' | 'sole_proprietorship' | 'corporation' | null;
+  tin?: string | null;
+  on_vacation?: boolean;
 }
 
 export type Gender = 'male' | 'female' | 'prefer_not_to_say';
@@ -176,6 +179,9 @@ export interface User {
   avatar_url: string | null;
   has_password: boolean;
   created_at: string | null;
+  email_verified_at?: string | null;
+  /** The mobile number as 09XXXXXXXXX. */
+  phone_local?: string | null;
   seller_profile?: SellerProfileSummary;
   sorting_center?: SortingCenterSummary;
   rider?: RiderSummary;
@@ -225,6 +231,16 @@ export interface LogisticsCompanyDetail extends CourierSummary {
   submitted_at: string | null;
   reviewed_at: string | null;
   business_permit_url: string | null;
+  address_region?: string | null;
+  address_postal_code?: string | null;
+  sec_registration_no?: string | null;
+  tin?: string | null;
+  contact_first_name?: string | null;
+  contact_last_name?: string | null;
+  contact_position?: string | null;
+  service_regions?: string[];
+  service_region_names?: string[];
+  documents?: { key: string; label: string; url: string }[];
   owner?: { id: number; name: string; email: string; phone: string | null; avatar_url: string | null } | null;
   hubs_count?: number;
   approved_hubs_count?: number;
@@ -232,7 +248,7 @@ export interface LogisticsCompanyDetail extends CourierSummary {
 
 export interface LogisticsDashboard {
   hubs: { approved: number; pending: number; suspended: number; rejected: number };
-  riders: { active: number; pending: number };
+  riders: { active: number; pending: number; online?: number };
   parcels_now: { awaiting_pickup: number; at_hubs: number; out_for_delivery: number; failed: number };
   last_30_days: { delivered: number; returned: number };
 }
@@ -255,15 +271,57 @@ export interface LogisticsHubRow {
 export interface LogisticsRiderRow {
   id: number;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
   avatar_url: string | null;
+  date_of_birth: string | null;
   status: RiderStatus;
+  /** Online now: switched Online, Active, and its app heard from recently. */
+  online: boolean;
+  last_seen_at: string | null;
+  active_jobs: number;
+  delivered_today: number;
   vehicle_type: string;
   plate_number: string;
-  hub_id: number;
+  license_number: string | null;
+  license_expiry: string | null;
+  hub_id: number | null;
   hub_name: string | null;
+  needs_reverification: boolean;
+  vehicle_updated_at: string | null;
+  rejection_reason: string | null;
+  suspension_reason: string | null;
+  suspended_at: string | null;
+  activation_sent_at: string | null;
+  activation_expires_at: string | null;
+  activated_at: string | null;
   account_status: string | null;
+  created_at: string | null;
+  documents?: { key: string; label: string; url: string }[];
+  audit?: AuditEntry[];
+}
+
+export interface LogisticsRidersSummary {
+  total: number;
+  online: number;
+  active: number;
+  pending_activation: number;
+  pending_verification: number;
+  suspended: number;
+  max_active_jobs: number;
+}
+
+/** One line of the operations audit log (A35): written once, never edited. */
+export interface AuditEntry {
+  id: number;
+  action: string;
+  reason: string | null;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  actor: string;
+  created_at: string | null;
 }
 
 export interface LogisticsParcelRow {
@@ -287,7 +345,7 @@ export interface LogisticsReport {
   hubs: Array<{ hub_id: number; hub_name: string; received: number; delivered: number; failed_attempts: number; returned: number; on_time_deliveries: number; on_time_rate: number | null; success_rate: number | null; avg_delivery_hours: number | null }>;
 }
 
-export type RiderStatus = 'PENDING' | 'ACTIVE' | 'DISAPPROVED';
+export type RiderStatus = 'PENDING' | 'ACTIVE' | 'DISAPPROVED' | 'PENDING_ACTIVATION' | 'SUSPENDED';
 export type RiderVehicleType = 'Motorcycle' | 'Tricycle' | 'Car' | 'Van';
 
 export interface RiderSummary {
@@ -301,6 +359,12 @@ export interface RiderSummary {
   rejection_reason?: string | null;
   submitted_at?: string | null;
   created_at?: string | null;
+  license_number?: string | null;
+  license_expiry?: string | null;
+  company_name?: string | null;
+  is_online?: boolean;
+  needs_reverification?: boolean;
+  suspension_reason?: string | null;
 }
 
 export interface PublicApprovedHub {
@@ -431,6 +495,16 @@ export interface RiderProfileData {
   vehicle_type: RiderVehicleType;
   plate_number: string;
   vehicle_updated_at: string | null;
+  license_number: string | null;
+  license_expiry: string | null;
+  company: { id: number; name: string; code: string; logo_url: string | null } | null;
+  is_online: boolean;
+  needs_reverification: boolean;
+  suspension_reason: string | null;
+  rejection_reason: string | null;
+  active_jobs: number;
+  max_active_jobs: number;
+  documents: { key: string; label: string; url: string }[];
   hub: {
     id: number;
     hub_name: string;
@@ -842,6 +916,12 @@ export interface SellerApplication {
   application_status: ApplicationStatus;
   shop_name: string;
   shop_description: string | null;
+  shop_category?: string | null;
+  seller_type?: 'individual' | 'sole_proprietorship' | 'corporation' | null;
+  tin?: string | null;
+  shop_contact_number?: string | null;
+  address?: { region: string | null; province: string | null; city: string | null; barangay: string | null; street: string | null; postal_code: string | null; full: string };
+  bir_2303_url?: string | null;
   date_of_birth: string;
   government_id_type: GovernmentIdType;
   government_id_image_url: string;

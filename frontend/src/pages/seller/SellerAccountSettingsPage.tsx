@@ -6,7 +6,8 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import http, { updateProfileApi, uploadAvatarApi } from '../../api/client';
 import CustomSelect from '../../components/ui/CustomSelect';
-import PhoneInput from '../../components/ui/PhoneInput';
+import AccountSecurity from '../../components/account/AccountSecurity';
+import { nameError as validateName } from '../../utils/accountRules';
 import UserAvatar from '../../components/ui/UserAvatar';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 
@@ -108,40 +109,24 @@ function ProfileTab() {
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState('');
 
-  // Phone
-  const [editingPhone, setEditingPhone] = useState(false);
-  const [phone, setPhone] = useState(user?.phone ?? '');
-  const [phoneError, setPhoneError] = useState('');
-  const [savingPhone, setSavingPhone] = useState(false);
-
   // Sex
   const [editingSex, setEditingSex] = useState(false);
   const [sex, setSex] = useState(user?.sex ?? '');
   const [savingSex, setSavingSex] = useState(false);
 
   async function saveName() {
-    if (!firstName.trim() || !lastName.trim()) { setNameError('First and last name are required.'); return; }
+    const problem = validateName(firstName, 'First name') ?? validateName(middleName, 'Middle name', false) ?? validateName(lastName, 'Last name');
+    if (problem) { setNameError(problem); return; }
     setNameError('');
     setSavingName(true);
     try {
       const updated = await updateProfileApi({ first_name: firstName.trim(), middle_name: middleName.trim() || undefined, last_name: lastName.trim() });
       setUser(updated);
       setEditingName(false);
-    } finally { setSavingName(false); }
-  }
-
-  async function savePhone() {
-    setPhoneError('');
-    setSavingPhone(true);
-    try {
-      const updated = await updateProfileApi({ phone });
-      setUser(updated);
-      setEditingPhone(false);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { errors?: { phone?: string[] } } } })
-        ?.response?.data?.errors?.phone?.[0] ?? 'Failed to update phone.';
-      setPhoneError(msg);
-    } finally { setSavingPhone(false); }
+      const errors = (err as { response?: { data?: { errors?: Record<string, string[]> } } })?.response?.data?.errors;
+      setNameError(errors?.first_name?.[0] ?? errors?.middle_name?.[0] ?? errors?.last_name?.[0] ?? 'Your name could not be saved.');
+    } finally { setSavingName(false); }
   }
 
   async function saveSex() {
@@ -253,45 +238,9 @@ function ProfileTab() {
             )}
           </div>
 
-          {/* Email — read-only */}
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mb-0.5">Email Address</p>
-              <p className="text-[13px] font-semibold text-gray-800">{user?.email}</p>
-            </div>
-            <span className="shrink-0 text-[11px] font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">Locked</span>
-          </div>
-
-          {/* Phone */}
+          {/* Email and mobile: each change is confirmed with a code sent by email */}
           <div className="px-6 py-4">
-            {editingPhone ? (
-              <div className="space-y-3">
-                <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide">Phone Number</p>
-                <PhoneInput value={phone} onChange={setPhone} error={phoneError} />
-                <div className="flex gap-2">
-                  <button onClick={savePhone} disabled={savingPhone}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-brand-red text-white text-[12px] font-bold rounded-xl hover:bg-brand-red-dark transition-colors disabled:opacity-50 min-h-[36px]">
-                    {savingPhone ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                    {savingPhone ? 'Saving…' : 'Save'}
-                  </button>
-                  <button onClick={() => { setEditingPhone(false); setPhoneError(''); }}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-600 text-[12px] font-bold rounded-xl hover:bg-gray-200 transition-colors min-h-[36px]">
-                    <X className="w-3.5 h-3.5" /> Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mb-0.5">Phone Number</p>
-                  <p className="text-[13px] font-semibold text-gray-800">{user?.phone || '—'}</p>
-                </div>
-                <button onClick={() => { setPhone(user?.phone ?? ''); setEditingPhone(true); }}
-                  className="shrink-0 p-2 rounded-xl text-gray-400 hover:text-brand-red hover:bg-red-50 transition-colors">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+            <AccountSecurity show={['email', 'phone']} />
           </div>
 
           {/* Birthday — read-only */}

@@ -13,6 +13,7 @@ export function roleHomePath(user: User): string {
   if (user.role === 'seller' || user.seller_profile?.application_status === 'approved') return '/seller';
   if (user.logistics_company?.status === 'APPROVED') return '/logistics';
   if (user.sorting_center?.status === 'APPROVED') return '/hub/dashboard';
-  if (user.rider?.status === 'ACTIVE') return '/rider/dashboard';
+  // A suspended rider still signs in and sees why on the dashboard (RID-PROF-006).
+  if (user.rider?.status === 'ACTIVE' || user.rider?.status === 'SUSPENDED') return '/rider/dashboard';
   return '/';
 }

@@ -60,6 +60,12 @@ function calcAge(dob: string | null): string {
   return String(Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25)));
 }
 
+const SELLER_TYPE_LABEL: Record<string, string> = {
+  individual: 'Individual',
+  sole_proprietorship: 'Sole Proprietorship',
+  corporation: 'Corporation',
+};
+
 function formatIdType(raw: string | null): string {
   if (!raw) return '—';
   return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -207,6 +213,7 @@ function ReviewModal({
   const [selfieBlobUrl,    setSelfieBlobUrl]    = useState<string | null | undefined>(undefined);
   const [permitBlobUrl,    setPermitBlobUrl]    = useState<string | null | undefined>(undefined);
   const [dtiSecBlobUrl,    setDtiSecBlobUrl]    = useState<string | null | undefined>(undefined);
+  const [birBlobUrl,       setBirBlobUrl]       = useState<string | null | undefined>(undefined);
 
   const isPending = app.application_status === 'pending';
 
@@ -256,6 +263,18 @@ function ReviewModal({
       .catch(() => setPermitBlobUrl(null));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [app.id, app.business_permit_url]);
+
+  // Fetch BIR Form 2303
+  useEffect(() => {
+    if (!app.bir_2303_url) { setBirBlobUrl(null); return; }
+    const token = localStorage.getItem('token');
+    let objectUrl: string;
+    fetch(app.bir_2303_url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then((blob) => { objectUrl = URL.createObjectURL(blob); setBirBlobUrl(objectUrl); })
+      .catch(() => setBirBlobUrl(null));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [app.id, app.bir_2303_url]);
 
   // Fetch DTI/SEC registration
   useEffect(() => {
@@ -342,7 +361,24 @@ function ReviewModal({
                   <SectionHeading>Shop Information</SectionHeading>
                   <div className="grid grid-cols-1 gap-4">
                     <InfoRow label="Shop Name"   value={app.shop_name} />
+                    <InfoRow label="Shop Category" value={app.shop_category ?? null} />
+                    <InfoRow label="Seller Type" value={app.seller_type ? SELLER_TYPE_LABEL[app.seller_type] : null} />
+                    <InfoRow label="TIN" value={app.tin ?? null} />
                     <InfoRow label="Description" value={app.shop_description} />
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                <div>
+                  <SectionHeading>Business / Pickup Address</SectionHeading>
+                  <div className="grid grid-cols-2 gap-4">
+                    <InfoRow label="Region" value={app.address?.region ?? null} />
+                    <InfoRow label="Province" value={app.address?.province ?? null} />
+                    <InfoRow label="City / Municipality" value={app.address?.city ?? null} />
+                    <InfoRow label="Barangay" value={app.address?.barangay ?? null} />
+                    <InfoRow label="Street" value={app.address?.street ?? null} />
+                    <InfoRow label="Postal Code" value={app.address?.postal_code ?? null} />
                   </div>
                 </div>
 
@@ -401,10 +437,17 @@ function ReviewModal({
                       onView={(url) => setLightboxUrl(url)}
                     />
                     <DocImageRow
-                      label="DTI / SEC Business Registration"
+                      label={app.seller_type === 'corporation' ? 'SEC Certificate' : 'DTI Certificate'}
                       blobUrl={dtiSecBlobUrl}
                       onView={(url) => setLightboxUrl(url)}
                     />
+                    {!!app.bir_2303_url && (
+                      <DocImageRow
+                        label="BIR Form 2303"
+                        blobUrl={birBlobUrl}
+                        onView={(url) => setLightboxUrl(url)}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

@@ -12,6 +12,7 @@ import LovedItLogo from './LovedItLogo';
 import { useToast } from './ui/Toast';
 import CategoriesMenu, { NAV_PILL } from './storefront/CategoriesMenu';
 import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
+import NotificationBell from './notifications/NotificationBell';
 
 const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
 
@@ -29,8 +30,7 @@ function businessRows(user: NonNullable<ReturnType<typeof useAuth>['user']>): Bu
   else if (user.sorting_center?.status === 'PENDING') rows.push({ key: 'hub', icon: Warehouse, label: 'Hub application', to: '/register/hub', chip: { text: 'In review', tone: amber } });
   if (user.logistics_company?.status === 'APPROVED') rows.push({ key: 'courier', icon: Truck, label: 'Courier portal', to: '/logistics' });
   else if (user.logistics_company?.status === 'PENDING') rows.push({ key: 'courier', icon: Truck, label: 'Courier application', to: '/register/courier', chip: { text: 'In review', tone: amber } });
-  if (user.rider?.status === 'ACTIVE') rows.push({ key: 'rider', icon: Bike, label: 'Rider app', to: '/rider/dashboard' });
-  else if (user.rider?.status === 'PENDING') rows.push({ key: 'rider', icon: Bike, label: 'Rider application', to: '/register/rider', chip: { text: 'In review', tone: amber } });
+  if (user.rider?.status === 'ACTIVE' || user.rider?.status === 'SUSPENDED') rows.push({ key: 'rider', icon: Bike, label: 'Rider app', to: '/rider/dashboard' });
   return rows;
 }
 
@@ -225,7 +225,6 @@ export default function SiteHeader() {
               <Link to="/partner" className="font-semibold text-neutral-200 hover:text-white hover:underline transition-colors">
                 Partner with us
               </Link>
-              <Link to="/register/rider" className="hover:text-white hover:underline transition-colors">Become a rider</Link>
               <Link to="/register/hub" className="hover:text-white hover:underline transition-colors">Logistics partner</Link>
             </nav>
           </div>
@@ -291,6 +290,7 @@ export default function SiteHeader() {
 
           {/* Right utility items */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {user && <NotificationBell variant="storefront" />}
             {user ? (
               <div className="hidden sm:block">
                 <UserDropdown user={user} />
@@ -405,7 +405,6 @@ export default function SiteHeader() {
             <div className="flex flex-col gap-1 pt-3 border-t border-white/10">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Partner with us</p>
               <Link to="/partner" className="py-1 text-sm font-semibold text-white" onClick={() => setMenuOpen(false)}>Partner with us</Link>
-              <Link to="/register/rider" className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>Become a rider</Link>
               <Link to="/register/hub" className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>Logistics partner</Link>
             </div>
             <div className="flex flex-col gap-2 pt-3 border-t border-white/10">
