@@ -58,7 +58,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
 // Rate limiters
-RateLimiter::for('auth', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by($request->ip()));
+RateLimiter::for('auth', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by($request->ip()));
+// Sign-up forms and their email codes: generous enough for a family behind one router, still capped per address.
+RateLimiter::for('register', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(30)->by($request->ip()));
 RateLimiter::for('upload', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by($request->ip()));
 
 // Broadcast auth for Sanctum (/api/broadcasting/auth)
@@ -88,8 +90,18 @@ Route::prefix('v1')->group(function () {
     Route::get('/logistics/couriers',          [PublicSortingCenterController::class, 'couriers']);
 
     // Public auth routes
-    Route::middleware('throttle:auth')->group(function () {
+    Route::middleware('throttle:register')->group(function () {
         Route::post('/auth/register', [AuthController::class, 'registerBuyer']);
+        // A visitor applies as a seller or a courier company in one form (account + application), then verifies the email
+        Route::post('/auth/register-seller', [AuthController::class, 'applyAsSeller']);
+        Route::post('/auth/register-courier', [\App\Http\Controllers\Api\V1\CourierCompanyApplicationController::class, 'store']);
+        Route::post('/auth/verify-email', [AuthController::class, 'verifyEmail']);
+        Route::post('/auth/resend-verification', [AuthController::class, 'resendVerification']);
+        // A rider added by a courier company sets their password from the emailed link (works once, 24 hours)
+        Route::get('/auth/rider-activation', [\App\Http\Controllers\Api\V1\RiderActivationController::class, 'show']);
+        Route::post('/auth/rider-activation', [\App\Http\Controllers\Api\V1\RiderActivationController::class, 'activate']);
+    });
+    Route::middleware('throttle:auth')->group(function () {
         Route::post('/auth/login', [AuthController::class, 'login']);
         Route::post('/auth/forgot-password', [PasswordController::class, 'forgot']);
         Route::post('/auth/reset-password', [PasswordController::class, 'reset']);
@@ -112,6 +124,12 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
+        // Account security: each change is confirmed (current password, or a code sent by email)
+        Route::post('/auth/change-password', [AuthController::class, 'changePassword'])->middleware('throttle:10,1');
+        Route::post('/auth/email-change', [AuthController::class, 'requestEmailChange'])->middleware('throttle:10,1');
+        Route::post('/auth/email-change/confirm', [AuthController::class, 'confirmEmailChange'])->middleware('throttle:20,1');
+        Route::post('/auth/phone-change', [AuthController::class, 'requestPhoneChange'])->middleware('throttle:10,1');
+        Route::post('/auth/phone-change/confirm', [AuthController::class, 'confirmPhoneChange'])->middleware('throttle:20,1');
         Route::post('/auth/avatar', [AuthController::class, 'uploadAvatar'])->middleware('throttle:upload');
         Route::post('/auth/complete-profile', [AuthController::class, 'completeProfile'])->middleware('throttle:upload');
         Route::post('/auth/apply-seller', [AuthController::class, 'applyAsSeller'])->middleware('throttle:upload');
@@ -132,7 +150,17 @@ Route::prefix('v1')->group(function () {
             Route::post('/network/hubs/{hub}/reject', [$portal, 'rejectHub'])->whereNumber('hub');
             Route::post('/network/hubs/{hub}/suspend', [$portal, 'suspendHub'])->whereNumber('hub');
             Route::post('/network/hubs/{hub}/reactivate', [$portal, 'reactivateHub'])->whereNumber('hub');
-            Route::get('/riders', [$portal, 'riders']);
+            // Riders: the company adds them, verifies, suspends and reactivates them (every action is audited)
+            $riders = \App\Http\Controllers\Api\V1\LogisticsRiderController::class;
+            Route::get('/riders', [$riders, 'index']);
+            Route::post('/riders', [$riders, 'store'])->middleware('throttle:upload');
+            Route::get('/riders/{rider}', [$riders, 'show'])->whereNumber('rider');
+            Route::get('/riders/{rider}/documents/{doc}', [$riders, 'document'])->whereNumber('rider')->whereIn('doc', ['license', 'or-cr']);
+            Route::post('/riders/{rider}/resend-activation', [$riders, 'resendActivation'])->whereNumber('rider')->middleware('throttle:10,1');
+            Route::post('/riders/{rider}/approve', [$riders, 'approve'])->whereNumber('rider');
+            Route::post('/riders/{rider}/reject', [$riders, 'reject'])->whereNumber('rider');
+            Route::post('/riders/{rider}/suspend', [$riders, 'suspend'])->whereNumber('rider');
+            Route::post('/riders/{rider}/reactivate', [$riders, 'reactivate'])->whereNumber('rider');
             Route::get('/parcels', [$portal, 'parcels']);
             Route::get('/reports', [$portal, 'reports']);
             // Money: the weekly statement with each shop, paying riders and hubs, and the GCash shops pay
@@ -145,6 +173,13 @@ Route::prefix('v1')->group(function () {
             Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'courier']);
             Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateCourier']);
         });
+
+        // In-app notifications (the bell): every order and shipment status change, job offers, decisions
+        $notifications = \App\Http\Controllers\Api\V1\NotificationController::class;
+        Route::get('/notifications', [$notifications, 'index']);
+        Route::get('/notifications/unread-count', [$notifications, 'unreadCount']);
+        Route::post('/notifications/read-all', [$notifications, 'markAllRead']);
+        Route::post('/notifications/{id}/read', [$notifications, 'markRead']);
 
         // Wishlist
         Route::get('/wishlist', [WishlistController::class, 'index']);
@@ -224,6 +259,8 @@ Route::prefix('v1')->group(function () {
                 ->name('admin.seller-applications.dti-sec-registration');
             Route::get('/seller-applications/{sellerProfile}/fda-lto', [AdminSellerApplicationController::class, 'fdaLto'])
                 ->name('admin.seller-applications.fda-lto');
+            Route::get('/seller-applications/{sellerProfile}/bir-2303', [AdminSellerApplicationController::class, 'bir2303'])
+                ->name('admin.seller-applications.bir-2303');
 
             // Courier companies (J&T, Flash, ...): applications and oversight
             $couriers = \App\Http\Controllers\Api\V1\AdminCourierApplicationController::class;
@@ -235,6 +272,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/courier-applications/{company}/reactivate', [$couriers, 'reactivate'])->whereNumber('company');
             Route::get('/courier-applications/{company}/permit', [$couriers, 'permit'])->whereNumber('company')
                 ->name('admin.courier-applications.permit');
+            Route::get('/courier-applications/{company}/documents/{doc}', [$couriers, 'document'])->whereNumber('company')
+                ->whereIn('doc', ['sec', 'bir', 'rep-id'])->name('admin.courier-applications.document');
 
             // Sorting Center (Logistics Hub) applications
             Route::get('/sorting-center-applications', [AdminSortingCenterApplicationController::class, 'index']);
@@ -489,7 +528,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/chat/threads/{conversation}/messages', [RiderChatController::class, 'messages']);
             Route::post('/chat/threads/{conversation}/messages', [RiderChatController::class, 'send']);
             Route::post('/chat/threads/{conversation}/read', [RiderChatController::class, 'markRead']);
-            Route::put('/vehicle', [RiderController::class, 'updateVehicle']);
+            Route::post('/vehicle', [RiderController::class, 'updateVehicle'])->middleware('throttle:upload');
+            Route::put('/vehicle', [RiderController::class, 'updateVehicle'])->middleware('throttle:upload');
+            Route::post('/license', [RiderController::class, 'updateLicense'])->middleware('throttle:upload');
+            Route::get('/documents/{doc}', [RiderController::class, 'document'])->whereIn('doc', ['license', 'or-cr']);
 
             // Live location: the rider's latest point, shown to the people tracking a parcel they carry
             Route::get('/location/status', [RiderLocationController::class, 'status']);

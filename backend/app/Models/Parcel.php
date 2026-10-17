@@ -61,6 +61,16 @@ class Parcel extends Model
     public const STATUS_DELIVERY_FAILED = 'DELIVERY_FAILED';
     public const STATUS_RETURNED = 'RETURNED';
     public const STATUS_RTS = 'RETURNED'; // Backward compatibility alias for RETURNED
+    /** Failed for good (third attempt, or refused): on its way back to the seller (A13). */
+    public const STATUS_RETURN_TO_SENDER = 'RETURN_TO_SENDER';
+    /** Exceptions marked by the courier company, each with a reason (A35). */
+    public const STATUS_LOST = 'LOST';
+    public const STATUS_DAMAGED = 'DAMAGED';
+
+    /** Dispatch states of a pickup job (A14). */
+    public const DISPATCH_OFFERING = 'offering';
+    public const DISPATCH_UNASSIGNED = 'unassigned';
+    public const DISPATCH_ASSIGNED = 'assigned';
 
     public const STATUSES = [
         self::STATUS_READY_FOR_PICKUP,
@@ -72,6 +82,9 @@ class Parcel extends Model
         self::STATUS_DELIVERED,
         self::STATUS_DELIVERY_FAILED,
         self::STATUS_RETURNED,
+        self::STATUS_RETURN_TO_SENDER,
+        self::STATUS_LOST,
+        self::STATUS_DAMAGED,
     ];
 
     protected $fillable = [
@@ -108,7 +121,26 @@ class Parcel extends Model
         'delivery_attempts',
         'returned_at',
         'return_note',
+        'weight_kg',
+        'shipping_zone',
+        'dispatch_state',
+        'dispatch_attempts',
+        'delivery_otp',
+        'delivery_otp_attempts',
+        'delivery_otp_locked_until',
+        'cod_collected_amount',
+        'rts_rider_id',
+        'rts_at',
+        'rts_assigned_at',
+        'seller_return_confirmed_at',
+        'exception_type',
+        'exception_reason',
+        'exception_photo_path',
+        'exception_at',
     ];
+
+    /** The delivery OTP is shown only to the buyer; never in rider, hub or list payloads. */
+    protected $hidden = ['delivery_otp'];
 
     protected function casts(): array
     {
@@ -128,6 +160,16 @@ class Parcel extends Model
             'pickup_address_snapshot' => 'array',
             'recipient_snapshot'      => 'array',
             'cod_amount'              => 'decimal:2',
+            'weight_kg'               => 'decimal:3',
+            'dispatch_attempts'       => 'integer',
+            'delivery_otp'            => 'encrypted',
+            'delivery_otp_attempts'   => 'integer',
+            'delivery_otp_locked_until' => 'datetime',
+            'cod_collected_amount'    => 'decimal:2',
+            'rts_at'                  => 'datetime',
+            'rts_assigned_at'         => 'datetime',
+            'seller_return_confirmed_at' => 'datetime',
+            'exception_at'            => 'datetime',
         ];
     }
 
@@ -212,6 +254,16 @@ class Parcel extends Model
     public function pickupRider(): BelongsTo
     {
         return $this->belongsTo(Rider::class, 'pickup_rider_id');
+    }
+
+    public function rtsRider(): BelongsTo
+    {
+        return $this->belongsTo(Rider::class, 'rts_rider_id');
+    }
+
+    public function offers(): HasMany
+    {
+        return $this->hasMany(DispatchOffer::class, 'parcel_id');
     }
 
     public function deliveryLogs(): HasMany

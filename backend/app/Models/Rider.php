@@ -47,12 +47,24 @@ class Rider extends Model
     public const STATUS_PENDING = 'PENDING';
     public const STATUS_ACTIVE = 'ACTIVE';
     public const STATUS_DISAPPROVED = 'DISAPPROVED';
+    /** Added by the courier company; the rider has not set a password from the activation email yet (A13). */
+    public const STATUS_PENDING_ACTIVATION = 'PENDING_ACTIVATION';
+    /** Suspended by the courier company: cannot go Online or receive jobs (A34). */
+    public const STATUS_SUSPENDED = 'SUSPENDED';
 
     public const STATUSES = [
         self::STATUS_PENDING,
         self::STATUS_ACTIVE,
         self::STATUS_DISAPPROVED,
+        self::STATUS_PENDING_ACTIVATION,
+        self::STATUS_SUSPENDED,
     ];
+
+    /** A rider holds at most this many active jobs (pickups and deliveries not yet finished, A14). */
+    public const MAX_ACTIVE_JOBS = 3;
+
+    /** An Online rider whose app has not been heard from for this long counts as Offline (session timeout, A22). */
+    public const PRESENCE_TIMEOUT_MINUTES = 30;
 
     public const VEHICLE_MOTORCYCLE = 'Motorcycle';
     public const VEHICLE_TRICYCLE   = 'Tricycle';
@@ -89,6 +101,19 @@ class Rider extends Model
         'reviewed_by',
         'reviewed_at',
         'submitted_at',
+        'logistics_company_id',
+        'license_number',
+        'license_expiry',
+        'activation_token_hash',
+        'activation_sent_at',
+        'activation_expires_at',
+        'activated_at',
+        'is_online',
+        'online_at',
+        'last_seen_at',
+        'needs_reverification',
+        'suspended_at',
+        'suspension_reason',
     ];
 
     protected function casts(): array
@@ -99,7 +124,37 @@ class Rider extends Model
             'vehicle_updated_at' => 'datetime',
             'last_located_at'    => 'datetime',
             'submitted_at' => 'datetime',
+            'license_expiry' => 'date',
+            'activation_sent_at' => 'datetime',
+            'activation_expires_at' => 'datetime',
+            'activated_at' => 'datetime',
+            'is_online' => 'boolean',
+            'online_at' => 'datetime',
+            'last_seen_at' => 'datetime',
+            'needs_reverification' => 'boolean',
+            'suspended_at' => 'datetime',
         ];
+    }
+
+    /** The courier company the rider works for: the one that added them, else their hub's company. */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(LogisticsCompany::class, 'logistics_company_id');
+    }
+
+    public function companyId(): ?int
+    {
+        return $this->logistics_company_id
+            ?? LogisticsCompany::effectiveId($this->sortingCenter?->logistics_company_id);
+    }
+
+    /** Online now: switched Online, Active, and heard from within the presence timeout. */
+    public function isAvailable(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE
+            && $this->is_online
+            && $this->last_seen_at !== null
+            && $this->last_seen_at->greaterThan(now()->subMinutes(self::PRESENCE_TIMEOUT_MINUTES));
     }
 
     public function user(): BelongsTo

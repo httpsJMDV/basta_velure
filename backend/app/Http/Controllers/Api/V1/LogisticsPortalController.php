@@ -57,7 +57,6 @@ class LogisticsPortalController extends Controller
     public function dashboard(Request $request): JsonResponse
     {
         $company = $this->company($request);
-        $hubIds = $this->hubs($company)->pluck('id');
         $byStatus = $this->hubs($company)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
         $parcelStatus = $this->networkParcels($company)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
         $since = now()->subDays(30);
@@ -72,8 +71,10 @@ class LogisticsPortalController extends Controller
                 'rejected'  => (int) ($byStatus[SortingCenter::STATUS_REJECTED] ?? 0),
             ],
             'riders' => [
-                'active'  => Rider::whereIn('sorting_center_id', $hubIds)->where('status', Rider::STATUS_ACTIVE)->count(),
-                'pending' => Rider::whereIn('sorting_center_id', $hubIds)->where('status', Rider::STATUS_PENDING)->count(),
+                'active'  => LogisticsRiderController::companyRiders($company)->where('status', Rider::STATUS_ACTIVE)->count(),
+                'pending' => LogisticsRiderController::companyRiders($company)->whereIn('status', [Rider::STATUS_PENDING, Rider::STATUS_PENDING_ACTIVATION])->count(),
+                'online'  => LogisticsRiderController::companyRiders($company)->where('status', Rider::STATUS_ACTIVE)->where('is_online', true)
+                    ->where('last_seen_at', '>', now()->subMinutes(Rider::PRESENCE_TIMEOUT_MINUTES))->count(),
             ],
             'parcels_now' => [
                 'awaiting_pickup'  => $count([Parcel::STATUS_READY_FOR_PICKUP, Parcel::STATUS_PICKED_UP]),
@@ -182,38 +183,6 @@ class LogisticsPortalController extends Controller
         $reviewer->reactivate($this->hubOr404($this->company($request), $hub), $request->user());
 
         return response()->json(['message' => 'Hub reactivated.']);
-    }
-
-    /** GET /logistics/riders?status=&search=&hub_id= : the riders of every hub in the network (read-only). */
-    public function riders(Request $request): JsonResponse
-    {
-        $company = $this->company($request);
-        $search = trim((string) $request->query('search', ''));
-
-        $riders = Rider::with(['user', 'sortingCenter'])
-            ->whereIn('sorting_center_id', $this->hubs($company)->pluck('id'))
-            ->when($request->query('hub_id'), fn ($q, $hubId) => $q->where('sorting_center_id', (int) $hubId))
-            ->when($request->query('status'), fn ($q, $status) => $q->where('status', strtoupper($status)))
-            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
-                ->where('plate_number', 'like', "%{$search}%")
-                ->orWhereHas('user', fn ($u) => $u->where('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"))))
-            ->latest('id')
-            ->limit(500)
-            ->get();
-
-        return response()->json(['data' => $riders->map(fn (Rider $r) => [
-            'id'           => $r->id,
-            'name'         => $r->user ? trim($r->user->first_name . ' ' . $r->user->last_name) : '—',
-            'email'        => $r->user?->email,
-            'phone'        => $r->user?->phone,
-            'avatar_url'   => $r->user?->avatar_url,
-            'status'       => $r->status,
-            'vehicle_type' => $r->vehicle_type,
-            'plate_number' => $r->plate_number,
-            'hub_id'       => $r->sorting_center_id,
-            'hub_name'     => $r->sortingCenter?->hub_name,
-            'account_status' => $r->user?->status,
-        ])->all()]);
     }
 
     /**

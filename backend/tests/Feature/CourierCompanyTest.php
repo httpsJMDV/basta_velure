@@ -72,9 +72,21 @@ class CourierCompanyTest extends TestCase
     {
         return array_merge([
             'name' => 'Flash Padala ' . Str::random(4), 'code' => strtoupper(Str::random(4)),
+            'sec_registration_no' => 'CS' . random_int(100000000, 999999999),
+            'tin' => implode('-', str_split((string) random_int(100000000000, 999999999999), 3)),
+            'contact_first_name' => 'Carlos', 'contact_last_name' => 'Mendoza', 'contact_position' => 'Operations Manager',
             'contact_email' => 'ops@flash.example', 'contact_phone' => '09171234567',
-            'address_province' => 'Laguna', 'address_city' => 'Calamba', 'address_barangay' => 'Real', 'address_street' => '9 Logistics Ave',
+            'address_region' => 'Region IV-A (CALABARZON)', 'address_region_code' => '040000000',
+            'address_province' => 'Laguna', 'address_province_code' => '043400000',
+            'address_city' => 'Calamba', 'address_city_code' => '043405000',
+            'address_barangay' => 'Real', 'address_barangay_code' => '043405041',
+            'address_street' => '9 Logistics Ave', 'address_postal_code' => '4027',
+            'service_regions' => ['040000000', '130000000'],
             'business_permit' => UploadedFile::fake()->create('permit.pdf', 200, 'application/pdf'),
+            'sec_certificate' => UploadedFile::fake()->create('sec.pdf', 200, 'application/pdf'),
+            'bir_2303' => UploadedFile::fake()->create('bir.pdf', 200, 'application/pdf'),
+            'representative_id' => UploadedFile::fake()->create('id.pdf', 200, 'application/pdf'),
+            'accept_terms' => true,
         ], $overrides);
     }
 

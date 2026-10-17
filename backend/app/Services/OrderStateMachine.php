@@ -149,6 +149,9 @@ class OrderStateMachine
             //    sends nothing, and a mail failure never blocks the transition.
             app(MailNotifier::class)->orderStatusChanged($lockedOrder, $currentStatus, $toStatus);
 
+            // 7. One in-app notification per change for each role involved (A23), written after commit.
+            app(Notifier::class)->orderStatusChanged($lockedOrder, $currentStatus, $toStatus, $actorType, $note);
+
             return $lockedOrder->fresh(['items', 'statusHistories']);
         });
     }

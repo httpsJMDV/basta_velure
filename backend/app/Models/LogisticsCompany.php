@@ -40,6 +40,9 @@ class LogisticsCompany extends Model
         'name', 'code', 'slug', 'owner_user_id', 'description', 'contact_email', 'contact_phone',
         'address_province', 'address_city', 'address_barangay', 'address_street', 'logo_path', 'business_permit_path',
         'is_default', 'status', 'rejection_reason', 'reviewed_by', 'reviewed_at', 'submitted_at',
+        'sec_registration_no', 'tin', 'address_region', 'address_region_code', 'address_province_code', 'address_city_code',
+        'address_barangay_code', 'address_postal_code', 'contact_first_name', 'contact_last_name', 'contact_position',
+        'service_regions', 'sec_certificate_path', 'bir_2303_path', 'representative_id_path',
     ];
 
     protected $appends = ['logo_url'];
@@ -49,6 +52,7 @@ class LogisticsCompany extends Model
         return [
             'gcash_number' => 'encrypted',
             'is_default' => 'boolean',
+            'service_regions' => 'array',
             'reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',
         ];

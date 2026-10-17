@@ -26,6 +26,8 @@ class AdminCourierApplicationController extends Controller
         $companies = LogisticsCompany::with('owner')
             ->withCount(['hubs', 'hubs as approved_hubs_count' => fn ($q) => $q->where('status', SortingCenter::STATUS_APPROVED)])
             ->when($status !== 'ALL', fn ($q) => $q->where('status', $status))
+            // An applicant who has not confirmed their email yet is not in the review queue.
+            ->where(fn ($q) => $q->whereNull('owner_user_id')->orWhereHas('owner', fn ($o) => $o->where('status', '!=', 'unverified')))
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")
@@ -104,6 +106,20 @@ class AdminCourierApplicationController extends Controller
         abort_unless($company->business_permit_path && Storage::disk('ids')->exists($company->business_permit_path), 404, 'Business permit not found.');
 
         return response()->file(Storage::disk('ids')->path($company->business_permit_path));
+    }
+
+    /** GET /admin/courier-applications/{company}/documents/{sec|bir|rep-id} */
+    public function document(LogisticsCompany $company, string $doc): BinaryFileResponse
+    {
+        $path = match ($doc) {
+            'sec'    => $company->sec_certificate_path,
+            'bir'    => $company->bir_2303_path,
+            'rep-id' => $company->representative_id_path,
+            default  => null,
+        };
+        abort_unless($path && Storage::disk('ids')->exists($path), 404, 'Document not found.');
+
+        return response()->file(Storage::disk('ids')->path($path));
     }
 
     private function decide(Request $request, LogisticsCompany $company, string $status, ?string $reason, string $action, string $description): void
