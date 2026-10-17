@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, AlertCircle, Copy, Check, UploadCloud, ShieldCheck, ShoppingBag, X, MapPin, Store, Banknote, Lock, Loader2, Truck } from 'lucide-react';
 import { pesoCompact as peso } from '../utils/pricing';
@@ -8,6 +8,15 @@ import { useCart } from '../hooks/useCart';
 import { getAddressesApi, placeOrderApi } from '../api/client';
 import type { Address, Order } from '../types';
 import { DELIVERY_FEE } from '../utils/shipping';
+import gcashLogo from '../assets/brand/gcash-logo.svg';
+import gcashMark from '../assets/brand/gcash-mark.svg';
+
+type PayErrors = { reference?: string; receipt?: string };
+
+/** 1234567890123 → "1234 567 890123", the grouping GCash receipts use. */
+function formatReference(digits: string): string {
+  return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 13)].filter(Boolean).join(' ');
+}
 
 export default function CheckoutPage() {
   const { user } = useAuth();
@@ -32,7 +41,11 @@ export default function CheckoutPage() {
 
   // Payment method: 'gcash' | 'cod'
   const [paymentMethod, setPaymentMethod] = useState<'gcash' | 'cod'>('gcash');
+  // Digits only (a GCash reference number is 13 digits); shown grouped like the receipt prints it.
   const [gcashReference, setGcashReference] = useState('');
+  const [payErrors, setPayErrors] = useState<PayErrors>({});
+  const refInputRef = useRef<HTMLInputElement>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [copiedNumber, setCopiedNumber] = useState(false);
@@ -137,14 +150,19 @@ export default function CheckoutPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setErrorMsg('Please upload a valid image file (JPG, PNG).');
+        setPayErrors((p) => ({ ...p, receipt: 'The receipt must be an image (JPG or PNG).' }));
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setPayErrors((p) => ({ ...p, receipt: 'That screenshot is over 5 MB. Crop it or take a smaller one.' }));
         return;
       }
       setProofFile(file);
       setProofPreview(URL.createObjectURL(file));
-      setErrorMsg(null);
+      setPayErrors((p) => ({ ...p, receipt: undefined }));
     }
   };
 
@@ -157,6 +175,7 @@ export default function CheckoutPage() {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setPayErrors({});
 
     if (items.length === 0) {
       setErrorMsg('Your cart is empty. Please add items before checking out.');
@@ -174,12 +193,16 @@ export default function CheckoutPage() {
     }
 
     if (paymentMethod === 'gcash') {
-      if (!gcashReference.trim()) {
-        setErrorMsg('Please enter your GCash Reference Number from your payment receipt.');
-        return;
-      }
-      if (!proofFile) {
-        setErrorMsg('Please upload a screenshot of your GCash payment receipt.');
+      // Shown under each field, and the page scrolls to the first one, instead of one message at the bottom.
+      const errors: PayErrors = {};
+      if (gcashReference.length === 0) errors.reference = 'Enter the reference number from your GCash receipt.';
+      else if (gcashReference.length !== 13) errors.reference = `A GCash reference number has 13 digits; this one has ${gcashReference.length}.`;
+      if (!proofFile) errors.receipt = 'Upload a screenshot of your GCash receipt so the shop can check your payment.';
+      if (errors.reference || errors.receipt) {
+        setPayErrors(errors);
+        const first = errors.reference ? refInputRef.current : receiptRef.current;
+        first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (errors.reference) refInputRef.current?.focus({ preventScroll: true });
         return;
       }
     }
@@ -201,7 +224,7 @@ export default function CheckoutPage() {
       if (orderNotes) formData.append('notes', orderNotes.trim());
 
       if (paymentMethod === 'gcash') {
-        formData.append('payment_reference', gcashReference.trim());
+        formData.append('payment_reference', gcashReference);
         if (proofFile) {
           formData.append('payment_proof', proofFile);
         }
@@ -220,8 +243,18 @@ export default function CheckoutPage() {
       const placedOrders = res.orders && res.orders.length > 0 ? res.orders : [res.data];
       setSuccessOrders(placedOrders);
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Failed to place order. Please check your information and try again.';
-      setErrorMsg(msg);
+      const data = err.response?.data;
+      // The server's field errors go under the matching field; anything else shows by the button.
+      const serverPay: PayErrors = {
+        reference: data?.errors?.payment_reference?.[0],
+        receipt: data?.errors?.payment_proof?.[0],
+      };
+      if (serverPay.reference || serverPay.receipt) {
+        setPayErrors(serverPay);
+        (serverPay.reference ? refInputRef.current : receiptRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        setErrorMsg(data?.message || 'Failed to place order. Please check your information and try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -295,7 +328,7 @@ export default function CheckoutPage() {
             <Link to="/" className="mt-5 inline-flex h-11 px-6 rounded-full bg-brand-red text-white text-sm font-semibold items-center">Start shopping</Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmitOrder} className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-8 items-start">
+          <form onSubmit={handleSubmitOrder} noValidate className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-8 items-start">
             <div className="space-y-4">
               {/* 1 · Address */}
               <Section step={1} title="Delivery address" hint="Where should the rider bring your order?"
@@ -395,7 +428,7 @@ export default function CheckoutPage() {
               <Section step={3} title="Payment" hint="Choose how you want to pay.">
                 <div className="grid sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="Payment method">
                   {([
-                    { key: 'gcash', title: 'GCash', text: 'Send money now, then upload the receipt', badge: <span className="w-11 h-11 rounded-xl bg-[#007DFE] text-white font-bold flex items-center justify-center shrink-0">G</span> },
+                    { key: 'gcash', title: 'GCash', text: 'Send money now, then upload the receipt', badge: <span className="w-11 h-11 rounded-xl bg-white ring-1 ring-stone-200 flex items-center justify-center shrink-0"><img src={gcashMark} alt="" className="w-8 h-8 object-contain" /></span> },
                     { key: 'cod', title: 'Cash on delivery', text: 'Pay the rider when your parcel arrives', badge: <span className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0"><Banknote className="w-5 h-5" /></span> },
                   ] as const).map((m) => {
                     const on = paymentMethod === m.key;
@@ -425,6 +458,7 @@ export default function CheckoutPage() {
                     <div className="p-4 sm:p-5 space-y-4">
                       <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-[#007DFE]/[0.06] border border-[#007DFE]/20">
                         <div>
+                          <img src={gcashLogo} alt="GCash" className="h-6 w-auto mb-2" />
                           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0064CC]">Send to</p>
                           <p className="text-[14px] font-semibold text-stone-900">{GCASH_NAME}</p>
                           <p className="font-mono text-[18px] font-bold text-stone-900 tracking-wide">{GCASH_NUMBER}</p>
@@ -440,11 +474,33 @@ export default function CheckoutPage() {
 
                       <div>
                         <label className={label} htmlFor="gcash-ref">GCash reference number</label>
-                        <input id="gcash-ref" type="text" required={paymentMethod === 'gcash'} value={gcashReference} onChange={(e) => setGcashReference(e.target.value)} placeholder="13-digit reference from your receipt" className={`${field} font-mono`} />
-                        <p className="mt-1 text-[12px] text-stone-400">It is on the GCash receipt and in the confirmation SMS.</p>
+                        <div className="relative">
+                          <input
+                            ref={refInputRef}
+                            id="gcash-ref"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            value={formatReference(gcashReference)}
+                            onChange={(e) => {
+                              setGcashReference(e.target.value.replace(/\D/g, '').slice(0, 13));
+                              if (payErrors.reference) setPayErrors((p) => ({ ...p, reference: undefined }));
+                            }}
+                            placeholder="0000 000 000000"
+                            aria-invalid={Boolean(payErrors.reference)}
+                            aria-describedby="gcash-ref-help"
+                            className={`${field} font-mono tracking-wider pr-20 ${payErrors.reference ? '!border-brand-red ring-2 ring-brand-red/10' : ''}`}
+                          />
+                          <span className={`absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] tabular-nums ${gcashReference.length === 13 ? 'text-emerald-600 font-semibold' : 'text-stone-400'}`}>
+                            {gcashReference.length === 13 ? <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" /> 13/13</span> : `${gcashReference.length}/13`}
+                          </span>
+                        </div>
+                        {payErrors.reference
+                          ? <p id="gcash-ref-help" role="alert" className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-brand-red"><AlertCircle className="w-3.5 h-3.5" />{payErrors.reference}</p>
+                          : <p id="gcash-ref-help" className="mt-1 text-[12px] text-stone-400">The 13-digit "Ref. No." on your GCash receipt and in the confirmation SMS.</p>}
                       </div>
 
-                      <div>
+                      <div ref={receiptRef}>
                         <span className={label}>Receipt screenshot</span>
                         {proofPreview ? (
                           <div className="flex items-center gap-4 p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
@@ -458,13 +514,15 @@ export default function CheckoutPage() {
                             </button>
                           </div>
                         ) : (
-                          <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-stone-300 hover:border-brand-red hover:bg-rose-50/30 cursor-pointer transition-colors text-center">
-                            <UploadCloud className="w-7 h-7 text-stone-400" />
+                          <label className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed cursor-pointer transition-colors text-center ${payErrors.receipt ? 'border-brand-red bg-rose-50/40' : 'border-stone-300 hover:border-brand-red hover:bg-rose-50/30'}`}>
+                            <UploadCloud className={`w-7 h-7 ${payErrors.receipt ? 'text-brand-red' : 'text-stone-400'}`} />
                             <span className="text-[13px] font-semibold text-brand-red">Upload the receipt</span>
-                            <span className="text-[12px] text-stone-400">PNG or JPG screenshot from GCash</span>
-                            <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" required={paymentMethod === 'gcash'} />
+                            <span className="text-[12px] text-stone-400">PNG or JPG screenshot from GCash, up to 5 MB</span>
+                            {/* Not "required": a hidden required input cannot show the browser's message, so the check is ours. */}
+                            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} className="sr-only" aria-invalid={Boolean(payErrors.receipt)} />
                           </label>
                         )}
+                        {payErrors.receipt && <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-brand-red"><AlertCircle className="w-3.5 h-3.5" />{payErrors.receipt}</p>}
                       </div>
                     </div>
                   </div>

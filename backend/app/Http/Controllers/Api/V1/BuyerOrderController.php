@@ -50,7 +50,11 @@ class BuyerOrderController extends Controller
         ];
 
         if ($request->payment_method === 'gcash') {
-            $rules['payment_reference'] = ['required', 'string', 'min:5', 'max:100'];
+            // A GCash reference number is 13 digits (receipts print it as "1234 567 890123"); spaces are dropped.
+            if ($request->filled('payment_reference')) {
+                $request->merge(['payment_reference' => preg_replace('/\D+/', '', (string) $request->input('payment_reference'))]);
+            }
+            $rules['payment_reference'] = ['required', 'digits:13'];
             $rules['payment_proof']     = ['required', 'image', 'max:5120']; // max 5MB image
         }
 
@@ -58,6 +62,10 @@ class BuyerOrderController extends Controller
             'shipping_barangay_code.required' => 'Selected delivery address is missing a barangay PSGC code. Please re-select or update your delivery address to proceed with checkout.',
             'shipping_city_code.required'     => 'Selected delivery address is missing a city/municipality PSGC code. Please re-select or update your delivery address to proceed with checkout.',
             'shipping_province_code.required' => 'Selected delivery address is missing a province PSGC code. Please re-select or update your delivery address to proceed with checkout.',
+            'payment_reference.required'      => 'Enter the 13-digit reference number from your GCash receipt.',
+            'payment_reference.digits'        => 'A GCash reference number has exactly 13 digits.',
+            'payment_proof.required'          => 'Upload a screenshot of your GCash receipt.',
+            'payment_proof.image'             => 'The receipt must be an image (JPG or PNG).',
         ];
 
         $data = $request->validate($rules, $messages);
@@ -108,6 +116,9 @@ class BuyerOrderController extends Controller
 
                     $preparedItems[] = [
                         'seller_id'         => $product->seller_id,
+                        // Which product and variant the line was, so the buyer can review it once it arrives.
+                        'product_id'        => $product->id,
+                        'product_variant_id'=> $variant?->id,
                         'category_id'       => $product->category_id,
                         'product_name'      => $product->name,
                         'variant_label'     => $variantLabel,
@@ -423,6 +434,7 @@ class BuyerOrderController extends Controller
             'delivery_proof_count'     => (int) (bool) $parcel?->delivery_proof_path + (int) (bool) $parcel?->delivery_proof_path_2,
             'items'               => $o->items->map(fn ($i) => [
                 'id'            => $i->id,
+                'product_id'    => $i->product_id,
                 'seller_id'     => $i->seller_id,
                 'shop_name'     => $i->seller?->sellerProfile?->shop_name ?? ($i->seller?->first_name . "'s Shop"),
                 'product_name'  => $i->product_name,

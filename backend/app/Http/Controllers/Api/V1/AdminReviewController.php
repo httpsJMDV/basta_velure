@@ -106,7 +106,7 @@ class AdminReviewController extends Controller
 
         $like = $request->filled('search') ? '%' . addcslashes((string) $request->search, '\\%_') . '%' : null;
 
-        $reviews = Review::with(['buyer', 'order:id,order_number', 'product.seller.sellerProfile', 'product.images'])
+        $reviews = Review::with(['buyer', 'order:id,order_number', 'product.seller.sellerProfile', 'product.images', 'images'])
             ->when($request->shop_id, fn ($q, $shopId) => $q->whereHas('product', fn ($p) => $p->where('seller_id', (int) $shopId)))
             ->when($request->rating, fn ($q) => $q->where('rating', (int) $request->rating))
             ->when($like, fn ($q) => $q->where(function ($w) use ($like) {
@@ -220,6 +220,7 @@ class AdminReviewController extends Controller
             'rating'            => $r->rating,
             'comment'           => $r->comment,
             'verified_purchase' => $r->verified_purchase,
+            'images'            => $r->imageUrls(),
             'created_at'        => $r->created_at,
             'buyer' => $r->buyer ? [
                 'id'         => $r->buyer->id,

@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { Building2, FileText, AlertCircle, Truck, MapPin, Mail, Network, ShieldCheck } from 'lucide-react';
-import LovedItLogo from '../../components/LovedItLogo';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import FileUploadZone from '../../components/ui/FileUploadZone';
 import PsgcCascadingAddress from '../../components/logistics/PsgcCascadingAddress';
 import type { HubAddressValue } from '../../components/logistics/PsgcCascadingAddress';
-import { SignInRequired, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus } from '../../components/apply/ApplyKit';
+import { ApplyLayout, SignInRequired, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus } from '../../components/apply/ApplyKit';
 import { applyCourierApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -26,43 +24,14 @@ function suggestCode(name: string): string {
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col min-h-screen bg-white md:flex-row">
-      <div className="flex flex-col w-full px-6 py-10 overflow-y-auto md:w-1/2 sm:px-12 lg:px-16">
-        <div className="w-full max-w-md mx-auto space-y-6">
-          <Link to="/" className="inline-block group">
-            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-12 sm:h-14 object-contain group-hover:opacity-95 transition-opacity" />
-          </Link>
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold border rounded-full bg-brand-red/10 border-brand-red/20 text-brand-red">
-              <Network className="w-3.5 h-3.5" />
-              <span>Courier Partners</span>
-            </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-brand-black">Run a Courier Company</h1>
-            <p className="text-xs text-gray-500 sm:text-sm">
-              Deliver for Loved-IT shops with your own network of hubs and riders, like J&amp;T or Flash on other marketplaces.
-            </p>
-          </div>
-          {children}
-        </div>
-      </div>
-
-      <div className="sticky top-0 hidden h-screen overflow-hidden md:block md:w-1/2 bg-brand-black">
-        <img
-          src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=1200&q=80"
-          alt="Courier vans being loaded at a logistics center"
-          className="absolute inset-0 object-cover w-full h-full opacity-60"
-        />
-        <div className="absolute inset-0 flex items-end p-12 bg-gradient-to-t from-brand-black via-brand-black/60 to-transparent">
-          <div className="space-y-3">
-            <span className="inline-block px-3 py-1 text-xs font-bold tracking-wider text-white uppercase rounded-full bg-brand-red">Courier network</span>
-            <h2 className="text-3xl font-extrabold tracking-tight text-white">Your hubs. Your riders. Our shops.</h2>
-            <p className="max-w-md text-sm leading-relaxed text-white/70">
-              Approve the hubs that join you, watch every parcel in your network, and get chosen by buyers at checkout.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ApplyLayout
+      icon={Network}
+      kicker="Run a courier company"
+      title="Bring your courier to Loved-IT"
+      intro="Deliver for Loved-IT shops with your own network of hubs and riders, like J&T or Flash on other marketplaces. Parcels in your hubs' areas are assigned to you automatically."
+    >
+      {children}
+    </ApplyLayout>
   );
 }
 
@@ -105,7 +74,7 @@ export default function CourierRegisterPage() {
       );
     }
     if (company.status === 'APPROVED') {
-      return <Shell><ApprovedStatus title={`${company.name} is approved!`} text="Hubs can now join your network and buyers can choose you at checkout." to="/logistics" cta="Open courier portal" /></Shell>;
+      return <Shell><ApprovedStatus title={`${company.name} is approved!`} text="Hubs can now join your network, and parcels in their areas are assigned to you." to="/logistics" cta="Open courier portal" /></Shell>;
     }
     if (company.status === 'REJECTED') {
       return <Shell><RejectedStatus who="platform administration" reason={company.rejection_reason} onReapply={() => setReapplying(true)} /></Shell>;

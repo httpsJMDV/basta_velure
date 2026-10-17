@@ -131,9 +131,14 @@ class WishlistController extends Controller
                 'original_price' => $product->original_price ? (float) $product->original_price : null,
                 'status'         => $product->status,
                 'total_stock'    => $totalStock,
+                // So "Add to cart" can add the right variant (a product with options opens its page instead).
+                'variants'       => $product->variants->map(fn ($v) => [
+                    'id' => $v->id, 'label' => $v->label, 'price' => (float) $v->price, 'stock_quantity' => (int) $v->stock_quantity,
+                ])->values(),
                 'seller'         => [
                     'id'        => $product->seller?->id,
                     'shop_name' => $profile?->shop_name ?? ($product->seller?->first_name . ' ' . $product->seller?->last_name),
+                    'shop_slug' => \Illuminate\Support\Str::slug($profile?->shop_name ?? ('shop-' . $product->seller?->id)),
                 ],
             ],
         ];
@@ -154,6 +159,7 @@ class WishlistController extends Controller
             'seller'        => [
                 'id'            => $seller?->id,
                 'shop_name'     => $profile?->shop_name ?? ($seller?->first_name . ' ' . $seller?->last_name),
+                'shop_slug'     => \Illuminate\Support\Str::slug($profile?->shop_name ?? ('shop-' . $seller?->id)),
                 'logo_url'      => $profile?->logo_path ? asset('storage/' . $profile->logo_path) : null,
                 'avg_rating'    => $profile?->avg_rating ? (float) $profile->avg_rating : null,
                 'product_count' => $productCount,

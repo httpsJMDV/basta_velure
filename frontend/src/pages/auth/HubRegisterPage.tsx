@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
-import LovedItLogo from '../../components/LovedItLogo';
-import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import FileUploadZone from '../../components/ui/FileUploadZone';
 import PsgcCascadingAddress from '../../components/logistics/PsgcCascadingAddress';
@@ -10,12 +7,13 @@ import type { HubAddressValue } from '../../components/logistics/PsgcCascadingAd
 import CoverageBarangaySelector from '../../components/logistics/CoverageBarangaySelector';
 import type { SelectedBarangay } from '../../components/logistics/CoverageBarangaySelector';
 import {
-  SignInRequired, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus,
+  ApplyLayout, ApplySection, ApplyRail, SignInRequired, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus,
 } from '../../components/apply/ApplyKit';
+import { DELIVERY_FEE } from '../../utils/shipping';
 import { applyHubApi, getCouriersApi } from '../../api/client';
 import type { CourierOption } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { Building2, FileText, AlertCircle, Truck, MapPin, ShieldCheck, Mail, Warehouse } from 'lucide-react';
+import { AlertCircle, MapPin, ShieldCheck, Mail, Warehouse, CheckCircle2, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 import type { ReactNode } from 'react';
 
@@ -23,45 +21,21 @@ const EMPTY_ADDRESS: HubAddressValue = {
   region: '', regionName: '', province: '', provinceName: '', city: '', cityName: '', barangay: '', barangayName: '', street: '',
 };
 
-function Shell({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-col min-h-screen bg-white md:flex-row">
-      <div className="flex flex-col w-full px-6 py-10 overflow-y-auto md:w-1/2 sm:px-12 lg:px-16">
-        <div className="w-full max-w-md mx-auto space-y-6">
-          <Link to="/" className="inline-block group">
-            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-12 sm:h-14 object-contain group-hover:opacity-95 transition-opacity" />
-          </Link>
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold border rounded-full bg-brand-red/10 border-brand-red/20 text-brand-red">
-              <Truck className="w-3.5 h-3.5" />
-              <span>Logistics &amp; Sorting Center Network</span>
-            </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-brand-black">Run a Sorting Hub</h1>
-            <p className="text-xs text-gray-500 sm:text-sm">
-              Apply from your Loved-IT account to operate an authorized sorting center and route parcels in your area.
-            </p>
-          </div>
-          {children}
-        </div>
-      </div>
+// The hub share of each delivery fee (15%, config/shipping.php).
+const peso = (n: number) => '₱' + n.toLocaleString('en-PH', { maximumFractionDigits: 2 });
+const HUB_PAY = peso(DELIVERY_FEE * 0.15);
 
-      <div className="sticky top-0 hidden h-screen overflow-hidden md:block md:w-1/2 bg-brand-black">
-        <img
-          src="https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1200&q=80"
-          alt="Loved-IT Regional Sorting Center and Logistics Hubs"
-          className="absolute inset-0 object-cover w-full h-full opacity-65"
-        />
-        <div className="absolute inset-0 flex items-end p-12 bg-gradient-to-t from-brand-black via-brand-black/60 to-transparent">
-          <div className="space-y-3">
-            <span className="inline-block px-3 py-1 text-xs font-bold tracking-wider text-white uppercase rounded-full bg-brand-red">Sorting Center Network</span>
-            <h2 className="text-3xl font-extrabold tracking-tight text-white">Lead Regional Sorting in the Philippines</h2>
-            <p className="max-w-md text-sm leading-relaxed text-white/70">
-              Coordinate parcel inbound intake, PSGC jurisdiction sorting, and express delivery dispatch for Loved-IT merchants and buyers.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+function Shell({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+  return (
+    <ApplyLayout
+      icon={Warehouse}
+      kicker="Run a logistics hub"
+      title="Run a sorting hub"
+      intro="Receive parcels from pickup riders, sort them by barangay, and send your riders out for the last mile. You apply from your Loved-IT account to a partner courier company."
+      aside={aside}
+    >
+      {children}
+    </ApplyLayout>
   );
 }
 
@@ -202,130 +176,106 @@ export default function HubRegisterPage() {
     }
   }
 
+  const rail = (
+    <ApplyRail
+      checklist={[
+        { label: 'Courier company to join', done: Boolean(courierId) },
+        { label: 'Hub name', done: Boolean(hubName.trim()) },
+        { label: 'DTI or business permit', done: Boolean(dtiPermit) },
+        { label: 'Hub address', done: Boolean((hubAddress.barangay || hubAddress.barangayName) && hubAddress.street.trim()) },
+        { label: 'Barangays you cover', done: coverageBarangays.length > 0 },
+      ]}
+      facts={[
+        { label: 'Hub share', value: `${HUB_PAY} per parcel` },
+        { label: 'Coverage picked', value: `${coverageBarangays.length} barangay${coverageBarangays.length === 1 ? '' : 's'}` },
+      ]}
+      approver="The courier company you join checks your permit, your area and the ID on your account. Once approved, you approve the riders who pick your hub."
+      footnote={<>The hub share is 15% of the flat {peso(DELIVERY_FEE)} delivery fee of each parcel you sort.</>}
+    />
+  );
+
   return (
-    <Shell>
+    <Shell aside={rail}>
       <ApplyingAs user={user} />
 
       {serverError && (
-        <div className="flex items-start gap-3 p-4 text-xs text-red-700 border border-red-200 shadow-xs rounded-xl bg-red-50" role="alert">
-          <AlertCircle className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <p className="font-bold">Application could not be submitted</p>
-            <p>{serverError}</p>
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 border border-red-200" role="alert">
+          <AlertCircle className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[13px] font-semibold text-red-800">The application was not sent</p>
+            <p className="text-[13px] text-red-800">{serverError}</p>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-7">
-        {/* ── Courier company: who the hub works for and who reviews it ── */}
-        <div className="space-y-3.5 pt-2">
-          <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-            <Truck className="w-4 h-4 text-brand-red" />
-            <h2 className="text-xs font-bold tracking-wider text-gray-700 uppercase">Courier Company</h2>
-          </div>
-          <p className="-mt-1 text-[12px] text-gray-500">Your hub sorts and delivers parcels for this courier, and its team reviews your application.</p>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <ApplySection n={1} title="Courier company" hint="Your hub sorts and delivers parcels for this courier, and its team reviews your application.">
           {!couriers ? (
-            <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+            <div className="grid sm:grid-cols-2 gap-2.5">{[1, 2].map((i) => <div key={i} className="h-[68px] rounded-2xl bg-stone-100 animate-pulse" />)}</div>
           ) : couriers.length === 0 ? (
-            <p className="text-[13px] text-gray-500">No courier companies are accepting hubs right now.</p>
+            <p className="p-4 rounded-2xl bg-stone-50 text-[13px] text-stone-600">No courier company is taking hubs right now.</p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Courier company">
+            <div className="grid sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="Courier company">
               {couriers.map((c) => {
-                const selected = courierId === c.id;
+                const on = courierId === c.id;
                 return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
+                  <button key={c.id} type="button" role="radio" aria-checked={on}
                     onClick={() => { setCourierId(c.id); setErrors((p) => ({ ...p, logistics_company_id: '' })); }}
-                    className={`flex items-center gap-3 p-3 text-left border rounded-xl transition-all ${selected ? 'border-brand-red bg-rose-50/60 ring-2 ring-brand-red/20' : 'border-gray-200 hover:border-gray-300'}`}
-                  >
-                    <span className="flex items-center justify-center w-10 h-10 overflow-hidden text-[11px] font-black text-white rounded-lg bg-gray-900 shrink-0">
+                    className={`flex items-center gap-3 p-3.5 rounded-2xl border-[1.5px] text-left transition-colors ${on ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
+                    <span className="flex items-center justify-center w-11 h-11 overflow-hidden text-[11px] font-black text-white rounded-xl bg-stone-900 shrink-0">
                       {c.logo_url ? <img src={c.logo_url} alt="" className="object-cover w-full h-full" /> : c.code}
                     </span>
-                    <span className="min-w-0">
-                      <span className="block text-[13px] font-semibold text-gray-900 truncate">{c.name}</span>
-                      <span className="block text-[11px] text-gray-500">{c.hubs_count} hub{c.hubs_count === 1 ? '' : 's'}</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[14px] font-semibold text-stone-900 truncate">{c.name}</span>
+                      <span className="block text-[12px] text-stone-500">{c.hubs_count} hub{c.hubs_count === 1 ? '' : 's'} in its network</span>
                     </span>
+                    {on && <CheckCircle2 className="w-4 h-4 text-brand-red shrink-0" />}
                   </button>
                 );
               })}
             </div>
           )}
-          {errors.logistics_company_id && <p className="text-xs text-red-600" role="alert">{errors.logistics_company_id}</p>}
-        </div>
+          {errors.logistics_company_id && <p className="mt-2 text-[12.5px] text-brand-red" role="alert">{errors.logistics_company_id}</p>}
+        </ApplySection>
 
-        {/* ── Hub details & PSGC address ── */}
-        <div className="space-y-3.5 pt-2">
-          <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-            <Building2 className="w-4 h-4 text-brand-red" />
-            <h2 className="text-xs font-bold tracking-wider text-gray-700 uppercase">Sorting Center Information</h2>
-          </div>
-
-          <Input
-            label="Registered Business / Hub Name"
-            required
-            value={hubName}
-            onChange={(e) => { setHubName(e.target.value); if (errors.hub_name) setErrors((prev) => ({ ...prev, hub_name: '' })); }}
-            placeholder="e.g. Laguna Central Logistics Hub"
-            error={errors.hub_name}
-            disabled={submitting}
-          />
-
-          <FileUploadZone
-            label="DTI Registration / Mayor's Permit"
-            required
-            hint="DTI, SEC, or LGU Mayor's Permit — JPG, PNG, PDF max 5MB"
-            file={dtiPermit}
-            onChange={(f) => { setDtiPermit(f); if (errors.dti_permit) setErrors((prev) => ({ ...prev, dti_permit: '' })); }}
-            onClear={() => setDtiPermit(null)}
-            error={errors.dti_permit}
-            disabled={submitting}
-          />
-
-          <div className="pt-1 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-              <MapPin className="w-3.5 h-3.5 text-brand-red" />
-              <span>Physical Hub Facility Location</span>
+        <ApplySection n={2} title="Your hub" hint="The registered name, permit and where the facility is.">
+          <div className="space-y-5">
+            <Input label="Registered business or hub name" required value={hubName}
+              onChange={(e) => { setHubName(e.target.value); if (errors.hub_name) setErrors((prev) => ({ ...prev, hub_name: '' })); }}
+              placeholder="For example: Laguna Central Logistics Hub" error={errors.hub_name} disabled={submitting} />
+            <FileUploadZone label="DTI registration or Mayor's permit" required hint="DTI, SEC or Mayor's permit (JPG, PNG or PDF, up to 5 MB)"
+              file={dtiPermit} onChange={(f) => { setDtiPermit(f); if (errors.dti_permit) setErrors((prev) => ({ ...prev, dti_permit: '' })); }}
+              onClear={() => setDtiPermit(null)} error={errors.dti_permit} disabled={submitting} />
+            <div>
+              <p className="flex items-center gap-1.5 mb-2 text-[13px] font-semibold text-stone-800"><MapPin className="w-4 h-4 text-brand-red" /> Facility address</p>
+              <PsgcCascadingAddress
+                value={hubAddress}
+                onChange={(newAddr) => { setHubAddress(newAddr); setErrors((prev) => ({ ...prev, address_province: '', address_city: '', address_barangay: '', address_street: '' })); }}
+                errors={{ province: errors.address_province, city: errors.address_city, barangay: errors.address_barangay, street: errors.address_street }}
+                disabled={submitting}
+              />
             </div>
-            <PsgcCascadingAddress
-              value={hubAddress}
-              onChange={(newAddr) => {
-                setHubAddress(newAddr);
-                setErrors((prev) => ({ ...prev, address_province: '', address_city: '', address_barangay: '', address_street: '' }));
-              }}
-              errors={{ province: errors.address_province, city: errors.address_city, barangay: errors.address_barangay, street: errors.address_street }}
-              disabled={submitting}
-            />
           </div>
-        </div>
+        </ApplySection>
 
-        {/* ── Coverage area ── */}
-        <div className="space-y-3.5 pt-2">
-          <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-            <FileText className="w-4 h-4 text-brand-red" />
-            <h2 className="text-xs font-bold tracking-wider text-gray-700 uppercase">Service Area Coverage</h2>
-          </div>
+        <ApplySection n={3} title="Where you deliver" hint="Pick the barangays your riders cover. Parcels for these barangays come to your hub.">
           <CoverageBarangaySelector
             selected={coverageBarangays}
             onChange={(items) => { setCoverageBarangays(items); if (errors.coverage_barangays) setErrors((prev) => ({ ...prev, coverage_barangays: '' })); }}
             error={errors.coverage_barangays}
             disabled={submitting}
           />
-        </div>
+        </ApplySection>
 
-        <div className="rounded-xl bg-amber-50/80 border border-amber-200/90 p-3.5 text-xs text-amber-800 leading-relaxed space-y-1">
-          <p className="font-semibold text-amber-900">Administrative Vetting Notice:</p>
-          <p>
-            Your courier company checks your DTI permit, your coverage area and the ID on your account. You can keep shopping while the
-            application is <strong>PENDING</strong>; the hub dashboard opens once it is approved.
+        <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-6 space-y-4">
+          <p className="text-[13px] leading-relaxed text-stone-600">
+            While the application is in review you can keep shopping. The hub dashboard opens as soon as your courier company approves it.
           </p>
-        </div>
-
-        <Button type="submit" loading={submitting} disabled={submitting} className="w-full min-h-[46px] text-sm font-bold shadow-sm">
-          {submitting ? 'Submitting Application…' : 'Submit Hub Application'}
-        </Button>
+          <button type="submit" disabled={submitting}
+            className="w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[14px] font-semibold inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+            {submitting ? 'Sending your application…' : <>Send hub application <ArrowRight className="w-4 h-4" /></>}
+          </button>
+        </section>
       </form>
     </Shell>
   );

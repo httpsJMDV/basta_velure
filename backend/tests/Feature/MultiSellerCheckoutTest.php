@@ -111,6 +111,30 @@ class MultiSellerCheckoutTest extends TestCase
         return [$product, $variant];
     }
 
+    public function test_gcash_checkout_needs_a_13_digit_reference_and_a_receipt(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        Sanctum::actingAs($this->buyer);
+        [$product, $variant] = $this->createProductWithVariant($this->sellerA, 200.00, 10);
+        // A real 1x1 PNG (the fake image() helper needs the GD extension).
+        $receipt = fn () => \Illuminate\Http\UploadedFile::fake()->createWithContent('receipt.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+        $payload = fn (array $extra) => array_merge([
+            'payment_method' => 'gcash', 'shipping_name' => 'Juan Dela Cruz', 'shipping_phone' => '09171234567', 'shipping_address' => '1 Sample St',
+            'shipping_province_code' => '130000000', 'shipping_city_code' => '137404000', 'shipping_barangay_code' => '137404001',
+            'items' => [['product_id' => $product->id, 'variant_id' => $variant->id, 'quantity' => 1]],
+        ], $extra);
+
+        $this->post('/api/v1/checkout/place-order', $payload(['payment_reference' => '12345']), ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['payment_reference', 'payment_proof']);
+        $this->post('/api/v1/checkout/place-order', $payload(['payment_reference' => '12345678901234', 'payment_proof' => $receipt()]), ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['payment_reference']);
+
+        // Spaces as printed on the receipt are fine; the digits are stored.
+        $res = $this->post('/api/v1/checkout/place-order', $payload(['payment_reference' => '1234 567 890123', 'payment_proof' => $receipt()]), ['Accept' => 'application/json'])
+            ->assertCreated();
+        $this->assertSame('1234567890123', Order::find($res->json('data.id'))->payment_reference);
+    }
+
     public function test_multi_seller_checkout_creates_one_order_per_seller(): void
     {
         Sanctum::actingAs($this->buyer);
@@ -177,6 +201,9 @@ class MultiSellerCheckoutTest extends TestCase
         $this->assertEquals(450.00, (float) $orderA->total);
         $this->assertCount(1, $orderA->items);
         $this->assertEquals($this->sellerA->id, $orderA->items->first()->seller_id);
+        // The line remembers which product and variant it was (reviews need it).
+        $this->assertEquals($productA->id, $orderA->items->first()->product_id);
+        $this->assertEquals($variantA->id, $orderA->items->first()->product_variant_id);
 
         // Verify Order B totals (subtotal 300 + 50 shipping = 350)
         $this->assertEquals(300.00, (float) $orderB->subtotal);

@@ -258,11 +258,12 @@ function TrendingSection() {
 
 // ─── 4. Shops to know: the most-ordered shops, each shown through its own best sellers ─────────────
 function ShopPhoto({ src, className = '' }: { src: string | null; className?: string }) {
+  // A fixed frame: the photo fills it, whatever its own size, so every card lines up.
   return (
-    <span className={`block overflow-hidden bg-stone-100 ${className}`}>
+    <span className={`relative block min-h-0 overflow-hidden bg-stone-100 ${className}`}>
       {src
-        ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
-        : <span className="w-full h-full flex items-center justify-center text-stone-300"><Package className="w-6 h-6" /></span>}
+        ? <img src={src} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
+        : <span className="absolute inset-0 flex items-center justify-center text-stone-300"><Package className="w-6 h-6" /></span>}
     </span>
   );
 }
@@ -272,29 +273,39 @@ function ShopCard({ shop }: { shop: FeaturedShop }) {
   const place = [shop.city, shop.province].filter(Boolean).join(', ');
   const initials = shop.shop_name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
   return (
-    <Link to={`/shop/${shop.shop_slug}`} className="group flex flex-col rounded-2xl bg-white ring-1 ring-stone-200/80 overflow-hidden transition-shadow duration-300 hover:shadow-[0_18px_40px_-20px_rgba(28,25,23,0.35)] hover:ring-stone-300">
-      {/* Three of its best sellers */}
-      <span className="grid grid-cols-3 grid-rows-2 gap-0.5 aspect-[3/2]">
+    <Link to={`/shop/${shop.shop_slug}`} className="group h-full flex flex-col rounded-2xl bg-white ring-1 ring-stone-200/80 overflow-hidden transition-shadow duration-300 hover:shadow-[0_18px_40px_-20px_rgba(28,25,23,0.35)] hover:ring-stone-300">
+      {/* Three of its best sellers in a fixed 3:2 frame */}
+      <span className="grid grid-cols-3 grid-rows-2 gap-0.5 h-48 sm:h-52 shrink-0">
         <ShopPhoto src={main?.image_url ?? null} className="col-span-2 row-span-2" />
         <ShopPhoto src={second?.image_url ?? null} />
         <ShopPhoto src={third?.image_url ?? null} />
       </span>
-      <span className="flex items-center gap-3 px-4 pt-3.5">
+
+      <span className="flex items-center gap-3 px-4 pt-4">
         {shop.logo_url
           ? <img src={shop.logo_url} alt="" className="w-10 h-10 rounded-full object-cover ring-1 ring-stone-200 shrink-0" />
           : <span className="w-10 h-10 rounded-full bg-[#1E1B18] text-[#FAF8F5] text-[13px] font-bold flex items-center justify-center shrink-0">{initials}</span>}
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-[#1E1B18] truncate group-hover:text-brand-red transition-colors">{shop.shop_name}</span>
-          {place && <span className="block text-[12px] text-stone-500 truncate">{place}</span>}
+          <span className="block text-[15px] font-semibold leading-tight text-[#1E1B18] truncate group-hover:text-brand-red transition-colors">{shop.shop_name}</span>
+          <span className="block mt-0.5 text-[12px] text-stone-500 truncate">{place || 'Philippines'}</span>
         </span>
       </span>
-      <span className="flex items-center gap-x-3 gap-y-1 flex-wrap px-4 pt-2.5 pb-4 text-[12px] text-stone-600">
+
+      {/* Its top seller, by name and price */}
+      {main && (
+        <span className="mx-4 mt-3 flex items-baseline justify-between gap-3 text-[12.5px]">
+          <span className="min-w-0 truncate text-stone-600"><span className="text-stone-400">Top pick · </span>{main.name}</span>
+          <span className="shrink-0 font-semibold text-stone-900 tabular-nums">{pesoCompact(main.price)}</span>
+        </span>
+      )}
+
+      <span className="mt-auto mx-4 mb-4 pt-3 border-t border-stone-100 flex items-center gap-x-3 text-[12px] text-stone-500">
         {shop.review_count > 0 && shop.avg_rating !== null && (
-          <span className="inline-flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />{shop.avg_rating.toFixed(1)} <span className="text-stone-400">({shop.review_count})</span></span>
+          <span className="inline-flex items-center gap-1 text-stone-700"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />{shop.avg_rating.toFixed(1)}<span className="text-stone-400">({shop.review_count})</span></span>
         )}
         <span>{shop.product_count} products</span>
         {shop.units_sold > 0 && <span>{shop.units_sold.toLocaleString()} sold</span>}
-        <span className="ml-auto inline-flex items-center gap-1 font-semibold text-brand-red">Visit <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+        <span className="ml-auto inline-flex items-center gap-1 font-semibold text-brand-red">Visit shop <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" /></span>
       </span>
     </Link>
   );
@@ -323,11 +334,11 @@ function ShopsToKnow() {
           <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
         </Link>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
         {shops === null
           ? Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="rounded-2xl ring-1 ring-stone-200/80 overflow-hidden">
-              <div className="aspect-[3/2] bg-stone-100 animate-pulse" />
+              <div className="h-48 sm:h-52 bg-stone-100 animate-pulse" />
               <div className="p-4 flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-stone-100 animate-pulse" /><div className="flex-1 space-y-2"><div className="h-3 w-2/3 rounded bg-stone-100 animate-pulse" /><div className="h-3 w-1/3 rounded bg-stone-100 animate-pulse" /></div></div>
             </div>
           ))

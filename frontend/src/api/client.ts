@@ -3,6 +3,8 @@ import type {
   AttachableProduct,
   AttachableOrder,
   FeaturedShop,
+  PendingReview,
+  BuyerReview,
   CourierOption,
   LogisticsCompanyDetail,
   LogisticsDashboard,
@@ -1249,3 +1251,18 @@ export const getHubEarningsApi = () => http.get<{ data: HubEarningsSummary }>('/
 /** The most-ordered shops with their best sellers, for the storefront (cached on the server). */
 export const getFeaturedShopsApi = (limit = 4) =>
   http.get<{ data: FeaturedShop[] }>('/shops', { params: { limit } }).then((r) => r.data.data);
+
+// ─── Buyer reviews ───────────────────────────────────────────────────────────
+
+export const getPendingReviewsApi = () =>
+  http.get<{ data: PendingReview[] }>('/buyer/reviews/pending').then((r) => r.data.data);
+
+export const getMyReviewsApi = () =>
+  http.get<{ data: BuyerReview[] }>('/buyer/reviews').then((r) => r.data.data);
+
+/** order_id, product_id, rating, comment and photos[] (up to five). */
+export const createReviewApi = (form: FormData) =>
+  http.post<{ data: BuyerReview }>('/buyer/reviews', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data.data);
+
+export const updateReviewApi = (id: number, payload: { rating?: number; comment?: string | null }) =>
+  http.patch<{ data: BuyerReview }>(`/buyer/reviews/${id}`, payload).then((r) => r.data.data);

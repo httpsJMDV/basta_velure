@@ -1,635 +1,322 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  MessageSquare,
-  Search,
-  Headphones,
-  Store,
-  Send,
-  ShoppingBag,
-  Package,
-  ExternalLink,
-  ShieldCheck,
-  X,
-  Bike,
-  Lock,
-} from 'lucide-react';
+import { MessageSquare, Search, Headphones, Send, ShoppingBag, Package, ShieldCheck, X, Bike, Lock, ChevronLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useChat } from '../../hooks/useChat';
-import Button from '../../components/ui/Button';
 import AvatarWithFallback from '../../components/ui/AvatarWithFallback';
 import ChatAttachmentBubble from '../../components/chat/ChatAttachmentBubble';
 import { useChatAttach, AttachMenu } from '../../components/chat/ChatAttach';
-import { isAutoAttachmentBody } from '../../components/chat/chatUtils';
+import { isAutoAttachmentBody, inboxTime, dayLabel, clockTime } from '../../components/chat/chatUtils';
 import RiderThreadPane from '../../components/chat/RiderThreadPane';
 import { isRiderThread } from '../../lib/riderThread';
+import type { Conversation } from '../../types';
 
+type Tab = 'all' | 'sellers' | 'delivery' | 'support';
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'sellers', label: 'Shops' },
+  { key: 'delivery', label: 'Delivery' },
+  { key: 'support', label: 'Support' },
+];
+const GROUP_GAP_MS = 5 * 60 * 1000;
+const SAFETY_KEY = 'loved_it_dismissed_safety_notice';
+
+/** Who a conversation is with, as the inbox shows it. */
+function who(c: Conversation) {
+  if (isRiderThread(c)) return { name: 'Delivery rider', kind: 'rider' as const, avatar: null };
+  if (c.type === 'buyer_admin') return { name: 'Loved-IT Support', kind: 'support' as const, avatar: null };
+  return { name: c.seller?.shop_name || 'Shop', kind: 'shop' as const, avatar: c.seller?.shop_logo || c.seller?.avatar_url || null };
+}
+
+function Face({ c, size = 'w-11 h-11' }: { c: Conversation; size?: string }) {
+  const w = who(c);
+  if (w.kind === 'rider') return <span className={`${size} rounded-full bg-sky-50 text-sky-700 flex items-center justify-center shrink-0`}><Bike className="w-5 h-5" /></span>;
+  if (w.kind === 'support') return <span className={`${size} rounded-full bg-brand-red text-white flex items-center justify-center shrink-0`}><Headphones className="w-5 h-5" /></span>;
+  return <AvatarWithFallback src={w.avatar} alt={w.name} role="seller" fallbackInitials={w.name} className={`${size} rounded-full shrink-0`} />;
+}
+
+/** The buyer's inbox on the account pages: shops, delivery riders and Loved-IT Support, side by side with the thread. */
 export default function BuyerMessagesPage() {
   const { user } = useAuth();
   const {
-    conversations,
-    activeConversation,
-    messages,
-    loadingConversations,
-    loadingMessages,
-    sendingMessage,
-    wsConnected,
-    selectConversation,
-    openChatWithSupport,
-    sendMessage,
-    refreshConversations,
+    conversations, activeConversation, messages, loadingConversations, loadingMessages, sendingMessage, wsConnected,
+    selectConversation, clearActiveConversation, openChatWithSupport, sendMessage, refreshConversations,
   } = useChat();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'sellers' | 'delivery' | 'support'>('all');
-  const [inputBody, setInputBody] = useState('');
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<Tab>('all');
+  const [draft, setDraft] = useState('');
+  const [image, setImage] = useState<File | null>(null);
   const [safetyDismissed, setSafetyDismissed] = useState(() => {
-    return (
-      localStorage.getItem('loved_it_dismissed_safety_notice') === 'true' ||
-      localStorage.getItem('velure_dismissed_safety_notice') === 'true'
-    );
+    try { return localStorage.getItem(SAFETY_KEY) === 'true'; } catch { return false; }
   });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Photo, order and product sharing (the + menu of the composer). The server writes the caption of a card.
+  const imageUrl = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
+  useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
+
   const attach = useChatAttach({
     conversationId: activeConversation?.id,
-    onImage: (file) => { setSelectedImage(file); inputRef.current?.focus(); },
+    onImage: (file) => { setImage(file); inputRef.current?.focus(); },
     onOrder: (o) => { void sendMessage('', 'order_card', { id: o.id }); },
     onProduct: (p) => { void sendMessage('', 'product_card', { id: p.id }); },
   });
 
-  const handleDismissSafety = () => {
-    setSafetyDismissed(true);
-    localStorage.setItem('loved_it_dismissed_safety_notice', 'true');
-  };
+  const lastId = messages[messages.length - 1]?.id;
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [lastId, activeConversation?.id]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
-    if (selectedImage) {
-      const url = URL.createObjectURL(selectedImage);
-      setImagePreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setImagePreviewUrl(null);
-    }
-  }, [selectedImage]);
-
-  const filteredConversations = conversations.filter((c) => {
-    if (activeTab === 'sellers' && c.type !== 'buyer_seller') return false;
-    if (activeTab === 'delivery' && c.type !== 'rider_buyer') return false;
-    if (activeTab === 'support' && c.type !== 'buyer_admin') return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const shopName = c.seller?.shop_name?.toLowerCase() || '';
-      const subj = c.subject?.toLowerCase() || '';
-      const prodName = c.product?.name?.toLowerCase() || '';
-      const lastMsg = c.last_message?.body?.toLowerCase() || '';
-      return shopName.includes(q) || subj.includes(q) || prodName.includes(q) || lastMsg.includes(q);
-    }
-    return true;
+  const list = conversations.filter((c) => {
+    if (tab === 'sellers' && c.type !== 'buyer_seller') return false;
+    if (tab === 'delivery' && c.type !== 'rider_buyer') return false;
+    if (tab === 'support' && c.type !== 'buyer_admin') return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [c.seller?.shop_name, c.subject, c.product?.name, c.last_message?.body].some((v) => (v ?? '').toLowerCase().includes(q));
   });
+  const unreadByTab = (t: Tab) => conversations.filter((c) => (t === 'all' || (t === 'sellers' && c.type === 'buyer_seller') || (t === 'delivery' && c.type === 'rider_buyer') || (t === 'support' && c.type === 'buyer_admin')) && c.unread > 0).length;
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!inputBody.trim() && !selectedImage) || sendingMessage) return;
-    const text = inputBody;
-    const img = selectedImage;
-    setInputBody('');
-    setSelectedImage(null);
+  const send = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if ((!draft.trim() && !image) || sendingMessage) return;
+    const text = draft;
+    const img = image;
+    setDraft('');
+    setImage(null);
+    if (inputRef.current) inputRef.current.style.height = '';
     await sendMessage(text, undefined, undefined, img || undefined);
   };
 
-  const formatTimeAgo = (iso?: string | null) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    const now = new Date();
-    const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
-    if (diffMin < 1) return 'Just now';
-    if (diffMin < 60) return `${diffMin}m`;
-    const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `${diffHours}h`;
-    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  const dismissSafety = () => {
+    setSafetyDismissed(true);
+    try { localStorage.setItem(SAFETY_KEY, 'true'); } catch { /* private window */ }
   };
 
-  const formatMessengerDate = (iso: string | null | undefined): string => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-
-    const yesterday = new Date();
-    yesterday.setDate(now.getDate() - 1);
-    const isYesterday = d.toDateString() === yesterday.toDateString();
-
-    const timeStr = d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-    if (isToday) return `Today · ${timeStr}`;
-    if (isYesterday) return `Yesterday · ${timeStr}`;
-
-    const sameYear = d.getFullYear() === now.getFullYear();
-    const dateStr = d.toLocaleDateString('en-PH', {
-      month: 'short',
-      day: 'numeric',
-      ...(sameYear ? {} : { year: 'numeric' }),
-    });
-    return `${dateStr} · ${timeStr}`;
-  };
-
-  const shouldShowDateSeparator = (currIso: string, prevIso?: string): boolean => {
-    if (!prevIso) return true;
-    const curr = new Date(currIso).getTime();
-    const prev = new Date(prevIso).getTime();
-    return curr - prev > 30 * 60 * 1000 || new Date(currIso).toDateString() !== new Date(prevIso).toDateString();
-  };
-
-  const formatTimeOnly = (iso: string | null | undefined): string => {
-    if (!iso) return '';
-    return new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', hour12: true });
-  };
-
-  const lastMyMessageId = [...messages].reverse().find((m) => m.sender_id === user?.id)?.id;
+  const active = activeConversation;
+  const activeWho = active ? who(active) : null;
+  const lastMineId = [...messages].reverse().find((m) => m.sender_id === user?.id)?.id;
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden h-[720px] flex flex-col md:flex-row">
-      {/* LEFT SIDEBAR: CONVERSATION LIST */}
-      <div className="w-full md:w-80 lg:w-96 border-r border-gray-100 flex flex-col h-full bg-gray-50/40">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-rose-50 text-brand-red flex items-center justify-center font-bold border border-rose-100">
-              <MessageSquare className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-bold text-gray-900 leading-tight">Messages</h2>
-                <span className="inline-flex items-center gap-1 text-[10px] bg-gray-100 px-2 py-0.5 rounded-full font-medium text-gray-600">
-                  <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
-                  {wsConnected ? 'Live' : 'Connecting'}
-                </span>
-              </div>
-              <p className="text-[11px] text-gray-400">Stores &amp; Customer Support</p>
-            </div>
-          </div>
+    <section className="rounded-3xl bg-white/60 border border-stone-200 overflow-hidden">
+      <header className="px-6 pt-6 pb-5 bg-white border-b border-stone-200 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-serif font-bold tracking-tight text-[#1E1B18]">Messages</h2>
+          <p className="mt-1 text-[13px] text-stone-500">Chats with shops, your delivery riders and Loved-IT Support.</p>
         </div>
-
-        {/* Search & Tabs */}
-        <div className="p-3 border-b border-gray-100 space-y-2 bg-white">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red"
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs">
-              {(['all', 'sellers', 'delivery', 'support'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  className={`px-3 py-1 rounded-lg text-[11px] font-bold capitalize transition-all ${
-                    activeTab === t
-                      ? 'bg-white text-gray-900 shadow-xs'
-                      : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => openChatWithSupport()}
-              className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-brand-red text-[11px] font-bold flex items-center gap-1 border border-rose-100 transition-colors"
-            >
-              <Headphones className="w-3.5 h-3.5" /> Support
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1.5 text-[12px] ${wsConnected ? 'text-emerald-700' : 'text-stone-500'}`} title={wsConnected ? 'New messages appear right away.' : 'Refreshing every few seconds.'}>
+            <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-stone-400'}`} />
+            {wsConnected ? 'Live' : 'Auto-refresh'}
+          </span>
+          <button type="button" onClick={() => openChatWithSupport()} className="h-9 px-4 rounded-full border border-stone-300 bg-white text-[13px] font-semibold text-stone-800 hover:border-stone-900 inline-flex items-center gap-1.5">
+            <Headphones className="w-4 h-4 text-brand-red" /> Contact support
+          </button>
         </div>
+      </header>
 
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-100/70 p-2">
-          {loadingConversations ? (
-            <div className="p-8 text-center text-xs text-gray-400">Loading conversations...</div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="p-8 text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-                <MessageSquare className="w-6 h-6" />
-              </div>
-              <p className="text-xs font-bold text-gray-700">No conversations</p>
-              <p className="text-[11px] text-gray-400">
-                You can chat with any store on the product detail page or initiate support chat.
-              </p>
-              <Button variant="secondary" onClick={() => openChatWithSupport()} className="text-xs">
-                Contact Support
-              </Button>
+      {!safetyDismissed && (
+        <div className="flex items-start gap-3 px-6 py-3 bg-[#FAF8F5] border-b border-stone-200 text-[12.5px] text-stone-700">
+          <ShieldCheck className="w-4 h-4 mt-0.5 text-emerald-600 shrink-0" />
+          <p className="flex-1">Keep chats and payments on Loved-IT. A shop will never ask you to pay outside checkout or to share your password or OTP.</p>
+          <button type="button" onClick={dismissSafety} aria-label="Dismiss" className="text-stone-400 hover:text-stone-700"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      <div className="flex h-[640px] bg-white">
+        {/* Inbox */}
+        <aside className={`${active ? 'hidden md:flex' : 'flex'} w-full md:w-[320px] shrink-0 flex-col border-r border-stone-200`}>
+          <div className="px-4 pt-4">
+            <label className="relative block">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search shops or messages" aria-label="Search conversations"
+                className="w-full h-10 pl-10 pr-3 rounded-full bg-stone-100 border border-transparent text-[13px] outline-none focus:bg-white focus:border-stone-300 placeholder:text-stone-400" />
+            </label>
+            <div role="tablist" aria-label="Conversation type" className="flex gap-4 mt-3 border-b border-stone-200">
+              {TABS.map((t) => {
+                const unread = unreadByTab(t.key);
+                return (
+                  <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+                    className={`relative pb-2.5 text-[13px] transition-colors ${tab === t.key ? 'font-semibold text-stone-900' : 'text-stone-500 hover:text-stone-800'}`}>
+                    {t.label}{unread > 0 && <span className="ml-1 text-brand-red tabular-nums">{unread}</span>}
+                    {tab === t.key && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-brand-red" />}
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            filteredConversations.map((c) => {
-              const isRider = isRiderThread(c);
-              const isSupport = c.type === 'buyer_admin';
-              const name = isRider ? 'Delivery rider' : isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
-              const avatar = isSupport ? null : c.seller?.shop_logo || c.seller?.avatar_url;
-              const isSelected = activeConversation?.id === c.id;
-              const hasUnread = c.unread > 0;
+          </div>
 
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => selectConversation(c)}
-                  className={`w-full p-3 rounded-2xl flex items-start gap-3 text-left transition-all ${
-                    isSelected
-                      ? 'bg-rose-50/80 border border-rose-200/80 shadow-2xs'
-                      : 'hover:bg-white'
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                    {isRider ? (
-                      <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                        <Bike className="w-5 h-5" aria-hidden="true" />
-                      </div>
-                    ) : (
-                      <AvatarWithFallback
-                        src={avatar}
-                        alt={name}
-                        role={isSupport ? 'admin' : 'seller'}
-                        fallbackInitials={isSupport ? 'CS' : name}
-                        className="w-11 h-11 rounded-2xl"
-                      />
-                    )}
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white absolute -bottom-0.5 -right-0.5" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <span className="text-xs font-bold text-gray-900 truncate">{name}</span>
-                      <span className="text-[10px] text-gray-400 shrink-0">{formatTimeAgo(c.last_message_at)}</span>
-                    </div>
-
-                    {isRider && c.parcel && (
-                      <p className="text-[10px] text-blue-700 font-semibold truncate flex items-center gap-1">
-                        <span className="font-mono">{c.parcel.tracking_number}</span>
-                        {c.is_closed && (
-                          <span className="inline-flex items-center gap-0.5 text-gray-500">
-                            <Lock className="w-3 h-3" aria-hidden="true" />
-                            Closed
+          <div className="flex-1 overflow-y-auto p-2">
+            {loadingConversations && conversations.length === 0 ? (
+              <ul aria-busy="true">{[1, 2, 3, 4].map((i) => (
+                <li key={i} className="flex items-center gap-3 p-3"><span className="w-11 h-11 rounded-full bg-stone-100 animate-pulse" /><span className="flex-1 space-y-2"><span className="block h-3 w-1/2 rounded bg-stone-100 animate-pulse" /><span className="block h-3 w-3/4 rounded bg-stone-100 animate-pulse" /></span></li>
+              ))}</ul>
+            ) : list.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                <span className="w-12 h-12 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center"><MessageSquare className="w-5 h-5" /></span>
+                <p className="mt-3 text-[13px] font-semibold text-stone-900">{search ? 'No matches' : 'No conversations here'}</p>
+                <p className="mt-1 text-[12px] text-stone-500">{search ? 'Try another shop name or word.' : 'Tap "Chat" on a product or shop page to ask the seller.'}</p>
+              </div>
+            ) : (
+              <ul className="space-y-0.5">
+                {list.map((c) => {
+                  const w = who(c);
+                  const on = active?.id === c.id;
+                  const unread = c.unread > 0;
+                  return (
+                    <li key={c.id}>
+                      <button type="button" onClick={() => selectConversation(c)} aria-current={on ? 'true' : undefined}
+                        className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-colors ${on ? 'bg-[#FAF8F5]' : 'hover:bg-stone-50'}`}>
+                        {on && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r bg-brand-red" aria-hidden="true" />}
+                        <Face c={c} />
+                        <span className="flex-1 min-w-0">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className={`text-[13px] truncate ${unread ? 'font-bold text-stone-900' : 'font-semibold text-stone-800'}`}>{w.name}</span>
+                            <span className={`text-[11px] shrink-0 ${unread ? 'text-brand-red font-semibold' : 'text-stone-400'}`}>{inboxTime(c.last_message_at)}</span>
                           </span>
-                        )}
-                      </p>
-                    )}
+                          {isRiderThread(c) && c.parcel ? (
+                            <span className="block text-[11px] text-stone-500 truncate"><span className="font-mono">{c.parcel.tracking_number}</span>{c.is_closed && <span className="ml-1.5 inline-flex items-center gap-0.5"><Lock className="w-3 h-3" />Closed</span>}</span>
+                          ) : c.product ? (
+                            <span className="block text-[11px] text-stone-500 truncate">About: {c.product.name}</span>
+                          ) : null}
+                          <span className="flex items-center gap-2">
+                            <span className={`flex-1 text-[12px] truncate ${unread ? 'text-stone-900 font-medium' : 'text-stone-500'}`}>{c.last_message?.body || 'No messages yet'}</span>
+                            {unread && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-red text-white text-[10px] font-bold flex items-center justify-center">{c.unread > 99 ? '99+' : c.unread}</span>}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </aside>
 
-                    {c.product && (
-                      <p className="text-[10px] text-brand-red font-semibold truncate flex items-center gap-1">
-                        <ShoppingBag className="w-3 h-3 shrink-0" />
-                        {c.product.name}
-                      </p>
-                    )}
+        {/* Thread */}
+        <div className={`${active ? 'flex' : 'hidden md:flex'} flex-1 min-w-0 flex-col`}>
+          {!active || !activeWho ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#FAF8F5]">
+              <span className="w-16 h-16 rounded-2xl bg-white border border-stone-200 text-brand-red flex items-center justify-center"><MessageSquare className="w-7 h-7" /></span>
+              <h3 className="mt-4 text-[15px] font-semibold text-stone-900">Pick a conversation</h3>
+              <p className="mt-1 text-[12.5px] text-stone-500 max-w-xs">Questions about an order? Contact Loved-IT Support and share the order right in the chat.</p>
+            </div>
+          ) : isRiderThread(active) ? (
+            user ? <RiderThreadPane conversation={active} currentUserId={user.id} onActivity={() => void refreshConversations()} onBack={clearActiveConversation} /> : null
+          ) : (
+            <>
+              <div className="flex items-center gap-3 px-4 h-[64px] border-b border-stone-200 shrink-0">
+                <button type="button" onClick={clearActiveConversation} className="md:hidden -ml-1 w-8 h-8 rounded-full text-stone-500 hover:bg-stone-100 flex items-center justify-center" aria-label="Back to the inbox"><ChevronLeft className="w-5 h-5" /></button>
+                <Face c={active} size="w-10 h-10" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-semibold text-stone-900 truncate">{activeWho.name}</p>
+                  <p className="text-[12px] text-stone-500 truncate">{activeWho.kind === 'support' ? 'Official Loved-IT support' : 'Shop on Loved-IT'}</p>
+                </div>
+                {activeWho.kind === 'shop' && active.seller?.shop_name && (
+                  <Link to={`/shop/${active.seller.shop_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`} className="hidden sm:inline-flex h-8 px-3 rounded-full border border-stone-300 text-[12px] font-semibold text-stone-700 hover:border-stone-900 items-center">Visit shop</Link>
+                )}
+              </div>
 
-                    <p className={`text-xs truncate ${hasUnread ? 'text-gray-900 font-bold' : 'text-gray-500'}`}>
-                      {c.last_message?.body || 'No messages yet'}
-                    </p>
+              {(active.product || active.order) && (
+                <div className="px-4 py-2 border-b border-stone-200 shrink-0">
+                  {active.product ? (
+                    <Link to={`/products/${active.product.id}`} className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-stone-50">
+                      {active.product.image ? <img src={active.product.image} alt="" className="w-10 h-10 rounded-lg object-cover ring-1 ring-stone-200" /> : <span className="w-10 h-10 rounded-lg bg-stone-100 text-stone-400 flex items-center justify-center"><ShoppingBag className="w-4 h-4" /></span>}
+                      <span className="flex-1 min-w-0"><span className="block text-[12.5px] text-stone-900 truncate">{active.product.name}</span><span className="block text-[12px] font-bold text-brand-red">₱{active.product.price.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span></span>
+                      <span className="text-[11.5px] font-semibold text-stone-500">View</span>
+                    </Link>
+                  ) : active.order ? (
+                    <Link to="/settings/orders" className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-stone-50">
+                      <span className="w-10 h-10 rounded-lg bg-stone-100 text-stone-500 flex items-center justify-center"><Package className="w-4 h-4" /></span>
+                      <span className="flex-1 min-w-0"><span className="block text-[12.5px] text-stone-900 truncate">Order <span className="font-mono">#{active.order.order_number}</span></span><span className="block text-[11.5px] text-stone-500 capitalize">{active.order.status.replace(/_/g, ' ').toLowerCase()}</span></span>
+                      <span className="text-[11.5px] font-semibold text-stone-500">Details</span>
+                    </Link>
+                  ) : null}
+                </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-[#FAF8F5]">
+                {loadingMessages && messages.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-stone-400"><Loader2 className="w-5 h-5 animate-spin" /></div>
+                ) : messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                    <p className="text-[13px] font-semibold text-stone-900">Say hello to {activeWho.name}</p>
+                    <p className="mt-1 text-[12px] text-stone-500">Ask about stock, sizes or shipping, or share an order with the + button.</p>
                   </div>
+                ) : (
+                  messages.map((m, i) => {
+                    const prev = messages[i - 1];
+                    const next = messages[i + 1];
+                    const t = new Date(m.created_at).getTime();
+                    const sameDay = (a?: string) => !!a && new Date(a).toDateString() === new Date(m.created_at).toDateString();
+                    const newDay = !prev || !sameDay(prev.created_at);
+                    const joinsPrev = !!prev && !newDay && prev.sender_id === m.sender_id && t - new Date(prev.created_at).getTime() < GROUP_GAP_MS;
+                    const endsGroup = !next || next.sender_id !== m.sender_id || !sameDay(next.created_at) || new Date(next.created_at).getTime() - t >= GROUP_GAP_MS;
+                    const mine = m.sender_id === user?.id;
+                    return (
+                      <div key={m.id}>
+                        {newDay && (
+                          <div className="flex items-center gap-3 my-4" role="separator">
+                            <span className="flex-1 h-px bg-stone-200" /><span className="text-[11px] font-medium text-stone-400">{dayLabel(m.created_at)}</span><span className="flex-1 h-px bg-stone-200" />
+                          </div>
+                        )}
+                        <div className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'} ${joinsPrev ? 'mt-0.5' : 'mt-3'}`}>
+                          {!mine && <span className="w-8 shrink-0">{endsGroup && <Face c={active} size="w-8 h-8" />}</span>}
+                          <div className={`flex flex-col min-w-0 max-w-[min(78%,480px)] ${mine ? 'items-end' : 'items-start'}`}>
+                            {m.attachment_type && m.attachment_data && <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={mine} orderHref={() => '/settings/orders'} />}
+                            {m.body && !isAutoAttachmentBody(m) && (
+                              <div className={`px-3.5 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap break-words ${mine
+                                ? `bg-brand-red text-white rounded-[18px] ${endsGroup ? 'rounded-br-md' : ''}`
+                                : `bg-white text-stone-900 ring-1 ring-stone-200 rounded-[18px] ${endsGroup ? 'rounded-bl-md' : ''}`}`}>
+                                {m.body}
+                              </div>
+                            )}
+                            {endsGroup && (
+                              <span className="mt-1 px-1 text-[10.5px] text-stone-400">
+                                {clockTime(m.created_at)}{mine && m.id === lastMineId && <span className={m.read_at ? 'text-stone-600 font-semibold' : ''}> · {m.read_at ? 'Seen' : 'Sent'}</span>}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={endRef} />
+              </div>
 
-                  {hasUnread && (
-                    <span className="w-5 h-5 rounded-full bg-brand-red text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                      {c.unread}
-                    </span>
-                  )}
-                </button>
-              );
-            })
+              <div className="border-t border-stone-200 bg-white px-3 sm:px-4 py-3 shrink-0">
+                {imageUrl && (
+                  <div className="mb-2 inline-flex items-center gap-2.5 p-1.5 pr-3 rounded-xl border border-stone-200 bg-stone-50">
+                    <img src={imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                    <span className="text-[12px] text-stone-600 max-w-[200px] truncate">{image?.name}</span>
+                    <button type="button" onClick={() => setImage(null)} aria-label="Remove the photo" className="w-6 h-6 rounded-full text-stone-400 hover:text-stone-800 hover:bg-stone-200 flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                )}
+                <form onSubmit={send} className="flex items-end gap-2">
+                  <AttachMenu attach={attach} disabled={sendingMessage} products={activeWho.kind !== 'support'} />
+                  <div className="flex-1 min-w-0 rounded-[22px] bg-stone-100 focus-within:bg-white focus-within:ring-1 focus-within:ring-stone-300 transition-colors">
+                    <textarea
+                      ref={inputRef}
+                      rows={1}
+                      value={draft}
+                      onChange={(e) => { setDraft(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`; }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}
+                      placeholder={`Message ${activeWho.name}`}
+                      aria-label="Message"
+                      className="block w-full resize-none bg-transparent px-4 py-2.5 text-[13.5px] leading-5 outline-none placeholder:text-stone-400 max-h-[120px]"
+                    />
+                  </div>
+                  <button type="submit" disabled={(!draft.trim() && !image) || sendingMessage} aria-label="Send"
+                    className="w-10 h-10 shrink-0 rounded-full bg-brand-red hover:bg-brand-red-dark text-white flex items-center justify-center transition-colors disabled:bg-stone-200 disabled:text-stone-400">
+                    {sendingMessage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 -ml-0.5" />}
+                  </button>
+                </form>
+              </div>
+              {attach.elements}
+            </>
           )}
         </div>
       </div>
-
-      {/* RIGHT MAIN PANE: ACTIVE CHAT */}
-      <div className="flex-1 flex flex-col h-full bg-white">
-        {!activeConversation ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-3 bg-gray-50/20">
-            <div className="w-16 h-16 rounded-3xl bg-rose-50 text-brand-red flex items-center justify-center border border-rose-100 shadow-sm">
-              <MessageSquare className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Select a Conversation</h3>
-              <p className="text-xs text-gray-400 mt-1 max-w-sm">
-                Choose a store from the sidebar to view chat history, ask questions about products, or request support.
-              </p>
-            </div>
-            <button
-              onClick={() => openChatWithSupport()}
-              className="px-4 py-2 bg-brand-red text-white text-xs font-bold rounded-2xl shadow-xs hover:bg-[#8a2424] transition-colors"
-            >
-              Contact Customer Support
-            </button>
-          </div>
-        ) : isRiderThread(activeConversation) ? (
-          user ? (
-            <RiderThreadPane
-              conversation={activeConversation}
-              currentUserId={user.id}
-              onActivity={() => void refreshConversations()}
-            />
-          ) : null
-        ) : (
-          <>
-            {/* Header */}
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white shadow-xs">
-              <div className="flex items-center gap-3 min-w-0">
-                <AvatarWithFallback
-                  src={activeConversation.seller?.shop_logo || undefined}
-                  alt={activeConversation.seller?.shop_name || 'Merchant'}
-                  role={activeConversation.type === 'buyer_admin' ? 'admin' : 'seller'}
-                  fallbackInitials={activeConversation.type === 'buyer_admin' ? 'CS' : (activeConversation.seller?.shop_name || undefined)}
-                  className="w-10 h-10 rounded-2xl"
-                />
-
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-gray-900 truncate">
-                    {activeConversation.type === 'buyer_admin'
-                      ? 'Loved-IT Customer Support'
-                      : activeConversation.seller?.shop_name || 'Store Merchant'}
-                  </h3>
-                  <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    {activeConversation.type === 'buyer_admin' ? 'Official Platform Support' : 'Merchant'}
-                  </p>
-                </div>
-              </div>
-
-              {activeConversation.type === 'buyer_seller' && activeConversation.seller_id && (
-                <Link
-                  to={`/store/${activeConversation.seller_id}`}
-                  className="px-3 py-1.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-semibold flex items-center gap-1.5 hover:border-brand-red hover:text-brand-red transition-colors shrink-0"
-                >
-                  <Store className="w-3.5 h-3.5" /> View Shop
-                </Link>
-              )}
-            </div>
-
-            {/* Buyer Safety Notice */}
-            {!safetyDismissed && (
-              <div className="px-4 py-2.5 bg-amber-50/90 border-b border-amber-200/80 flex items-center justify-between gap-3 text-xs text-amber-900">
-                <div className="flex items-center gap-2 min-w-0">
-                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                  <p className="text-[11.5px] leading-snug truncate sm:whitespace-normal">
-                    <span className="font-bold">Safety Tip:</span> Stay safe! Only transact within the Loved-IT app. Avoid sellers who ask you to deal or send payments outside the platform.{' '}
-                    <Link to="/help/safety" className="font-bold text-amber-800 underline hover:text-amber-950 ml-1">
-                      Learn More
-                    </Link>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDismissSafety}
-                  className="p-1 rounded-lg text-amber-600 hover:text-amber-900 hover:bg-amber-100/80 transition-colors shrink-0"
-                  title="Dismiss safety notice"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Pinned Context Banner */}
-            {activeConversation.product && (
-              <div className="p-3 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-4 text-xs">
-                <div className="flex items-center gap-3 min-w-0">
-                  {activeConversation.product.image ? (
-                    <img
-                      src={activeConversation.product.image}
-                      alt={activeConversation.product.name}
-                      className="w-11 h-11 rounded-xl object-cover border border-rose-200 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-11 h-11 rounded-xl bg-rose-100 text-brand-red flex items-center justify-center shrink-0">
-                      <ShoppingBag className="w-5 h-5" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold uppercase text-brand-red tracking-wider">Product Inquired</span>
-                    <p className="font-bold text-gray-900 truncate">{activeConversation.product.name}</p>
-                    <p className="text-xs font-black text-brand-red">
-                      ₱{activeConversation.product.price.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  to={`/products/${activeConversation.product.id}`}
-                  target="_blank"
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-xl border border-gray-200 flex items-center gap-1 shrink-0 shadow-2xs"
-                >
-                  View Product <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            )}
-
-            {activeConversation.order && (
-              <div className="p-3 bg-blue-50/70 border-b border-blue-100 flex items-center justify-between gap-4 text-xs">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                    <Package className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold uppercase text-blue-700 tracking-wider">Order Context</span>
-                    <p className="font-bold text-gray-900 truncate">Order #{activeConversation.order.order_number}</p>
-                    <p className="text-[11px] text-gray-500 capitalize">
-                      Status: <span className="font-bold text-blue-700">{activeConversation.order.status.replace(/_/g, ' ')}</span>
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  to="/settings/orders"
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 flex items-center gap-1 shrink-0 shadow-2xs"
-                >
-                  View Details <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            )}
-
-            {/* Message Stream */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-[#fafafa]">
-              {loadingMessages ? (
-                <div className="text-center text-xs text-gray-400 py-10">Loading message history...</div>
-              ) : messages.length === 0 ? (
-                <div className="text-center py-12 space-y-2">
-                  <p className="text-xs font-bold text-gray-700">No messages in this chat yet</p>
-                  <p className="text-[11px] text-gray-400">Send your inquiry below to connect directly with the seller.</p>
-                </div>
-              ) : (
-              messages.map((m, idx) => {
-                const isMe = m.sender_id === user?.id;
-                const isLastFromSender = idx === messages.length - 1 || messages[idx + 1]?.sender_id !== m.sender_id;
-                const isLastMyMessage = isMe && m.id === lastMyMessageId;
-                const showDateHeader = shouldShowDateSeparator(m.created_at, messages[idx - 1]?.created_at);
-
-                const otherAvatar = activeConversation.type === 'buyer_admin'
-                  ? null
-                  : activeConversation.seller?.shop_logo || m.sender_avatar;
-
-                return (
-                  <div key={m.id} className="space-y-1.5">
-                    {/* Date Header Pill */}
-                    {showDateHeader && (
-                      <div className="flex items-center justify-center my-4">
-                        <span className="text-[11px] font-semibold text-gray-500 bg-gray-100/90 px-3.5 py-1 rounded-full shadow-2xs border border-gray-200/50">
-                          {formatMessengerDate(m.created_at)}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className={`flex items-end gap-2.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      {!isMe && (
-                        <div className="w-8 h-8 shrink-0 mb-1">
-                          {isLastFromSender ? (
-                            <AvatarWithFallback
-                              src={otherAvatar}
-                              alt={activeConversation.seller?.shop_name || 'Store'}
-                              role={activeConversation.type === 'buyer_admin' ? 'admin' : 'seller'}
-                              fallbackInitials={activeConversation.type === 'buyer_admin' ? 'CS' : undefined}
-                              className="w-8 h-8 rounded-full border border-gray-200/70 shadow-2xs"
-                              iconClassName="w-4 h-4"
-                            />
-                          ) : (
-                            <div className="w-8 h-8" />
-                          )}
-                        </div>
-                      )}
-
-                      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[78%] sm:max-w-md`}>
-                        {/* Rich Attachment Bubble */}
-                        {m.attachment_type && m.attachment_data && (
-                          <ChatAttachmentBubble
-                            type={m.attachment_type}
-                            data={m.attachment_data}
-                            isMe={isMe}
-                            orderHref={() => '/settings/orders'}
-                          />
-                        )}
-
-                        {m.body && !isAutoAttachmentBody(m) && (
-                          <div
-                            className={`px-4 py-2.5 text-xs leading-relaxed ${
-                              isMe
-                                ? 'bg-brand-red text-white rounded-2xl rounded-br-xs shadow-xs'
-                                : 'bg-white text-gray-900 border border-gray-200/80 rounded-2xl rounded-bl-xs shadow-2xs'
-                            }`}
-                          >
-                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                          </div>
-                        )}
-
-                        {/* Messenger Seen / Sent receipt on the most recent outgoing message */}
-                        {isLastMyMessage && (
-                          <div className="flex items-center justify-end gap-1.5 mt-1 px-1">
-                            {m.read_at ? (
-                              <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 animate-in fade-in duration-200">
-                                <span>{formatTimeOnly(m.created_at)}</span>
-                                <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-white shadow-2xs">
-                                  <AvatarWithFallback
-                                    src={otherAvatar}
-                                    alt="Seen"
-                                    role={activeConversation.type === 'buyer_admin' ? 'admin' : 'seller'}
-                                    fallbackInitials={activeConversation.type === 'buyer_admin' ? 'CS' : undefined}
-                                    className="w-4 h-4 rounded-full"
-                                    iconClassName="w-2 h-2"
-                                  />
-                                </div>
-                                <span className="text-[10px] font-bold text-gray-500">Seen</span>
-                              </div>
-                            ) : (
-                              <div className="text-[10px] font-medium text-gray-400">
-                                <span>Sent {formatTimeAgo(m.created_at)}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* A fresh conversation: shortcuts to what shops and support usually need first */}
-            {messages.length <= 2 && (
-              <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <button type="button" onClick={attach.pickOrder} className="h-8 px-3 rounded-full border border-gray-200 text-xs font-semibold text-gray-600 hover:border-gray-400 hover:text-gray-900 inline-flex items-center gap-1.5 shrink-0 transition-colors">
-                  <Package className="w-3.5 h-3.5" /> Share an order
-                </button>
-                {activeConversation?.type !== 'buyer_admin' && (
-                  <button type="button" onClick={attach.pickProduct} className="h-8 px-3 rounded-full border border-gray-200 text-xs font-semibold text-gray-600 hover:border-gray-400 hover:text-gray-900 inline-flex items-center gap-1.5 shrink-0 transition-colors">
-                    <ShoppingBag className="w-3.5 h-3.5" /> Ask about a product
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Image Draft Preview Bar */}
-            {imagePreviewUrl && (
-              <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img
-                    src={imagePreviewUrl}
-                    alt="Preview"
-                    className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-gray-800 truncate">{selectedImage?.name}</p>
-                    <p className="text-[10px] text-gray-400">Ready to send with message</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedImage(null)}
-                  className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 flex items-center justify-center transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Message Input */}
-            <div className="relative">
-              <form onSubmit={handleSend} className="p-4 bg-white border-t border-gray-100 flex items-center gap-2">
-                <AttachMenu attach={attach} disabled={sendingMessage} products={activeConversation?.type !== 'buyer_admin'} />
-
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="Type your reply here..."
-                  value={inputBody}
-                  onChange={(e) => setInputBody(e.target.value)}
-                  className="flex-1 px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:bg-white focus:border-brand-red focus:ring-1 focus:ring-red-100 transition-all"
-                />
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={(!inputBody.trim() && !selectedImage) || sendingMessage}
-                  className="text-xs font-bold flex items-center gap-2 px-5 py-2.5 rounded-2xl shrink-0"
-                >
-                  <Send className="w-4 h-4" /> Send
-                </Button>
-              </form>
-            </div>
-
-            {attach.elements}
-          </>
-        )}
-      </div>
-    </div>
+    </section>
   );
 }
-

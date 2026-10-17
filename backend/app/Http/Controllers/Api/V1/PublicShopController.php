@@ -108,7 +108,8 @@ class PublicShopController extends Controller
         abort_if(!$seller, 404);
 
         $query = Review::whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
-            ->with(['buyer', 'product.images']);
+            ->where('moderation_status', 'visible')
+            ->with(['buyer', 'product.images', 'images']);
 
         if ($request->filled('rating') && in_array((int) $request->rating, [1, 2, 3, 4, 5], true)) {
             $query->where('rating', (int) $request->rating);
@@ -122,6 +123,7 @@ class PublicShopController extends Controller
                 'rating'            => $r->rating,
                 'comment'           => $r->comment,
                 'verified_purchase' => (bool) $r->verified_purchase,
+                'images'            => $r->imageUrls(),
                 'created_at'        => $r->created_at?->toIso8601String(),
                 'buyer' => [
                     'id'         => $r->buyer?->id,

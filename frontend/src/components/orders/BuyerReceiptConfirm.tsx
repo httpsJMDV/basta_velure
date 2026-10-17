@@ -105,7 +105,7 @@ export default function BuyerReceiptConfirm({ order, onUpdated }: BuyerReceiptCo
     setError(null);
     try {
       const res = await confirmBuyerOrderReceiptApi(order.id);
-      showToast('Order marked as received. Thank you!', 'success');
+      showToast('Order received. Rate your items from the order whenever you are ready.', 'success');
       setShowConfirm(false);
       onUpdated?.(res.data);
     } catch (err: unknown) {

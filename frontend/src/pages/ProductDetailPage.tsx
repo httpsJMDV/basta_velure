@@ -53,7 +53,7 @@ function Gallery({ images, active, onActive, name }: { images: ProductDetail['im
 
   if (!count) {
     return (
-      <div className="aspect-square rounded-3xl bg-white ring-1 ring-stone-200/70 flex items-center justify-center">
+      <div className="aspect-square max-w-[560px] rounded-3xl bg-white ring-1 ring-stone-200/70 flex items-center justify-center">
         <Package className="w-16 h-16 text-stone-300" />
       </div>
     );
@@ -62,7 +62,7 @@ function Gallery({ images, active, onActive, name }: { images: ProductDetail['im
   return (
     <div className="flex flex-col-reverse lg:flex-row gap-3">
       {count > 1 && (
-        <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto no-scrollbar lg:max-h-[560px] shrink-0">
+        <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto no-scrollbar lg:max-h-[472px] shrink-0">
           {images.map((img, i) => (
             <button
               key={img.id}
@@ -697,7 +697,7 @@ export default function ProductDetailPage() {
     return (
       <div className="min-h-screen bg-[#FAF8F5]">
         <SiteHeader />
-        <div className="max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12 py-8 grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] gap-10">
+        <div className="max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12 py-8 grid lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-10">
           <div className="aspect-square rounded-3xl bg-stone-200/60 animate-pulse" />
           <div className="space-y-4">
             <div className="h-4 w-32 rounded bg-stone-200/60 animate-pulse" />
@@ -742,8 +742,8 @@ export default function ProductDetailPage() {
 
         {/* Gallery + buy panel */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
-          className="grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] gap-8 lg:gap-12 items-start">
-          <div className="lg:sticky lg:top-[126px]">
+          className="grid lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-8 lg:gap-12 items-start">
+          <div className="w-full max-w-[560px] mx-auto lg:mx-0 lg:sticky lg:top-[126px]">
             <Gallery images={product.images} active={Math.min(photo, Math.max(0, product.images.length - 1))} onActive={setPhoto} name={product.name} />
           </div>
           <BuyPanel product={product} onGalleryIndex={setPhoto} />

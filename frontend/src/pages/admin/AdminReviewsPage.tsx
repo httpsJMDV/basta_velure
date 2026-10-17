@@ -437,6 +437,15 @@ function ShopReviewsView({ shopId, onBack }: { shopId: number; onBack: () => voi
                               <span className="sr-only">out of 5 stars</span>
                             </div>
                             <div className="mt-2"><Expandable text={r.comment} /></div>
+                            {(r.images?.length ?? 0) > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {r.images!.map((src) => (
+                                  <a key={src} href={src} target="_blank" rel="noreferrer" aria-label="Open the review photo">
+                                    <img src={src} alt="" loading="lazy" className="object-cover w-14 h-14 border border-gray-200 rounded-lg" />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex flex-wrap items-center gap-2 mt-3">
                               {r.product && (
                                 <Link to={`/products/${r.product.id}`} target="_blank" rel="noopener noreferrer"

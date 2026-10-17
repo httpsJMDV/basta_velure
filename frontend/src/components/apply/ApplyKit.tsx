@@ -1,30 +1,148 @@
-// The pieces the hub and courier applications share. Both are made from the signed-in buyer account (like the seller
-// application), so they show who is applying instead of asking for name, email, phone, password and ID again, and
-// they show the application's status in place of the form once one exists.
+// The pieces the partner applications share (rider, hub, courier). They are made from the signed-in buyer account
+// (like the seller application), so they show who is applying instead of asking for name, email, phone, password
+// and ID again, and they show the application's status in place of the form once one exists.
 import { Link, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { ArrowRight, CheckCircle, AlertCircle, Clock, FileCheck, Mail, LogIn, UserPlus, RotateCcw, Ban, UserCircle2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Clock, FileCheck, Mail, LogIn, UserPlus, RotateCcw, Ban, UserCircle2, Circle } from 'lucide-react';
 import type { User } from '../../types';
+import SiteHeader from '../SiteHeader';
+import Footer from '../Footer';
 
-const PRIMARY = 'flex items-center justify-center gap-2 w-full min-h-[46px] rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-wine transition-colors';
-const SECONDARY = 'flex items-center justify-center gap-2 w-full min-h-[44px] rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition-colors';
-const QUIET = 'flex items-center justify-center w-full min-h-[40px] rounded-xl text-sm font-semibold text-gray-500 hover:text-brand-black transition-colors';
+const PRIMARY = 'flex items-center justify-center gap-2 w-full min-h-[46px] rounded-full bg-brand-red text-white text-[14px] font-semibold hover:bg-brand-red-dark transition-colors';
+const SECONDARY = 'flex items-center justify-center gap-2 w-full min-h-[44px] rounded-full border border-stone-300 bg-white text-[14px] font-semibold text-stone-800 hover:border-stone-900 transition-colors';
+const QUIET = 'flex items-center justify-center w-full min-h-[40px] rounded-full text-[13px] font-semibold text-stone-500 hover:text-stone-900 transition-colors';
 
-function DarkHero({ tone, icon, badge, title, text }: { tone: 'amber' | 'green' | 'red' | 'gray'; icon?: ReactNode; badge?: string; title: string; text: string }) {
-  const glow = { amber: 'bg-brand-red/10', green: 'bg-green-500/10', red: 'bg-brand-red/10', gray: 'bg-white/5' }[tone];
+// ─── Page frame ───────────────────────────────────────────────────────────────
+
+/**
+ * An application page: the storefront header, a title band, then the form beside a sticky rail (what you need, what
+ * you earn, who approves you). Without a rail (status screens) the content sits in a narrow centred column.
+ */
+export function ApplyLayout({ icon: Icon, kicker, title, intro, aside, children }: {
+  icon: React.ElementType;
+  kicker: string;
+  title: string;
+  intro: string;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <div className="relative px-6 overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 py-7">
-      <div className={`absolute top-0 right-0 w-32 h-32 rounded-full -translate-y-1/2 translate-x-1/2 ${glow}`} />
-      <div className="relative">
-        {badge ? (
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 border rounded-full bg-amber-400/15 border-amber-400/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-xs font-semibold tracking-wide text-amber-300">{badge}</span>
+    <div className="min-h-screen flex flex-col bg-[#FAF8F5]">
+      <SiteHeader />
+      <div className="bg-white border-b border-stone-200">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-7 sm:py-9">
+          <Link to="/partner" className="inline-flex items-center gap-1 text-[12.5px] font-medium text-stone-500 hover:text-brand-red">
+            <ArrowLeft className="w-3.5 h-3.5" /> All ways to partner
+          </Link>
+          <div className="mt-4 flex items-start gap-4">
+            <span className="w-12 h-12 rounded-2xl bg-brand-red text-white flex items-center justify-center shrink-0"><Icon className="w-6 h-6" /></span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-red">{kicker}</p>
+              <h1 className="mt-1 text-[26px] sm:text-[32px] font-serif font-bold tracking-tight leading-tight text-[#1E1B18]">{title}</h1>
+              <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-stone-600">{intro}</p>
+            </div>
           </div>
-        ) : icon}
-        <h2 className="text-xl font-bold leading-snug text-white">{title}</h2>
-        <p className="text-sm text-white/50 mt-1.5">{text}</p>
+        </div>
       </div>
+      <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-8 py-8">
+        {aside ? (
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8 items-start">
+            <div className="min-w-0 space-y-4">{children}</div>
+            <aside className="lg:sticky lg:top-[126px] space-y-4">{aside}</aside>
+          </div>
+        ) : (
+          <div className="max-w-xl mx-auto">{children}</div>
+        )}
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+/** A numbered step of an application form. */
+export function ApplySection({ n, title, hint, action, children }: { n: number; title: string; hint?: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-6">
+      <header className="flex items-start justify-between gap-3 mb-5">
+        <div className="flex items-start gap-3">
+          <span className="w-7 h-7 rounded-full bg-stone-900 text-white text-[13px] font-semibold flex items-center justify-center shrink-0 mt-0.5">{n}</span>
+          <div>
+            <h2 className="text-[17px] font-semibold text-stone-900">{title}</h2>
+            {hint && <p className="mt-0.5 text-[13px] text-stone-500">{hint}</p>}
+          </div>
+        </div>
+        {action}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** The rail beside a form: a live checklist, a few facts and who reviews the application. */
+export function ApplyRail({ checklist, facts, approver, footnote }: {
+  checklist: { label: string; done: boolean }[];
+  facts?: { label: string; value: string }[];
+  approver: string;
+  footnote?: ReactNode;
+}) {
+  const done = checklist.filter((c) => c.done).length;
+  return (
+    <div className="rounded-3xl bg-white border border-stone-200 overflow-hidden">
+      <div className="px-5 pt-5 pb-4">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-[15px] font-semibold text-stone-900">Your application</h2>
+          <span className="text-[12px] text-stone-500 tabular-nums">{done} of {checklist.length} done</span>
+        </div>
+        <div className="mt-2.5 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+          <div className="h-full rounded-full bg-brand-red transition-[width] duration-500" style={{ width: `${(done / checklist.length) * 100}%` }} />
+        </div>
+        <ul className="mt-4 space-y-2">
+          {checklist.map((c) => (
+            <li key={c.label} className={`flex items-center gap-2.5 text-[13px] ${c.done ? 'text-stone-900' : 'text-stone-500'}`}>
+              {c.done ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <Circle className="w-4 h-4 text-stone-300 shrink-0" />}
+              {c.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {facts && facts.length > 0 && (
+        <dl className="px-5 py-4 border-t border-stone-100 space-y-2.5">
+          {facts.map((f) => (
+            <div key={f.label} className="flex items-baseline justify-between gap-3 text-[13px]">
+              <dt className="text-stone-500">{f.label}</dt>
+              <dd className="font-semibold text-stone-900 text-right">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <div className="px-5 py-4 border-t border-stone-100 bg-[#FAF8F5]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">Who reviews it</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-stone-700">{approver}</p>
+        {footnote && <div className="mt-2 text-[12px] text-stone-500">{footnote}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Status screens ───────────────────────────────────────────────────────────
+
+const TONES = {
+  amber: { chip: 'bg-amber-50 text-amber-700', badge: 'bg-amber-50 text-amber-800 border-amber-200' },
+  green: { chip: 'bg-emerald-50 text-emerald-700', badge: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  red: { chip: 'bg-red-50 text-brand-red', badge: 'bg-red-50 text-red-800 border-red-200' },
+  gray: { chip: 'bg-stone-100 text-stone-600', badge: 'bg-stone-100 text-stone-700 border-stone-200' },
+} as const;
+
+function StatusCard({ tone, icon: Icon, badge, title, text }: { tone: keyof typeof TONES; icon: React.ElementType; badge?: string; title: string; text: string }) {
+  const t = TONES[tone];
+  return (
+    <div className="rounded-3xl bg-white border border-stone-200 p-6 sm:p-7">
+      <div className="flex items-center gap-3">
+        <span className={`w-11 h-11 rounded-2xl flex items-center justify-center ${t.chip}`}><Icon className="w-5 h-5" /></span>
+        {badge && <span className={`px-2.5 py-1 rounded-full border text-[11.5px] font-semibold ${t.badge}`}>{badge}</span>}
+      </div>
+      <h2 className="mt-4 text-[22px] font-serif font-bold tracking-tight text-[#1E1B18]">{title}</h2>
+      <p className="mt-1.5 text-[14px] leading-relaxed text-stone-600">{text}</p>
     </div>
   );
 }
@@ -34,16 +152,12 @@ export function SignInRequired({ what }: { what: string }) {
   const { pathname } = useLocation();
   const next = encodeURIComponent(pathname);
   return (
-    <div className="flex flex-col gap-6">
-      <DarkHero
-        tone="gray"
-        icon={<div className="flex items-center justify-center w-10 h-10 mb-4 border rounded-full bg-white/10 border-white/20"><UserCircle2 className="w-5 h-5 text-white" /></div>}
-        title={`Apply as a ${what} from your Loved-IT account`}
-        text="Sign in first. Your name, contact details and ID come from your account, so you only add the new details."
-      />
-      <div className="px-4 py-4 text-sm leading-relaxed text-gray-600 border border-gray-100 rounded-xl bg-gray-50">
+    <div className="flex flex-col gap-4">
+      <StatusCard tone="gray" icon={UserCircle2} title={`Apply as a ${what} from your Loved-IT account`}
+        text="Sign in first. Your name, contact details and ID come from your account, so you only add the new details." />
+      <p className="px-4 py-3 rounded-2xl bg-white border border-stone-200 text-[13px] leading-relaxed text-stone-600">
         No account yet? Create a buyer account, wait for your ID to be verified, then come back here to apply.
-      </div>
+      </p>
       <div className="flex flex-col gap-2">
         <Link to={`/login?next=${next}`} className={PRIMARY}><LogIn className="w-4 h-4" /> Sign in to apply</Link>
         <Link to="/register" className={SECONDARY}><UserPlus className="w-4 h-4" /> Create a buyer account</Link>
@@ -57,21 +171,20 @@ export function ApplyingAs({ user }: { user: User }) {
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
   const idType = user.government_id_type?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return (
-    <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50/70">
+    <div className="flex items-center gap-3 p-4 rounded-3xl bg-white border border-stone-200">
       {user.avatar_url ? (
-        <img src={user.avatar_url} alt="" className="object-cover w-11 h-11 border border-gray-200 rounded-xl shrink-0" />
+        <img src={user.avatar_url} alt="" className="object-cover w-12 h-12 rounded-full ring-1 ring-stone-200 shrink-0" />
       ) : (
-        <div className="flex items-center justify-center text-sm font-bold w-11 h-11 rounded-xl bg-brand-red/10 text-brand-red shrink-0">
+        <div className="flex items-center justify-center w-12 h-12 text-[14px] font-bold rounded-full bg-[#1E1B18] text-[#FAF8F5] shrink-0">
           {name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?'}
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Applying as</p>
-        <p className="text-sm font-bold truncate text-brand-black">{name}</p>
-        <p className="text-xs text-gray-500 truncate">{user.email}{user.phone ? ` · ${user.phone}` : ''}</p>
-        {idType && <p className="text-[11px] text-gray-400 mt-0.5">ID on file: {idType}</p>}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">Applying as</p>
+        <p className="text-[14px] font-semibold truncate text-stone-900">{name}</p>
+        <p className="text-[12.5px] text-stone-500 truncate">{user.email}{user.phone ? ` · ${user.phone}` : ''}{idType ? ` · ID: ${idType}` : ''}</p>
       </div>
-      <Link to="/settings" className="text-xs font-semibold text-brand-red hover:underline shrink-0">Edit</Link>
+      <Link to="/settings" className="h-8 px-3 rounded-full border border-stone-300 text-[12px] font-semibold text-stone-700 hover:border-stone-900 inline-flex items-center shrink-0">Edit</Link>
     </div>
   );
 }
@@ -81,31 +194,30 @@ export interface StatusStep { icon: React.ElementType; label: string; sub: strin
 export function PendingStatus({ title, steps, note }: { title: string; steps: StatusStep[]; note?: string }) {
   const all: StatusStep[] = [{ icon: FileCheck, label: 'Application submitted', sub: 'Your documents are in the queue' }, ...steps];
   return (
-    <div className="flex flex-col gap-7">
-      <DarkHero tone="amber" badge="Under Review" title={title} text={note ?? 'Typically takes 1–3 business days. You can keep shopping meanwhile.'} />
-      <div className="flex flex-col">
+    <div className="flex flex-col gap-4">
+      <StatusCard tone="amber" icon={Clock} badge="Under review" title={title} text={note ?? 'This usually takes 1 to 3 business days. You can keep shopping meanwhile.'} />
+      <ol className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-6">
         {all.map(({ icon: Icon, label, sub }, i) => {
           const done = i === 0;
           const current = i === 1;
           return (
-            <div key={label} className="flex gap-3">
+            <li key={label} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 ${done ? 'bg-green-500 border-green-500' : current ? 'bg-white border-brand-red' : 'bg-white border-gray-200'}`}>
-                  {done ? <CheckCircle className="w-4 h-4 text-white" /> : <Icon className={`w-3.5 h-3.5 ${current ? 'text-brand-red' : 'text-gray-300'}`} />}
-                </div>
-                {i < all.length - 1 && <div className={`w-px flex-1 my-1 ${done ? 'bg-green-200' : 'bg-gray-100'}`} style={{ minHeight: 20 }} />}
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 ${done ? 'bg-emerald-600 border-emerald-600' : current ? 'bg-white border-brand-red' : 'bg-white border-stone-200'}`}>
+                  {done ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Icon className={`w-3.5 h-3.5 ${current ? 'text-brand-red' : 'text-stone-300'}`} />}
+                </span>
+                {i < all.length - 1 && <span className={`w-px flex-1 my-1 ${done ? 'bg-emerald-200' : 'bg-stone-200'}`} style={{ minHeight: 20 }} />}
               </div>
               <div className="flex-1 min-w-0 pt-1 pb-5">
-                <p className={`text-sm font-semibold leading-none ${done ? 'text-green-700' : current ? 'text-brand-black' : 'text-gray-400'}`}>{label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+                <p className={`text-[14px] font-semibold leading-none ${done ? 'text-emerald-700' : current ? 'text-stone-900' : 'text-stone-400'}`}>{label}</p>
+                <p className="mt-1 text-[12.5px] text-stone-500">{sub}</p>
               </div>
-              {done && <span className="mt-1 text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 h-fit shrink-0">Done</span>}
-              {current && <span className="mt-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 h-fit shrink-0">In progress</span>}
-            </div>
+              {current && <span className="mt-1 h-fit px-2 py-0.5 rounded-full bg-amber-50 text-[11px] font-semibold text-amber-700 shrink-0">In progress</span>}
+            </li>
           );
         })}
-      </div>
-      <Link to="/" className={PRIMARY}>Continue Shopping <ArrowRight className="w-4 h-4" /></Link>
+      </ol>
+      <Link to="/" className={PRIMARY}>Continue shopping <ArrowRight className="w-4 h-4" /></Link>
     </div>
   );
 }
@@ -117,16 +229,11 @@ export const DEFAULT_PENDING_STEPS: StatusStep[] = [
 
 export function ApprovedStatus({ title, text, to, cta }: { title: string; text: string; to: string; cta: string }) {
   return (
-    <div className="flex flex-col gap-7">
-      <DarkHero
-        tone="green"
-        icon={<div className="flex items-center justify-center w-10 h-10 mb-4 border rounded-full bg-green-500/20 border-green-500/30"><CheckCircle className="w-5 h-5 text-green-400" /></div>}
-        title={title}
-        text={text}
-      />
+    <div className="flex flex-col gap-4">
+      <StatusCard tone="green" icon={CheckCircle2} badge="Approved" title={title} text={text} />
       <div className="flex flex-col gap-2">
         <Link to={to} className={PRIMARY}>{cta} <ArrowRight className="w-4 h-4" /></Link>
-        <Link to="/" className={QUIET}>Back to Shopping</Link>
+        <Link to="/" className={QUIET}>Back to shopping</Link>
       </div>
     </div>
   );
@@ -134,22 +241,18 @@ export function ApprovedStatus({ title, text, to, cta }: { title: string; text: 
 
 export function RejectedStatus({ reason, onReapply, who }: { reason: string | null | undefined; onReapply: () => void; who: string }) {
   return (
-    <div className="flex flex-col gap-7">
-      <DarkHero
-        tone="red"
-        icon={<div className="flex items-center justify-center w-10 h-10 mb-4 border rounded-full bg-brand-red/20 border-brand-red/30"><AlertCircle className="w-5 h-5 text-brand-red" /></div>}
-        title="Application not approved"
-        text={`The ${who} did not approve this application. You can fix the issues and resubmit.`}
-      />
+    <div className="flex flex-col gap-4">
+      <StatusCard tone="red" icon={AlertCircle} badge="Not approved" title="Application not approved"
+        text={`The ${who} did not approve this application. You can fix what they pointed out and send it again.`} />
       {reason && (
-        <div className="px-4 py-4 border border-red-200 rounded-xl bg-red-50">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-1">Reason</p>
-          <p className="text-sm leading-relaxed text-red-700">{reason}</p>
+        <div className="px-5 py-4 rounded-3xl bg-white border border-red-200">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-red-500">Their reason</p>
+          <p className="mt-1 text-[14px] leading-relaxed text-stone-800">{reason}</p>
         </div>
       )}
       <div className="flex flex-col gap-2">
-        <button type="button" onClick={onReapply} className={PRIMARY}><RotateCcw className="w-4 h-4" /> Resubmit Application</button>
-        <Link to="/" className={QUIET}>Back to Shopping</Link>
+        <button type="button" onClick={onReapply} className={PRIMARY}><RotateCcw className="w-4 h-4" /> Apply again</button>
+        <Link to="/" className={QUIET}>Back to shopping</Link>
       </div>
     </div>
   );
@@ -158,16 +261,11 @@ export function RejectedStatus({ reason, onReapply, who }: { reason: string | nu
 /** The account cannot apply (wrong account type, missing ID, already a hub or a courier). */
 export function BlockedStatus({ title, text, action }: { title: string; text: string; action?: { to: string; label: string } }) {
   return (
-    <div className="flex flex-col gap-7">
-      <DarkHero
-        tone="gray"
-        icon={<div className="flex items-center justify-center w-10 h-10 mb-4 border rounded-full bg-white/10 border-white/20"><Ban className="w-5 h-5 text-white/80" /></div>}
-        title={title}
-        text={text}
-      />
+    <div className="flex flex-col gap-4">
+      <StatusCard tone="gray" icon={Ban} title={title} text={text} />
       <div className="flex flex-col gap-2">
         {action && <Link to={action.to} className={PRIMARY}>{action.label} <ArrowRight className="w-4 h-4" /></Link>}
-        <Link to="/" className={QUIET}>Back to Shopping</Link>
+        <Link to="/" className={QUIET}>Back to shopping</Link>
       </div>
     </div>
   );

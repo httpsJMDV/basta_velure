@@ -179,8 +179,9 @@ class PublicProductController extends Controller
     /** GET /products/{product}/reviews */
     public function reviews(Product $product, Request $request): JsonResponse
     {
-        $query = Review::with(['buyer'])
-            ->where('product_id', $product->id);
+        $query = Review::with(['buyer', 'images'])
+            ->where('product_id', $product->id)
+            ->where('moderation_status', 'visible');
 
         if ($request->filled('rating')) {
             $query->where('rating', (int) $request->input('rating'));
@@ -195,7 +196,7 @@ class PublicProductController extends Controller
         $paginated = $query->paginate(10);
 
         // Rating distribution counts
-        $allApproved = Review::where('product_id', $product->id)->get();
+        $allApproved = Review::where('product_id', $product->id)->where('moderation_status', 'visible')->get();
         $ratingCounts = [
             '1' => $allApproved->where('rating', 1)->count(),
             '2' => $allApproved->where('rating', 2)->count(),
@@ -211,6 +212,7 @@ class PublicProductController extends Controller
                 'rating'            => (int) $r->rating,
                 'comment'           => $r->comment,
                 'verified_purchase' => (bool) $r->verified_purchase,
+                'images'            => $r->imageUrls(),
                 'created_at'        => $r->created_at?->toIso8601String(),
                 'buyer'             => [
                     'id'         => $r->buyer?->id,

@@ -5,8 +5,19 @@ import LovedItLogo from './LovedItLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
 import { DELIVERY_FEE } from '../utils/shipping';
+import gcashLogo from '../assets/brand/gcash-logo.svg';
 
-const YEAR = new Date().getFullYear();
+/** The standard "Your Privacy Choices" toggle (a check and a cross on a pill), as sites show beside that link. */
+function PrivacyChoicesIcon() {
+  return (
+    <svg viewBox="0 0 30 14" className="h-3.5 w-auto" aria-hidden="true">
+      <rect x="0.5" y="0.5" width="29" height="13" rx="6.5" fill="#fff" stroke="#0066FF" />
+      <path d="M15 0.5h8a6.5 6.5 0 0 1 0 13h-10.5z" fill="#0066FF" />
+      <path d="M5.4 7.1l2 2 3.6-4.2" fill="none" stroke="#0066FF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19.2 4.4l5 5.2M24.2 4.4l-5 5.2" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
   {
@@ -102,9 +113,8 @@ export const Footer: React.FC = () => {
           <div>
             <h2 className="text-[14px] font-semibold text-white">We accept</h2>
             <div className="flex flex-wrap items-center gap-2 mt-3">
-              <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-white">
-                <span className="w-5 h-5 rounded-full bg-[#007DFE] text-white text-[11px] font-black flex items-center justify-center">G</span>
-                <span className="text-[13px] font-bold text-[#007DFE]">GCash</span>
+              <span className="inline-flex items-center h-9 px-3 rounded-lg bg-white" title="GCash">
+                <img src={gcashLogo} alt="GCash" className="h-5 w-auto" />
               </span>
               <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-white text-[#1E1B18]">
                 <Banknote className="w-4 h-4 text-amber-600" />
@@ -131,11 +141,14 @@ export const Footer: React.FC = () => {
 
       <div className="border-t border-white/10">
         <div className="max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12 py-4 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[12px] text-white/40">© {YEAR} Loved-IT. All rights reserved.</p>
+          <p className="text-[12px] text-white/40">© 2025－2026 Basta Corp.</p>
           <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px]">
             <Link to="/terms-of-service" className="text-white/55 hover:text-white">Terms of use</Link>
             <Link to="/privacy-policy" className="text-white/55 hover:text-white">Privacy policy</Link>
             <Link to="/cookie-policy" className="text-white/55 hover:text-white">Cookie policy</Link>
+            <Link to="/cookie-policy#your-choices" className="inline-flex items-center gap-1.5 text-white/55 hover:text-white">
+              Your privacy choices <PrivacyChoicesIcon />
+            </Link>
             <Link to="/partner" className="inline-flex items-center gap-0.5 text-white/55 hover:text-white">Partner program <ArrowUpRight className="w-3 h-3" /></Link>
           </nav>
         </div>
