@@ -106,6 +106,59 @@ class ConversationChatTest extends TestCase
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.body', 'Yes, in stock!');
     }
 
+    public function test_both_inboxes_are_told_live_when_a_message_arrives(): void
+    {
+        \Illuminate\Support\Facades\Event::fake([\App\Events\ConversationUpdated::class, \App\Events\MessageSent::class]);
+        $buyer = $this->makeUser('buyer', 'Ana');
+        $seller = $this->makeUser('seller', 'Maria');
+        $id = $this->startChat($buyer, $seller)->json('data.id');
+
+        $this->actingAs($seller, 'sanctum')->postJson("/api/v1/conversations/{$id}/messages", ['body' => 'Yes, in stock!'])->assertCreated();
+
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\MessageSent::class, fn ($e) => $e->message->body === 'Yes, in stock!');
+        // The raised counter reaches the buyer as a number (a raw SQL increment used to break this broadcast).
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\ConversationUpdated::class, fn ($e) => $e->userId === $buyer->id && $e->unreadCount === 1);
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\ConversationUpdated::class, fn ($e) => $e->userId === $seller->id);
+    }
+
+    public function test_attachment_pickers_list_real_prices_photos_and_the_shops_orders(): void
+    {
+        $buyer = $this->makeUser('buyer', 'Ana');
+        $seller = $this->makeUser('seller', 'Maria');
+        $other = $this->makeUser('seller', 'Other');
+        $id = $this->startChat($buyer, $seller)->json('data.id');
+
+        $category = \App\Models\Category::create(['name' => 'Cat ' . uniqid(), 'slug' => 'cat-' . uniqid(), 'is_active' => true, 'commission_rate' => 0.10]);
+        $product = \App\Models\Product::create(['seller_id' => $seller->id, 'category_id' => $category->id, 'name' => 'Rattan Basket ' . uniqid(), 'base_price' => 499, 'status' => 'active']);
+        \App\Models\ProductImage::create(['product_id' => $product->id, 'path' => 'products/basket.jpg', 'is_primary' => true, 'sort_order' => 0]);
+
+        $order = function (User $shop, string $item) use ($buyer) {
+            $o = \App\Models\Order::create([
+                'buyer_id' => $buyer->id, 'order_number' => 'VEL-T' . uniqid(), 'subtotal' => 499, 'shipping_fee' => 50, 'total' => 549,
+                'payment_method' => 'cod', 'payment_status' => 'pending', 'status' => 'PLACED',
+                'shipping_name' => 'Ana', 'shipping_phone' => '09171234567', 'shipping_address' => '1 St',
+                'shipping_province_code' => '040340000', 'shipping_city_code' => '040342800', 'shipping_barangay_code' => '040342801',
+            ]);
+            \App\Models\OrderItem::create(['order_id' => $o->id, 'seller_id' => $shop->id, 'product_name' => $item, 'unit_price' => 499, 'quantity' => 1, 'subtotal' => 499]);
+
+            return $o;
+        };
+        $mine = $order($seller, 'Rattan Basket');
+        $order($other, 'Somebody else');
+
+        $products = $this->actingAs($buyer, 'sanctum')->getJson("/api/v1/conversations/{$id}/attachable-products")->assertOk();
+        $this->assertSame(499.0, (float) collect($products->json('data'))->firstWhere('id', $product->id)['price']);
+        $this->assertStringEndsWith('storage/products/basket.jpg', collect($products->json('data'))->firstWhere('id', $product->id)['image']);
+
+        // Only this shop's orders, for the buyer and for the seller.
+        foreach ([$buyer, $seller] as $viewer) {
+            $orders = $this->actingAs($viewer, 'sanctum')->getJson("/api/v1/conversations/{$id}/attachable-orders")->assertOk();
+            $this->assertSame([$mine->id], collect($orders->json('data'))->pluck('id')->all());
+        }
+        $this->actingAs($buyer, 'sanctum')->getJson("/api/v1/conversations/{$id}/attachable-orders?q=nothing-like-this")
+            ->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_empty_message_is_rejected(): void
     {
         $buyer = $this->makeUser('buyer', 'Ana');

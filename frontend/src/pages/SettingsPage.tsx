@@ -18,7 +18,8 @@ import CustomSelect from '../components/ui/CustomSelect';
 import PhoneInput from '../components/ui/PhoneInput';
 import UserAvatar from '../components/ui/UserAvatar';
 import AvatarCropModal from '../components/ui/AvatarCropModal';
-import LovedItLogo from '../components/LovedItLogo';
+import SiteHeader from '../components/SiteHeader';
+import Footer from '../components/Footer';
 import { uploadAvatarApi, requestBuyerOrderReturnApi } from '../api/client';
 import type { Address, AddressLabel, Order, OrderStatus, WishlistItem, FollowedStore } from '../types';
 import { getStatusLabel, getStatusBadgeClass, BUYER_FILTER_GROUPS, normalizeOrderStatus } from '../utils/orderStatus';
@@ -29,72 +30,141 @@ import TrackPackageButton from '../components/tracking/TrackPackageButton';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
-  Trash2, Search, ShoppingBag, ArrowLeft, ShoppingCart, MessageSquare, AlertTriangle,
+  Trash2, Search, ShoppingBag, ShoppingCart, MessageSquare, AlertTriangle,
 } from 'lucide-react';
 
 const StarIcon = Star;
 
 interface PsgcItem { code: string; name: string; }
 
-// ─── Sidebar ────────────────────────────────────────────────────────────────
+// ─── Navigation ─────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { icon: User,          label: 'Manage Account',            to: '/settings' },
-  { icon: MessageSquare, label: 'Messages & Inquiries',      to: '/settings/messages' },
-  { icon: MapPin,        label: 'Address Book',               to: '/settings/addresses' },
-  { icon: Package,       label: 'My Orders',                  to: '/settings/orders' },
-  { icon: RotateCcw,     label: 'My Returns',                 to: '/settings/returns' },
-  { icon: XCircle,       label: 'My Cancellations',           to: '/settings/cancellations' },
-  { icon: Star,          label: 'My Reviews',                 to: '/settings/reviews' },
-  { icon: Heart,         label: 'Wishlist & Followed Stores', to: '/settings/wishlist' },
-  { icon: Store,         label: 'Sell in Loved-IT',           to: '/register/seller', highlight: true },
+const NAV_GROUPS = [
+  {
+    title: 'Account',
+    items: [
+      { icon: User, label: 'Profile', to: '/settings' },
+      { icon: MapPin, label: 'Addresses', to: '/settings/addresses' },
+    ],
+  },
+  {
+    title: 'Shopping',
+    items: [
+      { icon: Package, label: 'Orders', to: '/settings/orders' },
+      { icon: RotateCcw, label: 'Returns', to: '/settings/returns' },
+      { icon: XCircle, label: 'Cancellations', to: '/settings/cancellations' },
+      { icon: Star, label: 'Reviews', to: '/settings/reviews' },
+      { icon: Heart, label: 'Wishlist & stores', to: '/settings/wishlist' },
+    ],
+  },
+  {
+    title: 'Inbox',
+    items: [{ icon: MessageSquare, label: 'Messages', to: '/settings/messages' }],
+  },
 ];
 
-function Sidebar() {
+/** The seller shortcut: open a shop, see the application, or go to the Seller Center. */
+function SellCard() {
   const { user } = useAuth();
-  const location = useLocation();
+  const status = user?.seller_profile?.application_status ?? 'none';
+  const card = status === 'approved'
+    ? { to: '/seller', title: 'Seller Center', text: 'Orders, products and payouts for your shop.' }
+    : status === 'pending'
+    ? { to: '/register/seller', title: 'Application in review', text: 'We will email you once your shop is approved.' }
+    : { to: '/register/seller', title: status === 'rejected' ? 'Apply again to sell' : 'Sell on Loved-IT', text: 'Open a shop and reach buyers across Laguna.' };
 
   return (
-    <aside className="w-full lg:w-64 shrink-0">
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-3">
-        <div className="flex items-center gap-3">
-          <UserAvatar
-            firstName={user?.first_name ?? ''}
-            lastName={user?.last_name ?? ''}
-            avatarUrl={user?.avatar_url}
-            size="lg"
-          />
-          <div className="min-w-0">
-            <p className="font-semibold text-brand-black truncate">{user?.first_name} {user?.last_name}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.email}</p>
-          </div>
+    <Link to={card.to} className="group mt-4 flex items-start gap-3 p-4 rounded-2xl bg-white border border-stone-200 hover:border-brand-red/40 transition-colors">
+      <span className="w-9 h-9 rounded-xl bg-rose-50 text-brand-red flex items-center justify-center shrink-0"><Store className="w-[18px] h-[18px]" /></span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[13px] font-semibold text-stone-900">{card.title}</span>
+        <span className="block text-[12px] text-stone-500 mt-0.5 leading-snug">{card.text}</span>
+      </span>
+      <ChevronRight className="w-4 h-4 mt-1 text-stone-300 group-hover:text-brand-red group-hover:translate-x-0.5 transition-all" />
+    </Link>
+  );
+}
+
+function SettingsNav() {
+  const location = useLocation();
+  const isActive = (to: string) => location.pathname === to;
+  const all = NAV_GROUPS.flatMap((g) => g.items);
+
+  return (
+    <>
+      {/* Phones: one swipeable row */}
+      <nav className="lg:hidden -mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar" aria-label="Account sections">
+        {all.map(({ icon: Icon, label, to }) => (
+          <Link key={to} to={to}
+            className={`shrink-0 h-9 px-3.5 rounded-full border flex items-center gap-1.5 text-[13px] transition-colors ${isActive(to) ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700'}`}>
+            <Icon className="w-3.5 h-3.5" />{label}
+          </Link>
+        ))}
+      </nav>
+
+      {/* Larger screens: grouped rail */}
+      <aside className="hidden lg:block w-60 shrink-0">
+        <div className="sticky top-[126px]">
+          <nav aria-label="Account sections" className="space-y-5">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.title}>
+                <p className="px-3 mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-stone-400">{group.title}</p>
+                <ul className="space-y-0.5">
+                  {group.items.map(({ icon: Icon, label, to }) => {
+                    const active = isActive(to);
+                    return (
+                      <li key={to}>
+                        <Link to={to}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] transition-colors ${active ? 'bg-white text-brand-red font-semibold shadow-[inset_3px_0_0_#B91C1C] ring-1 ring-stone-200' : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'}`}>
+                          <Icon className={`w-[18px] h-[18px] ${active ? 'text-brand-red' : 'text-stone-400'}`} strokeWidth={1.8} />
+                          {label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </nav>
+          <SellCard />
+        </div>
+      </aside>
+    </>
+  );
+}
+
+/** Who is signed in, across the top of every account page. */
+function AccountBand() {
+  const { user } = useAuth();
+  const since = user?.created_at ? new Date(user.created_at).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' }) : null;
+  const roles = [
+    user?.seller_profile?.application_status === 'approved' && 'Seller',
+    user?.sorting_center?.status === 'APPROVED' && 'Hub operator',
+    user?.rider?.status === 'ACTIVE' && 'Rider',
+    user?.logistics_company?.status === 'APPROVED' && 'Courier admin',
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className="bg-white border-b border-stone-200/70">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12 py-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
+        <UserAvatar firstName={user?.first_name ?? ''} lastName={user?.last_name ?? ''} avatarUrl={user?.avatar_url} size="xl" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-stone-400">My account</p>
+          <h1 className="mt-0.5 text-[26px] sm:text-[30px] leading-tight font-serif font-bold tracking-tight text-[#1E1B18] truncate">
+            {user?.first_name} {user?.last_name}
+          </h1>
+          <p className="mt-1 text-[13px] text-stone-500 truncate">
+            {user?.email}{since && <span className="text-stone-300"> · </span>}{since && `Member since ${since}`}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {roles.map((r) => <span key={r} className="h-7 px-3 rounded-full bg-stone-100 text-[12px] font-medium text-stone-700 flex items-center">{r}</span>)}
+          <Link to="/settings/orders" className="h-9 px-4 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-800 hover:border-stone-900 flex items-center gap-1.5">
+            <Package className="w-4 h-4" /> Track orders
+          </Link>
         </div>
       </div>
-
-      <nav className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {NAV_ITEMS.map(({ icon: Icon, label, to, highlight }) => {
-          const active = location.pathname === to;
-          return (
-            <Link
-              key={to}
-              to={to}
-              className={[
-                'flex items-center gap-3 px-4 py-3.5 text-sm transition-colors border-b border-gray-50 last:border-0',
-                active
-                  ? 'bg-red-50 text-brand-red font-semibold'
-                  : highlight
-                  ? 'text-brand-red font-semibold hover:bg-red-50'
-                  : 'text-brand-gray-mid hover:bg-gray-50',
-              ].join(' ')}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              <span className="flex-1">{label}</span>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+    </div>
   );
 }
 
@@ -111,7 +181,7 @@ const SEX_OPTIONS = [
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
 ];
 
-// ─── Editable row ────────────────────────────────────────────────────────────
+// ─── Editable tile ──────────────────────────────────────────────────────────
 
 function InfoRow({
   label,
@@ -133,44 +203,32 @@ function InfoRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="py-4 border-b border-gray-50 last:border-0">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">{label}</p>
-          {editing ? (
-            <div className="flex flex-col gap-3 mt-2">
-              {children}
-              <div className="flex gap-2">
-                <button
-                  onClick={onSave}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-red text-white text-xs font-semibold rounded-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  onClick={onCancel}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-brand-black font-medium">{display || '—'}</p>
-          )}
-        </div>
+    <div className={`rounded-2xl border p-4 transition-colors ${editing ? 'sm:col-span-2 border-stone-300 bg-white' : 'border-stone-200 bg-white hover:border-stone-300'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-stone-400">{label}</p>
         {!editing && (
-          <button
-            onClick={onEdit}
-            className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-brand-red hover:bg-red-50 transition-colors mt-0.5"
-          >
-            <Pencil className="w-3.5 h-3.5" />
+          <button type="button" onClick={onEdit} className="-mt-1 -mr-1 h-7 px-2.5 rounded-full text-[12px] font-semibold text-brand-red hover:bg-rose-50 flex items-center gap-1 transition-colors">
+            <Pencil className="w-3 h-3" /> Edit
           </button>
         )}
       </div>
+      {editing ? (
+        <div className="mt-3 flex flex-col gap-3">
+          {children}
+          <div className="flex gap-2">
+            <button type="button" onClick={onSave} disabled={saving}
+              className="h-9 px-4 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold flex items-center gap-1.5 disabled:opacity-50 transition-colors">
+              <Check className="w-3.5 h-3.5" /> {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" onClick={onCancel}
+              className="h-9 px-4 rounded-full border border-stone-300 text-stone-700 text-[13px] font-semibold hover:border-stone-500 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-1.5 text-[15px] font-medium text-stone-900 break-words">{display || <span className="text-stone-400 font-normal">Not set</span>}</p>
+      )}
     </div>
   );
 }
@@ -216,6 +274,9 @@ function AccountPanel() {
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [phoneError, setPhoneError] = useState('');
   const [savingPhone, setSavingPhone] = useState(false);
+
+  // Today, fixed for this visit (for the age shown under the birthday).
+  const [today] = useState(() => new Date());
 
   // Sex edit state
   const [editingSex, setEditingSex] = useState(false);
@@ -272,149 +333,104 @@ function AccountPanel() {
     }
   }
 
+  const age = (() => {
+    if (!user?.date_of_birth) return null;
+    const birth = new Date(user.date_of_birth);
+    let a = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) a--;
+    return a;
+  })();
+  const inputCls = 'h-10 w-full rounded-xl border border-stone-300 px-3 text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10';
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-100">
-        <h2 className="font-bold text-brand-black text-lg">Manage Account</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Update your personal information</p>
-      </div>
+    <section className="rounded-3xl bg-white/60 border border-stone-200 overflow-hidden">
+      <header className="px-6 pt-6 pb-5 bg-white border-b border-stone-200">
+        <h2 className="text-xl font-serif font-bold tracking-tight text-[#1E1B18]">Profile</h2>
+        <p className="mt-1 text-[13px] text-stone-500">How shops and riders see you, and how we reach you about your orders.</p>
+      </header>
 
-      <div className="px-6">
-        {/* Avatar */}
-        <div className="py-5 border-b border-gray-50 flex items-center gap-4">
-          <div className="relative shrink-0">
-            <UserAvatar
-              firstName={user?.first_name ?? ''}
-              lastName={user?.last_name ?? ''}
-              avatarUrl={user?.avatar_url}
-              size="xl"
-            />
-            <button
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={uploadingAvatar}
-              className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center shadow-sm hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-50"
-              aria-label="Change profile photo"
-            >
-              {uploadingAvatar
-                ? <div className="w-3 h-3 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
-                : <Camera className="w-3.5 h-3.5 text-gray-500" />}
-            </button>
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/jpeg,image/png"
-              className="hidden"
-              onChange={handleAvatarFileChange}
-            />
+      <div className="p-6 space-y-4">
+        {/* Photo */}
+        <div className="flex items-center gap-5 p-4 rounded-2xl bg-white border border-stone-200">
+          <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}
+            className="relative shrink-0 rounded-full group" aria-label="Change profile photo">
+            <UserAvatar firstName={user?.first_name ?? ''} lastName={user?.last_name ?? ''} avatarUrl={user?.avatar_url} size="xl" />
+            <span className="absolute inset-0 rounded-full bg-black/45 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {uploadingAvatar ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-5 h-5" />}
+            </span>
+          </button>
+          <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleAvatarFileChange} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-semibold text-stone-900">Profile photo</p>
+            <p className="text-[12px] text-stone-500 mt-0.5">JPG or PNG. You can crop it before saving.</p>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-brand-black">{user?.first_name} {user?.last_name}</p>
-            <button
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={uploadingAvatar}
-              className="text-xs text-brand-red hover:text-brand-red-dark font-medium mt-0.5 transition-colors disabled:opacity-50"
-            >
-              {user?.avatar_url ? 'Change photo' : 'Upload photo'}
-            </button>
-          </div>
+          <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}
+            className="h-9 px-4 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-800 hover:border-stone-900 disabled:opacity-50 transition-colors shrink-0">
+            {uploadingAvatar ? 'Uploading…' : user?.avatar_url ? 'Change' : 'Upload'}
+          </button>
         </div>
 
-        {cropFile && (
-          <AvatarCropModal
-            file={cropFile}
-            onConfirm={handleCropConfirm}
-            onCancel={() => setCropFile(null)}
-          />
-        )}
+        {cropFile && <AvatarCropModal file={cropFile} onConfirm={handleCropConfirm} onCancel={() => setCropFile(null)} />}
 
-        {/* Editable: Name */}
-        <InfoRow
-          label="Full Name"
-          display={[user?.first_name, user?.middle_name, user?.last_name].filter(Boolean).join(' ')}
-          editing={editingName}
-          onEdit={() => { setFirstName(user?.first_name ?? ''); setMiddleName(user?.middle_name ?? ''); setLastName(user?.last_name ?? ''); setEditingName(true); }}
-          onCancel={() => { setEditingName(false); setNameError(''); }}
-          onSave={saveName}
-          saving={savingName}
-        >
-          <div className="flex flex-col gap-2">
-            <input
-              placeholder="First name *"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="min-h-[40px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
-            />
-            <input
-              placeholder="Middle name (optional)"
-              value={middleName}
-              onChange={(e) => setMiddleName(e.target.value)}
-              className="min-h-[40px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
-            />
-            <input
-              placeholder="Last name *"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="min-h-[40px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
-            />
+        <div className="grid sm:grid-cols-2 gap-3">
+          <InfoRow
+            label="Full name"
+            display={[user?.first_name, user?.middle_name, user?.last_name].filter(Boolean).join(' ')}
+            editing={editingName}
+            onEdit={() => { setFirstName(user?.first_name ?? ''); setMiddleName(user?.middle_name ?? ''); setLastName(user?.last_name ?? ''); setEditingName(true); }}
+            onCancel={() => { setEditingName(false); setNameError(''); }}
+            onSave={saveName}
+            saving={savingName}
+          >
+            <div className="grid sm:grid-cols-3 gap-2">
+              <input placeholder="First name *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} />
+              <input placeholder="Middle name (optional)" value={middleName} onChange={(e) => setMiddleName(e.target.value)} className={inputCls} />
+              <input placeholder="Last name *" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} />
+            </div>
             {nameError && <p className="text-xs text-red-600">{nameError}</p>}
+          </InfoRow>
+
+          <InfoRow
+            label="Phone number"
+            display={user?.phone ?? ''}
+            editing={editingPhone}
+            onEdit={() => { setPhone(user?.phone ?? ''); setEditingPhone(true); }}
+            onCancel={() => { setEditingPhone(false); setPhoneError(''); }}
+            onSave={savePhone}
+            saving={savingPhone}
+          >
+            <PhoneInput value={phone} onChange={setPhone} error={phoneError} />
+          </InfoRow>
+
+          <div className="rounded-2xl border border-stone-200 bg-white p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-stone-400">Email</p>
+            <p className="mt-1.5 text-[15px] font-medium text-stone-900 break-all">{user?.email}</p>
+            <p className="mt-1 text-[12px] text-stone-500">Used to sign in and for order updates.</p>
           </div>
-        </InfoRow>
 
-        <div className="py-4 border-b border-gray-50">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Email</p>
-          <p className="text-sm text-brand-black font-medium">{user?.email}</p>
+          <div className="rounded-2xl border border-stone-200 bg-white p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-stone-400">Birthday</p>
+            <p className="mt-1.5 text-[15px] font-medium text-stone-900">{displayDob() || <span className="text-stone-400 font-normal">Not set</span>}</p>
+            <p className="mt-1 text-[12px] text-stone-500">{age != null ? `${age} years old · ` : ''}Set at registration and can&apos;t be changed.</p>
+          </div>
+
+          <InfoRow
+            label="Sex"
+            display={user?.sex ? displaySex() : ''}
+            editing={editingSex}
+            onEdit={() => { setSex(user?.sex ?? ''); setEditingSex(true); }}
+            onCancel={() => setEditingSex(false)}
+            onSave={saveSex}
+            saving={savingSex}
+          >
+            <div className="sm:max-w-xs">
+              <CustomSelect value={sex} onChange={setSex} options={SEX_OPTIONS} placeholder="Select sex" />
+            </div>
+          </InfoRow>
         </div>
-
-        {/* Editable: Phone */}
-        <InfoRow
-          label="Phone Number"
-          display={user?.phone ?? ''}
-          editing={editingPhone}
-          onEdit={() => { setPhone(user?.phone ?? ''); setEditingPhone(true); }}
-          onCancel={() => { setEditingPhone(false); setPhoneError(''); }}
-          onSave={savePhone}
-          saving={savingPhone}
-        >
-          <PhoneInput value={phone} onChange={setPhone} error={phoneError} />
-        </InfoRow>
-
-        {/* Read-only: Birthday */}
-        <div className="py-4 border-b border-gray-50">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Birthday</p>
-          <p className="text-sm text-brand-black font-medium">{displayDob() || '—'}</p>
-          {user?.date_of_birth && (
-            <p className="text-xs text-gray-400 mt-0.5">Age: {(() => {
-              const today = new Date();
-              const birth = new Date(user.date_of_birth!);
-              let a = today.getFullYear() - birth.getFullYear();
-              const m = today.getMonth() - birth.getMonth();
-              if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) a--;
-              return a;
-            })()}</p>
-          )}
-          <p className="text-xs text-gray-300 mt-0.5">Birthday cannot be changed after registration.</p>
-        </div>
-
-        {/* Editable: Sex */}
-        <InfoRow
-          label="Sex"
-          display={displaySex()}
-          editing={editingSex}
-          onEdit={() => { setSex(user?.sex ?? ''); setEditingSex(true); }}
-          onCancel={() => setEditingSex(false)}
-          onSave={saveSex}
-          saving={savingSex}
-        >
-          <CustomSelect
-            value={sex}
-            onChange={setSex}
-            options={SEX_OPTIONS}
-            placeholder="Select sex"
-          />
-        </InfoRow>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1297,6 +1313,48 @@ function OrdersPanel() {
   );
 }
 
+// ─── Returns and cancellations ───────────────────────────────────────────────
+
+/** The buyer's orders in some statuses (returns or cancellations), with the same order cards as My Orders. */
+function StatusOrdersPanel({ title, subtitle, statuses, emptyTitle, emptyHint, icon: Icon }: {
+  title: string; subtitle: string; statuses: OrderStatus[]; emptyTitle: string; emptyHint: string; icon: React.ElementType;
+}) {
+  const [orders, setOrders] = useState<Order[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getOrdersApi().then((list) => { if (alive) setOrders(list); }).catch(() => { if (alive) setOrders([]); });
+    return () => { alive = false; };
+  }, []);
+
+  const mine = (orders ?? []).filter((o) => statuses.includes(normalizeOrderStatus(o.status)));
+
+  return (
+    <section className="rounded-3xl bg-white border border-stone-200 overflow-hidden">
+      <header className="px-6 pt-6 pb-5 border-b border-stone-200">
+        <h2 className="text-xl font-serif font-bold tracking-tight text-[#1E1B18]">{title}</h2>
+        <p className="mt-1 text-[13px] text-stone-500">{subtitle}</p>
+      </header>
+      <div className="p-6 space-y-3">
+        {orders === null ? (
+          <div className="py-10 flex justify-center"><div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /></div>
+        ) : mine.length === 0 ? (
+          <div className="py-12 flex flex-col items-center text-center">
+            <span className="w-14 h-14 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center"><Icon className="w-6 h-6" /></span>
+            <p className="mt-3 font-semibold text-stone-900">{emptyTitle}</p>
+            <p className="mt-1 text-[13px] text-stone-500 max-w-sm">{emptyHint}</p>
+            <Link to="/settings/orders" className="mt-4 h-9 px-4 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-800 hover:border-stone-900 flex items-center">Go to my orders</Link>
+          </div>
+        ) : (
+          mine.map((order) => (
+            <OrderCard key={order.id} order={order} onUpdated={(updated) => setOrders((prev) => (prev ?? []).map((o) => (o.id === updated.id ? updated : o)))} />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ─── Wishlist & Followed Stores ──────────────────────────────────────────────
 
 const WISHLIST_SORT_OPTIONS = [
@@ -1593,34 +1651,19 @@ function ComingSoon({ label }: { label: string }) {
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
 export function SettingsLayout() {
-  const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-brand-gray-soft">
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link to="/" className="flex items-center shrink-0">
-            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
-          </Link>
-          <span className="text-gray-300 text-lg">/</span>
-          <span className="text-sm font-semibold text-brand-black">My Account</span>
-        </div>
+    <div className="min-h-screen flex flex-col bg-[#FAF8F5]">
+      <SiteHeader />
+      <AccountBand />
+
+      <div className="flex-1 max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 py-6 lg:py-8 flex flex-col lg:flex-row gap-5 lg:gap-10">
+        <SettingsNav />
+        <main className="flex-1 min-w-0 max-w-5xl">
+          <Outlet />
+        </main>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <button
-          onClick={() => navigate('/')}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-black transition-colors mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
-
-        <div className="flex flex-col lg:flex-row gap-5">
-          <Sidebar />
-          <main className="flex-1 min-w-0">
-            <Outlet />
-          </main>
-        </div>
-      </div>
+      <Footer />
     </div>
   );
 }
@@ -1630,7 +1673,29 @@ export function SettingsLayout() {
 export function SettingsAccount()       { return <AccountPanel />; }
 export function SettingsAddresses()     { return <AddressBookPanel />; }
 export function SettingsOrders()        { return <OrdersPanel />; }
-export function SettingsReturns()       { return <ComingSoon label="My Returns" />; }
-export function SettingsCancellations() { return <ComingSoon label="My Cancellations" />; }
+export function SettingsReturns() {
+  return (
+    <StatusOrdersPanel
+      icon={RotateCcw}
+      title="Returns"
+      subtitle="Orders you asked to return or disputed, failed deliveries, and parcels sent back to the shop."
+      statuses={['DISPUTED', 'RETURNED', 'DELIVERY_FAILED']}
+      emptyTitle="No returns"
+      emptyHint="Something wrong with an order? Request a return from My Orders within 7 days of delivery."
+    />
+  );
+}
+export function SettingsCancellations() {
+  return (
+    <StatusOrdersPanel
+      icon={XCircle}
+      title="Cancellations"
+      subtitle="Orders that were cancelled by you or by the shop."
+      statuses={['CANCELLED']}
+      emptyTitle="No cancelled orders"
+      emptyHint="You can cancel an order from My Orders before the shop packs it."
+    />
+  );
+}
 export function SettingsReviews()       { return <ComingSoon label="My Reviews" />; }
 export function SettingsWishlist()      { return <WishlistPanel />; }

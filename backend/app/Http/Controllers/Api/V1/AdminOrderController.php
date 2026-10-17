@@ -238,6 +238,8 @@ class AdminOrderController extends Controller
             'created_at'     => $o->created_at,
             // The shop(s) selling on this order. Checkout makes one order per seller, so this is one shop.
             'shop'           => $this->shopOf($o),
+            // The partner courier assigned at checkout (null reads as the default courier).
+            'courier'        => \App\Models\LogisticsCompany::summaryFor($o->logistics_company_id),
             'buyer'          => $o->buyer ? [
                 'id'         => $o->buyer->id,
                 'first_name' => $o->buyer->first_name,
@@ -256,6 +258,12 @@ class AdminOrderController extends Controller
         ];
 
         if ($detail) {
+            $base['shipping'] = [
+                'name'    => $o->shipping_name,
+                'phone'   => $o->shipping_phone,
+                'address' => implode(', ', array_filter([$o->shipping_address, $o->shipping_barangay, $o->shipping_city, $o->shipping_province])),
+                'notes'   => $o->notes,
+            ];
             $base['payment'] = $o->payment ? [
                 'method'           => $o->payment->method,
                 'reference_number' => $o->payment->reference_number,

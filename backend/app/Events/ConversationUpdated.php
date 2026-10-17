@@ -70,7 +70,7 @@ class ConversationUpdated implements ShouldBroadcastNow
                     'id' => $this->conversation->product->id,
                     'name' => $this->conversation->product->name,
                     'price' => (float) $this->conversation->product->base_price,
-                    'image' => $this->conversation->product->images->first()?->image_path,
+                    'image' => $this->conversation->product->primaryImageUrl(),
                 ] : null,
                 'order' => $this->conversation->order ? [
                     'id' => $this->conversation->order->id,

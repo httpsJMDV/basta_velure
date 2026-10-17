@@ -520,7 +520,7 @@ export default function CatalogPage() {
                   const on = parent ? filters.category_id === c.slug : false;
                   const inner = (
                     <>
-                      <span className="w-7 h-7 rounded-full overflow-hidden bg-stone-50 shrink-0"><CategoryArt category={c} variant="circle" studio={false} /></span>
+                      <span className="w-7 h-7 rounded-full overflow-hidden bg-stone-50 shrink-0"><CategoryArt category={c} variant="circle" /></span>
                       <span className="whitespace-nowrap">{c.name}</span>
                     </>
                   );

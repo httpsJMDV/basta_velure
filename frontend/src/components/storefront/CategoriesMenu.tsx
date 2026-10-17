@@ -108,10 +108,9 @@ export default function CategoriesMenu() {
                           role="menuitem"
                         >
                           <span className="w-[76px] h-[76px] rounded-full p-0.5 bg-white ring-1 ring-gray-100 shadow-sm overflow-hidden transition-all duration-300 group-hover:ring-2 group-hover:ring-brand-red/40 group-hover:-translate-y-0.5">
-                            <CategoryArt category={leaf} variant="circle" studio={false} />
+                            <CategoryArt category={leaf} variant="circle" />
                           </span>
                           <span className="text-[12px] leading-snug text-gray-700 group-hover:text-brand-red line-clamp-2">{leaf.name}</span>
-                          {leaf.product_count === 0 && <span className="-mt-1.5 text-[10px] text-gray-400">Coming soon</span>}
                         </Link>
                       ))}
                     </div>

@@ -1,27 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import {
-  MessageSquare,
-  X,
-  ChevronLeft,
-  Send,
-  Headphones,
-  Search,
-  ExternalLink,
-  ShoppingBag,
-  Package,
-  Maximize2,
-  Paperclip,
-  Smile,
-  Bike,
-  Lock,
-} from 'lucide-react';
+import { MessageSquare, X, ChevronLeft, ChevronRight, Send, Headphones, Search, ShoppingBag, Package, Maximize2, Bike, Lock } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useChat } from '../../hooks/useChat';
 import AvatarWithFallback from '../ui/AvatarWithFallback';
 import ChatAttachmentBubble from './ChatAttachmentBubble';
-import EmojiPickerPopover from './EmojiPickerPopover';
-import ChatAttachmentModal from './ChatAttachmentModal';
+import { useChatAttach, AttachMenu } from './ChatAttach';
+import { isAutoAttachmentBody } from './chatUtils';
 import FloatingToolbar from './FloatingToolbar';
 import RiderThreadPane from './RiderThreadPane';
 import { isRiderThread } from '../../lib/riderThread';
@@ -51,8 +37,6 @@ export default function BuyerFloatingChat() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'sellers' | 'delivery' | 'support'>('all');
   const [inputBody, setInputBody] = useState('');
-  const [showEmoji, setShowEmoji] = useState(false);
-  const [showAttachModal, setShowAttachModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -75,6 +59,14 @@ export default function BuyerFloatingChat() {
       setImagePreviewUrl(null);
     }
   }, [selectedImage]);
+
+  // Photo, order and product sharing (the + menu above the composer). The server writes the caption of a card.
+  const attach = useChatAttach({
+    conversationId: activeConversation?.id,
+    onImage: (file) => { setSelectedImage(file); inputRef.current?.focus(); },
+    onOrder: (o) => { void sendMessage('', 'order_card', { id: o.id }); },
+    onProduct: (p) => { void sendMessage('', 'product_card', { id: p.id }); },
+  });
 
   // Don't render floating widget on admin pages or seller center pages
   if (
@@ -111,38 +103,7 @@ export default function BuyerFloatingChat() {
     const img = selectedImage;
     setInputBody('');
     setSelectedImage(null);
-    setShowEmoji(false);
     await sendMessage(text, undefined, undefined, img || undefined);
-  };
-
-  const handleQuickChip = async (chipText: string) => {
-    setInputBody('');
-    await sendMessage(chipText);
-  };
-
-  const handleSelectEmoji = (emoji: string) => {
-    setInputBody((prev) => prev + emoji);
-    inputRef.current?.focus();
-  };
-
-  const handleAttachProduct = async (product: any) => {
-    await sendMessage(`Inquiring about ${product.name}`, 'product_card', {
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      category: product.category,
-    });
-  };
-
-  const handleAttachOrder = async (order: any) => {
-    await sendMessage(`Inquiring regarding Order #${order.order_number}`, 'order_card', {
-      id: order.id,
-      order_number: order.order_number,
-      total: order.total,
-      status: order.status,
-      items_summary: order.items_summary,
-    });
   };
 
   const formatTimeAgo = (iso?: string | null) => {
@@ -195,541 +156,357 @@ export default function BuyerFloatingChat() {
 
   const lastMyMessageId = [...messages].reverse().find((m) => m.sender_id === user?.id)?.id;
 
+  const TABS = [
+    { key: 'all', label: 'All' },
+    { key: 'sellers', label: 'Shops' },
+    { key: 'delivery', label: 'Delivery' },
+    { key: 'support', label: 'Support' },
+  ] as const;
+  const iconButton = 'w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors';
+  const isSupportThread = activeConversation?.type === 'buyer_admin';
+  const threadName = isSupportThread ? 'Loved-IT Support' : activeConversation?.seller?.shop_name || 'Shop';
+  const threadAvatar = isSupportThread ? null : activeConversation?.seller?.shop_logo || null;
+
   return (
     <div className="fixed bottom-6 right-4 sm:right-6 z-40 flex flex-col sm:flex-row items-end gap-3 pointer-events-none">
-      {/* Floating Chat Modal (above the toolbar on phones, beside it on larger screens) */}
-      {isChatOpen && (
-        <div className="pointer-events-auto w-[calc(100vw-32px)] sm:w-[390px] h-[580px] max-h-[calc(100vh-260px)] sm:max-h-[calc(100vh-100px)] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
-          {/* SCREEN 1: CONVERSATION LIST */}
-          {!activeConversation ? (
-            <div className="flex flex-col h-full">
-              {/* Header */}
-              <div className="p-4 bg-gradient-to-r from-[#8a2424] to-[#A32D2D] text-white flex items-center justify-between shadow-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-2xl bg-white/15 flex items-center justify-center font-bold">
-                    <MessageSquare className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="font-bold text-sm leading-tight">Messages</h3>
-                      <span className="inline-flex items-center gap-1 text-[9px] bg-white/20 px-1.5 py-0.2 rounded-md font-semibold">
-                        <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-400' : 'bg-gray-300'}`} />
-                        {wsConnected ? 'Live' : 'Connecting'}
-                      </span>
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.97 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformOrigin: 'bottom right' }}
+            className="pointer-events-auto w-[calc(100vw-32px)] sm:w-[380px] h-[600px] max-h-[calc(100vh-260px)] sm:max-h-[calc(100vh-100px)] bg-white rounded-[22px] border border-stone-200 shadow-[0_24px_60px_-12px_rgba(28,25,23,0.28)] flex flex-col overflow-hidden"
+            role="dialog"
+            aria-label="Messages"
+          >
+            {!activeConversation ? (
+              /* ── Inbox ── */
+              <div className="flex flex-col h-full">
+                <div className="px-5 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-2">
+                      <h3 className="text-[20px] font-serif font-bold tracking-tight text-[#1E1B18]">Messages</h3>
+                      {wsConnected && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[11px] text-white/80">Chat with Stores &amp; Support</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Link
-                    to="/settings/messages"
-                    onClick={closeChat}
-                    className="p-1.5 rounded-xl hover:bg-white/20 text-white transition-colors"
-                    title="Open Full Screen"
-                  >
-                    <Maximize2 className="w-4 h-4" />
-                  </Link>
-                  <button
-                    onClick={closeChat}
-                    className="p-1.5 rounded-xl hover:bg-white/20 text-white transition-colors"
-                    title="Close"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Search & Tabs */}
-              <div className="p-3 bg-gray-50 border-b border-gray-100 space-y-2.5">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search shops or messages..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-red"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200 text-xs">
-                    {(['all', 'sellers', 'delivery', 'support'] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setActiveTab(t)}
-                        className={`px-2.5 py-1 rounded-lg font-bold capitalize transition-all ${
-                          activeTab === t
-                            ? 'bg-brand-red text-white shadow-xs'
-                            : 'text-gray-500 hover:text-gray-900'
-                        }`}
-                      >
-                        {t}
+                    <div className="flex items-center -mr-1.5">
+                      <Link to="/settings/messages" onClick={closeChat} className={iconButton} title="Open full page" aria-label="Open full page">
+                        <Maximize2 className="w-4 h-4" />
+                      </Link>
+                      <button type="button" onClick={closeChat} className={iconButton} title="Close" aria-label="Close messages">
+                        <X className="w-[18px] h-[18px]" />
                       </button>
-                    ))}
+                    </div>
                   </div>
 
-                  <button
-                    onClick={() => openChatWithSupport()}
-                    className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-brand-red text-[11px] font-bold flex items-center gap-1 border border-rose-100 transition-colors"
-                  >
-                    <Headphones className="w-3.5 h-3.5" /> Support
-                  </button>
+                  <div className="relative mt-3">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                    <input
+                      type="text"
+                      placeholder="Search shops or messages"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full h-10 pl-10 pr-3 text-[13px] bg-stone-100 rounded-full outline-none border border-transparent focus:bg-white focus:border-stone-300 transition-colors placeholder:text-stone-400"
+                    />
+                  </div>
+
+                  <div className="mt-2 flex gap-1 border-b border-stone-200">
+                    {TABS.map((t) => {
+                      const on = activeTab === t.key;
+                      return (
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() => setActiveTab(t.key)}
+                          className={`relative px-3 h-10 text-[13px] transition-colors ${on ? 'text-stone-900 font-semibold' : 'text-stone-500 hover:text-stone-800'}`}
+                        >
+                          {t.label}
+                          {on && <motion.span layoutId="chat-tab" className="absolute left-3 right-3 -bottom-px h-0.5 rounded-full bg-brand-red" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* Conversations List */}
-              <div className="flex-1 overflow-y-auto divide-y divide-gray-50 p-2">
-                {!user ? (
-                  <div className="p-8 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-rose-50 text-brand-red flex items-center justify-center mx-auto">
-                      <MessageSquare className="w-6 h-6" />
+                <div className="flex-1 overflow-y-auto px-2 py-2">
+                  {!user ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center px-8">
+                      <span className="w-12 h-12 rounded-full bg-rose-50 text-brand-red flex items-center justify-center"><MessageSquare className="w-5 h-5" /></span>
+                      <p className="mt-3 text-sm font-semibold text-stone-900">Sign in to see your messages</p>
+                      <p className="mt-1 text-[12px] text-stone-500">Chat with shops about products, and with your rider about deliveries.</p>
+                      <Link to="/login" onClick={closeChat} className="mt-4 h-9 px-5 rounded-full bg-brand-red text-white text-[13px] font-semibold flex items-center">Sign in</Link>
                     </div>
-                    <p className="text-xs font-semibold text-gray-700">Log in to view and send messages</p>
-                    <Link
-                      to="/login"
-                      onClick={closeChat}
-                      className="inline-block px-4 py-2 bg-brand-red text-white text-xs font-bold rounded-xl shadow-xs"
-                    >
-                      Sign In
-                    </Link>
-                  </div>
-                ) : loadingConversations ? (
-                  <div className="p-8 text-center text-xs text-gray-400">Loading your conversations...</div>
-                ) : filteredConversations.length === 0 ? (
-                  <div className="p-8 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
-                      <MessageSquare className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-800">No conversations yet</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        Inquire about any item on its product page or contact Customer Support.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => openChatWithSupport()}
-                      className="px-3.5 py-1.5 bg-brand-red text-white text-xs font-bold rounded-xl"
-                    >
-                      Contact Loved-IT Support
-                    </button>
-                  </div>
-                ) : (
-                  filteredConversations.map((c) => {
-                    const isRider = isRiderThread(c);
-                    const isSupport = c.type === 'buyer_admin';
-                    const name = isRider ? 'Delivery rider' : isSupport ? 'Loved-IT Customer Support' : c.seller?.shop_name || 'Store Merchant';
-                    const avatar = isSupport ? null : c.seller?.shop_logo || c.seller?.avatar_url;
-                    const hasUnread = c.unread > 0;
-
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => selectConversation(c)}
-                        className={`w-full p-3 rounded-2xl flex items-start gap-3 text-left hover:bg-gray-50 transition-colors ${
-                          hasUnread ? 'bg-rose-50/40 font-semibold' : ''
-                        }`}
-                      >
-                        <div className="relative shrink-0">
-                          {isRider ? (
-                            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                              <Bike className="w-5 h-5" aria-hidden="true" />
-                            </div>
-                          ) : (
-                            <AvatarWithFallback
-                              src={avatar}
-                              alt={name}
-                              role={isSupport ? 'admin' : 'seller'}
-                              fallbackInitials={isSupport ? 'CS' : name}
-                              className="w-10 h-10 rounded-2xl"
-                            />
-                          )}
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white absolute -bottom-0.5 -right-0.5" />
+                  ) : loadingConversations && conversations.length === 0 ? (
+                    <div className="space-y-1 px-1">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="flex items-center gap-3 p-3">
+                          <div className="w-11 h-11 rounded-full bg-stone-100 animate-pulse" />
+                          <div className="flex-1 space-y-2"><div className="h-3 w-1/2 rounded bg-stone-100 animate-pulse" /><div className="h-3 w-3/4 rounded bg-stone-100 animate-pulse" /></div>
                         </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <span className="text-xs font-bold text-gray-900 truncate">{name}</span>
-                            <span className="text-[10px] text-gray-400 shrink-0">{formatTimeAgo(c.last_message_at)}</span>
-                          </div>
-
-                          {isRider && c.parcel && (
-                            <p className="text-[10px] text-blue-700 font-semibold truncate flex items-center gap-1">
-                              <span className="font-mono">{c.parcel.tracking_number}</span>
-                              {c.is_closed && (
-                                <span className="inline-flex items-center gap-0.5 text-gray-500">
-                                  <Lock className="w-3 h-3" aria-hidden="true" />
-                                  Closed
-                                </span>
+                      ))}
+                    </div>
+                  ) : filteredConversations.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center px-8">
+                      <span className="w-12 h-12 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center"><MessageSquare className="w-5 h-5" /></span>
+                      <p className="mt-3 text-sm font-semibold text-stone-900">{searchQuery ? 'No matches' : 'No conversations yet'}</p>
+                      <p className="mt-1 text-[12px] text-stone-500">{searchQuery ? 'Try another shop name or word.' : 'Tap “Chat” on any product or shop to ask the seller a question.'}</p>
+                    </div>
+                  ) : (
+                    <ul>
+                      {filteredConversations.map((c) => {
+                        const isRider = isRiderThread(c);
+                        const isSupport = c.type === 'buyer_admin';
+                        const name = isRider ? 'Delivery rider' : isSupport ? 'Loved-IT Support' : c.seller?.shop_name || 'Shop';
+                        const avatar = isSupport ? null : c.seller?.shop_logo || c.seller?.avatar_url;
+                        const unread = c.unread > 0;
+                        return (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onClick={() => selectConversation(c)}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left hover:bg-stone-50 transition-colors"
+                            >
+                              {isRider ? (
+                                <span className="w-11 h-11 rounded-full bg-sky-50 text-sky-700 flex items-center justify-center shrink-0"><Bike className="w-5 h-5" /></span>
+                              ) : isSupport ? (
+                                <span className="w-11 h-11 rounded-full bg-brand-red text-white flex items-center justify-center shrink-0"><Headphones className="w-5 h-5" /></span>
+                              ) : (
+                                <AvatarWithFallback src={avatar} alt={name} role="seller" fallbackInitials={name} className="w-11 h-11 rounded-full shrink-0" />
                               )}
-                            </p>
-                          )}
+                              <span className="flex-1 min-w-0">
+                                <span className="flex items-baseline justify-between gap-2">
+                                  <span className={`text-[13px] truncate ${unread ? 'font-bold text-stone-900' : 'font-semibold text-stone-800'}`}>{name}</span>
+                                  <span className={`text-[11px] shrink-0 ${unread ? 'text-brand-red font-semibold' : 'text-stone-400'}`}>{formatTimeAgo(c.last_message_at)}</span>
+                                </span>
+                                {(isRider && c.parcel) ? (
+                                  <span className="block text-[11px] text-stone-500 truncate">
+                                    <span className="font-mono">{c.parcel.tracking_number}</span>
+                                    {c.is_closed && <span className="ml-1.5 inline-flex items-center gap-0.5"><Lock className="w-3 h-3" />Closed</span>}
+                                  </span>
+                                ) : c.product ? (
+                                  <span className="block text-[11px] text-stone-500 truncate">Re: {c.product.name}</span>
+                                ) : null}
+                                <span className="flex items-center gap-2">
+                                  <span className={`flex-1 text-[12px] truncate ${unread ? 'text-stone-900 font-medium' : 'text-stone-500'}`}>{c.last_message?.body || 'No messages yet'}</span>
+                                  {unread && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-red text-white text-[10px] font-bold flex items-center justify-center">{c.unread > 99 ? '99+' : c.unread}</span>}
+                                </span>
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
 
-                          {c.product && (
-                            <p className="text-[10px] text-brand-red font-semibold truncate flex items-center gap-1">
-                              <ShoppingBag className="w-3 h-3 shrink-0" />
-                              {c.product.name}
-                            </p>
-                          )}
-
-                          <p className="text-xs text-gray-500 truncate">
-                            {c.last_message?.body || 'No messages yet'}
-                          </p>
-                        </div>
-
-                        {hasUnread && (
-                          <span className="w-5 h-5 rounded-full bg-brand-red text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                            {c.unread}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
+                {user && (
+                  <button
+                    type="button"
+                    onClick={() => openChatWithSupport()}
+                    className="mx-3 mb-3 flex items-center gap-3 px-3.5 py-3 rounded-2xl bg-stone-50 hover:bg-stone-100 border border-stone-200 text-left transition-colors group"
+                  >
+                    <Headphones className="w-[18px] h-[18px] text-brand-red shrink-0" />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[13px] font-semibold text-stone-900">Need help with an order?</span>
+                      <span className="block text-[11px] text-stone-500">Chat with Loved-IT Support</span>
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
                 )}
               </div>
-            </div>
-          ) : isRiderThread(activeConversation) ? (
-            /* SCREEN 2 (delivery rider): text-only thread with its own polling */
-            user ? (
-              <RiderThreadPane
-                conversation={activeConversation}
-                currentUserId={user.id}
-                onActivity={() => void refreshConversations()}
-                onBack={clearActiveConversation}
-              />
-            ) : null
-          ) : (
-            /* SCREEN 2: ACTIVE CONVERSATION */
-            <div className="flex flex-col h-full">
-              {/* Active Header */}
-              <div className="p-3.5 bg-gradient-to-r from-[#8a2424] to-[#A32D2D] text-white flex items-center justify-between shadow-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <button
-                    onClick={clearActiveConversation}
-                    className="p-1 rounded-xl hover:bg-white/20 text-white transition-colors shrink-0"
-                    title="Back to list"
-                  >
+            ) : isRiderThread(activeConversation) ? (
+              user ? (
+                <RiderThreadPane
+                  conversation={activeConversation}
+                  currentUserId={user.id}
+                  onActivity={() => void refreshConversations()}
+                  onBack={clearActiveConversation}
+                />
+              ) : null
+            ) : (
+              /* ── Conversation ── */
+              <div className="flex flex-col h-full">
+                <div className="px-3 h-[60px] flex items-center gap-2 border-b border-stone-200 shrink-0">
+                  <button type="button" onClick={clearActiveConversation} className={iconButton} title="Back" aria-label="Back to messages">
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-
-                  <AvatarWithFallback
-                    src={activeConversation.seller?.shop_logo || undefined}
-                    alt={activeConversation.seller?.shop_name || 'Merchant'}
-                    role={activeConversation.type === 'buyer_admin' ? 'admin' : 'seller'}
-                    fallbackInitials={activeConversation.type === 'buyer_admin' ? 'CS' : (activeConversation.seller?.shop_name || undefined)}
-                    className="w-8 h-8 rounded-xl border-white/20"
-                    iconClassName="w-4 h-4"
-                  />
-
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold truncate leading-tight">
-                      {activeConversation.type === 'buyer_admin'
-                        ? 'Loved-IT Customer Support'
-                        : activeConversation.seller?.shop_name || 'Store Merchant'}
-                    </p>
-                    <p className="text-[10px] text-white/80 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      {activeConversation.type === 'buyer_admin' ? 'Official Support' : 'Online Store'}
-                    </p>
+                  {isSupportThread ? (
+                    <span className="w-9 h-9 rounded-full bg-brand-red text-white flex items-center justify-center shrink-0"><Headphones className="w-4 h-4" /></span>
+                  ) : (
+                    <AvatarWithFallback src={threadAvatar} alt={threadName} role="seller" fallbackInitials={threadName} className="w-9 h-9 rounded-full shrink-0" iconClassName="w-4 h-4" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-stone-900 truncate leading-tight">{threadName}</p>
+                    <p className="text-[11px] text-stone-500 truncate">{isSupportThread ? 'Official Loved-IT support' : 'Shop on Loved-IT'}</p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <Link
-                    to="/settings/messages"
-                    onClick={closeChat}
-                    className="p-1.5 rounded-xl hover:bg-white/20 text-white transition-colors"
-                    title="Full Screen View"
-                  >
+                  <Link to="/settings/messages" onClick={closeChat} className={iconButton} title="Open full page" aria-label="Open full page">
                     <Maximize2 className="w-4 h-4" />
                   </Link>
-                  <button
-                    onClick={closeChat}
-                    className="p-1.5 rounded-xl hover:bg-white/20 text-white transition-colors"
-                    title="Close"
-                  >
-                    <X className="w-4 h-4" />
+                  <button type="button" onClick={closeChat} className={iconButton} title="Close" aria-label="Close messages">
+                    <X className="w-[18px] h-[18px]" />
                   </button>
                 </div>
-              </div>
 
-              {/* Pinned Product/Order Context Card */}
-              {activeConversation.product && (
-                <div className="p-2.5 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {activeConversation.product.image ? (
-                      <img
-                        src={activeConversation.product.image}
-                        alt={activeConversation.product.name}
-                        className="w-9 h-9 rounded-xl object-cover border border-rose-200 shrink-0"
-                      />
-                    ) : (
-                      <div className="w-9 h-9 rounded-xl bg-rose-100 text-brand-red flex items-center justify-center shrink-0">
-                        <ShoppingBag className="w-4 h-4" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-bold text-gray-900 truncate leading-tight">{activeConversation.product.name}</p>
-                      <p className="text-[11px] font-black text-brand-red">
-                        ₱{activeConversation.product.price.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
+                {/* What the conversation is about */}
+                {(activeConversation.product || activeConversation.order) && (
+                  <div className="px-3 py-2 border-b border-stone-200 bg-white shrink-0">
+                    {activeConversation.product ? (
+                      <Link to={`/products/${activeConversation.product.id}`} onClick={closeChat} className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-stone-50 transition-colors">
+                        {activeConversation.product.image
+                          ? <img src={activeConversation.product.image} alt="" className="w-10 h-10 rounded-lg object-cover ring-1 ring-stone-200 shrink-0" />
+                          : <span className="w-10 h-10 rounded-lg bg-stone-100 text-stone-400 flex items-center justify-center shrink-0"><ShoppingBag className="w-4 h-4" /></span>}
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[12px] text-stone-900 truncate">{activeConversation.product.name}</span>
+                          <span className="block text-[12px] font-bold text-brand-red">₱{activeConversation.product.price.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-stone-500 shrink-0">View</span>
+                      </Link>
+                    ) : activeConversation.order ? (
+                      <Link to="/settings/orders" onClick={closeChat} className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-stone-50 transition-colors">
+                        <span className="w-10 h-10 rounded-lg bg-stone-100 text-stone-500 flex items-center justify-center shrink-0"><Package className="w-4 h-4" /></span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[12px] text-stone-900 truncate">Order #{activeConversation.order.order_number}</span>
+                          <span className="block text-[11px] text-stone-500 capitalize">{activeConversation.order.status.replace(/_/g, ' ').toLowerCase()}</span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-stone-500 shrink-0">Details</span>
+                      </Link>
+                    ) : null}
                   </div>
-                  <Link
-                    to={`/products/${activeConversation.product.id}`}
-                    target="_blank"
-                    className="px-2.5 py-1 bg-white hover:bg-gray-50 text-gray-700 text-[11px] font-bold rounded-xl border border-gray-200 flex items-center gap-1 shrink-0 shadow-2xs"
-                  >
-                    View <ExternalLink className="w-3 h-3" />
-                  </Link>
-                </div>
-              )}
+                )}
 
-              {activeConversation.order && (
-                <div className="p-2.5 bg-blue-50/70 border-b border-blue-100 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                      <Package className="w-4 h-4" />
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-4 py-4 bg-[#FAF8F5]">
+                  {loadingMessages && messages.length === 0 ? (
+                    <div className="space-y-3">
+                      <div className="h-9 w-2/3 rounded-2xl bg-stone-200/60 animate-pulse" />
+                      <div className="h-9 w-1/2 rounded-2xl bg-stone-200/60 animate-pulse ml-auto" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-gray-900 truncate leading-tight">
-                        Order #{activeConversation.order.order_number}
-                      </p>
-                      <p className="text-[11px] text-gray-500 capitalize">
-                        Status: <span className="font-bold text-blue-700">{activeConversation.order.status.replace(/_/g, ' ')}</span>
-                      </p>
+                  ) : messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                      <p className="text-[13px] font-semibold text-stone-900">Say hello to {threadName}</p>
+                      <p className="mt-1 text-[12px] text-stone-500">Ask about stock, sizes, shipping or the shop&apos;s policies.</p>
                     </div>
-                  </div>
-                  <Link
-                    to={`/settings/orders`}
-                    className="px-2.5 py-1 bg-white hover:bg-gray-50 text-blue-700 text-[11px] font-bold rounded-xl border border-blue-200 flex items-center gap-1 shrink-0 shadow-2xs"
-                  >
-                    Details <ExternalLink className="w-3 h-3" />
-                  </Link>
-                </div>
-              )}
+                  ) : (
+                    messages.map((m, idx) => {
+                      const isMe = m.sender_id === user?.id;
+                      const nextSame = messages[idx + 1]?.sender_id === m.sender_id;
+                      const prevSame = messages[idx - 1]?.sender_id === m.sender_id;
+                      const showDate = shouldShowDateSeparator(m.created_at, messages[idx - 1]?.created_at);
+                      const isLastMine = isMe && m.id === lastMyMessageId;
+                      const otherAvatar = isSupportThread ? null : activeConversation.seller?.shop_logo || m.sender_avatar;
+                      const grouped = prevSame && !showDate;
 
-              {/* Message History Stream */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#fafafa]">
-                {loadingMessages ? (
-                  <div className="text-center text-xs text-gray-400 py-6">Loading messages...</div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center py-8 space-y-2">
-                    <p className="text-xs font-bold text-gray-700">Start the conversation</p>
-                    <p className="text-[11px] text-gray-400">
-                      Ask about item availability, shipping schedules, or shop policies.
-                    </p>
-                  </div>
-                ) : (
-                  messages.map((m, idx) => {
-                    const isMe = m.sender_id === user?.id;
-                    const isLastFromSender = idx === messages.length - 1 || messages[idx + 1]?.sender_id !== m.sender_id;
-                    const isLastMyMessage = isMe && m.id === lastMyMessageId;
-                    const showDateHeader = shouldShowDateSeparator(m.created_at, messages[idx - 1]?.created_at);
-
-                    const otherAvatar = activeConversation.type === 'buyer_admin'
-                      ? null
-                      : activeConversation.seller?.shop_logo || m.sender_avatar;
-
-                    return (
-                      <div key={m.id} className="space-y-1">
-                        {/* Date Header Pill */}
-                        {showDateHeader && (
-                          <div className="flex items-center justify-center my-3">
-                            <span className="text-[10px] font-semibold text-gray-500 bg-gray-100/90 px-3 py-0.5 rounded-full shadow-2xs border border-gray-200/50">
-                              {formatMessengerDate(m.created_at)}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          {!isMe && (
-                            <div className="w-7 h-7 shrink-0 mb-1">
-                              {isLastFromSender ? (
-                                <AvatarWithFallback
-                                  src={otherAvatar}
-                                  alt={activeConversation.seller?.shop_name || 'Store'}
-                                  role={activeConversation.type === 'buyer_admin' ? 'admin' : 'seller'}
-                                  fallbackInitials={activeConversation.type === 'buyer_admin' ? 'CS' : undefined}
-                                  className="w-7 h-7 rounded-full border border-gray-200/70 shadow-2xs"
-                                  iconClassName="w-3.5 h-3.5"
-                                />
-                              ) : (
-                                <div className="w-7 h-7" />
-                              )}
+                      return (
+                        <div key={m.id} className={grouped ? 'mt-0.5' : 'mt-3 first:mt-0'}>
+                          {showDate && (
+                            <div className="flex items-center gap-3 my-4">
+                              <span className="flex-1 h-px bg-stone-200" />
+                              <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-stone-400">{formatMessengerDate(m.created_at)}</span>
+                              <span className="flex-1 h-px bg-stone-200" />
                             </div>
                           )}
-
-                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]`}>
-                            {/* Rich Attachment Bubble (product_card, order_card, image) */}
-                            {m.attachment_type && m.attachment_data && (
-                              <ChatAttachmentBubble
-                                type={m.attachment_type}
-                                data={m.attachment_data}
-                                isMe={isMe}
-                              />
+                          <div className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            {!isMe && (
+                              <span className="w-7 shrink-0">
+                                {!nextSame && (isSupportThread
+                                  ? <span className="w-7 h-7 rounded-full bg-brand-red text-white flex items-center justify-center"><Headphones className="w-3.5 h-3.5" /></span>
+                                  : <AvatarWithFallback src={otherAvatar} alt={threadName} role="seller" fallbackInitials={threadName} className="w-7 h-7 rounded-full" iconClassName="w-3.5 h-3.5" />)}
+                              </span>
                             )}
-
-                            {m.body && (
-                              <div
-                                className={`px-3.5 py-2 text-xs leading-relaxed ${
-                                  isMe
-                                    ? 'bg-brand-red text-white rounded-2xl rounded-br-xs shadow-xs'
-                                    : 'bg-white text-gray-900 border border-gray-200/80 rounded-2xl rounded-bl-xs shadow-2xs'
-                                }`}
-                              >
-                                <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                              </div>
-                            )}
-
-                            {/* Messenger Seen / Sent receipt on the most recent outgoing message */}
-                            {isLastMyMessage && (
-                              <div className="flex items-center justify-end gap-1.5 mt-1 px-1">
-                                {m.read_at ? (
-                                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400 animate-in fade-in duration-200">
-                                    <span>{formatTimeOnly(m.created_at)}</span>
-                                    <div className="w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 border border-white shadow-2xs">
-                                      <AvatarWithFallback
-                                        src={otherAvatar}
-                                        alt="Seen"
-                                        role={activeConversation.type === 'buyer_admin' ? 'admin' : 'seller'}
-                                        fallbackInitials={activeConversation.type === 'buyer_admin' ? 'CS' : undefined}
-                                        className="w-3.5 h-3.5 rounded-full"
-                                        iconClassName="w-2 h-2"
-                                      />
-                                    </div>
-                                    <span className="text-[9px] font-bold text-gray-500">Seen</span>
-                                  </div>
-                                ) : (
-                                  <div className="text-[9px] font-medium text-gray-400">
-                                    <span>Sent {formatTimeAgo(m.created_at)}</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <div className={`flex flex-col max-w-[78%] ${isMe ? 'items-end' : 'items-start'}`}>
+                              {m.attachment_type && m.attachment_data && (
+                                <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={isMe} orderHref={() => '/settings/orders'} />
+                              )}
+                              {m.body && !isAutoAttachmentBody(m) && (
+                                <div
+                                  title={formatTimeOnly(m.created_at)}
+                                  className={`px-3.5 py-2 text-[13px] leading-relaxed ${
+                                    isMe
+                                      ? `bg-brand-red text-white rounded-[18px] ${nextSame ? 'rounded-br-md' : 'rounded-br-sm'} ${grouped ? 'rounded-tr-md' : ''}`
+                                      : `bg-white text-stone-900 ring-1 ring-stone-200 rounded-[18px] ${nextSame ? 'rounded-bl-md' : 'rounded-bl-sm'} ${grouped ? 'rounded-tl-md' : ''}`
+                                  }`}
+                                >
+                                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                                </div>
+                              )}
+                              {isLastMine && (
+                                <span className="mt-1 px-1 text-[10px] text-stone-400">
+                                  {m.read_at ? `Seen · ${formatTimeOnly(m.created_at)}` : `Sent · ${formatTimeAgo(m.created_at)}`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Quick Inquiry Chips (for fast shopping questions) */}
-              {messages.length <= 2 && (
-                <div className="px-3 py-1.5 bg-white border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                  <button
-                    onClick={() => handleQuickChip('Is this item available in stock?')}
-                    className="px-2.5 py-1 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-[10px] font-semibold rounded-full border border-gray-200 shrink-0 transition-colors"
-                  >
-                    📦 Is this in stock?
-                  </button>
-                  <button
-                    onClick={() => handleQuickChip('When will this order be shipped?')}
-                    className="px-2.5 py-1 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-[10px] font-semibold rounded-full border border-gray-200 shrink-0 transition-colors"
-                  >
-                    🚚 When will it ship?
-                  </button>
-                  <button
-                    onClick={() => handleQuickChip('Can I request actual photos of the item?')}
-                    className="px-2.5 py-1 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-[10px] font-semibold rounded-full border border-gray-200 shrink-0 transition-colors"
-                  >
-                    📸 Actual photos?
-                  </button>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
-              )}
 
-              {/* Image Draft Preview Bar */}
-              {imagePreviewUrl && (
-                <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <img
-                      src={imagePreviewUrl}
-                      alt="Preview"
-                      className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-gray-800 truncate">{selectedImage?.name}</p>
-                      <p className="text-[10px] text-gray-400">Ready to send with message</p>
-                    </div>
+                {/* A fresh conversation: shortcuts to what shops and support usually need first */}
+                {messages.length <= 2 && (
+                  <div className="px-3 pt-2 flex gap-1.5 overflow-x-auto no-scrollbar bg-white border-t border-stone-200">
+                    <button type="button" onClick={attach.pickOrder} className="shrink-0 h-8 px-3 rounded-full border border-stone-300 text-[12px] text-stone-700 hover:border-stone-900 hover:text-stone-900 inline-flex items-center gap-1.5 transition-colors">
+                      <Package className="w-3.5 h-3.5" /> Share an order
+                    </button>
+                    {!isSupportThread && (
+                      <button type="button" onClick={attach.pickProduct} className="shrink-0 h-8 px-3 rounded-full border border-stone-300 text-[12px] text-stone-700 hover:border-stone-900 hover:text-stone-900 inline-flex items-center gap-1.5 transition-colors">
+                        <ShoppingBag className="w-3.5 h-3.5" /> Ask about a product
+                      </button>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedImage(null)}
-                    className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 flex items-center justify-center transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                )}
+
+                {imagePreviewUrl && (
+                  <div className="mx-3 mt-2 flex items-center gap-2.5 p-2 rounded-xl bg-stone-50 border border-stone-200">
+                    <img src={imagePreviewUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                    <span className="flex-1 min-w-0 text-[12px] text-stone-600 truncate">{selectedImage?.name}</span>
+                    <button type="button" onClick={() => setSelectedImage(null)} className="w-6 h-6 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-600 flex items-center justify-center" aria-label="Remove photo">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Composer */}
+                <div className={`relative bg-white px-3 py-3 ${messages.length <= 2 ? '' : 'border-t border-stone-200'}`}>
+                  <form onSubmit={handleSend} className="flex items-center gap-2">
+                    <AttachMenu attach={attach} disabled={sendingMessage} products={!isSupportThread} />
+                    <div className="flex-1 flex items-center h-11 px-2 rounded-full bg-stone-100 focus-within:bg-white focus-within:ring-1 focus-within:ring-stone-300 transition-colors">
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        placeholder="Write a message"
+                        value={inputBody}
+                        onChange={(e) => setInputBody(e.target.value)}
+                        className="flex-1 min-w-0 h-full px-1.5 text-[13px] bg-transparent outline-none placeholder:text-stone-400"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={(!inputBody.trim() && !selectedImage) || sendingMessage}
+                      className="w-11 h-11 shrink-0 rounded-full bg-brand-red hover:bg-brand-red-dark text-white flex items-center justify-center transition-colors disabled:bg-stone-200 disabled:text-stone-400"
+                      aria-label="Send"
+                    >
+                      <Send className="w-4 h-4 -ml-0.5" />
+                    </button>
+                  </form>
                 </div>
-              )}
 
-              {/* Reply Input Bar */}
-              <div className="relative">
-                <EmojiPickerPopover
-                  isOpen={showEmoji}
-                  onClose={() => setShowEmoji(false)}
-                  onSelectEmoji={handleSelectEmoji}
-                  position="top"
-                />
-
-                <form onSubmit={handleSend} className="p-3 bg-white border-t border-gray-100 flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowAttachModal(true)}
-                    className="p-2 text-gray-400 hover:text-brand-red hover:bg-rose-50 rounded-xl transition-colors shrink-0"
-                    title="Attach Product, Order, or Photo"
-                  >
-                    <Paperclip className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowEmoji((v) => !v)}
-                    className={`p-2 rounded-xl transition-colors shrink-0 ${
-                      showEmoji ? 'text-brand-red bg-rose-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    }`}
-                    title="Insert Emoji"
-                  >
-                    <Smile className="w-4 h-4" />
-                  </button>
-
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    placeholder="Type your message..."
-                    value={inputBody}
-                    onChange={(e) => setInputBody(e.target.value)}
-                    className="flex-1 px-3.5 py-2 text-xs bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:bg-white focus:border-brand-red focus:ring-1 focus:ring-red-100 transition-all"
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={(!inputBody.trim() && !selectedImage) || sendingMessage}
-                    className="p-2.5 bg-brand-red hover:bg-[#8a2424] disabled:opacity-40 text-white rounded-2xl shadow-xs transition-colors shrink-0"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </form>
+                {attach.elements}
               </div>
-
-              {/* Attachments Modal */}
-              <ChatAttachmentModal
-                isOpen={showAttachModal}
-                onClose={() => setShowAttachModal(false)}
-                conversation={activeConversation}
-                onAttachProduct={handleAttachProduct}
-                onAttachOrder={handleAttachOrder}
-                onAttachImage={(file) => setSelectedImage(file)}
-              />
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Side toolbar: Messages, Feedback and (once scrolled) Top */}
       <FloatingToolbar chatOpen={isChatOpen} unread={unreadTotal} onMessages={toggleChat} />
     </div>
   );
 }
-

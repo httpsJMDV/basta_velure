@@ -43,8 +43,6 @@ class BuyerOrderController extends Controller
             'shipping_city_code'     => ['required', 'string', 'regex:/^\d{9,10}$/'],
             'shipping_barangay_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
             'notes'                  => ['nullable', 'string', 'max:500'],
-            // The courier that delivers this checkout (same flat fee for every courier). Omitted: the default courier.
-            'logistics_company_id'   => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('logistics_companies', 'id')->where('status', \App\Models\LogisticsCompany::STATUS_APPROVED)],
             'items'                  => ['required', 'array', 'min:1'],
             'items.*.product_id'     => ['required', 'integer', 'exists:products,id'],
             'items.*.variant_id'     => ['nullable', 'integer'],
@@ -138,6 +136,10 @@ class BuyerOrderController extends Controller
                 $randomKey = strtoupper(Str::random(4));
                 $orderIdx = 1;
 
+                // The courier is assigned per shop from where the parcel starts and ends; the buyer does not pick one.
+                $courierAssigner = app(\App\Services\CourierAssigner::class);
+                $pickupCodes = \App\Models\SellerProfile::whereIn('user_id', $sellerGroups->keys())->pluck('address_barangay_code', 'user_id');
+
                 foreach ($sellerGroups as $sellerId => $sellerItems) {
                     $orderSubtotal = round((float) $sellerItems->sum('subtotal'), 2);
                     $shippingFee = (float) \App\Support\ShippingSplit::fee(); // One flat delivery fee per seller order (config/shipping.php)
@@ -149,7 +151,7 @@ class BuyerOrderController extends Controller
                     $orderIdx++;
 
                     $order = Order::create([
-                        'logistics_company_id' => isset($data['logistics_company_id']) ? (int) $data['logistics_company_id'] : \App\Models\LogisticsCompany::defaultId(),
+                        'logistics_company_id' => $courierAssigner->forRoute($pickupCodes[$sellerId] ?? null, $data['shipping_barangay_code']),
                         'buyer_id'          => $user->id,
                         'checkout_group_id' => $checkoutGroupId,
                         'order_number'      => $orderNumber,

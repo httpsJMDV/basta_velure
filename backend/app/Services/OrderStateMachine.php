@@ -280,7 +280,7 @@ class OrderStateMachine
                 $trackingNumber = $this->trackingNumberGenerator->generate();
 
                 Parcel::create([
-                    // The buyer's chosen courier: only that courier's riders are offered the pickup.
+                    // The order's assigned courier: only that courier's riders are offered the pickup.
                     'logistics_company_id'      => \App\Models\LogisticsCompany::effectiveId($order->logistics_company_id),
                     'tracking_number'           => $trackingNumber,
                     'order_id'                  => $order->id,

@@ -1,5 +1,8 @@
 import axios from 'axios';
 import type {
+  AttachableProduct,
+  AttachableOrder,
+  FeaturedShop,
   CourierOption,
   LogisticsCompanyDetail,
   LogisticsDashboard,
@@ -27,6 +30,7 @@ import type {
   AdminReviewSummary,
   AdminReviewListParams,
   AdminReviewShop,
+  AdminFeedback,
   AdminReviewShopSort,
   AdminOrderSummary,
   AdminOrderListParams,
@@ -436,6 +440,16 @@ export const getAdminReviewShopsApi = (params?: { search?: string; sort?: AdminR
 export const getAdminReviewShopApi = (shopId: number) =>
   http.get<{ data: AdminReviewShop }>(`/admin/reviews/shops/${shopId}`).then((r) => r.data.data);
 
+// Feedback about the site: sent from the storefront, read by the admin.
+export const sendFeedbackApi = (message: string, pageUrl?: string) =>
+  http.post('/feedback', { message, page_url: pageUrl }).then((r) => r.data);
+
+export const getAdminFeedbackApi = (params: { status?: 'new' | 'read' | 'all'; search?: string; page?: number; per_page?: number }) =>
+  http.get<{ data: AdminFeedback[]; meta: PaginatedResponse<AdminFeedback>['meta'] & { counts: { new: number; read: number; all: number } } }>('/admin/feedback', { params }).then((r) => r.data);
+
+export const updateAdminFeedbackApi = (id: number, status: 'new' | 'read') =>
+  http.patch<{ data: AdminFeedback }>(`/admin/feedback/${id}`, { status }).then((r) => r.data.data);
+
 // Products — public catalog
 export const getProductsApi = (filters: ProductFilters = {}) => {
   const params: Record<string, string | number | boolean> = {};
@@ -691,6 +705,7 @@ export const getUnreadMessagesCountApi = () =>
 export const startConversationApi = (payload: {
   type: 'buyer_seller' | 'buyer_admin' | 'seller_admin';
   seller_id?: number;
+  buyer_id?: number;
   product_id?: number;
   order_id?: number;
   subject?: string;
@@ -719,11 +734,11 @@ export const sendConversationMessageApi = (
   return http.post<{ data: ChatMessage }>(`/conversations/${conversationId}/messages`, body).then((r) => r.data.data);
 };
 
-export const getAttachableProductsApi = (conversationId: number) =>
-  http.get<{ data: any[] }>(`/conversations/${conversationId}/attachable-products`).then((r) => r.data.data);
+export const getAttachableProductsApi = (conversationId: number, q?: string) =>
+  http.get<{ data: AttachableProduct[] }>(`/conversations/${conversationId}/attachable-products`, { params: q ? { q } : undefined }).then((r) => r.data.data);
 
-export const getAttachableOrdersApi = (conversationId: number) =>
-  http.get<{ data: any[] }>(`/conversations/${conversationId}/attachable-orders`).then((r) => r.data.data);
+export const getAttachableOrdersApi = (conversationId: number, q?: string) =>
+  http.get<{ data: AttachableOrder[] }>(`/conversations/${conversationId}/attachable-orders`, { params: q ? { q } : undefined }).then((r) => r.data.data);
 
 export const updateConversationStatusApi = (conversationId: number, status: 'open' | 'resolved') =>
   http.patch<{ message: string; data: Conversation }>(`/conversations/${conversationId}/status`, { status }).then((r) => r.data);
@@ -1230,3 +1245,7 @@ export const getHubAwaitingPickupApi = () =>
   http.get<{ data: HubAwaitingRider[]; meta: { parcel_count: number } }>('/hub/dispatch/awaiting-pickup').then((r) => r.data);
 
 export const getHubEarningsApi = () => http.get<{ data: HubEarningsSummary }>('/hub/earnings').then((r) => r.data.data);
+
+/** The most-ordered shops with their best sellers, for the storefront (cached on the server). */
+export const getFeaturedShopsApi = (limit = 4) =>
+  http.get<{ data: FeaturedShop[] }>('/shops', { params: { limit } }).then((r) => r.data.data);

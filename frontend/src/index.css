@@ -76,6 +76,20 @@
     animation-play-state: paused;
   }
 
+  /* Toast countdown: the line under a toast empties as it times out, and holds while the pointer is on the toast */
+  @keyframes toast-countdown {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
+  .toast-countdown {
+    transform-origin: left;
+    animation: toast-countdown 4.5s linear forwards;
+  }
+  .toast-card:hover .toast-countdown,
+  .toast-card:focus-within .toast-countdown {
+    animation-play-state: paused;
+  }
+
   /* Modern scrollbar-none: completely removes visible scrollbars across all browsers */
   .scrollbar-none::-webkit-scrollbar,
   .no-scrollbar::-webkit-scrollbar {

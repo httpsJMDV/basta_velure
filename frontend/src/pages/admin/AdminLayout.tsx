@@ -36,7 +36,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/admin/orders':                 'Orders',
   '/admin/payments':               'Payments & Payouts',
   '/admin/disputes':               'Disputes / Returns',
-  '/admin/reviews':                'Reviews',
+  '/admin/reviews':                'Reviews & Feedback',
   '/admin/reports':                'Reports',
   '/admin/settings':               'Platform Settings',
   '/admin/activity-log':           'Activity Log',
@@ -97,7 +97,7 @@ function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
     {
       heading: 'Trust & Safety',
       items: [
-        { icon: Star, label: 'Reviews', to: '/admin/reviews' },
+        { icon: Star, label: 'Reviews & Feedback', to: '/admin/reviews' },
       ],
     },
     {

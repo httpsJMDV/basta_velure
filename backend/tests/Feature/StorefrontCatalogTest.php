@@ -155,4 +155,31 @@ class StorefrontCatalogTest extends TestCase
         $single = $this->postJson('/api/v1/seller/products', $payload(['discount_percent' => 10, 'variants' => [['label' => 'Default', 'price' => 400, 'stock' => 3]]]))->json('data.id');
         $this->patchJson("/api/v1/seller/products/{$single}/price", ['price' => 500])->assertOk()->assertJsonPath('data.base_price', 450);
     }
+
+    public function test_shops_to_know_lists_the_most_ordered_shops_with_their_best_sellers(): void
+    {
+        $category = $this->category('storefront-test-shops');
+        foreach ([500000, 400000, 300000, 10] as $i => $sold) {
+            $this->product($category, "Best seller {$i}")->forceFill(['units_sold' => $sold])->save();
+        }
+        // A shop with only two live products is not featured yet.
+        $small = User::forceCreate(['first_name' => 'Small', 'last_name' => 'Shop', 'email' => 'small.' . uniqid() . '@example.com', 'password' => Hash::make('Password123!'), 'role' => 'buyer', 'status' => 'active']);
+        SellerProfile::forceCreate([
+            'user_id' => $small->id, 'shop_name' => 'Small ' . uniqid(), 'shop_category' => 'x', 'shop_description' => 'x',
+            'date_of_birth' => '1990-01-01', 'government_id_type' => 'national_id', 'government_id_number' => 'N/A',
+            'government_id_number_hash' => hash('sha256', 'y' . $small->id), 'government_id_image_path' => 'x.png',
+            'payout_gcash_number' => '09170000000', 'application_status' => 'approved', 'submitted_at' => now(),
+        ]);
+        foreach ([1, 2] as $i) {
+            Product::forceCreate(['seller_id' => $small->id, 'category_id' => $category->id, 'name' => "Small {$i}", 'base_price' => 50, 'status' => 'active', 'units_sold' => 900000]);
+        }
+
+        $shops = $this->getJson('/api/v1/shops?limit=12')->assertOk()->json('data');
+
+        $this->assertSame($this->seller->id, $shops[0]['seller_id']);
+        $this->assertSame(4, $shops[0]['product_count']);
+        $this->assertSame(['Best seller 0', 'Best seller 1', 'Best seller 2'], array_column($shops[0]['products'], 'name'));
+        $this->assertStringEndsWith('.jpg', $shops[0]['products'][0]['image_url']);
+        $this->assertNotContains($small->id, array_column($shops, 'seller_id'));
+    }
 }

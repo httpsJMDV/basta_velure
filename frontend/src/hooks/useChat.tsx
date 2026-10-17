@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useAuth } from './useAuth';
 import { getEcho, resetEcho } from '../lib/echo';
+import { usePolling, CHAT_POLL } from './usePolling';
+import { mergeFetchedMessages } from '../components/chat/chatUtils';
 import {
   getConversationsApi,
   startConversationApi,
@@ -52,6 +54,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const activeConvRef = useRef<Conversation | null>(null);
   activeConvRef.current = activeConversation;
+  const chatOpenRef = useRef(isChatOpen);
+  chatOpenRef.current = isChatOpen;
 
   const userId = user?.id;
   const activeConvId = activeConversation?.id;
@@ -85,6 +89,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const refreshConversationsRef = useRef(refreshConversations);
   refreshConversationsRef.current = refreshConversations;
+
+  // Background refreshes (no loading state): the safety net under the websocket, and the way a message from the
+  // other side gets marked read while the thread is open.
+  const refreshThreadSilently = useCallback(() => {
+    const id = activeConvRef.current?.id;
+    if (!id) return;
+    getConversationMessagesApi(id)
+      .then((list) => setMessages((prev) => (activeConvRef.current?.id === id ? mergeFetchedMessages(prev, list) : prev)))
+      .catch(() => {});
+  }, []);
+
+  const refreshInboxSilently = useCallback(() => {
+    getConversationsApi()
+      .then((data) => {
+        const openId = chatOpenRef.current ? activeConvRef.current?.id : undefined;
+        const list = data.map((c) => (c.id === openId ? { ...c, unread: 0 } : c));
+        setConversations(list);
+        setUnreadTotal(list.reduce((acc, c) => acc + (Number(c.unread) || 0), 0));
+      })
+      .catch(() => {});
+  }, []);
 
   // Initial load on user login - only buyers need global floating chat initialization
   useEffect(() => {
@@ -175,6 +200,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
+      // From the other side while the thread is on screen: fetch once more so the server marks it read.
+      if (msg.sender_id !== userId && chatOpenRef.current) refreshThreadSilently();
 
       setConversations((prev) =>
         prev.map((c) =>
@@ -214,7 +241,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       echo.leave(channelName);
     };
-  }, [userId, activeConvId]);
+  }, [userId, activeConvId, refreshThreadSilently]);
+
+  // Every few seconds while the websocket is down, now and then while it is up.
+  usePolling(refreshThreadSilently, CHAT_POLL.thread(wsConnected), Boolean(userId && activeConvId && isChatOpen));
+  usePolling(refreshInboxSilently, CHAT_POLL.inbox(wsConnected), Boolean(userId && user?.role === 'buyer'));
 
   const openChat = useCallback(() => {
     setIsChatOpen(true);

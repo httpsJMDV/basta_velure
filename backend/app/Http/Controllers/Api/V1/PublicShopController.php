@@ -144,6 +144,95 @@ class PublicShopController extends Controller
         ]);
     }
 
+    /**
+     * GET /shops: the most-ordered shops (approved, not suspended, at least three live products), each with its
+     * rating and three best sellers, for the storefront's "Shops to know" band. Cached for five minutes.
+     */
+    public function featured(Request $request): JsonResponse
+    {
+        $limit = max(1, min(12, (int) $request->query('limit', 4)));
+
+        // Ties (shops with equal sales) rotate once a day, and the band prefers shops of different kinds.
+        $seed = (int) now()->format('Ymd');
+        $data = \Illuminate\Support\Facades\Cache::remember("storefront.shops.{$limit}.{$seed}", 300, function () use ($limit, $seed) {
+            $candidates = Product::query()
+                ->where('products.status', 'active')
+                ->join('seller_profiles', 'seller_profiles.user_id', '=', 'products.seller_id')
+                ->join('users', 'users.id', '=', 'products.seller_id')
+                ->where('seller_profiles.application_status', 'approved')
+                ->where('users.status', '!=', 'suspended')
+                ->groupBy('products.seller_id')
+                ->havingRaw('count(*) >= 3')
+                ->selectRaw('products.seller_id, max(seller_profiles.shop_category) as shop_category, count(*) as product_count, coalesce(sum(products.units_sold), 0) as units_sold')
+                ->orderByDesc('units_sold')
+                ->orderByRaw('RAND(?)', [$seed])
+                ->limit($limit * 5)
+                ->get();
+
+            // One shop per kind first, in sales order; then the rest.
+            $picked = collect();
+            $kinds = [];
+            foreach ($candidates as $row) {
+                $kind = strtolower(trim((string) $row->shop_category));
+                if ($picked->count() < $limit && ! isset($kinds[$kind])) {
+                    $picked->push($row);
+                    $kinds[$kind] = true;
+                }
+            }
+            foreach ($candidates as $row) {
+                if ($picked->count() >= $limit) {
+                    break;
+                }
+                if (! $picked->contains('seller_id', $row->seller_id)) {
+                    $picked->push($row);
+                }
+            }
+            $rows = $picked->sortByDesc('units_sold')->values();
+
+            $ids = $rows->pluck('seller_id')->all();
+            if ($ids === []) {
+                return [];
+            }
+
+            $profiles = SellerProfile::with('user')->whereIn('user_id', $ids)->get()->keyBy('user_id');
+            $ratings = Review::join('products', 'products.id', '=', 'reviews.product_id')
+                ->whereIn('products.seller_id', $ids)
+                ->groupBy('products.seller_id')
+                ->selectRaw('products.seller_id, avg(reviews.rating) as avg_rating, count(*) as review_count')
+                ->get()->keyBy('seller_id');
+            $previews = Product::with('images')
+                ->whereIn('seller_id', $ids)->where('status', 'active')
+                ->orderByDesc('units_sold')->orderByDesc('id')
+                ->get()->groupBy('seller_id');
+
+            return $rows->map(function ($row) use ($profiles, $ratings, $previews) {
+                $profile = $profiles[$row->seller_id] ?? null;
+                $rating = $ratings[$row->seller_id] ?? null;
+
+                return [
+                    'seller_id'     => (int) $row->seller_id,
+                    'shop_name'     => $profile?->shop_name ?? 'Shop',
+                    'shop_slug'     => Str::slug($profile?->shop_name ?? ('shop-' . $row->seller_id)),
+                    'logo_url'      => $profile?->logo_url,
+                    'city'          => $profile?->address_city,
+                    'province'      => $profile?->address_province,
+                    'product_count' => (int) $row->product_count,
+                    'units_sold'    => (int) $row->units_sold,
+                    'avg_rating'    => $rating ? round((float) $rating->avg_rating, 1) : null,
+                    'review_count'  => $rating ? (int) $rating->review_count : 0,
+                    'products'      => ($previews[$row->seller_id] ?? collect())->take(3)->map(fn (Product $p) => [
+                        'id'        => $p->id,
+                        'name'      => $p->name,
+                        'price'     => (float) $p->base_price,
+                        'image_url' => $p->primaryImageUrl(),
+                    ])->values()->all(),
+                ];
+            })->values()->all();
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
     private function resolveProfile(string $slugOrId): ?SellerProfile
     {
         if (is_numeric($slugOrId)) {

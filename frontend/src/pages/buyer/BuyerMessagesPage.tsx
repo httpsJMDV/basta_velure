@@ -11,8 +11,6 @@ import {
   ExternalLink,
   ShieldCheck,
   X,
-  Paperclip,
-  Smile,
   Bike,
   Lock,
 } from 'lucide-react';
@@ -21,8 +19,8 @@ import { useChat } from '../../hooks/useChat';
 import Button from '../../components/ui/Button';
 import AvatarWithFallback from '../../components/ui/AvatarWithFallback';
 import ChatAttachmentBubble from '../../components/chat/ChatAttachmentBubble';
-import EmojiPickerPopover from '../../components/chat/EmojiPickerPopover';
-import ChatAttachmentModal from '../../components/chat/ChatAttachmentModal';
+import { useChatAttach, AttachMenu } from '../../components/chat/ChatAttach';
+import { isAutoAttachmentBody } from '../../components/chat/chatUtils';
 import RiderThreadPane from '../../components/chat/RiderThreadPane';
 import { isRiderThread } from '../../lib/riderThread';
 
@@ -45,8 +43,6 @@ export default function BuyerMessagesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'sellers' | 'delivery' | 'support'>('all');
   const [inputBody, setInputBody] = useState('');
-  const [showEmoji, setShowEmoji] = useState(false);
-  const [showAttachModal, setShowAttachModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [safetyDismissed, setSafetyDismissed] = useState(() => {
@@ -57,6 +53,14 @@ export default function BuyerMessagesPage() {
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Photo, order and product sharing (the + menu of the composer). The server writes the caption of a card.
+  const attach = useChatAttach({
+    conversationId: activeConversation?.id,
+    onImage: (file) => { setSelectedImage(file); inputRef.current?.focus(); },
+    onOrder: (o) => { void sendMessage('', 'order_card', { id: o.id }); },
+    onProduct: (p) => { void sendMessage('', 'product_card', { id: p.id }); },
+  });
 
   const handleDismissSafety = () => {
     setSafetyDismissed(true);
@@ -99,38 +103,7 @@ export default function BuyerMessagesPage() {
     const img = selectedImage;
     setInputBody('');
     setSelectedImage(null);
-    setShowEmoji(false);
     await sendMessage(text, undefined, undefined, img || undefined);
-  };
-
-  const handleQuickChip = async (chipText: string) => {
-    setInputBody('');
-    await sendMessage(chipText);
-  };
-
-  const handleSelectEmoji = (emoji: string) => {
-    setInputBody((prev) => prev + emoji);
-    inputRef.current?.focus();
-  };
-
-  const handleAttachProduct = async (product: any) => {
-    await sendMessage(`Inquiring about ${product.name}`, 'product_card', {
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      category: product.category,
-    });
-  };
-
-  const handleAttachOrder = async (order: any) => {
-    await sendMessage(`Inquiring regarding Order #${order.order_number}`, 'order_card', {
-      id: order.id,
-      order_number: order.order_number,
-      total: order.total,
-      status: order.status,
-      items_summary: order.items_summary,
-    });
   };
 
   const formatTimeAgo = (iso?: string | null) => {
@@ -539,10 +512,11 @@ export default function BuyerMessagesPage() {
                             type={m.attachment_type}
                             data={m.attachment_data}
                             isMe={isMe}
+                            orderHref={() => '/settings/orders'}
                           />
                         )}
 
-                        {m.body && (
+                        {m.body && !isAutoAttachmentBody(m) && (
                           <div
                             className={`px-4 py-2.5 text-xs leading-relaxed ${
                               isMe
@@ -588,27 +562,17 @@ export default function BuyerMessagesPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Quick Inquiry Chips */}
+            {/* A fresh conversation: shortcuts to what shops and support usually need first */}
             {messages.length <= 2 && (
               <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <button
-                  onClick={() => handleQuickChip('Is this item available in stock?')}
-                  className="px-3 py-1.5 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-xs font-semibold rounded-full border border-gray-200 shrink-0 transition-colors"
-                >
-                  📦 Is this in stock?
+                <button type="button" onClick={attach.pickOrder} className="h-8 px-3 rounded-full border border-gray-200 text-xs font-semibold text-gray-600 hover:border-gray-400 hover:text-gray-900 inline-flex items-center gap-1.5 shrink-0 transition-colors">
+                  <Package className="w-3.5 h-3.5" /> Share an order
                 </button>
-                <button
-                  onClick={() => handleQuickChip('When will this order be shipped?')}
-                  className="px-3 py-1.5 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-xs font-semibold rounded-full border border-gray-200 shrink-0 transition-colors"
-                >
-                  🚚 When will it ship?
-                </button>
-                <button
-                  onClick={() => handleQuickChip('Can I request actual photos of the item?')}
-                  className="px-3 py-1.5 bg-gray-50 hover:bg-rose-50 hover:text-brand-red text-gray-600 text-xs font-semibold rounded-full border border-gray-200 shrink-0 transition-colors"
-                >
-                  📸 Actual photos?
-                </button>
+                {activeConversation?.type !== 'buyer_admin' && (
+                  <button type="button" onClick={attach.pickProduct} className="h-8 px-3 rounded-full border border-gray-200 text-xs font-semibold text-gray-600 hover:border-gray-400 hover:text-gray-900 inline-flex items-center gap-1.5 shrink-0 transition-colors">
+                    <ShoppingBag className="w-3.5 h-3.5" /> Ask about a product
+                  </button>
+                )}
               </div>
             )}
 
@@ -638,33 +602,8 @@ export default function BuyerMessagesPage() {
 
             {/* Message Input */}
             <div className="relative">
-              <EmojiPickerPopover
-                isOpen={showEmoji}
-                onClose={() => setShowEmoji(false)}
-                onSelectEmoji={handleSelectEmoji}
-                position="top"
-              />
-
               <form onSubmit={handleSend} className="p-4 bg-white border-t border-gray-100 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAttachModal(true)}
-                  className="p-2.5 text-gray-400 hover:text-brand-red hover:bg-rose-50 rounded-2xl transition-colors shrink-0"
-                  title="Attach Product, Order, or Photo"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowEmoji((v) => !v)}
-                  className={`p-2.5 rounded-2xl transition-colors shrink-0 ${
-                    showEmoji ? 'text-brand-red bg-rose-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                  }`}
-                  title="Insert Emoji"
-                >
-                  <Smile className="w-5 h-5" />
-                </button>
+                <AttachMenu attach={attach} disabled={sendingMessage} products={activeConversation?.type !== 'buyer_admin'} />
 
                 <input
                   ref={inputRef}
@@ -686,15 +625,7 @@ export default function BuyerMessagesPage() {
               </form>
             </div>
 
-            {/* Attachments Modal */}
-            <ChatAttachmentModal
-              isOpen={showAttachModal}
-              onClose={() => setShowAttachModal(false)}
-              conversation={activeConversation}
-              onAttachProduct={handleAttachProduct}
-              onAttachOrder={handleAttachOrder}
-              onAttachImage={(file) => setSelectedImage(file)}
-            />
+            {attach.elements}
           </>
         )}
       </div>

@@ -58,7 +58,7 @@ class AdminReviewController extends Controller
                     ->orWhere('users.last_name', 'like', $like)
                     ->orWhere('users.email', 'like', $like);
             }))
-            ->select('seller_profiles.*', 'users.first_name', 'users.last_name', 's.review_count', 's.average_rating', 's.last_review_at')
+            ->select('seller_profiles.*', 'users.first_name', 'users.last_name', 'users.avatar_path as owner_avatar_path', 's.review_count', 's.average_rating', 's.last_review_at')
             ->when($sort === 'name', fn ($q) => $q->orderBy('seller_profiles.shop_name', $direction))
             ->when($sort === 'rating', fn ($q) => $q->orderByRaw("s.average_rating IS NULL")->orderBy('s.average_rating', $direction))
             ->when($sort === 'recent', fn ($q) => $q->orderByRaw("s.last_review_at IS NULL")->orderBy('s.last_review_at', $direction))
@@ -67,7 +67,7 @@ class AdminReviewController extends Controller
             ->paginate((int) ($request->per_page ?? 20));
 
         return response()->json([
-            'data' => $shops->map(fn ($p) => $this->formatShop($p, (int) ($p->review_count ?? 0), $p->average_rating, $p->last_review_at, $p->first_name, $p->last_name)),
+            'data' => $shops->map(fn ($p) => $this->formatShop($p, (int) ($p->review_count ?? 0), $p->average_rating, $p->last_review_at, $p->first_name, $p->last_name, $p->owner_avatar_path)),
             'meta' => $this->meta($shops),
         ]);
     }
@@ -84,7 +84,7 @@ class AdminReviewController extends Controller
         $figures = $this->figures($reviews);
 
         return response()->json([
-            'data' => $this->formatShop($profile, $figures['total'], $figures['average_rating'], (clone $reviews)->max('reviews.created_at'), $seller->first_name, $seller->last_name)
+            'data' => $this->formatShop($profile, $figures['total'], $figures['average_rating'], (clone $reviews)->max('reviews.created_at'), $seller->first_name, $seller->last_name, $seller->avatar_path)
                 + ['rating_distribution' => $figures['rating_distribution']],
         ]);
     }
@@ -106,7 +106,7 @@ class AdminReviewController extends Controller
 
         $like = $request->filled('search') ? '%' . addcslashes((string) $request->search, '\\%_') . '%' : null;
 
-        $reviews = Review::with(['buyer', 'order:id,order_number', 'product.seller.sellerProfile'])
+        $reviews = Review::with(['buyer', 'order:id,order_number', 'product.seller.sellerProfile', 'product.images'])
             ->when($request->shop_id, fn ($q, $shopId) => $q->whereHas('product', fn ($p) => $p->where('seller_id', (int) $shopId)))
             ->when($request->rating, fn ($q) => $q->where('rating', (int) $request->rating))
             ->when($like, fn ($q) => $q->where(function ($w) use ($like) {
@@ -181,7 +181,7 @@ class AdminReviewController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function formatShop(SellerProfile $p, int $reviewCount, mixed $average, mixed $lastAt, ?string $first, ?string $last): array
+    private function formatShop(SellerProfile $p, int $reviewCount, mixed $average, mixed $lastAt, ?string $first, ?string $last, ?string $ownerAvatar = null): array
     {
         return [
             'id'             => $p->user_id,
@@ -189,6 +189,7 @@ class AdminReviewController extends Controller
             'shop_slug'      => Str::slug($p->shop_name ?? ''),
             'logo_url'       => $p->logo_url,
             'owner_name'     => trim(($first ?? '') . ' ' . ($last ?? '')),
+            'owner_avatar_url' => $ownerAvatar ? asset('storage/' . $ownerAvatar) : null,
             'review_count'   => $reviewCount,
             'average_rating' => $reviewCount > 0 && $average !== null ? round((float) $average, 2) : null,
             'last_review_at' => $lastAt ? \Carbon\CarbonImmutable::parse($lastAt, 'UTC')->toIso8601String() : null,
@@ -225,8 +226,13 @@ class AdminReviewController extends Controller
                 'first_name' => $r->buyer->first_name,
                 'last_name'  => $r->buyer->last_name,
                 'email'      => $r->buyer->email,
+                'avatar_url' => $r->buyer->avatar_url,
             ] : null,
-            'product' => $r->product ? ['id' => $r->product->id, 'name' => $r->product->name] : null,
+            'product' => $r->product ? [
+                'id'            => $r->product->id,
+                'name'          => $r->product->name,
+                'thumbnail_url' => ($img = $r->product->images->firstWhere('is_primary', true) ?? $r->product->images->first()) ? asset('storage/' . $img->path) : null,
+            ] : null,
             'shop'    => $seller ? ['id' => $seller->id, 'name' => $seller->sellerProfile?->shop_name ?? trim($seller->first_name . ' ' . $seller->last_name)] : null,
             'order'   => $r->order ? ['id' => $r->order->id, 'order_number' => $r->order->order_number] : null,
         ];
