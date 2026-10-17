@@ -1,0 +1,9 @@
+{
+  "summary": {
+    "System under test": "Loved-IT marketplace — existing local React frontend and Laravel API",
+    "Version / build": "king/courier-companies, commit 335f7c5; existing local working tree",
+    "Test environment (browser, device)": "Windows; Edge 1366x900 plus real local API. Isolated velure_blackbox DB, separate storage and log mail. Missing features assessed by implementation review.",
+    "Tester": "Codex automated runtime tests and implementation review; method stated in each Remarks cell",
+    "Date tested": "2026-10-18 (Asia/Manila)"
+  }
+}

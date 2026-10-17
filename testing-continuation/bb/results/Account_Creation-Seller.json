@@ -1,0 +1,222 @@
+{
+  "TC-SEL-001": {
+    "status": "Fail",
+    "actual": "Account step: accepted (\"Account Submitted!\"). Seller application (shop name, description, Metro Manila (NCR) > Quezon City > Commonwealth, street, National ID, selfie, business permit, DTI certificate): accepted with no errors; the page changed to \"Under Review – We're reviewing your application\". The application \"Maria Clara Handicrafts\" is saved with status pending. Emails: Welcome to Loved-IT!; Your Loved-IT Seller Application Has Been Received. No OTP was sent and no email verification page opened.",
+    "remarks": "Design difference (A9, A12): no email OTP; the application goes straight to admin review. In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents). The form has no Shop Category, Seller Type, TIN, Region or Postal Code fields, and no BIR 2303 upload; the LGU Business Permit was filled with mayors_permit.pdf and the description with a short text, which the system requires. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-001.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-002": {
+    "status": "Fail",
+    "actual": "Seller application with every field blank: the browser blocked Submit Application with \"Please fill out this field.\" on Shop / Store Name only (1 field failing the browser check). With only the shop name typed, the form then listed: Store description is required. / Province is required. / City / Municipality is required. / Barangay is required. / Please select an ID type. / Please upload your business permit. / Please upload your DTI or SEC Business Registration. No application was created.",
+    "remarks": "On a fully blank form only one message is shown at first; the other required-field messages appear after the shop name is filled. The account step behaves as in TC-BUY-002. Screenshots: TC-SEL-002-a.jpg, TC-SEL-002-b.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-003": {
+    "status": "Fail",
+    "actual": "Shop / Store Name: blocked – Please fill out this field.; Store Description: blocked – Store description is required. (shop name kept: yes); Province/City/Barangay: blocked – Province is required. / City / Municipality is required. / Barangay is required. (shop name kept: yes); ID Type and ID image: blocked – Please select an ID type. (shop name kept: yes); Selfie: blocked – Please upload a selfie holding your ID. (shop name kept: yes); Business Permit: blocked – Please upload your business permit. (shop name kept: yes); DTI or SEC: blocked – Please upload your DTI or SEC Business Registration. (shop name kept: yes); Street Address: NOT blocked – the application was submitted, the street is optional (\"Street / House No. (optional)\"). The account-step fields (First Name, Last Name, Email, Mobile, Password, Confirm Password) each block with a message on that field only, as in TC-BUY-003.",
+    "remarks": "Street Address is optional in the system, so leaving it blank does not block registration. Shop Category, Seller Type, TIN, Region, Postal Code and BIR Form 2303 are not on the form (it asks for an LGU Business Permit and a DTI or SEC registration instead). Screenshot: TC-SEL-003.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-004": {
+    "status": "Fail",
+    "actual": "Registration was accepted. The account was saved with first name \"Maria Clara99\" and last name \"Dela Cruz@#\". No message about letters only was shown.",
+    "remarks": "Defect: name fields accept digits and symbols. In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-004.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-005": {
+    "status": "Pass",
+    "actual": "Registration was accepted and the names were saved as \"Niña Corazon\" and \"Peñaranda-D'Souza\".",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-005.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-006": {
+    "status": "Fail",
+    "actual": "1 character: accepted; 2 characters: accepted; 50 characters: accepted; 51 characters: rejected (\"The first name field must not be greater than 50 characters.\").",
+    "remarks": "Defect: a 1-character name is accepted (no minimum length). In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-006.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-007": {
+    "status": "Pass",
+    "actual": "\"mariaclara.santosgmail.com\": rejected (Please include an '@' in the email address. 'mariaclara.santosgmail.com' is missing an '@'.); \"mariaclara.santos@\": rejected (Please enter a part following '@'. 'mariaclara.santos@' is incomplete.); \"@gmail.com\": rejected (Please enter a part followed by '@'. '@gmail.com' is incomplete.); \"mariaclara.santos@example\": rejected (The email field must be a valid email address.); \"mariaclara santos@gmail.com\": rejected (A part followed by '@' should not contain the symbol ' '.). No account was created.",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. @gmail.com used in place of @example.com. Screenshot: TC-SEL-007.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-008": {
+    "status": "Pass",
+    "actual": "Registration was blocked: \"The email has already been taken.\". Accounts with this email: 1.",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-008.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-009": {
+    "status": "Pass",
+    "actual": "The capitalised email was treated as a duplicate: \"The email has already been taken.\". Accounts with this email: 1.",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-009.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-010": {
+    "status": "Pass",
+    "actual": "Registration was accepted and the email was saved as \"seller.test01@gmail.com\" with no spaces.",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-010.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-012": {
+    "status": "Fail",
+    "actual": "10 digits \"0918765432\": accepted and saved as +630918765432; 11 digits \"09180000001\": accepted and saved as +630918000000; 12 digits \"091876543210\": rejected (\"The phone has already been taken.\").",
+    "remarks": "Defect: the phone box after the fixed +63 keeps only the first 10 digits and shows no length message. A rejection here happens only when the first 10 digits match a number already saved. Seller-specific numbers were used (0918...) so earlier buyer tests do not interfere. In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-012.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-011": {
+    "status": "Fail",
+    "actual": "\"0918ABC6543\": accepted and saved as +6309186543; \"0918-765-432\": rejected (\"The phone has already been taken.\"); \"22345678901\": accepted and saved as +632234567890; \"02-8765-4321\": accepted and saved as +630287654321.",
+    "remarks": "Defect: letters and symbols are silently dropped and the digits are saved after +63 without any message; landlines and numbers not starting with 9 are accepted. Equivalent values (0918... instead of the 0917... in the test data) were used because the 0917 values were already saved in the buyer tests; any rejection is only because the digits match a saved number. In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-011.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-013": {
+    "status": "Pass",
+    "actual": "Registration was blocked: \"The phone has already been taken.\".",
+    "remarks": "Typed as 9189876543 after the +63 prefix, the way the existing account was saved. In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-013.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-014": {
+    "status": "Fail",
+    "actual": "Registration was accepted. \"+639189876543\" typed in the box was saved as +636391898765, so it was not recognised as the existing number.",
+    "remarks": "Defect: a +63 number typed in the box is not normalised. In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-014.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-015": {
+    "status": "Pass",
+    "actual": "7 characters \"Tind@26\": rejected (\"The password field must be at least 8 characters.\"); 8 characters \"Tinda@26\": accepted.",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-015.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-016": {
+    "status": "Pass",
+    "actual": "No uppercase \"tindahan@2026\": rejected (\"The password field must contain at least one uppercase and one lowercase letter.\"); No lowercase \"TINDAHAN@2026\": rejected (\"The password field must contain at least one uppercase and one lowercase letter.\"); No number \"Tindahan@abcd\": rejected (\"The password field must contain at least one number.\"); No special character \"Tindahan2026\": rejected (\"The password field must contain at least one symbol.\"). No account was created.",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-016.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-017": {
+    "status": "Pass",
+    "actual": "Continue was blocked; Confirm Password showed \"Passwords do not match.\".",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-017.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-018": {
+    "status": "Pass",
+    "actual": "The password is masked as dots while typing (field type \"password\"). There is no show/hide icon, so the second part of the step does not apply.",
+    "remarks": "In Loved-IT a seller first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/seller (shop details and documents); this field is on the account step, so the case was run there with the seller test data. Screenshot: TC-SEL-018.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-019": {
+    "status": "Fail",
+    "actual": "Neither the account form nor the seller application has a Terms and Privacy Policy checkbox. Applications are submitted without accepting the terms (see TC-SEL-001).",
+    "remarks": "Defect: no consent step for the Terms of Use and Privacy Policy. Screenshot: TC-SEL-019.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-020": {
+    "status": "Fail",
+    "actual": "Submit Application was clicked three times quickly (real mouse clicks 80 ms apart). Applications created: 1. No error appeared; one \"Under Review\" page was shown. Emails sent at submission: 1.",
+    "remarks": "Account 2 data (Roberto Villanueva, RV Gadget Hub), except the ID file: govt_id_front.png (2.4 MB) cannot be uploaded at all because of the server's 2 MB upload limit (see TC-SEL-031), so govt_id_front.jpg was used; the account itself was created beforehand. No OTP exists, so no OTP email is expected or sent. The test-data domain example.com is rejected by the system's email check (it has a null MX), so the same address was used with @gmail.com; mail went to the isolated test log only. Screenshot: TC-SEL-020.jpg Final review: duplicate creation was prevented, but the case also requires one OTP/activation email; that required mechanism is absent, so the complete expected result fails. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-021": {
+    "status": "Pass",
+    "actual": "Applying with the shop name \"Maria Clara Handicrafts\" from another account was blocked: The shop name has already been taken.",
+    "remarks": "Screenshot: TC-SEL-021.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-022": {
+    "status": "Fail",
+    "actual": "2 characters \"MC\": accepted; 3 characters \"MCH\": accepted; 30 characters \"Maria Clara Handicrafts Manila\": accepted; 31 characters \"Maria Clara Handicrafts, Manila\": accepted.",
+    "remarks": "Defect: no 3-character minimum and the maximum is 100 characters, not 30. Each attempt used a separate account. Screenshot: TC-SEL-022.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-023": {
+    "status": "Blocked",
+    "actual": "Could not complete required documents change with the seller type: the form has no Seller Type selector, so no type can be selected to trigger conditional required documents.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-024": {
+    "status": "Pass",
+    "actual": "With the government ID and the BIR 2303 file (in the Business Permit slot) but no SEC certificate, Submit Application was blocked with \"Please upload your DTI or SEC Business Registration.\". No application was created.",
+    "remarks": "There is no Seller Type, so the corporation could not be selected; the DTI or SEC registration is required for every seller, and its message names both. Screenshot: TC-SEL-024.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-025": {
+    "status": "Blocked",
+    "actual": "Could not complete tin in an invalid format or length: the registration form has no TIN input. The specified format/duplicate values could not be entered and no TIN validation outcome was observed.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-026": {
+    "status": "Blocked",
+    "actual": "Could not complete tin that is already registered: the registration form has no TIN input. The specified format/duplicate values could not be entered and no TIN validation outcome was observed.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-027": {
+    "status": "Pass",
+    "actual": "After choosing Metro Manila (NCR) > Quezon City > Commonwealth and changing the Province to Cebu, City showed \"Select city/municipality\" and Barangay showed \"Select city first\". The City list then had 53 entries from Cebu (for example Alcantara, Alcoy, Alegria, Aloguinsan) and no longer offered Quezon City.",
+    "remarks": "There is no Region dropdown: the chain starts at Province (NCR is listed as \"Metro Manila (NCR)\"), so the Province was changed instead of the Region. Screenshot: TC-SEL-027.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-028": {
+    "status": "Blocked",
+    "actual": "Could not complete postal code length and format: there is no postal-code input, so the specified length/format values cannot be entered for validation.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-029": {
+    "status": "Fail",
+    "actual": "govt_id_front.jpg was accepted and previewed, then replaced by govt_id_front.png (2.4 MB), which was also accepted. Image files show a preview (2 previews); PDFs show their size and \"PDF\" (2458 KB, 200 KB, 1126 KB · PDF, 850 KB · PDF). The application was not submitted (The government id image failed to upload.).",
+    "remarks": "Cause: the server's PHP settings allow only 2 MB per file (upload_max_filesize) and 8 MB per form (post_max_size), although the app says 5 MB, so any file between 2 MB and 5 MB fails to upload. The live server uses the same PHP settings. dti_certificate.pdf went to the DTI or SEC slot and bir_2303.pdf to the Business Permit slot (the form has no BIR field). The next step in this system is admin review, not email verification. Screenshot: TC-SEL-029.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-030": {
+    "status": "Pass",
+    "actual": "price_list.docx: rejected (\"Only JPG, PNG, or PDF files are allowed.\"); store_banner.gif: rejected (\"Only JPG, PNG, or PDF files are allowed.\"); installer.exe: rejected (\"Only JPG, PNG, or PDF files are allowed.\"). No application was created.",
+    "remarks": "The file picker only lists accepted types, so each file was attached directly to the upload field to try it. Screenshot: TC-SEL-030.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-031": {
+    "status": "Fail",
+    "actual": "size_4.9MB.jpg: rejected (\"The government id image failed to upload.\"); size_5.0MB.jpg: rejected (\"The government id image failed to upload.\"); size_5.1MB.jpg: rejected (\"File must be 5MB or smaller.\").",
+    "remarks": "Cause: the server's PHP settings allow only 2 MB per file (upload_max_filesize) and 8 MB per form (post_max_size), although the app says 5 MB, so any file between 2 MB and 5 MB fails to upload. The live server uses the same PHP settings. Uploaded to the government ID field; each accepted file used a separate account. Screenshot: TC-SEL-031.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-032": {
+    "status": "Blocked",
+    "actual": "Could not complete verify with the correct otp: the required verification page and issued email OTP do not exist. A welcome email/admin review cannot supply the code needed for this test.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-033": {
+    "status": "Blocked",
+    "actual": "Could not complete verify with an incorrect otp: the required verification page and issued email OTP do not exist. A welcome email/admin review cannot supply the code needed for this test.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-034": {
+    "status": "Blocked",
+    "actual": "Could not complete otp in the wrong format: the required verification page and issued email OTP do not exist. A welcome email/admin review cannot supply the code needed for this test.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-035": {
+    "status": "Blocked",
+    "actual": "Could not complete verify with an expired otp: the required verification page and issued email OTP do not exist. A welcome email/admin review cannot supply the code needed for this test.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-036": {
+    "status": "Blocked",
+    "actual": "Could not complete resend otp: the required verification page and issued email OTP do not exist. A welcome email/admin review cannot supply the code needed for this test.",
+    "remarks": "Blocked prerequisite: TC-SEL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Based on the previous recorded browser evidence; not a fresh rerun."
+  },
+  "TC-SEL-037": {
+    "status": "Fail",
+    "actual": "Signing in with the account whose seller application (and ID) are still pending succeeded and opened /. No verification page or verify-your-email message was shown.",
+    "remarks": "Design difference (A9, A12): there is no unverified state; pending accounts can sign in and shop. Screenshot: TC-SEL-037.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-038": {
+    "status": "Pass",
+    "actual": "Opening /seller redirected to /register/seller, which shows \"Under Review – We're reviewing your application\" with the steps Document verification (in progress) and Decision via email. Opening /seller/products/new redirected to /register/seller. The seller product API answered 403 for this account.",
+    "remarks": "The pending seller cannot reach the seller dashboard or add products. Screenshot: TC-SEL-038.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-039": {
+    "status": "Fail",
+    "actual": "The application \"Maria Clara Handicrafts\" is listed as Pending in Admin > Seller Applications. The detail panel shows the shop name, description, the applicant's name, sex, birthday, email and contact number (5/5 test values found). Documents: Government ID: opens (image/jpeg); Selfie: opens (image/jpeg); Business Permit: opens (application/pdf); DTI/SEC: opens (application/pdf).",
+    "remarks": "The panel does not show the business address that was entered. Fields not in the system (category, seller type, TIN, postal code) cannot be compared. Screenshot: TC-SEL-039.jpg Final review: the case requires all application details to match; some required details are missing from the system/admin view. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-040": {
+    "status": "Pass",
+    "actual": "After Approve Application and Approve in the confirmation, the status changed to Approved. Emails to the seller: Welcome to Loved-IT!; Your Loved-IT Seller Application Has Been Received; Your Loved-IT shop is approved. On login, /seller opened the Seller Center dashboard.",
+    "remarks": "Screenshots: TC-SEL-040-admin.jpg, TC-SEL-040-seller.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-041": {
+    "status": "Pass",
+    "actual": "The admin rejected RV Gadget Hub with the reason \"DTI certificate is blurred and the business name cannot be read.\". Status: Rejected. Rejection email sent and contains the reason. On login, /seller redirected to /register/seller, which shows \"Application not approved\" with the reason; the seller dashboard is not available.",
+    "remarks": "Screenshots: TC-SEL-041-admin.jpg, TC-SEL-041-seller.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-042": {
+    "status": "Pass",
+    "actual": "On the rejected screen the seller clicked the re-apply button, which reopened the application form. The form had to be filled again in full (documents are not kept); dti_certificate_clear.pdf was used for the DTI or SEC registration. Result: submitted; the \"Under Review\" page opened. The application appears again in the admin's pending list.",
+    "remarks": "Re-applying is a new full submission rather than replacing a single document. Screenshot: TC-SEL-042.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-043": {
+    "status": "Pass",
+    "actual": "As the buyer, opening /admin/seller-applications redirected to /; no application data was shown. Direct API calls were refused: list 403, approve 403.",
+    "remarks": "Screenshot: TC-SEL-043.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-SEL-044": {
+    "status": "Pass",
+    "actual": "Admin dashboard (/admin): redirected to /; Logistics dashboard (/logistics): redirected to /register/courier; Rider dashboard (/rider/dashboard): redirected to /register/rider. The admin API answered 404. No data from another role was shown.",
+    "remarks": "Screenshots: TC-SEL-044-*.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  }
+}

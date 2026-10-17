@@ -1,0 +1,41 @@
+RID-PROF-001 | View profile, vehicle and verification status | DATA  | EXPECT Shows Pedro Jose Garcia, license N01-23-456789, expiry 03/22/2030, Motorcycle, plate 123ABC, company Bilis Hatid Express Inc., status Active. Both documents open.
+RID-PROF-002 | Update vehicle details | DATA Plate: 789GHI; OR/CR: or_cr.pdf (900 KB) | EXPECT The change is saved and shown to Logistics 1 with the new OR/CR, flagged for re-verification. The old plate is no longer shown.
+RID-PROF-003 | Plate number already used | DATA NBC1234; nbc1234 | EXPECT Both are blocked as already registered. The plate stays 123ABC.
+RID-PROF-004 | License expiry boundary | DATA  | EXPECT Yesterday is rejected with an expiry message. Today is accepted.
+RID-PROF-005 | Document upload rules | DATA size_5.0MB.jpg (accept); size_5.1MB.jpg (reject); price_list.docx (reject); renamed_exe.jpg (reject) | EXPECT Only the 5.0 MB JPG is accepted; the others are rejected and the previous document is kept.
+RID-PROF-006 | Suspended rider cannot work | DATA  | EXPECT Rider 3 cannot go Online and sees a suspension message. Rider 3 receives no offer and is not selectable for manual assignment.
+RID-PROF-007 | Rider cannot see another rider's profile | DATA  | EXPECT Denied. No Rider 2 data is shown.
+RID-AVAIL-001 | Go Online | DATA  | EXPECT Logistics 1 sees Rider 1 as Online within a few seconds. Rider 1 receives the offer.
+RID-AVAIL-002 | Go Offline | DATA  | EXPECT Rider 1 receives no offer, and is not listed in Manual Assign. The job goes to Rider 2.
+RID-AVAIL-003 | Go Offline with an active job | DATA  | EXPECT Offline is allowed. The Picked Up job stays with Rider 1 and can still be delivered. No new offers arrive.
+RID-AVAIL-004 | Offline after logout or session timeout | DATA  | EXPECT Rider 1 shows Offline and gets no offer.
+RID-JOB-001 | View and accept a job | DATA  | EXPECT The offer shows pickup (Seller 1, Commonwealth, QC), drop-off area (Brgy. Central, QC), COD ₱500.00 and pay ₱30.00 pickup. After Accept, the job is Assigned to Rider 1 and Logistics 1 sees Rider 1 as the assignee.
+RID-JOB-002 | Decline a job | DATA  | EXPECT The offer disappears for Rider 1 and is offered to Rider 2. Rider 1 is not assigned.
+RID-JOB-003 | Offer timeout | DATA  | EXPECT The first Accept succeeds. After 60 seconds the second offer is expired; Accept is disabled or rejected and the job goes to the next rider.
+RID-JOB-004 | Job goes to Unassigned after 3 declines | DATA  | EXPECT After the 3rd decline the job is in the Unassigned queue and no longer offered automatically.
+RID-JOB-005 | Accept and manual assignment at the same moment | DATA  | EXPECT Exactly one rider has the job, and Logistics 1 shows that same rider. The other side gets a clear 'already assigned' message. No duplicate job exists.
+RID-JOB-006 | Concurrent job limit | DATA  | EXPECT The 3rd is accepted. Rider 1 gets no 4th offer, and manual assign of a 4th is blocked.
+RID-JOB-007 | Cannot accept another company's job | DATA  | EXPECT Rejected (403 or not found). The job is unchanged.
+RID-PICK-001 | Pickup details shown | DATA  | EXPECT Shows Seller 1's name, pickup address, contact number, tracking number and 1 parcel.
+RID-PICK-002 | Confirm pickup by scanning | DATA Tracking number from the waybill | EXPECT Status is Picked Up with the scan time in all three views. Buyer 1's order moves to To Receive. Seller 1 can no longer cancel. Rider 1 earns ₱30.00.
+RID-PICK-003 | Confirm pickup by typing the tracking number | DATA  | EXPECT Status becomes Picked Up exactly as with a scan.
+RID-PICK-004 | Wrong tracking number | DATA TRK-0000000 | EXPECT Both are rejected with 'tracking number does not match this job'. Status stays Assigned.
+RID-PICK-005 | Double scan at pickup | DATA  | EXPECT One Picked Up event only; the second scan shows 'already picked up'. Pay counted once.
+RID-DLV-001 | Deliver with proof in sequence | DATA Photo: pod_photo.jpg; OTP: from Buyer 1's order page; COD: ₱500.00 | EXPECT Each status is shown in all views with times. After Delivered: Buyer 1 sees Delivered with the photo, Rider 1's COD balance rises by ₱500.00 and pay by ₱50.00.
+RID-DLV-002 | Skipping a status | DATA  | EXPECT Delivered is not available and a direct request is rejected. Status unchanged.
+RID-DLV-003 | Photo is required | DATA  | EXPECT Both are blocked with a message. The status stays Out for Delivery.
+RID-DLV-004 | OTP checks | DATA  | EXPECT 5 digits is rejected. Each wrong OTP is rejected. After the 5th wrong entry, entry is locked for 15 minutes (the correct OTP is also refused). After 15 minutes the correct OTP works.
+RID-DLV-005 | COD amount must match | DATA  | EXPECT ₱499.99 and ₱500.01 are rejected with a mismatch message. Only ₱500.00 completes delivery.
+RID-DLV-006 | Prepaid order has no COD | DATA  | EXPECT COD shows ₱0.00 / Paid; no amount is asked for, and the COD balance does not change.
+RID-DLV-007 | Cannot update another rider's job | DATA  | EXPECT Rejected. Rider 2's job is unchanged.
+RID-FAIL-001 | Mark failed with a reason | DATA  | EXPECT Status Failed Delivery, attempt 1 of 3, with the reason. Buyer 1 and Logistics 1 are notified. No COD is collected and pay is ₱0.00 for the attempt.
+RID-FAIL-002 | Reason required | DATA  | EXPECT Blocked; status unchanged.
+RID-FAIL-003 | Refused goes straight to Return to Sender | DATA  | EXPECT Status Return to Sender immediately; no further attempt is scheduled.
+RID-FAIL-004 | Attempt counter and reschedule | DATA  | EXPECT The job shows attempt 2 of 3 and completes normally on success.
+RID-FAIL-005 | Return to Sender after the 3rd failed attempt | DATA  | EXPECT Status Return to Sender. No 4th attempt is possible. Buyer 1 and Seller 1 are notified.
+RID-EARN-001 | Delivery history | DATA  | EXPECT Every job is listed once with date, tracking number, result and pay.
+RID-EARN-002 | Pay per job and daily total | DATA  | EXPECT Today's total is exactly ₱210.00 (2 × ₱30 + 3 × ₱50 + 1 × ₱0). The weekly total includes it.
+RID-EARN-003 | COD balance to remit | DATA  | EXPECT Balance shows ₱1,800.00 with both orders listed.
+RID-EARN-004 | Remit COD and confirmation | DATA  | EXPECT Before confirmation the remittance is Pending and the balance still shows ₱1,800.00 pending. After confirmation the balance is ₱0.00.
+RID-EARN-005 | Short remittance | DATA  | EXPECT Logistics 1 sees a ₱50.00 shortfall flag; Rider 1's balance shows ₱50.00 outstanding after confirmation.
+RID-EARN-006 | Rider cannot confirm own remittance | DATA  | EXPECT Rejected (403).

@@ -1,0 +1,44 @@
+LOG-DASH-001 | Counts match the records | DATA  | EXPECT Each dashboard count equals the filtered list exactly.
+LOG-DASH-002 | Counts update after a status change | DATA  | EXPECT In Transit −1 and Delivered +1; other counts unchanged.
+LOG-DASH-003 | Date filter | DATA  | EXPECT Shipments on the start and end dates are counted.
+LOG-DASH-004 | Only own company's data | DATA  | EXPECT No Logistics 2 shipment is counted or listed.
+LOG-RIDER-001 | Approve a rider | DATA  | EXPECT Status Active; the rider can go Online. The approval is in the audit log.
+LOG-RIDER-002 | Reject a rider with a reason | DATA Reason: OR/CR photo is unreadable, please re-upload. | EXPECT The empty reason is blocked. After rejection the rider is notified with the exact reason and cannot go Online.
+LOG-RIDER-003 | Suspend a rider with active jobs | DATA Reason: Repeated late deliveries this week. | EXPECT Rider 2 goes Offline and cannot go Online. The Assigned job moves to the Unassigned queue; the Picked Up job stays with Rider 2. The suspension is logged.
+LOG-RIDER-004 | Suspend without a reason | DATA  | EXPECT Blocked; rider unchanged.
+LOG-RIDER-005 | Reactivate a rider | DATA  | EXPECT Rider 3 is Active and can go Online.
+LOG-RIDER-006 | Rider status and workload | DATA  | EXPECT Each rider shows Online/Offline, active jobs (0–3) and today's completed deliveries, matching their apps.
+LOG-RIDER-007 | Cannot manage another company's rider | DATA  | EXPECT Both are denied. Rider 1 is unchanged.
+LOG-DISP-001 | Auto-assign to the nearest eligible rider | DATA  | EXPECT The offer goes to Rider 1 first.
+LOG-DISP-002 | Manual assign | DATA  | EXPECT Rider 2 receives it; status Assigned; the buyer timeline shows the assignment.
+LOG-DISP-003 | Offline or suspended rider not assignable | DATA  | EXPECT Neither rider is listed. The direct request is rejected.
+LOG-DISP-004 | Rider at the job limit | DATA  | EXPECT Blocked with a limit message.
+LOG-DISP-005 | Reassign before pickup | DATA  | EXPECT Rider 1 loses the job immediately; Rider 2 has it. The timeline shows both events.
+LOG-DISP-006 | No reassign after pickup | DATA  | EXPECT Not available; the request is rejected.
+LOG-DISP-007 | Bulk assignment over the limit | DATA  | EXPECT 3 are assigned and 2 are reported as skipped because of the 3-job limit. The 2 stay Unassigned.
+LOG-DISP-008 | Assign a parcel that is not ready | DATA  | EXPECT It is not in the queue and the request is rejected.
+LOG-HUB-001 | Inbound receiving by scan | DATA  | EXPECT Status At Hub with the scan time, in Logistics and Buyer views.
+LOG-HUB-002 | Sort by zone | DATA ADDR-1 → NCR zone | EXPECT The parcel is placed in the NCR zone list only.
+LOG-HUB-003 | Outbound dispatch | DATA  | EXPECT Status Out for Delivery; the delivery OTP appears in Buyer 1's order.
+LOG-HUB-004 | Duplicate scan | DATA  | EXPECT The second scan warns 'already received'. Only one At Hub event exists.
+LOG-HUB-005 | Parcel not in the system | DATA TRK-0000000 | EXPECT Rejected with 'not found'. No record is created.
+LOG-HUB-006 | Out-of-order scan | DATA  | EXPECT Blocked; status unchanged.
+LOG-HUB-007 | Another company's parcel | DATA  | EXPECT Rejected; Logistics 2's shipment unchanged.
+LOG-TRK-001 | Search by tracking number, order ID or buyer | DATA Tracking number; order ID; Juan Miguel Dela Cruz; ' OR '1'='1 | EXPECT Each valid search returns exactly the right shipment. Unknown values return no results with no error.
+LOG-TRK-002 | Manual override needs a reason | DATA Reason: Rider app offline, delivery confirmed by phone. | EXPECT The empty reason is blocked. With the reason, status becomes Delivered.
+LOG-TRK-003 | Override leaves an audit log | DATA  | EXPECT The entry shows user, date and time, Out for Delivery → Delivered and the reason. There is no Edit or Delete.
+LOG-TRK-004 | Mark a parcel Lost | DATA  | EXPECT Status Lost; Buyer 1 and Seller 1 are notified; the refund or claim process starts.
+LOG-TRK-005 | Mark a parcel Damaged with a photo | DATA pod_photo.jpg | EXPECT Blocked without a photo; with it, status and photo are saved and both parties notified.
+LOG-RTS-001 | RTS queue after 3 failed attempts | DATA  | EXPECT The parcel is listed with status Return to Sender and all 3 failure reasons.
+LOG-RTS-002 | Deliver back to the seller | DATA  | EXPECT Status Returned to Sender. Buyer: order Cancelled (failed delivery). Seller: Returned, awaiting confirmation.
+LOG-RTS-003 | Stock restored only when the seller confirms | DATA  | EXPECT Stock stays 19 until confirmation, then becomes 20.
+LOG-RTS-004 | Prepaid RTS refund and no earnings | DATA  | EXPECT Buyer 1's refund for the full amount is started. Seller 1 has no earnings for the order.
+LOG-RATE-001 | Rate change shows at checkout | DATA  | EXPECT The new checkout shows ₱55.00. The earlier order still shows ₱50.00. The change is in the audit log.
+LOG-RATE-002 | Invalid rate values | DATA -1 (reject); 0 (reject); 0.01 (accept); abc (reject) | EXPECT Only 0.01 saves.
+LOG-RATE-003 | Unserviceable area blocked | DATA  | EXPECT Place Order is blocked with a not-serviceable message.
+LOG-RATE-004 | Add a zone | DATA  | EXPECT Checkout now works and uses the new rate.
+LOG-COD-001 | Remittance matches COD collected | DATA  | EXPECT Collected ₱1,800.00, remitted ₱1,800.00, difference ₱0.00, with both orders listed.
+LOG-COD-002 | Short remittance flagged | DATA  | EXPECT Difference −₱50.00 is highlighted as a shortfall.
+LOG-COD-003 | Confirm remittance | DATA  | EXPECT Rider 1's balance updates; the confirmation is logged.
+LOG-COD-004 | Export reports | DATA  | EXPECT Both files download and open. Rows and totals equal the screen for the same filter.
+LOG-COD-005 | Export with no data | DATA  | EXPECT A file with headers only, or a 'no data' message. No error.

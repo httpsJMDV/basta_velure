@@ -1,0 +1,552 @@
+{
+  "BUY-ACCT-001": {
+    "status": "Pass",
+    "actual": "Name save 200, photo upload 200, fresh settings contains new name true, rendered image loaded true, fresh login 200; email/phone unchanged true.",
+    "remarks": "API changes followed by fresh Edge settings load and a new password login. Avatar was uploaded through API, not the crop modal."
+  },
+  "BUY-ACCT-002": {
+    "status": "Fail",
+    "actual": "Profile update with first_name=Juan123 returned 200; saved name Juan123. The workbook requires rejecting digits in the name.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-ACCT-003": {
+    "status": "Fail",
+    "actual": "The signed-in account settings/API expose profile and avatar changes but no current-password change form, email-change form or email OTP verification. Forgot-password reset is a separate workflow and does not satisfy this case.",
+    "remarks": "Implementation review: backend/routes/api.php:114. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-ACCT-004": {
+    "status": "Blocked",
+    "actual": "Could not complete change password with a wrong old password: the Change Password form/action is absent; current/new-password inputs cannot be submitted to this workflow.",
+    "remarks": "Blocked prerequisite: BUY-ACCT-003. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-ACCT-005": {
+    "status": "Blocked",
+    "actual": "Could not complete new password breaks the rule: the Change Password form/action is absent; current/new-password inputs cannot be submitted to this workflow.",
+    "remarks": "Blocked prerequisite: BUY-ACCT-003. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-ACCT-006": {
+    "status": "Fail",
+    "actual": "The signed-in account settings/API expose profile and avatar changes but no current-password change form, email-change form or email OTP verification. Forgot-password reset is a separate workflow and does not satisfy this case.",
+    "remarks": "Implementation review: backend/routes/api.php:114. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-ACCT-007": {
+    "status": "Blocked",
+    "actual": "Could not complete change email: wrong or expired otp: the email-change/OTP workflow is unavailable, so an email-change request and OTP cannot be created for the negative/duplicate tests.",
+    "remarks": "Blocked prerequisite: BUY-ACCT-006. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-ACCT-008": {
+    "status": "Blocked",
+    "actual": "Could not complete change email to one already used: the email-change/OTP workflow is unavailable, so an email-change request and OTP cannot be created for the negative/duplicate tests.",
+    "remarks": "Blocked prerequisite: BUY-ACCT-006. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-ACCT-009": {
+    "status": "Fail",
+    "actual": "Profile phone changes are saved directly by updateProfile. There is no phone OTP request/confirmation step, so the required verified phone-change workflow is missing.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/AuthController.php:256. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-ADDR-001": {
+    "status": "Pass",
+    "actual": "Added office address: HTTP 201; {\"data\":{\"full_name\":\"Juan Miguel Dela Cruz\",\"phone\":\"09171234567\",\"address\":\"14F Pacific Tower\",\"floor_unit\":null,\"province\":\"Metro Manila\",\"district\":\"Quezon City\",\"ward\":\"Central\",\"province_code\":\"130000000\",\"city_code\":\"137404000\",\"barangay_code\":\"137404020\",\"label\":\"office\",\"is_default\":false,\"user_id\":2,\"updated_at\":\"2026-10-17T18:3; retrieved after save with office label, exact street and non-default flag. Original home address remained default.",
+    "remarks": "Used the seeded NCR PSGC location with the office street/label; storage/persistence tested through API."
+  },
+  "BUY-ADDR-002": {
+    "status": "Fail",
+    "actual": "The address editor starts with Province and has no Region selector. Province/City/Barangay cascading exists, but the exact Region-change workflow specified by this case is absent.",
+    "remarks": "Implementation review: frontend/src/pages/SettingsPage.tsx:506. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-ADDR-003": {
+    "status": "Pass",
+    "actual": "Required recipient, phone, province, city, barangay and street blank one at a time: full_name:422, phone:422, province:422, district:422, ward:422, address:422. No address was added.",
+    "remarks": "API validation of the actual Province/City/Barangay address form; this form labels the top level Province rather than Region."
+  },
+  "BUY-ADDR-004": {
+    "status": "Fail",
+    "actual": "Address accepted phone \"abc\" (HTTP 201). Invalid phone should be rejected.",
+    "remarks": "API test on isolated velure_blackbox database. UI steps not executed."
+  },
+  "BUY-ADDR-005": {
+    "status": "Fail",
+    "actual": "With one existing address, six add attempts returned 201, 201, 201, 201, 422, 422. The API enforces a maximum of 5 addresses, while the workbook requires the 10th to save and only the 11th to fail.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-ADDR-006": {
+    "status": "Pass",
+    "actual": "Set office address 111 as default; list reports 1 default address, id 111.",
+    "remarks": "API default-address invariant tested; checkout UI preselection is checked by its saved default address lookup."
+  },
+  "BUY-ADDR-007": {
+    "status": "Fail",
+    "actual": "Deleting the default address returned 204; remaining default count 0. The required choose-another-default-first protection was absent.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-ADDR-008": {
+    "status": "Pass",
+    "actual": "Edited/deleted saved address 116; buyer order address Original office test address; seller Original office test address; waybill retains original true.",
+    "remarks": "A temporary saved office address was used to avoid deleting the shared original address fixture."
+  },
+  "BUY-ADDR-009": {
+    "status": "Pass",
+    "actual": "Buyer 1 editing Buyer 2 address: HTTP 403; deleting: HTTP 403.",
+    "remarks": "API test on isolated velure_blackbox database. UI steps not executed."
+  },
+  "BUY-SRCH-001": {
+    "status": "Pass",
+    "actual": "Home Decor category returned product IDs 2,3; P-02 included, bag P-01 excluded.",
+    "remarks": "Actual platform leaf category used; workbook Home & Living parent contains this leaf."
+  },
+  "BUY-SRCH-002": {
+    "status": "Blocked",
+    "actual": "Could not complete store page with store categories: CAT-1 to CAT-5 and the store Lamps category cannot be created; the category-browsing fixture does not exist.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-SRCH-003": {
+    "status": "Pass",
+    "actual": "[{\"q\":\"Rattan Fruit Basket\",\"status\":200,\"hasP2\":true},{\"q\":\"rattan\",\"status\":200,\"hasP2\":true},{\"q\":\"RATTAN\",\"status\":200,\"hasP2\":true},{\"q\":\"  rattan  \",\"status\":200,\"hasP2\":true}]",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-SRCH-004": {
+    "status": "Pass",
+    "actual": "Typo IDs 2, correction {\"corrected\":\"rattan basket\"}; unknown term HTTP 200, results 0.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-SRCH-005": {
+    "status": "Pass",
+    "actual": "Special-character/SQL/HTML search HTTP statuses 200, 200, 200, 200; browser alert dialogs 0; no error page or injected popup appeared.",
+    "remarks": "API uses q (the actual app search parameter); Edge browser render inspected for each term."
+  },
+  "BUY-SRCH-006": {
+    "status": "Pass",
+    "actual": "Whitespace-only q returned HTTP 200, normal result count 7; no query error.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-SRCH-007": {
+    "status": "Fail",
+    "actual": "Inverted price range min=1000/max=100 returned HTTP 200 and 0 rows rather than a validation message. Invalid ranges are silently applied.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-SRCH-008": {
+    "status": "Pass",
+    "actual": "Combined Home Decor/400–500/Seller 1/NCR returned IDs 2; clearing filters returned 7 products.",
+    "remarks": "Used matching existing product values; rating filter excluded from this conjunction because review creation is tested separately."
+  },
+  "BUY-SRCH-009": {
+    "status": "Pass",
+    "actual": "Price asc 199,350,399,450,899,1250,1499; desc 1499,1250,899,450,399,350,199; two-row pages IDs 1,4,5,2,7,3,6; unique 7/7.",
+    "remarks": "Price sorting/pagination verified; newest/best-selling source ordering also inspected."
+  },
+  "BUY-SRCH-010": {
+    "status": "Pass",
+    "actual": "Archived P-02 404; private draft 18 404; deleted draft 18 404. Public index also scopes active products only.",
+    "remarks": "Actual archived, draft and deleted product direct API paths verified; public index active-status filter inspected."
+  },
+  "BUY-SRCH-011": {
+    "status": "Blocked",
+    "actual": "Could not complete products of a vacation store: Seller 1 cannot be put On vacation because the vacation switch/state is absent. The required vacation-store prerequisite cannot be established.",
+    "remarks": "Blocked prerequisite: SEL-PROF-009. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-PDP-001": {
+    "status": "Pass",
+    "actual": "Before selection: cart lines 0, prompt Choose variation 1 and variation 2 first.. After Natural and M: [{\"variant\":\"Natural / M\",\"quantity\":1}].",
+    "remarks": "Browser form interaction in Edge; screenshot shots/BUY-PDP-001.png."
+  },
+  "BUY-PDP-002": {
+    "status": "Pass",
+    "actual": "Natural/S, Natural/L and Black/S selected after seeding exact stocks and two colour images; visible stock 10/5/10: 10 in stock,Only 5 left,10 in stock; main colour image changes true.",
+    "remarks": "Required six-variant/two-image precondition prepared through seller API, then actual Edge selections observed. Earlier single-image seed limitation was corrected before verdict."
+  },
+  "BUY-PDP-003": {
+    "status": "Fail",
+    "actual": "After selecting Black, size M button states: [{\"text\":\"M\",\"disabled\":false}]; expected M disabled for zero-stock Black/M.",
+    "remarks": "Edge browser test."
+  },
+  "BUY-PDP-004": {
+    "status": "Fail",
+    "actual": "Typed quantity 1.5 and added to cart. Saved cart quantities: [1.5]. Fractional quantities must be rejected.",
+    "remarks": "Edge browser input and local cart state verified; actual cart API failure is swallowed by useCart."
+  },
+  "BUY-PDP-005": {
+    "status": "Fail",
+    "actual": "Products have stock quantities but no per-buyer lifetime purchase-limit field or enforcement. The required maximum-two-per-buyer purchase restriction for P-07 is unavailable.",
+    "remarks": "Implementation review: checkout validates stock only; no accumulated per-buyer purchase count is checked."
+  },
+  "BUY-PDP-006": {
+    "status": "Blocked",
+    "actual": "Could not complete sale price, countdown and vouchers shown: a live P-02 flash sale and claimable MCH50 cannot be created, so this combined promotional product-page fixture is unavailable.",
+    "remarks": "Blocked prerequisite: SEL-FLASH-001, SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-PDP-007": {
+    "status": "Fail",
+    "actual": "Buy now opened /cart; cart contains 2 lines. It adds the product to the existing cart and opens /cart instead of a separate one-item checkout.",
+    "remarks": "Browser navigation and cart state verified."
+  },
+  "BUY-PDP-008": {
+    "status": "Pass",
+    "actual": "Archived product P-02 direct API returned 404; the UI renders its product unavailable state for failed load. Product was restored afterward.",
+    "remarks": "API unavailable check plus ProductDetailPage error-state rendering reviewed. A permanent delete URL was checked using a temporary draft below."
+  },
+  "BUY-WISH-001": {
+    "status": "Pass",
+    "actual": "P-02 heart add response 200 ({\"wishlisted\":true}), saved rows 1; remove 200 ({\"wishlisted\":false}), removed true. Heart labels matched both completed responses.",
+    "remarks": "Edge clicks were awaited until their actual API responses completed, then persistence was checked independently."
+  },
+  "BUY-WISH-002": {
+    "status": "Pass",
+    "actual": "Two rapid toggles returned 200,200; stored P-02 rows 0.",
+    "remarks": "Concurrent requests tested. UI heart update is optimistic and follows API toggle state; no duplicated stored item."
+  },
+  "BUY-WISH-003": {
+    "status": "Blocked",
+    "actual": "Could not complete wishlist item goes out of stock or is deleted: the seller cannot delete the active P-05 product through the current workflow, so the combined sold-out/deleted wishlist setup cannot be completed.",
+    "remarks": "Blocked prerequisite: SEL-PROD-015. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-WISH-004": {
+    "status": "Pass",
+    "actual": "Public follower count 0 → 1 → 0; Following contained Seller 1 after follow true; toggle states true/false.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-WISH-005": {
+    "status": "Pass",
+    "actual": "Anonymous product heart redirected to /login; anonymous API wishlist and store-follow calls also returned 401.",
+    "remarks": "Live Edge login redirect checked for wishlist; ShopProfilePage follow guard and anonymous API rejection verified for follow."
+  },
+  "BUY-CART-001": {
+    "status": "Pass",
+    "actual": "Adding Natural/M x1 then x2 saved 1 line(s), quantity 3, subtotal 747.",
+    "remarks": "Edge actions and persisted cart state verified."
+  },
+  "BUY-CART-002": {
+    "status": "Pass",
+    "actual": "Natural/M and Black/S remain 2 lines with prices 249, 199.",
+    "remarks": "Edge cart interactions."
+  },
+  "BUY-CART-003": {
+    "status": "Pass",
+    "actual": "Cart rendered 2 store groups: Maria Clara Handicrafts\nShips as one parcel · ₱50 | RV Gadget Hub\nShips as one parcel · ₱50.",
+    "remarks": "Prepared mixed-store cart precondition using the public product values, then inspected the rendered Edge page."
+  },
+  "BUY-CART-004": {
+    "status": "Fail",
+    "actual": "CartPage has no item/store selection checkboxes; checkout proceeds with the entire cart. The specified selective checkout subtotals and retained unchecked item cannot be performed.",
+    "remarks": "Implementation review: frontend/src/pages/CartPage.tsx:17. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CART-005": {
+    "status": "Fail",
+    "actual": "At stock/cart quantity 20, clicking + saved quantity 21; cart did not enforce the stock ceiling.",
+    "remarks": "Browser cart quantity boundary checked."
+  },
+  "BUY-CART-006": {
+    "status": "Fail",
+    "actual": "Cart prices, stock availability and images come from localStorage snapshots. CartPage does not refetch current product price/status/stock before rendering; changing or deleting a product does not update or disable its stored cart line.",
+    "remarks": "Implementation review: frontend/src/hooks/useCart.tsx:33. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CART-007": {
+    "status": "Fail",
+    "actual": "Cart prices, stock availability and images come from localStorage snapshots. CartPage does not refetch current product price/status/stock before rendering; changing or deleting a product does not update or disable its stored cart line.",
+    "remarks": "Implementation review: frontend/src/hooks/useCart.tsx:33. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CART-008": {
+    "status": "Fail",
+    "actual": "The cart is localStorage under loved_it_cart, not a server cart scoped to the buyer. There is no account-synced cart resource or cross-device restoration API for the workflow required here.",
+    "remarks": "Implementation review: frontend/src/hooks/useCart.tsx:33. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CART-009": {
+    "status": "Pass",
+    "actual": "Remove clicked: true; persisted cart has 0 line(s) after reload.",
+    "remarks": "Edge remove and refresh checked."
+  },
+  "BUY-CART-010": {
+    "status": "Blocked",
+    "actual": "Could not complete cannot change another buyer's cart: there is no buyer-scoped server cart resource or Buyer 2 cart identifier to target; localStorage cannot provide the required cross-account API resource.",
+    "remarks": "Blocked prerequisite: BUY-CART-008. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-001": {
+    "status": "Fail",
+    "actual": "The current cart/checkout has no claimable voucher wallet, voucher codes, stacking or voucher redemption. The voucher behavior required by this case is unavailable.",
+    "remarks": "Implementation review: frontend/src/pages/CartPage.tsx:12. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-VOU-002": {
+    "status": "Blocked",
+    "actual": "Could not complete apply a store voucher: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-003": {
+    "status": "Blocked",
+    "actual": "Could not complete stacking per the agreed rule: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-004": {
+    "status": "Blocked",
+    "actual": "Could not complete minimum spend at the boundary: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-005": {
+    "status": "Blocked",
+    "actual": "Could not complete expired, not started, limit reached, invalid code: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-006": {
+    "status": "Blocked",
+    "actual": "Could not complete per-buyer limit reached: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-007": {
+    "status": "Blocked",
+    "actual": "Could not complete removing an item drops below the minimum spend: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-008": {
+    "status": "Blocked",
+    "actual": "Could not complete percentage voucher respects its cap: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-009": {
+    "status": "Blocked",
+    "actual": "Could not complete shipping voucher larger than shipping: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-010": {
+    "status": "Blocked",
+    "actual": "Could not complete total never negative: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-011": {
+    "status": "Blocked",
+    "actual": "Could not complete voucher on items already on sale: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-VOU-012": {
+    "status": "Blocked",
+    "actual": "Could not complete voucher returned after cancellation: the required voucher cannot be created/claimed/applied. The specified voucher limits, stacking, expiry, cap or restoration cannot be evaluated without that prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CHK-001": {
+    "status": "Blocked",
+    "actual": "Could not complete checkout with the worked example: the worked example requires three claimed vouchers, but no voucher workflow can produce them; the specified checkout fixture and total cannot be exercised.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001, BUY-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CHK-002": {
+    "status": "Fail",
+    "actual": "NCR delivery fee 50; Cebu/Visayas fee 50; expected 50.00 and 120.00. Both requests returned 201/201.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-CHK-003": {
+    "status": "Fail",
+    "actual": "Delivery uses one fixed fee per shop, independent of parcel weight; config/shipping.php defaults to 50.00. There is no 1 kg rounding rule or 60.00/80.00 tier for 1.0/1.2 kg.",
+    "remarks": "Implementation review: backend/config/shipping.php:17. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CHK-004": {
+    "status": "Fail",
+    "actual": "CourierAssigner falls back to a default courier when an address has no coverage, rather than refusing checkout. No serviceability rejection is made before placing the order; the Itbayat no-order requirement is unmet.",
+    "remarks": "Implementation review: backend/app/Services/CourierAssigner.php:41. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CHK-005": {
+    "status": "Fail",
+    "actual": "200-char note: 201; 201-char note: 201, persisted length 201. Expected rejecting 201; implemented maximum is 500.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-CHK-006": {
+    "status": "Pass",
+    "actual": "Empty payment method returned 422; [\"The payment method field is required.\"]. No order created.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-CHK-007": {
+    "status": "Fail",
+    "actual": "Identical request replay created order 5 (201) and order 6 (201); server has no checkout idempotency guard.",
+    "remarks": "API repeat-submit tested; browser button disabling alone does not prevent request replay."
+  },
+  "BUY-CHK-008": {
+    "status": "Fail",
+    "actual": "Checkout recalculates prices from product/variant rows but has no submitted-price comparison or price-change acknowledgment. It places the order at the current server price without requiring the buyer to confirm the revised amount.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/BuyerOrderController.php:74. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CHK-009": {
+    "status": "Pass",
+    "actual": "After other buyer consumed last P-03 unit, checkout returned 422: Insufficient stock for Capiz Shell Lamp (Standard). Stock remained zero.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-CHK-010": {
+    "status": "Blocked",
+    "actual": "Could not complete voucher becomes invalid during checkout: MCH50 cannot first be applied at checkout, so it cannot subsequently become invalid during that checkout.",
+    "remarks": "Blocked prerequisite: BUY-VOU-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CHK-011": {
+    "status": "Pass",
+    "actual": "Client sent total=0 and item price=0; server saved total=249, subtotal=199.",
+    "remarks": "Expedited API test; browser controls not exercised."
+  },
+  "BUY-PAY-001": {
+    "status": "Fail",
+    "actual": "P-02 COD placement succeeded at total 500.00, but order starts PLACED/payment pending. BUYER_FILTER_GROUPS maps PLACED into To pay rather than immediately To ship, contrary to the required COD tab behavior.",
+    "remarks": "Actual COD order API response plus frontend/src/utils/orderStatus.ts grouping reviewed. Earlier assumption that PLACED was in To ship was corrected."
+  },
+  "BUY-PAY-002": {
+    "status": "Fail",
+    "actual": "Payments are direct GCash receipt/reference uploads checked by the seller, or COD. No card/e-wallet gateway redirect, callback, gateway cancellation or Pay Again flow exists as required by this case.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/BuyerOrderController.php:35. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-PAY-003": {
+    "status": "Blocked",
+    "actual": "Could not complete payment fails: the required gateway order/payment session is unavailable. Direct seller GCash receipts do not provide gateway failure, cancellation, callback or timed gateway-payment states.",
+    "remarks": "Blocked prerequisite: BUY-PAY-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-PAY-004": {
+    "status": "Blocked",
+    "actual": "Could not complete buyer cancels at the gateway: the required gateway order/payment session is unavailable. Direct seller GCash receipts do not provide gateway failure, cancellation, callback or timed gateway-payment states.",
+    "remarks": "Blocked prerequisite: BUY-PAY-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-PAY-005": {
+    "status": "Blocked",
+    "actual": "Could not complete browser closed on the gateway: the required gateway order/payment session is unavailable. Direct seller GCash receipts do not provide gateway failure, cancellation, callback or timed gateway-payment states.",
+    "remarks": "Blocked prerequisite: BUY-PAY-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-PAY-006": {
+    "status": "Blocked",
+    "actual": "Could not complete unpaid order auto-cancels: the required gateway order/payment session is unavailable. Direct seller GCash receipts do not provide gateway failure, cancellation, callback or timed gateway-payment states.",
+    "remarks": "Blocked prerequisite: BUY-PAY-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-PAY-007": {
+    "status": "Blocked",
+    "actual": "Could not complete pay just before vs after the auto-cancel time: the required gateway order/payment session is unavailable. Direct seller GCash receipts do not provide gateway failure, cancellation, callback or timed gateway-payment states.",
+    "remarks": "Blocked prerequisite: BUY-PAY-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-TRK-001": {
+    "status": "Fail",
+    "actual": "Unfiltered buyer order API returns 15 rows out of total 25. Settings getOrdersApi discards pagination and renders only that first page, so tab counts and older orders are incomplete once more than 15 orders exist.",
+    "remarks": "Actual paginated response checked; frontend/src/api/client.ts getOrdersApi and SettingsPage OrdersPanel inspected. Per-status API filtering works, but the UI count/coverage expectation fails."
+  },
+  "BUY-TRK-002": {
+    "status": "Pass",
+    "actual": "Buyer timeline for 2: PLACED > CONFIRMED > PREPARING > READY_FOR_PICKUP > PICKED_UP > AT_SORTING_CENTER > SORTED > ASSIGNED_TO_RIDER > OUT_FOR_DELIVERY > DELIVERED; each state recorded once with event time.",
+    "remarks": "Seller, hub and rider actions were performed through their own APIs; buyer history checked afterward."
+  },
+  "BUY-TRK-003": {
+    "status": "Fail",
+    "actual": "Buyer receipt confirmation succeeded and changed the delivered order to COMPLETED. The complete case fails because direct-payment order items do not release this order into the required immediately Available seller escrow balance.",
+    "remarks": "Actual receipt API executed; BuyerOrderController assigns payout_status=direct. Balance model does not implement the expected immediate release for new direct-payment orders."
+  },
+  "BUY-TRK-004": {
+    "status": "Pass",
+    "actual": "At actual OUT_FOR_DELIVERY, receipt confirmation returned 409: You can confirm receipt once the order has been delivered..",
+    "remarks": "Required OUT_FOR_DELIVERY precondition established through real dispatch and rider start."
+  },
+  "BUY-TRK-005": {
+    "status": "Fail",
+    "actual": "The implementation defaults to auto-completion after 3 days, not 7 days; auto-complete is scheduled hourly. The workbook requires the order to remain uncompleted until the seven-day boundary.",
+    "remarks": "Implementation review: backend/config/orders.php:17. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-TRK-006": {
+    "status": "Pass",
+    "actual": "Buyer 2 opening Buyer 1 order 1: HTTP 403.",
+    "remarks": "Expedited API test; browser controls not exercised."
+  },
+  "BUY-CAN-001": {
+    "status": "Fail",
+    "actual": "There is no buyer Cancel Order action/API in the current buyer order routes. Buyer cancellation, cancellation reason, refund and duplicate-cancel behavior required by this case cannot be exercised.",
+    "remarks": "Implementation review: backend/routes/api.php:171. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CAN-002": {
+    "status": "Blocked",
+    "actual": "Could not complete reason is required: the buyer Cancel Order action is absent, so reason validation, post-shipment cancellation guards and repeated cancellation cannot be submitted through that workflow.",
+    "remarks": "Blocked prerequisite: BUY-CAN-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CAN-003": {
+    "status": "Blocked",
+    "actual": "Could not complete cancel a prepaid order: the buyer Cancel Order action is absent, so reason validation, post-shipment cancellation guards and repeated cancellation cannot be submitted through that workflow.",
+    "remarks": "Blocked prerequisite: BUY-CAN-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CAN-004": {
+    "status": "Blocked",
+    "actual": "Could not complete no cancel after ready for pickup: the buyer Cancel Order action is absent, so reason validation, post-shipment cancellation guards and repeated cancellation cannot be submitted through that workflow.",
+    "remarks": "Blocked prerequisite: BUY-CAN-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CAN-005": {
+    "status": "Blocked",
+    "actual": "Could not complete no cancel after shipping: the buyer Cancel Order action is absent, so reason validation, post-shipment cancellation guards and repeated cancellation cannot be submitted through that workflow.",
+    "remarks": "Blocked prerequisite: BUY-CAN-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CAN-006": {
+    "status": "Blocked",
+    "actual": "Could not complete double-click cancel: the buyer Cancel Order action is absent, so reason validation, post-shipment cancellation guards and repeated cancellation cannot be submitted through that workflow.",
+    "remarks": "Blocked prerequisite: BUY-CAN-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-RET-001": {
+    "status": "Fail",
+    "actual": "The return form/API supports reason and description but does not store the two requested evidence photos. A return can be opened, but the complete two-photo return submission required by this case is unavailable.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/BuyerOrderController.php:352. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-RET-002": {
+    "status": "Fail",
+    "actual": "Return request before delivery: HTTP 200, Return request submitted successfully. The seller will review within 48 hours..",
+    "remarks": "Expedited API test; browser controls not exercised."
+  },
+  "BUY-RET-003": {
+    "status": "Fail",
+    "actual": "Return after COMPLETED returned 422; Cannot transition order from COMPLETED to DISPUTED.. Source state machine closes COMPLETED, but no seven-day delivered-return cutoff is implemented.",
+    "remarks": "Failure is the missing day-7/day-8 cutoff, not the correct COMPLETED rejection."
+  },
+  "BUY-RET-004": {
+    "status": "Blocked",
+    "actual": "Could not complete evidence and description rules: the return workflow has no evidence-photo upload; the specified photo count/type/size inputs cannot be submitted for this validation case.",
+    "remarks": "Blocked prerequisite: BUY-RET-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-RET-005": {
+    "status": "Blocked",
+    "actual": "Could not complete track request status: seller rejection goes directly to mediation/in_progress, not the required Rejected state with a buyer Escalate action. The requested tracking state cannot be produced.",
+    "remarks": "Blocked prerequisite: SEL-RET-004. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-RATE-001": {
+    "status": "Fail",
+    "actual": "The public review includes the buyer full first and last name, without masking. Review creation and the uploaded photo worked, but the masked-name requirement is not met.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/PublicProductController.php:219. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-RATE-002": {
+    "status": "Fail",
+    "actual": "Review submitted at DELIVERED, before COMPLETED: HTTP 201. API allows delivered-order reviews, while workbook requires rejecting all pre-completion ratings.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-RATE-003": {
+    "status": "Pass",
+    "actual": "First review 201 (id 1); duplicate same order/product 422: You already reviewed this product for this order. You can edit that review instead..",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-RATE-004": {
+    "status": "Fail",
+    "actual": "501-character review edit returned 200; required text maximum is 500, current API accepts up to 1,000.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "BUY-RATE-005": {
+    "status": "Fail",
+    "actual": "Review editing checks only ownership and a 30-day deadline; it does not count prior edits or forbid a second edit, as this case requires.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/BuyerReviewController.php:138. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-RATE-006": {
+    "status": "Pass",
+    "actual": "Dedicated product 22, reviews 4 and 2: detail avg 3, count 2; search avg 3, count 2.",
+    "remarks": "Fresh equivalent product used because previous cases had already added several reviews to P-02. Both buyers reviewed real completed test orders; arithmetic and public payloads tested."
+  },
+  "BUY-CHAT-001": {
+    "status": "Fail",
+    "actual": "Buyer opening chat with approved Seller 1 (user role buyer, approved profile accessible) returned 422: Target user is not a registered seller.. No message/photo/product card could be exchanged.",
+    "remarks": "Actual product-chat request failed; approved_seller portal permission and legacy seller role check disagree."
+  },
+  "BUY-CHAT-002": {
+    "status": "Fail",
+    "actual": "1,001-character chat message returned 201; workbook requires rejection above 1,000.",
+    "remarks": "Because product chat is broken, shared conversation message validation was exercised using a valid buyer/admin thread. Same send validator handles both."
+  },
+  "BUY-CHAT-003": {
+    "status": "Fail",
+    "actual": "Order status emails and chat unread counts exist, but no general order-notification inbox, per-notification read action or Mark All Read order-notification workflow is registered.",
+    "remarks": "Implementation review: backend/routes/api.php:179. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "BUY-CHAT-004": {
+    "status": "Blocked",
+    "actual": "Could not complete flash-sale reminder: no flash-sale slot/reminder subscription can be created, so there is no scheduled reminder event to observe.",
+    "remarks": "Blocked prerequisite: SEL-FLASH-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "BUY-CHAT-005": {
+    "status": "Blocked",
+    "actual": "Could not complete mark notifications as read: the general order-notification inbox cannot supply three unread notifications or per-item/Mark All Read actions. Chat unread counters are a different resource.",
+    "remarks": "Blocked prerequisite: BUY-CHAT-003. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  }
+}

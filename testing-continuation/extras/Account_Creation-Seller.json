@@ -1,0 +1,27 @@
+{
+ "summary": {
+  "System under test": "Loved-IT multi-vendor marketplace (loved-it.shop): React web app and Laravel API",
+  "Version / build": "Branch king/courier-companies, commit 335f7c5 (17 Oct 2026)",
+  "Test environment (browser, device)": "Microsoft Edge (Chromium) 1366×900 on Windows 11, driven by Puppeteer; an isolated copy of the system (own database, file storage and mail log) on 127.0.0.1, with the same PHP settings as the live server",
+  "Tester": "Automated black-box run by Claude Code (AI assistant) for the Basta Corp. team",
+  "Date tested": "10/17/2026 – 10/18/2026"
+ },
+ "assumptions": {
+  "A1": "Buyer: first, middle (optional) and last name, email, phone (+63 box), password and confirm password; then profile photo, birthday, sex, address (Province, City/Municipality, Barangay, optional street) and a government ID photo. No Terms and Privacy checkbox. Sellers, courier companies and riders first create this account, then apply with their own form (shop/company details and documents).",
+  "A2": "Required, up to 50 characters. No minimum length and no character check: digits and symbols are accepted; ñ, hyphen and apostrophe work.",
+  "A3": "Checked by the browser and by the server, including a DNS check that the domain accepts mail (example.com is rejected because it has a null MX). Unique across all roles, not case-sensitive; spaces around it are removed. Max 100 characters.",
+  "A4": "Typed after a fixed country-code dropdown (+63 by default). The box keeps digits only and at most 10 of them, with no message: 09XXXXXXXXX loses its last digit and +63 typed in the box is not recognised. Saved as +63 plus the digits; unique; no check that it is a mobile (09) number.",
+  "A5": "At least 8 characters with upper and lower case, a number and a symbol, and not found in known password leaks. Confirm Password must match. No show/hide icon.",
+  "A6": "Buyers must be at least 18 on the day they register; the birthday picker does not allow future dates.",
+  "A7": "Buyer and seller address: Province → City/Municipality → Barangay (PSGC lists; NCR is listed as \"Metro Manila (NCR)\"; no Region dropdown). The courier company form starts at Region. No postal code anywhere.",
+  "A8": "No TIN is collected.",
+  "A9": "No email OTP. A welcome email is sent on registration; buyers are then verified by an admin who checks the government ID (pending → approved or rejected), and applicants get an email when an application is received and decided.",
+  "A10": "JPG, PNG or PDF (profile photo also WebP), up to 5 MB in the app. However, the server's PHP settings allow only 2 MB per file and 8 MB per form, so files between 2 MB and 5 MB fail with \"The … failed to upload.\"",
+  "A11": "No seller type. Every seller uploads a government ID (back too for some ID types), a selfie holding the ID, an LGU business permit and a DTI or SEC registration; an FDA LTO is optional.",
+  "A12": "Buyer: pending (ID review) → approved or rejected; a pending buyer can already sign in and shop. Seller and courier company: apply from a signed-in account → pending → approved or rejected; a rejected applicant can apply again with a new full application. Applicants can sign in while pending; their portal stays closed.",
+  "A13": "Riders are not created by the logistics company. A rider creates a Loved-IT account, applies at /register/rider choosing an approved hub, and that hub approves (Pending → Active) or disapproves. No activation email or link; the rider sets the password at account creation.",
+  "A14": "Unique: shop name (up to 100 characters, no minimum), courier company name and its 2–6 character short code. Not unique: plate number. No SEC registration number or driver's license number fields.",
+  "A15": "No license number or expiry date; the rider uploads a photo or scan of the driver's license and the OR/CR, which the hub checks.",
+  "A16": "Pages of another role redirect (to the home page, the login page or the role's application page); the API answers 403."
+ }
+}

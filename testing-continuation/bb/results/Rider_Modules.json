@@ -1,0 +1,207 @@
+{
+  "RID-PROF-001": {
+    "status": "Fail",
+    "actual": "The rider profile exposes hub, vehicle, plate and application status but has no license-number or license-expiry fields. Showing N01-23-456789/03-22-2030 or validating yesterday/today expiry is unavailable.",
+    "remarks": "Implementation review: backend/app/Http/Resources/RiderProfileResource.php:18. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-PROF-002": {
+    "status": "Fail",
+    "actual": "Vehicle changes save immediately with vehicle_updated_at; no replacement OR/CR or hub re-verification is required by the vehicle update endpoint.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/RiderController.php:37. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-PROF-003": {
+    "status": "Fail",
+    "actual": "Rider 2 plate NBC1234 and lowercase nbc1234 returned 200/200; another rider plate was accepted instead of rejected.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "RID-PROF-004": {
+    "status": "Blocked",
+    "actual": "Could not complete license expiry boundary: there is no license-expiry input/value to set to yesterday or today; the date-boundary validation cannot be submitted.",
+    "remarks": "Blocked prerequisite: RID-PROF-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-PROF-005": {
+    "status": "Blocked",
+    "actual": "Could not complete document upload rules: the rider vehicle/account workflow has no replacement OR/CR/license upload, so the requested document replacement/type/size checks cannot be reached.",
+    "remarks": "Blocked prerequisite: RID-PROF-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-PROF-006": {
+    "status": "Blocked",
+    "actual": "Could not complete suspended rider cannot work: a rider-specific Suspended state cannot be established through the company workflow; account suspension is a separate action.",
+    "remarks": "Blocked prerequisite: LOG-RIDER-003. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-PROF-007": {
+    "status": "Pass",
+    "actual": "Attempt to open Rider 2 by appending its id to the rider self-profile URL returned HTTP 404; no Rider 2 profile disclosed. Self-profile is token-scoped.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "RID-AVAIL-001": {
+    "status": "Fail",
+    "actual": "There is no Online/Offline availability toggle or session-timeout availability state in the rider routes. Pickup eligibility uses approved status and assigned areas instead of the required availability workflow.",
+    "remarks": "Implementation review: backend/routes/api.php:461. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-AVAIL-002": {
+    "status": "Blocked",
+    "actual": "Could not complete go offline: the rider cannot first be placed Online using an availability control; Offline, active-job Offline and logout-to-Offline transitions have no required starting state.",
+    "remarks": "Blocked prerequisite: RID-AVAIL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-AVAIL-003": {
+    "status": "Blocked",
+    "actual": "Could not complete go offline with an active job: the rider cannot first be placed Online using an availability control; Offline, active-job Offline and logout-to-Offline transitions have no required starting state.",
+    "remarks": "Blocked prerequisite: RID-AVAIL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-AVAIL-004": {
+    "status": "Blocked",
+    "actual": "Could not complete offline after logout or session timeout: the rider cannot first be placed Online using an availability control; Offline, active-job Offline and logout-to-Offline transitions have no required starting state.",
+    "remarks": "Blocked prerequisite: RID-AVAIL-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-JOB-001": {
+    "status": "Fail",
+    "actual": "Pickup accepted (200) as a seller batch; expected fixed 30.00 pickup pay and expiring individual offers are unavailable. Current fee split pays pickup at hub receipt, not Accept.",
+    "remarks": "Real accept flow exercised; workbook pay/offer requirements differ."
+  },
+  "RID-JOB-002": {
+    "status": "Blocked",
+    "actual": "Could not complete decline a job: the system does not generate the specified sequential targeted offers. A valid offer/next-rider offer sequence cannot be prepared for decline/timeout tests.",
+    "remarks": "Blocked prerequisite: LOG-DISP-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-JOB-003": {
+    "status": "Blocked",
+    "actual": "Could not complete offer timeout: the system does not generate the specified sequential targeted offers. A valid offer/next-rider offer sequence cannot be prepared for decline/timeout tests.",
+    "remarks": "Blocked prerequisite: LOG-DISP-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-JOB-004": {
+    "status": "Blocked",
+    "actual": "Could not complete job goes to unassigned after 3 declines: the system does not generate the specified sequential targeted offers. A valid offer/next-rider offer sequence cannot be prepared for decline/timeout tests.",
+    "remarks": "Blocked prerequisite: LOG-DISP-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-JOB-005": {
+    "status": "Blocked",
+    "actual": "Could not complete accept and manual assignment at the same moment: the company manual-assignment action is unavailable, so it cannot race against the rider offer acceptance in this case.",
+    "remarks": "Blocked prerequisite: LOG-DISP-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-JOB-006": {
+    "status": "Fail",
+    "actual": "Accept claims all available seller parcels in the rider active areas and has no three-concurrent-job capacity guard. The required fourth-job refusal is absent.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/RiderPickupController.php:234. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-JOB-007": {
+    "status": "Pass",
+    "actual": "Known Agila parcel LIT-261017-5SPKLS: batch accept HTTP 200; foreign parcel exists in Logistics 2 list true; absent from accepted pickups true and claim result true. Other eligible company parcels may be claimed by the batch action.",
+    "remarks": "Dedicated parcel company was seeded solely as the test precondition, then restored. Runtime request exercised the real courier membership filter."
+  },
+  "RID-PICK-001": {
+    "status": "Pass",
+    "actual": "Accepted pickup LIT-261017-ZXQJQW: {\"data\":[{\"seller_id\":23,\"shop_name\":\"Maria Clara Handicrafts\",\"shop_phone\":\"09189876543\",\"pickup_address\":{\"street\":\"Blk 12 Lot 8, Sampaguita St.\",\"barangay\":\"Commonwealth\",\"city\":\"Quezon City\",\"province\":\"Metro Manila (NCR)\",\"full_address\":\"Blk 12 Lot 8, Sampaguita St., Commonwealth, Quezon City, Metro Manila (NCR)\"},\"parcel_count\":1,\"parcel_ids\":[1],\"tracking_numbers\":[\"LIT-261017-ZXQJQW\"],\"ready_since\":\"2026-10-17T18:44:14+00:00\",\"pickup_accepted_at\":\"2026-10-17T18:44:16+00:00\",\"matched_area_label\":\"Audit coverage 2\"}],\"meta\":{\"available_count\":0,\"mine_count\":1,\"picked_up_count\":0,\"has_areas\":true,\"limit\":50}}",
+    "remarks": "Actual rider accepted-pickup API includes seller/contact/address/tracking data. Parcel count can include other available test orders claimed in the same seller batch."
+  },
+  "RID-PICK-002": {
+    "status": "Fail",
+    "actual": "Tracking verification/confirmation returned 200/200 and pickup succeeded. The required immediate 30.00 pickup earning is absent; pickup is paid as a configured fee share when received at the hub.",
+    "remarks": "Pickup API exercised; camera hardware itself was not used. Failure is the specified earning rule/timing."
+  },
+  "RID-PICK-003": {
+    "status": "Pass",
+    "actual": "Typed tracking LIT-261017-ZXQJQW: verify 200, confirm 200; order moved to PICKED_UP.",
+    "remarks": "Text tracking entry submitted through the same real verify/confirm API used by the rider form."
+  },
+  "RID-PICK-004": {
+    "status": "Pass",
+    "actual": "Typed unknown TRK-0000000 in pickup verify: HTTP 404; Parcel not found among your accepted pickups.. No pickup transition made.",
+    "remarks": "API path shared by camera-scan and typed entry; unknown tracking checked."
+  },
+  "RID-PICK-005": {
+    "status": "Pass",
+    "actual": "Repeated pickup confirm returned 422; PICKED_UP history events 1; no duplicate pickup recorded.",
+    "remarks": "History and idempotency verified through real API; failed repeat cannot trigger a second earning."
+  },
+  "RID-DLV-001": {
+    "status": "Fail",
+    "actual": "Full path completed: hub receive 200, sort 200, assign 200, rider start 200, delivered 200. Delivery requires two photos and no OTP; pay is a fee percentage, not the required 50.00.",
+    "remarks": "Real end-to-end fulfillment tested; failure is a mismatch with the exact workbook OTP/pay requirements."
+  },
+  "RID-DLV-002": {
+    "status": "Pass",
+    "actual": "Delivered request while ASSIGNED_TO_RIDER with valid proof files: HTTP 409; This parcel is not out for delivery..",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "RID-DLV-003": {
+    "status": "Pass",
+    "actual": "Delivery without photos returned 422; errors {\"proof_photo\":[\"The proof photo field is required.\"],\"proof_photo_2\":[\"The proof photo 2 field is required.\"]}.",
+    "remarks": "No-photo case verified dynamically; text file rejection also enforced by mimes rule."
+  },
+  "RID-DLV-004": {
+    "status": "Blocked",
+    "actual": "Could not complete otp checks: delivery uses proof photos instead of an OTP; no issued OTP, OTP input or wrong-entry/lockout sequence can be prepared.",
+    "remarks": "Blocked prerequisite: RID-DLV-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-DLV-005": {
+    "status": "Blocked",
+    "actual": "Could not complete cod amount must match: the delivery form accepts only a collected-cash checkbox with a server-supplied amount; 499.99/500.00/500.01 cannot be entered for numeric mismatch validation.",
+    "remarks": "Blocked prerequisite: RID-DLV-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-DLV-006": {
+    "status": "Pass",
+    "actual": "Prepaid GCash parcel delivered 200 without cod_collected field; matching history [{\"outcome\":\"delivered\",\"occurred_at\":\"2026-10-17T18:52:12+00:00\",\"tracking_number\":\"LIT-261017-CMKRKR\",\"order_number\":\"VEL-BRVK-261017185208\",\"destination\":{\"barangay_name\":\"Central\",\"city\":\"Quezon City\"},\"failure_reason\":null,\"fee\":\"32.50\",\"cod_collected\":null},{\"outcome\":\"failed\",\"occurred_at\":\"2026-10-17T18:52:11+00:00\",\"tracking_number\":\"LIT-261017-CMKRKR\",\"order_number\":\"VEL-BRVK-261017185208\",\"destination\":{\"barangay_name\":\"Central\",\"city\":\"Quezon City\"},\"failure_reason\":{\"code\":\"RECIPIENT_UNAVAILABLE\",\"label\":\"Recipient unavailable\"},\"fee\":null,\"cod_collected\":null}].",
+    "remarks": "Paid direct GCash order fulfilled through real seller/rider/hub actions. Prepaid parcel cod_amount is null, so the rider has no cash-collection amount."
+  },
+  "RID-DLV-007": {
+    "status": "Pass",
+    "actual": "Rider 2 starting Rider 1 parcel LIT-261017-ZXQJQW: HTTP 422; One or more parcels cannot be started. Nothing was changed..",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "RID-FAIL-001": {
+    "status": "Fail",
+    "actual": "Failure saved HTTP 200, delivery_attempts 1, reason Recipient unavailable. Backend counter works, but rider app lacks the required 1-of-3 attempt display/general order-notification inbox.",
+    "remarks": "Real delivery failure tested; failure verdict is the missing required user-facing counter/notification behavior."
+  },
+  "RID-FAIL-002": {
+    "status": "Pass",
+    "actual": "Blank failure reason returned 422; {\"reason\":[\"The reason field is required.\"]}. Parcel remained OUT_FOR_DELIVERY.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "RID-FAIL-003": {
+    "status": "Fail",
+    "actual": "A failure always transitions to DELIVERY_FAILED and increments delivery_attempts. It does not automatically change a refusal or third failure to Return to Sender; returning is a separate hub action.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/RiderDeliveryController.php:299. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-FAIL-004": {
+    "status": "Fail",
+    "actual": "Hub reschedule 200, rider start 200; rider parcel payload contains delivery_attempts false. Rescheduling works, but the rider job does not display attempt 2 of 3 as required.",
+    "remarks": "Actual failed→rescheduled→out-for-delivery path exercised; delivery completion follows in RID-DLV-006."
+  },
+  "RID-FAIL-005": {
+    "status": "Fail",
+    "actual": "A failure always transitions to DELIVERY_FAILED and increments delivery_attempts. It does not automatically change a refusal or third failure to Return to Sender; returning is a separate hub action.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/RiderDeliveryController.php:299. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-EARN-001": {
+    "status": "Pass",
+    "actual": "Delivered tracking LIT-261017-ZXQJQW: history 200, matching rows 1, record {\"outcome\":\"delivered\",\"occurred_at\":\"2026-10-17T18:44:18+00:00\",\"tracking_number\":\"LIT-261017-ZXQJQW\",\"order_number\":\"VEL-HFD0-261017184414\",\"destination\":{\"barangay_name\":\"Central\",\"city\":\"Quezon City\"},\"failure_reason\":null,\"fee\":\"32.50\",\"cod_collected\":\"500.00\"}.",
+    "remarks": "A real completed delivery inspected, with tracking/date/result/pay; not an empty-history smoke test."
+  },
+  "RID-EARN-002": {
+    "status": "Fail",
+    "actual": "Rider pay is a percentage split of the delivery fee, not fixed 30.00 per pickup and 50.00 per delivery. With the default 50.00 fee the configured split is 10.00 pickup and 32.50 delivery, so the required 210.00 total is not the implemented rule.",
+    "remarks": "Implementation review: backend/config/shipping.php:46. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-EARN-003": {
+    "status": "Fail",
+    "actual": "Rider earnings show fee shares and unpaid company payouts, but have no rider COD remittance form, pending receipt confirmation or short-remittance balance workflow. This case requires that unavailable remittance feature.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/RiderEarningsController.php:25. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-EARN-004": {
+    "status": "Fail",
+    "actual": "Rider earnings show fee shares and unpaid company payouts, but have no rider COD remittance form, pending receipt confirmation or short-remittance balance workflow. This case requires that unavailable remittance feature.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/RiderEarningsController.php:25. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "RID-EARN-005": {
+    "status": "Blocked",
+    "actual": "Could not complete short remittance: the rider remittance form/record is absent; no short remittance or pending own-remittance confirmation resource exists.",
+    "remarks": "Blocked prerequisite: RID-EARN-004. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "RID-EARN-006": {
+    "status": "Blocked",
+    "actual": "Could not complete rider cannot confirm own remittance: the rider remittance form/record is absent; no short remittance or pending own-remittance confirmation resource exists.",
+    "remarks": "Blocked prerequisite: RID-EARN-004. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  }
+}

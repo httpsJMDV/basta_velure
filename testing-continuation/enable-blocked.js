@@ -1,0 +1,13 @@
+const fs=require('fs');
+let f='package-results.js',s=fs.readFileSync(f,'utf8');
+s=s.replace("total=0,pass=0,fail=0;","total=0,pass=0,fail=0,blocked=0;");
+s=s.replace("!['Pass','Fail'].includes(x.status)","!['Pass','Fail','Blocked'].includes(x.status)");
+s=s.replace("const p=rows.filter(x=>x.status==='Pass').length,f=rows.length-p;total+=rows.length;pass+=p;fail+=f;table+=`| ${key} | ${rows.length} | ${p} | ${f} |\\n`;","const p=rows.filter(x=>x.status==='Pass').length,f=rows.filter(x=>x.status==='Fail').length,b=rows.filter(x=>x.status==='Blocked').length;total+=rows.length;pass+=p;fail+=f;blocked+=b;table+=`| ${key} | ${rows.length} | ${p} | ${f} | ${b} |\\n`;");
+s=s.replace('${total} cases assessed: ${pass} Pass, ${fail} Fail, 0 Not Run, 0 Blocked.','${total} cases assessed: ${pass} Pass, ${fail} Fail, ${blocked} Blocked, 0 Not Run.');
+s=s.replace('| Workbook | Cases | Pass | Fail |\\n|---|---:|---:|---:|','| Workbook | Cases | Pass | Fail | Blocked |\\n|---|---:|---:|---:|---:|');
+s=s.replace('A failed case means the exact workbook expected result was not met.','Blocked means a failed prerequisite prevented execution, with no verdict on the dependent behavior. A failed case means the exact workbook expected result was not met.');
+s=s.replace('Status and Remarks. Verification','Status and Remarks (Blocked is allowed for an unexecutable dependency). Verification');
+s=s.replace('All 469 cases now have an assessed Pass/Fail result.','All 469 cases now have a Pass, Fail or Blocked assessment; blocked dependencies are identified explicitly.');
+s=s.replace('${pass} Pass, ${fail} Fail`','${pass} Pass, ${fail} Fail, ${blocked} Blocked`');
+fs.writeFileSync(f,s);
+f='verify-yellow-only.php';s=fs.readFileSync(f,'utf8').replace("['Pass','Fail']","['Pass','Fail','Blocked']");fs.writeFileSync(f,s);

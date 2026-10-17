@@ -1,0 +1,1806 @@
+[
+  {
+    "account": "anonymous",
+    "method": "GET",
+    "route": "/wishlist",
+    "status": 401,
+    "response": {
+      "message": "Unauthenticated."
+    }
+  },
+  {
+    "account": "anonymous",
+    "method": "POST",
+    "route": "/store-follows/toggle",
+    "request": {
+      "seller_id": 23
+    },
+    "status": 401,
+    "response": {
+      "message": "Unauthenticated."
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/wishlist/toggle",
+    "request": {
+      "product_id": 1
+    },
+    "status": 200,
+    "response": {
+      "wishlisted": true
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/wishlist/toggle",
+    "request": {
+      "product_id": 1
+    },
+    "status": 200,
+    "response": {
+      "wishlisted": false
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/store-follows/toggle",
+    "request": {
+      "seller_id": 23
+    },
+    "status": 200,
+    "response": {
+      "following": true
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/store-follows/toggle",
+    "request": {
+      "seller_id": 23
+    },
+    "status": 200,
+    "response": {
+      "following": false
+    }
+  },
+  {
+    "account": "anonymous",
+    "method": "GET",
+    "route": "/products?search='%20OR%201%3D1%3B%20%3Cscript%3Ealert(1)%3C%2Fscript%3E",
+    "status": 200,
+    "response": {
+      "data": [
+        {
+          "id": 1,
+          "name": "Abaca Woven Tote Bag",
+          "description": "Handwoven abaca tote from Bicol weavers, lined with cotton, with an inside pocket. Available in natural and black, in three sizes.",
+          "category_id": 43,
+          "status": "active",
+          "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg",
+          "base_price": 199,
+          "original_price": null,
+          "units_sold": 0,
+          "avg_rating": null,
+          "review_count": 0,
+          "seller": {
+            "id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "city": "Quezon City",
+            "province": "Metro Manila (NCR)"
+          },
+          "variants": [
+            {
+              "id": 1,
+              "label": "Natural / S",
+              "price": 199,
+              "original_price": null,
+              "stock_quantity": 10,
+              "sku": "MCH-TOTE-NATURAL-S"
+            },
+            {
+              "id": 2,
+              "label": "Natural / M",
+              "price": 249,
+              "original_price": null,
+              "stock_quantity": 8,
+              "sku": "MCH-TOTE-NATURAL-M"
+            },
+            {
+              "id": 3,
+              "label": "Natural / L",
+              "price": 299,
+              "original_price": null,
+              "stock_quantity": 5,
+              "sku": "MCH-TOTE-NATURAL-L"
+            },
+            {
+              "id": 4,
+              "label": "Black / S",
+              "price": 199,
+              "original_price": null,
+              "stock_quantity": 10,
+              "sku": "MCH-TOTE-BLACK-S"
+            },
+            {
+              "id": 5,
+              "label": "Black / M",
+              "price": 249,
+              "original_price": null,
+              "stock_quantity": 0,
+              "sku": "MCH-TOTE-BLACK-M"
+            },
+            {
+              "id": 6,
+              "label": "Black / L",
+              "price": 299,
+              "original_price": null,
+              "stock_quantity": 3,
+              "sku": "MCH-TOTE-BLACK-L"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Rattan Fruit Basket",
+          "description": "Round rattan fruit basket, hand-woven in Quezon City. Sturdy, food safe and easy to clean.",
+          "category_id": 21,
+          "status": "active",
+          "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/eSZfUxirxgpde6ky397Os93e6C4KteCIeUrL4xSJ.jpg",
+          "base_price": 450,
+          "original_price": null,
+          "units_sold": 0,
+          "avg_rating": null,
+          "review_count": 0,
+          "seller": {
+            "id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "city": "Quezon City",
+            "province": "Metro Manila (NCR)"
+          },
+          "variants": [
+            {
+              "id": 7,
+              "label": "Standard",
+              "price": 450,
+              "original_price": null,
+              "stock_quantity": 20,
+              "sku": null
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "Capiz Shell Lamp",
+          "description": "Table lamp with a shade made of real capiz shells from Samar. Warm white light, with a 1.5 m cord.",
+          "category_id": 21,
+          "status": "active",
+          "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/0mxOIdQfoLPsIsBc18jaUP5DLvgcSuQdEGegMOLY.jpg",
+          "base_price": 1250,
+          "original_price": null,
+          "units_sold": 0,
+          "avg_rating": null,
+          "review_count": 0,
+          "seller": {
+            "id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "city": "Quezon City",
+            "province": "Metro Manila (NCR)"
+          },
+          "variants": [
+            {
+              "id": 8,
+              "label": "Standard",
+              "price": 1250,
+              "original_price": null,
+              "stock_quantity": 1,
+              "sku": null
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "Banig Placemat Set of 4",
+          "description": "Set of four woven banig placemats in assorted colours. Wipe clean with a damp cloth.",
+          "category_id": 23,
+          "status": "active",
+          "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/eyk7xByqtOKHvR12pO3NVL7hw0C1PqseGD3hvpqX.jpg",
+          "base_price": 350,
+          "original_price": null,
+          "units_sold": 0,
+          "avg_rating": null,
+          "review_count": 0,
+          "seller": {
+            "id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "city": "Quezon City",
+            "province": "Metro Manila (NCR)"
+          },
+          "variants": [
+            {
+              "id": 9,
+              "label": "Set of 4",
+              "price": 350,
+              "original_price": null,
+              "stock_quantity": 0,
+              "sku": null
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "name": "USB-C Fast Charger 20W",
+          "description": "20W USB-C power delivery wall charger with overheating protection. Works with phones and tablets.",
+          "category_id": 5,
+          "status": "active",
+          "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/FkUIzpxcqr43cL3Lz8bTOrvZdsO5wNmYLNLO08t9.jpg",
+          "base_price": 399,
+          "original_price": null,
+          "units_sold": 0,
+          "avg_rating": null,
+          "review_count": 0,
+          "seller": {
+            "id": 46,
+            "shop_name": "RV Gadget Hub",
+            "city": "City of Cebu",
+            "province": "Cebu"
+          },
+          "variants": [
+            {
+              "id": 10,
+              "label": "Standard",
+              "price": 399,
+              "original_price": null,
+              "stock_quantity": 50,
+              "sku": null
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "name": "Wireless Earbuds X2",
+          "description": "True wireless earbuds with a charging case, touch controls and up to 20 hours of play time.",
+          "category_id": 4,
+          "status": "active",
+          "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/7Z4Unl9HDEKYP3YjJp5DmKCu44YrYxPupDY0uRaO.jpg",
+          "base_price": 1499,
+          "original_price": null,
+          "units_sold": 0,
+          "avg_rating": null,
+          "review_count": 0,
+          "seller": {
+            "id": 46,
+            "shop_name": "RV Gadget Hub",
+            "city": "City of Cebu",
+            "province": "Cebu"
+          },
+          "variants": [
+            {
+              "id": 11,
+              "label": "Black",
+              "price": 1499,
+              "original_price": null,
+              "stock_quantity": 10,
+              "sku": null
+            },
+            {
+              "id": 12,
+              "label": "White",
+              "price": 1499,
+              "original_price": null,
+              "stock_quantity": 10,
+              "sku": null
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "name": "Power Bank 10000mAh",
+          "description": "Slim 10000mAh power bank with USB-C in and out and a battery level display.",
+          "category_id": 5,
+          "status": "active",
+          "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/JZFklTpykdNugpFXfsTSvfbJkyzByKmCzDL3dZQF.jpg",
+          "base_price": 899,
+          "original_price": null,
+          "units_sold": 0,
+          "avg_rating": null,
+          "review_count": 0,
+          "seller": {
+            "id": 46,
+            "shop_name": "RV Gadget Hub",
+            "city": "City of Cebu",
+            "province": "Cebu"
+          },
+          "variants": [
+            {
+              "id": 13,
+              "label": "Standard",
+              "price": 899,
+              "original_price": null,
+              "stock_quantity": 5,
+              "sku": null
+            }
+          ]
+        }
+      ],
+      "related_shops": [],
+      "search": null,
+      "meta": {
+        "current_page": 1,
+        "last_page": 1,
+        "per_page": 28,
+        "total": 7,
+        "from": 1,
+        "to": 7
+      },
+      "facets": {
+        "sellers": [
+          {
+            "id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "count": 4
+          },
+          {
+            "id": 46,
+            "shop_name": "RV Gadget Hub",
+            "count": 3
+          }
+        ],
+        "locations": [
+          {
+            "key": "Domestic",
+            "name": "Domestic",
+            "count": 7
+          },
+          {
+            "key": "Metro Manila",
+            "name": "Metro Manila",
+            "count": 4
+          },
+          {
+            "key": "North Luzon",
+            "name": "North Luzon",
+            "count": 0
+          },
+          {
+            "key": "South Luzon",
+            "name": "South Luzon",
+            "count": 0
+          },
+          {
+            "key": "Visayas",
+            "name": "Visayas",
+            "count": 0
+          },
+          {
+            "key": "Mindanao",
+            "name": "Mindanao",
+            "count": 0
+          }
+        ],
+        "provinces": [
+          {
+            "key": "Domestic",
+            "name": "Domestic",
+            "count": 7
+          },
+          {
+            "key": "Metro Manila",
+            "name": "Metro Manila",
+            "count": 4
+          },
+          {
+            "key": "North Luzon",
+            "name": "North Luzon",
+            "count": 0
+          },
+          {
+            "key": "South Luzon",
+            "name": "South Luzon",
+            "count": 0
+          },
+          {
+            "key": "Visayas",
+            "name": "Visayas",
+            "count": 0
+          },
+          {
+            "key": "Mindanao",
+            "name": "Mindanao",
+            "count": 0
+          }
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/addresses",
+    "request": {
+      "full_name": "",
+      "phone": "09171234567",
+      "address": "12 Test St",
+      "province": "Bulacan",
+      "district": "Malolos",
+      "ward": "Atlag",
+      "province_code": "0301400000",
+      "city_code": "0301410000",
+      "barangay_code": "0301410001",
+      "label": "home"
+    },
+    "status": 422,
+    "response": {
+      "message": "The full name field is required.",
+      "errors": {
+        "full_name": [
+          "The full name field is required."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/addresses",
+    "request": {
+      "full_name": "Quick Test",
+      "phone": "",
+      "address": "12 Test St",
+      "province": "Bulacan",
+      "district": "Malolos",
+      "ward": "Atlag",
+      "province_code": "0301400000",
+      "city_code": "0301410000",
+      "barangay_code": "0301410001",
+      "label": "home"
+    },
+    "status": 422,
+    "response": {
+      "message": "The phone field is required.",
+      "errors": {
+        "phone": [
+          "The phone field is required."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/addresses",
+    "request": {
+      "full_name": "Quick Test",
+      "phone": "09171234567",
+      "address": "",
+      "province": "Bulacan",
+      "district": "Malolos",
+      "ward": "Atlag",
+      "province_code": "0301400000",
+      "city_code": "0301410000",
+      "barangay_code": "0301410001",
+      "label": "home"
+    },
+    "status": 422,
+    "response": {
+      "message": "The address field is required.",
+      "errors": {
+        "address": [
+          "The address field is required."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/addresses",
+    "request": {
+      "full_name": "Quick Test",
+      "phone": "09171234567",
+      "address": "12 Test St",
+      "province": "",
+      "district": "Malolos",
+      "ward": "Atlag",
+      "province_code": "0301400000",
+      "city_code": "0301410000",
+      "barangay_code": "0301410001",
+      "label": "home"
+    },
+    "status": 422,
+    "response": {
+      "message": "The province field is required.",
+      "errors": {
+        "province": [
+          "The province field is required."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/addresses",
+    "request": {
+      "full_name": "Quick Test",
+      "phone": "09171234567",
+      "address": "12 Test St",
+      "province": "Bulacan",
+      "district": "",
+      "ward": "Atlag",
+      "province_code": "0301400000",
+      "city_code": "0301410000",
+      "barangay_code": "0301410001",
+      "label": "home"
+    },
+    "status": 422,
+    "response": {
+      "message": "The district field is required.",
+      "errors": {
+        "district": [
+          "The district field is required."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/addresses",
+    "request": {
+      "full_name": "Quick Test",
+      "phone": "09171234567",
+      "address": "12 Test St",
+      "province": "Bulacan",
+      "district": "Malolos",
+      "ward": "",
+      "province_code": "0301400000",
+      "city_code": "0301410000",
+      "barangay_code": "0301410001",
+      "label": "home"
+    },
+    "status": 422,
+    "response": {
+      "message": "The ward field is required.",
+      "errors": {
+        "ward": [
+          "The ward field is required."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/addresses",
+    "request": {
+      "full_name": "Quick Test",
+      "phone": "abc",
+      "address": "12 Test St",
+      "province": "Bulacan",
+      "district": "Malolos",
+      "ward": "Atlag",
+      "province_code": "0301400000",
+      "city_code": "0301410000",
+      "barangay_code": "0301410001",
+      "label": "home"
+    },
+    "status": 201,
+    "response": {
+      "data": {
+        "full_name": "Quick Test",
+        "phone": "abc",
+        "address": "12 Test St",
+        "province": "Bulacan",
+        "district": "Malolos",
+        "ward": "Atlag",
+        "province_code": "0301400000",
+        "city_code": "0301410000",
+        "barangay_code": "0301410001",
+        "label": "home",
+        "user_id": 2,
+        "updated_at": "2026-10-17T18:19:02.000000Z",
+        "created_at": "2026-10-17T18:19:02.000000Z",
+        "id": 110,
+        "address_needs_update": false
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "DELETE",
+    "route": "/addresses/110",
+    "status": 204,
+    "response": ""
+  },
+  {
+    "account": "buyer2",
+    "method": "GET",
+    "route": "/addresses",
+    "status": 200,
+    "response": {
+      "data": [
+        {
+          "id": 90,
+          "user_id": 19,
+          "full_name": "Ana Marie Reyes",
+          "phone": "09173456789",
+          "address": "78 Osmeña Blvd.",
+          "floor_unit": null,
+          "province": "Cebu",
+          "district": "City of Cebu",
+          "ward": "Capitol Site (Pob.)",
+          "province_code": "072200000",
+          "city_code": "072217000",
+          "barangay_code": "072217020",
+          "label": "home",
+          "is_default": true,
+          "created_at": "2026-10-17T16:34:56.000000Z",
+          "updated_at": "2026-10-17T16:34:56.000000Z",
+          "address_needs_update": false
+        }
+      ]
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "PATCH",
+    "route": "/addresses/90",
+    "request": {
+      "full_name": "Unauthorized test"
+    },
+    "status": 403,
+    "response": {
+      "message": ""
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "DELETE",
+    "route": "/addresses/90",
+    "status": 403,
+    "response": {
+      "message": ""
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "GET",
+    "route": "/seller/shop-profile",
+    "status": 200,
+    "response": {
+      "data": {
+        "shop_name": "Maria Clara Handicrafts",
+        "shop_slug": "maria-clara-handicrafts",
+        "shop_category": null,
+        "shop_description": "Handmade home and living pieces from Quezon City.",
+        "shop_bio": null,
+        "address_province": "Metro Manila (NCR)",
+        "address_city": "Quezon City",
+        "address_barangay": "Commonwealth",
+        "address_street": "Blk 12 Lot 8, Sampaguita St.",
+        "address_province_code": "130000000",
+        "address_city_code": "137404000",
+        "address_barangay_code": "137404022",
+        "address_needs_update": false,
+        "shop_contact_number": null,
+        "return_policy": null,
+        "shipping_policy": null,
+        "business_hours": null,
+        "response_time": null,
+        "logo_url": null,
+        "banner_url": null,
+        "application_status": "approved",
+        "submitted_at": "2026-10-17T16:00:43.000000Z",
+        "reviewed_at": "2026-10-17T16:24:56.000000Z",
+        "created_at": "2026-10-17T16:00:43.000000Z",
+        "avg_rating": null,
+        "total_products": 4,
+        "follower_count": 0
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "POST",
+    "route": "/seller/shop-profile",
+    "request": {
+      "shop_name": "     "
+    },
+    "status": 422,
+    "response": {
+      "message": "The shop name field must be a string.",
+      "errors": {
+        "shop_name": [
+          "The shop name field must be a string."
+        ]
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "GET",
+    "route": "/seller/shop-profile",
+    "status": 200,
+    "response": {
+      "data": {
+        "shop_name": "Maria Clara Handicrafts",
+        "shop_slug": "maria-clara-handicrafts",
+        "shop_category": null,
+        "shop_description": "Handmade home and living pieces from Quezon City.",
+        "shop_bio": null,
+        "address_province": "Metro Manila (NCR)",
+        "address_city": "Quezon City",
+        "address_barangay": "Commonwealth",
+        "address_street": "Blk 12 Lot 8, Sampaguita St.",
+        "address_province_code": "130000000",
+        "address_city_code": "137404000",
+        "address_barangay_code": "137404022",
+        "address_needs_update": false,
+        "shop_contact_number": null,
+        "return_policy": null,
+        "shipping_policy": null,
+        "business_hours": null,
+        "response_time": null,
+        "logo_url": null,
+        "banner_url": null,
+        "application_status": "approved",
+        "submitted_at": "2026-10-17T16:00:43.000000Z",
+        "reviewed_at": "2026-10-17T16:24:56.000000Z",
+        "created_at": "2026-10-17T16:00:43.000000Z",
+        "avg_rating": null,
+        "total_products": 4,
+        "follower_count": 0
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "GET",
+    "route": "/seller/shop-profile",
+    "status": 200,
+    "response": {
+      "data": {
+        "shop_name": "Maria Clara Handicrafts",
+        "shop_slug": "maria-clara-handicrafts",
+        "shop_category": null,
+        "shop_description": "Handmade home and living pieces from Quezon City.",
+        "shop_bio": null,
+        "address_province": "Metro Manila (NCR)",
+        "address_city": "Quezon City",
+        "address_barangay": "Commonwealth",
+        "address_street": "Blk 12 Lot 8, Sampaguita St.",
+        "address_province_code": "130000000",
+        "address_city_code": "137404000",
+        "address_barangay_code": "137404022",
+        "address_needs_update": false,
+        "shop_contact_number": null,
+        "return_policy": null,
+        "shipping_policy": null,
+        "business_hours": null,
+        "response_time": null,
+        "logo_url": null,
+        "banner_url": null,
+        "application_status": "approved",
+        "submitted_at": "2026-10-17T16:00:43.000000Z",
+        "reviewed_at": "2026-10-17T16:24:56.000000Z",
+        "created_at": "2026-10-17T16:00:43.000000Z",
+        "avg_rating": null,
+        "total_products": 4,
+        "follower_count": 0
+      }
+    }
+  },
+  {
+    "account": "seller2",
+    "method": "GET",
+    "route": "/seller/shop-profile",
+    "status": 200,
+    "response": {
+      "data": {
+        "shop_name": "RV Gadget Hub",
+        "shop_slug": "rv-gadget-hub",
+        "shop_category": null,
+        "shop_description": "Phones, chargers and gadgets from Cebu City.",
+        "shop_bio": null,
+        "address_province": "Cebu",
+        "address_city": "City of Cebu",
+        "address_barangay": "Lahug (Pob.)",
+        "address_street": "2F, 45 Gorordo Ave.",
+        "address_province_code": "072200000",
+        "address_city_code": "072217000",
+        "address_barangay_code": "072217041",
+        "address_needs_update": false,
+        "shop_contact_number": null,
+        "return_policy": null,
+        "shipping_policy": null,
+        "business_hours": null,
+        "response_time": null,
+        "logo_url": null,
+        "banner_url": null,
+        "application_status": "approved",
+        "submitted_at": "2026-10-17T16:34:09.000000Z",
+        "reviewed_at": "2026-10-17T16:34:44.000000Z",
+        "created_at": "2026-10-17T16:30:53.000000Z",
+        "avg_rating": null,
+        "total_products": 3,
+        "follower_count": 0
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "POST",
+    "route": "/seller/shop-profile",
+    "request": {
+      "shop_name": "RV Gadget Hub"
+    },
+    "status": 422,
+    "response": {
+      "message": "The shop name has already been taken.",
+      "errors": {
+        "shop_name": [
+          "The shop name has already been taken."
+        ]
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "POST",
+    "route": "/seller/shop-profile",
+    "request": {
+      "shop_name": "rv gadget hub"
+    },
+    "status": 422,
+    "response": {
+      "message": "The shop name has already been taken.",
+      "errors": {
+        "shop_name": [
+          "The shop name has already been taken."
+        ]
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "POST",
+    "route": "/seller/shop-profile",
+    "request": {
+      "shop_name": "  RV Gadget Hub  "
+    },
+    "status": 422,
+    "response": {
+      "message": "The shop name has already been taken.",
+      "errors": {
+        "shop_name": [
+          "The shop name has already been taken."
+        ]
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "GET",
+    "route": "/seller/shop-profile",
+    "status": 200,
+    "response": {
+      "data": {
+        "shop_name": "Maria Clara Handicrafts",
+        "shop_slug": "maria-clara-handicrafts",
+        "shop_category": null,
+        "shop_description": "Handmade home and living pieces from Quezon City.",
+        "shop_bio": null,
+        "address_province": "Metro Manila (NCR)",
+        "address_city": "Quezon City",
+        "address_barangay": "Commonwealth",
+        "address_street": "Blk 12 Lot 8, Sampaguita St.",
+        "address_province_code": "130000000",
+        "address_city_code": "137404000",
+        "address_barangay_code": "137404022",
+        "address_needs_update": false,
+        "shop_contact_number": null,
+        "return_policy": null,
+        "shipping_policy": null,
+        "business_hours": null,
+        "response_time": null,
+        "logo_url": null,
+        "banner_url": null,
+        "application_status": "approved",
+        "submitted_at": "2026-10-17T16:00:43.000000Z",
+        "reviewed_at": "2026-10-17T16:24:56.000000Z",
+        "created_at": "2026-10-17T16:00:43.000000Z",
+        "avg_rating": null,
+        "total_products": 4,
+        "follower_count": 0
+      }
+    }
+  },
+  {
+    "account": "seller2",
+    "method": "POST",
+    "route": "/seller/products/1",
+    "request": {
+      "name": "Unauthorized test"
+    },
+    "status": 403,
+    "response": {
+      "message": ""
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "GET",
+    "route": "/seller/orders",
+    "status": 200,
+    "response": {
+      "data": [],
+      "meta": {
+        "current_page": 1,
+        "last_page": 1,
+        "total": 0
+      },
+      "counts": {
+        "pending_verification": 0,
+        "to_ship": 0
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "GET",
+    "route": "/seller/reports/summary?from=2026-10-01&to=2026-10-18",
+    "status": 200,
+    "response": {
+      "data": {
+        "gross_sales": 0,
+        "net_earnings": 0,
+        "commission_paid": 0,
+        "total_orders": 0,
+        "delivered_orders": 0,
+        "units_sold": 0
+      }
+    }
+  },
+  {
+    "account": "logistics1",
+    "method": "GET",
+    "route": "/logistics/dashboard",
+    "status": 200,
+    "response": {
+      "data": {
+        "hubs": {
+          "approved": 2,
+          "pending": 0,
+          "suspended": 0,
+          "rejected": 0
+        },
+        "riders": {
+          "active": 0,
+          "pending": 6
+        },
+        "parcels_now": {
+          "awaiting_pickup": 0,
+          "at_hubs": 0,
+          "out_for_delivery": 0,
+          "failed": 0
+        },
+        "last_30_days": {
+          "delivered": 0,
+          "returned": 0
+        }
+      }
+    }
+  },
+  {
+    "account": "logistics1",
+    "method": "GET",
+    "route": "/logistics/riders",
+    "status": 200,
+    "response": {
+      "data": [
+        {
+          "id": 6,
+          "name": "Mark Anthony Bautista",
+          "email": "markanthony.bautista@gmail.com",
+          "phone": "+639662345678",
+          "avatar_url": "http://127.0.0.1:8010/storage/avatars/lQZf3exU1OBFIoC8fJ0UFV5QfQo4cHs7x4mlX91n.jpg",
+          "status": "PENDING",
+          "vehicle_type": "Van",
+          "plate_number": "NBC1234",
+          "hub_id": 1,
+          "hub_name": "Bilis Hatid Pasig Hub",
+          "account_status": "active"
+        },
+        {
+          "id": 5,
+          "name": "Test Rider",
+          "email": "qa.acct_rider.105@gmail.com",
+          "phone": "+639531000105",
+          "avatar_url": "http://127.0.0.1:8010/storage/avatars/Enp6cM4xSObo0jRBsimPjzq30eGccCB6AR075yHw.jpg",
+          "status": "PENDING",
+          "vehicle_type": "Motorcycle",
+          "plate_number": "TYP 103",
+          "hub_id": 1,
+          "hub_name": "Bilis Hatid Pasig Hub",
+          "account_status": "active"
+        },
+        {
+          "id": 4,
+          "name": "Test Rider",
+          "email": "qa.acct_rider.104@gmail.com",
+          "phone": "+639531000104",
+          "avatar_url": "http://127.0.0.1:8010/storage/avatars/Ivxu06l4muk1a4UdYFdB0GnTa5MrWAul3Rxf4XXV.jpg",
+          "status": "PENDING",
+          "vehicle_type": "Motorcycle",
+          "plate_number": "123ABC",
+          "hub_id": 1,
+          "hub_name": "Bilis Hatid Pasig Hub",
+          "account_status": "active"
+        },
+        {
+          "id": 3,
+          "name": "Ramon Cruz",
+          "email": "rider.test01@gmail.com",
+          "phone": "+639591000101",
+          "avatar_url": "http://127.0.0.1:8010/storage/avatars/pp4Hu9bUIWNPLQ7WpzfSdFz98UJmQQaFfxBycHEB.jpg",
+          "status": "PENDING",
+          "vehicle_type": "Motorcycle",
+          "plate_number": "456DEF",
+          "hub_id": 1,
+          "hub_name": "Bilis Hatid Pasig Hub",
+          "account_status": "active"
+        },
+        {
+          "id": 2,
+          "name": "Pedro Jose Garcia",
+          "email": "pedrojose.garcia@gmail.com",
+          "phone": "+639451239876",
+          "avatar_url": "http://127.0.0.1:8010/storage/avatars/wLs4wYtYypPHxkHs5QYEcFMRx3BNaQvd8FXIzH2C.jpg",
+          "status": "PENDING",
+          "vehicle_type": "Motorcycle",
+          "plate_number": "123ABC",
+          "hub_id": 1,
+          "hub_name": "Bilis Hatid Pasig Hub",
+          "account_status": "active"
+        },
+        {
+          "id": 1,
+          "name": "Test Rider",
+          "email": "qa.acct_rider.103@gmail.com",
+          "phone": "+639531000103",
+          "avatar_url": "http://127.0.0.1:8010/storage/avatars/UcudXLmWRO4dTtOTL0ocwn8wTE8rHfRlqAoBI2pd.jpg",
+          "status": "PENDING",
+          "vehicle_type": "Motorcycle",
+          "plate_number": "TEST 102",
+          "hub_id": 1,
+          "hub_name": "Bilis Hatid Pasig Hub",
+          "account_status": "active"
+        }
+      ]
+    }
+  },
+  {
+    "account": "rider1",
+    "method": "GET",
+    "route": "/rider/me",
+    "status": 403,
+    "response": {
+      "message": "Your rider application is currently pending hub approval."
+    }
+  },
+  {
+    "account": "rider1",
+    "method": "GET",
+    "route": "/rider/history",
+    "status": 403,
+    "response": {
+      "message": "Your rider application is currently pending hub approval."
+    }
+  },
+  {
+    "account": "rider1",
+    "method": "GET",
+    "route": "/rider/earnings/summary",
+    "status": 403,
+    "response": {
+      "message": "Your rider application is currently pending hub approval."
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "GET",
+    "route": "/buyer/orders",
+    "status": 200,
+    "response": {
+      "data": [],
+      "meta": {
+        "current_page": 1,
+        "last_page": 1,
+        "total": 0
+      }
+    }
+  },
+  {
+    "account": "rider1",
+    "method": "GET",
+    "route": "/rider/me",
+    "status": 403,
+    "response": {
+      "message": "Your rider application is currently pending hub approval."
+    }
+  },
+  {
+    "account": "rider2",
+    "method": "GET",
+    "route": "/rider/me",
+    "status": 403,
+    "response": {
+      "message": "Your rider application is currently pending hub approval."
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "GET",
+    "route": "/products/1",
+    "status": 200,
+    "response": {
+      "data": {
+        "id": 1,
+        "name": "Abaca Woven Tote Bag",
+        "description": "Handwoven abaca tote from Bicol weavers, lined with cotton, with an inside pocket. Available in natural and black, in three sizes.",
+        "category_id": 43,
+        "status": "active",
+        "thumbnail_url": "http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg",
+        "base_price": 199,
+        "original_price": null,
+        "units_sold": 0,
+        "avg_rating": null,
+        "review_count": 0,
+        "seller": {
+          "id": 23,
+          "shop_name": "Maria Clara Handicrafts",
+          "shop_slug": "maria-clara-handicrafts",
+          "product_count": 4,
+          "avg_rating": null,
+          "joined_at": "2026-10-17T16:24:56+00:00",
+          "avatar_url": null,
+          "city": "Quezon City",
+          "province": "Metro Manila (NCR)",
+          "rating_pct": null,
+          "units_sold": 0,
+          "repurchase_rate": null,
+          "response_rate": null,
+          "return_policy": null,
+          "shipping_policy": null
+        },
+        "variants": [
+          {
+            "id": 1,
+            "label": "Natural / S",
+            "price": 199,
+            "original_price": null,
+            "stock_quantity": 10,
+            "sku": "MCH-TOTE-NATURAL-S"
+          },
+          {
+            "id": 2,
+            "label": "Natural / M",
+            "price": 249,
+            "original_price": null,
+            "stock_quantity": 8,
+            "sku": "MCH-TOTE-NATURAL-M"
+          },
+          {
+            "id": 3,
+            "label": "Natural / L",
+            "price": 299,
+            "original_price": null,
+            "stock_quantity": 5,
+            "sku": "MCH-TOTE-NATURAL-L"
+          },
+          {
+            "id": 4,
+            "label": "Black / S",
+            "price": 199,
+            "original_price": null,
+            "stock_quantity": 10,
+            "sku": "MCH-TOTE-BLACK-S"
+          },
+          {
+            "id": 5,
+            "label": "Black / M",
+            "price": 249,
+            "original_price": null,
+            "stock_quantity": 0,
+            "sku": "MCH-TOTE-BLACK-M"
+          },
+          {
+            "id": 6,
+            "label": "Black / L",
+            "price": 299,
+            "original_price": null,
+            "stock_quantity": 3,
+            "sku": "MCH-TOTE-BLACK-L"
+          }
+        ],
+        "discount_percent": null,
+        "category": {
+          "slug": "bags-wallets",
+          "name": "Bags & Wallets",
+          "parent": {
+            "slug": "bags-accessories",
+            "name": "Bags & Accessories"
+          }
+        },
+        "images": [
+          {
+            "id": 1,
+            "url": "http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg",
+            "is_primary": true,
+            "sort_order": 0
+          }
+        ],
+        "variant_groups": [
+          {
+            "name": "Variation 1",
+            "options": [
+              {
+                "id": 370351491,
+                "label": "Natural",
+                "stock_quantity": 23,
+                "price": 199,
+                "original_price": null,
+                "sku": "MCH-TOTE-NATURAL-S"
+              },
+              {
+                "id": 145498898,
+                "label": "Black",
+                "stock_quantity": 13,
+                "price": 199,
+                "original_price": null,
+                "sku": "MCH-TOTE-BLACK-S"
+              }
+            ]
+          },
+          {
+            "name": "Variation 2",
+            "options": [
+              {
+                "id": 1825209646,
+                "label": "S",
+                "stock_quantity": 20,
+                "price": 199,
+                "original_price": null,
+                "sku": "MCH-TOTE-NATURAL-S"
+              },
+              {
+                "id": 382025805,
+                "label": "M",
+                "stock_quantity": 8,
+                "price": 249,
+                "original_price": null,
+                "sku": "MCH-TOTE-NATURAL-M"
+              },
+              {
+                "id": 1640132827,
+                "label": "L",
+                "stock_quantity": 8,
+                "price": 299,
+                "original_price": null,
+                "sku": "MCH-TOTE-NATURAL-L"
+              }
+            ]
+          }
+        ],
+        "specs": {
+          "description": "Handwoven abaca tote from Bicol weavers, lined with cotton, with an inside pocket. Available in natural and black, in three sizes.",
+          "whats_in_box": null,
+          "weight_grams": 400,
+          "dimensions_cm": "40 × 35 × 5",
+          "sku": null,
+          "ingredients": null,
+          "net_weight_volume": null,
+          "storage_instructions": null,
+          "expiry_best_before": null,
+          "allergen_info": null,
+          "fda_registration_number": null,
+          "key_ingredients": null,
+          "skin_type_suitability": null,
+          "battery_info": null,
+          "ports_connectivity": null,
+          "compatibility": null,
+          "material": null,
+          "care_instructions": null,
+          "size_chart_url": null
+        },
+        "shipping_fee": null,
+        "estimated_delivery_days_min": 3,
+        "estimated_delivery_days_max": 7,
+        "return_policy": null,
+        "shipping_policy": null,
+        "warranty": null,
+        "is_wishlisted": false
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/checkout/place-order",
+    "request": {
+      "payment_method": "cod",
+      "shipping_name": "Juan Miguel Dela Cruz",
+      "shipping_phone": "09171234567",
+      "shipping_address": "45 Kalayaan Ave.",
+      "shipping_province": "Metro Manila",
+      "shipping_city": "Quezon City",
+      "shipping_barangay": "Central",
+      "shipping_province_code": "130000000",
+      "shipping_city_code": "137404000",
+      "shipping_barangay_code": "137404020",
+      "items": [
+        {
+          "product_id": 1,
+          "variant_id": 1,
+          "quantity": 1,
+          "unit_price": 0,
+          "price": 0
+        }
+      ],
+      "total": 0,
+      "subtotal": 0
+    },
+    "status": 201,
+    "response": {
+      "message": "Order placed successfully!",
+      "data": {
+        "id": 1,
+        "checkout_group_id": "ee4e14d9-40b5-49a3-91e4-43409baf8282",
+        "order_number": "VEL-MBV1-261017182000",
+        "tracking_number": null,
+        "courier": {
+          "id": 3,
+          "name": "Bilis Hatid Express Inc.",
+          "code": "BHE",
+          "logo_url": null
+        },
+        "status": "PLACED",
+        "payment_method": "cod",
+        "payment_status": "pending",
+        "payment_reference": null,
+        "payment_proof_url": null,
+        "payment_verified_at": null,
+        "rejection_reason": null,
+        "subtotal": 199,
+        "shipping_fee": 50,
+        "free_delivery": false,
+        "settlement": "direct",
+        "total": 249,
+        "shipping_name": "Juan Miguel Dela Cruz",
+        "shipping_phone": "09171234567",
+        "shipping_address": "45 Kalayaan Ave.",
+        "shipping_province": "Metro Manila",
+        "shipping_city": "Quezon City",
+        "shipping_barangay": "Central",
+        "notes": null,
+        "created_at": "2026-10-17T18:20:00+00:00",
+        "delivered_at": null,
+        "auto_complete_at": null,
+        "completed_at": null,
+        "delivery_proof_available": false,
+        "delivery_proof_count": 0,
+        "items": [
+          {
+            "id": 1,
+            "product_id": 1,
+            "seller_id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "product_name": "Abaca Woven Tote Bag",
+            "variant_label": "Natural / S",
+            "unit_price": 199,
+            "quantity": 1,
+            "subtotal": 199,
+            "image_url": "http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg"
+          }
+        ],
+        "dispute": null,
+        "status_history": [
+          {
+            "id": 1,
+            "from_status": null,
+            "to_status": "PLACED",
+            "actor_type": "buyer",
+            "note": "Order placed by customer",
+            "created_at": "2026-10-17T18:20:00+00:00"
+          }
+        ]
+      },
+      "orders": [
+        {
+          "id": 1,
+          "checkout_group_id": "ee4e14d9-40b5-49a3-91e4-43409baf8282",
+          "order_number": "VEL-MBV1-261017182000",
+          "tracking_number": null,
+          "courier": {
+            "id": 3,
+            "name": "Bilis Hatid Express Inc.",
+            "code": "BHE",
+            "logo_url": null
+          },
+          "status": "PLACED",
+          "payment_method": "cod",
+          "payment_status": "pending",
+          "payment_reference": null,
+          "payment_proof_url": null,
+          "payment_verified_at": null,
+          "rejection_reason": null,
+          "subtotal": 199,
+          "shipping_fee": 50,
+          "free_delivery": false,
+          "settlement": "direct",
+          "total": 249,
+          "shipping_name": "Juan Miguel Dela Cruz",
+          "shipping_phone": "09171234567",
+          "shipping_address": "45 Kalayaan Ave.",
+          "shipping_province": "Metro Manila",
+          "shipping_city": "Quezon City",
+          "shipping_barangay": "Central",
+          "notes": null,
+          "created_at": "2026-10-17T18:20:00+00:00",
+          "delivered_at": null,
+          "auto_complete_at": null,
+          "completed_at": null,
+          "delivery_proof_available": false,
+          "delivery_proof_count": 0,
+          "items": [
+            {
+              "id": 1,
+              "product_id": 1,
+              "seller_id": 23,
+              "shop_name": "Maria Clara Handicrafts",
+              "product_name": "Abaca Woven Tote Bag",
+              "variant_label": "Natural / S",
+              "unit_price": 199,
+              "quantity": 1,
+              "subtotal": 199,
+              "image_url": "http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg"
+            }
+          ],
+          "dispute": null,
+          "status_history": [
+            {
+              "id": 1,
+              "from_status": null,
+              "to_status": "PLACED",
+              "actor_type": "buyer",
+              "note": "Order placed by customer",
+              "created_at": "2026-10-17T18:20:00+00:00"
+            }
+          ]
+        }
+      ],
+      "checkout_group_id": "ee4e14d9-40b5-49a3-91e4-43409baf8282"
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "GET",
+    "route": "/buyer/orders/1",
+    "status": 200,
+    "response": {
+      "data": {
+        "id": 1,
+        "checkout_group_id": "ee4e14d9-40b5-49a3-91e4-43409baf8282",
+        "order_number": "VEL-MBV1-261017182000",
+        "tracking_number": null,
+        "courier": {
+          "id": 3,
+          "name": "Bilis Hatid Express Inc.",
+          "code": "BHE",
+          "logo_url": null
+        },
+        "status": "PLACED",
+        "payment_method": "cod",
+        "payment_status": "pending",
+        "payment_reference": null,
+        "payment_proof_url": null,
+        "payment_verified_at": null,
+        "rejection_reason": null,
+        "subtotal": 199,
+        "shipping_fee": 50,
+        "free_delivery": false,
+        "settlement": "direct",
+        "total": 249,
+        "shipping_name": "Juan Miguel Dela Cruz",
+        "shipping_phone": "09171234567",
+        "shipping_address": "45 Kalayaan Ave.",
+        "shipping_province": "Metro Manila",
+        "shipping_city": "Quezon City",
+        "shipping_barangay": "Central",
+        "notes": null,
+        "created_at": "2026-10-17T18:20:00+00:00",
+        "delivered_at": null,
+        "auto_complete_at": null,
+        "completed_at": null,
+        "delivery_proof_available": false,
+        "delivery_proof_count": 0,
+        "items": [
+          {
+            "id": 1,
+            "product_id": 1,
+            "seller_id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "product_name": "Abaca Woven Tote Bag",
+            "variant_label": "Natural / S",
+            "unit_price": 199,
+            "quantity": 1,
+            "subtotal": 199,
+            "image_url": "http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg"
+          }
+        ],
+        "dispute": null,
+        "status_history": [
+          {
+            "id": 1,
+            "from_status": null,
+            "to_status": "PLACED",
+            "actor_type": "buyer",
+            "note": "Order placed by customer",
+            "created_at": "2026-10-17T18:20:00+00:00"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer2",
+    "method": "GET",
+    "route": "/buyer/orders/1",
+    "status": 403,
+    "response": {
+      "message": ""
+    }
+  },
+  {
+    "account": "seller2",
+    "method": "GET",
+    "route": "/seller/orders/1",
+    "status": 403,
+    "response": {
+      "message": ""
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/buyer/orders/1/confirm-receipt",
+    "request": {},
+    "status": 409,
+    "response": {
+      "message": "You can confirm receipt once the order has been delivered."
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/buyer/orders/1/request-return",
+    "request": {
+      "reason": "Quick test before delivery",
+      "description": "Item has not arrived"
+    },
+    "status": 200,
+    "response": {
+      "message": "Return request submitted successfully. The seller will review within 48 hours.",
+      "data": {
+        "id": 1,
+        "checkout_group_id": "ee4e14d9-40b5-49a3-91e4-43409baf8282",
+        "order_number": "VEL-MBV1-261017182000",
+        "tracking_number": null,
+        "courier": {
+          "id": 3,
+          "name": "Bilis Hatid Express Inc.",
+          "code": "BHE",
+          "logo_url": null
+        },
+        "status": "DISPUTED",
+        "payment_method": "cod",
+        "payment_status": "pending",
+        "payment_reference": null,
+        "payment_proof_url": null,
+        "payment_verified_at": null,
+        "rejection_reason": null,
+        "subtotal": 199,
+        "shipping_fee": 50,
+        "free_delivery": false,
+        "settlement": "direct",
+        "total": 249,
+        "shipping_name": "Juan Miguel Dela Cruz",
+        "shipping_phone": "09171234567",
+        "shipping_address": "45 Kalayaan Ave.",
+        "shipping_province": "Metro Manila",
+        "shipping_city": "Quezon City",
+        "shipping_barangay": "Central",
+        "notes": null,
+        "created_at": "2026-10-17T18:20:00+00:00",
+        "delivered_at": null,
+        "auto_complete_at": null,
+        "completed_at": null,
+        "delivery_proof_available": false,
+        "delivery_proof_count": 0,
+        "items": [
+          {
+            "id": 1,
+            "product_id": 1,
+            "seller_id": 23,
+            "shop_name": "Maria Clara Handicrafts",
+            "product_name": "Abaca Woven Tote Bag",
+            "variant_label": "Natural / S",
+            "unit_price": 199,
+            "quantity": 1,
+            "subtotal": 199,
+            "image_url": "http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg"
+          }
+        ],
+        "dispute": {
+          "id": 1,
+          "reason": "Quick test before delivery",
+          "description": "Item has not arrived",
+          "status": "open",
+          "resolution_note": null,
+          "resolved_at": null
+        },
+        "status_history": [
+          {
+            "id": 1,
+            "from_status": null,
+            "to_status": "PLACED",
+            "actor_type": "buyer",
+            "note": "Order placed by customer",
+            "created_at": "2026-10-17T18:20:00+00:00"
+          },
+          {
+            "id": 2,
+            "from_status": "PLACED",
+            "to_status": "DISPUTED",
+            "actor_type": "buyer",
+            "note": "Return requested: Quick test before delivery",
+            "created_at": "2026-10-17T18:20:02+00:00"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "PATCH",
+    "route": "/seller/orders/1/status",
+    "request": {
+      "status": "ready_for_pickup"
+    },
+    "status": 422,
+    "response": {
+      "message": "Cannot transition order from DISPUTED to READY_FOR_PICKUP."
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "PATCH",
+    "route": "/seller/orders/1/status",
+    "request": {
+      "status": "confirmed"
+    },
+    "status": 422,
+    "response": {
+      "message": "Cannot transition order from DISPUTED to CONFIRMED."
+    }
+  },
+  {
+    "account": "seller1",
+    "method": "GET",
+    "route": "/seller/orders/1/waybill",
+    "status": 409,
+    "response": {
+      "message": "Waybill cannot be generated: parcel has not been created yet. Mark the order as Ready for Pickup first."
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/checkout/place-order",
+    "request": {
+      "payment_method": "cod",
+      "shipping_name": "Juan Miguel Dela Cruz",
+      "shipping_phone": "09171234567",
+      "shipping_address": "45 Kalayaan Ave.",
+      "shipping_province": "Metro Manila",
+      "shipping_city": "Quezon City",
+      "shipping_barangay": "Central",
+      "shipping_province_code": "130000000",
+      "shipping_city_code": "137404000",
+      "shipping_barangay_code": "137404020",
+      "items": [
+        {
+          "product_id": 1,
+          "variant_id": 1,
+          "quantity": 1
+        }
+      ],
+      "notes": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "status": 422,
+    "response": {
+      "message": "The notes field must not be greater than 500 characters.",
+      "errors": {
+        "notes": [
+          "The notes field must not be greater than 500 characters."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/checkout/place-order",
+    "request": {
+      "payment_method": "",
+      "shipping_name": "Juan Miguel Dela Cruz",
+      "shipping_phone": "09171234567",
+      "shipping_address": "45 Kalayaan Ave.",
+      "shipping_province": "Metro Manila",
+      "shipping_city": "Quezon City",
+      "shipping_barangay": "Central",
+      "shipping_province_code": "130000000",
+      "shipping_city_code": "137404000",
+      "shipping_barangay_code": "137404020",
+      "items": [
+        {
+          "product_id": 1,
+          "variant_id": 1,
+          "quantity": 1
+        }
+      ]
+    },
+    "status": 422,
+    "response": {
+      "message": "The payment method field is required.",
+      "errors": {
+        "payment_method": [
+          "The payment method field is required."
+        ]
+      }
+    }
+  },
+  {
+    "account": "buyer1",
+    "method": "POST",
+    "route": "/checkout/place-order",
+    "request": {
+      "payment_method": "cod",
+      "shipping_name": "Juan Miguel Dela Cruz",
+      "shipping_phone": "09171234567",
+      "shipping_address": "45 Kalayaan Ave.",
+      "shipping_province": "Metro Manila",
+      "shipping_city": "Quezon City",
+      "shipping_barangay": "Central",
+      "shipping_province_code": "130000000",
+      "shipping_city_code": "137404000",
+      "shipping_barangay_code": "137404020",
+      "items": [
+        {
+          "product_id": 1,
+          "variant_id": 1,
+          "quantity": 999999
+        }
+      ]
+    },
+    "status": 422,
+    "response": {
+      "message": "Insufficient stock for Abaca Woven Tote Bag (Natural / S)"
+    }
+  }
+]

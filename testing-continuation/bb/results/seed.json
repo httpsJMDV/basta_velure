@@ -1,0 +1,87 @@
+{
+ "products": {
+  "P-01": {
+   "id": 1,
+   "name": "Abaca Woven Tote Bag",
+   "owner": "seller1"
+  },
+  "P-02": {
+   "id": 2,
+   "name": "Rattan Fruit Basket",
+   "owner": "seller1"
+  },
+  "P-03": {
+   "id": 3,
+   "name": "Capiz Shell Lamp",
+   "owner": "seller1"
+  },
+  "P-04": {
+   "id": 4,
+   "name": "Banig Placemat Set of 4",
+   "owner": "seller1"
+  },
+  "P-05": {
+   "id": 5,
+   "name": "USB-C Fast Charger 20W",
+   "owner": "seller2"
+  },
+  "P-06": {
+   "id": 6,
+   "name": "Wireless Earbuds X2",
+   "owner": "seller2"
+  },
+  "P-07": {
+   "id": 7,
+   "name": "Power Bank 10000mAh",
+   "owner": "seller2"
+  }
+ },
+ "hub": {
+  "id": 1,
+  "ownerEmail": "qa.acct_rider.101@gmail.com",
+  "ownerPassword": "Sample#2026qa"
+ },
+ "addr1": {
+  "id": 89,
+  "user_id": 2,
+  "full_name": "Juan Miguel Dela Cruz",
+  "phone": "09171234567",
+  "address": "45 Kalayaan Ave.",
+  "floor_unit": null,
+  "province": "Metro Manila",
+  "district": "Quezon City",
+  "ward": "Central",
+  "province_code": "130000000",
+  "city_code": "137404000",
+  "barangay_code": "137404020",
+  "label": "home",
+  "is_default": true,
+  "created_at": "2026-10-17T16:34:55.000000Z",
+  "updated_at": "2026-10-17T16:34:55.000000Z",
+  "address_needs_update": false
+ },
+ "addr3": {
+  "id": 90,
+  "user_id": 19,
+  "full_name": "Ana Marie Reyes",
+  "phone": "09173456789",
+  "address": "78 Osmeña Blvd.",
+  "floor_unit": null,
+  "province": "Cebu",
+  "district": "City of Cebu",
+  "ward": "Capitol Site (Pob.)",
+  "province_code": "072200000",
+  "city_code": "072217000",
+  "barangay_code": "072217020",
+  "label": "home",
+  "is_default": true,
+  "created_at": "2026-10-17T16:34:56.000000Z",
+  "updated_at": "2026-10-17T16:34:56.000000Z",
+  "address_needs_update": false
+ },
+ "cebuHub": {
+  "id": 2,
+  "ownerEmail": "qa.seed.102@gmail.com",
+  "ownerPassword": "Sample#2026qa"
+ }
+}

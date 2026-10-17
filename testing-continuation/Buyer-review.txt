@@ -1,0 +1,110 @@
+BUY-ACCT-001 | Edit profile with valid data | DATA First Name: Juan Miguel Jr.; Photo: review_photo.jpg | EXPECT A success message is shown. After refresh and re-login the new name and photo are shown in the profile and the header. Email and phone are unchanged.
+BUY-ACCT-002 | Profile field validation | DATA First Name: empty (reject); First Name: Juan123 (reject); First Name: J (reject); Photo: size_5.1MB.jpg (reject); Photo: renamed_exe.jpg (reject) | EXPECT Each is rejected with a field message; the saved profile is unchanged after refresh.
+BUY-ACCT-003 | Change password with the correct old password | DATA Old: Mamimili@2026; New: Mamimili@2027; Confirm: Mamimili@2027 | EXPECT Password changes with a success message. The old password is rejected; the new one works.
+BUY-ACCT-004 | Change password with a wrong old password | DATA Old: Wrong@2026; New: Mamimili@2027 | EXPECT Blocked with 'current password is incorrect'. The original password still works.
+BUY-ACCT-005 | New password breaks the rule | DATA Mami@26 (7 characters); mamimili@2027 (no uppercase); MAMIMILI@2027 (no lowercase); Mamimili@abcd (no number); Mamimili2027 (no special); Confirm: Mamimili@2028 (does not match); New = old: Mamimili@2026 | EXPECT Each is rejected with the specific rule that failed. The password is unchanged.
+BUY-ACCT-006 | Change email with verification | DATA New email: buyer.test01@example.com | EXPECT Before verification the old email still logs in and the profile still shows it. After the correct OTP, only the new email logs in; the old one is rejected.
+BUY-ACCT-007 | Change email: wrong or expired OTP | DATA Wrong OTP: 000000 | EXPECT Both are rejected. The email is not changed.
+BUY-ACCT-008 | Change email to one already used | DATA anamarie.reyes@example.com; MARIACLARA.SANTOS@example.com (seller, different case) | EXPECT Both are blocked with 'email already in use' and no OTP is sent.
+BUY-ACCT-009 | Change phone with verification and format | DATA 0917123 (reject); 09173456789 (Buyer 2's, reject); 09170000001 (accept after OTP) | EXPECT Invalid and duplicate numbers are rejected without an OTP. The valid number is saved only after verification.
+BUY-ADDR-001 | Add an address with valid data | DATA ADDR-2 (Makati office) | EXPECT ADDR-2 is listed with exactly the entered values and is not default. ADDR-1 is still default.
+BUY-ADDR-002 | Region → city → barangay cascade | DATA  | EXPECT Each list shows only places under the one above (no Cebu cities under NCR). Changing Region clears City and Barangay.
+BUY-ADDR-003 | Each required field left blank | DATA Clear in turn: Recipient, Phone, Region, City, Barangay, Street | EXPECT Each attempt is blocked with a message on the blank field. No address is added.
+BUY-ADDR-004 | Phone number format | DATA 0917123 (reject); 091712345678 (reject); 09171234567 (accept); +639171234567 (accept) | EXPECT Only the two valid formats save.
+BUY-ADDR-005 | Address book limit | DATA  | EXPECT The 10th saves. The 11th is blocked with a limit message.
+BUY-ADDR-006 | Set a different default address | DATA ADDR-2 | EXPECT Only ADDR-2 shows Default and checkout pre-selects it.
+BUY-ADDR-007 | Delete the default address | DATA  | EXPECT The first attempt is blocked with a message to choose another default first. The second succeeds. There is always exactly one default.
+BUY-ADDR-008 | Edit or delete an address used by an active order | DATA Street: 14F Pacific Tower | EXPECT The order, the seller's view and the waybill still show the original ADDR-2 exactly.
+BUY-ADDR-009 | Cannot open another buyer's address | DATA  | EXPECT Access is denied. No part of ADDR-3 is shown.
+BUY-SRCH-001 | Browse a platform category | DATA  | EXPECT Every Active product in Home & Living is listed, including P-02. No product from other categories appears.
+BUY-SRCH-002 | Store page with store categories | DATA  | EXPECT Store categories match CAT-1 to CAT-5. Lamps shows P-03 only.
+BUY-SRCH-003 | Search: exact and partial match | DATA Rattan Fruit Basket; rattan; RATTAN; '  rattan  ' | EXPECT P-02 appears for all four terms (case and outer spaces do not matter).
+BUY-SRCH-004 | Search: typo and no results | DATA Ratan baskit; zzqxw | EXPECT The typo returns P-02 or a 'Did you mean rattan basket?' suggestion. zzqxw shows a clear 'no results' state, not an error.
+BUY-SRCH-005 | Search: special characters and injection | DATA %; ' OR '1'='1; <script>alert(1)</script>; "><img src=x onerror=alert(1)> | EXPECT Each returns no results or literal matches. No error page, no pop-up, no list of all products from the SQL string, and the console shows no script run.
+BUY-SRCH-006 | Empty search | DATA  | EXPECT The search is not submitted (or the normal listing is shown). No error page.
+BUY-SRCH-007 | Price range filter | DATA ₱300 – ₱450 (P-02 included); ₱451 – ₱1,000 (P-02 excluded); ₱450 – ₱450 (P-02 only); Min ₱1,000, Max ₱100; Min -1 | EXPECT Range ends are inclusive. Min greater than Max and negative values are rejected with a message and the results are not filtered by them.
+BUY-SRCH-008 | Combined filters | DATA  | EXPECT Only products matching all active filters are shown. Clearing filters widens the results correctly.
+BUY-SRCH-009 | Sort and pagination | DATA  | EXPECT Each sort orders the results correctly. No product repeats or disappears between pages.
+BUY-SRCH-010 | Inactive, deleted and draft products never appear | DATA  | EXPECT None appears in search, category or store pages. Each URL shows 'unavailable' or 'not found'.
+BUY-SRCH-011 | Products of a vacation store | DATA  | EXPECT P-02 appears with the 'On vacation' label and cannot be added to the cart.
+BUY-PDP-001 | All variation types must be selected | DATA  | EXPECT Without both selections, Add to Cart and Buy Now show 'Please select a variation' and nothing is added. With both, the item is added once.
+BUY-PDP-002 | Selecting a variant updates price, stock and image | DATA P-01 | EXPECT Price: ₱199 → ₱299 → ₱199. Stock: 10 → 5 → 10. Image switches to the colour's image.
+BUY-PDP-003 | Out-of-stock variant disabled | DATA Black-M stock 0 | EXPECT M is disabled for Black and cannot be selected.
+BUY-PDP-004 | Quantity limits | DATA 0 (reject); -1 (reject); 1 (accept); 20 (accept); 21 (reject); 1.5 (reject); abc (reject) | EXPECT Only 1 and 20 are added. The + button stops at 20. Invalid values show a message and the cart is unchanged.
+BUY-PDP-005 | Per-buyer purchase limit | DATA P-07 limit 2 | EXPECT The first 2 are bought. The 3rd is blocked with a limit message, including in a new cart.
+BUY-PDP-006 | Sale price, countdown and vouchers shown | DATA  | EXPECT Shows ₱299 with ₱450 struck through, a countdown to the slot end, the flash units left, and MCH50 with a Claim button.
+BUY-PDP-007 | Buy Now checks out only that item | DATA  | EXPECT Checkout opens with only P-01 Natural-M × 1. P-05 stays in the cart and is not in this checkout.
+BUY-PDP-008 | Product page of an unavailable product | DATA  | EXPECT Both show a clear 'unavailable' page with no Add to Cart. No error page.
+BUY-WISH-001 | Add and remove a wishlist item | DATA  | EXPECT P-02 appears once, then is gone after removal. The heart on P-02's page matches each state.
+BUY-WISH-002 | Add the same item twice quickly | DATA  | EXPECT P-02 appears at most once, and the heart reflects the final state.
+BUY-WISH-003 | Wishlist item goes out of stock or is deleted | DATA  | EXPECT P-02 shows Sold out with Add to Cart disabled. P-05 stays listed as Unavailable with no Add to Cart. The page shows no error.
+BUY-WISH-004 | Follow and unfollow a store | DATA  | EXPECT Count becomes N+1 and Seller 1 is in Following; after unfollowing, N and removed.
+BUY-WISH-005 | Wishlist and follow require login | DATA  | EXPECT Each opens the login page; nothing is saved without an account.
+BUY-CART-001 | Same variant added twice merges | DATA  | EXPECT One line, Natural-M × 3, subtotal ₱747.00.
+BUY-CART-002 | Different variants stay separate | DATA  | EXPECT Two separate lines with their own prices (₱249 and ₱199).
+BUY-CART-003 | Items grouped by store | DATA  | EXPECT Two store groups with store names, each listing only its own items.
+BUY-CART-004 | Select and deselect items for checkout | DATA  | EXPECT Subtotals: ₱399, then ₱1,098, then ₱699. Checkout contains only P-01 and P-02; P-05 stays in the cart.
+BUY-CART-005 | Change quantity at the limits | DATA  | EXPECT 0 is not accepted (or asks to remove the item). 1 and 20 are accepted. 21 is blocked with 'only 20 available'.
+BUY-CART-006 | Price changes while in the cart | DATA  | EXPECT The cart shows ₱420.00 and the subtotal updates.
+BUY-CART-007 | Item goes out of stock or is deleted while in the cart | DATA  | EXPECT P-02 and P-05 are marked unavailable and cannot be selected. P-06 checks out normally.
+BUY-CART-008 | Cart persists after logout and on another device | DATA  | EXPECT The same 2 items and quantities appear in both places.
+BUY-CART-009 | Remove an item | DATA  | EXPECT The line is gone after refresh and the subtotal updates.
+BUY-CART-010 | Cannot change another buyer's cart | DATA  | EXPECT Rejected (403 or not found). Buyer 2's cart is unchanged.
+BUY-VOU-001 | Claim a voucher into the wallet | DATA  | EXPECT MCH50 is in the wallet with its rule and end date. The button changes to Claimed and a second claim is not possible.
+BUY-VOU-002 | Apply a store voucher | DATA  | EXPECT Seller 1's group shows −₱50.00 and the total is ₱450 + ₱50 shipping − ₱50 = ₱450.00.
+BUY-VOU-003 | Stacking per the agreed rule | DATA Worked checkout example | EXPECT MCH50 + PLAT100 + FREESHIP apply; total ₱1,083.00. Selecting MCH10 replaces MCH50 (Seller 1 ₱699 ≥ ₱500 → −₱69.90; total ₱1,063.10); never both. RVSECRET is not applicable (Seller 2 subtotal ₱399 < ₱1,000).
+BUY-VOU-004 | Minimum spend at the boundary | DATA P-02 at ₱299.99 / ₱300.00 / ₱300.01 | EXPECT ₱299.99: not applicable, with 'Spend ₱0.01 more'. ₱300.00 and ₱300.01: ₱50.00 off.
+BUY-VOU-005 | Expired, not started, limit reached, invalid code | DATA MCHOLD (expired); MCHSOON (starts tomorrow); MCHMAX (total limit reached); NOSUCHCODE (invalid) | EXPECT Each is rejected with its own specific message. No discount is applied.
+BUY-VOU-006 | Per-buyer limit reached | DATA  | EXPECT Rejected: already used. Buyer 2 can still use it.
+BUY-VOU-007 | Removing an item drops below the minimum spend | DATA  | EXPECT MCH50 is removed automatically with a notice. Total is ₱199 + ₱50 = ₱249.00.
+BUY-VOU-008 | Percentage voucher respects its cap | DATA P-02 at ₱499.99 / ₱999.00 / ₱1,000.00; P-03 | EXPECT ₱499.99: not applicable. ₱999.00 → ₱99.90 off. ₱1,000.00 → ₱100.00 off. ₱1,250 → ₱100.00 off (cap, not ₱125.00).
+BUY-VOU-009 | Shipping voucher larger than shipping | DATA  | EXPECT ₱50 shipping → ₱0.00 shipping (not negative). ₱65 shipping → ₱15.00. Merchandise amounts are unchanged.
+BUY-VOU-010 | Total never negative | DATA  | EXPECT Merchandise total is ₱0.00, never negative; shipping is still charged.
+BUY-VOU-011 | Voucher on items already on sale | DATA  | EXPECT MCH50 applies (₱360 ≥ ₱300). Merchandise ₱310.00, total ₱360.00 with ₱50 shipping.
+BUY-VOU-012 | Voucher returned after cancellation | DATA  | EXPECT MCH50 is back in the wallet, usable again before it expires.
+BUY-CHK-001 | Checkout with the worked example | DATA Worked checkout example | EXPECT Summary: merchandise ₱1,098.00, shipping ₱185.00 (₱65 + ₱120), store voucher −₱50.00, platform voucher −₱100.00, shipping voucher −₱50.00, total ₱1,083.00. Two orders are created, one per store, whose totals add up to ₱1,083.00. Cart no longer has these items.
+BUY-CHK-002 | Shipping fee per store and per address | DATA  | EXPECT ADDR-1 (NCR): ₱50.00. ADDR-3 (Visayas): ₱120.00. The total updates immediately.
+BUY-CHK-003 | Shipping weight at the 1 kg boundary | DATA P-05 is 0.2 kg: 5 units = 1.0 kg, 6 units = 1.2 kg | EXPECT 1.0 kg is charged as 1 kg: ₱60.00. 1.2 kg is charged as 2 kg: ₱80.00.
+BUY-CHK-004 | Unserviceable address | DATA  | EXPECT A message says the area is not serviceable and Place Order is disabled. No order can be created.
+BUY-CHK-005 | Note to seller length | DATA Note: Paki-wrap po as gift … (to 200) | EXPECT 200 characters are saved and shown in full on the seller's order. 201 cannot be entered or is rejected.
+BUY-CHK-006 | No payment method selected | DATA  | EXPECT Blocked until a payment method is chosen.
+BUY-CHK-007 | Double-click Place Order | DATA  | EXPECT Exactly one order exists. P-02 stock is 19. The resubmit shows the existing order or a message; it does not create another.
+BUY-CHK-008 | Price changed during checkout | DATA  | EXPECT The order is not placed at ₱450. A message shows the new price and the summary updates to ₱480 for the buyer to confirm.
+BUY-CHK-009 | Stock ran out during checkout | DATA  | EXPECT Buyer 1's order is blocked with an out-of-stock message. Stock is 0.
+BUY-CHK-010 | Voucher becomes invalid during checkout | DATA  | EXPECT The order is not placed with MCH50. A message says the voucher is no longer valid and the total is updated.
+BUY-CHK-011 | Tampered price or total in the request | DATA  | EXPECT The server ignores or rejects the tampered amount. Any created order uses the real price.
+BUY-PAY-001 | COD order | DATA  | EXPECT The order goes straight to To Ship. Payment shows COD ₱500.00 to collect on delivery.
+BUY-PAY-002 | E-wallet or card payment succeeds | DATA Use the gateway's sandbox account or test card | EXPECT The order moves To Pay → To Ship and stores a payment reference. The amount charged equals the order total exactly.
+BUY-PAY-003 | Payment fails | DATA  | EXPECT The order stays To Pay with 'Payment failed' and Pay Again. It is not marked paid and the seller cannot ship it.
+BUY-PAY-004 | Buyer cancels at the gateway | DATA  | EXPECT Buyer returns to the order in To Pay. No duplicate order is created.
+BUY-PAY-005 | Browser closed on the gateway | DATA  | EXPECT The order shows To Ship once the gateway confirms. It is charged once only.
+BUY-PAY-006 | Unpaid order auto-cancels | DATA  | EXPECT The order is Cancelled (reason: unpaid). Stock is 20. MCH50 is back in the wallet.
+BUY-PAY-007 | Pay just before vs after the auto-cancel time | DATA  | EXPECT The 59-minute payment succeeds. The 61-minute order is already Cancelled and Pay is not available.
+BUY-TRK-001 | Orders appear in the correct tab | DATA  | EXPECT Each order is in exactly one tab matching its status; counts match.
+BUY-TRK-002 | Timeline matches seller, rider and logistics updates | DATA  | EXPECT Each event appears once, in order, with the time it happened. The order moves to To Receive at Picked Up.
+BUY-TRK-003 | Order Received button | DATA  | EXPECT The order moves to Completed and the Rate button appears. Seller 1's earnings for it become Available.
+BUY-TRK-004 | Order Received not available before delivery | DATA  | EXPECT Not shown; a direct request is rejected.
+BUY-TRK-005 | Automatic completion | DATA  | EXPECT To Receive before 7 days; Completed after, and earnings are released.
+BUY-TRK-006 | Cannot open another buyer's order | DATA  | EXPECT Denied. No details of Buyer 2's order are shown.
+BUY-CAN-001 | Cancel a COD order before shipping | DATA  | EXPECT The order is Cancelled on both sides. Stock is 20. Seller 1 is notified with the reason.
+BUY-CAN-002 | Reason is required | DATA  | EXPECT Blocked until a reason is chosen. The order is unchanged.
+BUY-CAN-003 | Cancel a prepaid order | DATA  | EXPECT The order is Cancelled and a refund for the exact amount paid is started. MCH50 returns to the wallet.
+BUY-CAN-004 | No cancel after Ready for Pickup | DATA  | EXPECT No Cancel option; a direct request is rejected and the status is unchanged.
+BUY-CAN-005 | No cancel after shipping | DATA  | EXPECT No Cancel option.
+BUY-CAN-006 | Double-click Cancel | DATA  | EXPECT One cancellation; stock restored once (not twice).
+BUY-RET-001 | Request a return within the window | DATA Reason: Damaged item; Description: Basket arrived with a broken rim.; Photos: review_photo.jpg, product_front.jpg | EXPECT The request is submitted. The order moves to Return/Refund. Seller 1 is notified. The order can no longer be completed automatically while the request is open.
+BUY-RET-002 | Return not allowed before delivery | DATA  | EXPECT Not available.
+BUY-RET-003 | Return window boundary | DATA  | EXPECT Allowed on day 7. Not available after the window or once Completed.
+BUY-RET-004 | Evidence and description rules | DATA  | EXPECT Each is blocked with a message. 1 to 5 valid photos and 10+ characters are required.
+BUY-RET-005 | Track request status | DATA  | EXPECT Status Rejected with the seller's exact reason and an Escalate button.
+BUY-RATE-001 | Rate a completed order | DATA Text: Matibay at maganda!; Photo: review_photo.jpg | EXPECT The review appears on P-02 with 5 stars, the text, the photo, the variant and Buyer 1's (masked) name.
+BUY-RATE-002 | Rating not allowed before completion | DATA  | EXPECT Not available; a direct request is rejected.
+BUY-RATE-003 | One review per item | DATA  | EXPECT Blocked; only Edit is offered.
+BUY-RATE-004 | Stars, text and photo limits | DATA  | EXPECT 0 stars is blocked. 500 characters and 5 photos are accepted; 501 characters and a 6th photo are not.
+BUY-RATE-005 | Edit once within the window | DATA  | EXPECT The first edit saves. A second edit and an edit after 30 days are not possible.
+BUY-RATE-006 | Average rating updates | DATA  | EXPECT Average becomes 3.0 and the count 2 on the product page and search card.
+BUY-CHAT-001 | Chat with a seller from a product | DATA Hi, available pa po ba?; review_photo.jpg | EXPECT Seller 1 receives both in order. The chat shows the P-02 product card.
+BUY-CHAT-002 | Invalid attachments and message length | DATA  | EXPECT All are rejected; nothing is sent.
+BUY-CHAT-003 | Order status notifications | DATA  | EXPECT Exactly one notification per change. Each opens the right order.
+BUY-CHAT-004 | Flash-sale reminder | DATA  | EXPECT A reminder arrives before the slot starts and links to P-02.
+BUY-CHAT-005 | Mark notifications as read | DATA  | EXPECT Unread count goes 3 → 2 → 0.

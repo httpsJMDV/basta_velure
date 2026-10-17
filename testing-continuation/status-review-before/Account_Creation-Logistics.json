@@ -1,0 +1,222 @@
+{
+  "TC-LOG-001": {
+    "status": "Fail",
+    "actual": "Account step (Carlos Antonio Mendoza): accepted (\"Account Submitted!\"). Courier application (company name, short code BHE, description, contact number 09285551234, National Capital Region (NCR) > Metro Manila (NCR) > City of Pasig > Kapitolyo, street, mayors_permit.pdf): accepted with no errors; the page changed to \"Under review – We're reviewing Bilis Hatid Express Inc.\". The company is saved with status PENDING. Emails: Welcome to Loved-IT!; We received your courier company application. No OTP was sent and no email verification page opened.",
+    "remarks": "Design difference (A9, A12): no email OTP; the application goes to admin review. The form has no SEC Registration No., TIN, Postal Code, Position, Service Areas, BIR 2303 or representative ID upload; it asks for a 2–6 character short code (BHE was used) and one business permit. The test-data addresses use example.com, which the system's email check rejects (null MX), so the same name was used with @gmail.com (operations.bilishatid@gmail.com); mail went to the isolated test log only. Screenshot: TC-LOG-001.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-002": {
+    "status": "Pass",
+    "actual": "Submitting the courier application with every field left as it opened showed all required-field messages at once: Company name is required. / Use 2 to 6 letters or numbers (for example JNT). / Province is required. / City or municipality is required. / Barangay is required. / Street or building address is required. / Upload your DTI, SEC or Mayor's Permit. No application was created.",
+    "remarks": "Contact email and contact number are pre-filled from the applicant's account (qa.acct_logistics.101@gmail.com, +639521000101), so they are never blank. The account step (name, email, mobile, password) behaves as in TC-BUY-002. Screenshot: TC-LOG-002.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-003": {
+    "status": "Pass",
+    "actual": "Company Name: blocked – Company name is required.; Short code: blocked – Use 2 to 6 letters or numbers (for example JNT). (company name kept: yes); Region/Province/City/Barangay: blocked – Province is required. / City or municipality is required. / Barangay is required. (company name kept: yes); Street Address: blocked – Street or building address is required. (company name kept: yes); Business permit: blocked – Upload your DTI, SEC or Mayor's Permit. (company name kept: yes); Contact email and contact number: when emptied they immediately refill with the account's own values (qa.acct_logistics.102@gmail.com, +639521000102), so they cannot be left blank. The account-step fields (contact person first and last name, email, mobile, password, confirm password) each block with a message on that field only, as in TC-BUY-003.",
+    "remarks": "SEC Registration No., TIN, Postal Code, Position, Service Areas, BIR Form 2303 and the representative's ID upload are not on the form. Screenshot: TC-LOG-003.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-004": {
+    "status": "Fail",
+    "actual": "Registration was accepted; the account was saved with first name \"Carlos Antonio7\" and last name \"Dela Cruz@#\". No message about letters only was shown.",
+    "remarks": "Defect: name fields accept digits and symbols. In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-004.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-005": {
+    "status": "Pass",
+    "actual": "Registration was accepted and the names were saved as \"Iñigo Rafael\" and \"Muñoz-D'Angelo\".",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-005.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-006": {
+    "status": "Fail",
+    "actual": "1 character: accepted; 2 characters: accepted; 50 characters: accepted; 51 characters: rejected (\"The first name field must not be greater than 50 characters.\").",
+    "remarks": "Defect: a 1-character name is accepted. In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-006.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-007": {
+    "status": "Pass",
+    "actual": "\"operations.bilishatidgmail.com\": rejected (Please include an '@' in the email address. 'operations.bilishatidgmail.com' is missing an '@'.); \"operations.bilishatid@\": rejected (Please enter a part following '@'. 'operations.bilishatid@' is incomplete.); \"@gmail.com\": rejected (Please enter a part followed by '@'. '@gmail.com' is incomplete.); \"operations.bilishatid@example\": rejected (The email field must be a valid email address.); \"operations bilishatid@gmail.com\": rejected (A part followed by '@' should not contain the symbol ' '.). No account was created.",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. @gmail.com used in place of @example.com. Screenshot: TC-LOG-007.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-008": {
+    "status": "Pass",
+    "actual": "The existing email was treated as a duplicate and registration was blocked: \"The email has already been taken.\". Accounts with this email: 1.",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. The test-data addresses use example.com, which the system's email check rejects (null MX), so the same name was used with @gmail.com (operations.bilishatid@gmail.com); mail went to the isolated test log only. Screenshot: TC-LOG-008.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-009": {
+    "status": "Pass",
+    "actual": "The capitalised email was treated as a duplicate and registration was blocked: \"The email has already been taken.\". Accounts with this email: 1.",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. The test-data addresses use example.com, which the system's email check rejects (null MX), so the same name was used with @gmail.com (operations.bilishatid@gmail.com); mail went to the isolated test log only. Screenshot: TC-LOG-009.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-010": {
+    "status": "Pass",
+    "actual": "Registration was accepted and the email was saved as \"logistics.test01@gmail.com\" with no spaces.",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-010.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-012": {
+    "status": "Fail",
+    "actual": "10 digits \"0928765432\": accepted and saved as +630928765432; 11 digits \"09280000001\": accepted and saved as +630928000000; 12 digits \"092876543210\": rejected (\"The phone has already been taken.\").",
+    "remarks": "Defect: the phone box after the fixed +63 keeps only the first 10 digits and gives no length message. A rejection here is only because the first 10 digits match a number saved in the attempt before. 0928... values were used so earlier tests (0917...) do not interfere. In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-012.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-011": {
+    "status": "Fail",
+    "actual": "\"0928ABC5123\": accepted and saved as +6309285123; \"0928-765-111\": accepted and saved as +630928765111; \"32345678901\": accepted and saved as +633234567890; \"02-8555-1234\": accepted and saved as +630285551234.",
+    "remarks": "Defect: letters and symbols are dropped silently and the digits are saved after +63; landlines and numbers not starting with 9 are accepted. Values equivalent to the test data were used (the 0917... ones were already saved in earlier tests). In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-011.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-013": {
+    "status": "Pass",
+    "actual": "Registration was blocked: \"The phone has already been taken.\".",
+    "remarks": "Typed as 9285551234 after the +63 prefix, the way the existing account was saved. In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-013.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-014": {
+    "status": "Fail",
+    "actual": "Registration was accepted: \"+639285551234\" typed in the box was saved as +636392855512, so it was not recognised as the existing number.",
+    "remarks": "Defect: a +63 number typed in the box is not normalised. In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-014.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-015": {
+    "status": "Pass",
+    "actual": "7 characters \"Hati@26\": rejected (\"The password field must be at least 8 characters.\"); 8 characters \"Hatid@26\": accepted.",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-015.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-016": {
+    "status": "Pass",
+    "actual": "No uppercase \"hatid@2026\": rejected (\"The password field must contain at least one uppercase and one lowercase letter.\"); No lowercase \"HATID@2026\": rejected (\"The password field must contain at least one uppercase and one lowercase letter.\"); No number \"Hatid@abcd\": rejected (\"The password field must contain at least one number.\"); No special character \"Hatid2026\": rejected (\"The password field must contain at least one symbol.\"). No account was created.",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-016.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-017": {
+    "status": "Pass",
+    "actual": "Continue was blocked; Confirm Password showed \"Passwords do not match.\".",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-017.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-018": {
+    "status": "Pass",
+    "actual": "The password is masked as dots while typing (field type \"password\"). There is no show/hide icon, so the second part of the step does not apply.",
+    "remarks": "In Loved-IT a logistics partner is a courier company: the contact person first creates a Loved-IT account at /register (name, email, mobile, password) and then applies at /register/courier; this field is on the account step, so the case was run there with the logistics test data. Screenshot: TC-LOG-018.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-019": {
+    "status": "Fail",
+    "actual": "Neither the account form nor the courier application has a Terms and Privacy Policy checkbox. Applications are submitted without accepting the terms (see TC-LOG-001).",
+    "remarks": "Defect: no consent step for the Terms of Use and Privacy Policy. Screenshot: TC-LOG-019.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-020": {
+    "status": "Fail",
+    "actual": "Submit Courier Application was clicked three times quickly (real mouse clicks 80 ms apart). Companies created: 1. No error appeared; one \"Under review\" page was shown.",
+    "remarks": "Account 2 data (Liza Mae Fernandez, Agila Cargo Movers Corp., code ACM, Region XI > Davao del Sur > City of Davao > Buhangin); the account itself was created beforehand. No OTP exists. Screenshot: TC-LOG-020.jpg Final review: duplicate creation was prevented, but the case also requires one OTP/activation email; that required mechanism is absent, so the complete expected result fails. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-021": {
+    "status": "Pass",
+    "actual": "Applying with the company name \"Bilis Hatid Express Inc.\" from another account was blocked: Application could not be submitted\n\nA courier company with this name already exists. / A courier company with this name already exists.",
+    "remarks": "A different short code (BHX) was used so only the name is duplicated. Screenshot: TC-LOG-021.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-022": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: the courier application has no SEC Registration No. field.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A14): the company is identified by its name and a 2–6 character short code (both unique); the SEC, DTI or Mayor's permit is uploaded as one document instead. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-023": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: the courier application has no SEC Registration No. field.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A14): the company is identified by its name and a 2–6 character short code (both unique); the SEC, DTI or Mayor's permit is uploaded as one document instead. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-024": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: the courier application has no Service Areas field.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A1): a courier company's coverage comes from its hubs; each hub that joins the company chooses the barangays it covers. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-025": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: neither the account form nor the courier application has a TIN field.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A8): the system does not collect a TIN. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-026": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: neither the account form nor the courier application has a TIN field.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A8): the system does not collect a TIN. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-027": {
+    "status": "Pass",
+    "actual": "Selected: Metro Manila (NCR) > City of Pasig > Kapitolyo. After changing the Region to Region VII (Central Visayas): Province \"Select province\", City \"Select province first\", Barangay \"Select city/municipality first\". The Province list then showed: Bohol, Cebu, Negros Oriental, Siquijor. Pasig and Kapitolyo were no longer offered.",
+    "remarks": "Screenshot: TC-LOG-027.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-028": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: the head office address has no Postal Code field (Region, Province, City / Municipality, Barangay and Street only).",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A7): no postal code is collected. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-029": {
+    "status": "Fail",
+    "actual": "sec_certificate.pdf: accepted (1024 KB · PDF Document); bir_2303.pdf: accepted (1126 KB · PDF Document); mayors_permit.pdf: accepted (1331 KB · PDF Document); govt_id_front.jpg: accepted (image preview shown); govt_id_front.png: accepted (image preview shown). With the last file attached the application was not submitted.",
+    "remarks": "Cause: the server's PHP settings allow only 2 MB per file (upload_max_filesize) and 8 MB per form (post_max_size), although the app says 5 MB, so any file between 2 MB and 5 MB fails to upload. The live server uses the same PHP settings. The form has one upload, \"DTI / SEC registration or Mayor's Permit\", so the five files were tried in it one after another. The next step in this system is admin review, not email verification. Screenshot: TC-LOG-029.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-030": {
+    "status": "Pass",
+    "actual": "price_list.docx: rejected (\"Only JPG, PNG, and PDF files are allowed.\"); store_banner.gif: rejected (\"Only JPG, PNG, and PDF files are allowed.\"); installer.exe: rejected (\"Only JPG, PNG, and PDF files are allowed.\"). Submitting afterwards was blocked (Upload your DTI, SEC or Mayor's Permit.); no application was created.",
+    "remarks": "Each file was attached directly to the upload field (the picker only lists accepted types). Screenshot: TC-LOG-030.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-031": {
+    "status": "Fail",
+    "actual": "size_4.9MB.jpg: rejected (\"Application could not be submitted\n\nThe business permit failed to upload. / The business permit failed to upload.\"); size_5.0MB.jpg: rejected (\"Application could not be submitted\n\nThe business permit failed to upload. / The business permit failed to upload.\"); size_5.1MB.jpg: rejected (\"File size exceeds the 5MB limit.\").",
+    "remarks": "Cause: the server's PHP settings allow only 2 MB per file (upload_max_filesize) and 8 MB per form (post_max_size), although the app says 5 MB, so any file between 2 MB and 5 MB fails to upload. The live server uses the same PHP settings. Uploaded to the business permit field; each accepted file used a separate account. Screenshot: TC-LOG-031.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-032": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no email OTP step. After the courier application is submitted the page shows \"Under review\" and the application waits for an admin.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): no email OTP; applications go straight to admin review. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-033": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no email OTP step. After the courier application is submitted the page shows \"Under review\" and the application waits for an admin.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): no email OTP; applications go straight to admin review. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-034": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no email OTP step. After the courier application is submitted the page shows \"Under review\" and the application waits for an admin.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): no email OTP; applications go straight to admin review. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-035": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no email OTP step. After the courier application is submitted the page shows \"Under review\" and the application waits for an admin.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): no email OTP; applications go straight to admin review. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-036": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no email OTP step. After the courier application is submitted the page shows \"Under review\" and the application waits for an admin.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): no email OTP; applications go straight to admin review. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-037": {
+    "status": "Fail",
+    "actual": "Signing in with the account whose courier application is still pending succeeded and opened /. No verification page or verify-your-email message was shown.",
+    "remarks": "Design difference (A9, A12): there is no unverified state; applicants keep a normal account and can sign in. Screenshot: TC-LOG-037.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-038": {
+    "status": "Pass",
+    "actual": "Opening /logistics redirected to /register/courier, which shows \"Under review – We're reviewing Bilis Hatid Express Inc.\" with the steps Permit and company check and Decision via email. /logistics/riders redirected to /register/courier. The courier portal API answered 403.",
+    "remarks": "The pending company cannot open its portal, so it cannot manage hubs or riders or take parcels. Screenshot: TC-LOG-038.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-039": {
+    "status": "Fail",
+    "actual": "\"Bilis Hatid Express Inc.\" is listed as Pending in Admin > Courier Applications. The detail panel shows Bilis Hatid Express Inc., BHE, Pasig, Kapitolyo, 09285551234, Carlos (6/6 test values). The business permit opens (application/pdf).",
+    "remarks": "Only the details the system collects can be compared (no SEC number, TIN, postal code, position or service areas). Screenshot: TC-LOG-039.jpg Final review: the case requires all application details to match; some required details are missing from the system/admin view. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-040": {
+    "status": "Pass",
+    "actual": "After Approve company the status changed to Approved. Emails to the company owner: Welcome to Loved-IT!; We received your courier company application; Bilis Hatid Express Inc. is approved on Loved-IT. On login, /logistics opened the courier portal (Network Overview).",
+    "remarks": "Screenshots: TC-LOG-040-admin.jpg, TC-LOG-040-portal.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-041": {
+    "status": "Pass",
+    "actual": "The admin rejected Agila Cargo Movers Corp. with the reason \"Mayor's permit expired on 12/31/2025.\". Status: Rejected. Emails to the owner: Welcome to Loved-IT!; We received your courier company application; Update on your courier company application (the rejection email contains the reason). On login, /logistics redirected to /register/courier, which shows the rejection and the reason; the courier portal is not available.",
+    "remarks": "Screenshots: TC-LOG-041-admin.jpg, TC-LOG-041-owner.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-042": {
+    "status": "Pass",
+    "actual": "On the rejected screen the owner clicked \"Apply again\", which reopened the form (the form opened empty and was filled again). With mayors_permit_2026.pdf as the permit the application was submitted and shows \"Under review\" again. It appears again in the admin's pending list.",
+    "remarks": "Screenshot: TC-LOG-042.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-043": {
+    "status": "Pass",
+    "actual": "As the buyer juanmiguel.delacruz@gmail.com, opening /admin/courier-applications redirected to /; no application data was shown. Direct API calls were refused: list 403, approve 403.",
+    "remarks": "Screenshot: TC-LOG-043.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-LOG-044": {
+    "status": "Pass",
+    "actual": "Admin dashboard (/admin): redirected to /; Seller dashboard (/seller): redirected to /register/seller; Rider dashboard (/rider/dashboard): redirected to /register/rider. API: admin 404, seller 404. No data from another role was shown.",
+    "remarks": "Screenshots: TC-LOG-044-*.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  }
+}

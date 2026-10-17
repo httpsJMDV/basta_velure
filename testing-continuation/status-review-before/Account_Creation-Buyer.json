@@ -1,0 +1,152 @@
+{
+  "TC-BUY-001": {
+    "status": "Fail",
+    "actual": "Step 1 (name, email, phone, password) and step 2 (photo, birthday, sex, address, government ID) were accepted with no errors. An \"Account Submitted!\" message said the account is being reviewed by the team. The account was saved as a buyer with application status \"pending\" (phone stored as +639171234567). Emails sent: \"Welcome to Loved-IT!\". No OTP was sent and no email verification page opened.",
+    "remarks": "Design difference (A9, A12): the system verifies new buyers by an admin review of their government ID, not by an email OTP. The phone was typed as 9171234567 after the fixed +63 prefix. Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-001.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-002": {
+    "status": "Fail",
+    "actual": "Step 1 with every field blank: the browser's own validation blocked Continue and showed \"Please fill out this field.\" only on the first empty field (First Name). Fields failing validation: 5. Custom messages: none. Step 2 left blank: Create Account was blocked by the browser on Birthday only (birthday: Please fill out this field.); custom: none. No account was created (0 found) and no email was sent.",
+    "remarks": "Registration is blocked, but a message appears for one field at a time, not for every mandatory field at once, and the phone field has no required marker for the browser. Screenshot: TC-BUY-002.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-003": {
+    "status": "Pass",
+    "actual": "Each blank field blocked registration with a message on that field only. first: browser message on first-name (other values kept: 2/2); last: browser message on last-name (other values kept: 2/2); email: browser message on email (other values kept: 2/2); phone: \"Phone is required.\" (other values kept: 3/3); password: browser message on password (other values kept: 3/3); confirm: browser message on confirm-password (other values kept: 3/3); date of birth: browser message \"Please fill out this field.\". The other typed values stayed in the form. No account was created (0 found).",
+    "remarks": "Text fields use the browser's \"Please fill out this field.\"; the phone field shows the app's \"Phone is required.\". Screenshot: TC-BUY-003.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-004": {
+    "status": "Fail",
+    "actual": "Registration was accepted and the \"Account Submitted!\" message appeared. The account was saved with first name \"Juan Miguel123\" and last name \"Dela Cruz@#\". No message about letters only was shown.",
+    "remarks": "Defect: name fields accept digits and symbols (only a 50-character maximum is checked). Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-004.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-005": {
+    "status": "Pass",
+    "actual": "Registration was accepted. Saved as first name \"Niño Angelo\", last name \"Peñaflor-O'Hara\".",
+    "remarks": "Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-005.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-006": {
+    "status": "Fail",
+    "actual": "1 char: accepted; 2 chars: accepted; 50 chars: accepted; 51 chars: rejected (\"The first name field must not be greater than 50 characters.\").",
+    "remarks": "Defect: the 1-character name is accepted; the system has no 2-character minimum. Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-006.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-007": {
+    "status": "Pass",
+    "actual": "Tested on 10/17/2026: born 10/18/2008 (17 years old): rejected (\"You must be at least 18 years old.\"); born 10/17/2008 (turns 18 today): accepted; born 10/16/2008 (18 years and 1 day): accepted.",
+    "remarks": "Dates are relative to the test day, as the workbook says. Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-007.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-008": {
+    "status": "Pass",
+    "actual": "Birthday 10/18/2026 (tomorrow): registration was blocked with the browser message \"Value must be 17/10/2026 or earlier.\". The date picker's latest selectable date is 10/17/2026, so future dates cannot be picked.",
+    "remarks": "Screenshot: TC-BUY-008.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-009": {
+    "status": "Pass",
+    "actual": "\"juanmiguel.delacruzgmail.com\": rejected (Please include an '@' in the email address. 'juanmiguel.delacruzgmail.com' is missing an '@'.); \"juanmiguel.delacruz@\": rejected (Please enter a part following '@'. 'juanmiguel.delacruz@' is incomplete.); \"@gmail.com\": rejected (Please enter a part followed by '@'. '@gmail.com' is incomplete.); \"juanmiguel.delacruz@example\": rejected (The email field must be a valid email address.); \"juanmiguel delacruz@gmail.com\": rejected (A part followed by '@' should not contain the symbol ' '.). No account was created.",
+    "remarks": "Formats without @, name or domain are stopped by the browser; \"@example\" without .com is rejected by the server. @gmail.com used in place of @example.com (see TC-BUY-001). Screenshot: TC-BUY-009.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-010": {
+    "status": "Pass",
+    "actual": "Registration was blocked: the form went back to step 1 with \"The email has already been taken.\" on the email. Accounts with this email: 1.",
+    "remarks": "Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-010.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-011": {
+    "status": "Pass",
+    "actual": "The capitalised email was treated as a duplicate: \"The email has already been taken.\". Accounts with this email: 1.",
+    "remarks": "Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-011.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-012": {
+    "status": "Pass",
+    "actual": "Registration was accepted. The email was saved as \"buyer.test01@gmail.com\" with no spaces.",
+    "remarks": "Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-012.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-014": {
+    "status": "Fail",
+    "actual": "10 digits \"0917123456\": accepted and saved as +630917123456; 11 digits \"09170000001\": accepted and saved as +630917000000; 12 digits \"091712345678\": rejected (\"The phone has already been taken.\").",
+    "remarks": "Defect: the phone box sits after a fixed +63 prefix, keeps only the first 10 digits and gives no length message, so a 10-digit number with a leading 0 is accepted and an 11-digit 09... number is cut short and saved wrongly. The 12-digit number was rejected only because its first 10 digits are the same as the 10-digit number saved in the attempt before it. Screenshot: TC-BUY-014.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-013": {
+    "status": "Fail",
+    "actual": "\"0917ABC4567\": accepted and saved as +6309174567; \"0917-123-456\": rejected (\"The phone has already been taken.\"); \"12345678901\": accepted and saved as +631234567890; \"02-8123-4567\": accepted and saved as +630281234567.",
+    "remarks": "Defect: letters and symbols are silently removed and the remaining digits are put after +63, so invalid and landline numbers are saved without any message. Any rejection here was only because the digits matched a number saved in an earlier attempt. Screenshot: TC-BUY-013.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-015": {
+    "status": "Pass",
+    "actual": "Registration was blocked: \"The phone has already been taken.\" on the phone field.",
+    "remarks": "Number typed as 9171234567 after the +63 prefix, the same way it was saved in TC-BUY-001. Screenshot: TC-BUY-015.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-016": {
+    "status": "Fail",
+    "actual": "Registration was accepted. The field turned \"+639171234567\" into +636391712345 (the 63 was kept as digits and the number cut to 10 digits), so it was not recognised as the existing number.",
+    "remarks": "Defect: +63 entered in the box is not normalised. Screenshot: TC-BUY-016.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-017": {
+    "status": "Pass",
+    "actual": "7 characters \"Bili@26\": rejected (\"The password field must be at least 8 characters.\"); 8 characters \"Bili@202\": accepted.",
+    "remarks": "The length is checked when the form is submitted, after step 2. Screenshot: TC-BUY-017.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-018": {
+    "status": "Pass",
+    "actual": "No uppercase \"mamimili@2026\": rejected (\"The password field must contain at least one uppercase and one lowercase letter.\"); No lowercase \"MAMIMILI@2026\": rejected (\"The password field must contain at least one uppercase and one lowercase letter.\"); No number \"Mamimili@abcd\": rejected (\"The password field must contain at least one number.\"); No special character \"Mamimili2026\": rejected (\"The password field must contain at least one symbol.\"). No account was created.",
+    "remarks": "Screenshot: TC-BUY-018.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-019": {
+    "status": "Pass",
+    "actual": "Continue was blocked; the Confirm Password field showed \"Passwords do not match.\".",
+    "remarks": "Screenshot: TC-BUY-019.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-020": {
+    "status": "Pass",
+    "actual": "The password is masked as dots while typing (field type \"password\"). There is no show/hide icon on the registration form, so the second part of the step does not apply.",
+    "remarks": "The test step says \"if a show/hide icon is provided\". Screenshot: TC-BUY-020.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-021": {
+    "status": "Fail",
+    "actual": "The registration form has no Terms and Privacy Policy checkbox on either step and no link to the terms. Accounts are created without accepting the terms (see TC-BUY-001).",
+    "remarks": "Defect: no consent step for the Terms of Use and Privacy Policy. Screenshot: TC-BUY-021.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-022": {
+    "status": "Fail",
+    "actual": "Create Account was clicked three times quickly. Accounts created: 1. Emails sent: 1 (a welcome email). No duplicate-email error appeared; one \"Account Submitted!\" message was shown.",
+    "remarks": "Account 2 data with the email anamarie.reyes.r2@gmail.com (a first try of this case had already used anamarie.reyes@gmail.com). Clicked like a person clicking fast: three real mouse clicks 80 ms apart. The system sends a welcome email, not an OTP (see TC-BUY-001). Test data emails use @example.com, which the system rejects (its email check needs a domain that accepts mail; example.com has a null MX), so the same address was used with @gmail.com. Mail went to the isolated test log only. Screenshot: TC-BUY-022.jpg Final review: duplicate creation was prevented, but the case also requires one OTP/activation email; that required mechanism is absent, so the complete expected result fails. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-023": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: after registration the system shows \"Account Submitted!\" and sends a welcome email. There is no email OTP, no verification page and no Resend OTP option.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): new buyer accounts are verified by an admin who reviews the uploaded government ID (Admin > Buyer applications), not by an email OTP. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-024": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: after registration the system shows \"Account Submitted!\" and sends a welcome email. There is no email OTP, no verification page and no Resend OTP option.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): new buyer accounts are verified by an admin who reviews the uploaded government ID (Admin > Buyer applications), not by an email OTP. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-025": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: after registration the system shows \"Account Submitted!\" and sends a welcome email. There is no email OTP, no verification page and no Resend OTP option.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): new buyer accounts are verified by an admin who reviews the uploaded government ID (Admin > Buyer applications), not by an email OTP. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-026": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: after registration the system shows \"Account Submitted!\" and sends a welcome email. There is no email OTP, no verification page and no Resend OTP option.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): new buyer accounts are verified by an admin who reviews the uploaded government ID (Admin > Buyer applications), not by an email OTP. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-027": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: after registration the system shows \"Account Submitted!\" and sends a welcome email. There is no email OTP, no verification page and no Resend OTP option.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A9): new buyer accounts are verified by an admin who reviews the uploaded government ID (Admin > Buyer applications), not by an email OTP. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-028": {
+    "status": "Fail",
+    "actual": "Signing in with the account still waiting for admin approval succeeded: the home page (/) opened with the toast \"Welcome back, Juan Miguel!\" and the name in the header. No verification page and no notice about the pending review were shown.",
+    "remarks": "Design difference (A12): a buyer whose ID is still being reviewed can sign in and use the site. Screenshot: TC-BUY-028.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-029": {
+    "status": "Pass",
+    "actual": "After an admin approved the ID, signing in succeeded and opened /. The name \"Juan Miguel\" is shown in the header.",
+    "remarks": "\"Verified and Active\" in this system means the admin approved the buyer application. Screenshot: TC-BUY-029.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-BUY-030": {
+    "status": "Pass",
+    "actual": "Seller dashboard (/seller): redirected to /login; Logistics dashboard (/logistics): redirected to /login?next=%2Flogistics; Rider dashboard (/rider/dashboard): redirected to /rider/login; Admin dashboard (/admin): redirected to /login. No data from another role was shown.",
+    "remarks": "Screenshots: TC-BUY-030-*.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  }
+}

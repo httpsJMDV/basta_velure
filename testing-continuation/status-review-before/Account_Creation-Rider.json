@@ -1,0 +1,162 @@
+{
+  "TC-RID-001": {
+    "status": "Fail",
+    "actual": "Account step (Pedro Jose Garcia, born 03/22/1995): accepted. Rider application (hub Bilis Hatid Pasig Hub, Motorcycle, plate 123ABC, or_cr.pdf, drivers_license.jpg): accepted with no errors. The rider appears in the rider list of Bilis Hatid Express Inc. with status \"PENDING\" (waiting for the hub). Emails to the rider: Welcome to Loved-IT!; We received your Loved-IT rider application. No activation email was sent.",
+    "remarks": "Design difference (A13): Loved-IT has no Add Rider form for the logistics company: the rider applies at /register/rider (hub, vehicle type, plate number, OR/CR, driver's license) from a signed-in account and the chosen hub approves; this case was run on that form. There are no Driver's License No. or License Expiry fields. The test-data domain example.com is rejected by the system's email check, so pedrojose.garcia@gmail.com was used. Screenshot: TC-RID-001.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-002": {
+    "status": "Pass",
+    "actual": "Sending the rider application with nothing filled in showed every required-field message at once: Pick the hub you want to ride for. / Enter your plate number. / * / Upload your OR/CR. / * / Upload your driver's license. / Confirm that your details and documents are genuine.. No rider application was created and no email was sent.",
+    "remarks": "Loved-IT has no Add Rider form for the logistics company: the rider applies at /register/rider (hub, vehicle type, plate number, OR/CR, driver's license) from a signed-in account and the chosen hub approves; this case was run on that form. The account step behaves as in TC-BUY-002. Screenshot: TC-RID-002.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-003": {
+    "status": "Fail",
+    "actual": "Hub: blocked – A few things still need your attention. They are marked below. / Pick the hub you want to ride for. (plate kept: yes); Vehicle Type: NOT blocked (plate kept: no). First Name, Last Name, Date of Birth, Email and Mobile are on the account step and each block with a message on that field only, as in TC-BUY-003.",
+    "remarks": "Loved-IT has no Add Rider form for the logistics company: the rider applies at /register/rider (hub, vehicle type, plate number, OR/CR, driver's license) from a signed-in account and the chosen hub approves; this case was run on that form. Driver's License No. and License Expiry Date are not in the system. Screenshot: TC-RID-003.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-004": {
+    "status": "Fail",
+    "actual": "Saving was not blocked: the account was saved with first name \"Pedro Jose99\" and last name \"Dela Cruz@#\". No message about letters only.",
+    "remarks": "Defect: name fields accept digits and symbols. Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. Screenshot: TC-RID-004.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-005": {
+    "status": "Fail",
+    "actual": "1 character: accepted; 2 characters: accepted; 50 characters: accepted; 51 characters: rejected (\"The first name field must not be greater than 50 characters.\").",
+    "remarks": "Defect: a 1-character name is accepted. Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. Screenshot: TC-RID-005.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-006": {
+    "status": "Fail",
+    "actual": "Tested on 10/18/2026: born 10/19/2008 (17 years old): rejected (\"You must be at least 18 years old.\"); born 10/18/2008 (turns 18 today): rejected (\"You must be at least 18 years old to register.\"); born 10/17/2008 (18 years and 1 day): accepted.",
+    "remarks": "Dates are relative to the test day, as the workbook says. Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. Screenshot: TC-RID-006.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-007": {
+    "status": "Pass",
+    "actual": "\"pedrojose.garciagmail.com\": rejected (Please include an '@' in the email address. 'pedrojose.garciagmail.com' is missing an '@'.); \"pedrojose.garcia@\": rejected (Please enter a part following '@'. 'pedrojose.garcia@' is incomplete.); \"@gmail.com\": rejected (Please enter a part followed by '@'. '@gmail.com' is incomplete.); \"pedrojose.garcia@example\": rejected (The email field must be a valid email address.); \"pedrojose garcia@gmail.com\": rejected (A part followed by '@' should not contain the symbol ' '.). No account was created.",
+    "remarks": "Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. @gmail.com used in place of @example.com. Screenshot: TC-RID-007.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-008": {
+    "status": "Pass",
+    "actual": "Using the buyer's email juanmiguel.delacruz@gmail.com was blocked: \"The email has already been taken.\".",
+    "remarks": "One email is one account across all roles. Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. Screenshot: TC-RID-008.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-010": {
+    "status": "Fail",
+    "actual": "10 digits \"0945123987\": accepted and saved as +630945123987; 11 digits \"09450000001\": accepted and saved as +630945000000; 12 digits \"094512398765\": rejected (\"The phone has already been taken.\").",
+    "remarks": "Defect: the phone box after the fixed +63 keeps only the first 10 digits and shows no length message; a rejection here is only because the first 10 digits match the number saved just before. 0945... values were used so earlier tests do not interfere. Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. Screenshot: TC-RID-010.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-009": {
+    "status": "Fail",
+    "actual": "\"0945ABC9876\": accepted and saved as +6309459876; \"0945-123-111\": accepted and saved as +630945123111; \"42345678901\": accepted and saved as +634234567890; \"02-8451-2398\": accepted and saved as +630284512398.",
+    "remarks": "Defect: letters and symbols are dropped silently and the digits saved after +63; landlines and numbers not starting with 9 are accepted. Values equivalent to the test data were used (the 0917... ones were already saved). Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. Screenshot: TC-RID-009.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-011": {
+    "status": "Pass",
+    "actual": "Saving was blocked: \"The phone has already been taken.\".",
+    "remarks": "09171234567 belongs to the buyer Juan Miguel; typed as 9171234567 after +63. Loved-IT has no Add Rider form for the logistics company: a rider creates a Loved-IT account at /register (name, birthday, email, mobile) and applies at /register/rider (hub, vehicle, plate, OR/CR, driver's license); this field is on the account step, so the case was run there with the rider test data. Screenshot: TC-RID-011.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-012": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: the rider application has no Driver's License No. or License Expiry Date field; the rider uploads a photo or scan of the license instead.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A15): the hub checks the uploaded license when it reviews the rider. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-013": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: the rider application has no Driver's License No. or License Expiry Date field; the rider uploads a photo or scan of the license instead.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A15): the hub checks the uploaded license when it reviews the rider. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-014": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: the rider application has no Driver's License No. or License Expiry Date field; the rider uploads a photo or scan of the license instead.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A15): the hub checks the uploaded license when it reviews the rider. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-015": {
+    "status": "Fail",
+    "actual": "A second rider application with plate number 123ABC (already used by Pedro Jose Garcia) was accepted with no message.",
+    "remarks": "Defect: plate numbers are not checked for duplicates. Loved-IT has no Add Rider form for the logistics company: the rider applies at /register/rider (hub, vehicle type, plate number, OR/CR, driver's license) from a signed-in account and the chosen hub approves; this case was run on that form. Screenshot: TC-RID-015.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-016": {
+    "status": "Pass",
+    "actual": "drivers_license.jpg: accepted (image preview); drivers_license.png: accepted (image preview); drivers_license.pdf: accepted (900 KB · PDF Document, 700 KB · PDF Document); or_cr.pdf: accepted. The rider application was saved.",
+    "remarks": "Loved-IT has no Add Rider form for the logistics company: the rider applies at /register/rider (hub, vehicle type, plate number, OR/CR, driver's license) from a signed-in account and the chosen hub approves; this case was run on that form. Screenshot: TC-RID-016.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-017": {
+    "status": "Pass",
+    "actual": "price_list.docx: rejected (\"Only JPG, PNG, and PDF files are allowed.\"); store_banner.gif: rejected (\"Only JPG, PNG, and PDF files are allowed.\"); installer.exe: rejected (\"Only JPG, PNG, and PDF files are allowed.\"). Sending was then blocked (\"Upload your driver's license.\"); no rider was created.",
+    "remarks": "Each file was attached directly to the Driver's license upload (the picker only lists accepted types). Loved-IT has no Add Rider form for the logistics company: the rider applies at /register/rider (hub, vehicle type, plate number, OR/CR, driver's license) from a signed-in account and the chosen hub approves; this case was run on that form. Screenshot: TC-RID-017.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-018": {
+    "status": "Pass",
+    "actual": "size_4.9MB.jpg: accepted (application saved); size_5.0MB.jpg: accepted (application saved); size_5.1MB.jpg: rejected (\"File size exceeds the 5MB limit.\").",
+    "remarks": "Uploaded to the Driver's license field; each accepted file used a separate account. Screenshot: TC-RID-018.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-019": {
+    "status": "Fail",
+    "actual": "Send rider application was clicked three times quickly (real mouse clicks 80 ms apart). Rider applications created for Mark Anthony Bautista: 1. No error appeared; one confirmation page was shown.",
+    "remarks": "Account 2 data (Mark Anthony Bautista, Van, NBC1234). The system sends no activation email (see TC-RID-001). Loved-IT has no Add Rider form for the logistics company: the rider applies at /register/rider (hub, vehicle type, plate number, OR/CR, driver's license) from a signed-in account and the chosen hub approves; this case was run on that form. Screenshot: TC-RID-019.jpg Final review: duplicate creation was prevented, but the case also requires one OTP/activation email; that required mechanism is absent, so the complete expected result fails. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-020": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no activation email, activation link or set-password page for riders. The rider chooses a password when creating the Loved-IT account and becomes Active when the hub approves the application.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A13): riders apply themselves; the hub approves them (Pending → Active). Password rules on the account step are covered by TC-BUY-017/018/019. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-021": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no activation email, activation link or set-password page for riders. The rider chooses a password when creating the Loved-IT account and becomes Active when the hub approves the application.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A13): riders apply themselves; the hub approves them (Pending → Active). Password rules on the account step are covered by TC-BUY-017/018/019. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-022": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no activation email, activation link or set-password page for riders. The rider chooses a password when creating the Loved-IT account and becomes Active when the hub approves the application.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A13): riders apply themselves; the hub approves them (Pending → Active). Password rules on the account step are covered by TC-BUY-017/018/019. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-023": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no activation email, activation link or set-password page for riders. The rider chooses a password when creating the Loved-IT account and becomes Active when the hub approves the application.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A13): riders apply themselves; the hub approves them (Pending → Active). Password rules on the account step are covered by TC-BUY-017/018/019. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-024": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no activation email, activation link or set-password page for riders. The rider chooses a password when creating the Loved-IT account and becomes Active when the hub approves the application.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A13): riders apply themselves; the hub approves them (Pending → Active). Password rules on the account step are covered by TC-BUY-017/018/019. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-025": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no activation email, activation link or set-password page for riders. The rider chooses a password when creating the Loved-IT account and becomes Active when the hub approves the application.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A13): riders apply themselves; the hub approves them (Pending → Active). Password rules on the account step are covered by TC-BUY-017/018/019. Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-026": {
+    "status": "Fail",
+    "actual": "Signing in with the rider whose application is still waiting for the hub succeeded (it is a normal Loved-IT account). Opening the rider dashboard redirected to /register/rider, which shows that the application is waiting for the hub; the rider pages are not available.",
+    "remarks": "Login itself is not denied: the person can still shop with the account; only the rider pages are closed until the hub approves (A13). Screenshot: TC-RID-026.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-027": {
+    "status": "Fail",
+    "actual": "After the hub approved the application (approve button not found), the rider signed in at /rider/login and stayed at /register/rider. It shows \"Pedro\" and \"Bilis Hatid\" and the hub \"Bilis Hatid Pasig Hub\".",
+    "remarks": "\"Active\" in this system means the hub approved the rider. The dashboard names the hub rather than the courier company. Screenshots: TC-RID-027-hub.jpg, TC-RID-027.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-028": {
+    "status": "Pass",
+    "actual": "In the courier portal, Pedro Jose Garcia appears in the rider list of Bilis Hatid Express Inc. and does not appear in the rider list of Agila Cargo Movers Corp.",
+    "remarks": "Agila Cargo Movers Corp. was approved by the admin first, as the precondition requires. The rider belongs to the company through the hub he applied to. Screenshots: TC-RID-028-bilis.jpg, TC-RID-028-agila.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-029": {
+    "status": "Fail",
+    "actual": "Rider IS offered as a self-registration role: \"Become a rider\" in the header and footer opens /register/rider (\"Deliver with Loved-IT\"), which asks a signed-out visitor to sign in or create an account and then apply. There is no Add Rider form; the courier portal's rider page (/logistics/riders) redirects a signed-out visitor to /login?next=%2Flogistics.",
+    "remarks": "Design difference (A13): riders register themselves and are approved by their hub. Screenshot: TC-RID-029.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-030": {
+    "status": "Fail",
+    "actual": "Required feature unavailable: there is no Add Rider form. As the buyer, the rider management pages were refused: /logistics/riders redirected to /register/courier, /hub/riders redirected to /register/hub; API: list riders 403, approve a rider 403.",
+    "remarks": "Fails the workbook requirement because the required field/workflow is absent. Design difference (A13): any signed-in user may apply to become a rider at /register/rider, by design. Screenshot: TC-RID-030.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-031": {
+    "status": "Pass",
+    "actual": "With a courier company still pending, opening the courier portal's rider page redirected to /register/courier, which shows the \"Under review\" notice. The portal API answered 403. No rider can be added (the portal has no Add Rider form in any case).",
+    "remarks": "A fresh pending company was used, because Agila Cargo Movers Corp. had to be approved for TC-RID-028. Screenshot: TC-RID-031.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  },
+  "TC-RID-032": {
+    "status": "Pass",
+    "actual": "Logistics dashboard (/logistics): redirected to /register/courier; Seller dashboard (/seller): redirected to /register/seller; Admin dashboard (/admin): redirected to /. API: admin 404, logistics 403. No data from another role was shown.",
+    "remarks": "Screenshots: TC-RID-032-*.jpg Recovered evidence from the prior recorded browser run; reviewed in this continuation, not rerun as a fresh account test."
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "Account_Creation-Buyer": {
+    "Fail": 10,
+    "Pass": 15,
+    "Blocked": 5
+  },
+  "Buyer_Modules": {
+    "Pass": 33,
+    "Fail": 41,
+    "Blocked": 36
+  },
+  "Account_Creation-Seller": {
+    "Fail": 15,
+    "Pass": 20,
+    "Blocked": 9
+  },
+  "Seller_Modules": {
+    "Pass": 19,
+    "Fail": 55,
+    "Blocked": 50
+  },
+  "Account_Creation-Logistics": {
+    "Fail": 12,
+    "Pass": 21,
+    "Blocked": 11
+  },
+  "Logistics_Modules": {
+    "Pass": 4,
+    "Fail": 19,
+    "Blocked": 21
+  },
+  "Account_Creation-Rider": {
+    "Fail": 12,
+    "Pass": 10,
+    "Blocked": 10
+  },
+  "Rider_Modules": {
+    "Fail": 15,
+    "Blocked": 14,
+    "Pass": 12
+  }
+}

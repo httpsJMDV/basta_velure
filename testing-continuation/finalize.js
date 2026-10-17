@@ -1,0 +1,20 @@
+const fs=require('fs');
+const path=require('path');
+const keys=['Account_Creation-Buyer','Account_Creation-Seller','Account_Creation-Logistics','Account_Creation-Rider','Buyer_Modules','Seller_Modules','Logistics_Modules','Rider_Modules'];
+const counts={};
+for(const key of keys){
+ const data=JSON.parse(fs.readFileSync(path.join(__dirname,'bb/results',key+'.json')));
+ counts[key]=Object.values(data).reduce((a,r)=>(a[r.status]=(a[r.status]||0)+1,a),{});
+ if(key.includes('Modules'))fs.writeFileSync(path.join(__dirname,'extras',key+'.json'),JSON.stringify({summary:{
+  'System under test':'Loved-IT marketplace; local Laravel API',
+  'Version / build':'Current local working tree; see QUICK_TEST_REPORT.md',
+  'Test environment (browser, device)':'Expedited API smoke test at 127.0.0.1:8010; isolated velure_blackbox database. No browser verification.',
+  'Tester':'Codex automated quick test; source review findings explicitly labeled',
+  'Date tested':'2026-10-18 (Asia/Manila)'
+ }},null,2));
+}
+let report=`# Quick test results — 18 October 2026\n\nAll eight Excel copies are in docs2/answered, with original filenames and formatting. Answers are in the yellow cells. Original templates were retained.\n\nThis is an expedited continuation, not a complete execution of all 469 cases. The four Account Creation results were recovered from the previous assistant's JSON and preserved; Codex did not rerun those tests. Rider's previously completed results were built into Excel. Module testing used the existing isolated database, velure_blackbox, with separate storage and log mail.\n\n## Coverage\n\n| Workbook | Pass | Fail | Blocked | Not Run |\n|---|---:|---:|---:|---:|\n`;
+for(const [key,c]of Object.entries(counts))report+=`| ${key} | ${c.Pass||0} | ${c.Fail||0} | ${c.Blocked||0} | ${c['Not Run']||0} |\n`;
+report+=`\nPass/Fail means a checked behavior has supporting requests or recovered results. Blocked module entries identify missing route support from source review or a missing approved-rider prerequisite; these are not claimed as executed browser tests. Not Run includes partial API checks and skipped cases; read each cell for what was actually checked.\n\n## Confirmed issues from this run\n\n- An address with phone value abc was accepted (HTTP 201); the temporary address was deleted afterward.\n- A buyer could request a return while the order was PLACED (HTTP 200); it changed to DISPUTED before delivery. This is a backend finding; the Return button visibility was not tested.\n\n## Checks that worked\n\nAnonymous wishlist/follow access was rejected; wishlist toggling worked; another buyer's address edits/deletion were rejected; duplicate store names were rejected including lowercase and padded variants; another seller's product update was rejected; COD stock decreased by one; client-supplied zero price/total was ignored; cross-account order reads were rejected. Receipt confirmation before delivery returned HTTP 409.\n\n## Limits\n\nNo screenshots, interactive browser testing, timed jobs, load tests, gateway tests or full delivery workflow were executed in this quick continuation. Rider 1 was pending hub approval, so rider endpoints returned HTTP 403. Existing Not Run cells deliberately avoid overstating coverage. The order transition check occurred after the order became disputed and therefore remains Not Run.\n\n## Evidence and reproduction\n\n- testing-continuation/api-evidence.json contains request/response evidence. It contains test personal data: keep it local.\n- testing-continuation/quick-test.js and order-test.js contain the quick test scripts and depend on the previous assistant's temporary harness; preserve that folder to rerun them. They create data in the test database.\n- testing-continuation/bb/results contains preserved account results and new module results.\n- build.js, fill.php, cases, xl and extras rebuild Excel copies without rerunning tests.\n\nThe scripts do not edit application code. The local test server is stopped after generation.\n`;
+fs.writeFileSync(path.join(__dirname,'../docs2/answered/QUICK_TEST_REPORT.md'),report);
+console.log(JSON.stringify(counts,null,2));

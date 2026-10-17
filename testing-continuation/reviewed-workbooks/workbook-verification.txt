@@ -1,0 +1,9 @@
+Blackbox_Test_Cases_Account_Creation-Buyer.xlsx: only yellow-cell contents changed; 30 cases complete.
+Blackbox_Test_Cases_Account_Creation-Logistics.xlsx: only yellow-cell contents changed; 44 cases complete.
+Blackbox_Test_Cases_Account_Creation-Rider.xlsx: only yellow-cell contents changed; 32 cases complete.
+Blackbox_Test_Cases_Account_Creation-Seller1.xlsx: only yellow-cell contents changed; 44 cases complete.
+Blackbox_Test_Cases_Buyer_Modules-1.xlsx: only yellow-cell contents changed; 110 cases complete.
+Blackbox_Test_Cases_Logistics_Modules-1.xlsx: only yellow-cell contents changed; 44 cases complete.
+Blackbox_Test_Cases_Rider_Modules-1.xlsx: only yellow-cell contents changed; 41 cases complete.
+Blackbox_Test_Cases_Seller_Modules-1.xlsx: only yellow-cell contents changed; 124 cases complete.
+469 cases verified; 1511 yellow cells changed. All other XML bytes, styles, formulas and dimensions are unchanged.

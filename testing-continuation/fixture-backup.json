@@ -1,0 +1,11 @@
+{
+    "payout": {
+        "id": 2,
+        "payout_status": "direct",
+        "seller_earnings": "405.00"
+    },
+    "foreign": {
+        "id": 6,
+        "logistics_company_id": 3
+    }
+}

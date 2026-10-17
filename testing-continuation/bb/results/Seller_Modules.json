@@ -1,0 +1,622 @@
+{
+  "SEL-PROF-001": {
+    "status": "Pass",
+    "actual": "Profile/logo/banner save 200; buyer shop shows new name true; public data and shop search retrieved 200.",
+    "remarks": "Uploaded the workbook logo/banner and loaded the public shop in Edge; source values saved via real API."
+  },
+  "SEL-PROF-002": {
+    "status": "Fail",
+    "actual": "Blank shop contact number returned HTTP 200; saved value null. Contact is nullable, contrary to required-field rejection.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROF-003": {
+    "status": "Pass",
+    "actual": "Spaces-only store name returned 422; saved name: \"Maria Clara Handicrafts\".",
+    "remarks": "API test on isolated velure_blackbox database. UI steps not executed."
+  },
+  "SEL-PROF-004": {
+    "status": "Pass",
+    "actual": "Duplicate store name, lowercase, padded: HTTP 422, 422, 422; name unchanged: true.",
+    "remarks": "API test on isolated velure_blackbox database. UI steps not executed."
+  },
+  "SEL-PROF-005": {
+    "status": "Fail",
+    "actual": "Unique two-character name QZ saved with HTTP 200; workbook minimum is 3.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROF-006": {
+    "status": "Fail",
+    "actual": "A 500-character description returned HTTP 500; 501 returned HTTP 422. The application log reports Data too long for column shop_description, so the valid boundary could not be saved.",
+    "remarks": "API and isolated application log verified. Actual database capacity differs from the 500-character validator."
+  },
+  "SEL-PROF-007": {
+    "status": "Fail",
+    "actual": "10-digit mobile 0918987654 returned 200; required 11-digit Philippine mobile format was not enforced.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROF-008": {
+    "status": "Fail",
+    "actual": "4.9 MB logo upload, which the workbook expects to accept: HTTP 422; {\"message\":\"The logo failed to upload.\",\"errors\":{\"logo\":[\"The logo failed to upload.\"]}}. Server PHP upload limit and logo validator do not meet the requested 5 MB acceptance boundary.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROF-009": {
+    "status": "Fail",
+    "actual": "Shop settings/API contain no vacation mode field; product buying cannot be suspended/resumed with the vacation workflow required by this case.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerShopProfileController.php:43. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-PROF-010": {
+    "status": "Blocked",
+    "actual": "Could not complete turn off vacation mode: vacation mode cannot first be enabled, so the required On vacation starting state cannot be reached.",
+    "remarks": "Blocked prerequisite: SEL-PROF-009. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-PROF-011": {
+    "status": "Fail",
+    "actual": "Pending Seller 3 saving a draft returned HTTP 403; {\"message\":\"Seller account not approved.\"}. The case requires publish to be denied but Save as Draft to succeed; approval middleware blocks both.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROF-012": {
+    "status": "Pass",
+    "actual": "Injected script/HTML in shop text fields; Edge alert count 0; rendered text includes literal script tag true.",
+    "remarks": "Shop description/bio use escaped text rendering; public shop loaded after save."
+  },
+  "SEL-PROF-013": {
+    "status": "Pass",
+    "actual": "Foreign-id settings URL 404; injected seller_id POST 200, but Seller 2 bio unchanged true. Endpoint updates only token owner profile.",
+    "remarks": "Provided target ID is ignored; route does not expose an editable foreign resource."
+  },
+  "SEL-SCAT-001": {
+    "status": "Fail",
+    "actual": "Seller settings offer one shop category/line of business, not a hierarchy of product categories within a store. Creating, assigning, nesting, hiding or reordering the store categories required by this case is unavailable.",
+    "remarks": "Implementation review: backend/routes/api.php:344. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-SCAT-002": {
+    "status": "Blocked",
+    "actual": "Could not complete empty, spaces-only and over-length names: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-003": {
+    "status": "Blocked",
+    "actual": "Could not complete duplicate category name in the same store: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-004": {
+    "status": "Blocked",
+    "actual": "Could not complete same category name in a different store: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-005": {
+    "status": "Blocked",
+    "actual": "Could not complete rename a category to a duplicate name: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-006": {
+    "status": "Blocked",
+    "actual": "Could not complete rename and reorder categories: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-007": {
+    "status": "Blocked",
+    "actual": "Could not complete hide a category: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-008": {
+    "status": "Blocked",
+    "actual": "Could not complete show a hidden category: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-009": {
+    "status": "Blocked",
+    "actual": "Could not complete delete a category that still has products: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-010": {
+    "status": "Blocked",
+    "actual": "Could not complete delete a parent category with subcategories: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-011": {
+    "status": "Blocked",
+    "actual": "Could not complete subcategory nesting at the depth limit: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-012": {
+    "status": "Blocked",
+    "actual": "Could not complete product in several store categories at the limit: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-SCAT-013": {
+    "status": "Blocked",
+    "actual": "Could not complete store category is separate from platform category: the store-category editor/records are absent. The named category or category-edit input required by this case cannot be created or opened.",
+    "remarks": "Blocked prerequisite: SEL-SCAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-PROD-001": {
+    "status": "Fail",
+    "actual": "A seller submits a product as pending_review for admin approval, not directly Active; store category assignment is also unavailable. The complete immediate-publication expectation in this case is not met.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:167. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-PROD-002": {
+    "status": "Fail",
+    "actual": "Submitting omitted required fields with variants=null returned HTTP 500; application log reports foreach on null at SellerProductController.php:214, rather than required-field errors.",
+    "remarks": "Runtime evidence retained in full-evidence.json; this is a server error in input handling, not a test-environment blocker."
+  },
+  "SEL-PROD-003": {
+    "status": "Fail",
+    "actual": "Name Tote (4 characters) and description short (5) returned 201; both should fail minimum lengths. Server instead allows name up to 255 and description up to 1,500 visible characters.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROD-004": {
+    "status": "Fail",
+    "actual": "Zero-price product submission returned 201; saved base price 0. Required minimum 1.00 was not enforced.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROD-005": {
+    "status": "Fail",
+    "actual": "Stock 100,000 returned 201; total stock 100000. Required maximum 99,999 was not enforced.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROD-006": {
+    "status": "Fail",
+    "actual": "Submission without any image returned 201; required minimum one image was not enforced.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROD-007": {
+    "status": "Fail",
+    "actual": "Valid 5.0 MB image required to be accepted: HTTP 422; {\"message\":\"The images.0 failed to upload.\",\"errors\":{\"images.0\":[\"The images.0 failed to upload.\"]}}. PHP upload_max_filesize rejects it before the app 5 MB rule can succeed.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROD-008": {
+    "status": "Fail",
+    "actual": "Zero weight and 0 x 0 x 0 dimensions returned 201. The case requires rejecting zero values; server min:0 accepts them.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROD-009": {
+    "status": "Fail",
+    "actual": "Saving the name-only draft Draft Woven Fan returned HTTP 500; application log reports undefined variants at SellerProductController.php:214. The requested incomplete draft cannot be saved.",
+    "remarks": "Actual API request executed; incomplete name-only draft is the specified valid input in this workbook case."
+  },
+  "SEL-PROD-010": {
+    "status": "Fail",
+    "actual": "Draft missing images/category/description/weight and with price zero was activated: HTTP 200, status active. Publication did not revalidate required data.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-PROD-011": {
+    "status": "Fail",
+    "actual": "Archive 200, public URL 404, search contains P-02 false, reactivate 200. Archive hides the product, but an existing local cart line is not refreshed/disabled as required.",
+    "remarks": "Actual archive/search/direct URL/restore tested; cart limitation independently confirmed in useCart/CartPage review."
+  },
+  "SEL-PROD-012": {
+    "status": "Fail",
+    "actual": "The seller product routes and product actions provide edit, stock, price, archive and delete, but no Duplicate Product action that creates a draft copy.",
+    "remarks": "Implementation review: backend/routes/api.php:338. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-PROD-013": {
+    "status": "Fail",
+    "actual": "The buyer cart stores its original unit price in localStorage and does not refetch it on cart refresh; seller price updates therefore do not update that cart line automatically.",
+    "remarks": "Implementation review: frontend/src/hooks/useCart.tsx:10. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-PROD-014": {
+    "status": "Pass",
+    "actual": "Deleting active P-02 with its unfinished test order returned 422: Only draft or rejected products can be deleted.; product retained.",
+    "remarks": "Deletion is broadly restricted to draft/rejected products, not a dedicated unfinished-orders check; case safety condition holds."
+  },
+  "SEL-PROD-015": {
+    "status": "Fail",
+    "actual": "Deletion is allowed only for draft/rejected products. An Active product with only finished orders cannot be deleted as required; the mixed bulk-delete expectation is therefore also unmet.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:326. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-PROD-016": {
+    "status": "Blocked",
+    "actual": "Could not complete bulk deactivate and bulk delete with a mixed selection: active products with only completed orders cannot be deleted, so the required mixed-selection deletion result cannot be reached through the specified workflow.",
+    "remarks": "Blocked prerequisite: SEL-PROD-015. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-PROD-017": {
+    "status": "Fail",
+    "actual": "Concurrent identical publication requests 201/201; distinct IDs 19/20. Server creates duplicates instead of one product.",
+    "remarks": "API concurrency/replay tested using complete variant data; browser submit-disable behavior is separate."
+  },
+  "SEL-PROD-018": {
+    "status": "Pass",
+    "actual": "HTTP 403: {\"message\":\"\"}",
+    "remarks": "API ownership check only. HTTP 422 alone does not prove authorization."
+  },
+  "SEL-VAR-001": {
+    "status": "Fail",
+    "actual": "Created six Color/Size combinations: HTTP 201, rows 6. However buyer page displays only base/selected price, not required 99–149 price range.",
+    "remarks": "Combination storage tested through API; missing range display independently confirmed in ProductDetailPage."
+  },
+  "SEL-VAR-002": {
+    "status": "Fail",
+    "actual": "The variant editor permits three variation types (types.length < 3); the workbook requires a maximum of two.",
+    "remarks": "Implementation review: frontend/src/pages/seller/SellerAddProductPage.tsx:703. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-VAR-003": {
+    "status": "Fail",
+    "actual": "The option editor caps each type at 12 options (MAX_OPTIONS = 12); the workbook requires accepting 20 and rejecting only the 21st.",
+    "remarks": "Implementation review: frontend/src/pages/seller/SellerAddProductPage.tsx:601. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-VAR-004": {
+    "status": "Fail",
+    "actual": "The option duplicate check uses case-sensitive options.includes(val), so Red and red can coexist; it does not meet the required case-insensitive duplicate validation.",
+    "remarks": "Implementation review: frontend/src/pages/seller/SellerAddProductPage.tsx:605. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-VAR-005": {
+    "status": "Fail",
+    "actual": "Blue / L variant price 0.00 returned 201. The workbook requires rejecting a zero-price variant.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-VAR-006": {
+    "status": "Fail",
+    "actual": "Variant SKU is nullable|string|max:100 without a unique or distinct rule, and variants are created directly. The required duplicate-SKU rejection is absent.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:58. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-VAR-007": {
+    "status": "Fail",
+    "actual": "Before selecting a variation, the product page renders product.base_price as a single amount rather than the full minimum-to-maximum range. The expected 199–299 range is not shown.",
+    "remarks": "Implementation review: frontend/src/pages/ProductDetailPage.tsx:140. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-VAR-008": {
+    "status": "Pass",
+    "actual": "Natural and Black selection main images differ: true; URLs http://127.0.0.1:8010/storage/products/images/cMiJX4rNyWv0ZYwdzxwYUp4DcVFNO7wWHhzpyS3i.jpg → http://127.0.0.1:8010/storage/products/images/6ZyN9TGN4ove7tjWIwM5OZYZ79UYu4wGKaCsHrjS.png.",
+    "remarks": "Two actual product images were uploaded as the specified precondition; live Edge gallery checked."
+  },
+  "SEL-VAR-009": {
+    "status": "Fail",
+    "actual": "Buyer Black/M zero-stock option: [{\"text\":\"M\",\"disabled\":false}]. Size M should be disabled for Black while remaining available for Natural.",
+    "remarks": "Shared browser evidence: BUY-PDP-003."
+  },
+  "SEL-VAR-010": {
+    "status": "Pass",
+    "actual": "Completed order 24 retains Natural/M at 249 on buyer and seller views. Product now has Beige/M at 259 and Brown options: true.",
+    "remarks": "Exact completed-order/rename/new-price/add-option scenario executed; original variants restored afterward."
+  },
+  "SEL-VAR-011": {
+    "status": "Fail",
+    "actual": "The cart retains a variant snapshot and does not revalidate whether that variation still exists when rendering; it does not mark a removed variant unavailable in the cart.",
+    "remarks": "Implementation review: frontend/src/hooks/useCart.tsx:6. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-VAR-012": {
+    "status": "Fail",
+    "actual": "Product update deletes and recreates all supplied variants without checking for unfinished orders; the required protection against deleting an ordered variant is absent.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:114. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-INV-001": {
+    "status": "Pass",
+    "actual": "P-02 set to stock 20; COD order 25 for quantity 2 returned 201; stock immediately 18.",
+    "remarks": "Exact workbook product, quantity and 20-to-18 boundary tested."
+  },
+  "SEL-INV-002": {
+    "status": "Pass",
+    "actual": "P-02 stock 20 → 19; unpaid GCash receipt order 26, HTTP 201, payment pending_verification.",
+    "remarks": "Exact 20-to-19 stock reservation tested using current direct GCash workflow."
+  },
+  "SEL-INV-003": {
+    "status": "Blocked",
+    "actual": "Could not complete stock restored when the buyer cancels: a buyer cancellation cannot be performed, so its stock-restoration side effect cannot be measured.",
+    "remarks": "Blocked prerequisite: BUY-CAN-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-INV-004": {
+    "status": "Blocked",
+    "actual": "Could not complete stock restored on auto-cancel of an unpaid order: the specified unpaid order auto-cancellation cannot occur, so stock restoration at that event cannot be observed.",
+    "remarks": "Blocked prerequisite: BUY-PAY-006. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-INV-005": {
+    "status": "Pass",
+    "actual": "Natural/M stock 8 → 7; checkout 201; other variants unchanged true.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-INV-006": {
+    "status": "Pass",
+    "actual": "Concurrent buyers on stock=1 returned 201,422; orders 9,none; remaining stock 0.",
+    "remarks": "Two requests issued concurrently; MySQL stock rows are locked by checkout."
+  },
+  "SEL-INV-007": {
+    "status": "Pass",
+    "actual": "Bought last five P-07 units, order 11; public variant stock total 0. Frontend soldOut uses total/selected variant stock <=0 to disable buying; seller Out of Stock tab uses total_stock.",
+    "remarks": "Actual stock deduction checked; buyer/seller zero-stock render conditions inspected."
+  },
+  "SEL-INV-008": {
+    "status": "Fail",
+    "actual": "The buyer page can show low stock text, but no seller low-stock threshold configuration or once-per-crossing alert workflow is registered. The 6-to-5-to-4 alert behavior cannot be exercised.",
+    "remarks": "Implementation review: backend/routes/api.php:329. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-INV-009": {
+    "status": "Fail",
+    "actual": "Manual stock adjustment to 100,000 returned 200; saved total stock 100000. Expected maximum is 99,999.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-INV-010": {
+    "status": "Fail",
+    "actual": "Stock reduced to 3: checkout of 5 returned 422: Insufficient stock for Rattan Fruit Basket (Standard). Server protection works, but the existing cart line is not revalidated and shows no Only 3 left warning.",
+    "remarks": "API oversize checkout verified; missing cart notice/selection protection independently reviewed."
+  },
+  "SEL-DISC-001": {
+    "status": "Fail",
+    "actual": "Discounts are applied immediately through discount_percent. There are no start/end timestamps or scheduled-sale records in this product update flow; the scheduled sale required by this case cannot be configured.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:126. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-DISC-002": {
+    "status": "Blocked",
+    "actual": "Could not complete sale goes live at the exact start time: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-003": {
+    "status": "Blocked",
+    "actual": "Could not complete sale ends at the exact end time: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-004": {
+    "status": "Blocked",
+    "actual": "Could not complete invalid sale dates: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-005": {
+    "status": "Blocked",
+    "actual": "Could not complete discount percentage at the limits: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-006": {
+    "status": "Blocked",
+    "actual": "Could not complete fixed sale price at or above the original: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-007": {
+    "status": "Blocked",
+    "actual": "Could not complete overlapping sales on the same product: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-008": {
+    "status": "Blocked",
+    "actual": "Could not complete sale on a product with variants: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-009": {
+    "status": "Blocked",
+    "actual": "Could not complete edit a running sale: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-DISC-010": {
+    "status": "Blocked",
+    "actual": "Could not complete end a running sale now: the scheduled-sale editor/record is unavailable. No Upcoming/Ongoing sale, sale timestamps or scheduled-sale validation input exists for this case.",
+    "remarks": "Blocked prerequisite: SEL-DISC-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-001": {
+    "status": "Fail",
+    "actual": "There is no seller voucher management route or voucher editor. The code, claiming, product restrictions or usage behavior in this case is unavailable.",
+    "remarks": "Implementation review: backend/routes/api.php:333. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-VOU-002": {
+    "status": "Blocked",
+    "actual": "Could not complete create a percentage voucher with a cap: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-003": {
+    "status": "Blocked",
+    "actual": "Could not complete code-only voucher is hidden: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-004": {
+    "status": "Blocked",
+    "actual": "Could not complete voucher code format: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-005": {
+    "status": "Blocked",
+    "actual": "Could not complete duplicate voucher code: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-006": {
+    "status": "Blocked",
+    "actual": "Could not complete discount larger than the minimum spend: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-007": {
+    "status": "Blocked",
+    "actual": "Could not complete field validation: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-008": {
+    "status": "Blocked",
+    "actual": "Could not complete voucher for selected products only: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-009": {
+    "status": "Blocked",
+    "actual": "Could not complete edit a voucher buyers already claimed: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-010": {
+    "status": "Blocked",
+    "actual": "Could not complete end a voucher buyers already claimed: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-VOU-011": {
+    "status": "Blocked",
+    "actual": "Could not complete usage counters: no seller voucher can be created/opened. The required voucher fields, existing/claimed voucher or usage record cannot be prepared.",
+    "remarks": "Blocked prerequisite: SEL-VOU-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-FLASH-001": {
+    "status": "Fail",
+    "actual": "The product editor supports an immediate percentage discount, but has no flash-sale slots, allocated flash stock, bundle deal or Buy X Get Y editor. This case requires an unavailable promotion workflow.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:47. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-FLASH-002": {
+    "status": "Blocked",
+    "actual": "Could not complete flash quantity and price validation: a flash-sale slot and allocated flash inventory cannot be created, preventing its boundary, depletion, expiry and overlap tests.",
+    "remarks": "Blocked prerequisite: SEL-FLASH-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-FLASH-003": {
+    "status": "Blocked",
+    "actual": "Could not complete price returns to normal when flash quantity runs out: a flash-sale slot and allocated flash inventory cannot be created, preventing its boundary, depletion, expiry and overlap tests.",
+    "remarks": "Blocked prerequisite: SEL-FLASH-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-FLASH-004": {
+    "status": "Blocked",
+    "actual": "Could not complete order more than the remaining flash quantity: a flash-sale slot and allocated flash inventory cannot be created, preventing its boundary, depletion, expiry and overlap tests.",
+    "remarks": "Blocked prerequisite: SEL-FLASH-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-FLASH-005": {
+    "status": "Blocked",
+    "actual": "Could not complete flash sale ends at the slot end: a flash-sale slot and allocated flash inventory cannot be created, preventing its boundary, depletion, expiry and overlap tests.",
+    "remarks": "Blocked prerequisite: SEL-FLASH-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-FLASH-006": {
+    "status": "Blocked",
+    "actual": "Could not complete overlapping store sale and flash sale: a flash-sale slot and allocated flash inventory cannot be created, preventing its boundary, depletion, expiry and overlap tests.",
+    "remarks": "Blocked prerequisite: SEL-FLASH-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-FLASH-007": {
+    "status": "Fail",
+    "actual": "The product editor supports an immediate percentage discount, but has no flash-sale slots, allocated flash stock, bundle deal or Buy X Get Y editor. This case requires an unavailable promotion workflow.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:47. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-FLASH-008": {
+    "status": "Fail",
+    "actual": "The product editor supports an immediate percentage discount, but has no flash-sale slots, allocated flash stock, bundle deal or Buy X Get Y editor. This case requires an unavailable promotion workflow.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerProductController.php:47. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-ORD-001": {
+    "status": "Fail",
+    "actual": "Seller order filtering supports status and search, but neither the list controller nor the seller screen offers a date-range filter required by this case.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerOrderController.php:25. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-ORD-002": {
+    "status": "Fail",
+    "actual": "Accept, pack and Ready for Pickup transitions succeeded with timestamps, tracking and COD 500.00. However the waybill API and WaybillPage omit parcel weight entirely, so the required 0.8 kg cannot be printed.",
+    "remarks": "Real full seller/rider/hub flow executed. Failure is the missing weight on the waybill, not the working order transitions."
+  },
+  "SEL-ORD-003": {
+    "status": "Pass",
+    "actual": "Fresh PLACED order sent directly to READY_FOR_PICKUP: HTTP 422; Cannot transition order from PLACED to READY_FOR_PICKUP.. State was not changed.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-ORD-004": {
+    "status": "Fail",
+    "actual": "Seller cancellation accepts a nullable note and the system has no voucher wallet to restore MCH50. The mandatory reason and voucher-restoration requirements in this case are unmet.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerOrderController.php:351. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-ORD-005": {
+    "status": "Fail",
+    "actual": "The payment workflow is direct seller GCash; cancellation does not initiate a gateway refund of the prepaid amount. The full automatic-refund expectation is unavailable.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerOrderController.php:351. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-ORD-006": {
+    "status": "Pass",
+    "actual": "Seller cancellation after PICKED_UP returned 422; Cannot transition order from PICKED_UP to CANCELLED..",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-ORD-007": {
+    "status": "Blocked",
+    "actual": "Could not complete order details accuracy: the voucher-based worked checkout order cannot be placed, so those exact line items, deductions and order totals are unavailable for comparison.",
+    "remarks": "Blocked prerequisite: BUY-CHK-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-ORD-008": {
+    "status": "Pass",
+    "actual": "Seller 2 opening Seller 1 order 1: HTTP 403.",
+    "remarks": "Expedited API test; browser controls not exercised."
+  },
+  "SEL-RET-001": {
+    "status": "Fail",
+    "actual": "Return requests store reason/description without evidence-photo uploads, and the response email states 48 hours rather than the required 3-day deadline. Both-photo/deadline requirements are unmet.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/BuyerOrderController.php:387. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-RET-002": {
+    "status": "Fail",
+    "actual": "Seller accepted return with HTTP 200; order becomes RETURNED, not a distinct Return Approved state with return instructions. The required staged return approval is absent.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-RET-003": {
+    "status": "Fail",
+    "actual": "Reject reason Item used (9 characters) returned 200; required minimum is 10 characters.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-RET-004": {
+    "status": "Fail",
+    "actual": "Rejecting a return updates the dispute to in_progress and immediately refers it to mediation. No distinct Rejected state followed by a one-time buyer Escalate action exists.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerOrderController.php:325. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-RET-005": {
+    "status": "Blocked",
+    "actual": "Could not complete escalate to a dispute: there is no separate Rejected return state and buyer escalation action to establish the required escalation prerequisite.",
+    "remarks": "Blocked prerequisite: SEL-RET-004. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-RET-006": {
+    "status": "Fail",
+    "actual": "No scheduled job auto-approves an unanswered return after three days. The configured console schedule concerns completion/earnings, not return-response deadlines.",
+    "remarks": "Implementation review: backend/routes/console.php:1. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-RET-007": {
+    "status": "Blocked",
+    "actual": "Could not complete refunded amount removed from earnings: the system does not produce the specified approved-and-refunded return; no actual refund transaction exists whose earnings effect can be measured. Partial observation: A RETURNED order is excluded from the earnings breakdown, but that does not verify a genuine refund.",
+    "remarks": "Blocked prerequisite: SEL-RET-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-REV-001": {
+    "status": "Fail",
+    "actual": "The seller Reviews & Ratings route renders AdminPlaceholderPage, not a review table with photo/variant/date and rating filters. The required seller review list is unavailable.",
+    "remarks": "Implementation review: frontend/src/App.tsx:314. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-REV-002": {
+    "status": "Fail",
+    "actual": "Review routes expose buyer create/edit and public/admin read views; there is no seller reply-create or reply-edit route for the response workflow required here.",
+    "remarks": "Implementation review: backend/routes/api.php:167. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-REV-003": {
+    "status": "Blocked",
+    "actual": "Could not complete second reply and edit reply: a seller review reply cannot be created, so there is no existing reply for second-reply/edit testing.",
+    "remarks": "Blocked prerequisite: SEL-REV-002. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-REV-004": {
+    "status": "Pass",
+    "actual": "Seller delete-review HTTP 405; buyer-review edit HTTP 403; public review list still returned 200. No seller hide/delete route exists.",
+    "remarks": "Tested through the local system API on isolated velure_blackbox; judged against the workbook expected result."
+  },
+  "SEL-REV-005": {
+    "status": "Blocked",
+    "actual": "Could not complete chat with a buyer, with attachment: the buyer-to-approved-seller conversation could not be opened; the required incoming buyer message/thread is unavailable for a seller reply.",
+    "remarks": "Blocked prerequisite: BUY-CHAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-REV-006": {
+    "status": "Blocked",
+    "actual": "Could not complete invalid chat attachments: no valid seller conversation could be initialized, so the invalid files could not be submitted in the required seller thread. Partial observation: The alternative GET /my-conversation initialization returned HTTP 500.",
+    "remarks": "Blocked prerequisite: BUY-CHAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-REV-007": {
+    "status": "Blocked",
+    "actual": "Could not complete message length and empty message: no valid seller conversation could be initialized, preventing seller-specific empty/length boundary submissions. Partial observation: The shared validator allows 2,000 characters and a buyer/admin thread accepted 1,001; that is not a completed seller-thread test.",
+    "remarks": "Blocked prerequisite: BUY-CHAT-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-EARN-001": {
+    "status": "Blocked",
+    "actual": "Could not complete net earnings calculation: the exact voucher-based worked example order cannot be created/completed, so its specified 616.55 earnings and balance transitions cannot be measured.",
+    "remarks": "Blocked prerequisite: BUY-CHK-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-EARN-002": {
+    "status": "Blocked",
+    "actual": "Could not complete earnings pending until completion: the exact voucher-based worked example order cannot be created/completed, so its specified 616.55 earnings and balance transitions cannot be measured.",
+    "remarks": "Blocked prerequisite: BUY-CHK-001. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-EARN-003": {
+    "status": "Blocked",
+    "actual": "Could not complete cancelled and refunded orders excluded: the required genuinely refunded order is unavailable, so the combined cancelled/refunded comparison cannot be completed. Partial observation: Cancellation was tested and gross decreased by 500.00; that verifies only the cancelled-order part.",
+    "remarks": "Blocked prerequisite: SEL-RET-007. The required setup/action was unavailable, so the dependent expected result was not verified. Evidence reviewed from the existing runtime/implementation findings; this status review did not rerun the system."
+  },
+  "SEL-EARN-004": {
+    "status": "Fail",
+    "actual": "Sales reports accept preset range values but do not validate arbitrary from/to dates or reject a reversed custom date range as required by the workbook.",
+    "remarks": "Implementation review: backend/app/Http/Controllers/Api/V1/SellerReportController.php:26. Required behavior in this case is absent or differs. This finding is not a claimed browser execution."
+  },
+  "SEL-EARN-005": {
+    "status": "Pass",
+    "actual": "Available balance fixture 616.55; request outcomes [{\"amount\":99.99,\"status\":422},{\"amount\":100,\"status\":201},{\"amount\":616.55,\"status\":201},{\"amount\":616.56,\"status\":422},{\"amount\":0,\"status\":422},{\"amount\":\"abc\",\"status\":422}].",
+    "remarks": "Precondition seeded on a dedicated completed test order item in velure_blackbox. Each successful request was rejected through admin API to restore balance before the next amount."
+  },
+  "SEL-EARN-006": {
+    "status": "Fail",
+    "actual": "First 100.00 request 201; second while first pending 201; ids 3/4. Pending-request exclusivity was not enforced.",
+    "remarks": "Same seeded available balance; two requests executed through the real payout API."
+  },
+  "SEL-EARN-007": {
+    "status": "Fail",
+    "actual": "Concurrent identical 100.00 requests returned 201,201 with IDs 5,6; expected exactly one request.",
+    "remarks": "Real concurrent API submit tested; test-only balance was seeded to isolate duplicate-request behavior."
+  }
+}
