@@ -903,6 +903,8 @@ export type PaymentMethod = 'gcash' | 'cod';
 export type PaymentStatus = 'pending' | 'pending_verification' | 'paid' | 'failed' | 'cod' | 'verification_failed' | 'refunded';
 
 export interface OrderItem {
+  /** The product the line was (null for lines from before this was recorded). */
+  product_id?: number | null;
   id: number;
   seller_id?: number;
   shop_name?: string;
@@ -1246,6 +1248,8 @@ export interface AdminReview {
   rating: number;
   comment: string | null;
   verified_purchase: boolean;
+  /** Photos the buyer attached. */
+  images?: string[];
   created_at: string;
   buyer: { id: number; first_name: string; last_name: string; email: string; avatar_url?: string | null } | null;
   product?: { id: number; name: string; thumbnail_url?: string | null } | null;
@@ -1834,7 +1838,8 @@ export interface WishlistProduct {
   original_price: number | null;
   status: string;
   total_stock: number;
-  seller: { id: number; shop_name: string };
+  variants?: { id: number; label: string; price: number; stock_quantity: number }[];
+  seller: { id: number; shop_name: string; shop_slug?: string };
 }
 
 export interface WishlistItem {
@@ -1849,6 +1854,7 @@ export interface FollowedStore {
   seller: {
     id: number;
     shop_name: string;
+    shop_slug?: string;
     logo_url: string | null;
     avg_rating: number | null;
     product_count: number;
@@ -2534,4 +2540,29 @@ export interface FeaturedShop {
   avg_rating: number | null;
   review_count: number;
   products: { id: number; name: string; price: number; image_url: string | null }[];
+}
+
+/** A product the buyer received and can review (GET /buyer/reviews/pending). */
+export interface PendingReview {
+  order_id: number;
+  order_number: string;
+  delivered_at: string | null;
+  variant_label: string | null;
+  shop_name: string | null;
+  product: { id: number; name: string; image_url: string | null };
+}
+
+/** One of the buyer's own reviews (GET /buyer/reviews). */
+export interface BuyerReview {
+  id: number;
+  rating: number;
+  comment: string | null;
+  verified_purchase: boolean;
+  images: string[];
+  created_at: string;
+  updated_at: string;
+  /** Rating and text can be changed for 30 days after posting. */
+  can_edit: boolean;
+  order: { id: number; order_number: string } | null;
+  product: { id: number; name: string; image_url: string | null } | null;
 }

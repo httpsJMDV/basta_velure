@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\AdminSellerApplicationController;
 use App\Http\Controllers\Api\V1\AdminPayoutController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BuyerOrderController;
+use App\Http\Controllers\Api\V1\BuyerReviewController;
 use App\Http\Controllers\Api\V1\ConversationController;
 use App\Http\Controllers\Api\V1\GoogleAuthController;
 use App\Http\Controllers\Api\V1\PasswordController;
@@ -151,6 +152,11 @@ Route::prefix('v1')->group(function () {
 
         // Buyer checkout & orders
         Route::post('/checkout/place-order', [BuyerOrderController::class, 'placeOrder'])->middleware('throttle:upload');
+        // Product reviews: once per product per delivered order, with up to five photos
+        Route::get('/buyer/reviews', [BuyerReviewController::class, 'index']);
+        Route::get('/buyer/reviews/pending', [BuyerReviewController::class, 'pending']);
+        Route::post('/buyer/reviews', [BuyerReviewController::class, 'store'])->middleware('throttle:upload');
+        Route::patch('/buyer/reviews/{review}', [BuyerReviewController::class, 'update']);
         Route::get('/buyer/orders', [BuyerOrderController::class, 'index']);
         Route::get('/buyer/orders/{order}', [BuyerOrderController::class, 'show']);
         Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn']);

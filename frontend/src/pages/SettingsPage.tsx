@@ -12,8 +12,9 @@ import {
   removeFromWishlistApi,
   getFollowedStoresApi,
   toggleStoreFollowApi,
-  addToCartApi,
 } from '../api/client';
+import { useCart } from '../hooks/useCart';
+import { useToast } from '../components/ui/Toast';
 import CustomSelect from '../components/ui/CustomSelect';
 import PhoneInput from '../components/ui/PhoneInput';
 import UserAvatar from '../components/ui/UserAvatar';
@@ -25,6 +26,7 @@ import type { Address, AddressLabel, Order, OrderStatus, WishlistItem, FollowedS
 import { getStatusLabel, getStatusBadgeClass, BUYER_FILTER_GROUPS, normalizeOrderStatus } from '../utils/orderStatus';
 import OrderStatusTimeline from '../components/orders/OrderStatusTimeline';
 import BuyerReceiptConfirm from '../components/orders/BuyerReceiptConfirm';
+import ReviewsPanel from '../components/reviews/ReviewsPanel';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import TrackPackageButton from '../components/tracking/TrackPackageButton';
 import {
@@ -32,8 +34,6 @@ import {
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
   Trash2, Search, ShoppingBag, ShoppingCart, MessageSquare, AlertTriangle,
 } from 'lucide-react';
-
-const StarIcon = Star;
 
 interface PsgcItem { code: string; name: string; }
 
@@ -231,6 +231,68 @@ function InfoRow({
       )}
     </div>
   );
+}
+
+// ─── Panel shell ─────────────────────────────────────────────────────────────
+
+/** The frame every account page shares (the Profile page's): a white title band over a soft body. */
+function PanelShell({ title, subtitle, action, tabs, children, bodyClassName = 'p-6' }: {
+  title: string;
+  subtitle: string;
+  action?: React.ReactNode;
+  /** A tab row that sits at the bottom of the title band. */
+  tabs?: React.ReactNode;
+  children: React.ReactNode;
+  bodyClassName?: string;
+}) {
+  return (
+    <section className="rounded-3xl bg-white/60 border border-stone-200 overflow-hidden">
+      <header className={`px-6 pt-6 bg-white border-b border-stone-200 ${tabs ? '' : 'pb-5'}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl font-serif font-bold tracking-tight text-[#1E1B18]">{title}</h2>
+            <p className="mt-1 text-[13px] text-stone-500">{subtitle}</p>
+          </div>
+          {action}
+        </div>
+        {tabs}
+      </header>
+      <div className={bodyClassName}>{children}</div>
+    </section>
+  );
+}
+
+/** Underline tabs for a PanelShell's title band, with a count after each label. */
+function PanelTabs<T extends string>({ value, onChange, options, label }: {
+  value: T; onChange: (v: T) => void; options: { key: T; label: string; count?: number }[]; label: string;
+}) {
+  return (
+    <div role="tablist" aria-label={label} className="flex gap-5 mt-4 -mb-px overflow-x-auto no-scrollbar">
+      {options.map((o) => (
+        <button key={o.key} type="button" role="tab" aria-selected={value === o.key} onClick={() => onChange(o.key)}
+          className={`relative shrink-0 pb-3 text-[13.5px] transition-colors ${value === o.key ? 'font-semibold text-stone-900' : 'text-stone-500 hover:text-stone-800'}`}>
+          {o.label}
+          {o.count !== undefined && o.count > 0 && <span className={`ml-1.5 tabular-nums ${value === o.key ? 'text-brand-red' : 'text-stone-400'}`}>{o.count}</span>}
+          {value === o.key && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-brand-red" />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PanelEmpty({ icon: Icon, title, hint, action }: { icon: React.ElementType; title: string; hint: string; action?: React.ReactNode }) {
+  return (
+    <div className="py-14 flex flex-col items-center text-center">
+      <span className="w-14 h-14 rounded-full bg-white border border-stone-200 text-stone-400 flex items-center justify-center"><Icon className="w-6 h-6" /></span>
+      <p className="mt-3 font-semibold text-stone-900">{title}</p>
+      <p className="mt-1 text-[13px] text-stone-500 max-w-sm">{hint}</p>
+      {action}
+    </div>
+  );
+}
+
+function PanelSpinner() {
+  return <div className="py-14 flex justify-center"><div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /></div>;
 }
 
 // ─── Manage Account panel ────────────────────────────────────────────────────
@@ -743,79 +805,56 @@ function AddressCard({
   onSetDefault: () => void;
 }) {
   const needsUpdate = addr.address_needs_update ?? (!addr.barangay_code);
+  const [confirming, setConfirming] = useState(false);
+  const isHome = addr.label === 'home';
+  const LabelIcon = isHome ? Home : Briefcase;
 
   return (
-    <div className={[
-      'relative rounded-2xl border-2 p-5 transition-all',
-      addr.is_default
-        ? 'border-brand-red bg-red-50/40'
-        : needsUpdate
-        ? 'border-amber-200 bg-amber-50/20'
-        : 'border-gray-100 bg-white',
+    <article className={[
+      'relative flex flex-col rounded-2xl bg-white border p-4 transition-colors',
+      addr.is_default ? 'border-brand-red/50 ring-1 ring-brand-red/25' : needsUpdate ? 'border-amber-300' : 'border-stone-200 hover:border-stone-300',
     ].join(' ')}>
-      {addr.is_default && (
-        <span className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold text-brand-red bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
-          <StarIcon className="w-2.5 h-2.5" /> Default
+      <div className="flex items-center gap-2.5">
+        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${addr.is_default ? 'bg-brand-red text-white' : 'bg-stone-100 text-stone-600'}`}>
+          <LabelIcon className="w-4 h-4" />
         </span>
-      )}
+        <span className="text-[13px] font-semibold text-stone-900">{isHome ? 'Home' : 'Office'}</span>
+        {addr.is_default && <span className="ml-auto text-[11px] font-semibold text-brand-red">Default address</span>}
+        {needsUpdate && !addr.is_default && <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700"><AlertTriangle className="w-3 h-3" /> Needs an update</span>}
+      </div>
 
-      <div className="flex items-center gap-2 mb-2">
-        <span className={[
-          'flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg',
-          addr.label === 'home' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600',
-        ].join(' ')}>
-          {addr.label === 'home' ? <Home className="w-3 h-3" /> : <Briefcase className="w-3 h-3" />}
-          {addr.label === 'home' ? 'Home' : 'Office'}
-        </span>
+      <div className="mt-3 flex-1">
+        <p className="text-[14px] font-semibold text-stone-900">{addr.full_name}</p>
+        <p className="text-[13px] text-stone-500">{addr.phone}</p>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-stone-700">
+          {addr.address}{addr.floor_unit ? `, ${addr.floor_unit}` : ''}<br />
+          {[addr.ward, addr.district, addr.province].filter(Boolean).join(', ')}
+        </p>
         {needsUpdate && (
-          <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
-            <AlertTriangle className="w-2.5 h-2.5" /> Needs Update
-          </span>
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-900">
+            Pick the province, city and barangay again with <span className="font-semibold">Edit</span>, so couriers can route your parcels.
+          </p>
         )}
       </div>
 
-      {needsUpdate && (
-        <div className="mb-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-          <div>
-            <p className="font-semibold">Standard area codes missing</p>
-            <p className="text-amber-700 mt-0.5">
-              Please click <strong>Edit</strong> to re-select your province, city, and barangay with standard PSGC codes so riders and hubs can deliver to you.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <p className="font-semibold text-brand-black text-sm">{addr.full_name}</p>
-      <p className="text-sm text-gray-500 mt-0.5">{addr.phone}</p>
-      <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-        {addr.address}{addr.floor_unit ? `, ${addr.floor_unit}` : ''}<br />
-        {addr.ward}, {addr.district}, {addr.province}
-      </p>
-
-      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-        <button
-          onClick={onEdit}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-brand-red transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
-        >
-          <Pencil className="w-3.5 h-3.5" /> Edit
-        </button>
-        <button
-          onClick={onDelete}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
-        >
-          <Trash2 className="w-3.5 h-3.5" /> Delete
-        </button>
-        {!addr.is_default && (
-          <button
-            onClick={onSetDefault}
-            className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-brand-red hover:text-brand-red-dark transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
-          >
-            Set as Default
-          </button>
+      <div className="mt-4 pt-3 border-t border-stone-100 flex items-center gap-1">
+        {confirming ? (
+          <>
+            <span className="text-[12.5px] text-stone-700 mr-auto">Delete this address?</span>
+            <button type="button" onClick={() => setConfirming(false)} className="h-8 px-3 rounded-full text-[12.5px] font-semibold text-stone-600 hover:bg-stone-100">Keep</button>
+            <button type="button" onClick={onDelete} className="h-8 px-3 rounded-full bg-red-600 hover:bg-red-700 text-white text-[12.5px] font-semibold">Delete</button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onEdit} className="h-8 px-3 rounded-full text-[12.5px] font-semibold text-stone-700 hover:bg-stone-100 inline-flex items-center gap-1.5"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+            <button type="button" onClick={() => setConfirming(true)} className="h-8 px-3 rounded-full text-[12.5px] font-semibold text-stone-500 hover:text-red-700 hover:bg-red-50 inline-flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+            {!addr.is_default && (
+              <button type="button" onClick={onSetDefault} className="ml-auto h-8 px-3 rounded-full border border-stone-300 text-[12.5px] font-semibold text-stone-800 hover:border-stone-900">Set as default</button>
+            )}
+          </>
         )}
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -877,82 +916,65 @@ function AddressBookPanel() {
 
   async function handleSetDefault(id: number) {
     const updated = await setDefaultAddressApi(id);
-    setAddresses((prev) =>
-      prev.map((a) => (a.id === updated.id ? updated : { ...a, is_default: false }))
-    );
+    setAddresses((prev) => prev.map((a) => (a.id === updated.id ? updated : { ...a, is_default: false })));
   }
 
+  // The default address first, then the rest as they were added.
+  const sorted = [...addresses].sort((a, b) => Number(Boolean(b.is_default)) - Number(Boolean(a.is_default)));
+  const busy = showForm || editingId !== null;
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h2 className="font-bold text-brand-black text-lg">Address Book</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Manage your delivery addresses</p>
+    <PanelShell
+      title="Addresses"
+      subtitle="Where we deliver your parcels. Couriers route each one by its barangay."
+      action={!busy && addresses.length > 0 && (
+        <button type="button" onClick={() => setShowForm(true)} className="h-9 px-4 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors">
+          <Plus className="w-4 h-4" /> Add address
+        </button>
+      )}
+    >
+      {showForm && (
+        <div className="mb-4 rounded-2xl bg-white border border-stone-200 p-5">
+          <p className="text-[15px] font-semibold text-stone-900 mb-4">New address</p>
+          <AddressForm initial={EMPTY_FORM} onSave={handleSaveNew} onCancel={() => setShowForm(false)} saving={saving} />
         </div>
-        {!showForm && editingId === null && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-brand-red text-white text-sm font-semibold rounded-xl hover:bg-brand-red-dark transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Add New
-          </button>
-        )}
-      </div>
+      )}
 
-      <div className="px-6 py-5 space-y-5">
-        {/* Add new form */}
-        {showForm && (
-          <div className="rounded-2xl border-2 border-dashed border-brand-red/30 bg-red-50/20 p-5">
-            <p className="text-sm font-semibold text-brand-black mb-4">New Address</p>
-            <AddressForm
-              initial={EMPTY_FORM}
-              onSave={handleSaveNew}
-              onCancel={() => setShowForm(false)}
-              saving={saving}
-            />
-          </div>
-        )}
-
-        {loading && (
-          <div className="py-10 flex justify-center">
-            <div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-
-        {!loading && addresses.length === 0 && !showForm && (
-          <div className="py-12 flex flex-col items-center gap-3 text-center">
-            <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-gray-300" />
-            </div>
-            <p className="font-semibold text-brand-black">No addresses yet</p>
-            <p className="text-sm text-gray-400">Add a delivery address to get started.</p>
-          </div>
-        )}
-
-        {/* Address cards */}
-        {addresses.map((addr) =>
-          editingId === addr.id ? (
-            <div key={addr.id} className="rounded-2xl border-2 border-brand-red/30 bg-red-50/20 p-5">
-              <p className="text-sm font-semibold text-brand-black mb-4">Edit Address</p>
-              <AddressForm
-                initial={editForm}
-                onSave={handleSaveEdit}
-                onCancel={() => setEditingId(null)}
-                saving={saving}
+      {loading ? <PanelSpinner /> : addresses.length === 0 && !showForm ? (
+        <PanelEmpty
+          icon={MapPin}
+          title="No addresses yet"
+          hint="Add where you want your orders delivered. You can keep a home and an office address."
+          action={<button type="button" onClick={() => setShowForm(true)} className="mt-4 h-10 px-5 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add an address</button>}
+        />
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {sorted.map((addr) =>
+            editingId === addr.id ? (
+              <div key={addr.id} className="sm:col-span-2 rounded-2xl bg-white border border-stone-300 p-5">
+                <p className="text-[15px] font-semibold text-stone-900 mb-4">Edit address</p>
+                <AddressForm initial={editForm} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} saving={saving} />
+              </div>
+            ) : (
+              <AddressCard
+                key={addr.id}
+                addr={addr}
+                onEdit={() => { setEditingId(addr.id); setEditForm(addrToForm(addr)); setShowForm(false); }}
+                onDelete={() => handleDelete(addr.id)}
+                onSetDefault={() => handleSetDefault(addr.id)}
               />
-            </div>
-          ) : (
-            <AddressCard
-              key={addr.id}
-              addr={addr}
-              onEdit={() => { setEditingId(addr.id); setEditForm(addrToForm(addr)); setShowForm(false); }}
-              onDelete={() => handleDelete(addr.id)}
-              onSetDefault={() => handleSetDefault(addr.id)}
-            />
-          )
-        )}
-      </div>
-    </div>
+            ),
+          )}
+          {!busy && (
+            <button type="button" onClick={() => setShowForm(true)}
+              className="min-h-[180px] rounded-2xl border-2 border-dashed border-stone-300 hover:border-brand-red hover:bg-white text-stone-500 hover:text-brand-red flex flex-col items-center justify-center gap-2 transition-colors">
+              <span className="w-10 h-10 rounded-full bg-white border border-stone-200 flex items-center justify-center"><Plus className="w-5 h-5" /></span>
+              <span className="text-[13px] font-semibold">Add a new address</span>
+            </button>
+          )}
+        </div>
+      )}
+    </PanelShell>
   );
 }
 
@@ -962,11 +984,11 @@ type OrderFilter = 'all' | 'to_pay' | 'to_ship' | 'to_receive' | 'to_review' | '
 
 const ORDER_FILTERS: { key: OrderFilter; label: string }[] = [
   { key: 'all',               label: 'All' },
-  { key: 'to_pay',            label: 'To Pay' },
-  { key: 'to_ship',           label: 'To Ship' },
-  { key: 'to_receive',        label: 'To Receive' },
-  { key: 'to_review',         label: 'To Review' },
-  { key: 'returns_cancelled', label: 'Returns & Cancelled' },
+  { key: 'to_pay',            label: 'To pay' },
+  { key: 'to_ship',           label: 'To ship' },
+  { key: 'to_receive',        label: 'To receive' },
+  { key: 'to_review',         label: 'To review' },
+  { key: 'returns_cancelled', label: 'Returns & cancelled' },
 ];
 
 const FILTER_STATUSES: Record<OrderFilter, OrderStatus[]> = {
@@ -978,218 +1000,196 @@ const FILTER_STATUSES: Record<OrderFilter, OrderStatus[]> = {
   returns_cancelled: BUYER_FILTER_GROUPS.returns,
 };
 
+const RETURN_REASONS = [
+  { value: 'Defective / Damaged', label: 'Defective or damaged item' },
+  { value: 'Wrong Item Received', label: 'Wrong item received' },
+  { value: 'Item Not as Described', label: 'Item not as described' },
+  { value: 'Missing Parts / Accessories', label: 'Missing parts or accessories' },
+  { value: 'Change of Mind', label: 'Change of mind (if the shop allows it)' },
+];
+
+function orderDay(iso: string | null | undefined) {
+  return iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+
 function OrderCard({ order, onUpdated, isPartOfMultiShopCheckout }: { order: Order; onUpdated?: (updated: Order) => void; isPartOfMultiShopCheckout?: boolean }) {
   const normStatus = normalizeOrderStatus(order.status);
   const badgeCls = getStatusBadgeClass(normStatus);
   const statusLabel = getStatusLabel(normStatus);
-  const firstItem = order.items[0];
-  const extraCount = order.items.length - 1;
+  const shopName = order.items[0]?.shop_name;
+  const shown = order.items.slice(0, 2);
+  const extraCount = order.items.length - shown.length;
 
   const [showTimeline, setShowTimeline] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnReason, setReturnReason] = useState('Defective / Damaged');
   const [returnDesc, setReturnDesc] = useState('');
   const [submittingReturn, setSubmittingReturn] = useState(false);
+  const [returnError, setReturnError] = useState('');
 
   const isGcashPending = order.payment_method === 'gcash' && order.payment_status === 'pending_verification';
   const isFailed = order.payment_status === 'verification_failed';
+  const trackable = order.tracking_number && ['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'DELIVERY_FAILED'].includes(String(order.status));
 
   const handleRequestReturn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!returnDesc.trim()) return;
     setSubmittingReturn(true);
+    setReturnError('');
     try {
-      const res = await requestBuyerOrderReturnApi(order.id, {
-        reason: returnReason,
-        description: returnDesc.trim(),
-      });
+      const res = await requestBuyerOrderReturnApi(order.id, { reason: returnReason, description: returnDesc.trim() });
       setShowReturnModal(false);
-      if (onUpdated) {
-        onUpdated(res.data);
-      }
+      onUpdated?.(res.data);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to submit return request.');
+      setReturnError(err.response?.data?.message || 'The return request was not sent. Try again.');
     } finally {
       setSubmittingReturn(false);
     }
   };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-200 hover:shadow-sm transition-all space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-brand-black tracking-wide">{order.order_number}</span>
-          <span className="text-gray-300">·</span>
-          <span className="text-xs text-gray-400">
-            {order.created_at ? new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-          </span>
-          {order.tracking_number && (
-            <span className="text-[10px] font-mono font-medium text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
-              Track: {order.tracking_number}
-            </span>
+    <article className="rounded-2xl bg-white border border-stone-200 overflow-hidden">
+      {/* Shop, order number and where it stands */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 border-b border-stone-100">
+        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-stone-900 min-w-0">
+          <Store className="w-4 h-4 text-stone-400 shrink-0" />
+          <span className="truncate max-w-[220px]">{shopName ?? 'Shop'}</span>
+        </span>
+        <span className="text-[12px] text-stone-400">
+          <span className="font-mono">#{order.order_number}</span> · {orderDay(order.created_at)}
+        </span>
+        <span className="ml-auto">
+          {isGcashPending ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-50 text-amber-800"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Shop is checking your GCash</span>
+          ) : isFailed ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-red-50 text-red-700"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Payment not received</span>
+          ) : (
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-semibold ${badgeCls}`}>{statusLabel}</span>
           )}
-          {order.tracking_number && ['READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'DELIVERY_FAILED'].includes(String(order.status)) && (
-            <TrackPackageButton trackingNumber={order.tracking_number} />
+        </span>
+      </header>
+
+      {/* What was ordered */}
+      <ul className="px-4 divide-y divide-stone-100">
+        {shown.map((item) => {
+          const inner = (
+            <>
+              <span className="w-16 h-16 rounded-xl bg-stone-100 overflow-hidden shrink-0 ring-1 ring-stone-200">
+                {item.image_url ? <img src={item.image_url} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-stone-300"><ShoppingBag className="w-5 h-5" /></span>}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[14px] font-medium text-stone-900 leading-snug line-clamp-2">{item.product_name}</span>
+                <span className="block mt-0.5 text-[12px] text-stone-500">{[item.variant_label, `× ${item.quantity}`].filter(Boolean).join(' · ')}</span>
+              </span>
+              <span className="text-[13px] font-semibold text-stone-900 tabular-nums shrink-0">₱{Number(item.subtotal).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+            </>
+          );
+          return (
+            <li key={item.id}>
+              {item.product_id
+                ? <Link to={`/products/${item.product_id}`} className="flex items-center gap-3 py-3 group hover:[&_span.line-clamp-2]:text-brand-red">{inner}</Link>
+                : <div className="flex items-center gap-3 py-3">{inner}</div>}
+            </li>
+          );
+        })}
+        {extraCount > 0 && <li className="py-2.5 text-[12.5px] text-stone-500">and {extraCount} more item{extraCount > 1 ? 's' : ''}</li>}
+      </ul>
+
+      {/* Notices */}
+      {(isFailed && order.rejection_reason) || isPartOfMultiShopCheckout || normStatus === 'DISPUTED' ? (
+        <div className="px-4 pb-3 space-y-2">
+          {isFailed && order.rejection_reason && (
+            <p className="rounded-xl bg-red-50 px-3 py-2 text-[12.5px] text-red-800"><span className="font-semibold">From the shop: </span>{order.rejection_reason}</p>
+          )}
+          {normStatus === 'DISPUTED' && (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">Your return request is being reviewed. We will message you with the decision.</p>
           )}
           {isPartOfMultiShopCheckout && (
-            <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
-              Part of a multi-shop checkout
-            </span>
+            <p className="text-[12px] text-stone-500">Part of a checkout with several shops; each shop ships its own parcel.</p>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {isGcashPending && (
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
-              Verifying GCash
-            </span>
-          )}
-          {isFailed && (
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
-              Payment Not Received
-            </span>
-          )}
-          {!isGcashPending && !isFailed && (
-            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${badgeCls}`}>
-              {statusLabel}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {firstItem && (
-        <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden shrink-0">
-            {firstItem.image_url
-              ? <img src={firstItem.image_url} alt={firstItem.product_name} className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-5 h-5 text-gray-300" /></div>
-            }
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-brand-black truncate">{firstItem.product_name}</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {firstItem.variant_label ? `${firstItem.variant_label} · ` : ''}x{firstItem.quantity}
-            </p>
-            {extraCount > 0 && (
-              <p className="text-xs text-gray-400 mt-0.5">+{extraCount} more item{extraCount > 1 ? 's' : ''}</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {isFailed && order.rejection_reason && (
-        <div className="p-2.5 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
-          <span className="font-semibold">Seller note: </span>{order.rejection_reason}
-        </div>
-      )}
+      ) : null}
 
       {/* Feature 2.8: delivered orders wait for the buyer to confirm receipt */}
-      {normStatus === 'DELIVERED' && <BuyerReceiptConfirm order={order} onUpdated={onUpdated} />}
+      {normStatus === 'DELIVERED' && <div className="px-4 pb-3"><BuyerReceiptConfirm order={order} onUpdated={onUpdated} /></div>}
 
-      {/* Action / Timeline buttons */}
-      <div className="flex items-center justify-between pt-3 border-t border-gray-50 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowTimeline(!showTimeline)}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            {showTimeline ? 'Hide Tracking Timeline ▲' : 'View Tracking Timeline ▼'}
+      {/* Total, payment and actions */}
+      <footer className="px-4 py-3 bg-stone-50/70 border-t border-stone-100 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-0 text-[12px] text-stone-500">
+          <span className="font-semibold text-stone-700">{order.payment_method === 'gcash' ? 'GCash' : 'Cash on delivery'}</span>
+          {order.payment_method === 'gcash' && order.payment_reference && <> · ref <span className="font-mono">{order.payment_reference}</span></>}
+          {order.tracking_number && <> · tracking <span className="font-mono">{order.tracking_number}</span></>}
+        </div>
+        <div className="ml-auto text-right">
+          <span className="text-[12px] text-stone-500 mr-1.5">Order total</span>
+          <span className="text-[16px] font-bold text-stone-900 tabular-nums">₱{Number(order.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+        </div>
+        <div className="w-full flex flex-wrap items-center justify-end gap-2">
+          <button type="button" onClick={() => setShowTimeline((v) => !v)} aria-expanded={showTimeline}
+            className="h-8 px-3 rounded-full text-[12.5px] font-semibold text-stone-600 hover:bg-white hover:text-stone-900">
+            {showTimeline ? 'Hide history' : 'Order history'}
           </button>
-
+          {trackable && <TrackPackageButton trackingNumber={order.tracking_number!} />}
           {normStatus === 'DELIVERED' && (
-            <button
-              type="button"
-              onClick={() => setShowReturnModal(true)}
-              className="text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors"
-            >
-              Request Return / Refund
+            <button type="button" onClick={() => setShowReturnModal(true)} className="h-8 px-3.5 rounded-full border border-stone-300 bg-white text-[12.5px] font-semibold text-stone-800 hover:border-stone-900">
+              Return or refund
             </button>
           )}
-
-          {normStatus === 'DISPUTED' && (
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-              Return Request Under Review
-            </span>
+          {(normStatus === 'DELIVERED' || normStatus === 'COMPLETED') && (
+            <Link to={`/settings/reviews?order=${order.id}`} className="h-8 px-3.5 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[12.5px] font-semibold inline-flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5" /> Rate items
+            </Link>
           )}
         </div>
+      </footer>
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">
-            {order.payment_method === 'gcash' ? (
-              <span>GCash {order.payment_reference ? `(Ref: ${order.payment_reference})` : ''}</span>
-            ) : (
-              'Cash on Delivery'
-            )}
-          </span>
-          <span className="text-sm font-bold text-brand-black">
-            ₱{Number(order.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-          </span>
-        </div>
-      </div>
-
-      {/* Timeline Expansion */}
       {showTimeline && (
-        <div className="pt-3 border-t border-gray-100 animate-in fade-in">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Order Tracking History</p>
+        <div className="px-4 py-4 border-t border-stone-100">
           <OrderStatusTimeline history={order.status_history} currentStatus={order.status} />
         </div>
       )}
 
-      {/* Return Request Modal */}
       {showReturnModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-sm font-bold text-gray-900">Request Return for #{order.order_number}</h3>
-              <button onClick={() => setShowReturnModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label="Request a return">
+          <div className="absolute inset-0 bg-stone-950/45" onClick={() => !submittingReturn && setShowReturnModal(false)} />
+          <form onSubmit={handleRequestReturn} className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl">
+            <div className="flex items-start justify-between gap-3 px-5 pt-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">Order <span className="font-mono normal-case">#{order.order_number}</span></p>
+                <h3 className="text-[16px] font-semibold text-stone-900">Request a return or refund</h3>
+              </div>
+              <button type="button" onClick={() => setShowReturnModal(false)} aria-label="Close" className="w-9 h-9 rounded-full text-stone-500 hover:bg-stone-100 flex items-center justify-center"><X className="w-4 h-4" /></button>
             </div>
-            <form onSubmit={handleRequestReturn} className="space-y-3">
+            <div className="px-5 py-4 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Return Reason</label>
-                <select
-                  value={returnReason}
-                  onChange={(e) => setReturnReason(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                >
-                  <option value="Defective / Damaged">Defective / Damaged Item</option>
-                  <option value="Wrong Item Received">Wrong Item Received</option>
-                  <option value="Item Not as Described">Item Not as Described</option>
-                  <option value="Missing Parts / Accessories">Missing Parts / Accessories</option>
-                  <option value="Change of Mind">Change of Mind (Subject to Seller Policy)</option>
-                </select>
+                <p className="text-[13px] font-semibold text-stone-800 mb-2">What went wrong?</p>
+                <div className="space-y-1.5">
+                  {RETURN_REASONS.map((r) => (
+                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer text-[13px] transition-colors ${returnReason === r.value ? 'border-brand-red bg-rose-50/40 text-stone-900' : 'border-stone-200 text-stone-700 hover:border-stone-400'}`}>
+                      <input type="radio" name={`reason-${order.id}`} value={r.value} checked={returnReason === r.value} onChange={() => setReturnReason(r.value)} className="accent-brand-red" />
+                      {r.label}
+                    </label>
+                  ))}
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Detailed Explanation</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Explain why you wish to return this item..."
-                  value={returnDesc}
-                  onChange={(e) => setReturnDesc(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                />
+                <label htmlFor={`return-desc-${order.id}`} className="text-[13px] font-semibold text-stone-800">Tell us more</label>
+                <textarea id={`return-desc-${order.id}`} rows={3} value={returnDesc} onChange={(e) => setReturnDesc(e.target.value)}
+                  placeholder="What is wrong with the item? This helps the shop and our team decide quickly."
+                  className="mt-1.5 w-full px-3.5 py-2.5 text-[13px] rounded-xl border border-stone-300 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10 resize-none" />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowReturnModal(false)}
-                  className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingReturn || !returnDesc.trim()}
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-brand-red hover:bg-red-700 rounded-xl disabled:opacity-50"
-                >
-                  {submittingReturn ? 'Submitting…' : 'Submit Return Request'}
-                </button>
-              </div>
-            </form>
-          </div>
+              {returnError && <p role="alert" className="text-[12.5px] text-brand-red">{returnError}</p>}
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
+              <button type="button" onClick={() => setShowReturnModal(false)} className="flex-1 h-11 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-700 hover:border-stone-900">Cancel</button>
+              <button type="submit" disabled={submittingReturn || !returnDesc.trim()} className="flex-1 h-11 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold disabled:opacity-40">
+                {submittingReturn ? 'Sending…' : 'Send request'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -1206,110 +1206,64 @@ function OrdersPanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  const counts = useMemo(() => {
+    const c = {} as Record<OrderFilter, number>;
+    for (const f of ORDER_FILTERS) {
+      const statuses = FILTER_STATUSES[f.key];
+      c[f.key] = statuses.length ? orders.filter((o) => statuses.includes(normalizeOrderStatus(o.status))).length : orders.length;
+    }
+    return c;
+  }, [orders]);
+
   const filtered = useMemo(() => {
     let result = orders;
     const statuses = FILTER_STATUSES[filter];
     if (statuses.length) result = result.filter((o) => statuses.includes(normalizeOrderStatus(o.status)));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      result = result.filter(
-        (o) =>
-          o.order_number.toLowerCase().includes(q) ||
-          o.items.some((i) => i.product_name.toLowerCase().includes(q)),
-      );
+      result = result.filter((o) => o.order_number.toLowerCase().includes(q) || o.items.some((i) => i.product_name.toLowerCase().includes(q) || (i.shop_name ?? '').toLowerCase().includes(q)));
     }
     return result;
   }, [orders, filter, search]);
 
   const multiCheckoutGroupIds = useMemo(() => {
-    const counts: Record<string, number> = {};
-    orders.forEach((o) => {
-      if (o.checkout_group_id) {
-        counts[o.checkout_group_id] = (counts[o.checkout_group_id] || 0) + 1;
-      }
-    });
-    return new Set(Object.keys(counts).filter((id) => counts[id] > 1));
+    const groupCounts: Record<string, number> = {};
+    orders.forEach((o) => { if (o.checkout_group_id) groupCounts[o.checkout_group_id] = (groupCounts[o.checkout_group_id] || 0) + 1; });
+    return new Set(Object.keys(groupCounts).filter((id) => groupCounts[id] > 1));
   }, [orders]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-100">
-        <h2 className="font-bold text-brand-black text-lg">My Orders</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Track and manage your purchases</p>
-      </div>
-
-      {/* Search */}
-      <div className="px-6 pt-5">
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by order number or product name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={[
-              'w-full min-h-[44px] pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm',
-              'bg-gray-50 text-brand-black placeholder-gray-400',
-              'focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent focus:bg-white',
-              'transition-all duration-150',
-            ].join(' ')}
-          />
-        </div>
-      </div>
-
-      {/* Filter tabs */}
-      <div className="px-6 pt-4 pb-1">
-        <div className="flex gap-1 bg-gray-50 p-1 rounded-xl">
-          {ORDER_FILTERS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={[
-                'flex-1 py-2 px-1 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap',
-                filter === key
-                  ? 'bg-white text-brand-red shadow-sm'
-                  : 'text-gray-500 hover:text-brand-black',
-              ].join(' ')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* List */}
-      <div className="px-6 py-5 space-y-3">
-        {loading && (
-          <div className="py-10 flex justify-center">
-            <div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-
-        {!loading && filtered.length === 0 && (
-          <div className="py-14 flex flex-col items-center gap-3 text-center">
-            <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center">
-              <Package className="w-6 h-6 text-gray-300" />
-            </div>
-            <p className="font-semibold text-brand-black">
-              {search || filter !== 'all' ? 'No orders match your search' : 'No orders yet'}
-            </p>
-            <p className="text-sm text-gray-400">
-              {search || filter !== 'all' ? 'Try a different keyword or filter.' : 'Your purchases will appear here.'}
-            </p>
-          </div>
-        )}
-
-        {!loading && filtered.map((order) => (
+    <PanelShell
+      title="Orders"
+      subtitle="Everything you bought, from checkout to your door. Each shop ships its own parcel."
+      action={(
+        <label className="relative w-full sm:w-64">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Order, product or shop" aria-label="Search orders"
+            className="w-full h-10 pl-10 pr-3 rounded-full bg-stone-100 border border-transparent text-[13px] outline-none focus:bg-white focus:border-stone-300 placeholder:text-stone-400" />
+        </label>
+      )}
+      tabs={<PanelTabs value={filter} onChange={setFilter} label="Order status" options={ORDER_FILTERS.map((f) => ({ ...f, count: f.key === 'all' ? undefined : counts[f.key] }))} />}
+      bodyClassName="p-4 sm:p-6 space-y-3"
+    >
+      {loading ? <PanelSpinner /> : filtered.length === 0 ? (
+        <PanelEmpty
+          icon={Package}
+          title={search || filter !== 'all' ? 'No orders here' : 'No orders yet'}
+          hint={search || filter !== 'all' ? 'Try another filter or search word.' : 'When you check out, your orders show up here with their tracking.'}
+          action={!search && filter === 'all' ? <Link to="/" className="mt-4 h-10 px-5 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center">Start shopping</Link> : undefined}
+        />
+      ) : (
+        filtered.map((order) => (
           <OrderCard
             key={order.id}
             order={order}
             isPartOfMultiShopCheckout={Boolean(order.checkout_group_id && multiCheckoutGroupIds.has(order.checkout_group_id))}
-            onUpdated={(updated) => setOrders((prev) => prev.map((o) => o.id === updated.id ? updated : o))}
+            onUpdated={(updated) => setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))}
           />
-        ))}
-      </div>
-    </div>
+        ))
+      )}
+    </PanelShell>
   );
 }
 
@@ -1330,28 +1284,20 @@ function StatusOrdersPanel({ title, subtitle, statuses, emptyTitle, emptyHint, i
   const mine = (orders ?? []).filter((o) => statuses.includes(normalizeOrderStatus(o.status)));
 
   return (
-    <section className="rounded-3xl bg-white border border-stone-200 overflow-hidden">
-      <header className="px-6 pt-6 pb-5 border-b border-stone-200">
-        <h2 className="text-xl font-serif font-bold tracking-tight text-[#1E1B18]">{title}</h2>
-        <p className="mt-1 text-[13px] text-stone-500">{subtitle}</p>
-      </header>
-      <div className="p-6 space-y-3">
-        {orders === null ? (
-          <div className="py-10 flex justify-center"><div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /></div>
-        ) : mine.length === 0 ? (
-          <div className="py-12 flex flex-col items-center text-center">
-            <span className="w-14 h-14 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center"><Icon className="w-6 h-6" /></span>
-            <p className="mt-3 font-semibold text-stone-900">{emptyTitle}</p>
-            <p className="mt-1 text-[13px] text-stone-500 max-w-sm">{emptyHint}</p>
-            <Link to="/settings/orders" className="mt-4 h-9 px-4 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-800 hover:border-stone-900 flex items-center">Go to my orders</Link>
-          </div>
-        ) : (
-          mine.map((order) => (
-            <OrderCard key={order.id} order={order} onUpdated={(updated) => setOrders((prev) => (prev ?? []).map((o) => (o.id === updated.id ? updated : o)))} />
-          ))
-        )}
-      </div>
-    </section>
+    <PanelShell title={title} subtitle={subtitle} bodyClassName="p-4 sm:p-6 space-y-3">
+      {orders === null ? <PanelSpinner /> : mine.length === 0 ? (
+        <PanelEmpty
+          icon={Icon}
+          title={emptyTitle}
+          hint={emptyHint}
+          action={<Link to="/settings/orders" className="mt-4 h-9 px-4 rounded-full border border-stone-300 bg-white text-[13px] font-semibold text-stone-800 hover:border-stone-900 flex items-center">Go to my orders</Link>}
+        />
+      ) : (
+        mine.map((order) => (
+          <OrderCard key={order.id} order={order} onUpdated={(updated) => setOrders((prev) => (prev ?? []).map((o) => (o.id === updated.id ? updated : o)))} />
+        ))
+      )}
+    </PanelShell>
   );
 }
 
@@ -1372,17 +1318,87 @@ function fmtPrice(n: number) {
   return '\u20b1' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function WishlistTabContent() {
+function Pager({ page, lastPage, onPage }: { page: number; lastPage: number; onPage: (p: number) => void }) {
+  if (lastPage <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 mt-6">
+      <button type="button" onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} className="h-9 px-4 rounded-full border border-stone-300 bg-white text-[13px] font-semibold text-stone-700 hover:border-stone-900 disabled:opacity-40">Previous</button>
+      <span className="text-[13px] text-stone-500 tabular-nums">{page} / {lastPage}</span>
+      <button type="button" onClick={() => onPage(Math.min(lastPage, page + 1))} disabled={page === lastPage} className="h-9 px-4 rounded-full border border-stone-300 bg-white text-[13px] font-semibold text-stone-700 hover:border-stone-900 disabled:opacity-40">Next</button>
+    </div>
+  );
+}
+
+function WishlistCard({ item, removing, onRemove }: { item: WishlistItem; removing: boolean; onRemove: () => void }) {
+  const p = item.product;
+  const { addItem } = useCart();
+  const { showToast } = useToast();
   const navigate = useNavigate();
-  const [items, setItems]       = useState<WishlistItem[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [sort, setSort]         = useState('recent');
-  const [page, setPage]         = useState(1);
+  const [adding, setAdding] = useState(false);
+  const variants = p.variants ?? [];
+  const single = variants.length === 1 ? variants[0] : null;
+  const outOfStock = p.status !== 'active' || p.total_stock === 0;
+  const onSale = p.original_price != null && p.original_price > p.base_price;
+  const discount = onSale ? Math.round((1 - p.base_price / p.original_price!) * 100) : 0;
+
+  // One variant goes straight into the cart; a product with options opens its page to pick one.
+  async function add() {
+    if (outOfStock) return;
+    if (!single) { navigate(`/products/${p.id}`); return; }
+    setAdding(true);
+    try {
+      await addItem({
+        variantId: single.id, productId: p.id, name: p.name,
+        variant: single.label && single.label !== 'Default' && single.label !== 'Standard' ? single.label : '',
+        price: single.price, image: p.thumbnail_url ?? '', sellerId: p.seller.id, shopName: p.seller.shop_name,
+      });
+      showToast('Added to cart.');
+    } catch {
+      showToast('Could not add to cart. Try again.', 'error');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <article className={`group flex flex-col rounded-2xl bg-white border border-stone-200 overflow-hidden transition-shadow hover:shadow-[0_14px_32px_-18px_rgba(28,25,23,0.35)] ${outOfStock ? 'opacity-70' : ''}`}>
+      <div className="relative aspect-square bg-stone-100 overflow-hidden">
+        <Link to={`/products/${p.id}`} className="block w-full h-full">
+          {p.thumbnail_url
+            ? <img src={p.thumbnail_url} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+            : <span className="w-full h-full flex items-center justify-center text-stone-300"><Package className="w-8 h-8" /></span>}
+        </Link>
+        {onSale && !outOfStock && <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-brand-red text-white text-[11px] font-bold">-{discount}%</span>}
+        {outOfStock && <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-stone-900/80 text-white text-[11px] font-semibold">{p.status !== 'active' ? 'Unavailable' : 'Sold out'}</span>}
+        <button type="button" onClick={onRemove} disabled={removing} aria-label="Remove from wishlist" title="Remove"
+          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/95 ring-1 ring-stone-200 flex items-center justify-center text-brand-red hover:bg-white disabled:opacity-50">
+          {removing ? <span className="w-3.5 h-3.5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /> : <Heart className="w-4 h-4 fill-brand-red" />}
+        </button>
+      </div>
+      <div className="flex flex-col flex-1 p-3">
+        <Link to={`/products/${p.id}`} className="text-[13px] font-medium leading-snug text-stone-900 line-clamp-2 hover:text-brand-red">{p.name}</Link>
+        <Link to={p.seller.shop_slug ? `/shop/${p.seller.shop_slug}` : `/products/${p.id}`} className="mt-0.5 text-[11.5px] text-stone-500 truncate hover:text-stone-800">{p.seller.shop_name}</Link>
+        <div className="flex items-baseline gap-1.5 mt-auto pt-2">
+          <span className="text-[15px] font-bold text-brand-red tabular-nums">{fmtPrice(p.base_price)}</span>
+          {onSale && <span className="text-[11.5px] text-stone-400 line-through tabular-nums">{fmtPrice(p.original_price!)}</span>}
+        </div>
+        <button type="button" onClick={add} disabled={outOfStock || adding}
+          className="mt-2 h-9 rounded-full border border-stone-300 text-[12.5px] font-semibold text-stone-800 hover:border-brand-red hover:text-brand-red inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:hover:border-stone-300 disabled:hover:text-stone-800">
+          {adding ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <><ShoppingCart className="w-3.5 h-3.5" /> {single ? 'Add to cart' : 'Choose options'}</>}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function WishlistTabContent() {
+  const [items, setItems] = useState<WishlistItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState('recent');
+  const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
-  const [total, setTotal]       = useState(0);
+  const [total, setTotal] = useState(0);
   const [removing, setRemoving] = useState<Set<number>>(new Set());
-  const [addingCart, setAddingCart] = useState<Set<number>>(new Set());
-  const [toast, setToast]       = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -1403,116 +1419,37 @@ function WishlistTabContent() {
     }
   }
 
-  async function handleAddToCart(productId: number) {
-    setAddingCart((s) => new Set(s).add(productId));
-    try {
-      await addToCartApi(productId, 1);
-      setToast('Added to cart!');
-    } catch {
-      setToast('Could not add to cart.');
-    } finally {
-      setAddingCart((s) => { const n = new Set(s); n.delete(productId); return n; });
-      setTimeout(() => setToast(''), 2500);
-    }
+  if (loading && items.length === 0) return <PanelSpinner />;
+  if (!loading && items.length === 0) {
+    return (
+      <PanelEmpty icon={Heart} title="Nothing saved yet" hint="Tap the heart on any product to keep it here for later."
+        action={<Link to="/search" className="mt-4 h-10 px-5 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center">Browse products</Link>} />
+    );
   }
 
   return (
     <div>
-      {(items.length > 0 || !loading) && (
-        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-          <p className="text-sm text-gray-400">{total} item{total !== 1 ? 's' : ''}</p>
-          <div className="w-52">
-            <CustomSelect value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={WISHLIST_SORT_OPTIONS} />
-          </div>
-        </div>
-      )}
-
-      {loading && <div className="py-16 flex justify-center"><div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /></div>}
-
-      {!loading && items.length === 0 && (
-        <div className="py-16 flex flex-col items-center gap-4 text-center">
-          <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center"><Heart className="w-7 h-7 text-gray-300" /></div>
-          <p className="font-semibold text-brand-black">Your wishlist is empty</p>
-          <p className="text-sm text-gray-400">Save items you love and find them here.</p>
-          <button onClick={() => navigate('/search')} className="mt-1 px-5 py-2.5 bg-brand-red text-white text-sm font-semibold rounded-xl hover:bg-brand-red-dark transition-colors">Browse Products</button>
-        </div>
-      )}
-
-      {!loading && items.length > 0 && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {items.map((item) => {
-              const p = item.product;
-              const outOfStock = p.total_stock === 0 || p.status !== 'active';
-              const isOnSale   = p.original_price != null && p.original_price > p.base_price;
-              const discount   = isOnSale ? Math.round((1 - p.base_price / p.original_price!) * 100) : 0;
-              return (
-                <div key={item.wishlist_item_id} className={['relative flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all', outOfStock ? 'opacity-60' : 'hover:shadow-md hover:-translate-y-0.5'].join(' ')}>
-                  <Link to={`/products/${p.id}`} className="relative aspect-square bg-gray-100 block overflow-hidden">
-                    {p.thumbnail_url
-                      ? <img src={p.thumbnail_url} alt={p.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-gray-300" /></div>
-                    }
-                    {outOfStock && (
-                      <span className="absolute inset-0 flex items-center justify-center">
-                        <span className="bg-gray-800/70 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">Out of Stock</span>
-                      </span>
-                    )}
-                    {isOnSale && !outOfStock && <span className="absolute top-2 left-2 bg-brand-red text-white text-[10px] font-bold px-2 py-0.5 rounded-full">-{discount}%</span>}
-                    <button
-                      onClick={(e) => { e.preventDefault(); handleRemove(p.id, item.wishlist_item_id); }}
-                      disabled={removing.has(item.wishlist_item_id)}
-                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow-sm hover:bg-white transition-colors disabled:opacity-50"
-                    >
-                      {removing.has(item.wishlist_item_id)
-                        ? <div className="w-3.5 h-3.5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
-                        : <Heart className="w-4 h-4 fill-brand-red text-brand-red" />}
-                    </button>
-                  </Link>
-                  <div className="p-3 flex flex-col gap-1.5 flex-1">
-                    <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{p.name}</p>
-                    <p className="text-[11px] text-gray-400 truncate">{p.seller.shop_name}</p>
-                    <div className="flex items-baseline gap-1.5 flex-wrap mt-auto">
-                      <span className="text-base font-black text-brand-red">{fmtPrice(p.base_price)}</span>
-                      {isOnSale && <span className="text-xs text-gray-400 line-through">{fmtPrice(p.original_price!)}</span>}
-                    </div>
-                    <button
-                      onClick={() => handleAddToCart(p.id)}
-                      disabled={outOfStock || addingCart.has(p.id)}
-                      className={['mt-1 w-full min-h-[36px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-colors', outOfStock ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-brand-red text-white hover:bg-brand-red-dark'].join(' ')}
-                    >
-                      {addingCart.has(p.id)
-                        ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        : <><ShoppingCart className="w-3.5 h-3.5" /> Add to Cart</>}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {lastPage > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Previous</button>
-              <span className="text-sm text-gray-500">{page} / {lastPage}</span>
-              <button onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page === lastPage} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Next</button>
-            </div>
-          )}
-        </>
-      )}
-
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl">{toast}</div>}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <p className="text-[13px] text-stone-500">{total} saved item{total !== 1 ? 's' : ''}</p>
+        <div className="w-52"><CustomSelect value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={WISHLIST_SORT_OPTIONS} /></div>
+      </div>
+      <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+        {items.map((item) => (
+          <WishlistCard key={item.wishlist_item_id} item={item} removing={removing.has(item.wishlist_item_id)} onRemove={() => handleRemove(item.product.id, item.wishlist_item_id)} />
+        ))}
+      </div>
+      <Pager page={page} lastPage={lastPage} onPage={setPage} />
     </div>
   );
 }
 
 function FollowedStoresTabContent() {
-  const navigate = useNavigate();
-  const [stores, setStores]     = useState<FollowedStore[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [sort, setSort]         = useState('recent');
-  const [page, setPage]         = useState(1);
+  const [stores, setStores] = useState<FollowedStore[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState('recent');
+  const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
-  const [total, setTotal]       = useState(0);
+  const [total, setTotal] = useState(0);
   const [unfollowing, setUnfollowing] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -1534,72 +1471,52 @@ function FollowedStoresTabContent() {
     }
   }
 
+  if (loading && stores.length === 0) return <PanelSpinner />;
+  if (!loading && stores.length === 0) {
+    return (
+      <PanelEmpty icon={Store} title="You are not following any shops" hint="Follow a shop from its page to see it here and keep up with what it adds."
+        action={<Link to="/search" className="mt-4 h-10 px-5 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center">Find shops</Link>} />
+    );
+  }
+
   return (
     <div>
-      {(stores.length > 0 || !loading) && (
-        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-          <p className="text-sm text-gray-400">{total} store{total !== 1 ? 's' : ''}</p>
-          <div className="w-52">
-            <CustomSelect value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={STORE_SORT_OPTIONS} />
-          </div>
-        </div>
-      )}
-
-      {loading && <div className="py-16 flex justify-center"><div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /></div>}
-
-      {!loading && stores.length === 0 && (
-        <div className="py-16 flex flex-col items-center gap-4 text-center">
-          <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center"><Store className="w-7 h-7 text-gray-300" /></div>
-          <p className="font-semibold text-brand-black">You're not following any stores yet</p>
-          <p className="text-sm text-gray-400">Follow stores to stay updated on their latest products.</p>
-          <button onClick={() => navigate('/search')} className="mt-1 px-5 py-2.5 bg-brand-red text-white text-sm font-semibold rounded-xl hover:bg-brand-red-dark transition-colors">Explore Sellers</button>
-        </div>
-      )}
-
-      {!loading && stores.length > 0 && (
-        <>
-          <div className="flex flex-col gap-3">
-            {stores.map((f) => {
-              const s = f.seller;
-              const stars = s.avg_rating ? Math.round(s.avg_rating) : 0;
-              return (
-                <div key={f.follow_id} className="flex items-center gap-4 bg-white border border-gray-100 rounded-2xl p-4 hover:border-gray-200 hover:shadow-sm transition-all">
-                  <div className="w-14 h-14 shrink-0 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
-                    {s.logo_url ? <img src={s.logo_url} alt={s.shop_name} className="w-full h-full object-cover" /> : <Store className="w-6 h-6 text-gray-300" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-brand-black text-sm truncate">{s.shop_name}</p>
-                      {s.has_sale && <span className="text-[10px] font-bold bg-orange-50 text-orange-500 px-2 py-0.5 rounded-full whitespace-nowrap">🔥 On Sale</span>}
-                    </div>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      {[1,2,3,4,5].map((i) => <Star key={i} className={`w-3 h-3 ${i <= stars ? 'fill-amber-400 text-amber-400' : 'fill-gray-200 text-gray-200'}`} />)}
-                      <span className="text-[11px] text-gray-400 ml-1">{s.avg_rating ? s.avg_rating.toFixed(1) : 'No rating'} &middot; {s.product_count} product{s.product_count !== 1 ? 's' : ''}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Link to={`/search?seller_ids=${s.id}`} className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:border-brand-red hover:text-brand-red transition-colors">Visit Store</Link>
-                    <button
-                      onClick={() => handleUnfollow(f.follow_id, s.id)}
-                      disabled={unfollowing.has(f.follow_id)}
-                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-brand-red border-2 border-brand-red rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
-                    >
-                      {unfollowing.has(f.follow_id) ? <div className="w-3.5 h-3.5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /> : 'Following'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {lastPage > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Previous</button>
-              <span className="text-sm text-gray-500">{page} / {lastPage}</span>
-              <button onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page === lastPage} className="px-4 py-2 text-sm font-semibold rounded-xl border border-gray-200 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-40">Next</button>
-            </div>
-          )}
-        </>
-      )}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <p className="text-[13px] text-stone-500">{total} shop{total !== 1 ? 's' : ''}</p>
+        <div className="w-52"><CustomSelect value={sort} onChange={(v) => { setSort(v); setPage(1); }} options={STORE_SORT_OPTIONS} /></div>
+      </div>
+      <div className={`grid sm:grid-cols-2 gap-3 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+        {stores.map((f) => {
+          const s = f.seller;
+          const href = s.shop_slug ? `/shop/${s.shop_slug}` : `/store/${s.id}`;
+          const initials = s.shop_name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
+          return (
+            <article key={f.follow_id} className="flex items-center gap-3.5 rounded-2xl bg-white border border-stone-200 p-4 hover:border-stone-300 transition-colors">
+              <Link to={href} className="shrink-0">
+                {s.logo_url
+                  ? <img src={s.logo_url} alt="" className="w-14 h-14 rounded-full object-cover ring-1 ring-stone-200" />
+                  : <span className="w-14 h-14 rounded-full bg-[#1E1B18] text-[#FAF8F5] text-[15px] font-bold flex items-center justify-center">{initials}</span>}
+              </Link>
+              <div className="flex-1 min-w-0">
+                <Link to={href} className="block text-[14px] font-semibold text-stone-900 truncate hover:text-brand-red">{s.shop_name}</Link>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-stone-500">
+                  {s.avg_rating ? <span className="inline-flex items-center gap-0.5 text-stone-700"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{s.avg_rating.toFixed(1)}</span> : null}
+                  <span>{s.product_count} product{s.product_count !== 1 ? 's' : ''}</span>
+                  {s.has_sale && <span className="font-semibold text-brand-red">On sale now</span>}
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch gap-1.5 shrink-0">
+                <Link to={href} className="h-8 px-3 rounded-full bg-stone-900 hover:bg-black text-white text-[12px] font-semibold inline-flex items-center justify-center">Visit</Link>
+                <button type="button" onClick={() => handleUnfollow(f.follow_id, s.id)} disabled={unfollowing.has(f.follow_id)}
+                  className="h-8 px-3 rounded-full border border-stone-300 text-[12px] font-semibold text-stone-700 hover:border-red-300 hover:text-red-700 disabled:opacity-50">
+                  {unfollowing.has(f.follow_id) ? '…' : 'Unfollow'}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      <Pager page={page} lastPage={lastPage} onPage={setPage} />
     </div>
   );
 }
@@ -1609,42 +1526,13 @@ type ActiveWishlistTab = 'wishlist' | 'stores';
 function WishlistPanel() {
   const [tab, setTab] = useState<ActiveWishlistTab>('wishlist');
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-5 border-b border-gray-100">
-        <h2 className="font-bold text-brand-black text-lg">Wishlist & Followed Stores</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Your saved products and followed stores</p>
-      </div>
-      <div className="px-6 pt-4">
-        <div className="flex border-b border-gray-100">
-          {(['wishlist', 'stores'] as ActiveWishlistTab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={['pb-3 px-1 mr-6 text-sm font-semibold border-b-2 transition-all', tab === t ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-400 hover:text-brand-black'].join(' ')}
-            >
-              {t === 'wishlist' ? 'Wishlist' : 'Followed Stores'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="px-6 py-5">
-        {tab === 'wishlist' ? <WishlistTabContent /> : <FollowedStoresTabContent />}
-      </div>
-    </div>
-  );
-}
-
-// ─── Coming soon placeholder ─────────────────────────────────────────────────
-
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 flex flex-col items-center justify-center gap-3 text-center">
-      <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center">
-        <Package className="w-6 h-6 text-gray-300" />
-      </div>
-      <p className="font-semibold text-brand-black">{label}</p>
-      <p className="text-sm text-gray-400">This section is coming soon.</p>
-    </div>
+    <PanelShell
+      title="Wishlist & stores"
+      subtitle="Products you saved for later and the shops you follow."
+      tabs={<PanelTabs value={tab} onChange={setTab} label="Saved" options={[{ key: 'wishlist', label: 'Saved items' }, { key: 'stores', label: 'Followed shops' }]} />}
+    >
+      {tab === 'wishlist' ? <WishlistTabContent /> : <FollowedStoresTabContent />}
+    </PanelShell>
   );
 }
 
@@ -1697,5 +1585,5 @@ export function SettingsCancellations() {
     />
   );
 }
-export function SettingsReviews()       { return <ComingSoon label="My Reviews" />; }
+export function SettingsReviews()       { return <ReviewsPanel />; }
 export function SettingsWishlist()      { return <WishlistPanel />; }

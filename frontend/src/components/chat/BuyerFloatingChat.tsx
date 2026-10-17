@@ -15,6 +15,8 @@ import { isRiderThread } from '../../lib/riderThread';
 export default function BuyerFloatingChat() {
   const { user } = useAuth();
   const location = useLocation();
+  // The full Messages page shows the same inbox, so the floating panel stays closed there.
+  const onMessagesPage = location.pathname.startsWith('/settings/messages');
   const {
     isChatOpen,
     activeConversation,
@@ -170,7 +172,7 @@ export default function BuyerFloatingChat() {
   return (
     <div className="fixed bottom-6 right-4 sm:right-6 z-40 flex flex-col sm:flex-row items-end gap-3 pointer-events-none">
       <AnimatePresence>
-        {isChatOpen && (
+        {isChatOpen && !onMessagesPage && (
           <motion.div
             key="chat"
             initial={{ opacity: 0, y: 16, scale: 0.97 }}
@@ -506,7 +508,7 @@ export default function BuyerFloatingChat() {
       </AnimatePresence>
 
       {/* Side toolbar: Messages, Feedback and (once scrolled) Top */}
-      <FloatingToolbar chatOpen={isChatOpen} unread={unreadTotal} onMessages={toggleChat} />
+      <FloatingToolbar chatOpen={isChatOpen && !onMessagesPage} unread={unreadTotal} onMessages={onMessagesPage ? () => window.scrollTo({ top: 0, behavior: 'smooth' }) : toggleChat} />
     </div>
   );
 }

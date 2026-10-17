@@ -1,200 +1,97 @@
-import { Link } from 'react-router-dom';
-import { ArrowLeft, ScrollText } from 'lucide-react';
-import LovedItLogo from '../../components/LovedItLogo';
-import Footer from '../../components/Footer';
+import LegalLayout, { LegalPoint, type LegalSection } from '../../components/legal/LegalLayout';
+import { DELIVERY_FEE } from '../../utils/shipping';
 
-const SECTIONS = [
+const SECTIONS: { id: string; title: string; points: { title: string; text: string }[] }[] = [
   {
-    title: 'Acceptance of Terms',
-    content: [
-      {
-        subtitle: 'Agreement to These Terms',
-        text: 'By accessing or using Loved-IT — whether as a guest, registered buyer, seller, or delivery rider — you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, please do not use the platform.',
-      },
-      {
-        subtitle: 'Changes to Terms',
-        text: 'We reserve the right to modify these Terms at any time. We will notify you of material changes via email or a prominent notice on the platform. Continued use of Loved-IT after changes take effect constitutes your acceptance of the revised Terms.',
-      },
+    id: 'acceptance',
+    title: 'Acceptance of these terms',
+    points: [
+      { title: 'Agreement', text: 'By using Loved-IT, whether as a guest, buyer, seller, rider, hub or courier company, you agree to these Terms of Use and to our Privacy Policy. If you do not agree, please do not use the platform.' },
+      { title: 'Changes', text: 'We may update these terms. When a change matters, we tell you by email or with a notice on the site before it takes effect. Using Loved-IT after that means you accept the updated terms.' },
     ],
   },
   {
-    title: 'Accounts and Registration',
-    content: [
-      {
-        subtitle: 'Eligibility',
-        text: 'You must be at least 18 years old to create an account on Loved-IT. By registering, you represent and warrant that you meet this age requirement and that all information you provide is accurate and complete.',
-      },
-      {
-        subtitle: 'Account Security',
-        text: 'You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account. Notify us immediately at support@loved-it.ph if you suspect unauthorized use of your account.',
-      },
-      {
-        subtitle: 'One Account Per Person',
-        text: 'Each person may maintain only one buyer account. Sellers may not operate multiple seller accounts without prior written approval from Loved-IT. Accounts found to be duplicates may be suspended without notice.',
-      },
+    id: 'accounts',
+    title: 'Accounts',
+    points: [
+      { title: 'Who can sign up', text: 'You must be at least 18 years old to create an account. The details you give us, including your ID, must be true and your own.' },
+      { title: 'Keeping your account safe', text: 'Keep your password to yourself; you are responsible for what happens under your account. If you think someone else has used it, change your password and tell our support team through Chat with support.' },
+      { title: 'One account per person', text: 'Each person may have one buyer account. Seller, rider, hub and courier roles are added to that same account after their application is approved. Duplicate accounts may be suspended.' },
     ],
   },
   {
+    id: 'buying',
     title: 'Buying on Loved-IT',
-    content: [
-      {
-        subtitle: 'Orders and Contracts',
-        text: 'When you place an order, you are making a binding offer to purchase the item at the listed price. A contract is formed when the seller confirms your order. Loved-IT acts as a marketplace facilitator and is not a party to the sale contract between you and the seller.',
-      },
-      {
-        subtitle: 'Pricing and Payment',
-        text: 'All prices are listed in Philippine Pesos (PHP) and are inclusive of applicable taxes unless stated otherwise. We accept GCash and Cash on Delivery (COD). Payment must be completed before an order is processed for GCash transactions.',
-      },
-      {
-        subtitle: 'Cancellations and Returns',
-        text: "You may cancel an order before it is packed by the seller. Once packed or shipped, cancellations are subject to the seller's return policy. Items must be returned in their original condition with tags intact. Loved-IT's dispute resolution team will mediate unresolved issues between buyers and sellers.",
-      },
+    points: [
+      { title: 'Orders', text: 'Placing an order is an offer to buy at the listed price. The sale is between you and the shop; Loved-IT runs the marketplace and is not a party to that sale.' },
+      { title: 'Prices and payment', text: 'Prices are in Philippine pesos. You can pay with GCash or cash on delivery. A GCash order is processed once the shop confirms your payment against the receipt you upload.' },
+      { title: 'Cancellations and returns', text: 'You can cancel an order before the shop packs it. If an order arrives damaged, wrong or not as described, request a return from My Orders within 7 days of delivery. Our team reviews claims the shop and buyer cannot settle.' },
     ],
   },
   {
+    id: 'delivery',
+    title: 'Delivery',
+    points: [
+      { title: 'Delivery fee', text: `Each shop in your cart ships its own parcel, and each parcel has a flat delivery fee of ₱${DELIVERY_FEE}.` },
+      { title: 'Couriers', text: 'Parcels are carried by partner couriers. Loved-IT assigns each parcel to the courier whose hubs cover the shop and your address; you can follow it with its tracking number.' },
+    ],
+  },
+  {
+    id: 'selling',
     title: 'Selling on Loved-IT',
-    content: [
-      {
-        subtitle: 'Seller Verification',
-        text: 'To sell on Loved-IT, you must complete our seller registration process, which includes identity verification via a government-issued ID. Your application is subject to review and approval by Loved-IT. We reserve the right to reject any application at our discretion.',
-      },
-      {
-        subtitle: 'Seller Responsibilities',
-        text: 'Sellers are responsible for the accuracy of product listings, maintaining sufficient stock, fulfilling orders promptly, and complying with all applicable Philippine laws including consumer protection regulations. Misrepresentation of products is grounds for immediate account suspension.',
-      },
-      {
-        subtitle: 'Prohibited Items',
-        text: 'Sellers may not list counterfeit goods, items that infringe intellectual property rights, hazardous materials, or any product prohibited by Philippine law. Loved-IT reserves the right to remove any listing and suspend any seller account found in violation of this policy.',
-      },
-      {
-        subtitle: 'Payouts',
-        text: 'Seller payouts are processed via GCash after order completion and any applicable holding period. Loved-IT deducts a platform service fee from each transaction. The current fee schedule is available in your Seller Dashboard.',
-      },
+    points: [
+      { title: 'Seller verification', text: 'To sell, you apply from your buyer account with your ID and business documents. Loved-IT reviews every application and may decline one.' },
+      { title: 'Seller responsibilities', text: 'Sellers keep listings accurate, keep stock up to date, ship on time and follow Philippine law, including consumer protection rules. Misrepresenting a product can lead to suspension.' },
+      { title: 'Prohibited items', text: 'You may not list counterfeit goods, items that infringe someone\'s intellectual property, hazardous materials or anything Philippine law prohibits. We may remove such listings and suspend the shop.' },
+      { title: 'Payouts', text: 'Seller earnings are released after the buyer receives the order and can be paid out to the shop\'s GCash. A commission set per category is deducted from each sale; the rates are shown in the Seller Center.' },
     ],
   },
   {
-    title: 'Prohibited Conduct',
-    content: [
-      {
-        subtitle: 'What You May Not Do',
-        text: "You agree not to: use the platform for any unlawful purpose; attempt to gain unauthorized access to any part of the platform or another user's account; post false, misleading, or defamatory content; engage in price manipulation or fake reviews; use automated tools to scrape or interact with the platform; or interfere with the platform's security or integrity.",
-      },
-      {
-        subtitle: 'Consequences of Violations',
-        text: 'Violations of these Terms may result in immediate suspension or permanent termination of your account, removal of your listings, withholding of pending payouts pending investigation, and referral to law enforcement where applicable.',
-      },
+    id: 'conduct',
+    title: 'What you may not do',
+    points: [
+      { title: 'Prohibited conduct', text: 'Do not use Loved-IT for anything unlawful; try to get into accounts or systems that are not yours; post false or defamatory content; manipulate prices or write fake reviews; scrape the site with automated tools; or interfere with its security.' },
+      { title: 'If the rules are broken', text: 'We may suspend or close the account, remove listings, hold payouts while we investigate, and report the matter to the authorities when the law requires it.' },
     ],
   },
   {
-    title: 'Intellectual Property',
-    content: [
-      {
-        subtitle: "Loved-IT's Content",
-        text: 'All content on the Loved-IT platform — including the logo, design, text, graphics, and software — is owned by or licensed to Loved-IT and is protected by Philippine and international intellectual property laws. You may not reproduce, distribute, or create derivative works without our express written permission.',
-      },
-      {
-        subtitle: 'Your Content',
-        text: 'By uploading product images, reviews, or other content to Loved-IT, you grant us a non-exclusive, royalty-free, worldwide license to use, display, and distribute that content in connection with operating and promoting the platform.',
-      },
+    id: 'content',
+    title: 'Content and intellectual property',
+    points: [
+      { title: 'Our content', text: 'The Loved-IT name, logo, design and software belong to us or our licensors. Please do not copy or reuse them without written permission.' },
+      { title: 'Your content', text: 'When you upload product photos, reviews or other content, you let us show it on Loved-IT and use it to run and promote the marketplace. You keep ownership of it.' },
     ],
   },
   {
-    title: 'Limitation of Liability',
-    content: [
-      {
-        subtitle: 'Platform as Marketplace',
-        text: 'Loved-IT is a marketplace that connects buyers and sellers. We do not manufacture, store, or inspect the products listed on the platform. We are not liable for the quality, safety, legality, or accuracy of any product listing.',
-      },
-      {
-        subtitle: 'Limitation of Damages',
-        text: "To the maximum extent permitted by applicable law, Loved-IT's total liability to you for any claim arising from your use of the platform shall not exceed the amount you paid for the transaction giving rise to the claim in the 90 days preceding the claim.",
-      },
+    id: 'liability',
+    title: 'Limitation of liability',
+    points: [
+      { title: 'A marketplace', text: 'Loved-IT connects buyers and shops. We do not make, store or inspect the products listed, and we are not responsible for their quality, safety or legality; the shop is.' },
+      { title: 'Limit', text: 'As far as the law allows, our liability for any claim about your use of Loved-IT is limited to the amount you paid in the transaction that led to the claim.' },
     ],
   },
   {
-    title: 'Governing Law',
-    content: [
-      {
-        subtitle: 'Applicable Law',
-        text: 'These Terms are governed by the laws of the Republic of the Philippines. Any disputes arising from these Terms or your use of Loved-IT shall be subject to the exclusive jurisdiction of the courts of Makati City, Metro Manila.',
-      },
+    id: 'law',
+    title: 'Governing law',
+    points: [
+      { title: 'Philippine law', text: 'These terms are governed by the laws of the Republic of the Philippines. Disputes are settled by the proper courts of the Philippines.' },
     ],
   },
 ];
 
 export default function TermsOfServicePage() {
+  const sections: LegalSection[] = SECTIONS.map((s) => ({
+    id: s.id,
+    title: s.title,
+    body: s.points.map((p) => <LegalPoint key={p.title} title={p.title}><p>{p.text}</p></LegalPoint>),
+  }));
   return (
-    <div className="min-h-screen flex flex-col bg-brand-gray-soft">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link to="/" className="flex items-center shrink-0">
-            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
-          </Link>
-          <span className="text-gray-300 text-lg">/</span>
-          <span className="text-sm font-semibold text-brand-black">Terms of Service</span>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 py-10 flex-1 w-full">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-black transition-colors mb-8"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Home
-        </Link>
-
-        {/* Hero */}
-        <div className="bg-gradient-to-br from-brand-black to-gray-800 rounded-2xl p-8 mb-8 flex items-start gap-5">
-          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-            <ScrollText className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Terms of Service</h1>
-            <p className="text-white/50 text-sm mt-1">Last updated: August 1, 2026</p>
-            <p className="text-white/75 text-sm mt-3 leading-relaxed max-w-2xl">
-              These Terms of Service govern your use of the Loved-IT platform — whether you're shopping,
-              selling, or delivering. Please read them carefully before using our services.
-            </p>
-          </div>
-        </div>
-
-        {/* Sections */}
-        <div className="space-y-4">
-          {SECTIONS.map((section, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3">
-                <span className="w-7 h-7 rounded-lg bg-gray-100 text-brand-black text-xs font-bold flex items-center justify-center shrink-0">
-                  {i + 1}
-                </span>
-                <h2 className="font-bold text-brand-black">{section.title}</h2>
-              </div>
-              <div className="px-6 py-5 space-y-5">
-                {section.content.map((item, j) => (
-                  <div key={j}>
-                    <p className="text-sm font-semibold text-brand-black mb-1">{item.subtitle}</p>
-                    <p className="text-sm text-gray-500 leading-relaxed">{item.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Contact */}
-        <div className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
-          <p className="text-sm font-semibold text-brand-black mb-1">Questions about these Terms?</p>
-          <p className="text-sm text-gray-500">
-            Contact us at{' '}
-            <a href="mailto:legal@loved-it.ph" className="text-brand-red hover:underline font-medium">
-              legal@loved-it.ph
-            </a>
-            {' '}or write to us at: Loved-IT Inc., Makati City, Metro Manila, Philippines.
-          </p>
-        </div>
-      </div>
-
-      <Footer />
-    </div>
+    <LegalLayout
+      doc="terms"
+      title="Terms of use"
+      updated="October 17, 2026"
+      intro={<p>These terms cover how you can use Loved-IT, whether you shop, sell, deliver or run a hub. They are written to be read, so please take a few minutes.</p>}
+      sections={sections}
+    />
   );
 }

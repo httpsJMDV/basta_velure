@@ -489,15 +489,17 @@ class AdminOrdersReviewsTest extends TestCase
         }
     }
 
-    public function test_buyers_cannot_create_reviews_through_the_api_yet(): void
+    public function test_reviews_come_only_from_the_buyer_endpoint_and_only_for_received_orders(): void
     {
         $product = $this->makeProduct($this->sellerOne, 'USB-C Charger');
         Sanctum::actingAs($this->buyerA);
 
-        foreach (['/api/v1/reviews', "/api/v1/products/{$product->id}/reviews", '/api/v1/buyer/reviews', '/api/v1/admin/reviews'] as $url) {
+        foreach (['/api/v1/reviews', "/api/v1/products/{$product->id}/reviews", '/api/v1/admin/reviews'] as $url) {
             $status = $this->postJson($url, ['product_id' => $product->id, 'rating' => 5, 'comment' => 'x'])->getStatusCode();
             $this->assertContains($status, $url === '/api/v1/admin/reviews' ? [403, 405] : [404, 405], "{$url} answered {$status}");
         }
+        // The buyer endpoint exists, but this buyer never received the product (see BuyerReviewTest).
+        $this->postJson('/api/v1/buyer/reviews', ['order_id' => 0, 'product_id' => $product->id, 'rating' => 5])->assertStatus(422);
         $this->assertSame(0, Review::count());
     }
 

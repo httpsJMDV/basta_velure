@@ -1,165 +1,102 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Shield } from 'lucide-react';
-import LovedItLogo from '../../components/LovedItLogo';
-import Footer from '../../components/Footer';
+import LegalLayout, { LegalPoint, type LegalSection } from '../../components/legal/LegalLayout';
 
-const SECTIONS = [
+const SECTIONS: LegalSection[] = [
   {
-    title: 'Information We Collect',
-    content: [
-      {
-        subtitle: 'Information You Provide',
-        text: 'When you create an account, place an order, or register as a seller, we collect your name, email address, phone number, delivery address, date of birth, and payment-related information such as your GCash number. Sellers additionally provide government-issued ID details for verification purposes.',
-      },
-      {
-        subtitle: 'Information Collected Automatically',
-        text: 'When you browse Loved-IT, we automatically collect certain technical data including your IP address, browser type, device information, pages visited, and time spent on the platform. This data is collected through cookies and similar tracking technologies.',
-      },
-      {
-        subtitle: 'Transaction Information',
-        text: 'We record details of purchases you make, including the items ordered, amounts paid, payment method, and delivery status. This information is retained to support order history, returns, and dispute resolution.',
-      },
-    ],
+    id: 'collect',
+    title: 'What we collect',
+    body: (
+      <>
+        <LegalPoint title="What you give us">
+          <p>Your name, email, phone number, delivery addresses and date of birth when you sign up and order. To verify your identity we also ask for a government ID. Sellers, riders, hubs and courier companies add the documents their application needs, such as permits, a driver&apos;s license or OR/CR, and a GCash number for payouts.</p>
+        </LegalPoint>
+        <LegalPoint title="What we record as you use Loved-IT">
+          <p>Your orders, payments (method, amount, GCash reference and receipt), deliveries, messages, reviews and feedback. Our servers also log technical details such as your IP address and browser to keep the service secure. We do not use analytics or advertising trackers.</p>
+        </LegalPoint>
+      </>
+    ),
   },
   {
-    title: 'How We Use Your Information',
-    content: [
-      {
-        subtitle: 'To Provide Our Services',
-        text: 'We use your information to process orders, facilitate payments, coordinate deliveries, and provide customer support. Your contact details are used to send order confirmations, shipping updates, and important account notifications.',
-      },
-      {
-        subtitle: 'To Improve the Platform',
-        text: 'Aggregated and anonymized usage data helps us understand how shoppers interact with Loved-IT, which allows us to improve product discovery, fix issues, and develop new features.',
-      },
-      {
-        subtitle: 'Marketing Communications',
-        text: 'With your consent, we may send you promotional emails about new arrivals, sales, and exclusive offers. You can opt out at any time by clicking "Unsubscribe" in any marketing email or updating your notification preferences in your account settings.',
-      },
-    ],
+    id: 'use',
+    title: 'How we use it',
+    body: (
+      <>
+        <LegalPoint title="To run the marketplace">
+          <p>We use your information to take and deliver orders, check payments, settle returns and disputes, review applications and answer your messages.</p>
+        </LegalPoint>
+        <LegalPoint title="To keep you informed">
+          <p>We email you about your account and your orders, for example a receipt, a shipping update or an application decision. We do not send marketing emails.</p>
+        </LegalPoint>
+      </>
+    ),
   },
   {
-    title: 'How We Share Your Information',
-    content: [
-      {
-        subtitle: 'With Sellers',
-        text: 'When you place an order, we share your name, delivery address, and contact number with the seller fulfilling your order. Sellers are prohibited from using this information for any purpose other than completing your purchase.',
-      },
-      {
-        subtitle: 'With Delivery Riders',
-        text: 'Riders assigned to your delivery receive your name, delivery address, and contact number to complete the delivery. This information is not retained by riders after the delivery is completed.',
-      },
-      {
-        subtitle: 'With Service Providers',
-        text: 'We work with trusted third-party providers for payment processing, email delivery, and analytics. These providers are contractually bound to handle your data securely and only for the purposes we specify.',
-      },
-      {
-        subtitle: 'Legal Requirements',
-        text: 'We may disclose your information if required by law, court order, or government authority, or if we believe disclosure is necessary to protect the rights, property, or safety of Loved-IT, our users, or the public.',
-      },
-    ],
+    id: 'share',
+    title: 'Who sees it',
+    body: (
+      <>
+        <LegalPoint title="The shop you buy from">
+          <p>Your name, phone number and delivery address, so it can pack and label your order. Shops may only use them for that order.</p>
+        </LegalPoint>
+        <LegalPoint title="Your hub and riders">
+          <p>The courier hub and riders handling your parcel see the same delivery details, and only while the parcel is with them.</p>
+        </LegalPoint>
+        <LegalPoint title="Loved-IT administrators">
+          <p>Government IDs and application documents are stored privately and are only seen by the team reviewing applications. They are never shown publicly.</p>
+        </LegalPoint>
+        <LegalPoint title="When the law requires it">
+          <p>We may disclose information when a law, court order or government authority requires it, or to protect the safety of our users.</p>
+        </LegalPoint>
+      </>
+    ),
   },
   {
-    title: 'Data Retention and Security',
-    content: [
-      {
-        subtitle: 'How Long We Keep Your Data',
-        text: 'We retain your personal information for as long as your account is active or as needed to provide you services, comply with legal obligations, resolve disputes, and enforce our agreements. Government ID images uploaded for seller verification are retained securely in accordance with Philippine regulations.',
-      },
-      {
-        subtitle: 'Security Measures',
-        text: 'We implement technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no internet transmission is 100% secure, and we cannot guarantee absolute security.',
-      },
-    ],
+    id: 'keep',
+    title: 'How long we keep it and how we protect it',
+    body: (
+      <>
+        <LegalPoint title="Retention">
+          <p>We keep your information while your account is open, and afterwards only as long as we need it for orders still in progress, disputes, or legal and tax obligations.</p>
+        </LegalPoint>
+        <LegalPoint title="Security">
+          <p>Documents are kept outside public storage, passwords are stored hashed, and the site is served over an encrypted connection. No system is perfectly secure, so we also ask you to keep your password private.</p>
+        </LegalPoint>
+      </>
+    ),
   },
   {
-    title: 'Your Rights',
-    content: [
-      {
-        subtitle: 'Access and Correction',
-        text: 'You have the right to access and update your personal information at any time through your account settings. If you need assistance, please contact our support team.',
-      },
-      {
-        subtitle: 'Account Deletion',
-        text: 'You may request deletion of your account and personal data by contacting us. We will process your request in accordance with applicable laws, subject to retention requirements for pending orders or legal obligations.',
-      },
-    ],
+    id: 'rights',
+    title: 'Your rights',
+    body: (
+      <>
+        <LegalPoint>
+          <p>Under the Data Privacy Act of 2012 (Republic Act No. 10173) you can ask what we hold about you, correct it, object to how it is used, and ask us to delete it.</p>
+        </LegalPoint>
+        <LegalPoint title="How to ask">
+          <p>You can change most details yourself in <Link to="/settings" className="font-semibold text-brand-red hover:underline">your account</Link>. For anything else, including deleting your account, message our support team. Some records, such as completed orders, may have to be kept for a time by law.</p>
+        </LegalPoint>
+      </>
+    ),
+  },
+  {
+    id: 'storage',
+    title: 'Cookies and browser storage',
+    body: (
+      <LegalPoint>
+        <p>Loved-IT does not set tracking cookies. What we keep in your browser, and why, is explained in the <Link to="/cookie-policy" className="font-semibold text-brand-red hover:underline">Cookie policy</Link>.</p>
+      </LegalPoint>
+    ),
   },
 ];
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-brand-gray-soft">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link to="/" className="flex items-center shrink-0">
-            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
-          </Link>
-          <span className="text-gray-300 text-lg">/</span>
-          <span className="text-sm font-semibold text-brand-black">Privacy Policy</span>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 py-10 flex-1 w-full">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-black transition-colors mb-8"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Home
-        </Link>
-
-        {/* Hero */}
-        <div className="bg-gradient-to-br from-brand-red to-brand-red-dark rounded-2xl p-8 mb-8 flex items-start gap-5">
-          <div className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-            <Shield className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Privacy Policy</h1>
-            <p className="text-white/70 text-sm mt-1">Last updated: August 1, 2026</p>
-            <p className="text-white/85 text-sm mt-3 leading-relaxed max-w-2xl">
-              At Loved-IT, your privacy matters. This policy explains what personal information we collect,
-              how we use it, and the choices you have. By using Loved-IT, you agree to the practices described here.
-            </p>
-          </div>
-        </div>
-
-        {/* Sections */}
-        <div className="space-y-4">
-          {SECTIONS.map((section, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3">
-                <span className="w-7 h-7 rounded-lg bg-red-50 text-brand-red text-xs font-bold flex items-center justify-center shrink-0">
-                  {i + 1}
-                </span>
-                <h2 className="font-bold text-brand-black">{section.title}</h2>
-              </div>
-              <div className="px-6 py-5 space-y-5">
-                {section.content.map((item, j) => (
-                  <div key={j}>
-                    <p className="text-sm font-semibold text-brand-black mb-1">{item.subtitle}</p>
-                    <p className="text-sm text-gray-500 leading-relaxed">{item.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Contact */}
-        <div className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
-          <p className="text-sm font-semibold text-brand-black mb-1">Questions about this policy?</p>
-          <p className="text-sm text-gray-500">
-            Contact our Data Privacy Officer at{' '}
-            <a href="mailto:privacy@loved-it.ph" className="text-brand-red hover:underline font-medium">
-              privacy@loved-it.ph
-            </a>
-            {' '}or write to us at: Loved-IT Inc., Makati City, Metro Manila, Philippines.
-          </p>
-        </div>
-      </div>
-
-      <Footer />
-    </div>
+    <LegalLayout
+      doc="privacy"
+      title="Privacy policy"
+      updated="October 17, 2026"
+      intro={<p>What personal information Loved-IT collects, why, who can see it, and the choices you have. We collect only what we need to run the marketplace.</p>}
+      sections={SECTIONS}
+    />
   );
 }

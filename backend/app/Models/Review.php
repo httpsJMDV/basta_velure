@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Review extends Model
@@ -26,4 +27,11 @@ class Review extends Model
     public function buyer(): BelongsTo { return $this->belongsTo(User::class, 'buyer_id'); }
     public function order(): BelongsTo { return $this->belongsTo(Order::class); }
     public function product(): BelongsTo { return $this->belongsTo(Product::class); }
+    public function images(): HasMany    { return $this->hasMany(ReviewImage::class)->orderBy('sort_order'); }
+
+    /** Public URLs of the review's photos, in order. @return array<int, string> */
+    public function imageUrls(): array
+    {
+        return $this->images->map(fn (ReviewImage $i) => asset('storage/' . $i->path))->values()->all();
+    }
 }
