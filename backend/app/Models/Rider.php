@@ -66,7 +66,12 @@ class Rider extends Model
         self::VEHICLE_VAN,
     ];
 
+    /** GCash numbers are only sent where a screen needs them. */
+    protected $hidden = ['gcash_number'];
+
     protected $fillable = [
+        'gcash_number',
+        'gcash_name',
         'user_id',
         'sorting_center_id',
         'vehicle_type',
@@ -89,6 +94,7 @@ class Rider extends Model
     protected function casts(): array
     {
         return [
+            'gcash_number' => 'encrypted',
             'reviewed_at'  => 'datetime',
             'vehicle_updated_at' => 'datetime',
             'last_located_at'    => 'datetime',

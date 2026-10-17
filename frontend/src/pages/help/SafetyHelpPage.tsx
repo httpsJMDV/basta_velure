@@ -21,15 +21,15 @@ import { useChat } from '../../hooks/useChat';
 const SAFETY_PILLARS = [
   {
     icon: Lock,
-    title: '7-Day Escrow Payment Hold',
+    title: '7-Day Returns',
     badge: 'Core Guarantee',
     badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     description:
-      'When you place an order, your payment is held in escrow by Loved-IT. Funds are only transferred to the seller after you receive your delivery and confirm the items match the seller’s listing.',
+      'You pay the shop directly, and the shop stands behind its items. If an order arrives damaged, wrong or incomplete, request a return within 7 days of delivery and the shop refunds you.',
     points: [
-      'Automatic order hold until confirmed delivery',
-      'Instant hold extensions if a parcel is delayed',
-      'No surprise deduction or unauthorized balance transfers',
+      'Return window of 7 days after delivery',
+      'Refunds come from the shop you paid',
+      'Claims the shop will not settle go to our team',
     ],
   },
   {
@@ -51,11 +51,11 @@ const SAFETY_PILLARS = [
     badge: 'Financial Security',
     badgeColor: 'bg-rose-50 text-brand-red border-rose-200',
     description:
-      'Always pay through Loved-IT checkout using authorized GCash QR verification or Cash on Delivery (COD). Never send money to personal bank accounts, external payment links, or unauthorized numbers.',
+      'Pay only from Loved-IT checkout: by GCash to the shop account checkout shows you, with your receipt uploaded, or in cash to the rider. Never send money to a number a seller gives you in chat or on social media.',
     points: [
-      'GCash QR codes verified with timestamped receipts',
-      'Cash on Delivery supported across nationwide courier zones',
-      'Transactions outside Loved-IT automatically void buyer warranty',
+      'The GCash name and number come from the shop\'s verified account',
+      'Every GCash payment is checked against your uploaded receipt',
+      'Payments made outside checkout are not covered by returns',
     ],
   },
   {
@@ -68,7 +68,7 @@ const SAFETY_PILLARS = [
     points: [
       'Filing window open for 7 days post-delivery',
       'Human-arbitrated review (no automated rejections)',
-      'Escrow funds frozen until both sides are resolved',
+      'Both sides are heard before a decision',
     ],
   },
 ];
@@ -77,7 +77,7 @@ const RED_FLAGS = [
   {
     icon: AlertTriangle,
     title: 'Requests to Chat or Transact on Social Media',
-    text: 'A seller who asks you to finalize deals on Telegram, Viber, WhatsApp, or Facebook Messenger is attempting to bypass escrow protection.',
+    text: 'A seller who asks you to finalize deals on Telegram, Viber, WhatsApp, or Facebook Messenger is trying to get you outside the protection of checkout.',
   },
   {
     icon: BadgeAlert,
@@ -115,7 +115,7 @@ const DISPUTE_STEPS = [
   {
     step: '04',
     title: 'Refund or Replacement Settlement',
-    desc: 'Once approved, your refund is credited directly back to your payment method or escrow wallet without hidden restocking fees.',
+    desc: 'Once approved, the shop sends your refund to your GCash, with no hidden restocking fees.',
   },
 ];
 
@@ -163,7 +163,7 @@ export default function SafetyHelpPage() {
             </h1>
 
             <p className="text-sm leading-relaxed sm:text-base text-stone-600">
-              We built Loved-IT to bring accountability, respect, and safety back to Philippine online shopping. From mandatory seller vetting to escrow-backed buyer protection and dedicated human dispute mediation, explore how our systems keep your money and identity safe.
+              We built Loved-IT to bring accountability, respect, and safety back to Philippine online shopping. From mandatory seller vetting to receipt-checked payments, 7-day returns and human dispute review, explore how our systems keep your money and identity safe.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -292,7 +292,7 @@ export default function SafetyHelpPage() {
           <div className="flex items-center gap-3 p-4 text-xs border rounded-2xl bg-amber-50/80 border-amber-200/80 text-amber-900">
             <Clock className="w-5 h-5 text-amber-600 shrink-0" />
             <span>
-              <strong>Important Reminder:</strong> Once you click "Order Received" on your dashboard, payment is permanently released from escrow to the seller. Always unpack and test your items first before confirming receipt!
+              <strong>Important Reminder:</strong> Unpack and test your items before you click "Order Received". Once you confirm, the order is complete and a return can no longer be requested.
             </span>
           </div>
         </section>

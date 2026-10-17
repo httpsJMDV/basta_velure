@@ -1,22 +1,18 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, AlertCircle, Copy, Check, UploadCloud, ShieldCheck, ShoppingBag, X, MapPin, Store, Banknote, Lock, Loader2, Truck } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertCircle, Check, UploadCloud, ShieldCheck, ShoppingBag, X, MapPin, Store, Banknote, Lock, Loader2, Truck, Gift } from 'lucide-react';
 import { pesoCompact as peso } from '../utils/pricing';
 import LovedItLogo from '../components/LovedItLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import { getAddressesApi, placeOrderApi } from '../api/client';
 import type { Address, Order } from '../types';
+import { useShopPaymentInfo, shopDelivery } from '../hooks/useShopDelivery';
+import { GcashPayee, ReferenceField } from '../components/payments/GcashKit';
 import { DELIVERY_FEE } from '../utils/shipping';
-import gcashLogo from '../assets/brand/gcash-logo.svg';
 import gcashMark from '../assets/brand/gcash-mark.svg';
 
 type PayErrors = { reference?: string; receipt?: string };
-
-/** 1234567890123 → "1234 567 890123", the grouping GCash receipts use. */
-function formatReference(digits: string): string {
-  return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 13)].filter(Boolean).join(' ');
-}
 
 export default function CheckoutPage() {
   const { user } = useAuth();
@@ -39,16 +35,13 @@ export default function CheckoutPage() {
   const [shippingBarangayCode, setShippingBarangayCode] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
 
-  // Payment method: 'gcash' | 'cod'
-  const [paymentMethod, setPaymentMethod] = useState<'gcash' | 'cod'>('gcash');
-  // Digits only (a GCash reference number is 13 digits); shown grouped like the receipt prints it.
-  const [gcashReference, setGcashReference] = useState('');
-  const [payErrors, setPayErrors] = useState<PayErrors>({});
-  const refInputRef = useRef<HTMLInputElement>(null);
-  const receiptRef = useRef<HTMLDivElement>(null);
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [proofPreview, setProofPreview] = useState<string | null>(null);
-  const [copiedNumber, setCopiedNumber] = useState(false);
+  // Payment. GCash goes straight to each shop's own account, so each shop gets its own reference and receipt.
+  const [paymentMethod, setPaymentMethod] = useState<'gcash' | 'cod'>('cod');
+  const [refs, setRefs] = useState<Record<number, string>>({});
+  const [proofs, setProofs] = useState<Record<number, File>>({});
+  const [payErrors, setPayErrors] = useState<Record<number, PayErrors>>({});
+  const [placedMethod, setPlacedMethod] = useState<'gcash' | 'cod'>('cod');
+  const shopRefs = useRef<Record<number, HTMLElement | null>>({});
 
   // State
   const [submitting, setSubmitting] = useState(false);
@@ -72,38 +65,41 @@ export default function CheckoutPage() {
     return !shippingBarangayCode || !shippingCityCode || !shippingProvinceCode;
   }, [selectedAddress, shippingBarangayCode, shippingCityCode, shippingProvinceCode]);
 
-  // Group items by shop for checkout
+  // The shops in the cart, and how each gets paid (GCash details, free delivery minimum).
+  const shopInfo = useShopPaymentInfo(items.map((i) => i.sellerId), true, user?.id);
+
+  // Group items by shop: one order, one parcel and one delivery fee each (free when the shop's minimum is met).
   const shopGroups = useMemo(() => {
-    const map: Record<string, { shopName: string; sellerId?: number; items: typeof items; subtotal: number; shippingFee: number; total: number }> = {};
+    const map: Record<string, { key: string; shopName: string; sellerId: number; items: typeof items; subtotal: number; shippingFee: number; freeFrom: number | null; total: number }> = {};
     items.forEach((item) => {
-      const key = item.shopName || (item.sellerId ? `Seller #${item.sellerId}` : 'Loved-IT Merchant');
+      const key = String(item.sellerId ?? item.shopName ?? 'shop');
       if (!map[key]) {
-        map[key] = {
-          shopName: key,
-          sellerId: item.sellerId,
-          items: [],
-          subtotal: 0,
-          shippingFee: DELIVERY_FEE,
-          total: 0,
-        };
+        map[key] = { key, shopName: item.shopName || (item.sellerId ? `Seller #${item.sellerId}` : 'Loved-IT shop'), sellerId: item.sellerId ?? 0, items: [], subtotal: 0, shippingFee: DELIVERY_FEE, freeFrom: null, total: 0 };
       }
       map[key].items.push(item);
       map[key].subtotal += item.price * item.quantity;
     });
-
     Object.values(map).forEach((g) => {
+      const d = shopDelivery(g.subtotal, shopInfo[g.sellerId]);
+      g.freeFrom = d.freeFrom;
+      g.shippingFee = d.fee;
       g.total = g.subtotal + g.shippingFee;
     });
-
     return Object.values(map);
-  }, [items]);
+  }, [items, shopInfo]);
 
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const totalShippingFee = shopGroups.reduce((s, g) => s + g.shippingFee, 0);
   const total = subtotal + totalShippingFee;
 
-  const GCASH_NUMBER = '0917-835-8731';
-  const GCASH_NAME = 'LOVED-IT OFFICIAL';
+  // GCash only works when every shop in the cart takes it.
+  const infoLoaded = shopGroups.every((g) => shopInfo[g.sellerId]);
+  const gcashBlockers = shopGroups.filter((g) => shopInfo[g.sellerId] && !shopInfo[g.sellerId].accepts_gcash);
+  const gcashReady = infoLoaded && gcashBlockers.length === 0;
+  const method: 'gcash' | 'cod' = paymentMethod === 'gcash' && gcashReady ? 'gcash' : 'cod';
+
+  const proofPreviews = useMemo(() => Object.fromEntries(Object.entries(proofs).map(([id, f]) => [id, URL.createObjectURL(f)])), [proofs]);
+  useEffect(() => () => Object.values(proofPreviews).forEach((u) => URL.revokeObjectURL(u)), [proofPreviews]);
 
   // Load buyer's addresses
   useEffect(() => {
@@ -142,35 +138,23 @@ export default function CheckoutPage() {
     setShippingBarangayCode(addr.barangay_code || '');
   };
 
-  const handleCopyNumber = () => {
-    navigator.clipboard.writeText('09178358731');
-    setCopiedNumber(true);
-    setTimeout(() => setCopiedNumber(false), 2000);
-  };
+  const setShopError = (sellerId: number, patch: PayErrors) => setPayErrors((p) => ({ ...p, [sellerId]: { ...p[sellerId], ...patch } }));
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const pickProof = (sellerId: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setPayErrors((p) => ({ ...p, receipt: 'The receipt must be an image (JPG or PNG).' }));
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setPayErrors((p) => ({ ...p, receipt: 'That screenshot is over 5 MB. Crop it or take a smaller one.' }));
-        return;
-      }
-      setProofFile(file);
-      setProofPreview(URL.createObjectURL(file));
-      setPayErrors((p) => ({ ...p, receipt: undefined }));
-    }
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setShopError(sellerId, { receipt: 'The receipt must be an image (JPG or PNG).' }); return; }
+    if (file.size > 5 * 1024 * 1024) { setShopError(sellerId, { receipt: 'That screenshot is over 5 MB. Crop it or take a smaller one.' }); return; }
+    setProofs((p) => ({ ...p, [sellerId]: file }));
+    setShopError(sellerId, { receipt: undefined });
   };
 
-  const handleRemoveProof = () => {
-    setProofFile(null);
-    if (proofPreview) URL.revokeObjectURL(proofPreview);
-    setProofPreview(null);
-  };
+  const removeProof = (sellerId: number) => setProofs((p) => {
+    const next = { ...p };
+    delete next[sellerId];
+    return next;
+  });
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,17 +176,21 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (paymentMethod === 'gcash') {
-      // Shown under each field, and the page scrolls to the first one, instead of one message at the bottom.
-      const errors: PayErrors = {};
-      if (gcashReference.length === 0) errors.reference = 'Enter the reference number from your GCash receipt.';
-      else if (gcashReference.length !== 13) errors.reference = `A GCash reference number has 13 digits; this one has ${gcashReference.length}.`;
-      if (!proofFile) errors.receipt = 'Upload a screenshot of your GCash receipt so the shop can check your payment.';
-      if (errors.reference || errors.receipt) {
+    if (method === 'gcash') {
+      // Shown under each shop's fields, and the page scrolls to the first shop with a problem.
+      const errors: Record<number, PayErrors> = {};
+      for (const g of shopGroups) {
+        const ref = refs[g.sellerId] ?? '';
+        const e: PayErrors = {};
+        if (ref.length === 0) e.reference = 'Enter the reference number from your GCash receipt.';
+        else if (ref.length !== 13) e.reference = `A GCash reference number has 13 digits; this one has ${ref.length}.`;
+        if (!proofs[g.sellerId]) e.receipt = 'Upload the screenshot of your GCash receipt so the shop can check your payment.';
+        if (e.reference || e.receipt) errors[g.sellerId] = e;
+      }
+      const first = shopGroups.find((g) => errors[g.sellerId]);
+      if (first) {
         setPayErrors(errors);
-        const first = errors.reference ? refInputRef.current : receiptRef.current;
-        first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (errors.reference) refInputRef.current?.focus({ preventScroll: true });
+        shopRefs.current[first.sellerId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
     }
@@ -211,7 +199,7 @@ export default function CheckoutPage() {
 
     try {
       const formData = new FormData();
-      formData.append('payment_method', paymentMethod);
+      formData.append('payment_method', method);
       formData.append('shipping_name', shippingName.trim());
       formData.append('shipping_phone', shippingPhone.trim());
       formData.append('shipping_address', shippingAddress.trim());
@@ -223,10 +211,11 @@ export default function CheckoutPage() {
       formData.append('shipping_barangay_code', shippingBarangayCode.trim());
       if (orderNotes) formData.append('notes', orderNotes.trim());
 
-      if (paymentMethod === 'gcash') {
-        formData.append('payment_reference', gcashReference);
-        if (proofFile) {
-          formData.append('payment_proof', proofFile);
+      if (method === 'gcash') {
+        for (const g of shopGroups) {
+          formData.append(`gcash[${g.sellerId}][reference]`, refs[g.sellerId] ?? '');
+          const proof = proofs[g.sellerId];
+          if (proof) formData.append(`gcash_proof[${g.sellerId}]`, proof);
         }
       }
 
@@ -239,21 +228,27 @@ export default function CheckoutPage() {
       });
 
       const res = await placeOrderApi(formData);
+      setPlacedMethod(method);
       clearCart();
       const placedOrders = res.orders && res.orders.length > 0 ? res.orders : [res.data];
       setSuccessOrders(placedOrders);
     } catch (err: any) {
       const data = err.response?.data;
-      // The server's field errors go under the matching field; anything else shows by the button.
-      const serverPay: PayErrors = {
-        reference: data?.errors?.payment_reference?.[0],
-        receipt: data?.errors?.payment_proof?.[0],
-      };
-      if (serverPay.reference || serverPay.receipt) {
+      const fieldErrors: Record<string, string[]> = data?.errors ?? {};
+      // The server's per-shop errors go under that shop's fields; anything else shows by the button.
+      const serverPay: Record<number, PayErrors> = {};
+      for (const g of shopGroups) {
+        const single = shopGroups.length === 1;
+        const reference = fieldErrors[`gcash.${g.sellerId}.reference`]?.[0] ?? (single ? fieldErrors.payment_reference?.[0] : undefined);
+        const receipt = fieldErrors[`gcash_proof.${g.sellerId}`]?.[0] ?? (single ? fieldErrors.payment_proof?.[0] : undefined);
+        if (reference || receipt) serverPay[g.sellerId] = { reference, receipt };
+      }
+      const first = shopGroups.find((g) => serverPay[g.sellerId]);
+      if (first) {
         setPayErrors(serverPay);
-        (serverPay.reference ? refInputRef.current : receiptRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        shopRefs.current[first.sellerId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else {
-        setErrorMsg(data?.message || 'Failed to place order. Please check your information and try again.');
+        setErrorMsg(fieldErrors.gcash?.[0] || data?.message || 'Failed to place order. Please check your information and try again.');
       }
     } finally {
       setSubmitting(false);
@@ -288,19 +283,19 @@ export default function CheckoutPage() {
                 <li key={ord.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
                     <span className="block font-mono font-semibold text-stone-900">#{ord.order_number}</span>
-                    <span className="block text-[12px] text-stone-500">{ord.items?.length || 1} item{(ord.items?.length || 1) === 1 ? '' : 's'} · {peso(Number(ord.shipping_fee))} delivery{ord.courier ? ` · ${ord.courier.name}` : ''}</span>
+                    <span className="block text-[12px] text-stone-500">{ord.items?.length || 1} item{(ord.items?.length || 1) === 1 ? '' : 's'} · {ord.free_delivery ? 'free delivery' : `${peso(Number(ord.shipping_fee))} delivery`}{ord.courier ? ` · ${ord.courier.name}` : ''}</span>
                   </span>
                   <span className="font-semibold text-stone-900 tabular-nums">{peso(Number(ord.total))}</span>
                 </li>
               ))}
               <li className="flex items-center justify-between gap-3 px-4 py-3 bg-stone-50/70">
-                <span className="text-stone-600">{paymentMethod === 'gcash' ? 'Paid with GCash' : 'Pay on delivery'}</span>
+                <span className="text-stone-600">{placedMethod === 'gcash' ? 'Paid to the shops by GCash' : 'Pay on delivery'}</span>
                 <span className="text-[16px] font-bold text-brand-red tabular-nums">{peso(paidTotal)}</span>
               </li>
             </ul>
 
-            <p className={`mt-4 text-[13px] rounded-2xl px-4 py-3 text-left ${paymentMethod === 'gcash' ? 'bg-amber-50 text-amber-900' : 'bg-sky-50 text-sky-900'}`}>
-              {paymentMethod === 'gcash'
+            <p className={`mt-4 text-[13px] rounded-2xl px-4 py-3 text-left ${placedMethod === 'gcash' ? 'bg-amber-50 text-amber-900' : 'bg-sky-50 text-sky-900'}`}>
+              {placedMethod === 'gcash'
                 ? `${isMultiShop ? 'Each shop checks' : 'The shop checks'} your GCash receipt first. Once it is confirmed, your order is packed and handed to the courier.`
                 : `Prepare ${peso(paidTotal)} in cash for the rider${isMultiShop ? 's (each parcel is paid separately)' : ''}. We will update you as your order moves.`}
             </p>
@@ -407,13 +402,18 @@ export default function CheckoutPage() {
                   {shopGroups.map((group, gIdx) => {
                     const count = group.items.reduce((n, i) => n + i.quantity, 0);
                     return (
-                      <li key={group.shopName + gIdx} className="flex items-center gap-3 px-4 py-3">
+                      <li key={group.key + gIdx} className="flex items-center gap-3 px-4 py-3">
                         <span className="w-9 h-9 rounded-xl bg-stone-100 text-stone-500 flex items-center justify-center shrink-0"><Store className="w-4 h-4" /></span>
                         <span className="flex-1 min-w-0">
                           <span className="block text-[14px] font-semibold text-stone-900 truncate">{group.shopName}</span>
-                          <span className="block text-[12px] text-stone-500">{count} item{count === 1 ? '' : 's'} · Standard delivery</span>
+                          <span className="block text-[12px] text-stone-500">
+                            {count} item{count === 1 ? '' : 's'} · Standard delivery
+                            {group.freeFrom !== null && group.shippingFee > 0 && <> · <span className="text-emerald-700">add {peso(group.freeFrom - group.subtotal)} more for free delivery</span></>}
+                          </span>
                         </span>
-                        <span className="text-[13px] font-semibold text-stone-900 tabular-nums">{peso(group.shippingFee)}</span>
+                        {group.shippingFee === 0
+                          ? <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-emerald-700"><Gift className="w-3.5 h-3.5" /> Free</span>
+                          : <span className="text-[13px] font-semibold text-stone-900 tabular-nums">{peso(group.shippingFee)}</span>}
                       </li>
                     );
                   })}
@@ -428,13 +428,14 @@ export default function CheckoutPage() {
               <Section step={3} title="Payment" hint="Choose how you want to pay.">
                 <div className="grid sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="Payment method">
                   {([
-                    { key: 'gcash', title: 'GCash', text: 'Send money now, then upload the receipt', badge: <span className="w-11 h-11 rounded-xl bg-white ring-1 ring-stone-200 flex items-center justify-center shrink-0"><img src={gcashMark} alt="" className="w-8 h-8 object-contain" /></span> },
+                    { key: 'gcash', title: 'GCash', text: gcashReady || !infoLoaded ? 'Pay each shop straight to its GCash' : 'Not every shop in your cart takes GCash', badge: <span className="w-11 h-11 rounded-xl bg-white ring-1 ring-stone-200 flex items-center justify-center shrink-0"><img src={gcashMark} alt="" className="w-8 h-8 object-contain" /></span> },
                     { key: 'cod', title: 'Cash on delivery', text: 'Pay the rider when your parcel arrives', badge: <span className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0"><Banknote className="w-5 h-5" /></span> },
                   ] as const).map((m) => {
-                    const on = paymentMethod === m.key;
+                    const on = method === m.key;
+                    const off = m.key === 'gcash' && !gcashReady;
                     return (
-                      <button key={m.key} type="button" role="radio" aria-checked={on} onClick={() => setPaymentMethod(m.key)}
-                        className={`flex items-center gap-3 p-3.5 text-left rounded-2xl border-[1.5px] transition-colors ${on ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
+                      <button key={m.key} type="button" role="radio" aria-checked={on} aria-disabled={off} disabled={off} onClick={() => setPaymentMethod(m.key)}
+                        className={`flex items-center gap-3 p-3.5 text-left rounded-2xl border-[1.5px] transition-colors disabled:opacity-55 disabled:cursor-not-allowed ${on ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
                         {m.badge}
                         <span className="flex-1 min-w-0">
                           <span className="block text-[14px] font-semibold text-stone-900">{m.title}</span>
@@ -448,83 +449,68 @@ export default function CheckoutPage() {
                   })}
                 </div>
 
-                {paymentMethod === 'gcash' ? (
-                  <div className="mt-5 rounded-2xl border border-stone-200 overflow-hidden">
-                    <ol className="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-stone-200 bg-stone-50/70 text-[12px] text-stone-600">
-                      {['Open GCash and choose Send Money', `Send exactly ${peso(total)} to the account below`, 'Enter the reference number and upload the receipt'].map((t, i) => (
-                        <li key={t} className="flex items-start gap-2 px-4 py-3"><span className="w-5 h-5 rounded-full bg-white border border-stone-300 text-[11px] font-semibold flex items-center justify-center shrink-0">{i + 1}</span>{t}</li>
-                      ))}
-                    </ol>
-                    <div className="p-4 sm:p-5 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-[#007DFE]/[0.06] border border-[#007DFE]/20">
-                        <div>
-                          <img src={gcashLogo} alt="GCash" className="h-6 w-auto mb-2" />
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0064CC]">Send to</p>
-                          <p className="text-[14px] font-semibold text-stone-900">{GCASH_NAME}</p>
-                          <p className="font-mono text-[18px] font-bold text-stone-900 tracking-wide">{GCASH_NUMBER}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[11px] text-stone-500">Amount</p>
-                          <p className="text-[20px] font-bold text-brand-red tabular-nums">{peso(total)}</p>
-                          <button type="button" onClick={handleCopyNumber} className="mt-1 h-8 px-3 rounded-full bg-white border border-[#007DFE]/30 text-[12px] font-semibold text-[#0064CC] inline-flex items-center gap-1">
-                            {copiedNumber ? <><Check className="w-3.5 h-3.5 text-emerald-600" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy number</>}
-                          </button>
-                        </div>
-                      </div>
+                {gcashBlockers.length > 0 && (
+                  <p className="mt-3 text-[12.5px] text-stone-500">
+                    {gcashBlockers.map((g) => g.shopName).join(', ')} {gcashBlockers.length === 1 ? 'takes' : 'take'} cash on delivery only. To pay the others by GCash, check out their items separately.
+                  </p>
+                )}
 
-                      <div>
-                        <label className={label} htmlFor="gcash-ref">GCash reference number</label>
-                        <div className="relative">
-                          <input
-                            ref={refInputRef}
-                            id="gcash-ref"
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="off"
-                            value={formatReference(gcashReference)}
-                            onChange={(e) => {
-                              setGcashReference(e.target.value.replace(/\D/g, '').slice(0, 13));
-                              if (payErrors.reference) setPayErrors((p) => ({ ...p, reference: undefined }));
-                            }}
-                            placeholder="0000 000 000000"
-                            aria-invalid={Boolean(payErrors.reference)}
-                            aria-describedby="gcash-ref-help"
-                            className={`${field} font-mono tracking-wider pr-20 ${payErrors.reference ? '!border-brand-red ring-2 ring-brand-red/10' : ''}`}
-                          />
-                          <span className={`absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] tabular-nums ${gcashReference.length === 13 ? 'text-emerald-600 font-semibold' : 'text-stone-400'}`}>
-                            {gcashReference.length === 13 ? <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" /> 13/13</span> : `${gcashReference.length}/13`}
-                          </span>
-                        </div>
-                        {payErrors.reference
-                          ? <p id="gcash-ref-help" role="alert" className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-brand-red"><AlertCircle className="w-3.5 h-3.5" />{payErrors.reference}</p>
-                          : <p id="gcash-ref-help" className="mt-1 text-[12px] text-stone-400">The 13-digit "Ref. No." on your GCash receipt and in the confirmation SMS.</p>}
-                      </div>
-
-                      <div ref={receiptRef}>
-                        <span className={label}>Receipt screenshot</span>
-                        {proofPreview ? (
-                          <div className="flex items-center gap-4 p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
-                            <img src={proofPreview} alt="GCash receipt" className="w-20 h-20 rounded-xl object-cover ring-1 ring-emerald-200" />
-                            <span className="flex-1 min-w-0 text-[13px]">
-                              <span className="flex items-center gap-1 font-semibold text-emerald-800"><CheckCircle2 className="w-4 h-4" /> Receipt attached</span>
-                              <span className="block text-[12px] text-stone-500 truncate">{proofFile?.name}</span>
-                            </span>
-                            <button type="button" onClick={handleRemoveProof} className="h-8 px-3 rounded-full border border-stone-300 bg-white text-[12px] font-semibold text-stone-700 hover:border-stone-900 flex items-center gap-1">
-                              <X className="w-3.5 h-3.5" /> Remove
-                            </button>
+                {method === 'gcash' ? (
+                  <div className="mt-5 space-y-3">
+                    <p className="text-[13px] leading-relaxed text-stone-600">
+                      {shopGroups.length > 1
+                        ? `Your money goes straight to each shop. Send ${shopGroups.length} GCash payments, one per shop, then add each reference and receipt.`
+                        : 'Your money goes straight to the shop. Send it in GCash, then add the reference and the receipt.'}
+                    </p>
+                    {shopGroups.map((g, i) => {
+                      const info = shopInfo[g.sellerId];
+                      const err = payErrors[g.sellerId] ?? {};
+                      const preview = proofPreviews[g.sellerId];
+                      return (
+                        <section key={g.key} ref={(el) => { shopRefs.current[g.sellerId] = el; }} className="rounded-2xl border border-stone-200 p-4 sm:p-5 space-y-4" aria-label={`GCash payment to ${g.shopName}`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="flex items-center gap-2 text-[14px] font-semibold text-stone-900 min-w-0">
+                              {shopGroups.length > 1 && <span className="w-6 h-6 rounded-full bg-stone-900 text-white text-[12px] flex items-center justify-center shrink-0">{i + 1}</span>}
+                              <span className="truncate">{g.shopName}</span>
+                            </p>
+                            <span className="text-[12px] text-stone-500 shrink-0">{g.shippingFee === 0 ? 'Items · free delivery' : `Items + ${peso(g.shippingFee)} delivery`}</span>
                           </div>
-                        ) : (
-                          <label className={`flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed cursor-pointer transition-colors text-center ${payErrors.receipt ? 'border-brand-red bg-rose-50/40' : 'border-stone-300 hover:border-brand-red hover:bg-rose-50/30'}`}>
-                            <UploadCloud className={`w-7 h-7 ${payErrors.receipt ? 'text-brand-red' : 'text-stone-400'}`} />
-                            <span className="text-[13px] font-semibold text-brand-red">Upload the receipt</span>
-                            <span className="text-[12px] text-stone-400">PNG or JPG screenshot from GCash, up to 5 MB</span>
-                            {/* Not "required": a hidden required input cannot show the browser's message, so the check is ours. */}
-                            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} className="sr-only" aria-invalid={Boolean(payErrors.receipt)} />
-                          </label>
-                        )}
-                        {payErrors.receipt && <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-brand-red"><AlertCircle className="w-3.5 h-3.5" />{payErrors.receipt}</p>}
-                      </div>
-                    </div>
+                          {info?.gcash ? <GcashPayee account={info.gcash} amount={g.total} /> : <div className="h-28 rounded-2xl bg-stone-100 animate-pulse" />}
+                          <ReferenceField
+                            id={`gcash-ref-${g.sellerId}`}
+                            value={refs[g.sellerId] ?? ''}
+                            onChange={(v) => { setRefs((r) => ({ ...r, [g.sellerId]: v })); if (err.reference) setShopError(g.sellerId, { reference: undefined }); }}
+                            error={err.reference}
+                          />
+                          <div>
+                            <span className={label}>Receipt screenshot</span>
+                            {preview ? (
+                              <div className="flex items-center gap-4 p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
+                                <img src={preview} alt={`GCash receipt for ${g.shopName}`} className="w-16 h-16 rounded-xl object-cover ring-1 ring-emerald-200" />
+                                <span className="flex-1 min-w-0 text-[13px]">
+                                  <span className="flex items-center gap-1 font-semibold text-emerald-800"><CheckCircle2 className="w-4 h-4" /> Receipt attached</span>
+                                  <span className="block text-[12px] text-stone-500 truncate">{proofs[g.sellerId]?.name}</span>
+                                </span>
+                                <button type="button" onClick={() => removeProof(g.sellerId)} className="h-8 px-3 rounded-full border border-stone-300 bg-white text-[12px] font-semibold text-stone-700 hover:border-stone-900 flex items-center gap-1">
+                                  <X className="w-3.5 h-3.5" /> Remove
+                                </button>
+                              </div>
+                            ) : (
+                              <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed cursor-pointer transition-colors ${err.receipt ? 'border-brand-red bg-rose-50/40' : 'border-stone-300 hover:border-brand-red hover:bg-rose-50/30'}`}>
+                                <UploadCloud className={`w-6 h-6 shrink-0 ${err.receipt ? 'text-brand-red' : 'text-stone-400'}`} />
+                                <span>
+                                  <span className="block text-[13px] font-semibold text-brand-red">Upload the receipt</span>
+                                  <span className="block text-[12px] text-stone-400">PNG or JPG screenshot from GCash, up to 5 MB</span>
+                                </span>
+                                {/* Not "required": a hidden required input cannot show the browser's message, so the check is ours. */}
+                                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => pickProof(g.sellerId, e)} className="sr-only" aria-invalid={Boolean(err.receipt)} />
+                              </label>
+                            )}
+                            {err.receipt && <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-brand-red"><AlertCircle className="w-3.5 h-3.5" />{err.receipt}</p>}
+                          </div>
+                        </section>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="mt-5 flex items-start gap-3 p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-[13px] text-amber-900">
@@ -543,10 +529,10 @@ export default function CheckoutPage() {
               </div>
               <div className="max-h-[340px] overflow-y-auto px-6 space-y-4">
                 {shopGroups.map((group, gIdx) => (
-                  <div key={group.shopName + gIdx}>
+                  <div key={group.key + gIdx}>
                     <p className="flex items-center justify-between text-[12px] font-semibold text-stone-700 mb-2">
                       <span className="flex items-center gap-1.5 truncate"><Store className="w-3.5 h-3.5 text-stone-400" />{group.shopName}</span>
-                      <span className="font-normal text-stone-500 shrink-0">{peso(group.shippingFee)} delivery</span>
+                      <span className={`font-normal shrink-0 ${group.shippingFee === 0 ? 'text-emerald-700' : 'text-stone-500'}`}>{group.shippingFee === 0 ? 'Free delivery' : `${peso(group.shippingFee)} delivery`}</span>
                     </p>
                     <ul className="space-y-2.5">
                       {group.items.map((item) => (
@@ -571,7 +557,7 @@ export default function CheckoutPage() {
                 <dl className="space-y-2 text-[14px]">
                   <div className="flex justify-between text-stone-600"><dt>Subtotal</dt><dd className="text-stone-900 tabular-nums">{peso(subtotal)}</dd></div>
                   <div className="flex justify-between text-stone-600">
-                    <dt>Delivery {shopGroups.length > 1 && <span className="text-stone-400">({shopGroups.length} × {peso(DELIVERY_FEE)})</span>}</dt>
+                    <dt>Delivery {shopGroups.length > 1 && <span className="text-stone-400">({shopGroups.length} parcels)</span>}</dt>
                     <dd className="text-stone-900 tabular-nums">{peso(totalShippingFee)}</dd>
                   </div>
                   <div className="flex justify-between items-baseline pt-3 border-t border-stone-200">
@@ -593,7 +579,8 @@ export default function CheckoutPage() {
                     : <><Lock className="w-4 h-4" /> Place order · {peso(total)}</>}
                 </button>
                 <p className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-stone-500 text-center">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" /> The seller is paid only after you receive your order.
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  {method === 'gcash' ? 'Paid straight to the shop. Not as described? Return it within 7 days.' : 'Pay the rider when your parcel arrives.'}
                 </p>
               </div>
             </aside>

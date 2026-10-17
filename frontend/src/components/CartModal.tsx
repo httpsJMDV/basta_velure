@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, Trash2, Plus, Minus, Store, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, ShoppingBag, Trash2, Plus, Minus, Store, ArrowRight, ShieldCheck, Gift } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
-import { DELIVERY_FEE } from '../utils/shipping';
+import { useShopPaymentInfo, shopDelivery } from '../hooks/useShopDelivery';
 import { pesoCompact as peso } from '../utils/pricing';
 
 export interface CartItem {
@@ -14,6 +14,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   image: string;
+  sellerId?: number;
   shopName?: string;
 }
 
@@ -27,15 +28,15 @@ interface CartModalProps {
 }
 
 /**
- * The cart drawer. Items are grouped by shop, because every shop ships its own parcel: the delivery fee is
- * ₱50 per shop, exactly what checkout charges.
+ * The cart drawer. Items are grouped by shop, because every shop ships its own parcel: one delivery fee per shop,
+ * or none once that shop's free-delivery minimum is met, exactly what checkout charges.
  */
 export default function CartModal({ open, onClose, items: propItems, onRemove, onUpdateQty, onClear }: CartModalProps) {
   const navigate = useNavigate();
   const cart = useCart();
 
   const items: CartItem[] = propItems ?? cart.items.map((i) => ({
-    id: i.variantId, productId: i.productId, name: i.name, variant: i.variant, price: i.price, quantity: i.quantity, image: i.image, shopName: i.shopName,
+    id: i.variantId, productId: i.productId, name: i.name, variant: i.variant, price: i.price, quantity: i.quantity, image: i.image, sellerId: i.sellerId, shopName: i.shopName,
   }));
 
   const remove = (id: number) => (onRemove ? onRemove(id) : cart.removeItem(id));
@@ -46,18 +47,24 @@ export default function CartModal({ open, onClose, items: propItems, onRemove, o
   };
   const clear = () => (onClear ? onClear() : cart.clearCart());
 
+  const shopInfo = useShopPaymentInfo(items.map((i) => i.sellerId), open);
   const groups = useMemo(() => {
-    const map = new Map<string, CartItem[]>();
+    const map = new Map<string, { shop: string; sellerId?: number; list: CartItem[] }>();
     items.forEach((i) => {
-      const key = i.shopName || 'Shop';
-      map.set(key, [...(map.get(key) ?? []), i]);
+      const key = String(i.sellerId ?? i.shopName ?? 'Shop');
+      const g = map.get(key) ?? { shop: i.shopName || 'Shop', sellerId: i.sellerId, list: [] };
+      g.list.push(i);
+      map.set(key, g);
     });
-    return [...map.entries()];
-  }, [items]);
+    return [...map.entries()].map(([key, g]) => {
+      const subtotal = g.list.reduce((s, i) => s + i.price * i.quantity, 0);
+      return { key, ...g, ...shopDelivery(subtotal, g.sellerId ? shopInfo[g.sellerId] : undefined) };
+    });
+  }, [items, shopInfo]);
 
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const count = items.reduce((s, i) => s + i.quantity, 0);
-  const delivery = items.length ? groups.length * DELIVERY_FEE : 0;
+  const delivery = groups.reduce((s, g) => s + g.fee, 0);
   const total = subtotal + delivery;
 
   const go = (to: string) => { onClose(); navigate(to); };
@@ -110,14 +117,21 @@ export default function CartModal({ open, onClose, items: propItems, onRemove, o
             ) : (
               <>
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-                  {groups.map(([shop, list]) => (
-                    <section key={shop} className="rounded-2xl bg-white border border-stone-200 overflow-hidden">
+                  {groups.map(({ key, shop, list, fee, short }) => (
+                    <section key={key} className="rounded-2xl bg-white border border-stone-200 overflow-hidden">
                       <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-stone-100">
                         <span className="flex items-center gap-2 min-w-0 text-[13px] font-semibold text-stone-900">
                           <Store className="w-4 h-4 text-stone-400 shrink-0" /><span className="truncate">{shop}</span>
                         </span>
-                        <span className="text-[11px] text-stone-500 shrink-0">{peso(DELIVERY_FEE)} delivery</span>
+                        {fee === 0
+                          ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 shrink-0"><Gift className="w-3 h-3" /> Free delivery</span>
+                          : <span className="text-[11px] text-stone-500 shrink-0">{peso(fee)} delivery</span>}
                       </header>
+                      {short > 0 && (
+                        <p className="px-4 py-1.5 text-[11px] text-emerald-800 bg-emerald-50/60 border-b border-emerald-100/80">
+                          Add <strong className="tabular-nums">{peso(short)}</strong> more from this shop for free delivery
+                        </p>
+                      )}
                       <ul className="divide-y divide-stone-100">
                         {list.map((item) => (
                           <li key={item.id} className="flex gap-3 p-3">
@@ -158,8 +172,8 @@ export default function CartModal({ open, onClose, items: propItems, onRemove, o
                   <dl className="space-y-1.5 text-[13px]">
                     <div className="flex justify-between text-stone-600"><dt>Subtotal</dt><dd className="tabular-nums text-stone-900">{peso(subtotal)}</dd></div>
                     <div className="flex justify-between text-stone-600">
-                      <dt>Delivery <span className="text-stone-400">({groups.length} shop{groups.length === 1 ? '' : 's'} × {peso(DELIVERY_FEE)})</span></dt>
-                      <dd className="tabular-nums text-stone-900">{peso(delivery)}</dd>
+                      <dt>Delivery <span className="text-stone-400">({groups.length} parcel{groups.length === 1 ? '' : 's'})</span></dt>
+                      <dd className={delivery === 0 ? 'font-semibold text-emerald-700' : 'tabular-nums text-stone-900'}>{delivery === 0 ? 'Free' : peso(delivery)}</dd>
                     </div>
                     <div className="flex justify-between items-baseline pt-2 mt-1 border-t border-stone-100">
                       <dt className="text-[15px] font-semibold text-stone-900">Total</dt>
@@ -173,7 +187,7 @@ export default function CartModal({ open, onClose, items: propItems, onRemove, o
                     View full cart
                   </button>
                   <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-stone-500">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> GCash or cash on delivery · paid to the seller only after delivery
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> GCash to the shop or cash on delivery · 7-day returns
                   </p>
                 </div>
               </>

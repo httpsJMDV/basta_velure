@@ -124,6 +124,11 @@ class MultiSellerCheckoutTest extends TestCase
             'items' => [['product_id' => $product->id, 'variant_id' => $variant->id, 'quantity' => 1]],
         ], $extra);
 
+        // GCash goes to the shop's own account, so the shop must have set one up.
+        $this->post('/api/v1/checkout/place-order', $payload(['payment_reference' => '1234567890123', 'payment_proof' => $receipt()]), ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['gcash']);
+        $this->sellerA->sellerProfile->update(['gcash_number' => '09171112222', 'gcash_account_name' => 'Alpha Shop']);
+
         $this->post('/api/v1/checkout/place-order', $payload(['payment_reference' => '12345']), ['Accept' => 'application/json'])
             ->assertStatus(422)->assertJsonValidationErrors(['payment_reference', 'payment_proof']);
         $this->post('/api/v1/checkout/place-order', $payload(['payment_reference' => '12345678901234', 'payment_proof' => $receipt()]), ['Accept' => 'application/json'])

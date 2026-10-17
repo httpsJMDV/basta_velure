@@ -13,6 +13,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -164,7 +165,7 @@ export default function SellerEarningsPage() {
               </span>
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              Available merchant balance, escrow clearance window, and instant GCash disbursement requests
+              Orders paid through Loved-IT and their payouts. Buyers now pay you directly; settle couriers and commission in Payments.
             </p>
           </div>
         </div>
@@ -474,13 +475,20 @@ export default function SellerEarningsPage() {
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                            item.payout_status === 'available' || item.payout_status === 'paid'
+                            item.payout_status === 'direct'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : item.payout_status === 'available' || item.payout_status === 'paid'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-amber-50 text-amber-700 border-amber-200'
                           }`}
                         >
-                          {item.payout_status}
+                          {item.payout_status === 'direct' ? 'Paid to you' : item.payout_status}
                         </span>
+                        {item.payout_status === 'direct' && (
+                          <span className="block mt-1 text-[10px] font-medium text-gray-500">
+                            Buyer paid you directly · <Link to="/seller/payments" className="underline hover:text-gray-800">Payments</Link>
+                          </span>
+                        )}
                         {item.payout_status === 'pending_release' && (
                           <span className="block mt-1 text-[10px] font-medium text-gray-500">
                             {item.escrow_release_at

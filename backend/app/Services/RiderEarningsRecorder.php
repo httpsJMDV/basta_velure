@@ -56,7 +56,7 @@ class RiderEarningsRecorder
             return null;
         }
 
-        $shares = ShippingSplit::split(Money::toCents((string) ($parcel->order?->shipping_fee ?? 0)));
+        $shares = ShippingSplit::split(Money::toCents($parcel->order?->courierFeeAmount() ?? '0'));
 
         return $this->recordRider($parcel, $parcel->pickup_rider_id, RiderEarning::KIND_PICKUP, $shares['pickup'], $earnedAt ?? now(),
             ShippingSplit::pickupPercent() . '% of the delivery fee (pickup)');
@@ -70,7 +70,7 @@ class RiderEarningsRecorder
     public function recordForParcel(Parcel $parcel, ?\DateTimeInterface $earnedAt = null): ?RiderEarning
     {
         $earnedAt ??= now();
-        $shares = ShippingSplit::split(Money::toCents((string) ($parcel->order?->shipping_fee ?? 0)));
+        $shares = ShippingSplit::split(Money::toCents($parcel->order?->courierFeeAmount() ?? '0'));
 
         $this->recordHub($parcel, $shares['hub'], $earnedAt);
 

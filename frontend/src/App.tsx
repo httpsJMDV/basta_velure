@@ -13,6 +13,7 @@ import LogisticsHubsPage from './pages/logistics/LogisticsHubsPage';
 import LogisticsRidersPage from './pages/logistics/LogisticsRidersPage';
 import LogisticsParcelsPage from './pages/logistics/LogisticsParcelsPage';
 import LogisticsReportsPage from './pages/logistics/LogisticsReportsPage';
+import LogisticsMoneyPage from './pages/logistics/LogisticsMoneyPage';
 import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
 import RiderRegisterPage from './pages/auth/RiderRegisterPage';
@@ -42,6 +43,7 @@ import SellerAddProductPage from './pages/seller/SellerAddProductPage';
 import SellerOrdersPage from './pages/seller/SellerOrdersPage';
 import WaybillPage from './pages/seller/WaybillPage';
 import SellerEarningsPage from './pages/seller/SellerEarningsPage';
+import SellerPaymentsPage from './pages/seller/SellerPaymentsPage';
 import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
 import SellerAccountSettingsPage from './pages/seller/SellerAccountSettingsPage';
 import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
@@ -304,6 +306,7 @@ function AppRoutes() {
         <Route path="products/:id/edit" element={<SellerAddProductPage />} />
         <Route path="orders"            element={<SellerOrdersPage />} />
         <Route path="inventory"         element={<AdminPlaceholderPage title="Inventory / Stock" />} />
+        <Route path="payments"          element={<SellerPaymentsPage />} />
         <Route path="earnings"          element={<SellerEarningsPage />} />
         <Route path="payouts"           element={<SellerEarningsPage />} />
         <Route path="reports"           element={<SellerReportsPage />} />
@@ -367,6 +370,7 @@ function AppRoutes() {
         <Route path="riders" element={<LogisticsRidersPage />} />
         <Route path="parcels" element={<LogisticsParcelsPage />} />
         <Route path="reports" element={<LogisticsReportsPage />} />
+        <Route path="money" element={<LogisticsMoneyPage />} />
       </Route>
 
       {/* Logistics / Sorting Center Hub Portal */}

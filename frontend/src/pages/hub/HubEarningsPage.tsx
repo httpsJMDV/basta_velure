@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { AlertCircle, CalendarDays, CalendarRange, Coins, PackageCheck, Wallet } from 'lucide-react';
-import { getHubEarningsApi } from '../../api/client';
+import { getHubEarningsApi, getPayoutAccountApi, updatePayoutAccountApi } from '../../api/client';
+import { PayoutAccountForm } from '../../components/payments/GcashKit';
 import { useLivePolling } from '../../hooks/useLivePolling';
 import type { HubEarningsSummary } from '../../types';
 import { LiveStamp, PageHero, SectionHeader, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
@@ -14,6 +15,9 @@ function formatDateTime(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
+
+const loadGcash = () => getPayoutAccountApi('hub');
+const saveGcash = (p: { gcash_number: string | null; gcash_name: string | null }) => updatePayoutAccountApi('hub', p);
 
 /** The hub's share of the delivery fee on every parcel it handled that was delivered. Read-only, and live. */
 export default function HubEarningsPage() {
@@ -65,6 +69,15 @@ export default function HubEarningsPage() {
         )}
       </section>
 
+      <section aria-label="How your hub is paid" className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-start">
+        <div className="bg-white border border-gray-200/80 shadow-xs rounded-2xl p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Not paid yet</p>
+          <p className="mt-1 text-2xl font-black tracking-tight text-gray-900 tabular-nums">{data ? peso(data.unpaid_total ?? '0') : '—'}</p>
+          <p className="mt-1 text-xs leading-relaxed text-gray-500">Your courier company pays your share by GCash and records the reference. Paid parcels are marked below.</p>
+        </div>
+        <PayoutAccountForm load={loadGcash} save={saveGcash} who="your courier" tone="gray" />
+      </section>
+
       <section className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden" aria-label="Recent earnings">
         <div className="p-4 pb-2">
           <SectionHeader title="Recent deliveries" icon={PackageCheck} />
@@ -92,6 +105,7 @@ export default function HubEarningsPage() {
                 <div className="text-right">
                   <p className="text-sm font-black text-emerald-700">+{peso(row.amount)}</p>
                   {row.delivery_fee && <p className="text-[11px] text-gray-400">of {peso(row.delivery_fee)} fee</p>}
+                  {row.paid_at !== undefined && <p className={`text-[10px] font-bold uppercase tracking-wide ${row.paid_at ? 'text-gray-400' : 'text-amber-600'}`}>{row.paid_at ? 'Paid' : 'Unpaid'}</p>}
                 </div>
               </li>
             ))}

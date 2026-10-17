@@ -79,7 +79,7 @@ export const Footer: React.FC = () => {
               <LovedItLogo variant="dark" type="full" size="custom" imgClassName="h-10 sm:h-11 object-contain" />
             </Link>
             <p className="mt-4 text-[13px] leading-relaxed text-white/55">
-              A marketplace for Philippine shops. Pay with GCash or in cash on delivery, and the seller is paid only after your order arrives.
+              A marketplace for Philippine shops. Pay each shop directly by GCash, or in cash when your parcel arrives.
             </p>
             <div className="flex flex-wrap gap-2 mt-5">
               <button type="button" onClick={chat} className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-brand-red hover:bg-brand-red-dark text-[13px] font-semibold transition-colors">
@@ -126,7 +126,7 @@ export const Footer: React.FC = () => {
             <ShieldCheck className="w-5 h-5 mt-0.5 text-emerald-400 shrink-0" aria-hidden="true" />
             <div>
               <h2 className="text-[14px] font-semibold text-white">Buyer protection</h2>
-              <p className="mt-1 text-[13px] leading-relaxed text-white/55">Sellers are paid only after your order is delivered. Something wrong? Open a return from your orders.</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-white/55">Every shop is verified before it can sell. Something wrong? Open a return within 7 days; our team reviews any claim a shop will not settle.</p>
             </div>
           </div>
           <div className="flex gap-3">

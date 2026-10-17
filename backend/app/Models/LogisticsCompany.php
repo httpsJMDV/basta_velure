@@ -31,7 +31,12 @@ class LogisticsCompany extends Model
     public const STATUS_REJECTED = 'REJECTED';
     public const STATUS_SUSPENDED = 'SUSPENDED';
 
+    /** GCash numbers are only sent where a screen needs them. */
+    protected $hidden = ['gcash_number'];
+
     protected $fillable = [
+        'gcash_number',
+        'gcash_name',
         'name', 'code', 'slug', 'owner_user_id', 'description', 'contact_email', 'contact_phone',
         'address_province', 'address_city', 'address_barangay', 'address_street', 'logo_path', 'business_permit_path',
         'is_default', 'status', 'rejection_reason', 'reviewed_by', 'reviewed_at', 'submitted_at',
@@ -42,6 +47,7 @@ class LogisticsCompany extends Model
     protected function casts(): array
     {
         return [
+            'gcash_number' => 'encrypted',
             'is_default' => 'boolean',
             'reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',

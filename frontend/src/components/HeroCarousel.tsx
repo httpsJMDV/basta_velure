@@ -26,7 +26,7 @@ const SLIDES: SlideData[] = [
     image: heroSlide1,
     headingLine1: 'Everything you love.',
     headingLine2: 'In one place.',
-    sub: 'Discover trusted sellers, everyday essentials, and deals made for you with 7-day buyer escrow protection.',
+    sub: 'Discover trusted sellers, everyday essentials, and deals made for you, with 7-day returns on every order.',
     primaryCta: 'Browse Products',
     secondaryCta: 'Explore Categories',
     primaryTo: '/search',

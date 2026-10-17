@@ -49,7 +49,12 @@ class SortingCenter extends Model
         self::STATUS_SUSPENDED,
     ];
 
+    /** GCash numbers are only sent where a screen needs them. */
+    protected $hidden = ['gcash_number'];
+
     protected $fillable = [
+        'gcash_number',
+        'gcash_name',
         'logistics_company_id',
         'user_id',
         'hub_name',
@@ -69,6 +74,7 @@ class SortingCenter extends Model
     protected function casts(): array
     {
         return [
+            'gcash_number' => 'encrypted',
             'coverage_barangays' => 'array',
             'reviewed_at'        => 'datetime',
         ];

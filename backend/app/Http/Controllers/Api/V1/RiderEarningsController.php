@@ -32,6 +32,8 @@ class RiderEarningsController extends Controller
         $previous = $this->totals($rider, $previousPeriod);
 
         $lifetime = (string) RiderEarning::where('rider_id', $rider->id)->sum('amount');
+        // Shares the courier company has not paid out yet (it pays riders by GCash and marks them paid).
+        $unpaid = (string) RiderEarning::where('rider_id', $rider->id)->whereNull('paid_at')->sum('amount');
 
         return response()->json([
             'data' => [
@@ -45,6 +47,7 @@ class RiderEarningsController extends Controller
                 ],
                 'breakdown'            => $this->breakdown($rider, $period),
                 'lifetime_total'       => Money::fromCents(Money::toCents($lifetime)),
+                'unpaid_total'         => Money::fromCents(Money::toCents($unpaid)),
             ],
         ]);
     }
@@ -76,6 +79,7 @@ class RiderEarningsController extends Controller
                 DB::raw("JSON_UNQUOTE(JSON_EXTRACT(p.recipient_snapshot, '$.city')) as city"),
                 're.earned_at',
                 're.amount',
+                're.paid_at',
             ])
             ->orderByDesc('re.earned_at')
             ->orderByDesc('re.id')
@@ -94,6 +98,7 @@ class RiderEarningsController extends Controller
                 ],
                 'delivered_at'    => CarbonImmutable::parse($row->earned_at, 'UTC')->toIso8601String(),
                 'fee'             => Money::fromCents(Money::toCents($row->amount)),
+                'paid_at'         => $row->paid_at ? CarbonImmutable::parse($row->paid_at, 'UTC')->toIso8601String() : null,
             ])->values(),
             'meta' => [
                 'current_page' => $paginated->currentPage(),

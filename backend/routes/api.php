@@ -75,6 +75,8 @@ Route::prefix('v1')->group(function () {
 
     // Public shop profile & reviews (no auth required)
     Route::get('/shops',                       [PublicShopController::class, 'featured']);
+    // How each shop in a cart gets paid (GCash details only for signed-in buyers) and its free delivery minimum
+    Route::get('/checkout/shops',              [\App\Http\Controllers\Api\V1\ShopPaymentController::class, 'shops']);
     Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);
     Route::get('/shops/{shop}/reviews',        [PublicShopController::class, 'reviews']);
     Route::get('/stores/{shop}',               [PublicShopController::class, 'show']);
@@ -133,6 +135,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/riders', [$portal, 'riders']);
             Route::get('/parcels', [$portal, 'parcels']);
             Route::get('/reports', [$portal, 'reports']);
+            // Money: the weekly statement with each shop, paying riders and hubs, and the GCash shops pay
+            Route::get('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'index']);
+            Route::post('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'pay']);
+            Route::post('/settlements/{settlement}/confirm', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'confirm'])->whereNumber('settlement');
+            Route::get('/payouts', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payouts']);
+            Route::post('/payouts/riders/{rider}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payRider'])->whereNumber('rider');
+            Route::post('/payouts/hubs/{hub}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payHub'])->whereNumber('hub');
+            Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'courier']);
+            Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateCourier']);
         });
 
         // Wishlist
@@ -265,6 +276,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/settings/commission', [AdminPlatformSettingController::class, 'updateCommissionSettings']);
             Route::get('/settings/return-policy', [AdminPlatformSettingController::class, 'getReturnPolicySettings']);
             Route::post('/settings/return-policy', [AdminPlatformSettingController::class, 'updateReturnPolicySettings']);
+            // Commission shops pay on direct orders, and the GCash it goes to
+            Route::get('/commission', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'index']);
+            Route::post('/commission/{payment}/confirm', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'confirm'])->whereNumber('payment');
+            Route::get('/settings/payments', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'settings']);
+            Route::put('/settings/payments', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'updateSettings']);
 
             // Category Taxonomy Management (admin)
             Route::get('/categories', [AdminCategoryController::class, 'index']);
@@ -342,6 +358,14 @@ Route::prefix('v1')->group(function () {
             Route::get('/seller/earnings/orders', [SellerEarningsController::class, 'orderBreakdown']);
             Route::get('/seller/payouts', [SellerEarningsController::class, 'payouts']);
             Route::post('/seller/payouts/request', [SellerEarningsController::class, 'requestPayout']);
+            // Direct payments: the shop's GCash and free delivery, courier statements, commission
+            Route::get('/seller/payment-settings', [\App\Http\Controllers\Api\V1\ShopPaymentController::class, 'show']);
+            Route::post('/seller/payment-settings', [\App\Http\Controllers\Api\V1\ShopPaymentController::class, 'update'])->middleware('throttle:upload');
+            Route::get('/seller/settlements', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'index']);
+            Route::post('/seller/settlements', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'pay']);
+            Route::post('/seller/settlements/{settlement}/confirm', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'confirm'])->whereNumber('settlement');
+            Route::get('/seller/commission', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'commission']);
+            Route::post('/seller/commission', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'payCommission']);
 
             // Seller sales reports
             Route::get('/seller/reports/summary', [SellerReportController::class, 'summary']);
@@ -370,6 +394,8 @@ Route::prefix('v1')->group(function () {
         Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
             Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
             Route::get('/coverage-options',  [HubRiderController::class, 'coverageOptions']);
+            Route::get('/gcash',  [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'hub']);
+            Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateHub']);
 
             // Parcel intake (Feature 1.6)
             Route::get('/parcels/{tracking}',          [HubParcelIntakeController::class, 'lookup']);
@@ -428,6 +454,8 @@ Route::prefix('v1')->group(function () {
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
             Route::get('/me', [RiderController::class, 'me']);
+            Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'rider']);
+            Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateRider']);
 
             // Pickups (Feature 2.4)
             Route::get('/pickups', [RiderPickupController::class, 'index']);

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Wallet, BarChart2, MessageSquare, Star, Store, Settings,
   LogOut, Menu, X, ChevronRight, Bell, ShoppingBag, Plus,
-  PanelLeft, ExternalLink, Search, CheckCircle2, AlertTriangle, AlertCircle,
+  PanelLeft, ExternalLink, Search, CheckCircle2, AlertTriangle, AlertCircle, Banknote,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -40,6 +40,7 @@ function buildSellerNav(badges: { pendingReview: number; newOrders: number; unre
     {
       heading: 'Finance',
       items: [
+        { icon: Banknote,  label: 'Payments',           to: '/seller/payments' },
         { icon: Wallet,    label: 'Earnings & Payouts', to: '/seller/earnings' },
         { icon: BarChart2, label: 'Sales Reports',      to: '/seller/reports' },
       ],
@@ -68,6 +69,7 @@ const SELLER_SEARCH_PAGES = [
   { label: 'Products Catalog', to: '/seller/products', group: 'Selling', icon: Package },
   { label: 'Add New Product', to: '/seller/products/new', group: 'Selling', icon: Plus },
   { label: 'Orders & Fulfillment', to: '/seller/orders', group: 'Selling', icon: ShoppingCart },
+  { label: 'Payments: GCash, couriers & commission', to: '/seller/payments', group: 'Finance', icon: Banknote },
   { label: 'Earnings & Payouts', to: '/seller/earnings', group: 'Finance', icon: Wallet },
   { label: 'Sales Reports & Analytics', to: '/seller/reports', group: 'Finance', icon: BarChart2 },
   { label: 'Customer Messages', to: '/seller/messages', group: 'Customer', icon: MessageSquare },
@@ -458,6 +460,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/seller/products':     'Products',
   '/seller/products/new': 'Add Product',
   '/seller/orders':       'Orders',
+  '/seller/payments':     'Payments',
   '/seller/earnings':     'Earnings & Payouts',
   '/seller/reports':      'Sales Reports',
   '/seller/messages':     'Messages',

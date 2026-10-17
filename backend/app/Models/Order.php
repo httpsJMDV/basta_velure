@@ -27,6 +27,9 @@ class Order extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'settlement',
+        'courier_fee',
+        'free_delivery',
         'logistics_company_id', 'buyer_id', 'checkout_group_id', 'order_number', 'subtotal', 'shipping_fee',
         'total', 'payment_method', 'payment_status', 'status',
         'payment_reference', 'payment_proof_path', 'payment_verified_at',
@@ -39,6 +42,8 @@ class Order extends Model
     protected function casts(): array
     {
         return [
+            'courier_fee' => 'decimal:2',
+            'free_delivery' => 'boolean',
             'status'              => OrderStatus::class,
             'subtotal'            => 'decimal:2',
             'shipping_fee'        => 'decimal:2',
@@ -50,6 +55,17 @@ class Order extends Model
 
     public function buyer(): BelongsTo           { return $this->belongsTo(User::class, 'buyer_id'); }
     public function verifiedBy(): BelongsTo      { return $this->belongsTo(User::class, 'payment_verified_by'); }
+    /** Orders placed before direct payments: the platform held the money and paid the shop out. */
+    public const SETTLEMENT_PLATFORM = 'platform';
+    /** Buyers pay the shop's GCash or the rider; couriers and shops settle between themselves. */
+    public const SETTLEMENT_DIRECT = 'direct';
+
+    /** What the courier earns for this order: the flat fee, even when the shop gave free delivery. */
+    public function courierFeeAmount(): string
+    {
+        return (string) ($this->courier_fee ?? $this->shipping_fee ?? '0.00');
+    }
+
     public function seller(): HasOneThrough      { return $this->hasOneThrough(User::class, OrderItem::class, 'order_id', 'id', 'id', 'seller_id'); }
     public function items(): HasMany             { return $this->hasMany(OrderItem::class); }
     public function payment(): HasOne            { return $this->hasOne(Payment::class); }

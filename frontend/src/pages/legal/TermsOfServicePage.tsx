@@ -24,15 +24,15 @@ const SECTIONS: { id: string; title: string; points: { title: string; text: stri
     title: 'Buying on Loved-IT',
     points: [
       { title: 'Orders', text: 'Placing an order is an offer to buy at the listed price. The sale is between you and the shop; Loved-IT runs the marketplace and is not a party to that sale.' },
-      { title: 'Prices and payment', text: 'Prices are in Philippine pesos. You can pay with GCash or cash on delivery. A GCash order is processed once the shop confirms your payment against the receipt you upload.' },
-      { title: 'Cancellations and returns', text: 'You can cancel an order before the shop packs it. If an order arrives damaged, wrong or not as described, request a return from My Orders within 7 days of delivery. Our team reviews claims the shop and buyer cannot settle.' },
+      { title: 'Prices and payment', text: 'Prices are in Philippine pesos. You pay the shop directly: by GCash to the shop\'s own account shown at checkout, or in cash to the rider when the parcel arrives. A GCash order is processed once the shop confirms your payment against the receipt you upload. Loved-IT does not hold your money.' },
+      { title: 'Cancellations and returns', text: 'You can cancel an order before the shop packs it. If an order arrives damaged, wrong or not as described, request a return from My Orders within 7 days of delivery. Because you paid the shop, the shop refunds you. Our team reviews claims the shop and buyer cannot settle.' },
     ],
   },
   {
     id: 'delivery',
     title: 'Delivery',
     points: [
-      { title: 'Delivery fee', text: `Each shop in your cart ships its own parcel, and each parcel has a flat delivery fee of ₱${DELIVERY_FEE}.` },
+      { title: 'Delivery fee', text: `Each shop in your cart ships its own parcel, and each parcel has a flat delivery fee of ₱${DELIVERY_FEE}. A shop may deliver free when your order from it reaches a minimum the shop sets; it then pays the courier itself.` },
       { title: 'Couriers', text: 'Parcels are carried by partner couriers. Loved-IT assigns each parcel to the courier whose hubs cover the shop and your address; you can follow it with its tracking number.' },
     ],
   },
@@ -43,7 +43,7 @@ const SECTIONS: { id: string; title: string; points: { title: string; text: stri
       { title: 'Seller verification', text: 'To sell, you apply from your buyer account with your ID and business documents. Loved-IT reviews every application and may decline one.' },
       { title: 'Seller responsibilities', text: 'Sellers keep listings accurate, keep stock up to date, ship on time and follow Philippine law, including consumer protection rules. Misrepresenting a product can lead to suspension.' },
       { title: 'Prohibited items', text: 'You may not list counterfeit goods, items that infringe someone\'s intellectual property, hazardous materials or anything Philippine law prohibits. We may remove such listings and suspend the shop.' },
-      { title: 'Payouts', text: 'Seller earnings are released after the buyer receives the order and can be paid out to the shop\'s GCash. A commission set per category is deducted from each sale; the rates are shown in the Seller Center.' },
+      { title: 'Payments and commission', text: 'Buyers pay the shop directly. For cash-on-delivery orders the courier collects the money and settles it with the shop every week, less its delivery fees. Each month the shop pays Loved-IT a commission on its completed orders; the rate is set per category and shown in the Seller Center.' },
     ],
   },
   {
@@ -51,7 +51,7 @@ const SECTIONS: { id: string; title: string; points: { title: string; text: stri
     title: 'What you may not do',
     points: [
       { title: 'Prohibited conduct', text: 'Do not use Loved-IT for anything unlawful; try to get into accounts or systems that are not yours; post false or defamatory content; manipulate prices or write fake reviews; scrape the site with automated tools; or interfere with its security.' },
-      { title: 'If the rules are broken', text: 'We may suspend or close the account, remove listings, hold payouts while we investigate, and report the matter to the authorities when the law requires it.' },
+      { title: 'If the rules are broken', text: 'We may suspend or close the account, remove listings, hold any payout we still owe while we investigate, and report the matter to the authorities when the law requires it.' },
     ],
   },
   {

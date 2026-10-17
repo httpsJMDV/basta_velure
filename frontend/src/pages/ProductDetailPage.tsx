@@ -13,6 +13,7 @@ import { useToast } from '../components/ui/Toast';
 import { resolveShortLocation } from '../utils/psgc';
 import { pesoCompact as peso, discountPercent } from '../utils/pricing';
 import { DELIVERY_FEE } from '../utils/shipping';
+import { useShopPaymentInfo } from '../hooks/useShopDelivery';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import ProductCard from '../components/ui/ProductCard';
@@ -326,6 +327,8 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
 /** Delivery, payment and returns, as one compact list under the buttons. */
 function Assurances({ product }: { product: ProductDetail }) {
   const { user } = useAuth();
+  const shop = useShopPaymentInfo([product.seller?.id])[product.seller?.id ?? 0];
+  const freeFrom = shop?.free_delivery_min ?? null;
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [today] = useState(() => new Date());
@@ -347,12 +350,12 @@ function Assurances({ product }: { product: ProductDetail }) {
     {
       icon: Truck,
       title: <>Arrives <span className="font-semibold text-stone-900">{day(product.estimated_delivery_days_min)} – {day(product.estimated_delivery_days_max)}</span>{to && <> to {to}</>}</>,
-      detail: <>{peso(DELIVERY_FEE)} delivery per shop order{from && <> · ships from {from}</>}</>,
+      detail: <>{freeFrom !== null ? <>Free delivery on {peso(freeFrom)}+ from this shop, otherwise {peso(DELIVERY_FEE)}</> : <>{peso(DELIVERY_FEE)} delivery per shop order</>}{from && <> · ships from {from}</>}</>,
       action: <Link to="/settings/addresses" className="text-[12px] font-semibold text-brand-red hover:underline shrink-0">{user?.default_address ? 'Change' : 'Set address'}</Link>,
     },
-    { icon: Banknote, title: 'Cash on delivery available', detail: 'Pay the rider when your order arrives, or pay online at checkout.' },
+    { icon: Banknote, title: 'Cash on delivery available', detail: shop && !shop.accepts_gcash ? 'Pay the rider in cash when your order arrives.' : 'Pay the rider when your order arrives, or pay the shop by GCash at checkout.' },
     { icon: RotateCcw, title: '7-day returns', detail: product.return_policy ?? 'Damaged, wrong or incomplete? Request a return within 7 days of delivery.' },
-    { icon: ShieldCheck, title: 'Buyer protection', detail: 'The seller is paid only after you receive the order.' },
+    { icon: ShieldCheck, title: 'Buyer protection', detail: 'Every shop is verified before it can sell, and our team reviews any return a shop will not settle.' },
   ];
 
   return (
