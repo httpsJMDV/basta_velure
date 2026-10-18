@@ -284,6 +284,8 @@ class CommerceOrdersTest extends TestCase
     public function test_the_return_window_closes_seven_days_after_delivery(): void
     {
         Storage::fake('public');
+        // Exactly 7 days after delivery: a second ticking between delivering and travelling must not move the edge.
+        $this->freezeSecond();
         [$buyer, $addr, , $variant] = $this->setUpShop();
         Sanctum::actingAs($buyer);
         $a = $this->place($addr, $variant, 1, 'cod')['data']['id'];
@@ -484,6 +486,8 @@ class CommerceOrdersTest extends TestCase
         $this->postJson("/api/v1/buyer/orders/{$id}/escalate-return")->assertOk();
         Sanctum::actingAs(User::where('role', 'admin')->latest('id')->first());
         $disputeId = Dispute::where('order_id', $id)->value('id');
+        // Every admin's bell hears about the escalation.
+        $this->assertTrue(User::where('role', 'admin')->latest('id')->first()->notifications()->where('type', 'dispute.escalated')->where('data->link', '/admin/disputes')->exists());
 
         // Found by the buyer's name, the shop's name and the reason; listed under "needs a decision".
         foreach (["{$buyer->first_name} {$buyer->last_name}", 'Maria Clara', 'smaller than'] as $search) {

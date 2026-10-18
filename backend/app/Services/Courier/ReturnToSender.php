@@ -60,7 +60,7 @@ class ReturnToSender
             $notifier->toUserId($order->buyer_id, 'order.status', 'Delivery failed: returning to the seller',
                 "Order {$order->order_number}: {$why}, so it is going back to the seller. The order will be cancelled" .
                 ($order->isPrepaid() ? ' and refunded in full.' : '.'), "/settings/orders?order={$order->id}", ['order_id' => $order->id]);
-            $notifier->toUserId($parcel->seller_id, 'order.status', 'A parcel is coming back to you',
+            $notifier->toSeller($parcel->seller_id, 'order_updates', 'order.status', 'A parcel is coming back to you',
                 "Order {$order->order_number}: {$why}. The courier is bringing it back to your shop.", "/seller/orders?order={$order->id}", ['order_id' => $order->id]);
             $notifier->send($notifier->companyMembers($parcel->logistics_company_id), 'shipment.rts', 'Return to sender',
                 "Parcel {$parcel->tracking_number}: {$why}. Assign a rider to take it back to the seller.", '/logistics/returns',
@@ -147,7 +147,7 @@ class ReturnToSender
             ]);
         }
 
-        app(Notifier::class)->toUserId($parcel->seller_id, 'order.returned_to_sender', 'Parcel returned to you',
+        app(Notifier::class)->toSeller($parcel->seller_id, 'order_updates', 'order.returned_to_sender', 'Parcel returned to you',
             "Order {$order->order_number}: the parcel is back with you. Confirm you received it so the stock goes back on sale.",
             "/seller/orders?order={$order->id}", ['order_id' => $order->id]);
     }

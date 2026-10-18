@@ -1,9 +1,13 @@
 // The bell: unread count, the latest notifications, open one (marks it read and goes to its page), mark all read.
-// `variant` matches where it sits: the storefront's red bar, a dark portal bar or a light portal bar.
+// `variant` matches where it sits: the storefront's red bar, a dark portal bar or a light portal bar. A new notification
+// arrives live: the red badge pulses and the bell rings once. `attention` (things waiting for action, like pending
+// applications) shows a red dot when nothing is unread.
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Package, Truck, Bike, BadgeCheck, Ban, Inbox } from 'lucide-react';
+import {
+  Bell, CheckCheck, Package, Truck, Bike, BadgeCheck, Ban, Inbox, ShoppingBag, AlertTriangle, Star, Wallet, Scale, Undo2,
+} from 'lucide-react';
 import { useNotifications, timeAgo } from '../../hooks/useNotifications';
 import type { AppNotificationItem } from '../../api/notifications';
 
@@ -11,7 +15,18 @@ export type BellVariant = 'storefront' | 'dark' | 'light';
 
 const ICONS: Record<string, React.ElementType> = {
   'order.status': Package,
+  'order.new': ShoppingBag,
+  'order.paid': ShoppingBag,
+  'order.returned_to_sender': Undo2,
   'shipment.status': Truck,
+  'shipment.rts': Undo2,
+  'stock.low': AlertTriangle,
+  'review.new': Star,
+  'payout.update': Wallet,
+  'product.decision': BadgeCheck,
+  'return.escalated': Scale,
+  'return.rejected': Scale,
+  'dispute.escalated': Scale,
   'rider.job_offer': Bike,
   'rider.job_assigned': Bike,
   'rider.job_removed': Bike,
@@ -26,6 +41,13 @@ const BUTTON: Record<BellVariant, string> = {
   light: 'w-9 h-9 sm:w-8 sm:h-8 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100',
 };
 
+/** The ring around the badge takes the colour of the bar it sits on, so the red stands out on red and on dark. */
+const RING: Record<BellVariant, string> = {
+  storefront: 'ring-2 ring-white',
+  dark: 'ring-2 ring-[#111111]',
+  light: 'ring-2 ring-white',
+};
+
 export function NotificationRows({ items, onOpen, empty }: { items: AppNotificationItem[]; onOpen: (n: AppNotificationItem) => void; empty?: ReactNode }) {
   if (items.length === 0) {
     return <>{empty ?? <p className="py-8 text-center text-[13px] text-stone-400">No notifications yet</p>}</>;
@@ -33,7 +55,7 @@ export function NotificationRows({ items, onOpen, empty }: { items: AppNotificat
   return (
     <ul className="divide-y divide-stone-100">
       {items.map((n) => {
-        const Icon = ICONS[n.kind] ?? Inbox;
+        const Icon = ICONS[n.kind] ?? (n.kind.startsWith('order.parcel_') ? Package : Inbox);
         return (
           <li key={n.id}>
             <button type="button" onClick={() => onOpen(n)} className={`w-full flex items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-stone-50 ${n.read_at ? '' : 'bg-rose-50/40'}`}>
@@ -56,10 +78,11 @@ export function NotificationRows({ items, onOpen, empty }: { items: AppNotificat
   );
 }
 
-export default function NotificationBell({ variant = 'storefront', extra }: { variant?: BellVariant; extra?: ReactNode }) {
+export default function NotificationBell({ variant = 'storefront', extra, attention = 0 }: { variant?: BellVariant; extra?: ReactNode; attention?: number }) {
   const navigate = useNavigate();
-  const { unread, items, loading, load, markRead, markAllRead } = useNotifications(true);
+  const { unread, items, loading, arrived, load, markRead, markAllRead } = useNotifications(true);
   const [open, setOpen] = useState(false);
+  const [ringing, setRinging] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,6 +93,14 @@ export default function NotificationBell({ variant = 'storefront', extra }: { va
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [open]);
+
+  // A live notification: ring the bell and pulse the badge for a few seconds.
+  useEffect(() => {
+    if (!arrived) return undefined;
+    setRinging(true);
+    const t = window.setTimeout(() => setRinging(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [arrived]);
 
   function toggle() {
     const next = !open;
@@ -83,17 +114,27 @@ export default function NotificationBell({ variant = 'storefront', extra }: { va
     if (n.link) navigate(n.link);
   }
 
+  const label = unread > 0
+    ? `Notifications, ${unread} unread`
+    : attention > 0 ? `Notifications, ${attention} waiting for action` : 'Notifications';
+
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={toggle} aria-expanded={open} aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+      <button type="button" onClick={toggle} aria-expanded={open} aria-label={label}
         className={`relative flex items-center justify-center transition-colors ${BUTTON[variant]}`}>
-        <Bell className={variant === 'storefront' ? 'w-[22px] h-[22px]' : 'w-[17px] h-[17px]'} aria-hidden="true" />
-        {unread > 0 && (
-          <span className={`absolute ${variant === 'storefront' ? 'top-0.5 right-0' : '-top-0.5 -right-0.5'} min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${variant === 'storefront' ? 'bg-amber-400 text-brand-black' : 'bg-brand-red text-white'}`}>
-            {unread > 99 ? '99+' : unread}
+        <Bell className={`${variant === 'storefront' ? 'w-[22px] h-[22px]' : 'w-[17px] h-[17px]'} ${ringing ? 'animate-bell-ring' : ''}`} aria-hidden="true" />
+        {unread > 0 ? (
+          <span className={`absolute ${variant === 'storefront' ? 'top-0.5 right-0' : '-top-1 -right-1'} flex`}>
+            {ringing && <span className="absolute inset-0 rounded-full bg-red-500 opacity-75 animate-ping" aria-hidden="true" />}
+            <span className={`relative min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold leading-none flex items-center justify-center ${RING[variant]}`}>
+              {unread > 99 ? '99+' : unread}
+            </span>
           </span>
-        )}
+        ) : attention > 0 ? (
+          <span className={`absolute ${variant === 'storefront' ? 'top-2 right-2' : 'top-1 right-1'} w-2.5 h-2.5 rounded-full bg-red-600 ${RING[variant]}`} aria-hidden="true" />
+        ) : null}
       </button>
+      <span className="sr-only" aria-live="polite">{ringing ? 'New notification' : ''}</span>
 
       {open && (
         <div className="absolute right-0 top-12 z-[60] w-[min(24rem,calc(100vw-1.5rem))] rounded-2xl border border-stone-200 bg-white shadow-2xl overflow-hidden">

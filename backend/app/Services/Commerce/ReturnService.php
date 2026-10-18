@@ -151,8 +151,10 @@ class ReturnService
                 abort(409, 'The 3 days to escalate this request have passed.');
             }
             $dispute->update(['status' => 'escalated', 'escalated_at' => now(), 'resolution_note' => 'Escalated to Loved-IT for a decision.']);
-            app(Notifier::class)->toUserId($dispute->seller_id, 'return.escalated', 'Return escalated to Loved-IT',
+            app(Notifier::class)->toSeller($dispute->seller_id, 'returns', 'return.escalated', 'Return escalated to Loved-IT',
                 "The buyer escalated the return for order {$order->order_number}. Loved-IT will decide.", "/seller/orders?order={$order->id}", ['order_id' => $order->id]);
+            app(Notifier::class)->toAdmins('dispute.escalated', 'Return escalated: decision needed',
+                "Order {$order->order_number}: the buyer escalated a return the shop rejected. Read both sides and decide.", '/admin/disputes', ['order_id' => $order->id, 'dispute_id' => $dispute->id]);
 
             return $dispute->fresh('photos');
         });

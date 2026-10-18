@@ -17,6 +17,7 @@ use App\Models\Voucher;
 use App\Models\VoucherClaim;
 use App\Models\VoucherUsage;
 use App\Services\MailNotifier;
+use App\Services\Notifier;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Collection;
@@ -171,6 +172,12 @@ class OrderPlacer
             }
 
             app(MailNotifier::class)->ordersPlaced($orders->all());
+            // The shop hears about a cash-on-delivery or GCash order now, an e-wallet or card order once it is paid.
+            foreach ($orders as $order) {
+                if (! in_array($order->payment_method, ['e_wallet', 'card'], true)) {
+                    app(Notifier::class)->newOrder($order);
+                }
+            }
 
             return ['repeated' => false, 'orders' => $orders, 'checkout_group_id' => $groupId, 'session' => $session];
         });

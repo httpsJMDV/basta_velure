@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentSession;
+use App\Services\MailNotifier;
 use App\Services\Notifier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -54,8 +55,9 @@ class SandboxGateway
                 foreach ($open as $o) {
                     $o->update(['payment_status' => 'paid', 'paid_at' => now(), 'payment_reference' => $ref]);
                     Payment::where('order_id', $o->id)->update(['status' => 'paid', 'paid_at' => now(), 'gateway_reference' => $ref, 'payment_session_id' => $s->id]);
-                    $sellerId = $o->items()->value('seller_id');
-                    app(Notifier::class)->toUserId($sellerId, 'order.paid', 'New paid order', "Order {$o->order_number} is paid. Accept and pack it.", "/seller/orders?order={$o->id}", ['order_id' => $o->id]);
+                    // The seller hears about an e-wallet or card order once it is paid.
+                    app(Notifier::class)->newOrder($o, paid: true);
+                    app(MailNotifier::class)->sellerNewOrder($o);
                 }
 
                 return ['session' => $s->fresh(), 'changed' => true, 'message' => 'Payment received. Your order is now To Ship.'];

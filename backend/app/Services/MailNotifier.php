@@ -12,6 +12,7 @@ use App\Models\Rider;
 use App\Models\SellerProfile;
 use App\Models\SortingCenter;
 use App\Models\User;
+use App\Support\NotificationPreferences;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -414,28 +415,73 @@ class MailNotifier
             'footer' => 'You received this email because you placed an order on Loved-IT.',
         ]);
 
+        // An e-wallet or card order reaches the seller once it is paid (SandboxGateway), not while it waits for payment.
         foreach ($orders as $order) {
-            $seller = $order->items->first()?->seller;
-            if (! $seller) {
-                continue;
+            if (! in_array($order->payment_method, ['e_wallet', 'card'], true)) {
+                $this->sellerNewOrder($order);
             }
-            $this->send($seller, 'New order ' . $order->order_number, 'seller_new_order', [
-                'tone' => 'info',
-                'label' => 'New order',
-                'title' => 'You have a new order.',
-                'paragraphs' => [
-                    $order->payment_method === 'cod'
-                        ? 'A buyer placed a cash-on-delivery order. Confirm it to start fulfilment.'
-                        : 'A buyer placed a GCash order. Check the payment proof, then confirm it to start fulfilment.',
-                ],
-                'items' => $order->items->map(fn ($item) => $this->itemRow($item))->all(),
-                'totals' => ['Items' => $this->peso($order->subtotal), 'Delivery fee' => $this->peso($order->shipping_fee), 'Order total' => $this->peso($order->total)],
-                'details' => ['Order' => $order->order_number, 'Payment' => $order->payment_method === 'cod' ? 'Cash on delivery' : 'GCash', 'Ship to' => $this->address($order)],
-                'actionUrl' => $this->url('/seller/orders'),
-                'actionLabel' => 'Open order',
-                'footer' => 'You received this email because a buyer ordered from your Loved-IT shop.',
-            ]);
         }
+    }
+
+    /** "You have a new order": cash on delivery and GCash when placed, e-wallet and card when paid. */
+    public function sellerNewOrder(Order $order): void
+    {
+        $order->loadMissing(['items.seller']);
+        $seller = $order->items->first()?->seller;
+        if (! $seller) {
+            return;
+        }
+        [$paragraph, $payment] = match ($order->payment_method) {
+            'cod'   => ['A buyer placed a cash-on-delivery order. Confirm it to start fulfilment.', 'Cash on delivery'],
+            'gcash' => ['A buyer placed a GCash order. Check the payment proof, then confirm it to start fulfilment.', 'GCash'],
+            default => ['A buyer placed and paid an order. Confirm it to start fulfilment.', $order->payment_method === 'card' ? 'Card (paid)' : 'E-wallet (paid)'],
+        };
+        $this->send($seller, 'New order ' . $order->order_number, 'seller_new_order', [
+            'tone' => 'info',
+            'label' => 'New order',
+            'title' => 'You have a new order.',
+            'paragraphs' => [$paragraph],
+            'items' => $order->items->map(fn ($item) => $this->itemRow($item))->all(),
+            'totals' => ['Items' => $this->peso($order->subtotal), 'Delivery fee' => $this->peso($order->shipping_fee), 'Order total' => $this->peso($order->total)],
+            'details' => ['Order' => $order->order_number, 'Payment' => $payment, 'Ship to' => $this->address($order)],
+            'actionUrl' => $this->url('/seller/orders'),
+            'actionLabel' => 'Open order',
+            'footer' => 'You received this email because a buyer ordered from your Loved-IT shop.',
+        ]);
+    }
+
+    /** A product fell to its low-stock level or sold out (A29). Off by default; the seller can turn it on. */
+    public function lowStock(Product $product, string $title, string $body): void
+    {
+        $product->loadMissing('seller');
+        $this->send($product->seller, $title . ': ' . $product->name, 'stock_low', [
+            'tone' => 'warning',
+            'label' => $title,
+            'title' => $title === 'Sold out' ? 'A product sold out.' : 'A product is running low.',
+            'paragraphs' => [$body],
+            'actionUrl' => $this->url("/seller/products/{$product->id}/edit"),
+            'actionLabel' => 'Update stock',
+            'footer' => 'You received this email because low-stock emails are on in your notification settings.',
+        ]);
+    }
+
+    /** A buyer reviewed one of the seller's products. Off by default; the seller can turn it on. */
+    public function newReview(\App\Models\Review $review): void
+    {
+        $review->loadMissing(['product.seller', 'buyer:id,first_name']);
+        if (! $review->product?->seller) {
+            return;
+        }
+        $this->send($review->product->seller, "New {$review->rating}-star review: {$review->product->name}", 'review_new', array_filter([
+            'tone' => $review->rating >= 4 ? 'success' : 'info',
+            'label' => 'New review',
+            'title' => ($review->buyer?->first_name ?? 'A buyer') . " gave {$review->product->name} {$review->rating} out of 5.",
+            'paragraphs' => ['Reply from your Reviews page so other buyers see your answer.'],
+            'highlight' => $review->comment ? ['title' => 'Their review', 'body' => strip_tags($review->comment)] : null,
+            'actionUrl' => $this->url('/seller/reviews'),
+            'actionLabel' => 'Open reviews',
+            'footer' => 'You received this email because review emails are on in your notification settings.',
+        ]));
     }
 
     /** Status changes worth telling people about; every other step is visible in the app's tracking. */
@@ -633,9 +679,37 @@ class MailNotifier
     // ── Plumbing ─────────────────────────────────────────────────────────────
 
     /** @param array<string, mixed> $notice */
+    /** The seller emails a seller can turn off, by type, and their NotificationPreferences category. */
+    private const SELLER_PREFERENCES = [
+        'seller_new_order'  => 'new_order',
+        'seller_order_'     => 'order_updates',
+        'return_requested'  => 'returns',
+        'stock_low'         => 'low_stock',
+        'review_new'        => 'new_review',
+        'earnings_released' => 'payouts',
+        'payout_'           => 'payouts',
+        'product_'          => 'listings',
+    ];
+
+    private static function preferenceFor(string $kind): ?string
+    {
+        foreach (self::SELLER_PREFERENCES as $prefix => $category) {
+            if ($kind === $prefix || (str_ends_with($prefix, '_') && str_starts_with($kind, $prefix))) {
+                return $category;
+            }
+        }
+
+        return null;
+    }
+
     private function send(?User $to, string $subject, string $kind, array $notice): void
     {
         if (self::$muted || ! $to || ! $to->email) {
+            return;
+        }
+        // A seller who turned this kind of email off in their notification settings does not get it.
+        $category = self::preferenceFor($kind);
+        if ($category && ! NotificationPreferences::allows($to, $category, 'email')) {
             return;
         }
 

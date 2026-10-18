@@ -482,6 +482,8 @@ Route::prefix('v1')->group(function () {
             // Seller shop profile
             Route::get('/seller/shop-profile', [SellerShopProfileController::class, 'show']);
             Route::post('/seller/shop-profile', [SellerShopProfileController::class, 'update'])->middleware('throttle:upload');
+            Route::get('/seller/notification-preferences', [\App\Http\Controllers\Api\V1\SellerNotificationPreferenceController::class, 'show']);
+            Route::put('/seller/notification-preferences', [\App\Http\Controllers\Api\V1\SellerNotificationPreferenceController::class, 'update']);
 
             // Seller orders & verification
             Route::get('/seller/orders', [SellerOrderController::class, 'index']);

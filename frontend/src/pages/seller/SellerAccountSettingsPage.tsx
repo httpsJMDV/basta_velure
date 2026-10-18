@@ -1,11 +1,13 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
-  User, Lock, Bell, Camera, Pencil, Check, X,
+  User, Lock, Bell, Mail, Camera, Pencil, Check, X,
   Eye, EyeOff, CheckCircle2, AlertTriangle, Loader2, Shield,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import http, { updateProfileApi, uploadAvatarApi } from '../../api/client';
 import CustomSelect from '../../components/ui/CustomSelect';
+import { getSellerNotificationPreferencesApi, saveSellerNotificationPreferencesApi } from '../../api/notifications';
+import type { NotificationPreference } from '../../api/notifications';
 import AccountSecurity from '../../components/account/AccountSecurity';
 import { nameError as validateName } from '../../utils/accountRules';
 import UserAvatar from '../../components/ui/UserAvatar';
@@ -481,66 +483,146 @@ function SecurityTab({ onToast }: { onToast: (t: { type: 'success' | 'error'; me
 
 // ─── Notifications Tab ────────────────────────────────────────────────────────
 
-interface NotifPref { key: string; label: string; description: string; enabled: boolean; }
+type ChannelPrefs = Record<string, { app: boolean; email: boolean }>;
 
-const DEFAULT_PREFS: NotifPref[] = [
-  { key: 'new_order',       label: 'New Orders',           description: 'Get notified when a buyer places an order in your shop.',       enabled: true },
-  { key: 'order_cancelled', label: 'Order Cancellations',  description: 'Get notified when a buyer cancels an order.',                   enabled: true },
-  { key: 'new_review',      label: 'New Reviews',          description: 'Get notified when a buyer leaves a review on your product.',    enabled: true },
-  { key: 'low_stock',       label: 'Low Stock Alerts',     description: 'Get notified when a product variant is running low on stock.',  enabled: true },
-  { key: 'payout_update',   label: 'Payout Updates',       description: 'Get notified when your payout request status changes.',        enabled: true },
-  { key: 'new_message',     label: 'New Messages',         description: 'Get notified when you receive a new message from a buyer.',    enabled: true },
-  { key: 'promotions',      label: 'Platform Announcements', description: 'Receive announcements and updates from Loved-IT.',             enabled: false },
-];
-
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ enabled, onChange, label, disabled }: { enabled: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${enabled ? 'bg-brand-red' : 'bg-gray-200'}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:opacity-50 ${enabled ? 'bg-brand-red' : 'bg-gray-200'}`}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
     </button>
   );
 }
 
+/**
+ * What the seller hears about, by the bell and by email. Saved on the account and obeyed by both: a switched-off
+ * channel gets nothing for that kind of event. Account, security and application notices are always sent.
+ */
 function NotificationsTab({ onToast }: { onToast: (t: { type: 'success' | 'error'; message: string }) => void }) {
-  const [prefs, setPrefs] = useState<NotifPref[]>(DEFAULT_PREFS);
+  const [rows, setRows] = useState<NotificationPreference[] | null>(null);
+  const [saved, setSaved] = useState<ChannelPrefs>({});
+  const [prefs, setPrefs] = useState<ChannelPrefs>({});
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  function toggle(key: string) {
-    setPrefs((prev) => prev.map((p) => p.key === key ? { ...p, enabled: !p.enabled } : p));
+  const apply = (list: NotificationPreference[]) => {
+    const map = Object.fromEntries(list.map((r) => [r.key, { app: r.app, email: r.email }]));
+    setRows(list);
+    setSaved(map);
+    setPrefs(map);
+  };
+
+  const load = () => {
+    setLoadError(false);
+    getSellerNotificationPreferencesApi().then(apply).catch(() => setLoadError(true));
+  };
+  useEffect(load, []);
+
+  const dirty = rows !== null && rows.some((r) => prefs[r.key]?.app !== saved[r.key]?.app || prefs[r.key]?.email !== saved[r.key]?.email);
+
+  function set(key: string, channel: 'app' | 'email', value: boolean) {
+    setPrefs((prev) => ({ ...prev, [key]: { ...prev[key], [channel]: value } }));
+  }
+
+  function setAll(channel: 'app' | 'email', value: boolean) {
+    setPrefs((prev) => Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, { ...v, [channel]: value }])));
   }
 
   async function handleSave() {
     setSaving(true);
-    // Optimistic — API endpoint to be wired when backend is ready
-    await new Promise((r) => setTimeout(r, 600));
-    setSaving(false);
-    onToast({ type: 'success', message: 'Notification preferences saved.' });
+    try {
+      const res = await saveSellerNotificationPreferencesApi(prefs);
+      apply(res.data);
+      onToast({ type: 'success', message: res.message });
+    } catch {
+      onToast({ type: 'error', message: 'Your notification settings were not saved. Please try again.' });
+    } finally {
+      setSaving(false);
+    }
   }
+
+  const allOn = (channel: 'app' | 'email') => Object.values(prefs).every((p) => p[channel]);
 
   return (
     <div className="space-y-5">
       <SectionCard>
-        <SectionHeader title="Email Notifications" subtitle="Choose which events trigger an email to your registered address." />
-        <div className="divide-y divide-gray-50">
-          {prefs.map((pref) => (
-            <div key={pref.key} className="px-6 py-4 flex items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold text-gray-800">{pref.label}</p>
-                <p className="text-[12px] text-gray-400 mt-0.5">{pref.description}</p>
+        <SectionHeader title="Notifications" subtitle="Choose what Loved-IT tells you about your shop, on the bell at the top of the page and by email." />
+
+        {loadError ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-[13px] text-gray-600">Your notification settings could not be loaded.</p>
+            <button type="button" onClick={load} className="mt-2 text-[13px] font-bold text-brand-red hover:underline">Try again</button>
+          </div>
+        ) : rows === null ? (
+          <div className="divide-y divide-gray-50">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="px-6 py-4 flex items-center gap-4 animate-pulse">
+                <div className="flex-1 space-y-2"><div className="h-3 w-40 bg-gray-100 rounded" /><div className="h-3 w-64 bg-gray-50 rounded" /></div>
+                <div className="h-6 w-11 bg-gray-100 rounded-full" /><div className="h-6 w-11 bg-gray-100 rounded-full" />
               </div>
-              <Toggle enabled={pref.enabled} onChange={() => toggle(pref.key)} />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="hidden sm:grid grid-cols-[1fr_64px_64px] items-end gap-4 px-6 pt-4 pb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              <span>Event</span>
+              <span className="flex flex-col items-center gap-1"><Bell className="w-3.5 h-3.5" aria-hidden="true" />Bell</span>
+              <span className="flex flex-col items-center gap-1"><Mail className="w-3.5 h-3.5" aria-hidden="true" />Email</span>
             </div>
-          ))}
-        </div>
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
-          <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-2 bg-brand-red hover:bg-brand-red-dark disabled:opacity-60 text-white text-[13px] font-bold px-6 py-2.5 rounded-xl transition-colors min-h-[44px]">
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Preferences'}
-          </button>
+            <div className="divide-y divide-gray-50">
+              {rows.map((row) => (
+                <div key={row.key} className="px-6 py-4 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_64px_64px] items-center gap-x-4 gap-y-2">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-800">{row.label}</p>
+                    <p className="text-[12px] text-gray-400 mt-0.5">{row.description}</p>
+                  </div>
+                  <div className="flex items-center justify-end gap-3 sm:contents">
+                    <span className="flex items-center justify-center gap-1.5">
+                      <span className="sm:hidden text-[11px] text-gray-400">Bell</span>
+                      <Toggle label={`${row.label} on the bell`} enabled={prefs[row.key]?.app ?? true} onChange={(v) => set(row.key, 'app', v)} />
+                    </span>
+                    <span className="flex items-center justify-center gap-1.5">
+                      <span className="sm:hidden text-[11px] text-gray-400">Email</span>
+                      <Toggle label={`${row.label} by email`} enabled={prefs[row.key]?.email ?? true} onChange={(v) => set(row.key, 'email', v)} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/60 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+              <button type="button" onClick={() => setAll('app', !allOn('app'))} className="font-semibold text-gray-600 hover:text-brand-red">
+                {allOn('app') ? 'Turn off every bell notification' : 'Turn on every bell notification'}
+              </button>
+              <button type="button" onClick={() => setAll('email', !allOn('email'))} className="font-semibold text-gray-600 hover:text-brand-red">
+                {allOn('email') ? 'Turn off every email' : 'Turn on every email'}
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="px-6 py-4 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-[11.5px] text-gray-400 max-w-md">
+            Account, security and application emails are always sent. Buyer messages show under Messages, with their own count.
+          </p>
+          <div className="flex items-center gap-2 justify-end">
+            {dirty && (
+              <button type="button" onClick={() => setPrefs(saved)} disabled={saving}
+                className="text-[13px] font-semibold text-gray-600 px-4 py-2.5 rounded-xl hover:bg-gray-100 min-h-[44px]">
+                Discard
+              </button>
+            )}
+            <button onClick={handleSave} disabled={saving || !dirty}
+              className="flex items-center gap-2 bg-brand-red hover:bg-brand-red-dark disabled:opacity-50 text-white text-[13px] font-bold px-6 py-2.5 rounded-xl transition-colors min-h-[44px]">
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : dirty ? 'Save changes' : 'Saved'}
+            </button>
+          </div>
         </div>
       </SectionCard>
     </div>

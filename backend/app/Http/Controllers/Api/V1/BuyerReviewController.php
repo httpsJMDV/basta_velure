@@ -144,6 +144,8 @@ class BuyerReviewController extends Controller
         }
 
         ProductRatings::refresh((int) $data['product_id']);
+        app(\App\Services\Notifier::class)->reviewPosted($review);
+        app(\App\Services\MailNotifier::class)->newReview($review);
 
         return response()->json(['data' => $this->format($review->load(['product.images', 'order:id,order_number', 'images']))], 201);
     }

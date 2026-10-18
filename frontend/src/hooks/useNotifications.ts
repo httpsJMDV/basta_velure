@@ -1,17 +1,25 @@
-// The signed-in person's in-app notifications: the unread count (polled), the latest items (loaded when the bell
-// opens), and the read actions. Opening one marks it read; "Mark all as read" clears the count.
+// The signed-in person's in-app notifications: the unread count, the latest items (loaded when the bell opens), and
+// the read actions. A new notification is pushed over Reverb on the person's private channel the moment it is written,
+// so the bell lights up at once; the count is also polled (and refreshed when the tab comes back) in case the live
+// connection is down. Opening one marks it read; "Mark all as read" clears the count.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getNotificationsApi, getUnreadNotificationsCountApi, markAllNotificationsReadApi, markNotificationReadApi,
 } from '../api/notifications';
 import type { AppNotificationItem } from '../api/notifications';
+import { getEcho } from '../lib/echo';
+import { useAuth } from './useAuth';
 
 const POLL_MS = 30_000;
 
 export function useNotifications(enabled = true) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<AppNotificationItem[] | null>(null);
   const [loading, setLoading] = useState(false);
+  /** When the last live notification arrived (for the bell's "new" animation). */
+  const [arrived, setArrived] = useState<number | null>(null);
   const alive = useRef(true);
 
   const refreshCount = useCallback(() => {
@@ -39,8 +47,39 @@ export function useNotifications(enabled = true) {
     if (!enabled) return undefined;
     refreshCount();
     const t = window.setInterval(refreshCount, POLL_MS);
-    return () => { alive.current = false; window.clearInterval(t); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshCount(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      alive.current = false;
+      window.clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [enabled, refreshCount]);
+
+  // Live: App\Notifications\AppNotification is broadcast on App.Models.User.{id} as it is written.
+  useEffect(() => {
+    if (!enabled || !userId) return undefined;
+    const onNotice = (n: Partial<AppNotificationItem> & { id?: string }) => {
+      if (!alive.current || !n.id) return;
+      const item: AppNotificationItem = {
+        id: n.id, kind: n.kind ?? 'notice', title: n.title ?? 'Notification', body: n.body ?? '', link: n.link ?? null,
+        meta: n.meta ?? {}, read_at: null, created_at: n.created_at ?? new Date().toISOString(),
+      };
+      setItems((list) => (list ? [item, ...list.filter((x) => x.id !== item.id)].slice(0, 15) : list));
+      setUnread((u) => u + 1);
+      setArrived(Date.now());
+    };
+    let channel: ReturnType<ReturnType<typeof getEcho>['private']> | null = null;
+    try {
+      channel = getEcho().private(`App.Models.User.${userId}`);
+      channel.notification(onNotice);
+    } catch {
+      // No live connection: the poll above keeps the count right.
+    }
+    return () => {
+      try { channel?.stopListeningForNotification(onNotice); } catch { /* already gone */ }
+    };
+  }, [enabled, userId]);
 
   const markRead = useCallback(async (id: string) => {
     setItems((list) => list?.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: new Date().toISOString() } : n)) ?? list);
@@ -59,7 +98,7 @@ export function useNotifications(enabled = true) {
     try { await markAllNotificationsReadApi(); } catch { refreshCount(); }
   }, [refreshCount]);
 
-  return { unread, items, loading, load, markRead, markAllRead };
+  return { unread, items, loading, arrived, load, markRead, markAllRead };
 }
 
 export function timeAgo(iso: string | null): string {

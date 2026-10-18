@@ -7,11 +7,15 @@ use App\Models\LogisticsCompany;
 use App\Models\LogisticsCompanyMember;
 use App\Models\Order;
 use App\Models\Parcel;
+use App\Models\Product;
+use App\Models\Review;
 use App\Models\Rider;
 use App\Models\User;
 use App\Notifications\AppNotification;
+use App\Support\NotificationPreferences;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * The in-app notification inbox (A23). Every order or shipment status change notifies each role involved (buyer,
@@ -65,6 +69,64 @@ class Notifier
         });
     }
 
+    /**
+     * A notification to a seller about their shop, written only when their settings allow it by the bell
+     * (App\Support\NotificationPreferences: $category is new_order, order_updates, returns, low_stock, ...).
+     */
+    public function toSeller(?int $sellerId, string $category, string $kind, string $title, string $body, ?string $link = null, array $meta = []): void
+    {
+        $seller = $sellerId ? User::find($sellerId) : null;
+        if ($seller && NotificationPreferences::allows($seller, $category, 'app')) {
+            $this->send($seller, $kind, $title, $body, $link, $meta);
+        }
+    }
+
+    /** Every active Loved-IT admin. */
+    public function toAdmins(string $kind, string $title, string $body, ?string $link = null, array $meta = []): void
+    {
+        $this->send(User::where('role', 'admin')->where('status', 'active')->get(), $kind, $title, $body, $link, $meta);
+    }
+
+    // ── Seller notices ───────────────────────────────────────────────────────
+
+    /**
+     * An order the seller can act on: cash on delivery and GCash orders when placed, e-wallet and card orders once
+     * they are paid (an unpaid one may still be cancelled for non-payment).
+     */
+    public function newOrder(Order $order, bool $paid = false): void
+    {
+        $sellerId = $order->seller_id ?? $order->items()->value('seller_id');
+        $units = (int) $order->items()->sum('quantity');
+        $this->toSeller($sellerId, 'new_order', $paid ? 'order.paid' : 'order.new', $paid ? 'New paid order' : 'New order',
+            "Order {$order->order_number}: {$units} item" . ($units === 1 ? '' : 's') . ', ₱' . number_format((float) $order->total, 2) . '. '
+            . ($paid ? 'It is paid. Accept and pack it.' : 'Confirm it to start packing.'),
+            "/seller/orders?order={$order->id}", ['order_id' => $order->id, 'order_number' => $order->order_number]);
+    }
+
+    public function reviewPosted(Review $review): void
+    {
+        $review->loadMissing(['product:id,name,seller_id', 'buyer:id,first_name']);
+        if (! $review->product) {
+            return;
+        }
+        $excerpt = $review->comment ? ': "' . Str::limit(strip_tags($review->comment), 80) . '"' : '.';
+        $this->toSeller($review->product->seller_id, 'new_review', 'review.new', "New {$review->rating}-star review",
+            ($review->buyer?->first_name ?? 'A buyer') . " reviewed {$review->product->name}{$excerpt}", '/seller/reviews',
+            ['review_id' => $review->id, 'product_id' => $review->product_id, 'rating' => $review->rating]);
+    }
+
+    /** Earnings released, or a payout request processed. */
+    public function payout(int $sellerId, string $title, string $body): void
+    {
+        $this->toSeller($sellerId, 'payouts', 'payout.update', $title, $body, '/seller/earnings');
+    }
+
+    /** Loved-IT approved, rejected, archived or restored one of the seller's products. */
+    public function listingDecision(Product $product, string $title, string $body): void
+    {
+        $this->toSeller($product->seller_id, 'listings', 'product.decision', $title, $body, "/seller/products/{$product->id}/edit", ['product_id' => $product->id]);
+    }
+
     // ── Orders and shipments ─────────────────────────────────────────────────
 
     /** Buyer-facing names of each status (A10). */
@@ -108,8 +170,8 @@ class Notifier
 
         $sellerId = $order->seller_id ?? $order->items()->value('seller_id');
         if ($actorType !== 'seller' && $sellerId) {
-            $this->send(User::find($sellerId), 'order.status', $label, "Order {$order->order_number}: {$label}.{$reason}",
-                "/seller/orders?order={$order->id}", $meta);
+            $this->toSeller($sellerId, in_array($to, ['DISPUTED', 'RETURNED'], true) ? 'returns' : 'order_updates', 'order.status', $label,
+                "Order {$order->order_number}: {$label}.{$reason}", "/seller/orders?order={$order->id}", $meta);
         }
 
         if (in_array($to, self::SHIPMENT_STATUSES, true) && ! in_array($actorType, ['logistics'], true)) {

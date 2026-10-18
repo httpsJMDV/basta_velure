@@ -77,6 +77,7 @@ class AdminProductController extends Controller
 
         $product->update(['status' => 'active', 'rejection_reason' => null]);
         app(\App\Services\MailNotifier::class)->productApproved($product->loadMissing('seller'));
+        app(\App\Services\Notifier::class)->listingDecision($product, 'Product approved', "{$product->name} is live. Buyers can find and order it now.");
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
@@ -89,6 +90,7 @@ class AdminProductController extends Controller
         $data = $request->validate(['reason' => 'required|string|max:1000']);
         $product->update(['status' => 'rejected', 'rejection_reason' => $data['reason']]);
         app(\App\Services\MailNotifier::class)->productRejected($product->loadMissing('seller'), $data['reason']);
+        app(\App\Services\Notifier::class)->listingDecision($product, 'Changes needed', "{$product->name} was not approved: {$data['reason']}");
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
@@ -110,6 +112,7 @@ class AdminProductController extends Controller
             'archived_by'    => 'admin',
         ]);
         app(\App\Services\MailNotifier::class)->productArchived($product->loadMissing('seller'), $data['reason']);
+        app(\App\Services\Notifier::class)->listingDecision($product, 'Product archived', "Loved-IT archived {$product->name}: {$data['reason']}");
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }
@@ -129,6 +132,7 @@ class AdminProductController extends Controller
             'archived_by'    => null,
         ]);
         app(\App\Services\MailNotifier::class)->productReactivated($product->loadMissing('seller'));
+        app(\App\Services\Notifier::class)->listingDecision($product, 'Product live again', "{$product->name} is back on sale.");
 
         return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'seller.sellerProfile']))]);
     }

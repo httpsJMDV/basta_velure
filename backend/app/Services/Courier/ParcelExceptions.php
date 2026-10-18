@@ -131,7 +131,7 @@ class ParcelExceptions
                     "Order {$locked->order_number}: the courier reported the parcel {$label}. The order is cancelled" .
                     ($locked->payment_status === 'refunded' || $locked->refund_status ? ' and your payment is being refunded in full.' : '.'),
                     "/settings/orders?order={$locked->id}", ['order_id' => $locked->id]);
-                $notifier->toUserId($parcel->seller_id, "order.parcel_{$label}", "Parcel {$label} by the courier",
+                $notifier->toSeller($parcel->seller_id, 'order_updates', "order.parcel_{$label}", "Parcel {$label} by the courier",
                     "Order {$locked->order_number}: the courier reported the parcel {$label}. A claim of ₱" . number_format($claim, 2) .
                     ' for the items is open with the courier.', "/seller/orders?order={$locked->id}", ['order_id' => $locked->id, 'claim_amount' => $claim]);
 

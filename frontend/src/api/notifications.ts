@@ -28,3 +28,18 @@ export const markNotificationReadApi = (id: string) =>
 
 export const markAllNotificationsReadApi = () =>
   http.post<{ message: string }>('/notifications/read-all').then((r) => r.data);
+
+/** One kind of seller notification and whether it reaches the bell and the inbox (Account Settings > Notifications). */
+export interface NotificationPreference {
+  key: string;
+  label: string;
+  description: string;
+  app: boolean;
+  email: boolean;
+}
+
+export const getSellerNotificationPreferencesApi = () =>
+  http.get<{ data: NotificationPreference[] }>('/seller/notification-preferences').then((r) => r.data.data);
+
+export const saveSellerNotificationPreferencesApi = (preferences: Record<string, { app: boolean; email: boolean }>) =>
+  http.put<{ message: string; data: NotificationPreference[] }>('/seller/notification-preferences', { preferences }).then((r) => r.data);

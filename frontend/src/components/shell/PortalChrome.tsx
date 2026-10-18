@@ -551,6 +551,7 @@ export function ShellTopBar({
         {/* Notifications: the inbox (every order and shipment change) and what needs attention right now */}
         <NotificationBell
           variant={theme === 'dark' ? 'dark' : 'light'}
+          attention={totalAlerts}
           extra={totalAlerts > 0 ? (
             <div className="border-t border-stone-100 px-3 py-2.5 bg-stone-50/60">
               <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">{alertsTitle}</p>
