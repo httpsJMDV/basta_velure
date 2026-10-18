@@ -31,6 +31,7 @@ import type {
   Order,
   AdminStats,
   ActivityLogEntry,
+  ActivityLogSummary,
   DashboardFeed,
   AdminOrder,
   AdminOrderStats,
@@ -301,8 +302,8 @@ export const reactivateUserApi = (id: number) =>
   http.patch<{ data: User }>(`/admin/users/${id}/reactivate`).then((r) => r.data.data);
 
 // Admin — activity log
-export const getActivityLogApi = (params?: { action?: string; page?: number; per_page?: number }) =>
-  http.get<PaginatedResponse<ActivityLogEntry>>('/admin/activity-log', { params }).then((r) => r.data);
+export const getActivityLogApi = (params?: { action?: string; area?: string; admin_id?: number; search?: string; period?: string; page?: number; per_page?: number }) =>
+  http.get<PaginatedResponse<ActivityLogEntry> & { summary: ActivityLogSummary }>('/admin/activity-log', { params }).then((r) => r.data);
 
 // Admin — buyer applications
 export const getBuyerApplicationsApi = (params?: { status?: string; search?: string; sort?: string; page?: number; per_page?: number }) =>
@@ -431,7 +432,8 @@ export const getAdminPaymentStatsApi = () =>
   http.get<{ data: AdminPaymentStats }>('/admin/payments/stats').then((r) => r.data.data);
 
 // Admin — disputes
-export const getAdminDisputesApi = (params?: { status?: DisputeStatus; search?: string; page?: number }) =>
+/** status: one status, or several separated by commas (escalated,open,in_progress). */
+export const getAdminDisputesApi = (params?: { status?: DisputeStatus | string; search?: string; page?: number }) =>
   http.get<PaginatedResponse<AdminDispute>>('/admin/disputes', { params }).then((r) => r.data);
 
 export const getAdminDisputeApi = (id: number) =>

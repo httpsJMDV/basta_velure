@@ -385,4 +385,41 @@ class CommerceOrdersTest extends TestCase
         $this->getJson('/api/v1/seller/reports/summary?from=18-10-2026')->assertStatus(422)->assertJsonValidationErrors(['from']);
         $this->assertSame(4, Order::whereKey([$today, $early, $late, $old])->count());
     }
+
+    public function test_the_admin_finds_a_case_by_buyer_or_shop_and_can_side_with_the_shop(): void
+    {
+        Storage::fake('public');
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $id = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $this->deliver(Order::find($id));
+        $this->post("/api/v1/buyer/orders/{$id}/request-return", ['reason' => 'Not as described', 'description' => 'The basket is smaller than in the photos.', 'photos' => [$this->png()]], ['Accept' => 'application/json'])->assertOk();
+        Sanctum::actingAs($seller);
+        $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'reject', 'reason' => 'The size is written in the description.'])->assertOk();
+
+        Sanctum::actingAs(User::forceCreate(['first_name' => 'Ad', 'last_name' => 'Min', 'email' => Str::random(8) . '@example.com', 'password' => Hash::make('x'), 'role' => 'admin', 'status' => 'active']));
+        $this->assertGreaterThanOrEqual(1, $this->getJson('/api/v1/admin/disputes/stats')->json('data.rejected'));
+
+        Sanctum::actingAs($buyer);
+        $this->postJson("/api/v1/buyer/orders/{$id}/escalate-return")->assertOk();
+        Sanctum::actingAs(User::where('role', 'admin')->latest('id')->first());
+        $disputeId = Dispute::where('order_id', $id)->value('id');
+
+        // Found by the buyer's name, the shop's name and the reason; listed under "needs a decision".
+        foreach (["{$buyer->first_name} {$buyer->last_name}", 'Maria Clara', 'smaller than'] as $search) {
+            $this->assertContains($disputeId, $this->getJson('/api/v1/admin/disputes?search=' . urlencode($search))->json('data.*.id'), $search);
+        }
+        $this->assertContains($disputeId, $this->getJson('/api/v1/admin/disputes?status=escalated,open,in_progress')->json('data.*.id'));
+        $this->assertNotContains($disputeId, $this->getJson('/api/v1/admin/disputes?status=pending,rejected')->json('data.*.id'));
+        $this->assertGreaterThanOrEqual(1, $this->getJson('/api/v1/admin/disputes/stats')->json('data.needs_decision'));
+        $case = $this->getJson("/api/v1/admin/disputes/{$disputeId}")->assertOk()->json('data');
+        $this->assertArrayHasKey('image_url', $case['order']['items'][0]);
+        $this->assertNotNull($case['escalate_by']);
+
+        // Siding with the shop closes the case and completes the order, so the shop is paid.
+        $this->patchJson("/api/v1/admin/disputes/{$disputeId}/resolve", ['decision' => 'reject', 'resolution_note' => 'The size was in the description.'])->assertOk()
+            ->assertJsonPath('data.status', 'closed');
+        $this->assertSame(OrderStatus::COMPLETED, Order::find($id)->status);
+        $this->assertDatabaseHas('admin_activity_logs', ['action' => 'resolve_dispute', 'target_id' => $disputeId]);
+    }
 }

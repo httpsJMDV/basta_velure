@@ -119,12 +119,23 @@ export interface DashboardFeed {
 export interface ActivityLogEntry {
   id: number;
   action: string;
-  target_type: string;
-  target_id: number;
+  target_type: string | null;
+  target_id: number | null;
   description: string;
   meta: Record<string, unknown> | null;
   created_at: string;
-  admin: { id: number; first_name: string; last_name: string };
+  admin: { id: number | null; first_name: string | null; last_name: string | null };
+}
+
+export type ActivityArea = 'applications' | 'accounts' | 'catalog' | 'money' | 'disputes' | 'other';
+
+/** Figures for the whole activity log (not only the page shown). */
+export interface ActivityLogSummary {
+  total: number;
+  today: number;
+  week: number;
+  areas: Record<ActivityArea, number>;
+  admins: { id: number; name: string }[];
 }
 
 export type Role = 'admin' | 'buyer' | 'seller' | 'rider';
@@ -1401,6 +1412,9 @@ export interface AdminDispute {
   seller?: { id: number; shop_name: string | null } | null;
   seller_reason?: string | null;
   seller_responded_at?: string | null;
+  /** The shop's deadline to answer, and the buyer's to escalate a rejection. */
+  respond_by?: string | null;
+  escalate_by?: string | null;
   escalated_at?: string | null;
   auto_approved?: boolean;
   refund_amount?: number | null;
@@ -1427,6 +1441,13 @@ export interface AdminDisputeStats {
   escalated?: number;
   /** Returns the shop still has to answer. */
   awaiting_seller?: number;
+  /** Rejected by the shop; the buyer can still escalate. */
+  rejected?: number;
+  /** Escalated returns and open claims, waiting for Loved-IT. */
+  needs_decision?: number;
+  /** Of those, waiting more than 3 days. */
+  overdue?: number;
+  total?: number;
 }
 
 // ─── Admin Reviews ────────────────────────────────────────────────────────────

@@ -316,13 +316,46 @@ class AdminController extends Controller
 
     // ── Activity log ─────────────────────────────────────────────────────────
 
+    /** The admin actions by area, for the activity log's filters and figures. */
+    public const LOG_AREAS = [
+        'applications' => ['approve_buyer', 'reject_buyer', 'approve_seller', 'reject_seller', 'approve_courier', 'reject_courier', 'approve_sorting_center', 'reject_sorting_center'],
+        'accounts'     => ['suspend_user', 'reactivate_user', 'suspend_courier', 'reactivate_courier', 'suspend_sorting_center', 'reactivate_sorting_center'],
+        'catalog'      => ['create_category', 'update_category', 'delete_category'],
+        'money'        => ['update_commission', 'update_return_policy', 'confirm_commission'],
+        'disputes'     => ['resolve_dispute'],
+    ];
+
+    /**
+     * GET /admin/activity-log: newest first. Filters: action, area (see LOG_AREAS), admin_id, search (description, action
+     * or target), period (today, 7d, 30d). The summary counts the whole log, not the page.
+     */
     public function activityLog(Request $request): JsonResponse
     {
         $perPage = min(100, max(5, (int) $request->get('per_page', 30)));
+        $today = CarbonImmutable::now('Asia/Manila')->startOfDay()->utc();
+        $search = trim((string) $request->query('search', ''));
+        $area = (string) $request->query('area', '');
+        $since = ['today' => $today, '7d' => $today->subDays(6), '30d' => $today->subDays(29)][(string) $request->query('period', '')] ?? null;
+
         $logs = AdminActivityLog::with('admin')
             ->when($request->action, fn ($q) => $q->where('action', $request->action))
-            ->latest('created_at')
+            ->when(isset(self::LOG_AREAS[$area]), fn ($q) => $q->whereIn('action', self::LOG_AREAS[$area]))
+            ->when($area === 'other', fn ($q) => $q->whereNotIn('action', array_merge(...array_values(self::LOG_AREAS))))
+            ->when($request->integer('admin_id') > 0, fn ($q) => $q->where('admin_id', $request->integer('admin_id')))
+            ->when($since, fn ($q) => $q->where('created_at', '>=', $since))
+            ->when($search !== '', function ($q) use ($search) {
+                $like = '%' . addcslashes($search, '%_\\') . '%';
+                $q->where(fn ($w) => $w->where('description', 'like', $like)->orWhere('action', 'like', $like)->orWhere('target_type', 'like', $like));
+            })
+            ->latest('created_at')->orderByDesc('id')
             ->paginate($perPage);
+
+        $byAction = AdminActivityLog::selectRaw('action, COUNT(*) AS n')->groupBy('action')->pluck('n', 'action');
+        $areas = [];
+        foreach (self::LOG_AREAS as $key => $actions) {
+            $areas[$key] = (int) collect($actions)->sum(fn ($a) => $byAction[$a] ?? 0);
+        }
+        $areas['other'] = (int) $byAction->sum() - array_sum($areas);
 
         return response()->json([
             'data' => $logs->map(fn ($log) => [
@@ -334,15 +367,27 @@ class AdminController extends Controller
                 'meta'        => $log->meta,
                 'created_at'  => $log->created_at,
                 'admin'       => [
-                    'id'         => $log->admin->id,
-                    'first_name' => $log->admin->first_name,
-                    'last_name'  => $log->admin->last_name,
+                    'id'         => $log->admin?->id,
+                    'first_name' => $log->admin?->first_name,
+                    'last_name'  => $log->admin?->last_name,
                 ],
             ]),
             'meta' => [
                 'current_page' => $logs->currentPage(),
                 'last_page'    => $logs->lastPage(),
+                'per_page'     => $logs->perPage(),
                 'total'        => $logs->total(),
+                'from'         => $logs->firstItem(),
+                'to'           => $logs->lastItem(),
+            ],
+            'summary' => [
+                'total' => (int) $byAction->sum(),
+                'today' => AdminActivityLog::where('created_at', '>=', $today)->count(),
+                'week'  => AdminActivityLog::where('created_at', '>=', $today->subDays(6))->count(),
+                'areas' => $areas,
+                // Everyone who has an entry, for the "by admin" filter.
+                'admins' => User::whereIn('id', AdminActivityLog::distinct()->pluck('admin_id'))->orderBy('first_name')
+                    ->get(['id', 'first_name', 'last_name'])->map(fn ($u) => ['id' => $u->id, 'name' => trim("{$u->first_name} {$u->last_name}")])->values(),
             ],
         ]);
     }
