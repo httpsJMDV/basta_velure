@@ -575,6 +575,8 @@ export interface SellerShopProfile {
   shipping_policy: string | null;
   business_hours: string | null;
   response_time: string | null;
+  /** A29: alert at this stock or below (0: only when a product sells out); a product can set its own. */
+  low_stock_threshold?: number;
   logo_url: string | null;
   banner_url: string | null;
   application_status: string;

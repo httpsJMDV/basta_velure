@@ -12,7 +12,7 @@ import {
 import CustomSelect from '../../components/ui/CustomSelect';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { CATEGORY_TREE, type CategoryNode } from '../../data/categories';
-import { getStorefrontCategoriesApi } from '../../api/client';
+import { getSellerShopProfileApi, getStorefrontCategoriesApi } from '../../api/client';
 import { downscaleImage } from '../../utils/imageDownscale';
 import {
   getSellerProductApi,
@@ -52,6 +52,7 @@ const EMPTY_FORM: AddProductFormState = {
   ingredients: '', netWeight: '', storageInstructions: '',
   expiryDate: '', allergenInfo: '',
   storeCategoryIds: [], purchaseLimit: '',
+  lowStockMode: 'shop', lowStockLevel: '',
 };
 
 type FieldErrors = Partial<Record<string, string>>;
@@ -169,6 +170,9 @@ function validate(form: AddProductFormState, publish: boolean, tree: CategoryNod
   if (form.purchaseLimit.trim() && (!/^\d+$/.test(form.purchaseLimit.trim()) || Number(form.purchaseLimit) < 1)) {
     errors.purchaseLimit = 'The purchase limit must be a whole number of at least 1.';
   }
+  if (form.lowStockMode === 'custom' && (!/^\d+$/.test(form.lowStockLevel.trim()) || Number(form.lowStockLevel) > 999)) {
+    errors.lowStockLevel = 'Enter the alert level as a whole number from 0 to 999.';
+  }
   const weightProblem = positiveError(form.weightValue, 'The weight');
   if (weightProblem) errors.weightValue = weightProblem;
   for (const key of ['dimensionL', 'dimensionW', 'dimensionH'] as const) {
@@ -215,7 +219,7 @@ function validate(form: AddProductFormState, publish: boolean, tree: CategoryNod
   const sectionErrors: Record<string, string[]> = {
     basic: ['name', 'description', 'images'],
     category: ['leafCategoryId', 'storeCategoryIds'],
-    variants: ['variantTypes', 'price', 'stock', 'purchaseLimit',
+    variants: ['variantTypes', 'price', 'stock', 'purchaseLimit', 'lowStockLevel',
       ...Object.keys(errors).filter((k) => k.startsWith('variantRow_'))],
     shipping: ['weightValue', 'dimensions'],
     fda: ['fdaLtoFile', 'fdaCprFile'],
@@ -244,6 +248,7 @@ function formFieldForServerKey(key: string, hasVariants: boolean): string {
   if (key === 'variants' || key.startsWith('variants.') || key.startsWith('variation_types')) return hasVariants ? 'variantTypes' : 'price';
   if (key.startsWith('store_category_ids')) return 'storeCategoryIds';
   if (key === 'purchase_limit') return 'purchaseLimit';
+  if (key === 'low_stock_threshold' || key === 'low_stock_alert') return 'lowStockLevel';
   if (key.startsWith('dimension_')) return 'dimensions';
   if (key === 'images' || key.startsWith('images.')) return 'images';
   const direct: Record<string, string> = {
@@ -301,6 +306,73 @@ function FieldWrap({
       {children}
       {hint && !error && <p className="text-[11px] text-gray-400">{hint}</p>}
       {error && <p className="text-[11px] text-red-500 font-medium">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * When this product's low-stock alert fires (A29): at the shop's level, at its own level, only when it sells out, or
+ * never. The alert fires once when stock drops to the level from above it, so a listing that starts at or below the
+ * level (a single laptop) is offered "When sold out" instead.
+ */
+function LowStockAlertField({ form, shopLevel, error, onMode, onLevel }: {
+  form: AddProductFormState;
+  shopLevel: number | null;
+  error?: string;
+  onMode: (mode: AddProductFormState['lowStockMode']) => void;
+  onLevel: (value: string) => void;
+}) {
+  const stock = form.hasVariants
+    ? form.variantRows.reduce((sum, r) => sum + (Number(r.stock) || 0), 0)
+    : Number(form.stock) || 0;
+  const level = form.lowStockMode === 'shop' ? shopLevel
+    : form.lowStockMode === 'sold_out' ? 0
+      : form.lowStockMode === 'custom' && /^\d+$/.test(form.lowStockLevel.trim()) ? Number(form.lowStockLevel) : null;
+  const options: { value: AddProductFormState['lowStockMode']; title: string; text: string }[] = [
+    { value: 'shop', title: shopLevel !== null ? `Shop level (${shopLevel})` : 'Shop level', text: 'The level in your Shop Profile.' },
+    { value: 'custom', title: 'Own level', text: 'A level just for this product.' },
+    { value: 'sold_out', title: 'When sold out', text: 'For a single or one-of-a-kind item.' },
+    { value: 'off', title: 'No alert', text: 'Never alert for this product.' },
+  ];
+
+  return (
+    <div className="space-y-2.5 pt-4 border-t border-gray-100">
+      <div>
+        <p className="text-[13px] font-semibold text-gray-700">Low-stock alert</p>
+        <p className="text-[11.5px] text-gray-400">One notification when stock falls to this level. It comes again only after you restock above it.</p>
+      </div>
+      <div role="radiogroup" aria-label="Low-stock alert" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {options.map((o) => {
+          const on = form.lowStockMode === o.value;
+          return (
+            <button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onMode(o.value)}
+              className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${on ? 'border-brand-red bg-rose-50/60 ring-1 ring-brand-red/20' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+              <span className={`block text-[12.5px] font-bold ${on ? 'text-brand-red' : 'text-gray-800'}`}>{o.title}</span>
+              <span className="block text-[11px] leading-snug text-gray-500">{o.text}</span>
+            </button>
+          );
+        })}
+      </div>
+      {form.lowStockMode === 'custom' && (
+        <div className="space-y-1">
+          <label className="flex flex-wrap items-center gap-2 text-[13px] text-gray-700">
+            Alert when stock is
+            <input type="number" min="0" max="999" step="1" inputMode="numeric" value={form.lowStockLevel} onChange={(e) => onLevel(e.target.value)}
+              className={`${inputCls(error)} !w-24 !py-2`} aria-label="Low-stock level for this product" />
+            or fewer
+          </label>
+          {error && <p className="text-[11px] text-red-500 font-medium">{error}</p>}
+        </div>
+      )}
+      {level !== null && level > 0 && stock > 0 && stock <= level && (
+        <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+          <Info className="w-4 h-4 mt-px shrink-0" aria-hidden="true" />
+          <span>
+            You are listing {stock} {stock === 1 ? 'unit' : 'units'}, already at or below {level}, so this alert will not fire until you restock above {level}.{' '}
+            <button type="button" onClick={() => onMode('sold_out')} className="font-bold underline underline-offset-2">Alert me when it sells out</button>
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -1251,6 +1323,12 @@ export default function SellerAddProductPage() {
   // The platform categories the admin keeps (active only), with their FDA rule. The built-in list is shown only
   // until they load, or if they cannot be loaded.
   const [tree, setTree] = useState<CategoryNode[]>(CATEGORY_TREE);
+
+  // The shop's low-stock level, for the alert's "Shop level" choice (5 unless the seller changed it).
+  const [shopLowStock, setShopLowStock] = useState<number | null>(null);
+  useEffect(() => {
+    getSellerShopProfileApi().then((p) => setShopLowStock(p.low_stock_threshold ?? 5)).catch(() => setShopLowStock(5));
+  }, []);
   useEffect(() => {
     getStorefrontCategoriesApi()
       .then((cats) => {
@@ -1316,6 +1394,8 @@ export default function SellerAddProductPage() {
           variantRows: hasVariants ? loaded.rows : [],
           storeCategoryIds: p.store_category_ids ?? [],
           purchaseLimit: p.purchase_limit ? String(p.purchase_limit) : '',
+          lowStockMode: p.low_stock_alert === 'off' ? 'off' : p.low_stock_alert === 'custom' ? (p.low_stock_threshold === 0 ? 'sold_out' : 'custom') : 'shop',
+          lowStockLevel: p.low_stock_alert === 'custom' && p.low_stock_threshold ? String(p.low_stock_threshold) : '',
           weightValue,
           weightUnit,
           dimensionL: p.dimension_l_cm != null ? String(p.dimension_l_cm) : '',
@@ -1428,6 +1508,9 @@ export default function SellerAddProductPage() {
       if (form.storeCategoryIds.length) form.storeCategoryIds.forEach((sc) => fd.append('store_category_ids[]', String(sc)));
       else fd.append('store_category_ids', '');
       fd.append('purchase_limit', form.purchaseLimit.trim());
+      fd.append('low_stock_alert', form.lowStockMode === 'sold_out' ? 'custom' : form.lowStockMode);
+      if (form.lowStockMode === 'custom') fd.append('low_stock_threshold', form.lowStockLevel.trim());
+      if (form.lowStockMode === 'sold_out') fd.append('low_stock_threshold', '0');
 
       if (form.weightValue) {
         const kg = form.weightUnit === 'g'
@@ -1657,6 +1740,14 @@ export default function SellerAddProductPage() {
               : 'They open once your shop is approved.'}
           </div>
         </div>
+
+        <LowStockAlertField
+          form={form}
+          shopLevel={shopLowStock}
+          error={errors.lowStockLevel}
+          onMode={(m) => { set('lowStockMode', m); clearError('lowStockLevel'); }}
+          onLevel={(v) => { set('lowStockLevel', v); clearError('lowStockLevel'); }}
+        />
       </SectionCard>
 
       {/* ── 4. Shipping ───────────────────────────────────────────────────── */}

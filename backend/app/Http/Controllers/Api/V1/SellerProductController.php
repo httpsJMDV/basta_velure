@@ -305,11 +305,16 @@ class SellerProductController extends Controller
         abort_if($product->seller_id !== $request->user()->id, 403);
     }
 
+    /** @var array<int, int> seller id => the shop's low-stock level, looked up once per request */
+    private array $shopLevels = [];
+
     private function formatProduct(Product $product, PriceBook $book): array
     {
         $primaryImage = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
         $range = $book->range($product);
         $sale = $book->saleFor($product->id);
+        $shopLevel = $this->shopLevels[$product->seller_id] ??= Product::shopLowStockLevel($product->seller_id);
+        $level = $product->lowStockLevel($shopLevel);
 
         return [
             'id'                   => $product->id,
@@ -336,6 +341,11 @@ class SellerProductController extends Controller
             'sku'                  => $product->sku,
             'variation_types'      => $product->variation_types ?? [],
             'purchase_limit'       => $product->purchase_limit,
+            // A29: shop, custom or off; the level in force, and the shop's for the form's "use my shop's level".
+            'low_stock_alert'      => $product->low_stock_alert ?? 'shop',
+            'low_stock_threshold'  => $product->low_stock_threshold,
+            'low_stock_level'      => $level,
+            'shop_low_stock_level' => $shopLevel,
             'store_category_ids'   => $product->relationLoaded('storeCategories') ? $product->storeCategories->pluck('id')->values() : [],
             'net_weight_volume'    => $product->net_weight_volume,
             'expiry_best_before'   => $product->expiry_best_before,
@@ -358,7 +368,7 @@ class SellerProductController extends Controller
                 'price'          => (float) $v->price,
                 'regular_price'  => (float) $v->price,
                 'current_price'  => $book->unit($v)['price'],
-                'low_stock'      => $v->stock_quantity <= \App\Models\ProductVariant::LOW_STOCK_THRESHOLD,
+                'low_stock'      => $level !== null && $v->stock_quantity <= $level,
             ])->values(),
         ];
     }

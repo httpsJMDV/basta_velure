@@ -23,7 +23,7 @@ class ProductVariant extends Model
 {
     use SoftDeletes;
 
-    /** A29: stock at or below this is low; the seller is alerted once per crossing. */
+    /** A29: a shop's low-stock level unless the seller sets another; the seller is alerted once per crossing. */
     public const LOW_STOCK_THRESHOLD = 5;
 
     protected $fillable = ['product_id', 'label', 'sku', 'price', 'original_price', 'stock_quantity', 'low_stock_alerted_at'];
@@ -46,10 +46,16 @@ class ProductVariant extends Model
         });
     }
 
-    /** A29: the alert fires once when stock drops to the threshold or below, and re-arms when stock goes back above it. */
+    /**
+     * A29: the alert fires once when stock drops to the product's level or below, and re-arms when stock goes back
+     * above it. A product listed at or below its level (a single laptop) gets no alert until it has been above it.
+     */
     public static function stockChanged(ProductVariant $variant, int $old, int $new): void
     {
-        $limit = self::LOW_STOCK_THRESHOLD;
+        $limit = Product::withTrashed()->find($variant->product_id)?->lowStockLevel();
+        if ($limit === null) {
+            return;
+        }
 
         if ($new <= $limit && $old > $limit && ! $variant->low_stock_alerted_at) {
             static::withoutEvents(fn () => $variant->forceFill(['low_stock_alerted_at' => now()])->saveQuietly());
@@ -66,6 +72,18 @@ class ProductVariant extends Model
         if ($variant) {
             self::stockChanged($variant, $variant->stock_quantity - $delta, $variant->stock_quantity);
         }
+    }
+
+    /**
+     * The seller's variants at or below their product's alert level (A29): archived listings and products with no alert
+     * are left out.
+     */
+    public function scopeLowStockFor($query, int $sellerId)
+    {
+        $shop = Product::shopLowStockLevel($sellerId);
+
+        return $query->whereHas('product', fn ($q) => $q->where('seller_id', $sellerId)->where('status', '!=', 'archived')->where('low_stock_alert', '!=', 'off')
+            ->whereRaw("product_variants.stock_quantity <= CASE WHEN products.low_stock_alert = 'custom' THEN COALESCE(products.low_stock_threshold, ?) ELSE ? END", [$shop, $shop]));
     }
 
     public function product(): BelongsTo

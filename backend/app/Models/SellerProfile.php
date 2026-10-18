@@ -15,6 +15,7 @@ class SellerProfile extends Model
     protected $hidden = ['gcash_number'];
 
     protected $fillable = [
+        'low_stock_threshold',
         'gcash_number',
         'gcash_account_name',
         'gcash_qr_path',

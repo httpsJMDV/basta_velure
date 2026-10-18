@@ -64,6 +64,8 @@ class SellerShopProfileController extends Controller
             'logo'                => ['sometimes', ...\App\Support\Validation::image()],
             'banner'              => ['sometimes', ...\App\Support\Validation::image()],
             'on_vacation'         => ['sometimes', 'boolean'],
+            // A29: alert at this stock or below (0: only when sold out); a product can set its own.
+            'low_stock_threshold' => ['sometimes', 'required', 'integer', 'min:0', 'max:999'],
         ];
 
         if ($request->hasAny($addressFields)) {
@@ -95,6 +97,10 @@ class SellerShopProfileController extends Controller
             'address_city_code.required'   => 'City / Municipality is required.',
             'address_barangay_code.required' => 'Barangay is required.',
             'address_postal_code.regex'    => \App\Support\Validation::POSTAL_MESSAGE,
+            'low_stock_threshold.required' => 'Enter a low-stock level from 0 to 999.',
+            'low_stock_threshold.integer'  => 'The low-stock level must be a whole number from 0 to 999.',
+            'low_stock_threshold.min'      => 'The low-stock level must be a whole number from 0 to 999.',
+            'low_stock_threshold.max'      => 'The low-stock level must be a whole number from 0 to 999.',
             ...\App\Support\Validation::uploadMessages('logo', 'the logo'),
             ...\App\Support\Validation::uploadMessages('banner', 'the banner'),
         ]);
@@ -147,6 +153,7 @@ class SellerShopProfileController extends Controller
             'shipping_policy'     => $p->shipping_policy,
             'business_hours'      => $p->business_hours,
             'response_time'       => $p->response_time,
+            'low_stock_threshold' => (int) ($p->low_stock_threshold ?? \App\Models\ProductVariant::LOW_STOCK_THRESHOLD),
             'logo_url'            => $p->logo_path ? asset('storage/' . $p->logo_path) : null,
             'banner_url'          => $p->banner_path ? asset('storage/' . $p->banner_path) : null,
             'application_status'  => $p->application_status,

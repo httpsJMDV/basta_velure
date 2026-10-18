@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera, Store, MapPin, CheckCircle2, AlertTriangle,
   Loader2, Pencil, X, Phone, Clock, Shield, Copy, Check,
-  Star, Package, Users, MessageCircle, ExternalLink, Palmtree,
+  Star, Package, Users, MessageCircle, ExternalLink, Palmtree, Bell,
 } from 'lucide-react';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { fileError, phoneError, postalError } from '../../utils/accountRules';
@@ -289,6 +289,7 @@ export default function SellerShopProfilePage() {
   const [shippingPolicy, setShippingPolicy] = useState('');
   const [businessHours, setBusinessHours] = useState('');
   const [responseTime, setResponseTime] = useState('');
+  const [lowStockLevel, setLowStockLevel] = useState('5');
   const [postalCode, setPostalCode] = useState('');
   const [onVacation, setOnVacation] = useState(false);
   const [vacationBusy, setVacationBusy] = useState(false);
@@ -327,6 +328,7 @@ export default function SellerShopProfilePage() {
         setShippingPolicy(p.shipping_policy ?? '');
         setBusinessHours(p.business_hours ?? '');
         setResponseTime(p.response_time ?? '');
+        setLowStockLevel(String(p.low_stock_threshold ?? 5));
         setPostalCode(p.address_postal_code ?? '');
         setOnVacation(!!p.on_vacation);
         setPsgcAddress({
@@ -393,6 +395,7 @@ export default function SellerShopProfilePage() {
     if (!psgcAddress.barangay) e.address_barangay = 'Barangay is required.';
     if (!psgcAddress.street.trim()) e.address_street = 'Street address is required.';
     if (postalCode.trim()) { const p = postalError(postalCode); if (p) e.address_postal_code = p; }
+    if (!/^\d+$/.test(lowStockLevel.trim()) || Number(lowStockLevel) > 999) e.low_stock_threshold = 'Enter a whole number from 0 to 999.';
     if (errors.logo) e.logo = errors.logo;
     if (errors.banner) e.banner = errors.banner;
     return e;
@@ -418,6 +421,7 @@ export default function SellerShopProfilePage() {
     form.append('shipping_policy', shippingPolicy.trim());
     form.append('business_hours', businessHours.trim());
     form.append('response_time', responseTime);
+    form.append('low_stock_threshold', lowStockLevel.trim());
     form.append('address_province', psgcAddress.provinceName || psgcAddress.province);
     form.append('address_city', psgcAddress.cityName || psgcAddress.city);
     form.append('address_barangay', psgcAddress.barangayName || psgcAddress.barangay);
@@ -708,6 +712,34 @@ export default function SellerShopProfilePage() {
                 placeholder="Select response time"
               />
             </Field>
+          </div>
+        </Card>
+
+        {/* ── Stock alerts (A29) ── */}
+        <Card>
+          <CardHeader icon={Bell} title="Stock Alerts" />
+          <div className="px-6 py-5 grid gap-5 sm:grid-cols-[minmax(0,220px)_1fr] items-start">
+            <Field label="Low-stock level" error={errors.low_stock_threshold}>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" min={0} max={999} step={1} inputMode="numeric"
+                  value={lowStockLevel}
+                  onChange={(e) => setLowStockLevel(e.target.value)}
+                  aria-label="Low-stock level"
+                  className={`${inputCls(errors.low_stock_threshold)} !w-28`}
+                />
+                <span className="text-[12.5px] text-gray-500">units or fewer</span>
+              </div>
+            </Field>
+            <div className="text-[12.5px] leading-relaxed text-gray-600 space-y-1.5">
+              <p>
+                You get one notification when a product's stock falls to this level, and again only after you restock above it.
+                {' '}<b className="font-semibold text-gray-800">0</b> means you hear about a product only when it sells out.
+              </p>
+              <p className="text-gray-500">
+                A grocery that sells fast might use 20; a shop of big appliances, 2. Each product can also use its own level, or none, in its Sales section.
+              </p>
+            </div>
           </div>
         </Card>
 

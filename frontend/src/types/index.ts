@@ -2011,7 +2011,15 @@ export interface SellerProduct {
   store_category_ids?: number[];
   purchase_limit?: number | null;
   published_at?: string | null;
+  /** A29: follow the shop's low-stock level, use the product's own (0: only when sold out), or no alert. */
+  low_stock_alert?: LowStockAlertMode;
+  low_stock_threshold?: number | null;
+  /** The level in force for this product (null: no alert), and the shop's level. */
+  low_stock_level?: number | null;
+  shop_low_stock_level?: number;
 }
+
+export type LowStockAlertMode = 'shop' | 'custom' | 'off';
 
 export interface SellerProductCounts {
   all: number;
@@ -2090,6 +2098,9 @@ export interface AddProductFormState {
   storeCategoryIds: number[];
   /** The most units one buyer can ever buy ('' = no limit). */
   purchaseLimit: string;
+  /** The low-stock alert: the shop's level, this product's own, only when sold out (own level 0), or none. */
+  lowStockMode: 'shop' | 'custom' | 'sold_out' | 'off';
+  lowStockLevel: string;
 }
 
 // ─── Wishlist & Store Follows ────────────────────────────────────────────────

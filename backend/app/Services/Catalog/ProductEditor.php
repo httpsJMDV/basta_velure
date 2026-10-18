@@ -70,6 +70,9 @@ class ProductEditor
             'dimension_w_cm'       => ['nullable', 'numeric', 'gt:0', 'max:1000'],
             'dimension_h_cm'       => ['nullable', 'numeric', 'gt:0', 'max:1000'],
             'purchase_limit'       => ['nullable', 'integer', 'min:1', 'max:99999'],
+            // A29: follow the shop's low-stock level, use this product's own (0: only when it sells out), or no alert.
+            'low_stock_alert'      => ['nullable', 'in:shop,custom,off'],
+            'low_stock_threshold'  => ['nullable', 'required_if:low_stock_alert,custom', 'integer', 'min:0', 'max:999'],
             'sku'                  => ['nullable', 'string', 'max:100'],
             'images'               => ['nullable', 'array', 'max:' . self::MAX_IMAGES],
             'images.*'             => Validation::image(),
@@ -117,6 +120,10 @@ class ProductEditor
             'dimension_w_cm.numeric' => 'Dimensions must be numbers.',
             'dimension_h_cm.numeric' => 'Dimensions must be numbers.',
             'purchase_limit.min'     => 'The purchase limit must be at least 1.',
+            'low_stock_threshold.required_if' => 'Enter the stock level for this product\'s alert (0 alerts only when it sells out).',
+            'low_stock_threshold.integer'     => 'The alert level must be a whole number from 0 to 999.',
+            'low_stock_threshold.min'         => 'The alert level must be a whole number from 0 to 999.',
+            'low_stock_threshold.max'         => 'The alert level must be a whole number from 0 to 999.',
             'images.max'             => 'A product can have at most 9 images.',
             'images.*.mimes'         => 'Product images must be JPG or PNG files.',
             'images.*.max'           => 'Each product image must be 5 MB or smaller.',
@@ -254,6 +261,12 @@ class ProductEditor
                     'storage_instructions' => $data['storage_instructions'] ?? null,
                     'allergen_info'        => $data['allergen_info'] ?? null,
                 ];
+                // An older form that sends no alert setting keeps the product's current one.
+                $alert = $data['low_stock_alert'] ?? $product?->low_stock_alert ?? 'shop';
+                $fields['low_stock_alert'] = $alert;
+                $fields['low_stock_threshold'] = $alert === 'custom'
+                    ? (int) (array_key_exists('low_stock_threshold', $data) ? $data['low_stock_threshold'] : $product?->low_stock_threshold)
+                    : null;
                 if ($status === 'active') {
                     $fields['published_at'] = $product?->published_at ?? now();
                     $fields['archived_by'] = null;

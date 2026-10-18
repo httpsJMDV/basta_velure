@@ -38,10 +38,8 @@ class SellerDashboardController extends Controller
             ->where('status', '!=', 'archived')
             ->count();
 
-        // A29: the same threshold as the alert; archived listings are not counted.
-        $lowStockCount = ProductVariant::whereHas('product', fn ($q) => $q->where('seller_id', $sellerId)->where('status', '!=', 'archived'))
-            ->where('stock_quantity', '<=', ProductVariant::LOW_STOCK_THRESHOLD)
-            ->count();
+        // A29: each product's own alert level (the shop's unless the product sets one); archived listings are not counted.
+        $lowStockCount = ProductVariant::lowStockFor($sellerId)->count();
 
         // Real money position (was a hardcoded placeholder), from the same calculation as the earnings page.
         $balance = app(SellerBalanceCalculator::class)->forSeller($sellerId);
@@ -120,7 +118,7 @@ class SellerDashboardController extends Controller
         // 2. Low stock variants
         $lowStockVariants = ProductVariant::with('product')
             ->whereHas('product', fn ($q) => $q->where('seller_id', $sellerId)->where('status', 'active'))
-            ->where('stock_quantity', '<=', ProductVariant::LOW_STOCK_THRESHOLD)
+            ->lowStockFor($sellerId)
             ->orderBy('stock_quantity')
             ->take(3)
             ->get();

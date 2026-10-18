@@ -17,7 +17,7 @@ class Product extends Model
         'dimension_l_cm', 'dimension_w_cm', 'dimension_h_cm', 'sku',
         'fda_lto_path', 'fda_cpr_path', 'net_weight_volume',
         'expiry_best_before', 'ingredients', 'storage_instructions', 'allergen_info',
-        'variation_types', 'purchase_limit', 'publish_key', 'published_at',
+        'variation_types', 'purchase_limit', 'publish_key', 'published_at', 'low_stock_alert', 'low_stock_threshold',
     ];
 
     /** Order statuses after which an order no longer holds a product or variant (A19). */
@@ -61,6 +61,25 @@ class Product extends Model
             ->when($variantId, fn ($q) => $q->where('product_variant_id', $variantId))
             ->whereHas('order', fn ($q) => $q->whereNotIn('status', self::FINISHED_ORDER_STATUSES))
             ->exists();
+    }
+
+    /**
+     * A29: the stock at or below which the seller is alerted, or null when this product has no alert. A product
+     * follows its shop's level (5 unless the seller changed it), has its own (0: only when it sells out), or is off.
+     */
+    public function lowStockLevel(?int $shopLevel = null): ?int
+    {
+        return match ($this->low_stock_alert) {
+            'off'    => null,
+            'custom' => (int) $this->low_stock_threshold,
+            default  => $shopLevel ?? self::shopLowStockLevel($this->seller_id),
+        };
+    }
+
+    /** The shop's low-stock level. */
+    public static function shopLowStockLevel(int $sellerId): int
+    {
+        return (int) (SellerProfile::where('user_id', $sellerId)->value('low_stock_threshold') ?? ProductVariant::LOW_STOCK_THRESHOLD);
     }
 
     public function seller(): BelongsTo

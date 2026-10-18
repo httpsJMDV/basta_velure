@@ -421,6 +421,51 @@ class CommerceOrdersTest extends TestCase
         $this->assertSame(1, $this->getJson('/api/v1/seller/dashboard/stats')->json('data.low_stock_count'));
     }
 
+    /** A29 per shop and per product: the shop's own level, a one-off laptop alerted when it sells out, and no alert. */
+    public function test_a_shop_and_each_product_can_set_their_own_low_stock_level(): void
+    {
+        $buyer = $this->buyer();
+        $addr = $this->address($buyer, $this->qc);
+        $seller = $this->seller('Level Test Appliances', $this->qc);
+
+        // The shop's level: 0 to 999.
+        Sanctum::actingAs($seller);
+        $this->postJson('/api/v1/seller/shop-profile', ['low_stock_threshold' => 1000])->assertStatus(422)->assertJsonValidationErrors(['low_stock_threshold']);
+        $this->postJson('/api/v1/seller/shop-profile', ['low_stock_threshold' => 2])->assertOk()->assertJsonPath('data.low_stock_threshold', 2);
+
+        [, $a] = $this->product($seller, 'Stand Fan 16 inch', ['Default' => [1500, 3]], 4.0);                                        // follows the shop (2)
+        [, $b] = $this->product($seller, 'Gaming Laptop 15', ['Default' => [45000, 1]], 2.2, ['low_stock_alert' => 'custom', 'low_stock_threshold' => 0]); // one unit: tell me when sold
+        [, $c] = $this->product($seller, 'Rice Cooker 1L', ['Default' => [1200, 3]], 2.0, ['low_stock_alert' => 'off']);             // no alert
+        [, $d] = $this->product($seller, 'Wall Clock', ['Default' => [600, 1]], 0.5);                                                 // listed below the level
+        $alerts = fn () => $seller->notifications()->where('data->kind', 'stock.low')->get();
+
+        Sanctum::actingAs($buyer);
+        foreach ([$a, $b, $c, $d] as $variants) {
+            $this->place($addr, $variants['Default'], 1, 'cod');
+        }
+
+        // Only the fan (3 → 2, the shop's level) and the laptop (1 → 0, its own level of 0) alert.
+        $this->assertEqualsCanonicalizing(['Low stock', 'Sold out'], $alerts()->pluck('data.title')->all());
+        $this->assertStringContainsString('Gaming Laptop 15 is sold out', $alerts()->firstWhere('data.title', 'Sold out')->data['body']);
+
+        // The dashboard counts each product against its own level: the fan, the laptop and the clock; not the rice cooker.
+        Sanctum::actingAs($seller);
+        $this->assertSame(3, $this->getJson('/api/v1/seller/dashboard/stats')->json('data.low_stock_count'));
+
+        // The product form: a custom level needs a number from 0 to 999, and the product shows what is in force.
+        $slug = $a['Default']->product->category->slug;
+        $this->postJson('/api/v1/seller/products', ['name' => 'Gaming Laptop 17', 'category_slug' => $slug, 'publish' => false, 'low_stock_alert' => 'custom'])
+            ->assertStatus(422)->assertJsonValidationErrors(['low_stock_threshold']);
+        $this->postJson('/api/v1/seller/products', ['name' => 'Gaming Laptop 17', 'category_slug' => $slug, 'publish' => false, 'low_stock_alert' => 'custom', 'low_stock_threshold' => 1000])
+            ->assertStatus(422)->assertJsonValidationErrors(['low_stock_threshold']);
+        $id = $this->postJson('/api/v1/seller/products', ['name' => 'Gaming Laptop 17', 'category_slug' => $slug, 'publish' => false, 'low_stock_alert' => 'custom', 'low_stock_threshold' => 0])
+            ->assertSuccessful()->json('data.id');
+        $this->getJson("/api/v1/seller/products/{$id}")->assertOk()
+            ->assertJsonPath('data.low_stock_alert', 'custom')->assertJsonPath('data.low_stock_level', 0)->assertJsonPath('data.shop_low_stock_level', 2);
+        $this->getJson("/api/v1/seller/products/{$a['Default']->product_id}")->assertJsonPath('data.low_stock_level', 2)
+            ->assertJsonPath('data.variants.0.low_stock', true);
+    }
+
     public function test_the_admin_finds_a_case_by_buyer_or_shop_and_can_side_with_the_shop(): void
     {
         Storage::fake('public');
