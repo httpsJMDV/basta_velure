@@ -200,6 +200,7 @@ class CommerceSettingsTest extends TestCase
         $log = AuditLog::where('logistics_company_id', $company->id)->where('action', 'shipping.rate_changed')->latest('id')->first();
         $this->assertEqualsWithDelta(0.01, $log->old_value['first_kg'], 0.0001);
         $this->assertEqualsWithDelta(55.0, $log->new_value['first_kg'], 0.0001);
+        $this->assertSame('NCR → NCR', $log->new_value['route']);
         $this->assertNotEmpty($this->getJson('/api/v1/logistics/shipping/audit')->json('data'));
 
         // Another company's zone is not usable.

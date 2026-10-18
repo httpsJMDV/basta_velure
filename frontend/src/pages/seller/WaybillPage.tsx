@@ -123,6 +123,9 @@ export default function WaybillPage() {
   }
 
   const { order, sender, recipient, items, cod } = waybill;
+  const weight = waybill.parcel.weight_kg != null ? Number(waybill.parcel.weight_kg) : null;
+  const chargeable = waybill.parcel.chargeable_weight_kg != null ? Number(waybill.parcel.chargeable_weight_kg) : null;
+  const prepaidLabel = order.payment_method === 'e_wallet' ? 'E-WALLET PREPAID' : order.payment_method === 'card' ? 'CARD PREPAID' : 'GCASH PREPAID';
 
   return (
     <div className="min-h-screen bg-gray-100 py-6 px-4 print:p-0 print:bg-white text-gray-900">
@@ -187,6 +190,12 @@ export default function WaybillPage() {
           </div>
           <div className="mt-1 flex items-center justify-between text-[9px] text-gray-600 px-1">
             <span>Order #{order.order_number}</span>
+            {weight !== null && (
+              <span className="font-bold text-gray-900">
+                {weight.toLocaleString('en-PH', { maximumFractionDigits: 2 })} KG
+                {chargeable !== null && chargeable !== weight && <span className="font-medium text-gray-600"> · charged {chargeable} KG</span>}
+              </span>
+            )}
             <span>{order.created_at ? new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</span>
           </div>
         </div>
@@ -237,7 +246,7 @@ export default function WaybillPage() {
             </div>
           ) : (
             <div>
-              <span className="text-[9px] font-extrabold tracking-wider uppercase block text-gray-700">PAYMENT: GCASH PREPAID</span>
+              <span className="text-[9px] font-extrabold tracking-wider uppercase block text-gray-700">PAYMENT: {prepaidLabel}</span>
               <span className="text-sm font-black tracking-tight text-gray-900 uppercase">
                 PAID — DO NOT COLLECT
               </span>

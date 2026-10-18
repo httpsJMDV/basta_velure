@@ -979,7 +979,7 @@ export interface OrderStatusHistory {
   created_at: string;
 }
 
-export type PaymentMethod = 'gcash' | 'cod';
+export type PaymentMethod = 'gcash' | 'cod' | 'e_wallet' | 'card';
 export type PaymentStatus = 'pending' | 'pending_verification' | 'paid' | 'failed' | 'cod' | 'verification_failed' | 'refunded';
 
 export interface OrderItem {
@@ -998,7 +998,13 @@ export interface OrderItem {
   seller_earnings?: number;
   payout_status?: string;
   image_url: string | null;
+  regular_unit_price?: number | null;
+  price_source?: 'regular' | 'sale' | 'flash' | null;
+  is_gift?: boolean;
+  promo_share?: number;
 }
+
+export type BuyerOrderTab = 'to_pay' | 'to_ship' | 'to_receive' | 'completed' | 'cancelled' | 'return_refund';
 
 export interface Order {
   id: number;
@@ -1040,10 +1046,33 @@ export interface Order {
   delivery_proof_available?: boolean;
   /** How many proof photos exist (older deliveries have one, new ones have two). */
   delivery_proof_count?: number;
-  /** Set when the buyer has an open return request for this order. */
-  dispute?: { id: number; status: string } | null;
+  /** The return request (A31), with its evidence and the shop's answer. */
+  dispute?: import('./../api/commerce').ReturnRequestView | null;
   items: OrderItem[];
   status_history?: OrderStatusHistory[];
+  /** The buyer tab the order is in (A10). */
+  tab?: BuyerOrderTab;
+  payment_due_at?: string | null;
+  paid_at?: string | null;
+  /** Set while an e-wallet or card payment can still be made. */
+  payment_token?: string | null;
+  promo_discount?: number;
+  store_voucher_discount?: number;
+  platform_voucher_discount?: number;
+  shipping_voucher_discount?: number;
+  vouchers?: { scope: 'store' | 'platform' | 'shipping'; code: string | null; discount: number }[];
+  chargeable_weight_kg?: number | null;
+  shipping_route?: string | null;
+  cancel_reason?: string | null;
+  cancelled_by?: string | null;
+  cancelled_at?: string | null;
+  refund_status?: 'pending' | 'refunded' | null;
+  refund_amount?: number | null;
+  refunded_at?: string | null;
+  can_cancel?: boolean;
+  can_return?: boolean;
+  return_unavailable_reason?: string | null;
+  return_window_ends_at?: string | null;
 }
 
 export interface SellerOrderItem {
@@ -1058,6 +1087,11 @@ export interface SellerOrderItem {
   seller_earnings: number;
   payout_status: string;
   image_url: string | null;
+  regular_unit_price?: number | null;
+  price_source?: string | null;
+  is_gift?: boolean;
+  promo_share?: number;
+  store_voucher_share?: number;
 }
 
 export interface SellerOrder {
@@ -1100,6 +1134,25 @@ export interface SellerOrder {
   } | null;
   items: SellerOrderItem[];
   status_history?: OrderStatusHistory[];
+  /** An e-wallet or card order waiting for the buyer to pay (it cannot be accepted yet). */
+  awaiting_payment?: boolean;
+  payment_due_at?: string | null;
+  paid_at?: string | null;
+  tab?: string | null;
+  shipping_route?: string | null;
+  chargeable_weight_kg?: number | null;
+  promo_discount?: number;
+  store_voucher_discount?: number;
+  store_voucher_code?: string | null;
+  platform_voucher_discount?: number;
+  shipping_voucher_discount?: number;
+  cancel_reason?: string | null;
+  cancelled_by?: string | null;
+  cancelled_at?: string | null;
+  refund_status?: string | null;
+  refund_amount?: number | null;
+  can_cancel?: boolean;
+  dispute?: import('./../api/commerce').ReturnRequestView | null;
 }
 
 export interface WaybillData {
@@ -1120,6 +1173,9 @@ export interface WaybillData {
     destination_barangay: string | null;
     destination_barangay_code?: string | null;
     cod_amount: number | null;
+    /** Actual parcel weight, and the whole kilograms it is charged as (A20). */
+    weight_kg?: number | null;
+    chargeable_weight_kg?: number | null;
   };
   sender: {
     shop_name?: string;
@@ -1186,6 +1242,13 @@ export interface SellerOrderEarningsItem {
   delivered_date: string | null;
   /** Feature 2.8: when this item's escrow releases; null until the order is COMPLETED. */
   escrow_release_at?: string | null;
+  /** The shop's own voucher and promotion share on this line; they come off before the commission. */
+  seller_discounts?: number;
+  gross_after_discounts?: number;
+  /** Pending until the order is Completed, then Available (A3). */
+  earning_status?: 'pending' | 'available';
+  settlement?: string | null;
+  payment_method?: PaymentMethod | null;
 }
 
 export interface PayoutRequest {
@@ -1296,7 +1359,11 @@ export interface AdminPaymentStats {
 
 // ─── Admin Disputes ───────────────────────────────────────────────────────────
 
-export type DisputeStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+/**
+ * Return requests (A31) move pending → approved, or pending → rejected → escalated → approved/closed. The older
+ * open / in_progress / resolved / closed values are kept for claims raised before the return flow.
+ */
+export type DisputeStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'pending' | 'approved' | 'rejected' | 'escalated';
 
 export interface AdminDispute {
   id: number;
@@ -1305,12 +1372,25 @@ export interface AdminDispute {
   resolution_note: string | null;
   resolved_at: string | null;
   created_at: string;
+  /** The buyer's own words on a return request, and their evidence photos. */
+  description?: string | null;
+  photos?: string[];
+  seller?: { id: number; shop_name: string | null } | null;
+  seller_reason?: string | null;
+  seller_responded_at?: string | null;
+  escalated_at?: string | null;
+  auto_approved?: boolean;
+  refund_amount?: number | null;
+  /** Still waiting for Loved-IT's decision. */
+  can_decide?: boolean;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
   order: {
     id: number;
     order_number: string;
     total: number;
     status: OrderStatus;
+    payment_method?: PaymentMethod;
+    refund_status?: string | null;
     items?: OrderItem[];
   } | null;
   resolver?: { first_name: string; last_name: string } | null;
@@ -1320,6 +1400,10 @@ export interface AdminDisputeStats {
   open: number;
   in_progress: number;
   resolved: number;
+  /** Returns the buyer escalated after the shop rejected them. */
+  escalated?: number;
+  /** Returns the shop still has to answer. */
+  awaiting_seller?: number;
 }
 
 // ─── Admin Reviews ────────────────────────────────────────────────────────────
@@ -1651,6 +1735,8 @@ export interface ProductDetail extends Omit<Product, 'variants' | 'thumbnail_url
   upcoming_flash_sale?: { id: number; price: number; quantity: number; starts_at: string; ends_at: string; reminder_set: boolean } | null;
   on_vacation?: boolean;
   purchase_limit?: number | null;
+  /** Units the signed-in buyer already bought, for the per-buyer limit. */
+  purchased_by_you?: number;
   total_stock?: number;
 }
 
@@ -2017,6 +2103,8 @@ export interface Address {
   ward?: string;
   barangay_name?: string;
   barangay_code?: string;
+  region?: string | null;
+  region_code?: string | null;
   address_needs_update?: boolean;
   label?: AddressLabel;
   is_default: boolean;
@@ -2141,12 +2229,20 @@ export interface TopSellerItem {
 export interface PaymentMethodSplit {
   gcash: { count: number; volume: number };
   cod: { count: number; volume: number };
+  /** E-wallet and card orders paid through Loved-IT's gateway. */
+  e_wallet_card?: { count: number; volume: number };
   total_orders: number;
   total_volume: number;
 }
 
 export interface SellerReportSummary {
+  /** Item subtotals before the shop's own vouchers and promotions; shipping is not included (A9). */
   gross_sales: number;
+  /** The shop's own vouchers and promotions, which come off before the commission. */
+  seller_discounts?: number;
+  /** The window the totals cover, as Manila dates (null for all time). */
+  from?: string | null;
+  to?: string | null;
   net_earnings: number;
   commission_paid: number;
   total_orders: number;

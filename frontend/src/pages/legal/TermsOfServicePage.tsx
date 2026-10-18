@@ -1,5 +1,4 @@
 import LegalLayout, { LegalPoint, type LegalSection } from '../../components/legal/LegalLayout';
-import { DELIVERY_FEE } from '../../utils/shipping';
 
 const SECTIONS: { id: string; title: string; points: { title: string; text: string }[] }[] = [
   {
@@ -32,7 +31,7 @@ const SECTIONS: { id: string; title: string; points: { title: string; text: stri
     id: 'delivery',
     title: 'Delivery',
     points: [
-      { title: 'Delivery fee', text: `Each shop in your cart ships its own parcel, and each parcel has a flat delivery fee of ₱${DELIVERY_FEE}. A shop may deliver free when your order from it reaches a minimum the shop sets; it then pays the courier itself.` },
+      { title: 'Delivery fee', text: 'Each shop in your cart ships its own parcel. Its fee comes from the courier\'s rate for the route between the shop and your address, for the parcel\'s weight rounded up to the next whole kilogram, and is shown before you place the order. A shop may deliver free when your order from it reaches a minimum the shop sets; it then pays the courier itself.' },
       { title: 'Couriers', text: 'Parcels are carried by partner couriers. Loved-IT assigns each parcel to the courier whose hubs cover the shop and your address; you can follow it with its tracking number.' },
     ],
   },

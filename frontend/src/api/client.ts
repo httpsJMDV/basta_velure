@@ -393,6 +393,10 @@ export const setDefaultAddressApi = (id: number) =>
   http.patch<{ data: Address }>(`/addresses/${id}/default`).then((r) => r.data.data);
 
 // Orders
+/** The buyer's orders, one tab and page at a time, with the counts of every tab (B10). */
+export const getBuyerOrdersPageApi = (params: { tab?: string; page?: number; per_page?: number; search?: string }) =>
+  http.get<{ data: Order[]; meta: { current_page: number; last_page: number; total: number }; counts: Record<string, number> }>('/buyer/orders', { params }).then((r) => r.data);
+
 export const getOrdersApi = (params?: { status?: string; search?: string }) =>
   http.get<{ data: Order[] } | PaginatedResponse<Order>>('/buyer/orders', { params }).then((r) =>
     Array.isArray(r.data.data) ? r.data.data : []
@@ -432,8 +436,11 @@ export const getAdminDisputesApi = (params?: { status?: DisputeStatus; search?: 
 export const getAdminDisputeApi = (id: number) =>
   http.get<{ data: AdminDispute }>(`/admin/disputes/${id}`).then((r) => r.data.data);
 
-export const resolveDisputeApi = (id: number, status: 'resolved' | 'closed', resolution_note: string) =>
-  http.patch<{ data: AdminDispute }>(`/admin/disputes/${id}/resolve`, { status, resolution_note }).then((r) => r.data.data);
+/** Record a decision. An escalated return takes decision=refund|reject; an older claim takes status=resolved|closed. */
+export const resolveDisputeApi = (
+  id: number,
+  body: { decision: 'refund' | 'reject'; resolution_note: string } | { status: 'resolved' | 'closed'; resolution_note: string },
+) => http.patch<{ data: AdminDispute }>(`/admin/disputes/${id}/resolve`, body).then((r) => r.data.data);
 
 export const getAdminDisputeStatsApi = () =>
   http.get<{ data: AdminDisputeStats }>('/admin/disputes/stats').then((r) => r.data.data);
@@ -506,9 +513,6 @@ export const getRelatedProductsApi = (id: number) =>
 
 export const toggleWishlistApi = (productId: number) =>
   http.post<{ wishlisted: boolean }>(`/wishlist/toggle`, { product_id: productId }).then((r) => r.data);
-
-export const addToCartApi = (variantId: number, quantity: number) =>
-  http.post('/cart/items', { variant_id: variantId, quantity });
 
 // Wishlist
 export const getWishlistApi = (params?: { sort?: string; page?: number }) =>
@@ -755,11 +759,6 @@ export const searchAdminContactsApi = (query: string) =>
 
 // ─── Buyer Checkout & Orders ──────────────────────────────────────────────────
 
-export const placeOrderApi = (formData: FormData) =>
-  http.post<{ message: string; data: Order; orders?: Order[]; checkout_group_id?: string }>('/checkout/place-order', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then((r) => r.data);
-
 export const getBuyerOrdersApi = (params?: { status?: string; page?: number }) =>
   http.get<PaginatedResponse<Order>>('/buyer/orders', { params }).then((r) => r.data);
 
@@ -775,9 +774,6 @@ export const getDeliveryProofBlobUrl = async (trackingNumber: string, photo: 1 |
   return URL.createObjectURL(res.data as Blob);
 };
 
-export const requestBuyerOrderReturnApi = (orderId: number, payload: { reason: string; description: string }) =>
-  http.post<{ message: string; data: Order }>(`/buyer/orders/${orderId}/request-return`, payload).then((r) => r.data);
-
 // ─── Platform Policies (Hybrid Model) ──────────────────────────────────────────
 
 export const getPlatformPoliciesApi = () =>
@@ -791,8 +787,8 @@ export const updateAdminReturnPolicySettingsApi = (payload: any) =>
 
 // ─── Seller Orders & Payment Verification ─────────────────────────────────────
 
-export const getSellerOrdersApi = (params?: { status?: string; search?: string; page?: number }) =>
-  http.get<PaginatedResponse<SellerOrder> & { counts?: { pending_verification: number; to_ship: number } }>(
+export const getSellerOrdersApi = (params?: { status?: string; tab?: string; search?: string; page?: number; from?: string; to?: string }) =>
+  http.get<PaginatedResponse<SellerOrder> & { counts?: Record<string, number> }>(
     '/seller/orders',
     { params }
   ).then((r) => r.data);
@@ -808,9 +804,6 @@ export const confirmSellerOrderPaymentApi = (orderId: number) =>
 
 export const rejectSellerOrderPaymentApi = (orderId: number, reason: string) =>
   http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/reject-payment`, { reason }).then((r) => r.data);
-
-export const respondSellerOrderReturnApi = (orderId: number, payload: { action: 'accept' | 'reject' | 'partial_refund'; reason?: string; partial_amount?: number }) =>
-  http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/respond-return`, payload).then((r) => r.data);
 
 export const updateSellerOrderStatusApi = (orderId: number, status: string) =>
   http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/status`, { status }).then((r) => r.data);
@@ -874,17 +867,20 @@ export const updateAdminCommissionSettingsApi = (payload: { base_rate_percent: n
 
 // ─── Seller Reports ────────────────────────────────────────────────────────────
 
-export const getSellerReportSummaryApi = (range?: string) =>
-  http.get<{ data: SellerReportSummary }>('/seller/reports/summary', { params: { range } }).then((r) => r.data.data);
+/** A report window: a preset (today, 7d, 30d, 90d, 12m) or a custom from/to in Manila dates, both days included. */
+export type SellerReportWindow = { range?: string; from?: string; to?: string };
 
-export const getSellerRevenueChartApi = (params?: { range?: string; interval?: string }) =>
+export const getSellerReportSummaryApi = (params?: SellerReportWindow) =>
+  http.get<{ data: SellerReportSummary }>('/seller/reports/summary', { params }).then((r) => r.data.data);
+
+export const getSellerRevenueChartApi = (params?: SellerReportWindow & { interval?: string }) =>
   http.get<{ data: SellerRevenueChartPoint[] }>('/seller/reports/revenue-chart', { params }).then((r) => r.data.data);
 
-export const getSellerPaymentMethodsApi = (range?: string) =>
-  http.get<{ data: PaymentMethodSplit }>('/seller/reports/payment-methods', { params: { range } }).then((r) => r.data.data);
+export const getSellerPaymentMethodsApi = (params?: SellerReportWindow) =>
+  http.get<{ data: PaymentMethodSplit }>('/seller/reports/payment-methods', { params }).then((r) => r.data.data);
 
-export const getSellerReportTopProductsApi = (range?: string) =>
-  http.get<{ data: SellerTopProduct[] }>('/seller/reports/top-products', { params: { range } }).then((r) => r.data.data);
+export const getSellerReportTopProductsApi = (params?: SellerReportWindow) =>
+  http.get<{ data: SellerTopProduct[] }>('/seller/reports/top-products', { params }).then((r) => r.data.data);
 
 // ─── Admin Categories Management ──────────────────────────────────────────────
 

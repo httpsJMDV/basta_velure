@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { getAdminDisputesApi, getAdminDisputeApi, resolveDisputeApi, getAdminDisputeStatsApi } from '../../api/client';
 import type { AdminDispute, DisputeStatus, AdminDisputeStats } from '../../types';
@@ -7,10 +8,15 @@ import { SearchField, ListError, Pill, type PillTone, relativeTime } from '../..
 import { ShieldAlert, ChevronLeft, ChevronRight, Package, ExternalLink, Loader2, Inbox, Scale } from 'lucide-react';
 import { getStatusLabel } from '../../utils/orderStatus';
 import { peso, whole } from '../../utils/adminReports';
+import { apiErrorMessage } from '../../utils/apiError';
 
 type PageMeta = { current_page: number; last_page: number; total: number };
 
 const STATUS: Record<DisputeStatus, { label: string; tone: PillTone }> = {
+  escalated: { label: 'Escalated', tone: 'red' },
+  pending: { label: 'With the shop', tone: 'amber' },
+  rejected: { label: 'Shop rejected', tone: 'gray' },
+  approved: { label: 'Refunded', tone: 'emerald' },
   open: { label: 'Open', tone: 'red' },
   in_progress: { label: 'In progress', tone: 'amber' },
   resolved: { label: 'Resolved', tone: 'emerald' },
@@ -30,18 +36,29 @@ function buyerName(d: AdminDispute) {
   return d.buyer ? `${d.buyer.first_name} ${d.buyer.last_name}`.trim() : 'Unknown buyer';
 }
 
+/** Cases that wait on Loved-IT: escalated returns, and claims raised before the return flow. */
 function isActive(status: DisputeStatus) {
-  return status === 'open' || status === 'in_progress';
+  return status === 'escalated' || status === 'open' || status === 'in_progress';
 }
+
+/** A return request from the new flow (A31), as opposed to an older free-text claim. */
+function isReturn(d: AdminDispute) {
+  return ['pending', 'approved', 'rejected', 'escalated'].includes(d.status) || !!d.description || (d.photos?.length ?? 0) > 0;
+}
+
+const PAYMENT_LABEL: Record<string, string> = { cod: 'COD', gcash: 'GCash', e_wallet: 'e-wallet', card: 'card' };
+
+type Choice = 'refund' | 'reject' | 'resolved' | 'closed';
 
 // ─── The case file ────────────────────────────────────────────────────────────
 
 function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdated: (d: AdminDispute) => void; onBack: () => void }) {
   const [result, setResult] = useState<{ id: number; dispute: AdminDispute | null } | null>(null);
-  const [decision, setDecision] = useState<'resolved' | 'closed'>('resolved');
+  const [choice, setChoice] = useState<Choice | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
   const dispute = result?.id === disputeId ? result.dispute : null;
   const loading = result?.id !== disputeId;
 
@@ -53,17 +70,23 @@ function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdat
     return () => { alive = false; };
   }, [disputeId]);
 
+  const returnCase = dispute ? isReturn(dispute) : false;
+  const decision: Choice = choice ?? (returnCase ? 'refund' : 'resolved');
+
   async function decide() {
     if (!dispute || !note.trim()) return;
     setSaving(true);
     setError('');
     try {
-      const updated = await resolveDisputeApi(dispute.id, decision, note.trim());
+      const body = decision === 'refund' || decision === 'reject'
+        ? { decision, resolution_note: note.trim() }
+        : { status: decision, resolution_note: note.trim() };
+      const updated = await resolveDisputeApi(dispute.id, body);
       setResult({ id: disputeId, dispute: updated });
       setNote('');
       onUpdated(updated);
     } catch (err) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'The decision was not saved. Try again.');
+      setError(apiErrorMessage(err, 'The decision was not saved. Try again.'));
     } finally {
       setSaving(false);
     }
@@ -72,8 +95,22 @@ function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdat
   if (loading) return <div className="flex items-center justify-center flex-1 text-gray-400"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   if (!dispute) return <div className="flex items-center justify-center flex-1 text-[13px] text-gray-500">This case could not be loaded.</div>;
 
-  const age = ageDays(dispute.created_at);
+  const age = ageDays(dispute.escalated_at ?? dispute.created_at);
   const overdue = isActive(dispute.status) && age > 3;
+  const canDecide = dispute.can_decide ?? isActive(dispute.status);
+  const paidWith = dispute.order?.payment_method ? PAYMENT_LABEL[dispute.order.payment_method] ?? dispute.order.payment_method : null;
+  const options: [Choice, string, string][] = returnCase
+    ? [
+        ['refund', 'Refund the buyer', `The order becomes Returned and ${dispute.order ? peso(dispute.order.total) : 'the amount paid'} goes back${paidWith ? ` to the buyer's ${paidWith === 'COD' ? 'refund account' : paidWith}` : ''}. The shop does not earn on it.`],
+        ['reject', 'Side with the shop', 'The return is closed and the order is Completed, so the shop is paid. Write down why.'],
+      ]
+    : [
+        ['resolved', 'Resolve for the buyer', 'A refund, return or replacement was arranged. Write down what was agreed.'],
+        ['closed', 'Close without action', 'The claim does not hold up. Write down why, for the record.'],
+      ];
+
+  const decided = dispute.resolution_note && !canDecide;
+  const forBuyer = dispute.status === 'approved' || dispute.status === 'resolved';
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -82,28 +119,60 @@ function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdat
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-semibold text-gray-400">Case #{dispute.id} · opened {day(dispute.created_at)}</p>
-          <h2 className="text-[16px] font-bold text-gray-900 truncate">{buyerName(dispute)} <span className="font-normal text-gray-400">against</span> order <span className="font-mono">{dispute.order?.order_number ?? '—'}</span></h2>
+          <p className="text-[11px] font-semibold text-gray-400">
+            {returnCase ? 'Return' : 'Case'} #{dispute.id} · opened {day(dispute.created_at)}
+            {dispute.escalated_at ? ` · escalated ${day(dispute.escalated_at)}` : ''}
+          </p>
+          <h2 className="text-[16px] font-bold text-gray-900 truncate">
+            {buyerName(dispute)} <span className="font-normal text-gray-400">against</span>{' '}
+            {dispute.seller?.shop_name ?? 'the shop'} <span className="font-normal text-gray-400">·</span>{' '}
+            <span className="font-mono">{dispute.order?.order_number ?? '—'}</span>
+          </h2>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           <Pill tone={STATUS[dispute.status].tone}>{STATUS[dispute.status].label}</Pill>
-          {isActive(dispute.status) && <span className={`text-[11px] ${overdue ? 'font-semibold text-red-700' : 'text-gray-400'}`}>{age === 0 ? 'Opened today' : `${age} day${age === 1 ? '' : 's'} open`}</span>}
+          {isActive(dispute.status) && <span className={`text-[11px] ${overdue ? 'font-semibold text-red-700' : 'text-gray-400'}`}>{age === 0 ? 'Since today' : `${age} day${age === 1 ? '' : 's'} waiting`}</span>}
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto">
         {/* The buyer's claim, in their words */}
         <section className="px-5 py-5 border-b border-gray-100 sm:px-6">
-          <p className="text-[11px] font-semibold text-gray-400 mb-2">What the buyer says</p>
-          <blockquote className="pl-4 border-l-[3px] border-brand-red text-[14px] leading-relaxed text-gray-800 whitespace-pre-line">{dispute.reason}</blockquote>
+          <p className="text-[11px] font-semibold text-gray-400 mb-2">{returnCase ? `The buyer's return request · ${dispute.reason}` : 'What the buyer says'}</p>
+          <blockquote className="pl-4 border-l-[3px] border-brand-red text-[14px] leading-relaxed text-gray-800 whitespace-pre-line">{dispute.description || dispute.reason}</blockquote>
+          {(dispute.photos?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {dispute.photos!.map((src, i) => (
+                <button key={src} type="button" onClick={() => setPhoto(src)} className="w-20 h-20 overflow-hidden bg-gray-100 border border-gray-200 rounded-lg hover:border-gray-400" aria-label={`Open photo ${i + 1}`}>
+                  <img src={src} alt={`Evidence ${i + 1}`} className="object-cover w-full h-full" />
+                </button>
+              ))}
+            </div>
+          )}
           {dispute.buyer?.email && <p className="mt-3 text-[12px] text-gray-500">{buyerName(dispute)} · <a href={`mailto:${dispute.buyer.email}`} className="hover:underline">{dispute.buyer.email}</a></p>}
         </section>
+
+        {/* The shop's answer */}
+        {returnCase && (dispute.seller_reason || dispute.status === 'pending') && (
+          <section className="px-5 py-5 border-b border-gray-100 sm:px-6">
+            <p className="text-[11px] font-semibold text-gray-400 mb-2">
+              {dispute.seller?.shop_name ?? 'The shop'}{dispute.seller_responded_at ? ` · rejected ${day(dispute.seller_responded_at)}` : ''}
+            </p>
+            {dispute.seller_reason ? (
+              <blockquote className="pl-4 border-l-[3px] border-gray-300 text-[14px] leading-relaxed text-gray-800 whitespace-pre-line">{dispute.seller_reason}</blockquote>
+            ) : (
+              <p className="text-[13px] text-gray-500">The shop has 3 days to answer. If it does not, the return is approved automatically.</p>
+            )}
+          </section>
+        )}
 
         {/* The order in question */}
         {dispute.order && (
           <section className="px-5 py-5 border-b border-gray-100 sm:px-6">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <p className="text-[11px] font-semibold text-gray-400">The order · {getStatusLabel(dispute.order.status).toLowerCase()}</p>
+              <p className="text-[11px] font-semibold text-gray-400">
+                The order · {getStatusLabel(dispute.order.status).toLowerCase()}{paidWith ? ` · paid by ${paidWith}` : ''}
+              </p>
               <Link to={`/admin/orders?search=${encodeURIComponent(dispute.order.order_number)}`} className="inline-flex items-center gap-1 text-[12px] font-bold text-brand-red hover:underline">
                 Open order <ExternalLink className="w-3.5 h-3.5" />
               </Link>
@@ -118,40 +187,44 @@ function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdat
                     <span className="block text-[13px] font-semibold text-gray-900 truncate">{item.product_name}</span>
                     <span className="block text-[12px] text-gray-500">{[item.variant_label, `qty ${item.quantity}`].filter(Boolean).join(' · ')}</span>
                   </span>
-                  <span className="text-[13px] font-semibold text-gray-900 tabular-nums">{peso(item.subtotal)}</span>
+                  <span className="text-[13px] font-semibold text-gray-900 tabular-nums">{peso(item.subtotal ?? item.unit_price * item.quantity)}</span>
                 </li>
               ))}
             </ul>
             <div className="flex justify-between pt-3 mt-3 text-[14px] font-bold border-t border-dashed border-gray-200">
-              <span>Order total</span><span className="tabular-nums">{peso(dispute.order.total)}</span>
+              <span>Amount paid</span><span className="tabular-nums">{peso(dispute.order.total)}</span>
             </div>
           </section>
         )}
 
         {/* The decision: recorded, or still to make */}
         <section className="px-5 py-5 sm:px-6">
-          {dispute.resolution_note ? (
+          {decided ? (
             <>
               <p className="text-[11px] font-semibold text-gray-400 mb-2">Decision</p>
-              <div className={`rounded-xl px-4 py-3 ${dispute.status === 'resolved' ? 'bg-emerald-50' : 'bg-gray-100'}`}>
-                <p className={`text-[12px] font-bold ${dispute.status === 'resolved' ? 'text-emerald-800' : 'text-gray-700'}`}>{dispute.status === 'resolved' ? 'Resolved for the buyer' : 'Closed without action'}</p>
+              <div className={`rounded-xl px-4 py-3 ${forBuyer ? 'bg-emerald-50' : 'bg-gray-100'}`}>
+                <p className={`text-[12px] font-bold ${forBuyer ? 'text-emerald-800' : 'text-gray-700'}`}>
+                  {dispute.status === 'approved'
+                    ? `Refunded to the buyer${dispute.refund_amount != null ? ` · ${peso(dispute.refund_amount)}` : ''}${dispute.auto_approved ? ' · approved automatically' : ''}`
+                    : dispute.status === 'resolved'
+                      ? 'Resolved for the buyer'
+                      : dispute.escalated_at ? 'Decided for the shop' : 'Closed without action'}
+                </p>
                 <p className="mt-1 text-[13px] leading-relaxed text-gray-800 whitespace-pre-line">{dispute.resolution_note}</p>
                 <p className="mt-2 text-[11.5px] text-gray-500">
-                  {dispute.resolver ? `${dispute.resolver.first_name} ${dispute.resolver.last_name}` : 'An admin'}{dispute.resolved_at ? `, ${day(dispute.resolved_at)}` : ''}
+                  {dispute.resolver ? `${dispute.resolver.first_name} ${dispute.resolver.last_name}` : dispute.auto_approved ? 'Loved-IT, after 3 days without an answer' : dispute.status === 'approved' ? 'The shop' : 'An admin'}
+                  {dispute.resolved_at ? `, ${day(dispute.resolved_at)}` : ''}
                 </p>
               </div>
             </>
-          ) : isActive(dispute.status) ? (
+          ) : canDecide ? (
             <>
               <p className="text-[11px] font-semibold text-gray-400 mb-2">Your decision</p>
               <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Decision">
-                {([
-                  ['resolved', 'Resolve for the buyer', 'A refund, return or replacement was arranged. Write down what was agreed.'],
-                  ['closed', 'Close without action', 'The claim does not hold up. Write down why, for the record.'],
-                ] as const).map(([value, title, text]) => {
+                {options.map(([value, title, text]) => {
                   const on = decision === value;
                   return (
-                    <button key={value} type="button" role="radio" aria-checked={on} onClick={() => setDecision(value)}
+                    <button key={value} type="button" role="radio" aria-checked={on} onClick={() => setChoice(value)}
                       className={`text-left p-3 rounded-xl border-[1.5px] transition-colors ${on ? 'border-brand-red bg-red-50/40' : 'border-gray-200 hover:border-gray-400'}`}>
                       <span className="flex items-center gap-2">
                         <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${on ? 'border-brand-red' : 'border-gray-300'}`}>{on && <span className="w-1.5 h-1.5 rounded-full bg-brand-red" />}</span>
@@ -167,23 +240,37 @@ function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdat
                 onChange={(e) => setNote(e.target.value)}
                 rows={4}
                 maxLength={1000}
-                placeholder={decision === 'resolved' ? 'For example: the shop agreed to refund ₱450 to the buyer\'s GCash after the item is returned.' : 'For example: the delivery photo shows the parcel received intact, and the buyer did not reply.'}
+                aria-label="Reason for the decision"
+                placeholder={decision === 'refund' || decision === 'resolved'
+                  ? 'For example: the photos show the rim was broken in transit, so the buyer gets a full refund.'
+                  : 'For example: the photos show the item was used and the tag was removed, as the shop said.'}
                 className="w-full mt-3 px-3.5 py-2.5 text-[13px] border border-gray-200 rounded-xl outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10 resize-none"
               />
               <div className="flex items-center justify-between gap-3 mt-2">
-                <span className="text-[11px] text-gray-400">Saved on the case and in the activity log · {note.length}/1000</span>
+                <span className="text-[11px] text-gray-400">Both sides see this note · {note.length}/1000</span>
                 <button type="button" onClick={decide} disabled={!note.trim() || saving}
                   className="h-10 px-5 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-bold disabled:opacity-40">
-                  {saving ? 'Saving…' : decision === 'resolved' ? 'Resolve case' : 'Close case'}
+                  {saving ? 'Saving…' : decision === 'refund' ? 'Refund the buyer' : decision === 'reject' ? 'Close for the shop' : decision === 'resolved' ? 'Resolve case' : 'Close case'}
                 </button>
               </div>
               {error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error}</p>}
             </>
+          ) : dispute.status === 'pending' ? (
+            <p className="text-[13px] text-gray-500">Waiting for the shop. Loved-IT decides only if the shop rejects and the buyer escalates.</p>
+          ) : dispute.status === 'rejected' ? (
+            <p className="text-[13px] text-gray-500">The shop rejected this return. The buyer has 3 days to escalate it; until then there is nothing to decide.</p>
           ) : (
             <p className="text-[13px] text-gray-500">This case was closed without a note.</p>
           )}
         </section>
       </div>
+
+      {photo && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80" role="dialog" aria-label="Evidence photo" onClick={() => setPhoto(null)}>
+          <img src={photo} alt="Evidence" className="max-w-full max-h-full rounded-lg" />
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
@@ -198,7 +285,7 @@ export default function AdminDisputesPage() {
   const [failed, setFailed] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<DisputeStatus | ''>('open');
+  const [status, setStatus] = useState<DisputeStatus | ''>('escalated');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
   const [mobilePane, setMobilePane] = useState<'list' | 'case'>('list');
@@ -232,8 +319,11 @@ export default function AdminDisputesPage() {
   };
 
   const filters: { value: DisputeStatus | ''; label: string; count?: number }[] = [
-    { value: 'open', label: 'Open', count: stats?.open },
+    { value: 'escalated', label: 'Escalated', count: stats?.escalated },
+    { value: 'pending', label: 'With the shop', count: stats?.awaiting_seller },
+    { value: 'open', label: 'Open claims', count: stats?.open },
     { value: 'in_progress', label: 'In progress', count: stats?.in_progress },
+    { value: 'approved', label: 'Refunded' },
     { value: 'resolved', label: 'Resolved' },
     { value: 'closed', label: 'Closed' },
     { value: '', label: 'All' },
@@ -242,10 +332,10 @@ export default function AdminDisputesPage() {
   return (
     <div className="pb-8 space-y-3">
       <PageHero icon={ShieldAlert} eyebrow="Admin / Trust & Safety" title="Disputes & Returns"
-        subtitle="Claims buyers raise about an order. Read the claim, check the order, and record a decision.">
+        subtitle="Returns the buyer escalated after the shop said no. Read both sides, look at the photos, and decide.">
         {stats && (
           <span className="text-[11px] text-white/70 tabular-nums">
-            <b className="text-white">{whole(stats.open)}</b> open · <b className="text-white">{whole(stats.in_progress)}</b> in progress · {whole(stats.resolved)} decided
+            <b className="text-white">{whole(stats.escalated ?? 0)}</b> escalated · <b className="text-white">{whole(stats.awaiting_seller ?? 0)}</b> with shops · {whole(stats.resolved)} decided
           </span>
         )}
       </PageHero>
@@ -276,14 +366,14 @@ export default function AdminDisputesPage() {
               ) : disputes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full px-8 text-center">
                   <span className="flex items-center justify-center text-gray-400 bg-gray-100 w-14 h-14 rounded-2xl"><Inbox className="w-6 h-6" /></span>
-                  <p className="mt-3 text-[13px] font-semibold text-gray-800">{search ? 'No case matches that search' : status === 'open' ? 'No open cases' : 'No cases here'}</p>
-                  <p className="mt-1 text-[12px] text-gray-500">{status === 'open' && !search ? 'Every claim has an answer. New ones land here.' : 'Try another filter.'}</p>
+                  <p className="mt-3 text-[13px] font-semibold text-gray-800">{search ? 'No case matches that search' : status === 'escalated' ? 'Nothing escalated' : 'No cases here'}</p>
+                  <p className="mt-1 text-[12px] text-gray-500">{status === 'escalated' && !search ? 'Every escalated return has a decision. New ones land here.' : 'Try another filter.'}</p>
                 </div>
               ) : (
                 <ul className={loading ? 'opacity-60' : ''}>
                   {disputes.map((d) => {
                     const on = d.id === selected;
-                    const age = ageDays(d.created_at);
+                    const age = ageDays(d.escalated_at ?? d.created_at);
                     const overdue = isActive(d.status) && age > 3;
                     return (
                       <li key={d.id}>
@@ -295,10 +385,12 @@ export default function AdminDisputesPage() {
                             <span className="flex-1 text-[13px] font-semibold text-gray-900 truncate">{buyerName(d)}</span>
                             <span className={`text-[11px] shrink-0 ${overdue ? 'font-semibold text-red-700' : 'text-gray-400'}`}>{relativeTime(d.created_at)}</span>
                           </span>
-                          <span className="block mt-1 text-[12.5px] leading-snug text-gray-600 line-clamp-2">{d.reason}</span>
+                          <span className="block mt-1 text-[12.5px] leading-snug text-gray-600 line-clamp-2">
+                            {d.description ? <><b className="font-semibold text-gray-800">{d.reason}.</b> {d.description}</> : d.reason}
+                          </span>
                           <span className="flex items-center gap-2 mt-2">
                             <Pill tone={STATUS[d.status].tone}>{STATUS[d.status].label}</Pill>
-                            <span className="font-mono text-[11px] text-gray-400 truncate">{d.order?.order_number}</span>
+                            <span className="text-[11px] text-gray-400 truncate">{d.seller?.shop_name ?? d.order?.order_number}</span>
                             {d.order && <span className="ml-auto text-[12px] font-semibold text-gray-700 tabular-nums">{peso(d.order.total)}</span>}
                           </span>
                         </button>

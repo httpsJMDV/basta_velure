@@ -8,6 +8,11 @@ import {
   ChevronRight, Flag, ChevronLeft,
 } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
+import VoucherTicket from '../components/vouchers/VoucherTicket';
+import { useToast } from '../components/ui/Toast';
+import { claimVoucherApi, getShopVouchersApi } from '../api/commerce';
+import type { WalletVoucher } from '../api/commerce';
+import { apiErrorMessage } from '../utils/apiError';
 import Footer from '../components/Footer';
 import ProductCard from '../components/ui/ProductCard';
 import CustomSelect from '../components/ui/CustomSelect';
@@ -208,6 +213,45 @@ function ReportShopModal({
 }
 
 // ─── Main Shop Profile Page ───────────────────────────────────────────────────
+
+/** The shop's claimable vouchers (B7). Code-only vouchers are never listed. */
+function ShopVoucherStrip({ sellerId }: { sellerId: number }) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const [rows, setRows] = useState<WalletVoucher[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  useEffect(() => {
+    getShopVouchersApi(sellerId).then(setRows).catch(() => setRows([]));
+  }, [sellerId, user?.id]);
+
+  if (rows.length === 0) return null;
+
+  const claim = async (v: WalletVoucher) => {
+    if (!user) { navigate('/login'); return; }
+    setBusy(v.id);
+    try {
+      const res = await claimVoucherApi({ voucher_id: v.id });
+      setRows((prev) => prev.map((r) => (r.id === v.id ? { ...r, claimed: true } : r)));
+      showToast(res.message, 'success');
+    } catch (e) {
+      showToast(apiErrorMessage(e, 'The voucher could not be claimed.'), 'error');
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <section aria-label="Shop vouchers" className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
+      <h2 className="text-base font-bold text-gray-900">Shop vouchers</h2>
+      <div className="mt-3 grid sm:grid-cols-2 gap-3">
+        {rows.map((v) => (
+          <VoucherTicket key={v.id} voucher={v} busy={busy === v.id}
+            action={v.used_up_by_you ? 'used' : v.claimed ? 'claimed' : 'claim'} onAction={() => claim(v)} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function ShopProfilePage() {
   const { slug, id } = useParams<{ slug?: string; id?: string }>();
@@ -745,6 +789,8 @@ export default function ShopProfilePage() {
 
           {/* ── Right Column: Shop Products & Shop Reviews ── */}
           <div className="flex flex-col gap-6 lg:col-span-8">
+
+            <ShopVoucherStrip sellerId={profile.seller_id} />
 
             {/* ── 7. Shop Products Section ── */}
             <div className="flex flex-col gap-5 p-6 bg-white border border-gray-100 shadow-sm rounded-3xl">

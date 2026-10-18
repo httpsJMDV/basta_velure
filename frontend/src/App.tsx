@@ -14,6 +14,7 @@ import LogisticsRidersPage from './pages/logistics/LogisticsRidersPage';
 import LogisticsParcelsPage from './pages/logistics/LogisticsParcelsPage';
 import LogisticsReportsPage from './pages/logistics/LogisticsReportsPage';
 import LogisticsMoneyPage from './pages/logistics/LogisticsMoneyPage';
+import LogisticsShippingPage from './pages/logistics/LogisticsShippingPage';
 import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
 import VerifyEmailPage from './pages/auth/VerifyEmailPage';
@@ -49,6 +50,8 @@ import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
 import SellerStoreCategoriesPage from './pages/seller/SellerStoreCategoriesPage';
 import SellerPromotionsPage from './pages/seller/SellerPromotionsPage';
 import SellerReviewsPage from './pages/seller/SellerReviewsPage';
+import SellerVouchersPage from './pages/seller/SellerVouchersPage';
+import AdminVouchersPage from './pages/admin/AdminVouchersPage';
 import SellerAccountSettingsPage from './pages/seller/SellerAccountSettingsPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
@@ -75,6 +78,7 @@ import { ChatProvider } from './hooks/useChat';
 import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
+import PaymentPage from './pages/PaymentPage';
 import CatalogPage from './pages/CatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ShopProfilePage from './pages/ShopProfilePage';
@@ -92,6 +96,7 @@ import {
   SettingsReturns,
   SettingsCancellations,
   SettingsReviews,
+  SettingsVouchers,
   SettingsWishlist,
 } from './pages/SettingsPage';
 import type { ReactNode } from 'react';
@@ -257,6 +262,7 @@ function AppRoutes() {
           )
         }
       />
+      <Route path="/pay/:token" element={!user ? <Navigate to="/login" replace /> : <PaymentPage />} />
       <Route path="/search" element={<CatalogPage />} />
       <Route path="/category/:parentId" element={<CatalogPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
@@ -308,6 +314,7 @@ function AppRoutes() {
         <Route path="returns"       element={<SettingsReturns />} />
         <Route path="cancellations" element={<SettingsCancellations />} />
         <Route path="reviews"       element={<SettingsReviews />} />
+        <Route path="vouchers"      element={<SettingsVouchers />} />
         <Route path="wishlist"      element={<SettingsWishlist />} />
       </Route>
 
@@ -328,6 +335,7 @@ function AppRoutes() {
           <Route index element={<SellerDashboard />} />
           <Route path="store-categories"  element={<SellerStoreCategoriesPage />} />
           <Route path="promotions"        element={<SellerPromotionsPage />} />
+          <Route path="vouchers"          element={<SellerVouchersPage />} />
           <Route path="orders"            element={<SellerOrdersPage />} />
           <Route path="inventory"         element={<Navigate to="/seller/products" replace />} />
           <Route path="payments"          element={<SellerPaymentsPage />} />
@@ -374,6 +382,7 @@ function AppRoutes() {
         <Route path="orders"              element={<AdminOrdersPage />} />
         <Route path="payments"            element={<AdminPaymentsPage />} />
         <Route path="disputes"            element={<AdminDisputesPage />} />
+        <Route path="vouchers"            element={<AdminVouchersPage />} />
         <Route path="reviews"             element={<AdminReviewsPage />} />
         <Route path="reports"             element={<AdminReportsPage />} />
         <Route path="settings"            element={<AdminPlatformSettingsPage />} />
@@ -395,6 +404,7 @@ function AppRoutes() {
         <Route path="parcels" element={<LogisticsParcelsPage />} />
         <Route path="reports" element={<LogisticsReportsPage />} />
         <Route path="money" element={<LogisticsMoneyPage />} />
+        <Route path="shipping" element={<LogisticsShippingPage />} />
       </Route>
 
       {/* Logistics / Sorting Center Hub Portal */}

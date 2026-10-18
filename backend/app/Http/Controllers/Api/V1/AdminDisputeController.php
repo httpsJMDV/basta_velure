@@ -12,7 +12,7 @@ class AdminDisputeController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $disputes = Dispute::with(['order.buyer', 'buyer'])
+        $disputes = Dispute::with(['order.buyer', 'buyer', 'seller.sellerProfile', 'photos'])
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->when($request->search, fn ($q) => $q->whereHas('order', fn ($q2) =>
                 $q2->where('order_number', 'like', "%{$request->search}%")
@@ -32,7 +32,7 @@ class AdminDisputeController extends Controller
 
     public function show(Dispute $dispute): JsonResponse
     {
-        $dispute->load(['order.buyer', 'order.items', 'buyer', 'resolver']);
+        $dispute->load(['order.buyer', 'order.items', 'buyer', 'resolver', 'seller.sellerProfile', 'photos']);
         return response()->json(['data' => $this->format($dispute, detail: true)]);
     }
 
@@ -46,6 +46,13 @@ class AdminDisputeController extends Controller
         ]);
 
         if ($request->filled('decision') && $dispute->order) {
+            // Only a return still waiting on a decision can be decided; an approved, rejected-and-not-escalated or
+            // closed request stays as it is.
+            if (! in_array($dispute->status, ['escalated', 'open', 'in_progress'], true)) {
+                abort(409, $dispute->status === 'rejected'
+                    ? 'The shop rejected this return and the buyer has not escalated it.'
+                    : 'This return request has already been decided.');
+            }
             $note = trim(strip_tags($request->resolution_note));
             if ($request->decision === 'refund') {
                 app(\App\Services\Commerce\ReturnService::class)->approve($dispute->order, 'admin', $request->user()->id, "Loved-IT decided: refund. {$note}");
@@ -86,13 +93,17 @@ class AdminDisputeController extends Controller
     {
         $open        = Dispute::where('status', 'open')->count();
         $inProgress  = Dispute::where('status', 'in_progress')->count();
-        $resolved    = Dispute::whereIn('status', ['resolved', 'closed'])->count();
+        $resolved    = Dispute::whereIn('status', ['resolved', 'closed', 'approved'])->count();
 
         return response()->json([
             'data' => [
                 'open'        => $open,
                 'in_progress' => $inProgress,
                 'resolved'    => $resolved,
+                // A31: returns the buyer escalated after the shop rejected them, waiting for Loved-IT.
+                'escalated'   => Dispute::where('status', 'escalated')->count(),
+                // Returns still with the shop (3 days to answer).
+                'awaiting_seller' => Dispute::where('status', 'pending')->count(),
             ],
         ]);
     }
@@ -102,7 +113,19 @@ class AdminDisputeController extends Controller
         $base = [
             'id'              => $d->id,
             'reason'          => $d->reason,
+            'description'     => $d->description,
             'status'          => $d->status,
+            'photos'          => $d->photos->map(fn ($p) => $p->url())->values(),
+            'seller'          => $d->seller ? [
+                'id'        => $d->seller->id,
+                'shop_name' => $d->seller->sellerProfile?->shop_name,
+            ] : null,
+            'seller_reason'   => $d->seller_reason,
+            'seller_responded_at' => $d->seller_responded_at?->toIso8601String(),
+            'escalated_at'    => $d->escalated_at?->toIso8601String(),
+            'auto_approved'   => (bool) $d->auto_approved,
+            'refund_amount'   => $d->refund_amount !== null ? (float) $d->refund_amount : null,
+            'can_decide'      => in_array($d->status, ['escalated', 'open', 'in_progress'], true),
             'resolution_note' => $d->resolution_note,
             'resolved_at'     => $d->resolved_at,
             'created_at'      => $d->created_at,
@@ -117,6 +140,8 @@ class AdminDisputeController extends Controller
                 'order_number' => $d->order->order_number,
                 'total'        => (float) $d->order->total,
                 'status'       => $d->order->status,
+                'payment_method' => $d->order->payment_method,
+                'refund_status'  => $d->order->refund_status,
             ] : null,
         ];
 
@@ -126,6 +151,7 @@ class AdminDisputeController extends Controller
                 'variant_label' => $i->variant_label,
                 'quantity'      => $i->quantity,
                 'unit_price'    => (float) $i->unit_price,
+                'subtotal'      => (float) $i->subtotal,
             ])->values();
             $base['resolver'] = $d->resolver ? [
                 'first_name' => $d->resolver->first_name,

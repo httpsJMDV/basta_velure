@@ -8,11 +8,14 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Parcel;
 use App\Models\PayoutRequest;
+use App\Models\User;
 use App\Models\Voucher;
 use App\Services\Commerce\SandboxGateway;
 use App\Services\OrderStateMachine;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\BuildsCommerce;
@@ -241,6 +244,20 @@ class CommerceOrdersTest extends TestCase
         $this->postJson("/api/v1/buyer/orders/{$id}/escalate-return")->assertStatus(409);
         Sanctum::actingAs($seller);
         $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'approve'])->assertStatus(409);
+
+        // Loved-IT decides the escalated return (A31): a refund of the exact amount paid, once.
+        Sanctum::actingAs(User::forceCreate(['first_name' => 'Ad', 'last_name' => 'Min', 'email' => Str::random(8) . '@example.com', 'password' => Hash::make('x'), 'role' => 'admin', 'status' => 'active']));
+        $disputeId = Dispute::where('order_id', $id)->value('id');
+        $this->assertGreaterThanOrEqual(1, $this->getJson('/api/v1/admin/disputes/stats')->json('data.escalated'));
+        $this->getJson("/api/v1/admin/disputes/{$disputeId}")->assertOk()
+            ->assertJsonPath('data.can_decide', true)->assertJsonPath('data.seller_reason', 'Item shows signs of use and the tag is removed.')
+            ->assertJsonCount(2, 'data.photos');
+        $this->patchJson("/api/v1/admin/disputes/{$disputeId}/resolve", ['decision' => 'refund', 'resolution_note' => 'Photos show the rim was broken in transit.'])->assertOk();
+        $order = Order::find($id);
+        $this->assertSame(OrderStatus::RETURNED, $order->status);
+        $this->assertSame('refunded', $order->refund_status);
+        $this->assertEqualsWithDelta((float) $order->total, (float) $order->refund_amount, 0.001);
+        $this->patchJson("/api/v1/admin/disputes/{$disputeId}/resolve", ['decision' => 'reject', 'resolution_note' => 'Second decision.'])->assertStatus(409);
     }
 
     public function test_an_unanswered_return_is_approved_after_three_days_and_refunded(): void
@@ -322,5 +339,50 @@ class CommerceOrdersTest extends TestCase
         $this->postJson('/api/v1/seller/payouts/request', $payload)->assertCreated();
         $this->postJson('/api/v1/seller/payouts/request', $payload)->assertStatus(422);
         $this->assertSame(1, PayoutRequest::where('seller_id', $seller->id)->count());
+    }
+
+    public function test_sales_reports_filter_by_day_include_both_ends_and_refuse_a_reversed_range(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $today = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $early = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $late = $this->place($addr, $variant, 2, 'cod')['data']['id'];
+        $old = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        // Start and end of one Manila day, 10 days back, plus an order 40 days back.
+        $day = now('Asia/Manila')->subDays(10);
+        Order::whereKey($early)->update(['created_at' => $day->copy()->startOfDay()->addMinute()->utc()]);
+        Order::whereKey($late)->update(['created_at' => $day->copy()->endOfDay()->subMinute()->utc()]);
+        Order::whereKey($old)->update(['created_at' => now('Asia/Manila')->subDays(40)->utc()]);
+
+        Sanctum::actingAs($seller);
+        $sum = fn (string $q) => $this->getJson("/api/v1/seller/reports/summary?{$q}")->assertOk()->json('data');
+
+        // Gross is the item subtotal, without the ₱65 shipping (A9).
+        $this->assertEqualsWithDelta(450.00, $sum('range=today')['gross_sales'], 0.001);
+        $this->assertSame(1, $sum('range=today')['total_orders']);
+        $this->assertSame(1, $sum('range=7d')['total_orders']);
+        $this->assertSame(3, $sum('range=30d')['total_orders']);
+
+        $d = $day->toDateString();
+        $custom = $sum("from={$d}&to={$d}");
+        $this->assertSame(2, $custom['total_orders']);
+        $this->assertEqualsWithDelta(1350.00, $custom['gross_sales'], 0.001);
+        $this->assertSame($d, $custom['from']);
+        $this->assertSame($d, $custom['to']);
+
+        // The chart covers the same window and adds up to the same gross.
+        $chart = $this->getJson("/api/v1/seller/reports/revenue-chart?from={$d}&to={$d}")->assertOk()->json('data');
+        $this->assertCount(1, $chart);
+        $this->assertEqualsWithDelta(1350.00, $chart[0]['gross_sales'], 0.001);
+        $this->assertEqualsWithDelta($custom['net_earnings'], $chart[0]['net_earnings'], 0.001);
+
+        $this->assertSame(2, $this->getJson("/api/v1/seller/reports/payment-methods?from={$d}&to={$d}")->json('data.cod.count'));
+
+        $reversed = now('Asia/Manila')->subDays(11)->toDateString();
+        $this->getJson("/api/v1/seller/reports/summary?from={$d}&to={$reversed}")->assertStatus(422)->assertJsonValidationErrors(['to']);
+        $this->getJson("/api/v1/seller/reports/revenue-chart?from={$d}&to={$reversed}")->assertStatus(422);
+        $this->getJson('/api/v1/seller/reports/summary?from=18-10-2026')->assertStatus(422)->assertJsonValidationErrors(['from']);
+        $this->assertSame(4, Order::whereKey([$today, $early, $late, $old])->count());
     }
 }

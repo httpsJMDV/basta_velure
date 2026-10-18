@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
 import type { LogisticsDashboard } from '../../types';
@@ -20,6 +20,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/logistics/parcels': 'Parcels',
   '/logistics/reports': 'Network Reports',
   '/logistics/money': 'Settlements & Pay',
+  '/logistics/shipping': 'Zones & Rates',
 };
 
 const POLL_MS = 60000;
@@ -64,6 +65,7 @@ export default function LogisticsLayout() {
         { icon: Warehouse, label: 'Hubs', to: '/logistics/hubs', badge: pendingHubs },
         { icon: Bike, label: 'Riders', to: '/logistics/riders' },
         { icon: Package, label: 'Parcels', to: '/logistics/parcels', badge: failed },
+        { icon: MapPinned, label: 'Zones & rates', to: '/logistics/shipping' },
       ],
     },
     { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/logistics/reports' }] },
@@ -75,6 +77,7 @@ export default function LogisticsLayout() {
     { label: 'Hubs and hub applications', to: '/logistics/hubs', group: 'Network', icon: Warehouse },
     { label: 'Riders across the network', to: '/logistics/riders', group: 'Network', icon: Bike },
     { label: 'Find a parcel', to: '/logistics/parcels', group: 'Network', icon: Package },
+    { label: 'Delivery zones and shipping rates', to: '/logistics/shipping', group: 'Network', icon: MapPinned },
     { label: 'Network reports', to: '/logistics/reports', group: 'Insights', icon: BarChart2 },
     { label: 'Shop statements, rider and hub pay', to: '/logistics/money', group: 'Money', icon: Banknote },
   ];

@@ -7,7 +7,6 @@ import { useCart } from '../hooks/useCart';
 import { useChat } from '../hooks/useChat';
 import UserAvatar from './ui/UserAvatar';
 import CartModal from './CartModal';
-import type { CartItem as ModalCartItem } from './CartModal';
 import LovedItLogo from './LovedItLogo';
 import { useToast } from './ui/Toast';
 import CategoriesMenu, { NAV_PILL } from './storefront/CategoriesMenu';
@@ -170,7 +169,7 @@ function UserDropdown({ user }: { user: NonNullable<ReturnType<typeof useAuth>['
 
 export default function SiteHeader() {
   const { user } = useAuth();
-  const { items, cartOpen, openCart, closeCart, removeItem, updateQty, clearCart } = useCart();
+  const { count: totalCount, cartOpen, openCart, closeCart } = useCart();
   const { openChat, openChatWithSupport } = useChat();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -191,20 +190,7 @@ export default function SiteHeader() {
     }
   };
 
-  // Map cart items to CartModal shape
-  const modalItems: ModalCartItem[] = items.map((i) => ({
-    id: i.variantId,
-    productId: i.productId,
-    name: i.name,
-    variant: i.variant,
-    price: i.price,
-    quantity: i.quantity,
-    sellerId: i.sellerId,
-    image: i.image,
-    shopName: i.shopName,
-  }));
 
-  const totalCount = items.reduce((s, i) => s + i.quantity, 0);
 
   return (
     <>
@@ -430,14 +416,7 @@ export default function SiteHeader() {
         )}
       </header>
 
-      <CartModal
-        open={cartOpen}
-        onClose={closeCart}
-        items={modalItems}
-        onRemove={removeItem}
-        onUpdateQty={updateQty}
-        onClear={clearCart}
-      />
+      <CartModal open={cartOpen} onClose={closeCart} />
     </>
   );
 }

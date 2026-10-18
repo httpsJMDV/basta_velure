@@ -1,357 +1,259 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, AlertCircle, Check, UploadCloud, ShieldCheck, ShoppingBag, X, MapPin, Store, Banknote, Lock, Loader2, Truck, Gift } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  ArrowLeft, CheckCircle2, AlertCircle, Check, UploadCloud, ShieldCheck, ShoppingBag, X, MapPin, Store, Banknote, Lock,
+  Loader2, Truck, Gift, Ticket, CreditCard, Wallet, Zap, Tag,
+} from 'lucide-react';
 import { pesoCompact as peso } from '../utils/pricing';
 import LovedItLogo from '../components/LovedItLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
-import { getAddressesApi, placeOrderApi } from '../api/client';
+import { getAddressesApi } from '../api/client';
+import { placeCheckoutOrderApi, quoteCheckoutApi } from '../api/commerce';
+import type { CheckoutInput, CheckoutQuote, QuoteStore, WalletVoucher } from '../api/commerce';
 import type { Address, Order } from '../types';
-import { useShopPaymentInfo, shopDelivery } from '../hooks/useShopDelivery';
+import { useShopPaymentInfo } from '../hooks/useShopDelivery';
 import { GcashPayee, ReferenceField } from '../components/payments/GcashKit';
-import { DELIVERY_FEE } from '../utils/shipping';
+import { apiProblem } from '../utils/apiError';
 import gcashMark from '../assets/brand/gcash-mark.svg';
 
+type Method = 'cod' | 'gcash' | 'e_wallet' | 'card';
 type PayErrors = { reference?: string; receipt?: string };
+const NOTE_MAX = 200;
 
+function newKey() {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * Checkout (B8, B9). Everything on the page comes from the server's quote, so what the buyer sees is what Place
+ * Order charges: prices now, flash lines, shop promotions, one store voucher per shop plus one platform and one
+ * shipping voucher (A2), shipping per shop for its route and weight (A20). If anything changes before the order is
+ * placed (a price, a voucher ending), nothing is charged and the new total is shown to confirm.
+ */
 export default function CheckoutPage() {
   const { user } = useAuth();
-  const { items, clearCart } = useCart();
+  const navigate = useNavigate();
+  const { refresh: refreshCart } = useCart();
+  const [params] = useSearchParams();
+  const buyVariant = Number(params.get('buy') || 0);
+  const buyQty = Math.max(1, Number(params.get('qty') || 1));
 
   const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
-
-  // Address inputs
-  const [shippingName, setShippingName] = useState(
-    user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : ''
-  );
-  const [shippingPhone, setShippingPhone] = useState(user?.phone || '');
-  const [shippingAddress, setShippingAddress] = useState('');
-  const [shippingProvince, setShippingProvince] = useState('');
-  const [shippingCity, setShippingCity] = useState('');
-  const [shippingBarangay, setShippingBarangay] = useState('');
-  const [shippingProvinceCode, setShippingProvinceCode] = useState('');
-  const [shippingCityCode, setShippingCityCode] = useState('');
-  const [shippingBarangayCode, setShippingBarangayCode] = useState('');
-  const [orderNotes, setOrderNotes] = useState('');
-
-  // Payment. GCash goes straight to each shop's own account, so each shop gets its own reference and receipt.
-  const [paymentMethod, setPaymentMethod] = useState<'gcash' | 'cod'>('cod');
+  const [addressId, setAddressId] = useState<number | null>(null);
+  const [storeCodes, setStoreCodes] = useState<Record<number, string>>({});
+  const [platformCode, setPlatformCode] = useState<string | null>(null);
+  const [shippingCode, setShippingCode] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<number, string>>({});
+  const [method, setMethod] = useState<Method>('cod');
   const [refs, setRefs] = useState<Record<number, string>>({});
   const [proofs, setProofs] = useState<Record<number, File>>({});
   const [payErrors, setPayErrors] = useState<Record<number, PayErrors>>({});
-  const [placedMethod, setPlacedMethod] = useState<'gcash' | 'cod'>('cod');
-  const shopRefs = useRef<Record<number, HTMLElement | null>>({});
 
-  // State
+  const [quote, setQuote] = useState<CheckoutQuote | null>(null);
+  const [quoting, setQuoting] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successOrders, setSuccessOrders] = useState<Order[] | null>(null);
+  const [changeNotice, setChangeNotice] = useState<string | null>(null);
+  const [placed, setPlaced] = useState<{ orders: Order[]; method: Method } | null>(null);
+  const idempotency = useRef(newKey());
+  const shopRefs = useRef<Record<number, HTMLElement | null>>({});
 
-  const selectedAddress = useMemo(
-    () => addresses.find((a) => a.id === selectedAddressId),
-    [addresses, selectedAddressId]
-  );
+  const input = useMemo<CheckoutInput>(() => ({
+    source: buyVariant ? 'buy_now' : 'cart',
+    items: buyVariant ? [{ variant_id: buyVariant, quantity: buyQty }] : undefined,
+    address_id: addressId ?? undefined,
+    vouchers: { store: storeCodes, platform: platformCode, shipping: shippingCode },
+  }), [buyVariant, buyQty, addressId, storeCodes, platformCode, shippingCode]);
 
-  const selectedAddressNeedsUpdate = useMemo(() => {
-    if (selectedAddress) {
-      return Boolean(
-        selectedAddress.address_needs_update ||
-        !selectedAddress.barangay_code ||
-        !selectedAddress.city_code ||
-        !selectedAddress.province_code
-      );
-    }
-    return !shippingBarangayCode || !shippingCityCode || !shippingProvinceCode;
-  }, [selectedAddress, shippingBarangayCode, shippingCityCode, shippingProvinceCode]);
-
-  // The shops in the cart, and how each gets paid (GCash details, free delivery minimum).
-  const shopInfo = useShopPaymentInfo(items.map((i) => i.sellerId), true, user?.id);
-
-  // Group items by shop: one order, one parcel and one delivery fee each (free when the shop's minimum is met).
-  const shopGroups = useMemo(() => {
-    const map: Record<string, { key: string; shopName: string; sellerId: number; items: typeof items; subtotal: number; shippingFee: number; freeFrom: number | null; total: number }> = {};
-    items.forEach((item) => {
-      const key = String(item.sellerId ?? item.shopName ?? 'shop');
-      if (!map[key]) {
-        map[key] = { key, shopName: item.shopName || (item.sellerId ? `Seller #${item.sellerId}` : 'Loved-IT shop'), sellerId: item.sellerId ?? 0, items: [], subtotal: 0, shippingFee: DELIVERY_FEE, freeFrom: null, total: 0 };
-      }
-      map[key].items.push(item);
-      map[key].subtotal += item.price * item.quantity;
-    });
-    Object.values(map).forEach((g) => {
-      const d = shopDelivery(g.subtotal, shopInfo[g.sellerId]);
-      g.freeFrom = d.freeFrom;
-      g.shippingFee = d.fee;
-      g.total = g.subtotal + g.shippingFee;
-    });
-    return Object.values(map);
-  }, [items, shopInfo]);
-
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const totalShippingFee = shopGroups.reduce((s, g) => s + g.shippingFee, 0);
-  const total = subtotal + totalShippingFee;
-
-  // GCash only works when every shop in the cart takes it.
-  const infoLoaded = shopGroups.every((g) => shopInfo[g.sellerId]);
-  const gcashBlockers = shopGroups.filter((g) => shopInfo[g.sellerId] && !shopInfo[g.sellerId].accepts_gcash);
-  const gcashReady = infoLoaded && gcashBlockers.length === 0;
-  const method: 'gcash' | 'cod' = paymentMethod === 'gcash' && gcashReady ? 'gcash' : 'cod';
-
-  const proofPreviews = useMemo(() => Object.fromEntries(Object.entries(proofs).map(([id, f]) => [id, URL.createObjectURL(f)])), [proofs]);
-  useEffect(() => () => Object.values(proofPreviews).forEach((u) => URL.revokeObjectURL(u)), [proofPreviews]);
-
-  // Load buyer's addresses
   useEffect(() => {
     if (!user) return;
     getAddressesApi()
-      .then((res: any) => {
-        const list: Address[] = Array.isArray(res) ? res : res?.data || [];
+      .then((res: unknown) => {
+        const list: Address[] = Array.isArray(res) ? res : ((res as { data?: Address[] })?.data ?? []);
         setAddresses(list);
-        const def = list.find((a: Address) => a.is_default) || list[0];
-        if (def) {
-          setSelectedAddressId(def.id);
-          setShippingName(def.recipient_name || def.full_name || '');
-          setShippingPhone(def.phone_number || def.phone || '');
-          setShippingAddress(def.street_address || def.address || '');
-          setShippingProvince(def.province_name || def.province || '');
-          setShippingCity(def.city_name || def.district || '');
-          setShippingBarangay(def.barangay_name || def.ward || '');
-          setShippingProvinceCode(def.province_code || '');
-          setShippingCityCode(def.city_code || '');
-          setShippingBarangayCode(def.barangay_code || '');
-        }
+        const def = list.find((a) => a.is_default && a.barangay_code) ?? list.find((a) => a.barangay_code) ?? list[0];
+        if (def) setAddressId(def.id);
+        else setQuoting(false);
       })
-      .catch(() => {});
+      .catch(() => setQuoting(false));
   }, [user]);
 
-  const handleSelectAddress = (addr: Address) => {
-    setSelectedAddressId(addr.id);
-    setShippingName(addr.recipient_name || addr.full_name || '');
-    setShippingPhone(addr.phone_number || addr.phone || '');
-    setShippingAddress(addr.street_address || addr.address || '');
-    setShippingProvince(addr.province_name || addr.province || '');
-    setShippingCity(addr.city_name || addr.district || '');
-    setShippingBarangay(addr.barangay_name || addr.ward || '');
-    setShippingProvinceCode(addr.province_code || '');
-    setShippingCityCode(addr.city_code || '');
-    setShippingBarangayCode(addr.barangay_code || '');
-  };
+  // Re-price whenever the address or a voucher changes.
+  const reprice = useCallback(async () => {
+    setQuoting(true);
+    try {
+      setQuote(await quoteCheckoutApi(input));
+      setErrorMsg(null);
+    } catch (e) {
+      setErrorMsg(apiProblem(e, 'Checkout could not be loaded. Refresh the page.').message);
+    } finally {
+      setQuoting(false);
+    }
+  }, [input]);
+  useEffect(() => {
+    const t = window.setTimeout(() => { void reprice(); }, 150);
+    return () => window.clearTimeout(t);
+  }, [reprice]);
+
+  const stores = quote?.stores ?? [];
+  const shopInfo = useShopPaymentInfo(stores.map((s) => s.seller.id), method === 'gcash', user?.id);
+  const gcashBlockers = stores.filter((s) => !s.seller.accepts_gcash);
+  const address = addresses.find((a) => a.id === addressId);
+  const addressNeedsUpdate = !!address && (address.address_needs_update || !address.barangay_code);
+  const proofPreviews = useMemo(() => Object.fromEntries(Object.entries(proofs).map(([id, f]) => [id, URL.createObjectURL(f)])), [proofs]);
+  useEffect(() => () => Object.values(proofPreviews).forEach((u) => URL.revokeObjectURL(u)), [proofPreviews]);
+
+  const noteError = (sellerId: number) => ((notes[sellerId] ?? '').length > NOTE_MAX ? `A note can be at most ${NOTE_MAX} characters.` : undefined);
+  const blocking = (quote?.problems ?? []).filter((p) => p.type !== 'address' || !addressId);
+  const canPlace = !!quote?.can_place && !quoting && !submitting && !addressNeedsUpdate && stores.every((s) => !noteError(s.seller.id))
+    && (method !== 'gcash' || gcashBlockers.length === 0);
 
   const setShopError = (sellerId: number, patch: PayErrors) => setPayErrors((p) => ({ ...p, [sellerId]: { ...p[sellerId], ...patch } }));
-
   const pickProof = (sellerId: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) { setShopError(sellerId, { receipt: 'The receipt must be an image (JPG or PNG).' }); return; }
+    if (!['image/jpeg', 'image/png'].includes(file.type)) { setShopError(sellerId, { receipt: 'The receipt must be a JPG or PNG image.' }); return; }
     if (file.size > 5 * 1024 * 1024) { setShopError(sellerId, { receipt: 'That screenshot is over 5 MB. Crop it or take a smaller one.' }); return; }
     setProofs((p) => ({ ...p, [sellerId]: file }));
     setShopError(sellerId, { receipt: undefined });
   };
 
-  const removeProof = (sellerId: number) => setProofs((p) => {
-    const next = { ...p };
-    delete next[sellerId];
-    return next;
-  });
-
-  const handleSubmitOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const place = async () => {
+    if (!quote || !canPlace) return;
     setErrorMsg(null);
+    setChangeNotice(null);
     setPayErrors({});
 
-    if (items.length === 0) {
-      setErrorMsg('Your cart is empty. Please add items before checking out.');
-      return;
-    }
-
-    if (!shippingName.trim() || !shippingPhone.trim() || !shippingAddress.trim()) {
-      setErrorMsg('Please complete your shipping address details.');
-      return;
-    }
-
-    if (selectedAddressNeedsUpdate || !shippingProvinceCode || !shippingCityCode || !shippingBarangayCode) {
-      setErrorMsg('Selected delivery address is missing standard area codes. Please update or select a valid address in your Address Book.');
-      return;
-    }
-
     if (method === 'gcash') {
-      // Shown under each shop's fields, and the page scrolls to the first shop with a problem.
       const errors: Record<number, PayErrors> = {};
-      for (const g of shopGroups) {
-        const ref = refs[g.sellerId] ?? '';
-        const e: PayErrors = {};
-        if (ref.length === 0) e.reference = 'Enter the reference number from your GCash receipt.';
-        else if (ref.length !== 13) e.reference = `A GCash reference number has 13 digits; this one has ${ref.length}.`;
-        if (!proofs[g.sellerId]) e.receipt = 'Upload the screenshot of your GCash receipt so the shop can check your payment.';
-        if (e.reference || e.receipt) errors[g.sellerId] = e;
+      for (const s of stores) {
+        const ref = refs[s.seller.id] ?? '';
+        const err: PayErrors = {};
+        if (!ref) err.reference = 'Enter the reference number from your GCash receipt.';
+        else if (ref.length !== 13) err.reference = `A GCash reference number has 13 digits; this one has ${ref.length}.`;
+        if (!proofs[s.seller.id]) err.receipt = 'Upload the screenshot of your GCash receipt so the shop can check your payment.';
+        if (err.reference || err.receipt) errors[s.seller.id] = err;
       }
-      const first = shopGroups.find((g) => errors[g.sellerId]);
+      const first = stores.find((s) => errors[s.seller.id]);
       if (first) {
         setPayErrors(errors);
-        shopRefs.current[first.sellerId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        shopRefs.current[first.seller.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
     }
 
+    const fields: Record<string, unknown> = {
+      ...input, payment_method: method, expected_total: quote.totals.total,
+      notes: Object.fromEntries(Object.entries(notes).filter(([, n]) => n.trim() !== '')),
+    };
+    let body: Record<string, unknown> | FormData = fields;
+    if (method === 'gcash') {
+      const fd = new FormData();
+      fd.append('source', input.source);
+      input.items?.forEach((it, i) => { fd.append(`items[${i}][variant_id]`, String(it.variant_id)); fd.append(`items[${i}][quantity]`, String(it.quantity)); });
+      if (addressId) fd.append('address_id', String(addressId));
+      Object.entries(storeCodes).forEach(([sid, code]) => code && fd.append(`vouchers[store][${sid}]`, code));
+      if (platformCode) fd.append('vouchers[platform]', platformCode);
+      if (shippingCode) fd.append('vouchers[shipping]', shippingCode);
+      Object.entries(notes).forEach(([sid, n]) => n.trim() && fd.append(`notes[${sid}]`, n.trim()));
+      fd.append('payment_method', 'gcash');
+      fd.append('expected_total', String(quote.totals.total));
+      for (const s of stores) {
+        fd.append(`gcash[${s.seller.id}][reference]`, refs[s.seller.id] ?? '');
+        const proof = proofs[s.seller.id];
+        if (proof) fd.append(`gcash_proof[${s.seller.id}]`, proof);
+      }
+      body = fd;
+    }
+
     setSubmitting(true);
-
     try {
-      const formData = new FormData();
-      formData.append('payment_method', method);
-      formData.append('shipping_name', shippingName.trim());
-      formData.append('shipping_phone', shippingPhone.trim());
-      formData.append('shipping_address', shippingAddress.trim());
-      if (shippingProvince) formData.append('shipping_province', shippingProvince.trim());
-      if (shippingCity) formData.append('shipping_city', shippingCity.trim());
-      if (shippingBarangay) formData.append('shipping_barangay', shippingBarangay.trim());
-      formData.append('shipping_province_code', shippingProvinceCode.trim());
-      formData.append('shipping_city_code', shippingCityCode.trim());
-      formData.append('shipping_barangay_code', shippingBarangayCode.trim());
-      if (orderNotes) formData.append('notes', orderNotes.trim());
-
-      if (method === 'gcash') {
-        for (const g of shopGroups) {
-          formData.append(`gcash[${g.sellerId}][reference]`, refs[g.sellerId] ?? '');
-          const proof = proofs[g.sellerId];
-          if (proof) formData.append(`gcash_proof[${g.sellerId}]`, proof);
-        }
+      const res = await placeCheckoutOrderApi<Order>(body, idempotency.current);
+      void refreshCart();
+      if (res.payment && (method === 'e_wallet' || method === 'card')) {
+        navigate(`/pay/${res.payment.token}`, { replace: true });
+        return;
       }
-
-      items.forEach((item, index) => {
-        formData.append(`items[${index}][product_id]`, String(item.productId));
-        if (item.variantId) {
-          formData.append(`items[${index}][variant_id]`, String(item.variantId));
-        }
-        formData.append(`items[${index}][quantity]`, String(item.quantity));
-      });
-
-      const res = await placeOrderApi(formData);
-      setPlacedMethod(method);
-      clearCart();
-      const placedOrders = res.orders && res.orders.length > 0 ? res.orders : [res.data];
-      setSuccessOrders(placedOrders);
-    } catch (err: any) {
-      const data = err.response?.data;
-      const fieldErrors: Record<string, string[]> = data?.errors ?? {};
-      // The server's per-shop errors go under that shop's fields; anything else shows by the button.
-      const serverPay: Record<number, PayErrors> = {};
-      for (const g of shopGroups) {
-        const single = shopGroups.length === 1;
-        const reference = fieldErrors[`gcash.${g.sellerId}.reference`]?.[0] ?? (single ? fieldErrors.payment_reference?.[0] : undefined);
-        const receipt = fieldErrors[`gcash_proof.${g.sellerId}`]?.[0] ?? (single ? fieldErrors.payment_proof?.[0] : undefined);
-        if (reference || receipt) serverPay[g.sellerId] = { reference, receipt };
-      }
-      const first = shopGroups.find((g) => serverPay[g.sellerId]);
-      if (first) {
-        setPayErrors(serverPay);
-        shopRefs.current[first.sellerId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPlaced({ orders: res.orders.length ? res.orders : [res.data], method });
+    } catch (err) {
+      const res = (err as { response?: { status?: number; data?: { code?: string; message?: string; quote?: CheckoutQuote; errors?: Record<string, string[]> } } })?.response;
+      if (res?.status === 409 && res.data?.quote) {
+        // Nothing was charged: show the new total for the buyer to confirm, with a fresh key for the retry.
+        setQuote(res.data.quote);
+        setChangeNotice(res.data.message ?? 'Something changed. Check the new total and place the order again.');
+        idempotency.current = newKey();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setErrorMsg(fieldErrors.gcash?.[0] || data?.message || 'Failed to place order. Please check your information and try again.');
+        const fieldErrors = res?.data?.errors ?? {};
+        const serverPay: Record<number, PayErrors> = {};
+        for (const s of stores) {
+          const single = stores.length === 1;
+          const reference = fieldErrors[`gcash.${s.seller.id}.reference`]?.[0] ?? (single ? fieldErrors.payment_reference?.[0] : undefined);
+          const receipt = fieldErrors[`gcash_proof.${s.seller.id}`]?.[0] ?? (single ? fieldErrors.payment_proof?.[0] : undefined);
+          if (reference || receipt) serverPay[s.seller.id] = { reference, receipt };
+        }
+        if (Object.keys(serverPay).length) setPayErrors(serverPay);
+        setErrorMsg(apiProblem(err, 'The order could not be placed. Check the details and try again.').message);
+        idempotency.current = newKey();
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const field = 'w-full h-11 px-3.5 text-[14px] bg-white border border-stone-300 rounded-xl outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10 transition-colors placeholder:text-stone-400';
-  const label = 'block text-[12px] font-medium text-stone-600 mb-1.5';
+  if (placed) return <Placed orders={placed.orders} method={placed.method} />;
 
-  // ── Order placed ──
-  if (successOrders && successOrders.length > 0) {
-    const isMultiShop = successOrders.length > 1;
-    const paidTotal = successOrders.reduce((s, o) => s + Number(o.total), 0);
-
-    return (
-      <div className="min-h-screen bg-[#FAF8F5] flex flex-col">
-        <CheckoutBar step={3} />
-        <div className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-lg rounded-3xl bg-white border border-stone-200 p-8 text-center">
-            <span className="mx-auto w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 className="w-8 h-8" />
-            </span>
-            <h1 className="mt-5 text-[26px] font-serif font-bold tracking-tight text-[#1E1B18]">Thank you for your order</h1>
-            <p className="mt-2 text-sm text-stone-500">
-              {isMultiShop
-                ? `Your cart became ${successOrders.length} orders, one per shop, each shipped as its own parcel.`
-                : <>Order <span className="font-mono font-semibold text-stone-900">#{successOrders[0].order_number}</span> is placed.</>}
-            </p>
-
-            <ul className="mt-6 rounded-2xl border border-stone-200 divide-y divide-stone-100 text-left text-[13px]">
-              {successOrders.map((ord) => (
-                <li key={ord.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="min-w-0">
-                    <span className="block font-mono font-semibold text-stone-900">#{ord.order_number}</span>
-                    <span className="block text-[12px] text-stone-500">{ord.items?.length || 1} item{(ord.items?.length || 1) === 1 ? '' : 's'} · {ord.free_delivery ? 'free delivery' : `${peso(Number(ord.shipping_fee))} delivery`}{ord.courier ? ` · ${ord.courier.name}` : ''}</span>
-                  </span>
-                  <span className="font-semibold text-stone-900 tabular-nums">{peso(Number(ord.total))}</span>
-                </li>
-              ))}
-              <li className="flex items-center justify-between gap-3 px-4 py-3 bg-stone-50/70">
-                <span className="text-stone-600">{placedMethod === 'gcash' ? 'Paid to the shops by GCash' : 'Pay on delivery'}</span>
-                <span className="text-[16px] font-bold text-brand-red tabular-nums">{peso(paidTotal)}</span>
-              </li>
-            </ul>
-
-            <p className={`mt-4 text-[13px] rounded-2xl px-4 py-3 text-left ${placedMethod === 'gcash' ? 'bg-amber-50 text-amber-900' : 'bg-sky-50 text-sky-900'}`}>
-              {placedMethod === 'gcash'
-                ? `${isMultiShop ? 'Each shop checks' : 'The shop checks'} your GCash receipt first. Once it is confirmed, your order is packed and handed to the courier.`
-                : `Prepare ${peso(paidTotal)} in cash for the rider${isMultiShop ? 's (each parcel is paid separately)' : ''}. We will update you as your order moves.`}
-            </p>
-
-            <div className="mt-6 flex flex-col sm:flex-row gap-2">
-              <Link to="/settings/orders" className="flex-1 h-11 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center transition-colors">Track my orders</Link>
-              <Link to="/" className="flex-1 h-11 rounded-full border border-stone-300 text-sm font-semibold text-stone-800 hover:border-stone-900 flex items-center justify-center">Keep shopping</Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const empty = !quoting && quote && stores.length === 0;
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col">
       <CheckoutBar step={2} />
 
       <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 sm:px-8 py-8">
-        {items.length === 0 ? (
+        {empty ? (
           <div className="max-w-md mx-auto text-center py-16">
             <span className="mx-auto w-16 h-16 rounded-full bg-white border border-stone-200 flex items-center justify-center text-stone-400"><ShoppingBag className="w-7 h-7" /></span>
-            <h2 className="mt-4 text-lg font-semibold text-stone-900">Your cart is empty</h2>
-            <p className="mt-1 text-sm text-stone-500">Add items to your cart before checking out.</p>
-            <Link to="/" className="mt-5 inline-flex h-11 px-6 rounded-full bg-brand-red text-white text-sm font-semibold items-center">Start shopping</Link>
+            <h2 className="mt-4 text-lg font-semibold text-stone-900">Nothing to check out</h2>
+            <p className="mt-1 text-sm text-stone-500">Select the items you want in your cart, then come back here.</p>
+            <Link to="/cart" className="mt-5 inline-flex h-11 px-6 rounded-full bg-brand-red text-white text-sm font-semibold items-center">Go to my cart</Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmitOrder} noValidate className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-8 items-start">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-8 items-start">
             <div className="space-y-4">
-              {/* 1 · Address */}
+              {changeNotice && (
+                <div role="alert" className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-[13.5px] text-amber-900">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-amber-600" />
+                  <span><span className="font-semibold">Your order was not placed.</span> {changeNotice}</span>
+                </div>
+              )}
+
               <Section step={1} title="Delivery address" hint="Where should the rider bring your order?"
                 aside={<Link to="/settings/addresses" className="text-[13px] font-semibold text-brand-red hover:underline shrink-0">Manage</Link>}>
-                {addresses.length > 0 && (
-                  <div className="grid sm:grid-cols-2 gap-2.5 mb-5" role="radiogroup" aria-label="Saved addresses">
-                    {addresses.map((addr) => {
-                      const needsUpdate = Boolean(addr.address_needs_update || !addr.barangay_code);
-                      const on = selectedAddressId === addr.id;
+                {addresses.length === 0 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-dashed border-stone-300">
+                    <span className="text-[13px] text-stone-600">Add a delivery address to see shipping and check out.</span>
+                    <Link to="/settings/addresses" className="h-9 px-4 rounded-full bg-stone-900 text-white text-[13px] font-semibold flex items-center">Add address</Link>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="Saved addresses">
+                    {addresses.map((a) => {
+                      const needs = Boolean(a.address_needs_update || !a.barangay_code);
+                      const on = addressId === a.id;
                       return (
-                        <button
-                          key={addr.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={on}
-                          onClick={() => handleSelectAddress(addr)}
-                          className={`relative text-left p-4 rounded-2xl border-[1.5px] transition-colors ${on ? (needsUpdate ? 'border-amber-500 bg-amber-50/40' : 'border-brand-red bg-rose-50/40') : 'border-stone-200 hover:border-stone-400'}`}
-                        >
+                        <button key={a.id} type="button" role="radio" aria-checked={on} onClick={() => setAddressId(a.id)}
+                          className={`relative text-left p-4 rounded-2xl border-[1.5px] transition-colors ${on ? (needs ? 'border-amber-500 bg-amber-50/40' : 'border-brand-red bg-rose-50/40') : 'border-stone-200 hover:border-stone-400'}`}>
                           <span className="flex items-center gap-2 pr-6">
                             <MapPin className={`w-4 h-4 shrink-0 ${on ? 'text-brand-red' : 'text-stone-400'}`} />
-                            <span className="text-[14px] font-semibold text-stone-900 truncate">{addr.recipient_name || addr.full_name}</span>
-                            {addr.is_default && <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-red">Default</span>}
+                            <span className="text-[14px] font-semibold text-stone-900 truncate">{a.full_name || a.recipient_name}</span>
+                            {a.is_default && <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-red">Default</span>}
                           </span>
                           <span className="block mt-1.5 text-[12px] text-stone-600 leading-relaxed">
-                            {addr.street_address || addr.address}, {addr.barangay_name || addr.ward}, {addr.city_name || addr.district}, {addr.province_name || addr.province}
+                            {[a.floor_unit, a.address || a.street_address, a.ward || a.barangay_name, a.district || a.city_name, a.province || a.province_name].filter(Boolean).join(', ')}
                           </span>
-                          <span className="block mt-1 text-[12px] text-stone-400">{addr.phone_number || addr.phone}</span>
-                          {needsUpdate && <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700"><AlertCircle className="w-3 h-3" /> Needs an update</span>}
+                          <span className="block mt-1 text-[12px] text-stone-400">{a.phone || a.phone_number}</span>
+                          {needs && <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700"><AlertCircle className="w-3 h-3" /> Needs an update</span>}
                           <span className={`absolute top-4 right-4 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center ${on ? 'border-brand-red' : 'border-stone-300'}`}>
                             {on && <span className="w-2 h-2 rounded-full bg-brand-red" />}
                           </span>
@@ -360,81 +262,46 @@ export default function CheckoutPage() {
                     })}
                   </div>
                 )}
+                {addressNeedsUpdate && (
+                  <p className="mt-3 text-[13px] text-amber-800">This address needs its barangay, city and province picked again. Update it in your address book first.</p>
+                )}
+              </Section>
 
-                {selectedAddressNeedsUpdate && (
-                  <div className="mb-5 flex items-start justify-between gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-[13px] text-amber-900">
-                    <span className="flex items-start gap-2.5">
-                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                      <span><span className="font-semibold">This address needs its barangay, city and province picked again.</span> Couriers route parcels by these, so update it in your address book first.</span>
-                    </span>
-                    <Link to="/settings/addresses" className="shrink-0 h-8 px-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white text-[12px] font-semibold flex items-center">Update</Link>
+              <Section step={2} title="Items and delivery" hint={stores.length > 1 ? `Ships as ${stores.length} parcels, one from each shop.` : 'Ships as one parcel.'}>
+                {quoting && !quote ? (
+                  <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-32 rounded-2xl bg-stone-100 animate-pulse" />)}</div>
+                ) : (
+                  <div className="space-y-4">
+                    {stores.map((s) => (
+                      <StoreBlock key={s.seller.id} store={s} wallet={(quote?.wallet ?? []).filter((v) => v.scope === 'store' && v.seller?.id === s.seller.id)}
+                        code={storeCodes[s.seller.id] ?? ''} onCode={(code) => setStoreCodes((c) => ({ ...c, [s.seller.id]: code }))}
+                        note={notes[s.seller.id] ?? ''} onNote={(n) => setNotes((x) => ({ ...x, [s.seller.id]: n }))} noteError={noteError(s.seller.id)} />
+                    ))}
                   </div>
                 )}
+              </Section>
 
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className={label} htmlFor="ship-name">Recipient name</label>
-                    <input id="ship-name" type="text" required value={shippingName} onChange={(e) => setShippingName(e.target.value)} placeholder="Full name" className={field} />
-                  </div>
-                  <div>
-                    <label className={label} htmlFor="ship-phone">Phone number</label>
-                    <input id="ship-phone" type="tel" required value={shippingPhone} onChange={(e) => setShippingPhone(e.target.value)} placeholder="09XXXXXXXXX" className={field} />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className={label} htmlFor="ship-street">Street, house or unit</label>
-                    <input id="ship-street" type="text" required value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} placeholder="House/unit no., street, subdivision" className={field} />
-                  </div>
-                  <div className="sm:col-span-2 grid grid-cols-3 gap-3">
-                    <div><label className={label} htmlFor="ship-brgy">Barangay</label><input id="ship-brgy" type="text" value={shippingBarangay} onChange={(e) => setShippingBarangay(e.target.value)} placeholder="Barangay" className={field} /></div>
-                    <div><label className={label} htmlFor="ship-city">City / town</label><input id="ship-city" type="text" value={shippingCity} onChange={(e) => setShippingCity(e.target.value)} placeholder="City" className={field} /></div>
-                    <div><label className={label} htmlFor="ship-prov">Province</label><input id="ship-prov" type="text" value={shippingProvince} onChange={(e) => setShippingProvince(e.target.value)} placeholder="Province" className={field} /></div>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className={label} htmlFor="ship-notes">Note for the rider <span className="text-stone-400">(optional)</span></label>
-                    <input id="ship-notes" type="text" value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Landmark, gate color, leave with the guard…" className={field} />
-                  </div>
+              <Section step={3} title="Loved-IT vouchers" hint="One platform voucher and one shipping voucher per order. Loved-IT pays for these.">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <VoucherPicker label="Platform voucher" wallet={(quote?.wallet ?? []).filter((v) => v.scope === 'platform')}
+                    code={platformCode ?? ''} onCode={(c) => setPlatformCode(c || null)} result={quote?.platform_voucher ?? null} />
+                  <VoucherPicker label="Shipping voucher" wallet={(quote?.wallet ?? []).filter((v) => v.scope === 'shipping')}
+                    code={shippingCode ?? ''} onCode={(c) => setShippingCode(c || null)} result={quote?.shipping_voucher ?? null} />
                 </div>
               </Section>
 
-              {/* 2 · Delivery: each parcel's courier is matched to its route after the order is placed, not chosen here */}
-              <Section step={2} title="Delivery" hint={shopGroups.length > 1 ? `Your cart ships as ${shopGroups.length} parcels, one from each shop.` : 'Your order ships as one parcel.'}>
-                <ul className="rounded-2xl border border-stone-200 divide-y divide-stone-100">
-                  {shopGroups.map((group, gIdx) => {
-                    const count = group.items.reduce((n, i) => n + i.quantity, 0);
-                    return (
-                      <li key={group.key + gIdx} className="flex items-center gap-3 px-4 py-3">
-                        <span className="w-9 h-9 rounded-xl bg-stone-100 text-stone-500 flex items-center justify-center shrink-0"><Store className="w-4 h-4" /></span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-[14px] font-semibold text-stone-900 truncate">{group.shopName}</span>
-                          <span className="block text-[12px] text-stone-500">
-                            {count} item{count === 1 ? '' : 's'} · Standard delivery
-                            {group.freeFrom !== null && group.shippingFee > 0 && <> · <span className="text-emerald-700">add {peso(group.freeFrom - group.subtotal)} more for free delivery</span></>}
-                          </span>
-                        </span>
-                        {group.shippingFee === 0
-                          ? <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-emerald-700"><Gift className="w-3.5 h-3.5" /> Free</span>
-                          : <span className="text-[13px] font-semibold text-stone-900 tabular-nums">{peso(group.shippingFee)}</span>}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="mt-3 flex items-start gap-2.5 text-[13px] text-stone-600">
-                  <Truck className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
-                  <span>Each parcel goes to the partner courier that serves the shop&apos;s area and yours. You will see the courier and tracking number in your orders once it ships.</span>
-                </p>
-              </Section>
-
-              {/* 3 · Payment */}
-              <Section step={3} title="Payment" hint="Choose how you want to pay.">
+              <Section step={4} title="Payment" hint="Choose how you want to pay.">
                 <div className="grid sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="Payment method">
                   {([
-                    { key: 'gcash', title: 'GCash', text: gcashReady || !infoLoaded ? 'Pay each shop straight to its GCash' : 'Not every shop in your cart takes GCash', badge: <span className="w-11 h-11 rounded-xl bg-white ring-1 ring-stone-200 flex items-center justify-center shrink-0"><img src={gcashMark} alt="" className="w-8 h-8 object-contain" /></span> },
                     { key: 'cod', title: 'Cash on delivery', text: 'Pay the rider when your parcel arrives', badge: <span className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0"><Banknote className="w-5 h-5" /></span> },
+                    { key: 'e_wallet', title: 'E-wallet', text: 'Pay now on the secure payment page', badge: <span className="w-11 h-11 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0"><Wallet className="w-5 h-5" /></span> },
+                    { key: 'card', title: 'Credit or debit card', text: 'Pay now on the secure payment page', badge: <span className="w-11 h-11 rounded-xl bg-stone-900 text-white flex items-center justify-center shrink-0"><CreditCard className="w-5 h-5" /></span> },
+                    { key: 'gcash', title: 'GCash to the shop', text: gcashBlockers.length ? 'Not every shop in this order takes GCash' : 'Send to each shop, then upload the receipt', badge: <span className="w-11 h-11 rounded-xl bg-white ring-1 ring-stone-200 flex items-center justify-center shrink-0"><img src={gcashMark} alt="" className="w-8 h-8 object-contain" /></span> },
                   ] as const).map((m) => {
                     const on = method === m.key;
-                    const off = m.key === 'gcash' && !gcashReady;
+                    const off = m.key === 'gcash' && gcashBlockers.length > 0;
                     return (
-                      <button key={m.key} type="button" role="radio" aria-checked={on} aria-disabled={off} disabled={off} onClick={() => setPaymentMethod(m.key)}
+                      <button key={m.key} type="button" role="radio" aria-checked={on} disabled={off} onClick={() => setMethod(m.key)}
                         className={`flex items-center gap-3 p-3.5 text-left rounded-2xl border-[1.5px] transition-colors disabled:opacity-55 disabled:cursor-not-allowed ${on ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
                         {m.badge}
                         <span className="flex-1 min-w-0">
@@ -448,151 +315,254 @@ export default function CheckoutPage() {
                     );
                   })}
                 </div>
-
-                {gcashBlockers.length > 0 && (
-                  <p className="mt-3 text-[12.5px] text-stone-500">
-                    {gcashBlockers.map((g) => g.shopName).join(', ')} {gcashBlockers.length === 1 ? 'takes' : 'take'} cash on delivery only. To pay the others by GCash, check out their items separately.
+                {(method === 'e_wallet' || method === 'card') && (
+                  <p className="mt-4 flex items-start gap-2.5 p-4 rounded-2xl bg-sky-50 border border-sky-100 text-[13px] text-sky-900">
+                    <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>After you place the order you go to the payment page. Pay within 1 hour, or the order is cancelled and its items and vouchers are released.</span>
                   </p>
                 )}
-
-                {method === 'gcash' ? (
+                {method === 'gcash' && (
                   <div className="mt-5 space-y-3">
-                    <p className="text-[13px] leading-relaxed text-stone-600">
-                      {shopGroups.length > 1
-                        ? `Your money goes straight to each shop. Send ${shopGroups.length} GCash payments, one per shop, then add each reference and receipt.`
-                        : 'Your money goes straight to the shop. Send it in GCash, then add the reference and the receipt.'}
-                    </p>
-                    {shopGroups.map((g, i) => {
-                      const info = shopInfo[g.sellerId];
-                      const err = payErrors[g.sellerId] ?? {};
-                      const preview = proofPreviews[g.sellerId];
+                    {stores.map((s, i) => {
+                      const info = shopInfo[s.seller.id];
+                      const err = payErrors[s.seller.id] ?? {};
+                      const preview = proofPreviews[s.seller.id];
                       return (
-                        <section key={g.key} ref={(el) => { shopRefs.current[g.sellerId] = el; }} className="rounded-2xl border border-stone-200 p-4 sm:p-5 space-y-4" aria-label={`GCash payment to ${g.shopName}`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="flex items-center gap-2 text-[14px] font-semibold text-stone-900 min-w-0">
-                              {shopGroups.length > 1 && <span className="w-6 h-6 rounded-full bg-stone-900 text-white text-[12px] flex items-center justify-center shrink-0">{i + 1}</span>}
-                              <span className="truncate">{g.shopName}</span>
-                            </p>
-                            <span className="text-[12px] text-stone-500 shrink-0">{g.shippingFee === 0 ? 'Items · free delivery' : `Items + ${peso(g.shippingFee)} delivery`}</span>
-                          </div>
-                          {info?.gcash ? <GcashPayee account={info.gcash} amount={g.total} /> : <div className="h-28 rounded-2xl bg-stone-100 animate-pulse" />}
-                          <ReferenceField
-                            id={`gcash-ref-${g.sellerId}`}
-                            value={refs[g.sellerId] ?? ''}
-                            onChange={(v) => { setRefs((r) => ({ ...r, [g.sellerId]: v })); if (err.reference) setShopError(g.sellerId, { reference: undefined }); }}
-                            error={err.reference}
-                          />
+                        <section key={s.seller.id} ref={(el) => { shopRefs.current[s.seller.id] = el; }} className="rounded-2xl border border-stone-200 p-4 sm:p-5 space-y-4" aria-label={`GCash payment to ${s.seller.shop_name}`}>
+                          <p className="flex items-center gap-2 text-[14px] font-semibold text-stone-900 min-w-0">
+                            {stores.length > 1 && <span className="w-6 h-6 rounded-full bg-stone-900 text-white text-[12px] flex items-center justify-center shrink-0">{i + 1}</span>}
+                            <span className="truncate">{s.seller.shop_name}</span>
+                          </p>
+                          {info?.gcash ? <GcashPayee account={info.gcash} amount={s.total} /> : <div className="h-28 rounded-2xl bg-stone-100 animate-pulse" />}
+                          <ReferenceField id={`gcash-ref-${s.seller.id}`} value={refs[s.seller.id] ?? ''} error={err.reference}
+                            onChange={(v) => { setRefs((r) => ({ ...r, [s.seller.id]: v })); if (err.reference) setShopError(s.seller.id, { reference: undefined }); }} />
                           <div>
-                            <span className={label}>Receipt screenshot</span>
+                            <span className="block text-[12px] font-medium text-stone-600 mb-1.5">Receipt screenshot</span>
                             {preview ? (
                               <div className="flex items-center gap-4 p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
-                                <img src={preview} alt={`GCash receipt for ${g.shopName}`} className="w-16 h-16 rounded-xl object-cover ring-1 ring-emerald-200" />
-                                <span className="flex-1 min-w-0 text-[13px]">
-                                  <span className="flex items-center gap-1 font-semibold text-emerald-800"><CheckCircle2 className="w-4 h-4" /> Receipt attached</span>
-                                  <span className="block text-[12px] text-stone-500 truncate">{proofs[g.sellerId]?.name}</span>
-                                </span>
-                                <button type="button" onClick={() => removeProof(g.sellerId)} className="h-8 px-3 rounded-full border border-stone-300 bg-white text-[12px] font-semibold text-stone-700 hover:border-stone-900 flex items-center gap-1">
+                                <img src={preview} alt={`GCash receipt for ${s.seller.shop_name}`} className="w-16 h-16 rounded-xl object-cover ring-1 ring-emerald-200" />
+                                <span className="flex-1 min-w-0 text-[13px]"><span className="flex items-center gap-1 font-semibold text-emerald-800"><CheckCircle2 className="w-4 h-4" /> Receipt attached</span></span>
+                                <button type="button" onClick={() => setProofs((p) => { const n = { ...p }; delete n[s.seller.id]; return n; })} className="h-8 px-3 rounded-full border border-stone-300 bg-white text-[12px] font-semibold text-stone-700 hover:border-stone-900 flex items-center gap-1">
                                   <X className="w-3.5 h-3.5" /> Remove
                                 </button>
                               </div>
                             ) : (
                               <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed cursor-pointer transition-colors ${err.receipt ? 'border-brand-red bg-rose-50/40' : 'border-stone-300 hover:border-brand-red hover:bg-rose-50/30'}`}>
                                 <UploadCloud className={`w-6 h-6 shrink-0 ${err.receipt ? 'text-brand-red' : 'text-stone-400'}`} />
-                                <span>
-                                  <span className="block text-[13px] font-semibold text-brand-red">Upload the receipt</span>
-                                  <span className="block text-[12px] text-stone-400">PNG or JPG screenshot from GCash, up to 5 MB</span>
-                                </span>
-                                {/* Not "required": a hidden required input cannot show the browser's message, so the check is ours. */}
-                                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => pickProof(g.sellerId, e)} className="sr-only" aria-invalid={Boolean(err.receipt)} />
+                                <span><span className="block text-[13px] font-semibold text-brand-red">Upload the receipt</span><span className="block text-[12px] text-stone-400">JPG or PNG screenshot, up to 5 MB</span></span>
+                                <input type="file" accept="image/png,image/jpeg" onChange={(e) => pickProof(s.seller.id, e)} className="sr-only" />
                               </label>
                             )}
-                            {err.receipt && <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-brand-red"><AlertCircle className="w-3.5 h-3.5" />{err.receipt}</p>}
+                            {err.receipt && <p role="alert" className="mt-1.5 text-[12px] font-medium text-brand-red">{err.receipt}</p>}
                           </div>
                         </section>
                       );
                     })}
                   </div>
-                ) : (
-                  <div className="mt-5 flex items-start gap-3 p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-[13px] text-amber-900">
-                    <Banknote className="w-5 h-5 text-amber-600 shrink-0" />
-                    <span>Prepare <span className="font-semibold">{peso(total)}</span> in cash{shopGroups.length > 1 ? `. Each of the ${shopGroups.length} parcels is paid to its rider when it arrives` : ' for the rider'}. Exact change helps.</span>
-                  </div>
                 )}
               </Section>
             </div>
 
-            {/* Summary */}
             <aside className="lg:sticky lg:top-24 rounded-3xl bg-white border border-stone-200 overflow-hidden">
-              <div className="px-6 pt-6 pb-4">
-                <h2 className="text-lg font-semibold text-stone-900">Your order</h2>
-                <p className="text-[13px] text-stone-500">{items.reduce((s, i) => s + i.quantity, 0)} items · {shopGroups.length} parcel{shopGroups.length === 1 ? '' : 's'}</p>
+              <div className="px-6 pt-6 pb-2">
+                <h2 className="text-lg font-semibold text-stone-900">Summary</h2>
+                <p className="text-[13px] text-stone-500 tabular-nums">{quote?.totals.items ?? 0} items · {stores.length} parcel{stores.length === 1 ? '' : 's'}</p>
               </div>
-              <div className="max-h-[340px] overflow-y-auto px-6 space-y-4">
-                {shopGroups.map((group, gIdx) => (
-                  <div key={group.key + gIdx}>
-                    <p className="flex items-center justify-between text-[12px] font-semibold text-stone-700 mb-2">
-                      <span className="flex items-center gap-1.5 truncate"><Store className="w-3.5 h-3.5 text-stone-400" />{group.shopName}</span>
-                      <span className={`font-normal shrink-0 ${group.shippingFee === 0 ? 'text-emerald-700' : 'text-stone-500'}`}>{group.shippingFee === 0 ? 'Free delivery' : `${peso(group.shippingFee)} delivery`}</span>
-                    </p>
-                    <ul className="space-y-2.5">
-                      {group.items.map((item) => (
-                        <li key={item.variantId} className="flex items-center gap-3">
-                          <span className="relative shrink-0">
-                            <img src={item.image || '/placeholder.png'} alt="" className="w-12 h-12 rounded-xl object-cover bg-stone-100 ring-1 ring-stone-200" />
-                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-stone-700 text-white text-[10px] font-semibold flex items-center justify-center">{item.quantity}</span>
-                          </span>
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-[13px] text-stone-900 truncate">{item.name}</span>
-                            {item.variant && <span className="block text-[11px] text-stone-500 truncate">{item.variant}</span>}
-                          </span>
-                          <span className="text-[13px] font-semibold text-stone-900 tabular-nums">{peso(item.price * item.quantity)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-
-              <div className="px-6 pt-4 pb-6 mt-4 border-t border-stone-200">
-                <dl className="space-y-2 text-[14px]">
-                  <div className="flex justify-between text-stone-600"><dt>Subtotal</dt><dd className="text-stone-900 tabular-nums">{peso(subtotal)}</dd></div>
-                  <div className="flex justify-between text-stone-600">
-                    <dt>Delivery {shopGroups.length > 1 && <span className="text-stone-400">({shopGroups.length} parcels)</span>}</dt>
-                    <dd className="text-stone-900 tabular-nums">{peso(totalShippingFee)}</dd>
-                  </div>
+              <div className="px-6 pb-6">
+                <dl className="mt-3 space-y-2 text-[14px]">
+                  <Row label="Merchandise" value={peso(quote?.totals.merchandise ?? 0)} />
+                  {(quote?.totals.promo_discount ?? 0) > 0 && <Row label="Shop promotions" value={`−${peso(quote!.totals.promo_discount)}`} tone="good" />}
+                  {(quote?.totals.store_discount ?? 0) > 0 && <Row label="Store vouchers" value={`−${peso(quote!.totals.store_discount)}`} tone="good" />}
+                  {(quote?.totals.platform_discount ?? 0) > 0 && <Row label="Platform voucher" value={`−${peso(quote!.totals.platform_discount)}`} tone="good" />}
+                  <Row label={`Shipping${stores.length > 1 ? ` (${stores.length} parcels)` : ''}`} value={addressId ? peso(quote?.totals.shipping ?? 0) : '—'} />
+                  {(quote?.totals.shipping_discount ?? 0) > 0 && <Row label="Shipping voucher" value={`−${peso(quote!.totals.shipping_discount)}`} tone="good" />}
                   <div className="flex justify-between items-baseline pt-3 border-t border-stone-200">
                     <dt className="text-[15px] font-semibold text-stone-900">Total</dt>
-                    <dd className="text-[26px] font-bold tracking-tight text-brand-red tabular-nums">{peso(total)}</dd>
+                    <dd className="text-[26px] font-bold tracking-tight text-brand-red tabular-nums">{quoting ? <Loader2 className="w-5 h-5 animate-spin inline" /> : peso(quote?.totals.total ?? 0)}</dd>
                   </div>
                 </dl>
 
+                {blocking.length > 0 && !quoting && (
+                  <ul role="alert" className="mt-4 space-y-1.5 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-[12.5px] text-brand-red">
+                    {blocking.map((p, i) => <li key={i} className="flex gap-2"><AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{p.message}</li>)}
+                  </ul>
+                )}
                 {errorMsg && (
                   <div role="alert" className="mt-4 flex items-start gap-2 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-[13px] text-brand-red">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{errorMsg}</span>
                   </div>
                 )}
 
-                <button type="submit" disabled={submitting || selectedAddressNeedsUpdate}
+                <button type="button" onClick={place} disabled={!canPlace}
                   className="mt-5 w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Placing your order…</>
-                    : selectedAddressNeedsUpdate ? 'Update your address to continue'
-                    : <><Lock className="w-4 h-4" /> Place order · {peso(total)}</>}
+                    : <><Lock className="w-4 h-4" /> {changeNotice ? 'Confirm and place order' : 'Place order'} · {peso(quote?.totals.total ?? 0)}</>}
                 </button>
                 <p className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-stone-500 text-center">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  {method === 'gcash' ? 'Paid straight to the shop. Not as described? Return it within 7 days.' : 'Pay the rider when your parcel arrives.'}
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" /> Not as described? Request a return within 7 days of delivery.
                 </p>
               </div>
             </aside>
-          </form>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
+function Row({ label, value, tone }: { label: string; value: string; tone?: 'good' }) {
+  return (
+    <div className={`flex justify-between ${tone === 'good' ? 'text-emerald-700' : 'text-stone-600'}`}>
+      <dt>{label}</dt><dd className={`tabular-nums ${tone === 'good' ? '' : 'text-stone-900'}`}>{value}</dd>
+    </div>
+  );
+}
+
+function StoreBlock({ store, wallet, code, onCode, note, onNote, noteError }: {
+  store: QuoteStore; wallet: WalletVoucher[]; code: string; onCode: (c: string) => void; note: string; onNote: (n: string) => void; noteError?: string;
+}) {
+  const ship = store.shipping;
+  return (
+    <section className="rounded-2xl border border-stone-200 overflow-hidden">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 bg-stone-50/70 border-b border-stone-100">
+        <span className="flex items-center gap-2 min-w-0 text-[14px] font-semibold text-stone-900"><Store className="w-4 h-4 text-stone-400" /><span className="truncate">{store.seller.shop_name}</span></span>
+        <span className="text-[12px] text-stone-500 shrink-0 tabular-nums">{peso(store.total)}</span>
+      </header>
+      <ul className="divide-y divide-stone-100">
+        {store.lines.map((l) => (
+          <li key={l.key} className="flex items-center gap-3 px-4 py-3">
+            <span className="relative shrink-0">
+              {l.image_url ? <img src={l.image_url} alt="" className="w-12 h-12 rounded-xl object-cover bg-stone-100 ring-1 ring-stone-200" /> : <span className="w-12 h-12 rounded-xl bg-stone-100 block" />}
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-stone-700 text-white text-[10px] font-semibold flex items-center justify-center">{l.quantity}</span>
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[13px] text-stone-900 truncate">{l.name}</span>
+              <span className="block text-[11.5px] text-stone-500">
+                {l.variant_label && <>{l.variant_label} · </>}
+                {l.quantity} × {peso(l.unit_price)}
+                {l.price_source === 'flash' && <span className="ml-1 inline-flex items-center gap-0.5 font-semibold text-stone-800"><Zap className="w-3 h-3 text-amber-500 fill-amber-500" />Flash</span>}
+                {l.price_source === 'sale' && <span className="ml-1 font-semibold text-brand-red">Sale</span>}
+              </span>
+              {l.free_quantity > 0 && <span className="block text-[11.5px] font-semibold text-emerald-700"><Gift className="inline w-3 h-3 -mt-0.5" /> {l.free_quantity} free</span>}
+              {l.status !== 'available' && l.message && <span className="block text-[11.5px] font-medium text-brand-red">{l.message}</span>}
+            </span>
+            <span className="text-[13px] font-semibold text-stone-900 tabular-nums">{peso(l.subtotal - l.promo_share)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="px-4 py-3 space-y-3 border-t border-stone-100">
+        {store.promotions.map((p) => (
+          <p key={p.id} className="flex justify-between text-[12.5px] text-emerald-700"><span className="inline-flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />{p.name}</span><span className="tabular-nums">−{peso(p.discount)}</span></p>
+        ))}
+        <VoucherPicker label="Shop voucher" compact wallet={wallet} code={code} onCode={onCode} result={store.store_voucher} />
+        <p className="flex items-start justify-between gap-3 text-[13px]">
+          <span className="flex items-start gap-2 text-stone-600">
+            <Truck className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+            {ship.serviceable
+              ? <span>{ship.route ?? 'Standard delivery'} · {ship.chargeable_kg} kg charged{ship.weight_grams > 0 ? ` (${(ship.weight_grams / 1000).toLocaleString()} kg)` : ''}</span>
+              : <span className="text-brand-red font-medium">{ship.message}</span>}
+          </span>
+          {ship.serviceable && (ship.free_delivery
+            ? <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 shrink-0"><Gift className="w-3.5 h-3.5" /> Free</span>
+            : <span className="font-semibold text-stone-900 tabular-nums shrink-0">{peso(ship.fee)}</span>)}
+        </p>
+        <div>
+          <label htmlFor={`note-${store.seller.id}`} className="block text-[12px] font-medium text-stone-600 mb-1">Note to the shop <span className="text-stone-400">(optional)</span></label>
+          <input id={`note-${store.seller.id}`} type="text" value={note} onChange={(e) => onNote(e.target.value)} placeholder="e.g. Paki-wrap po as gift"
+            aria-invalid={!!noteError}
+            className={`w-full h-10 px-3 text-[13px] bg-white border rounded-xl outline-none focus:ring-2 focus:ring-brand-red/10 ${noteError ? 'border-brand-red' : 'border-stone-300 focus:border-brand-red'}`} />
+          <p className={`mt-1 text-[11px] tabular-nums ${noteError ? 'text-brand-red font-medium' : 'text-stone-400'}`}>{noteError ?? `${note.length}/${NOTE_MAX}`}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Picks one voucher of a kind: from the wallet (with what each would take off this order) or by typing a code. A new
+ * choice replaces the old one (A2). The server's verdict on the chosen code is shown under it.
+ */
+function VoucherPicker({ label, wallet, code, onCode, result, compact }: {
+  label: string; wallet: WalletVoucher[]; code: string; onCode: (c: string) => void;
+  result: { code: string; applied: boolean; discount: number; message: string | null } | null; compact?: boolean;
+}) {
+  const [typed, setTyped] = useState('');
+  const active = code.toUpperCase();
+
+  return (
+    <div className={compact ? '' : 'rounded-2xl border border-stone-200 p-4'}>
+      <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-stone-800"><Ticket className="w-3.5 h-3.5 text-brand-red" /> {label}</p>
+      {wallet.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {wallet.map((v) => {
+            const on = active === v.code;
+            return (
+              <button key={v.id} type="button" onClick={() => onCode(on ? '' : v.code)} disabled={!v.applicable && !on} aria-pressed={on}
+                title={v.applicable ? `Saves ${peso(v.discount ?? 0)}` : v.message ?? undefined}
+                className={`px-2.5 py-1.5 rounded-xl border text-left text-[12px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${on ? 'border-brand-red bg-rose-50 text-brand-red' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'}`}>
+                <span className="block font-semibold">{v.label}</span>
+                <span className="block text-[10.5px] text-stone-500">{v.code} · min. {peso(v.min_spend)}{!v.applicable && v.message ? ` · ${v.message}` : ''}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <form className="mt-2 flex gap-1.5" onSubmit={(e) => { e.preventDefault(); if (typed.trim()) { onCode(typed.trim()); setTyped(''); } }}>
+        <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Enter a voucher code" aria-label={`${label} code`}
+          className="flex-1 min-w-0 h-9 px-3 text-[13px] uppercase border border-stone-300 rounded-xl outline-none focus:border-brand-red" />
+        <button type="submit" className="h-9 px-3 rounded-xl bg-stone-900 text-white text-[12px] font-semibold">Apply</button>
+      </form>
+      {result && (
+        <p role="status" className={`mt-1.5 flex items-center justify-between gap-2 text-[12px] ${result.applied ? 'text-emerald-700' : 'text-brand-red'}`}>
+          <span>{result.code}: {result.applied ? `−${peso(result.discount)}` : result.message}</span>
+          <button type="button" onClick={() => onCode('')} className="text-stone-500 hover:text-stone-900" aria-label={`Remove ${result.code}`}><X className="w-3.5 h-3.5" /></button>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Placed({ orders, method }: { orders: Order[]; method: Method }) {
+  const total = orders.reduce((s, o) => s + Number(o.total), 0);
+  return (
+    <div className="min-h-screen bg-[#FAF8F5] flex flex-col">
+      <CheckoutBar step={3} />
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-lg rounded-3xl bg-white border border-stone-200 p-8 text-center">
+          <span className="mx-auto w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center"><CheckCircle2 className="w-8 h-8" /></span>
+          <h1 className="mt-5 text-[26px] font-serif font-bold tracking-tight text-[#1E1B18]">Thank you for your order</h1>
+          <p className="mt-2 text-sm text-stone-500">
+            {orders.length > 1 ? `Your checkout became ${orders.length} orders, one per shop.` : <>Order <span className="font-mono font-semibold text-stone-900">#{orders[0].order_number}</span> is placed.</>}
+          </p>
+          <ul className="mt-6 rounded-2xl border border-stone-200 divide-y divide-stone-100 text-left text-[13px]">
+            {orders.map((o) => (
+              <li key={o.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <span className="font-mono font-semibold text-stone-900">#{o.order_number}</span>
+                <span className="font-semibold text-stone-900 tabular-nums">{peso(Number(o.total))}</span>
+              </li>
+            ))}
+            <li className="flex items-center justify-between gap-3 px-4 py-3 bg-stone-50/70">
+              <span className="text-stone-600">{method === 'gcash' ? 'Paid to the shops by GCash' : 'Pay on delivery'}</span>
+              <span className="text-[16px] font-bold text-brand-red tabular-nums">{peso(total)}</span>
+            </li>
+          </ul>
+          <p className={`mt-4 text-[13px] rounded-2xl px-4 py-3 text-left ${method === 'gcash' ? 'bg-amber-50 text-amber-900' : 'bg-sky-50 text-sky-900'}`}>
+            {method === 'gcash'
+              ? 'The shop checks your GCash receipt first. Once it is confirmed, your order is packed and handed to the courier.'
+              : `Prepare ${peso(total)} in cash for the rider${orders.length > 1 ? 's (each parcel is paid separately)' : ''}.`}
+          </p>
+          <div className="mt-6 flex flex-col sm:flex-row gap-2">
+            <Link to="/settings/orders" className="flex-1 h-11 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center transition-colors">Track my orders</Link>
+            <Link to="/" className="flex-1 h-11 rounded-full border border-stone-300 text-sm font-semibold text-stone-800 hover:border-stone-900 flex items-center justify-center">Keep shopping</Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The slim checkout header: logo, the three steps, and a way back. */
-function CheckoutBar({ step }: { step: 1 | 2 | 3 }) {
+export function CheckoutBar({ step }: { step: 1 | 2 | 3 }) {
   const steps = ['Cart', 'Checkout', 'Done'];
   return (
     <div className="bg-white border-b border-stone-200 sticky top-0 z-30">

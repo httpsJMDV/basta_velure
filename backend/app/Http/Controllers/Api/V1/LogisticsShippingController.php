@@ -92,12 +92,15 @@ class LogisticsShippingController extends Controller
             'destination_zone_id' => ['required', 'integer', $own],
             'first_kg'            => self::MONEY,
             'additional_kg'       => self::MONEY,
+            'reason'              => ['nullable', 'string', 'max:200'],
         ], self::MONEY_MESSAGES + ['origin_zone_id.exists' => 'Choose one of your zones.', 'destination_zone_id.exists' => 'Choose one of your zones.']);
 
         $rate = ShippingRate::firstOrNew(['origin_zone_id' => $data['origin_zone_id'], 'destination_zone_id' => $data['destination_zone_id']]);
-        $old = $rate->exists ? ['first_kg' => (float) $rate->first_kg, 'additional_kg' => (float) $rate->additional_kg] : null;
+        // The route goes into the audit entry, so the history still reads "NCR → Luzon" after a zone is renamed or deleted.
+        $route = $this->routeName((int) $data['origin_zone_id'], (int) $data['destination_zone_id']);
+        $old = $rate->exists ? ['route' => $route, 'first_kg' => (float) $rate->first_kg, 'additional_kg' => (float) $rate->additional_kg] : null;
         $rate->fill(['logistics_company_id' => $company->id, 'first_kg' => $data['first_kg'], 'additional_kg' => $data['additional_kg']])->save();
-        $new = ['first_kg' => (float) $rate->first_kg, 'additional_kg' => (float) $rate->additional_kg];
+        $new = ['route' => $route, 'first_kg' => (float) $rate->first_kg, 'additional_kg' => (float) $rate->additional_kg];
         if ($old !== $new) {
             AuditLog::record($request->user(), $old ? 'shipping.rate_changed' : 'shipping.rate_added', $rate, $old, $new, $request->input('reason'), $company->id, 'logistics');
         }
@@ -110,7 +113,7 @@ class LogisticsShippingController extends Controller
     {
         $company = $this->company($request);
         $r = ShippingRate::where('logistics_company_id', $company->id)->findOrFail($rate);
-        AuditLog::record($request->user(), 'shipping.rate_removed', $r, ['first_kg' => (float) $r->first_kg, 'additional_kg' => (float) $r->additional_kg], null, null, $company->id, 'logistics');
+        AuditLog::record($request->user(), 'shipping.rate_removed', $r, ['route' => $this->routeName($r->origin_zone_id, $r->destination_zone_id), 'first_kg' => (float) $r->first_kg, 'additional_kg' => (float) $r->additional_kg], null, null, $company->id, 'logistics');
         $r->delete();
 
         return response()->json(['message' => 'Rate removed. That route is no longer offered.', 'data' => $this->table($company)]);
@@ -183,6 +186,13 @@ class LogisticsShippingController extends Controller
                 'first_kg' => (float) $r->first_kg, 'additional_kg' => (float) $r->additional_kg, 'updated_at' => $r->updated_at?->toIso8601String(),
             ])->values(),
         ];
+    }
+
+    private function routeName(int $originId, int $destinationId): string
+    {
+        $names = ShippingZone::whereKey([$originId, $destinationId])->pluck('name', 'id');
+
+        return ($names[$originId] ?? '?') . ' → ' . ($names[$destinationId] ?? '?');
     }
 
     private function company(Request $request): LogisticsCompany

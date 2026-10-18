@@ -39,8 +39,8 @@ export function useQuickAdd(product: Product) {
       setAdded(true);
       window.setTimeout(() => setAdded(false), 1400);
       showToast('Added to cart.', 'success');
-    } catch {
-      showToast('Could not add to cart. Please try again.', 'error');
+    } catch (err) {
+      showToast(err instanceof Error && err.message ? err.message : 'Could not add to cart. Please try again.', 'error');
     }
   }
 

@@ -67,85 +67,59 @@ class SellerReportController extends Controller
 
     /**
      * GET /api/v1/seller/reports/revenue-chart
+     *
+     * Uses the same window as the summary (S13), so the chart and the cards agree. Gross is the shop's own item
+     * subtotals (A9: shipping is not a sale, and other shops' items in the same order are not this shop's sales).
+     * Daily points, or monthly ones for 12 months, when asked, or for a window longer than 92 days.
      */
     public function revenueChart(Request $request): JsonResponse
     {
         $sellerId = $request->user()->id;
-        $range = $request->query('range', '30d');
-        $interval = $request->query('interval', 'daily');
-
-        $now = now();
-        $days = match ($range) {
-            '7d'  => 7,
-            '90d' => 90,
-            '12m' => 365,
-            default => 30,
-        };
-
-        if ($range === '12m' || $interval === 'monthly') {
-            $points = collect(range(11, 0))->map(function ($monthsAgo) use ($now, $sellerId) {
-                $monthDate = $now->copy()->subMonths($monthsAgo);
-                $year = $monthDate->year;
-                $month = $monthDate->month;
-                $label = $monthDate->format('M Y');
-
-                $gross = (float) Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
-                    ->whereYear('created_at', $year)
-                    ->whereMonth('created_at', $month)
-                    ->whereNotIn('status', $this->excludedStatuses())
-                    ->sum('total');
-
-                $net = (float) OrderItem::where('seller_id', $sellerId)
-                    ->whereHas('order', fn ($q) =>
-                        $q->whereYear('created_at', $year)
-                          ->whereMonth('created_at', $month)
-                          ->whereNotIn('status', $this->excludedStatuses())
-                    )->sum('seller_earnings');
-
-                $commission = (float) OrderItem::where('seller_id', $sellerId)
-                    ->whereHas('order', fn ($q) =>
-                        $q->whereYear('created_at', $year)
-                          ->whereMonth('created_at', $month)
-                          ->whereNotIn('status', $this->excludedStatuses())
-                    )->sum('commission_amount');
-
-                return [
-                    'date'        => $label,
-                    'gross_sales' => $gross,
-                    'net_earnings'=> $net,
-                    'commission'  => $commission,
-                ];
-            });
-        } else {
-            $points = collect(range($days - 1, 0))->map(function ($daysAgo) use ($now, $sellerId) {
-                $dateObj = $now->copy()->subDays($daysAgo);
-                $dateStr = $dateObj->toDateString();
-                $label = $dateObj->format('M d');
-
-                $gross = (float) Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
-                    ->whereDate('created_at', $dateStr)
-                    ->whereNotIn('status', $this->excludedStatuses())
-                    ->sum('total');
-
-                $net = (float) OrderItem::where('seller_id', $sellerId)
-                    ->whereHas('order', fn ($q) =>
-                        $q->whereDate('created_at', $dateStr)->whereNotIn('status', $this->excludedStatuses())
-                    )->sum('seller_earnings');
-
-                $commission = (float) OrderItem::where('seller_id', $sellerId)
-                    ->whereHas('order', fn ($q) =>
-                        $q->whereDate('created_at', $dateStr)->whereNotIn('status', $this->excludedStatuses())
-                    )->sum('commission_amount');
-
-                return [
-                    'date'        => $label,
-                    'iso_date'    => $dateStr,
-                    'gross_sales' => $gross,
-                    'net_earnings'=> $net,
-                    'commission'  => $commission,
-                ];
-            });
+        $tz = 'Asia/Manila';
+        [$start, $end] = $this->window($request);
+        if (! $start) {
+            $start = now($tz)->subMonths(11)->startOfMonth()->utc();
+            $end = now($tz)->endOfDay()->utc();
         }
+        $from = $start->copy()->setTimezone($tz);
+        $to = $end->copy()->setTimezone($tz);
+        $monthly = $request->query('interval') === 'monthly' || $request->query('range') === '12m' || $from->diffInDays($to) > 92;
+
+        $items = OrderItem::where('seller_id', $sellerId)
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', $this->excludedStatuses())->whereBetween('created_at', [$start, $end]))
+            ->with('order:id,created_at')
+            ->get(['id', 'order_id', 'subtotal', 'seller_earnings', 'commission_amount']);
+
+        $key = fn (Carbon $d) => $monthly ? $d->format('Y-m') : $d->toDateString();
+        $points = [];
+        $cursor = $monthly ? $from->copy()->startOfMonth() : $from->copy()->startOfDay();
+        while ($cursor->lte($to)) {
+            $points[$key($cursor)] = [
+                'date'         => $monthly ? $cursor->format('M Y') : $cursor->format('M d'),
+                'iso_date'     => $cursor->toDateString(),
+                'gross_sales'  => 0.0,
+                'net_earnings' => 0.0,
+                'commission'   => 0.0,
+            ];
+            $monthly ? $cursor->addMonthNoOverflow() : $cursor->addDay();
+        }
+
+        foreach ($items as $item) {
+            $k = $key($item->order->created_at->copy()->setTimezone($tz));
+            if (! isset($points[$k])) {
+                continue;
+            }
+            $points[$k]['gross_sales'] += (float) $item->subtotal;
+            $points[$k]['net_earnings'] += (float) $item->seller_earnings;
+            $points[$k]['commission'] += (float) $item->commission_amount;
+        }
+
+        $points = array_map(fn ($p) => [
+            ...$p,
+            'gross_sales'  => round($p['gross_sales'], 2),
+            'net_earnings' => round($p['net_earnings'], 2),
+            'commission'   => round($p['commission'], 2),
+        ], array_values($points));
 
         return response()->json(['data' => $points]);
     }

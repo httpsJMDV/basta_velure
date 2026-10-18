@@ -7,13 +7,14 @@ import {
 } from 'lucide-react';
 import { getProductApi, getProductReviewsApi, getRelatedProductsApi, getProductsApi, setFlashReminderApi, toggleWishlistApi } from '../api/client';
 import { apiErrorMessage } from '../utils/apiError';
+import { claimVoucherApi, getProductVouchersApi } from '../api/commerce';
+import type { WalletVoucher } from '../api/commerce';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
 import { useToast } from '../components/ui/Toast';
 import { resolveShortLocation } from '../utils/psgc';
 import { pesoCompact as peso, discountPercent } from '../utils/pricing';
-import { DELIVERY_FEE } from '../utils/shipping';
 import { useShopPaymentInfo } from '../hooks/useShopDelivery';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
@@ -197,7 +198,10 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
   const stock = variant?.stock_quantity ?? totalStock;
   const soldOut = stock != null && stock <= 0;
   const limit = product.purchase_limit ?? null;
-  const maxQty = Math.max(1, Math.min(stock ?? 99999, limit ?? 99999));
+  // The per-buyer limit counts what this buyer already ordered (B4).
+  const bought = product.purchased_by_you ?? 0;
+  const limitLeft = limit != null ? Math.max(0, limit - bought) : null;
+  const maxQty = Math.max(1, Math.min(stock ?? 99999, limitLeft ?? 99999));
   const onVacation = !!(product.on_vacation || product.seller?.on_vacation);
   const sold = soldLabel(product.units_sold);
 
@@ -205,7 +209,11 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
     if (!/^\d+$/.test(text.trim()) || Number(text) < 1) return 'Enter a quantity of at least 1.';
     const q = Number(text);
     if (stock != null && q > stock) return stock === 1 ? 'Only 1 is left.' : `Only ${stock.toLocaleString()} are left.`;
-    if (limit != null && q > limit) return `You can buy up to ${limit} of this item in total.`;
+    if (limit != null && limitLeft != null && q > limitLeft) {
+      return bought > 0
+        ? `You can buy up to ${limit} of this item in total. You already bought ${bought}.`
+        : `You can buy up to ${limit} of this item in total.`;
+    }
     return '';
   }
   const setQty = (q: number) => { setQtyText(String(q)); setQtyError(''); };
@@ -241,6 +249,12 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
     const problem = qtyProblem(qtyText);
     if (problem) { setQtyError(problem); return; }
     const variantId = variant?.id ?? product.variants?.[0]?.id ?? 0;
+    // Buy Now checks out only this item; the cart stays as it is (B4).
+    if (action === 'buy') {
+      if (!user) { navigate('/login'); return; }
+      navigate(`/checkout?buy=${variantId}&qty=${Number(qtyText)}`);
+      return;
+    }
     setBusy(action);
     try {
       await addItem({
@@ -254,10 +268,9 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
         sellerId: product.seller?.id,
         shopName: product.seller?.shop_name,
       });
-      if (action === 'buy') navigate('/cart');
-      else showToast('Added to your cart.', 'success');
+      showToast('Added to your cart.', 'success');
     } catch (e) {
-      showToast(apiErrorMessage(e, 'Could not add to cart. Please try again.'), 'error');
+      showToast(e instanceof Error && e.message ? e.message : apiErrorMessage(e, 'Could not add to cart. Please try again.'), 'error');
     } finally {
       setBusy(null);
     }
@@ -459,7 +472,55 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
         </button>
       </div>
 
+      <ShopVouchers product={product} />
+
       <Assurances product={product} />
+    </div>
+  );
+}
+
+/** The shop's claimable vouchers that apply to this product, with Claim (B4, B7). */
+function ShopVouchers({ product }: { product: ProductDetail }) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const [rows, setRows] = useState<WalletVoucher[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  useEffect(() => {
+    getProductVouchersApi(product.id).then(setRows).catch(() => setRows([]));
+  }, [product.id, user?.id]);
+
+  if (rows.length === 0) return null;
+
+  const claim = async (v: WalletVoucher) => {
+    if (!user) { navigate('/login'); return; }
+    setBusy(v.id);
+    try {
+      const res = await claimVoucherApi({ voucher_id: v.id });
+      setRows((prev) => prev.map((r) => (r.id === v.id ? { ...r, claimed: true } : r)));
+      showToast(res.message, 'success');
+    } catch (e) {
+      showToast(apiErrorMessage(e, 'The voucher could not be claimed.'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="mt-5 flex flex-wrap gap-2" aria-label="Shop vouchers">
+      {rows.map((v) => (
+        <div key={v.id} className="flex items-center gap-3 rounded-xl border border-dashed border-brand-red/50 bg-rose-50/40 pl-3 pr-1.5 py-1.5">
+          <span className="min-w-0">
+            <span className="block text-[12.5px] font-semibold text-brand-red">{v.label}</span>
+            <span className="block text-[11px] text-stone-500">Min. spend {peso(v.min_spend)} · until {new Date(v.ends_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
+          </span>
+          <button type="button" onClick={() => claim(v)} disabled={v.claimed || v.used_up_by_you || busy === v.id}
+            className="h-8 px-3 rounded-lg bg-brand-red text-white text-[12px] font-semibold disabled:bg-stone-200 disabled:text-stone-500">
+            {v.used_up_by_you ? 'Used' : v.claimed ? 'Claimed' : 'Claim'}
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -490,7 +551,7 @@ function Assurances({ product }: { product: ProductDetail }) {
     {
       icon: Truck,
       title: <>Arrives <span className="font-semibold text-stone-900">{day(product.estimated_delivery_days_min)} – {day(product.estimated_delivery_days_max)}</span>{to && <> to {to}</>}</>,
-      detail: <>{freeFrom !== null ? <>Free delivery on {peso(freeFrom)}+ from this shop, otherwise {peso(DELIVERY_FEE)}</> : <>{peso(DELIVERY_FEE)} delivery per shop order</>}{from && <> · ships from {from}</>}</>,
+      detail: <>{freeFrom !== null ? <>Free delivery on {peso(freeFrom)}+ from this shop. </> : null}Shipping is by route and weight, shown at checkout{from && <> · ships from {from}</>}</>,
       action: <Link to="/settings/addresses" className="text-[12px] font-semibold text-brand-red hover:underline shrink-0">{user?.default_address ? 'Change' : 'Set address'}</Link>,
     },
     { icon: Banknote, title: 'Cash on delivery available', detail: shop && !shop.accepts_gcash ? 'Pay the rider in cash when your order arrives.' : 'Pay the rider when your order arrives, or pay the shop by GCash at checkout.' },

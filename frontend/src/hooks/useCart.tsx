@@ -1,7 +1,13 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { addToCartApi } from '../api/client';
+import { useAuth } from './useAuth';
+import {
+  addCartItemApi, getCartApi, mergeCartApi, removeCartItemApi, selectCartApi, updateCartItemApi,
+} from '../api/commerce';
+import type { CartLine, CartView } from '../api/commerce';
+import { apiErrorMessage } from '../utils/apiError';
 
+/** A cart line as the header, drawer and product pages use it. */
 export interface CartItem {
   variantId: number;
   productId: number;
@@ -12,81 +18,181 @@ export interface CartItem {
   image: string;
   sellerId?: number;
   shopName?: string;
+  /** Server cart only: the line id, its status and whether it is selected for checkout. */
+  lineId?: number;
+  status?: CartLine['status'];
+  message?: string | null;
+  selected?: boolean;
 }
 
 interface CartContextValue {
+  /** The priced cart (server) for a signed-in buyer; null for a guest. */
+  view: CartView | null;
   items: CartItem[];
+  count: number;
+  loading: boolean;
+  signedIn: boolean;
   cartOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
-  addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => Promise<void>;
-  removeItem: (variantId: number) => void;
-  updateQty: (variantId: number, qty: number) => void;
+  /** Adds units; rejects with the server's message (sold out, over the stock or the purchase limit). */
+  addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }, opts?: { open?: boolean }) => Promise<void>;
+  removeItem: (variantId: number) => Promise<void>;
+  /** Resolves to an error message when the quantity is refused. */
+  updateQty: (variantId: number, qty: number | string) => Promise<string | undefined>;
+  setSelected: (variantId: number, on: boolean) => Promise<string | undefined>;
+  selectAll: (on: boolean, sellerId?: number) => Promise<void>;
+  refresh: () => Promise<void>;
   clearCart: () => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
+const KEY = 'loved_it_cart';
 
+function readGuest(): CartItem[] {
+  try {
+    const saved = localStorage.getItem(KEY) || localStorage.getItem('velure_cart');
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeGuest(items: CartItem[]) {
+  try {
+    if (items.length) localStorage.setItem(KEY, JSON.stringify(items));
+    else localStorage.removeItem(KEY);
+    localStorage.removeItem('velure_cart');
+  } catch {
+    // private mode or quota: the cart lives in memory for this visit
+  }
+}
+
+function flatten(view: CartView): CartItem[] {
+  return view.stores.flatMap((s) => s.lines.map((l) => ({
+    variantId: l.variant_id, productId: l.product_id, name: l.name, variant: l.variant_label ?? '', price: l.unit_price,
+    quantity: l.quantity, image: l.image_url ?? '', sellerId: s.seller.id, shopName: s.seller.shop_name,
+    lineId: l.id, status: l.status, message: l.message, selected: l.selected,
+  })));
+}
+
+/**
+ * The cart (B6). Signed in, it lives on the server: the same on every device, priced live, with sold-out or removed
+ * items marked. A guest's cart is kept in this browser and moves into the account at login.
+ */
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('loved_it_cart') || localStorage.getItem('velure_cart');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const { user, loading: authLoading } = useAuth();
+  const signedIn = !!user;
+  const [view, setView] = useState<CartView | null>(null);
+  const [guest, setGuest] = useState<CartItem[]>(readGuest);
+  const [loading, setLoading] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const merging = useRef(false);
 
+  useEffect(() => { if (!signedIn) writeGuest(guest); }, [guest, signedIn]);
+
+  const refresh = useCallback(async () => {
+    if (!signedIn) return;
+    try { setView(await getCartApi()); } catch { /* keep what is shown */ }
+  }, [signedIn]);
+
+  // On login: move the guest cart in, then load the account's cart. On logout: back to the browser's cart.
   useEffect(() => {
-    try {
-      localStorage.setItem('loved_it_cart', JSON.stringify(items));
-    } catch {
-      // ignore quota / private mode errors
-    }
-  }, [items]);
-
-  const addItem = useCallback(async (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
-    const qty = item.quantity ?? 1;
-    try {
-      await addToCartApi(item.variantId, qty);
-    } catch {
-      // Backend cart API may not exist or user is in offline/client cart mode
-    }
-    setItems((prev) => {
-      const existing = prev.find((i) => i.variantId === item.variantId);
-      if (existing) {
-        return prev.map((i) =>
-          i.variantId === item.variantId ? { ...i, quantity: i.quantity + qty } : i
-        );
+    if (authLoading) return;
+    if (!signedIn) { setView(null); setGuest(readGuest()); return; }
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const local = readGuest();
+        if (local.length && !merging.current) {
+          merging.current = true;
+          const res = await mergeCartApi(local.map((i) => ({ variant_id: i.variantId, quantity: i.quantity })));
+          writeGuest([]);
+          setGuest([]);
+          if (alive) setView(res.data);
+        } else if (alive) {
+          setView(await getCartApi());
+        }
+      } catch {
+        // offline for a moment: the next action loads it
+      } finally {
+        merging.current = false;
+        if (alive) setLoading(false);
       }
-      return [...prev, { ...item, quantity: qty }];
-    });
-    setCartOpen(true);
-  }, []);
+    })();
+    return () => { alive = false; };
+  }, [signedIn, authLoading]);
 
-  const removeItem = useCallback((variantId: number) => {
-    setItems((prev) => prev.filter((i) => i.variantId !== variantId));
-  }, []);
+  const lineOf = useCallback((variantId: number) => view?.stores.flatMap((s) => s.lines).find((l) => l.variant_id === variantId), [view]);
+
+  const addItem = useCallback(async (item: Omit<CartItem, 'quantity'> & { quantity?: number }, opts?: { open?: boolean }) => {
+    const qty = item.quantity ?? 1;
+    if (signedIn) {
+      try {
+        const res = await addCartItemApi(item.variantId, qty);
+        setView(res.data);
+      } catch (e) {
+        throw new Error(apiErrorMessage(e, 'Could not add to cart. Please try again.'));
+      }
+    } else {
+      setGuest((prev) => {
+        const existing = prev.find((i) => i.variantId === item.variantId);
+        return existing
+          ? prev.map((i) => (i.variantId === item.variantId ? { ...i, quantity: i.quantity + qty } : i))
+          : [...prev, { ...item, quantity: qty }];
+      });
+    }
+    if (opts?.open !== false) setCartOpen(true);
+  }, [signedIn]);
+
+  const removeItem = useCallback(async (variantId: number) => {
+    if (!signedIn) { setGuest((prev) => prev.filter((i) => i.variantId !== variantId)); return; }
+    const line = lineOf(variantId);
+    if (!line) return;
+    try { setView(await removeCartItemApi(line.id)); } catch { await refresh(); }
+  }, [signedIn, lineOf, refresh]);
+
+  const updateQty = useCallback(async (variantId: number, qty: number | string) => {
+    if (!signedIn) {
+      const n = Number(qty);
+      if (!Number.isInteger(n) || n < 1) return 'Enter a whole-number quantity of at least 1.';
+      setGuest((prev) => prev.map((i) => (i.variantId === variantId ? { ...i, quantity: n } : i)));
+      return undefined;
+    }
+    const line = lineOf(variantId);
+    if (!line) return undefined;
+    try { setView(await updateCartItemApi(line.id, { quantity: qty })); return undefined; }
+    catch (e) { return apiErrorMessage(e, 'The quantity could not be changed.'); }
+  }, [signedIn, lineOf]);
+
+  const setSelected = useCallback(async (variantId: number, on: boolean) => {
+    const line = lineOf(variantId);
+    if (!signedIn || !line) return undefined;
+    try { setView(await updateCartItemApi(line.id, { selected: on })); return undefined; }
+    catch (e) { return apiErrorMessage(e, 'This item cannot be selected.'); }
+  }, [signedIn, lineOf]);
+
+  const selectAll = useCallback(async (on: boolean, sellerId?: number) => {
+    if (!signedIn) return;
+    try { setView(await selectCartApi(on, sellerId)); } catch { await refresh(); }
+  }, [signedIn, refresh]);
 
   const clearCart = useCallback(() => {
-    setItems([]);
-  }, []);
+    if (signedIn) { void refresh(); return; }
+    setGuest([]);
+  }, [signedIn, refresh]);
 
-  const updateQty = useCallback((variantId: number, qty: number) => {
-    setItems((prev) =>
-      qty <= 0
-        ? prev.filter((i) => i.variantId !== variantId)
-        : prev.map((i) => (i.variantId === variantId ? { ...i, quantity: qty } : i))
-    );
-  }, []);
+  const items = useMemo(() => (signedIn ? (view ? flatten(view) : []) : guest), [signedIn, view, guest]);
+  const count = useMemo(() => items.reduce((s, i) => s + i.quantity, 0), [items]);
 
   return (
     <CartContext.Provider value={{
-      items, cartOpen,
+      view, items, count, loading, signedIn, cartOpen,
       openCart: () => setCartOpen(true),
       closeCart: () => setCartOpen(false),
-      addItem, removeItem, updateQty, clearCart,
+      addItem, removeItem, updateQty, setSelected, selectAll, refresh, clearCart,
     }}>
       {children}
     </CartContext.Provider>

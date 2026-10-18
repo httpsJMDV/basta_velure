@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Wallet, BarChart2, MessageSquare, Star, Store, Settings,
   LogOut, Menu, X, ChevronRight, ShoppingBag, Plus,
-  PanelLeft, ExternalLink, Search, CheckCircle2, AlertTriangle, AlertCircle, Banknote, FolderTree, BadgePercent,
+  PanelLeft, ExternalLink, Search, CheckCircle2, AlertTriangle, AlertCircle, Banknote, FolderTree, BadgePercent, Ticket,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -44,6 +44,7 @@ function buildSellerNav(badges: { pendingReview: number; newOrders: number; unre
         },
         { icon: FolderTree, label: 'Store Categories', to: '/seller/store-categories' },
         { icon: BadgePercent, label: 'Promotions', to: '/seller/promotions' },
+        { icon: Ticket, label: 'Vouchers', to: '/seller/vouchers' },
         { icon: ShoppingCart, label: 'Orders', to: '/seller/orders', badge: badges.newOrders },
       ],
     },
@@ -80,6 +81,7 @@ const SELLER_SEARCH_PAGES = [
   { label: 'Add New Product', to: '/seller/products/new', group: 'Selling', icon: Plus },
   { label: 'Store Categories', to: '/seller/store-categories', group: 'Selling', icon: FolderTree },
   { label: 'Promotions: sales, flash sales, bundles', to: '/seller/promotions', group: 'Selling', icon: BadgePercent },
+  { label: 'Store vouchers', to: '/seller/vouchers', group: 'Selling', icon: Ticket },
   { label: 'Orders & Fulfillment', to: '/seller/orders', group: 'Selling', icon: ShoppingCart },
   { label: 'Payments: GCash, couriers & commission', to: '/seller/payments', group: 'Finance', icon: Banknote },
   { label: 'Earnings & Payouts', to: '/seller/earnings', group: 'Finance', icon: Wallet },
@@ -473,6 +475,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/seller/products/new': 'Add Product',
   '/seller/store-categories': 'Store Categories',
   '/seller/promotions':   'Promotions',
+  '/seller/vouchers':     'Vouchers',
   '/seller/orders':       'Orders',
   '/seller/payments':     'Payments',
   '/seller/earnings':     'Earnings & Payouts',

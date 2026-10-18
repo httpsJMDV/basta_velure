@@ -5,7 +5,7 @@ import {
   Users, Store, ShoppingBag,
   ShieldAlert, Star, Flag, Settings, ScrollText,
   Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, ChevronRight,
-  Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X,
+  Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X, Ticket,
   Warehouse, Truck,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
@@ -35,6 +35,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/admin/products':               'Products',
   '/admin/orders':                 'Orders',
   '/admin/payments':               'Payments & Payouts',
+  '/admin/vouchers':               'Vouchers',
   '/admin/disputes':               'Disputes / Returns',
   '/admin/reviews':                'Reviews & Feedback',
   '/admin/reports':                'Reports',
@@ -90,6 +91,7 @@ function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
       items: [
         { icon: PackageCheck, label: 'Orders',             to: '/admin/orders' },
         { icon: Wallet,       label: 'Payments & Payouts', to: '/admin/payments' },
+        { icon: Ticket,       label: 'Vouchers',           to: '/admin/vouchers' },
         { icon: ShieldAlert,  label: 'Disputes / Returns', to: '/admin/disputes' },
         { icon: Flag,         label: 'Analytics & Reports',to: '/admin/reports' },
       ],
@@ -278,6 +280,7 @@ function AdminSearchBar() {
     { label: 'Categories Management', to: '/admin/categories', group: 'Catalog', icon: Tag },
     { label: 'Orders & Fulfillment', to: '/admin/orders', group: 'Commerce', icon: PackageCheck },
     { label: 'Payments & Seller Payouts', to: '/admin/payments', group: 'Commerce', icon: Wallet },
+    { label: 'Platform & Shipping Vouchers', to: '/admin/vouchers', group: 'Commerce', icon: Ticket },
     { label: 'Disputes & Return Mediation', to: '/admin/disputes', group: 'Trust & Safety', icon: ShieldAlert },
     { label: 'Customer Reviews Moderation', to: '/admin/reviews', group: 'Trust & Safety', icon: Star },
     { label: 'Platform & Return Policy Settings', to: '/admin/settings', group: 'Settings', icon: Settings },
