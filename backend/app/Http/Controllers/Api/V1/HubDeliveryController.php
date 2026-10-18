@@ -237,7 +237,8 @@ class HubDeliveryController extends Controller
     /**
      * POST /api/v1/hub/deliveries/{tracking}/return-to-seller   { note? }
      *
-     * DELIVERY_FAILED -> RETURNED. Refunds, escrow and every money field are untouched.
+     * The hub hands a failed parcel back to the seller (A13): the order is Cancelled (failed delivery) for the buyer, a
+     * prepaid order is refunded in full, and the seller confirms the parcel arrived before the stock goes back.
      */
     public function returnToSeller(Request $request, string $tracking): JsonResponse
     {
@@ -263,26 +264,14 @@ class HubDeliveryController extends Controller
             if (! $parcel) {
                 return $this->notFound();
             }
-            if ($parcel->status !== Parcel::STATUS_DELIVERY_FAILED) {
+            if (! in_array($parcel->status, [Parcel::STATUS_DELIVERY_FAILED, Parcel::STATUS_RETURN_TO_SENDER], true)) {
                 return $this->conflict($parcel);
             }
-            if (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::RETURNED, 'hub')) {
+            if (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::CANCELLED, 'hub')) {
                 return $this->cannotUpdate();
             }
 
-            $this->stateMachine->transition(
-                $parcel->order,
-                OrderStatus::RETURNED,
-                'hub',
-                $request->user()->id,
-                'Returned to the seller by the hub.',
-                ['sorting_center_id' => $hub->id, 'tracking_number' => $parcel->tracking_number]
-            );
-
-            Parcel::where('id', $parcel->id)->update([
-                'returned_at' => now(),
-                'return_note' => $note,
-            ]);
+            app(\App\Services\Courier\ReturnToSender::class)->complete($parcel, 'hub', $request->user()->id, $note);
 
             $notify = ['parcel' => $parcel];
 

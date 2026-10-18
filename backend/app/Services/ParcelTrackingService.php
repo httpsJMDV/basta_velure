@@ -176,7 +176,14 @@ class ParcelTrackingService
         $events = [];
         foreach ($order->statusHistories as $h) {
             $to = $h->to_status instanceof \BackedEnum ? $h->to_status->value : (string) $h->to_status;
-            [$title, $detail] = match ($to) {
+            $event = is_array($h->meta) ? ($h->meta['event'] ?? null) : null;
+            [$title, $detail] = $event ? match ($event) {
+                'pickup_assigned'   => ['Courier assigned', $h->note ?: 'A courier will pick up the package.'],
+                'pickup_reassigned' => ['Courier changed', $h->note ?: 'Another courier will pick up the package.'],
+                'rts_assigned'      => ['Returning to the seller', $h->note ?: 'A courier is taking the package back to the seller.'],
+                'override'          => ['Status corrected by the courier', $h->note ?: ''],
+                default             => [str_replace('_', ' ', ucfirst($event)), (string) $h->note],
+            } : match ($to) {
                 'PLACED'            => ['Order placed', 'The order was placed and is waiting for the seller.'],
                 'CONFIRMED'         => ['Order confirmed', 'The seller confirmed the order.'],
                 'PREPARING'         => ['Preparing to ship', 'The seller is preparing the package and will hand it to our courier.'],

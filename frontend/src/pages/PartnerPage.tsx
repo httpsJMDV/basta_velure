@@ -4,7 +4,6 @@ import { Store, Bike, Warehouse, Truck, ArrowRight, LogIn, Check, PackageCheck, 
 import type { LucideIcon } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
-import { DELIVERY_FEE } from '../utils/shipping';
 
 type RoleId = 'sell' | 'rider' | 'hub' | 'courier';
 
@@ -77,7 +76,7 @@ const OPTIONS: PartnerOption[] = [
     title: 'Run a logistics hub',
     short: 'Receive, sort and dispatch parcels',
     pitch: 'Run a sorting center for a partner courier: receive parcels from pickup riders, sort them by barangay, and send your riders out for the last mile.',
-    earn: { value: peso(DELIVERY_FEE * 0.15), label: 'for every parcel that goes through your hub' },
+    earn: { value: '15%', label: 'of the delivery fee of every parcel that goes through your hub' },
     requirements: [
       'Owner’s valid government ID on your account',
       'DTI or business permit for the hub',
@@ -170,7 +169,7 @@ export default function PartnerPage() {
               })}
             </ol>
             <p className="mt-5 pt-4 border-t border-stone-200 text-[12.5px] text-stone-600">
-              Buyers pay a flat <span className="font-semibold text-stone-900">{peso(DELIVERY_FEE)}</span> per shop. It is split between the pickup rider, the delivery rider and the hub.
+              Buyers pay a delivery fee per shop from the courier's rates, by route and weight. Riders earn <span className="font-semibold text-stone-900">{peso(30)}</span> per pickup and <span className="font-semibold text-stone-900">{peso(50)}</span> per delivery; the hub earns 15% of the fee.
             </p>
           </div>
         </div>

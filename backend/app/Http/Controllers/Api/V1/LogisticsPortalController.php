@@ -53,10 +53,21 @@ class LogisticsPortalController extends Controller
         return response()->json(['data' => (new LogisticsCompanyResource($this->company($request)))->full()]);
     }
 
-    /** GET /logistics/dashboard: the network right now and over the last 30 days. */
+    /**
+     * GET /logistics/dashboard?from=&to= : the network right now, and the shipments of a period (L1): by default
+     * the last 30 days; from/to are Manila dates and both days are included.
+     */
     public function dashboard(Request $request): JsonResponse
     {
+        $window = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to'   => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ], ['to.after_or_equal' => 'The end date cannot be before the start date.']);
         $company = $this->company($request);
+        $to = \Carbon\CarbonImmutable::parse($window['to'] ?? now('Asia/Manila')->toDateString(), 'Asia/Manila');
+        $from = \Carbon\CarbonImmutable::parse($window['from'] ?? $to->subDays(29)->toDateString(), 'Asia/Manila');
+        $range = [$from->startOfDay()->utc(), $to->endOfDay()->utc()];
+        $inRange = fn (string $column) => $this->networkParcels($company)->whereBetween($column, $range)->count();
         $byStatus = $this->hubs($company)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
         $parcelStatus = $this->networkParcels($company)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
         $since = now()->subDays(30);
@@ -85,6 +96,17 @@ class LogisticsPortalController extends Controller
             'last_30_days' => [
                 'delivered' => $this->networkParcels($company)->where('delivered_at', '>=', $since)->count(),
                 'returned'  => $this->networkParcels($company)->where('returned_at', '>=', $since)->count(),
+            ],
+            'period' => [
+                'from'      => $from->toDateString(),
+                'to'        => $to->toDateString(),
+                'shipments' => $inRange('ready_at'),
+                'picked_up' => $inRange('picked_up_at'),
+                'delivered' => $inRange('delivered_at'),
+                'failed'    => \App\Models\DeliveryLog::whereIn('parcel_id', $this->networkParcels($company)->select('id'))
+                    ->where('outcome', \App\Models\DeliveryLog::OUTCOME_DELIVERY_FAILED)->whereBetween('logged_at', $range)->count(),
+                'returned'  => $inRange('returned_at'),
+                'cod_collected' => round((float) $this->networkParcels($company)->whereBetween('cod_collected_at', $range)->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(cod_collected_amount, cod_amount)')), 2),
             ],
         ]]);
     }
@@ -195,12 +217,16 @@ class LogisticsPortalController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $parcels = $this->networkParcels($company)->with(['order:id,order_number,payment_method,total', 'sortingCenter:id,hub_name'])
-            ->when($request->boolean('problems'), fn ($q) => $q->whereIn('status', [Parcel::STATUS_DELIVERY_FAILED, Parcel::STATUS_RETURNED]))
+            ->when($request->boolean('problems'), fn ($q) => $q->whereIn('status', [Parcel::STATUS_DELIVERY_FAILED, Parcel::STATUS_RETURN_TO_SENDER, Parcel::STATUS_RETURNED, Parcel::STATUS_LOST, Parcel::STATUS_DAMAGED]))
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', strtoupper($status)))
             ->when($request->query('hub_id'), fn ($q, $hubId) => $q->where('sorting_center_id', (int) $hubId))
-            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
-                ->where('tracking_number', 'like', "%{$search}%")
-                ->orWhereHas('order', fn ($o) => $o->where('order_number', 'like', "%{$search}%"))))
+            // Tracking number, order number, order ID or the buyer's name (L6). A number on its own is an order ID and
+            // matches exactly. Every value is a bound parameter.
+            ->when($search !== '' && ctype_digit($search), fn ($q) => $q->where('order_id', (int) $search))
+            ->when($search !== '' && ! ctype_digit($search), fn ($q) => $q->where(fn ($w) => $w
+                ->where('tracking_number', 'like', '%' . addcslashes($search, '%_\\') . '%')
+                ->orWhereHas('order', fn ($o) => $o->where('order_number', 'like', '%' . addcslashes($search, '%_\\') . '%')
+                    ->orWhereHas('buyer', fn ($b) => $b->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ['%' . addcslashes($search, '%_\\') . '%'])))))
             ->latest('id')
             ->paginate(min(100, max(1, (int) $request->query('per_page', 30))));
 
@@ -215,6 +241,7 @@ class LogisticsPortalController extends Controller
                 'hub_id'          => $p->sorting_center_id,
                 'hub_name'        => $p->sortingCenter?->hub_name,
                 'barangay'        => $p->destination_barangay,
+                'order_id'        => $p->order_id,
                 'attempts'        => (int) $p->delivery_attempts,
                 'updated_at'      => $p->updated_at?->toIso8601String(),
             ])->all(),

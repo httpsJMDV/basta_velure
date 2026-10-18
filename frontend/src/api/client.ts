@@ -229,7 +229,8 @@ export const decideAdminCourierApi = (id: number, action: 'approve' | 'reject' |
 
 // The courier company's own portal (/logistics)
 export const getLogisticsMeApi = () => http.get<{ data: LogisticsCompanyDetail }>('/logistics/me').then((r) => r.data.data);
-export const getLogisticsDashboardApi = () => http.get<{ data: LogisticsDashboard }>('/logistics/dashboard').then((r) => r.data.data);
+export const getLogisticsDashboardApi = (params?: { from?: string; to?: string }) =>
+  http.get<{ data: LogisticsDashboard }>('/logistics/dashboard', { params }).then((r) => r.data.data);
 export const getLogisticsHubsApi = (params?: { status?: string; search?: string }) =>
   http.get<{ data: LogisticsHubRow[] }>('/logistics/network/hubs', { params }).then((r) => r.data.data);
 export const getLogisticsHubApi = (id: number) =>

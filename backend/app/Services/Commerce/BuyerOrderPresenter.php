@@ -70,6 +70,11 @@ class BuyerOrderPresenter
             'tracking_number'     => $parcel?->tracking_number,
             'courier'             => LogisticsCompany::summaryFor($o->logistics_company_id),
             'status'              => $statusStr,
+            // A32: the 6-digit code the buyer gives the rider at the door, shown only while the parcel is out for
+            // delivery and only on the buyer's own order.
+            'delivery_otp'        => $parcel && $parcel->status === \App\Models\Parcel::STATUS_OUT_FOR_DELIVERY ? $parcel->delivery_otp : null,
+            'delivery_attempt'    => $parcel && $parcel->delivery_attempts > 0 ? ['failed' => (int) $parcel->delivery_attempts, 'max' => \App\Services\Courier\ReturnToSender::maxAttempts()] : null,
+            'returning_to_seller' => $parcel?->status === \App\Models\Parcel::STATUS_RETURN_TO_SENDER,
             'tab'                 => self::tab($o),
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,

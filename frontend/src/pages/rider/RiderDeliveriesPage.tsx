@@ -28,6 +28,7 @@ import FailedSheet from './FailedSheet';
 import type { RiderOutletContext } from './RiderLayout';
 import RiderMessageControl from './RiderMessageControl';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
+import { ReturnJobs } from '../../components/rider/RiderWork';
 
 /** The stop the rider is recording an outcome for. */
 interface OutcomeTarget {
@@ -229,6 +230,8 @@ export default function RiderDeliveriesPage() {
         }
       />
 
+      <ReturnJobs />
+
       <TabBar
         label="Delivery views"
         idPrefix="deliveries-tab"
@@ -362,7 +365,15 @@ export default function RiderDeliveriesPage() {
                         {stopNumber}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-gray-500">Stop {stopNumber}</p>
+                        <p className="flex flex-wrap items-center gap-1.5 text-xs font-bold text-gray-500">
+                          Stop {stopNumber}
+                          {p.attempt !== undefined && p.max_attempts !== undefined && (
+                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${p.attempt > 1 ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-600'}`}>
+                              Attempt {p.attempt} of {p.max_attempts}
+                            </span>
+                          )}
+                        </p>
+                        {p.previous_failure && <p className="text-[11px] text-amber-800">Last try: {p.previous_failure}</p>}
                         <p className="flex items-center gap-1.5 text-base font-black text-gray-900">
                           <User className="w-4 h-4 text-gray-500 shrink-0" aria-hidden="true" />
                           <span className="truncate">{p.recipient.name}</span>
@@ -474,7 +485,7 @@ export default function RiderDeliveriesPage() {
           parcel={outcome.parcel}
           onClose={closeOutcome}
           onSuccess={(res) =>
-            handleOutcomeSuccess(`Delivery recorded for ${outcome.parcel.recipient.name}.`, res.tracking_number)
+            handleOutcomeSuccess(`Delivery recorded for ${outcome.parcel.recipient.name}.${res.pay ? ` You earned ₱${res.pay}.` : ''}`, res.tracking_number)
           }
           onConflict={handleOutcomeConflict}
         />
@@ -485,7 +496,12 @@ export default function RiderDeliveriesPage() {
           parcel={outcome.parcel}
           onClose={closeOutcome}
           onSuccess={(res) =>
-            handleOutcomeSuccess(`Marked failed: ${res.reason.label}. The hub will decide what happens next.`, res.tracking_number)
+            handleOutcomeSuccess(
+              res.return_to_sender
+                ? `Marked failed: ${res.reason.label}. No more attempts: the parcel goes back to the seller.`
+                : `Marked failed: ${res.reason.label}. Attempt ${res.delivery_attempts} of ${res.max_attempts ?? 3}; your company will reschedule it.`,
+              res.tracking_number,
+            )
           }
           onConflict={handleOutcomeConflict}
         />

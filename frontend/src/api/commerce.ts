@@ -263,6 +263,9 @@ export const requestReturnApi = <O = unknown>(orderId: number, form: FormData) =
   http.post<{ data: O; message: string }>(`/buyer/orders/${orderId}/request-return`, form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
 export const escalateReturnApi = <O = unknown>(orderId: number) =>
   http.post<{ data: O; message: string }>(`/buyer/orders/${orderId}/escalate-return`).then((r) => r.data);
+/** A13: the parcel of a failed delivery is back at the shop; its stock returns on this confirmation. */
+export const confirmReturnReceivedApi = <O = unknown>(orderId: number) =>
+  http.post<{ data: O; message: string }>(`/seller/orders/${orderId}/confirm-return-received`).then((r) => r.data);
 export const respondReturnApi = <O = unknown>(orderId: number, action: 'approve' | 'reject', reason?: string) =>
   http.post<{ data: O; message: string }>(`/seller/orders/${orderId}/respond-return`, { action, reason: reason || null }).then((r) => r.data);
 

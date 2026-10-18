@@ -1,33 +1,25 @@
-# Delivery fee and how it is shared (pickup rider 20%, delivery rider 65%, hub 15%)
+# Delivery fee and what riders and hubs earn (pickup ₱30, delivery ₱50, hub 15%)
 
 ## What the buyer pays
 
-A flat **₱50 delivery fee for each seller's order** (checkout creates one order per seller, so two shops cost ₱100). It is set by `SHIPPING_FEE` in `.env` (`config/shipping.php`, default `50.00`). The fee is copied onto the order (`orders.shipping_fee`) when it is placed, so changing it later never changes an order that already exists. An unusable value is logged and `50.00` is used. The web cart and checkout show the same number from `frontend/src/utils/shipping.ts`; keep the two in step.
+The delivery fee of each shop's order comes from the courier company's **rate table**: the route from the shop's zone to the buyer's zone, the first kilogram plus each extra whole kilogram (see `docs/api/commerce.md`). When no courier has rates yet, the flat `SHIPPING_FEE` of `config/shipping.php` (default `50.00`) is used. The fee is copied onto the order (`orders.shipping_fee`) when it is placed, so a later rate change never touches a placed order.
 
-## Who gets it
+## Who earns what (A3)
 
-The delivery fee **that order paid** is shared the way a courier pays its first-mile and last-mile riders:
-
-| Share | Default | When | Recorded as |
+| Who | Earns | When | Recorded as |
 |---|---|---|---|
-| Pickup rider (seller to hub, `parcels.pickup_rider_id`) | **20%** | the hub receives the parcel (`AT_SORTING_CENTER`) | a `rider_earnings` row, `kind` `pickup` |
-| Delivery rider (hub to buyer, `parcels.assigned_rider_id`) | **65%** | the parcel is delivered | a `rider_earnings` row, `kind` `delivery` |
-| Logistics hub that handled it | **15%** (the rest) | the parcel is delivered | a `hub_earnings` row |
+| Pickup rider (shop to hub, `parcels.pickup_rider_id`) | **₱30.00** per pickup | the rider scans the parcel at the shop (`PICKED_UP`) | a `rider_earnings` row, `kind` `pickup` |
+| Delivery rider (hub to buyer, `parcels.assigned_rider_id`) | **₱50.00** per successful delivery | the parcel is delivered | a `rider_earnings` row, `kind` `delivery` |
+| A failed attempt | **₱0.00** | | no row |
+| Logistics hub that handled it | **15%** of the order's delivery fee | the parcel is delivered | a `hub_earnings` row |
 
-`SHIPPING_RIDER_SHARE_PERCENT` (default `85`, a whole number 0 to 100) sets the riders' share; `SHIPPING_PICKUP_SHARE_PERCENT` (default `20`, 0 to the riders' share) is the pickup rider's part of it, and the delivery rider gets the rest. An unusable value is logged and the default is used. Each share is rounded half up and the last one gets exactly what is left, so the shares add up to the fee to the centavo.
+`RIDER_PAY_PICKUP` and `RIDER_PAY_DELIVERY` (`config/shipping.php`, `rider_pay`) change the two amounts; `SHIPPING_RIDER_SHARE_PERCENT` (default `85`) still decides the hub's part (100 minus it). An unusable value is logged and the default is used.
 
-One rider doing both legs earns both rows (85%). A parcel with no pickup rider on record pays the delivery rider the whole riders' share. The pickup share is kept even if the delivery later fails.
+One rider doing both legs earns both rows (₱80.00). A parcel picked up before pickups were paid at pickup is paid when the hub receives it, or at delivery. A day of 2 pickups, 3 deliveries and 1 failed attempt pays exactly ₱210.00.
 
-| Order's delivery fee | Pickup rider | Delivery rider | Hub |
-|---|---|---|---|
-| ₱50.00 | ₱10.00 | ₱32.50 | ₱7.50 |
-| ₱99.00 (an order placed before the fee changed) | ₱19.80 | ₱64.35 | ₱14.85 |
+The rows are written by `RiderEarningsRecorder` from `OrderStateMachine`, whoever triggers the transition. They are idempotent: one row per parcel for each kind (unique indexes), so a disputed order restored to delivered earns nothing twice, and a later return does not claw anything back. The amounts are snapshots: changing the pay never rewrites past rows.
 
-The rows are written by `RiderEarningsRecorder` from `OrderStateMachine`, whoever triggers the transition (the pickup row on `AT_SORTING_CENTER`, the delivery and hub rows on `DELIVERED`; the delivery step also writes a missing pickup row, for a parcel received before pickups earned). They are idempotent: one row per parcel for each kind (unique indexes), so a disputed order restored to delivered earns nothing twice. A failed delivery earns the delivery rider and the hub nothing, and a later return does not claw anything back. The amounts are snapshots: changing the fee or the percentage never rewrites past rows.
-
-The hub is the parcel's `sorting_center_id` (set when the rider accepts the pickup). A parcel with no hub earns no hub row, and a parcel with no assigned rider earns no rider row.
-
-This only records earnings. It does not touch what the buyer paid, the seller's earnings or the platform's commission, and there are no payouts to riders or hubs (a simulation).
+The hub is the parcel's `sorting_center_id`. A parcel with no hub earns no hub row, and a parcel with no assigned rider earns no rider row. This only records earnings: what the buyer paid, the seller's earnings and the platform commission are untouched. The courier company pays its riders and hubs (Logistics, Settlements & pay).
 
 ## `GET /api/v1/hub/earnings`
 
@@ -51,4 +43,4 @@ Today, this week (Monday to Sunday) and this month are counted in Asia/Manila. `
 
 ## Older data
 
-`php artisan riders:backfill-earnings` creates the missing rows for parcels delivered before earnings existed, using the same split of each order's own fee (rider rows that already exist are never split again) (rider rows that already exist are never split again), and adds the hub's row where it is missing. Rider rows that already existed (written when the rider earned a flat amount) are left as they are.
+`php artisan riders:backfill-earnings` creates the missing rows for parcels delivered before earnings existed, using the same split of each order's own fee (rider rows that already exist are left as they are), and adds the hub's row where it is missing. Rider rows that already existed (written when the rider earned a flat amount) are left as they are.

@@ -208,6 +208,8 @@ class Parcel extends Model
 
         return $query->where('status', self::STATUS_READY_FOR_PICKUP)
             ->whereNull('pickup_rider_id')
+            // A job being offered to one rider for 60 seconds is not open to the others (A14).
+            ->where(fn ($q) => $q->whereNull('dispatch_state')->orWhere('dispatch_state', '!=', self::DISPATCH_OFFERING))
             ->whereIn('pickup_barangay_code', $activeBarangayCodes)
             ->forRiderCourier($rider)
             ->whereDoesntHave('declines', function ($sub) use ($rider) {

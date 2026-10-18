@@ -592,13 +592,15 @@ class HubDeliveryTest extends TestCase
 
         $parcel->refresh();
         $this->assertEquals(Parcel::STATUS_RETURNED, $parcel->status);
-        $this->assertEquals(OrderStatus::RETURNED, $parcel->order->fresh()->status);
+        // A13: back with the seller after a failed delivery, the order is Cancelled (failed delivery) for the buyer.
+        $this->assertEquals(OrderStatus::CANCELLED, $parcel->order->fresh()->status);
+        $this->assertSame('Failed delivery', $parcel->order->fresh()->cancel_reason);
         $this->assertNotNull($parcel->returned_at);
         $this->assertSame('Buyer unreachable after three tries.', $parcel->return_note);
         $this->assertSame('RECIPIENT_UNAVAILABLE', $parcel->failure_reason); // last failure kept
 
         $history = OrderStatusHistory::where('order_id', $parcel->order_id)
-            ->where('to_status', OrderStatus::RETURNED->value)->first();
+            ->where('to_status', OrderStatus::CANCELLED->value)->first();
         $this->assertNotNull($history);
         $this->assertEquals(OrderStatus::DELIVERY_FAILED->value, $history->from_status);
         $this->assertEquals('hub', $history->actor_type);
@@ -684,7 +686,7 @@ class HubDeliveryTest extends TestCase
 
         $this->assertEquals(Parcel::STATUS_RETURNED, $parcel->fresh()->status);
         $this->assertNotNull($parcel->fresh()->returned_at);
-        $this->assertEquals(OrderStatus::RETURNED, $parcel->order->fresh()->status);
+        $this->assertEquals(OrderStatus::CANCELLED, $parcel->order->fresh()->status);
         Log::shouldHaveReceived('error')->withArgs(fn ($m) => str_contains($m, 'smtp is down'))->once();
     }
 
@@ -713,7 +715,7 @@ class HubDeliveryTest extends TestCase
             $codes[] = $this->returnIt($returned->tracking_number)->getStatusCode();
         }
         $this->assertSame([200, 409, 409], $codes);
-        $this->assertSame(1, OrderStatusHistory::where('order_id', $returned->order_id)->where('to_status', 'RETURNED')->count());
+        $this->assertSame(1, OrderStatusHistory::where('order_id', $returned->order_id)->where('to_status', 'CANCELLED')->count());
 
         $rescheduled = $this->createParcel($rider);
         $codes = [
@@ -814,7 +816,7 @@ class HubDeliveryTest extends TestCase
         $this->actingAs($secondUser, 'sanctum')
             ->postJson('/api/v1/rider/deliveries/start', ['tracking_numbers' => [$retry->tracking_number]])->assertOk();
         $this->actingAs($secondUser, 'sanctum')
-            ->post("/api/v1/rider/deliveries/{$retry->tracking_number}/delivered", ['proof_photo' => $this->png(), 'proof_photo_2' => UploadedFile::fake()->createWithContent('proof-2.jpg', base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=') . 'x'), 'cod_collected' => '1'], ['Accept' => 'application/json'])
+            ->post("/api/v1/rider/deliveries/{$retry->tracking_number}/delivered", ['proof_photo' => $this->png(), 'proof_photo_2' => UploadedFile::fake()->createWithContent('proof-2.jpg', base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=') . 'x'), 'cod_amount' => (string) $retry->fresh()->cod_amount, 'otp' => $retry->fresh()->delivery_otp], ['Accept' => 'application/json'])
             ->assertOk();
 
         $retry->refresh();
@@ -827,7 +829,7 @@ class HubDeliveryTest extends TestCase
         // 2) Give up on the other one and return it to the seller.
         $this->returnIt($giveUp->tracking_number, ['note' => 'Returned after the first failure.'])->assertOk();
 
-        foreach ([$retry->order_id => OrderStatus::DELIVERED, $giveUp->order_id => OrderStatus::RETURNED] as $orderId => $expected) {
+        foreach ([$retry->order_id => OrderStatus::DELIVERED, $giveUp->order_id => OrderStatus::CANCELLED] as $orderId => $expected) {
             $sellerView = $this->actingAs($seller, 'sanctum')->getJson("/api/v1/seller/orders/{$orderId}");
             $sellerView->assertOk()->assertJsonPath('data.status', $expected->value);
             $this->assertContains($expected->value, collect($sellerView->json('data.status_history'))->pluck('to_status')->all());

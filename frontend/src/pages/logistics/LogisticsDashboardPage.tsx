@@ -1,5 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Network, Warehouse, UserCheck, Bike, PackageOpen, Layers, Truck, AlertTriangle, PackageCheck, Undo2, ArrowRight } from 'lucide-react';
+import { Network, Warehouse, UserCheck, Bike, PackageOpen, Layers, Truck, AlertTriangle, PackageCheck, Undo2, ArrowRight, Boxes, Coins } from 'lucide-react';
+import { getLogisticsDashboardApi } from '../../api/client';
+import type { LogisticsDashboard } from '../../types';
+import { apiErrorMessage } from '../../utils/apiError';
 import { PageHero, StatCard, StatCardSkeleton, SectionHeader } from '../../components/admin/dashboardKit';
 import { RailCard, SplitBar } from '../../components/admin/listKit';
 import { useAuth } from '../../hooks/useAuth';
@@ -56,17 +60,7 @@ export default function LogisticsDashboardPage() {
               )}
             </div>
           </div>
-          <div>
-            <SectionHeader title="Last 30 days" to="/logistics/reports" />
-            <div className="grid grid-cols-2 gap-2.5">
-              {!d ? [1, 2].map((i) => <StatCardSkeleton key={i} />) : (
-                <>
-                  <StatCard icon={PackageCheck} label="Delivered" value={d.last_30_days.delivered} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                  <StatCard icon={Undo2} label="Returned to sellers" value={d.last_30_days.returned} iconBg="bg-amber-50" iconColor="text-amber-600" />
-                </>
-              )}
-            </div>
-          </div>
+          <PeriodSection />
         </section>
 
         <aside className="space-y-3">
@@ -83,11 +77,85 @@ export default function LogisticsDashboardPage() {
           <RailCard title="How your network works">
             <ul className="space-y-2 text-[12px] leading-relaxed text-gray-600">
               <li><strong className="text-gray-800">Hubs</strong> apply to join you. You check their permit, coverage and owner ID.</li>
-              <li><strong className="text-gray-800">Riders</strong> are approved by the hub they apply to.</li>
-              <li><strong className="text-gray-800">Buyers</strong> pick you at checkout; only your riders are offered those pickups.</li>
+              <li><strong className="text-gray-800">Riders</strong> are added and verified by you. Each holds up to 3 jobs.</li>
+              <li><strong className="text-gray-800">Pickups</strong> go to your nearest Online rider for 60 seconds; unclaimed ones wait in <Link to="/logistics/dispatch" className="font-semibold text-brand-red hover:underline">Dispatch</Link>.</li>
             </ul>
           </RailCard>
         </aside>
+      </div>
+    </div>
+  );
+}
+
+const manilaDay = (offset = 0) => {
+  const d = new Date(Date.now() + offset * 86400000);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+};
+
+const PRESETS = [
+  { key: 'today', label: 'Today', days: 0 },
+  { key: '7d', label: '7 days', days: 6 },
+  { key: '30d', label: '30 days', days: 29 },
+] as const;
+
+/** Shipments in a period (L1): a preset or a custom range, both days included. */
+function PeriodSection() {
+  const [preset, setPreset] = useState<'today' | '7d' | '30d' | 'custom'>('30d');
+  const [from, setFrom] = useState(manilaDay(-29));
+  const [to, setTo] = useState(manilaDay());
+  const [data, setData] = useState<LogisticsDashboard['period'] | null>(null);
+  const [error, setError] = useState('');
+  const rangeError = to < from ? 'The end date cannot be before the start date.' : '';
+
+  useEffect(() => {
+    if (rangeError) return;
+    let alive = true;
+    setData(null);
+    setError('');
+    getLogisticsDashboardApi({ from, to })
+      .then((d) => { if (alive) setData(d.period ?? null); })
+      .catch((e) => { if (alive) setError(apiErrorMessage(e, 'The period could not be loaded.')); });
+    return () => { alive = false; };
+  }, [from, to, rangeError]);
+
+  const choose = (key: (typeof PRESETS)[number]['key']) => {
+    const p = PRESETS.find((x) => x.key === key)!;
+    setPreset(key);
+    setFrom(manilaDay(-p.days));
+    setTo(manilaDay());
+  };
+
+  const input = 'h-9 px-2 text-[12px] border border-gray-200 rounded-lg bg-white outline-none focus:border-brand-red';
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <SectionHeader title="Shipments" to="/logistics/reports" />
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Period">
+          {PRESETS.map((p) => (
+            <button key={p.key} type="button" onClick={() => choose(p.key)} aria-pressed={preset === p.key}
+              className={`h-8 px-3 rounded-full text-[11.5px] font-bold border ${preset === p.key ? 'bg-brand-red text-white border-brand-red' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+              {p.label}
+            </button>
+          ))}
+          <input type="date" aria-label="From" value={from} max={manilaDay()} onChange={(e) => { setPreset('custom'); setFrom(e.target.value); }} className={input} />
+          <span className="text-gray-400 text-[12px]">to</span>
+          <input type="date" aria-label="To" value={to} max={manilaDay()} onChange={(e) => { setPreset('custom'); setTo(e.target.value); }}
+            className={`${input} ${rangeError ? 'border-red-400' : ''}`} aria-invalid={!!rangeError} />
+        </div>
+      </div>
+      {(rangeError || error) && <p className="mb-2 text-[12px] font-semibold text-red-700">{rangeError || error}</p>}
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+        {!data ? [1, 2, 3, 4, 5, 6].map((i) => <StatCardSkeleton key={i} />) : (
+          <>
+            <StatCard compact icon={Boxes} label="Shipments" value={data.shipments} subtext="Ready for pickup in the period" iconBg="bg-sky-50" iconColor="text-sky-600" />
+            <StatCard compact icon={Bike} label="Picked up" value={data.picked_up} iconBg="bg-violet-50" iconColor="text-violet-600" />
+            <StatCard compact icon={PackageCheck} label="Delivered" value={data.delivered} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+            <StatCard compact icon={AlertTriangle} label="Failed attempts" value={data.failed} iconBg="bg-red-50" iconColor="text-red-600" />
+            <StatCard compact icon={Undo2} label="Returned to sellers" value={data.returned} iconBg="bg-amber-50" iconColor="text-amber-600" />
+            <StatCard compact icon={Coins} label="COD collected" value={data.cod_collected} money iconBg="bg-rose-50" iconColor="text-brand-red" to="/logistics/cod" actionLabel="Reconcile" />
+          </>
+        )}
       </div>
     </div>
   );

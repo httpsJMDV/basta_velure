@@ -364,6 +364,42 @@ class SellerOrderController extends Controller
         ]);
     }
 
+    /**
+     * POST /api/v1/seller/orders/{order}/confirm-return-received: the parcel of a failed delivery is back at the shop.
+     * Only now does its stock go back on sale (A13, LOG-RTS-003).
+     */
+    public function confirmReturnReceived(Request $request, Order $order): JsonResponse
+    {
+        $sellerId = $request->user()->id;
+        abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
+        app(\App\Services\Courier\ReturnToSender::class)->sellerConfirm($order, $request->user());
+
+        return response()->json([
+            'message' => 'Thanks. The items are back in stock.',
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'dispute.photos', 'statusHistories', 'parcel']), $sellerId, detail: true),
+        ]);
+    }
+
+    /** @return array{state: string, since: string|null, confirmed_at: string|null}|null */
+    private function rtsState(Order $o): ?array
+    {
+        $p = $o->relationLoaded('parcel') ? $o->parcel : $o->parcel()->first();
+        if (! $p) {
+            return null;
+        }
+        if ($p->status === \App\Models\Parcel::STATUS_RETURN_TO_SENDER) {
+            return ['state' => 'on_the_way', 'since' => $p->rts_at?->toIso8601String(), 'confirmed_at' => null];
+        }
+        if ($p->status === \App\Models\Parcel::STATUS_RETURNED && $o->cancel_reason === \App\Services\Courier\ReturnToSender::CANCEL_REASON) {
+            return [
+                'state' => $p->seller_return_confirmed_at ? 'confirmed' : 'awaiting_confirmation',
+                'since' => $p->returned_at?->toIso8601String(), 'confirmed_at' => $p->seller_return_confirmed_at?->toIso8601String(),
+            ];
+        }
+
+        return null;
+    }
+
     /** A reason from the list, or "Other" with 10 to 300 characters of explanation. */
     private function cancelReason(Request $request): string
     {
@@ -505,6 +541,8 @@ class SellerOrderController extends Controller
             'refund_status'         => $o->refund_status,
             'refund_amount'         => $o->refund_amount !== null ? (float) $o->refund_amount : null,
             'can_cancel'            => OrderCanceller::canSellerCancel($o),
+            // A failed delivery coming back, or back and waiting for the shop to confirm it (A13).
+            'return_to_sender'      => $this->rtsState($o),
             'seller_subtotal'       => $sellerSubtotal,
             'seller_commission'     => $sellerCommission,
             'seller_earnings'       => $sellerEarnings,

@@ -178,6 +178,33 @@ Route::prefix('v1')->group(function () {
             Route::post('/riders/{rider}/reactivate', [$riders, 'reactivate'])->whereNumber('rider');
             Route::get('/parcels', [$portal, 'parcels']);
             Route::get('/reports', [$portal, 'reports']);
+            // Dispatch (L4): offers, the Unassigned queue, auto-assign, manual, bulk and reassign
+            $dispatch = \App\Http\Controllers\Api\V1\LogisticsDispatchController::class;
+            Route::get('/dispatch', [$dispatch, 'index']);
+            Route::get('/dispatch/riders', [$dispatch, 'riders']);
+            Route::post('/dispatch/auto-assign', [$dispatch, 'autoAssign']);
+            Route::post('/dispatch/assign', [$dispatch, 'assign']);
+            // Hub scanning (L5): inbound, sort by zone, outbound
+            $hubOps = \App\Http\Controllers\Api\V1\LogisticsHubOpsController::class;
+            Route::get('/hub-ops', [$hubOps, 'index']);
+            Route::get('/hub-ops/zones', [$hubOps, 'zones']);
+            Route::post('/hub-ops/inbound', [$hubOps, 'inbound']);
+            Route::post('/hub-ops/sort', [$hubOps, 'sort']);
+            Route::post('/hub-ops/outbound', [$hubOps, 'outbound']);
+            // One parcel (L6, L7): detail, override, Lost or Damaged, and the Return to Sender queue
+            $parcelOps = \App\Http\Controllers\Api\V1\LogisticsParcelOpsController::class;
+            Route::get('/parcels/{parcel}', [$parcelOps, 'show'])->whereNumber('parcel');
+            Route::post('/parcels/{parcel}/override', [$parcelOps, 'override'])->whereNumber('parcel');
+            Route::post('/parcels/{parcel}/exception', [$parcelOps, 'exception'])->whereNumber('parcel')->middleware('throttle:upload');
+            Route::get('/parcels/{parcel}/exception-photo', [$parcelOps, 'exceptionPhoto'])->whereNumber('parcel');
+            Route::post('/parcels/{parcel}/reschedule', [$parcelOps, 'reschedule'])->whereNumber('parcel');
+            Route::get('/returns', [$parcelOps, 'returns']);
+            Route::post('/returns/{parcel}/assign', [$parcelOps, 'assignReturn'])->whereNumber('parcel');
+            // COD reconciliation and exports (L9); only the company confirms a rider's remittance
+            $cod = \App\Http\Controllers\Api\V1\LogisticsCodController::class;
+            Route::get('/cod', [$cod, 'index']);
+            Route::post('/cod/remittances/{remittance}/confirm', [$cod, 'confirm'])->whereNumber('remittance');
+            Route::get('/exports', [$cod, 'export']);
             // Money: the weekly statement with each shop, paying riders and hubs, and the GCash shops pay
             Route::get('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'index']);
             Route::post('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'pay']);
@@ -464,6 +491,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller/orders/{order}/reject-payment', [SellerOrderController::class, 'rejectPayment']);
             Route::post('/seller/orders/{order}/respond-return', [SellerOrderController::class, 'respondReturn']);
             Route::post('/seller/orders/{order}/cancel', [SellerOrderController::class, 'cancel']);
+            // A13: a parcel back from a failed delivery; the stock returns only on this confirmation
+            Route::post('/seller/orders/{order}/confirm-return-received', [SellerOrderController::class, 'confirmReturnReceived']);
             // Store vouchers (S9)
             $vouchers = \App\Http\Controllers\Api\V1\VoucherManagementController::class;
             Route::get('/seller/vouchers', [$vouchers, 'index']);
@@ -573,6 +602,18 @@ Route::prefix('v1')->group(function () {
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
             Route::get('/me', [RiderController::class, 'me']);
+
+            // Online / Offline, job offers, returns to the seller and COD remittance (R3, R4, R7, R9)
+            $jobs = \App\Http\Controllers\Api\V1\RiderJobController::class;
+            Route::get('/status', [$jobs, 'status']);
+            Route::post('/availability', [$jobs, 'availability']);
+            Route::get('/offers', [$jobs, 'offers']);
+            Route::post('/offers/{offer}/accept', [$jobs, 'accept'])->whereNumber('offer');
+            Route::post('/offers/{offer}/decline', [$jobs, 'decline'])->whereNumber('offer');
+            Route::get('/returns', [$jobs, 'returns']);
+            Route::post('/returns/{tracking}/delivered', [$jobs, 'returned']);
+            Route::get('/cod', [$jobs, 'cod']);
+            Route::post('/cod/remittances', [$jobs, 'remit']);
             Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'rider']);
             Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateRider']);
 

@@ -366,7 +366,8 @@ class BuyerConfirmReceiptTest extends TestCase
             ->post("/api/v1/rider/deliveries/{$tracking}/delivered", [
                 'proof_photo'   => \Illuminate\Http\UploadedFile::fake()->createWithContent('proof.png', $png),
                 'proof_photo_2' => \Illuminate\Http\UploadedFile::fake()->createWithContent('proof-2.png', $png . 'x'),
-                'cod_collected' => '1',
+                'cod_amount'    => (string) Parcel::where('tracking_number', $tracking)->value('cod_amount'),
+                'otp'           => Parcel::where('tracking_number', $tracking)->first()->delivery_otp,
             ], ['Accept' => 'application/json'])->assertOk();
 
         // Delivered: the rider is done, but the seller's money is NOT released.

@@ -15,6 +15,10 @@ import LogisticsParcelsPage from './pages/logistics/LogisticsParcelsPage';
 import LogisticsReportsPage from './pages/logistics/LogisticsReportsPage';
 import LogisticsMoneyPage from './pages/logistics/LogisticsMoneyPage';
 import LogisticsShippingPage from './pages/logistics/LogisticsShippingPage';
+import LogisticsDispatchPage from './pages/logistics/LogisticsDispatchPage';
+import LogisticsHubOpsPage from './pages/logistics/LogisticsHubOpsPage';
+import LogisticsReturnsPage from './pages/logistics/LogisticsReturnsPage';
+import LogisticsCodPage from './pages/logistics/LogisticsCodPage';
 import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
 import VerifyEmailPage from './pages/auth/VerifyEmailPage';
@@ -405,6 +409,10 @@ function AppRoutes() {
         <Route path="reports" element={<LogisticsReportsPage />} />
         <Route path="money" element={<LogisticsMoneyPage />} />
         <Route path="shipping" element={<LogisticsShippingPage />} />
+        <Route path="dispatch" element={<LogisticsDispatchPage />} />
+        <Route path="hub-ops" element={<LogisticsHubOpsPage />} />
+        <Route path="returns" element={<LogisticsReturnsPage />} />
+        <Route path="cod" element={<LogisticsCodPage />} />
       </Route>
 
       {/* Logistics / Sorting Center Hub Portal */}

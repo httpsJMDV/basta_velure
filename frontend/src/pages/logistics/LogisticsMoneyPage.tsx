@@ -49,7 +49,7 @@ export default function LogisticsMoneyPage() {
   return (
     <div className="pb-8 space-y-3">
       <PageHero icon={Banknote} eyebrow="Money" title="Settlements & pay"
-        subtitle="Settle the cash your riders collect with each shop every week, and pay your riders and hubs their share of the delivery fees.">
+        subtitle="Settle the cash your riders collect with each shop every week, and pay your riders (₱30 per pickup, ₱50 per delivery) and your hubs (15% of the fee).">
         {weeks && (
           <div className="flex gap-2">
             <HeroFigure label="Shops owe you" value={weeks.totals.to_receive} />

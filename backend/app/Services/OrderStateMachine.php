@@ -20,7 +20,11 @@ class OrderStateMachine
 
     /**
      * Complete transition map defining allowed target statuses and authorized actor roles.
-     * Actors: 'seller', 'rider', 'hub', 'buyer', 'admin', 'system'
+     * Actors: 'seller', 'rider', 'hub', 'logistics' (a courier company member), 'buyer', 'admin', 'system'
+     *
+     * The courier company can move its own parcels through each courier step (scans at its hubs, and a manual
+     * override with a reason, A35). A failed delivery that goes back to the seller ends Cancelled for the buyer
+     * (A13), and a parcel the courier marks Lost or Damaged cancels the order.
      *
      * @var array<string, array<string, array<string>>>
      */
@@ -42,29 +46,34 @@ class OrderStateMachine
             OrderStatus::DISPUTED->value         => ['buyer', 'admin'],
         ],
         OrderStatus::READY_FOR_PICKUP->value => [
-            OrderStatus::PICKED_UP->value => ['rider', 'admin'],
+            OrderStatus::PICKED_UP->value => ['rider', 'admin', 'logistics'],
             OrderStatus::CANCELLED->value => ['seller', 'admin'],
             OrderStatus::DISPUTED->value  => ['buyer', 'admin'],
         ],
         OrderStatus::PICKED_UP->value => [
-            OrderStatus::AT_SORTING_CENTER->value => ['hub', 'admin'],
+            OrderStatus::AT_SORTING_CENTER->value => ['hub', 'admin', 'logistics'],
+            OrderStatus::CANCELLED->value         => ['admin', 'logistics'],
             OrderStatus::DISPUTED->value          => ['buyer', 'admin'],
         ],
         OrderStatus::AT_SORTING_CENTER->value => [
-            OrderStatus::SORTED->value   => ['hub', 'admin'],
-            OrderStatus::DISPUTED->value => ['buyer', 'admin'],
+            OrderStatus::SORTED->value    => ['hub', 'admin', 'logistics'],
+            OrderStatus::CANCELLED->value => ['admin', 'logistics'],
+            OrderStatus::DISPUTED->value  => ['buyer', 'admin'],
         ],
         OrderStatus::SORTED->value => [
-            OrderStatus::ASSIGNED_TO_RIDER->value => ['hub', 'admin'],
+            OrderStatus::ASSIGNED_TO_RIDER->value => ['hub', 'admin', 'logistics'],
+            OrderStatus::CANCELLED->value         => ['admin', 'logistics'],
             OrderStatus::DISPUTED->value          => ['buyer', 'admin'],
         ],
         OrderStatus::ASSIGNED_TO_RIDER->value => [
-            OrderStatus::OUT_FOR_DELIVERY->value => ['rider', 'admin'],
+            OrderStatus::OUT_FOR_DELIVERY->value => ['rider', 'admin', 'logistics'],
+            OrderStatus::CANCELLED->value        => ['admin', 'logistics'],
             OrderStatus::DISPUTED->value         => ['buyer', 'admin'],
         ],
         OrderStatus::OUT_FOR_DELIVERY->value => [
-            OrderStatus::DELIVERED->value       => ['rider', 'admin'],
-            OrderStatus::DELIVERY_FAILED->value => ['rider', 'admin'],
+            OrderStatus::DELIVERED->value       => ['rider', 'admin', 'logistics'],
+            OrderStatus::DELIVERY_FAILED->value => ['rider', 'admin', 'logistics'],
+            OrderStatus::CANCELLED->value       => ['admin', 'logistics'],
             OrderStatus::DISPUTED->value        => ['buyer', 'admin'],
         ],
         OrderStatus::DELIVERED->value => [
@@ -72,8 +81,10 @@ class OrderStateMachine
             OrderStatus::DISPUTED->value  => ['buyer', 'admin'],
         ],
         OrderStatus::DELIVERY_FAILED->value => [
-            OrderStatus::ASSIGNED_TO_RIDER->value => ['hub', 'admin'],
+            OrderStatus::ASSIGNED_TO_RIDER->value => ['hub', 'admin', 'logistics'],
             OrderStatus::RETURNED->value          => ['hub', 'admin'],
+            // Back with the seller after a failed delivery (A13): Cancelled (failed delivery) for the buyer.
+            OrderStatus::CANCELLED->value         => ['hub', 'rider', 'admin', 'logistics', 'system'],
             OrderStatus::DISPUTED->value          => ['buyer', 'admin'],
         ],
         // A31: an unanswered return is approved by the system after 3 days; a rejection not escalated in time
@@ -159,6 +170,21 @@ class OrderStateMachine
 
             return $lockedOrder->fresh(['items', 'statusHistories']);
         });
+    }
+
+    /**
+     * A step on the order's timeline that is not a status change, such as a pickup rider being assigned or changed
+     * (L4). The row keeps the current status on both sides and names the event in meta.event.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public function recordEvent(Order $order, string $event, string $actorType, ?int $actorId, string $note, array $meta = []): void
+    {
+        $status = $order->status instanceof OrderStatus ? $order->status->value : (string) $order->status;
+        OrderStatusHistory::create([
+            'order_id' => $order->id, 'from_status' => $status, 'to_status' => $status, 'actor_type' => $actorType,
+            'actor_id' => $actorId, 'note' => $note, 'meta' => ['event' => $event] + $meta, 'created_at' => now(),
+        ]);
     }
 
     /**
@@ -286,8 +312,13 @@ class OrderStateMachine
 
                 $codAmount = $order->payment_method === 'cod' ? (float) $order->total : null;
                 $trackingNumber = $this->trackingNumberGenerator->generate();
+                $companyId = \App\Models\LogisticsCompany::effectiveId($order->logistics_company_id);
+                // The delivery zone the hub sorts the parcel into (L5), from the courier's zones.
+                $zone = $companyId ? app(\App\Services\Commerce\ShippingCalculator::class)->zoneName($companyId, [
+                    'city' => $order->shipping_city_code, 'province' => $order->shipping_province_code,
+                ]) : null;
 
-                Parcel::create([
+                $parcel = Parcel::create([
                     // The order's assigned courier: only that courier's riders are offered the pickup.
                     'logistics_company_id'      => \App\Models\LogisticsCompany::effectiveId($order->logistics_company_id),
                     'tracking_number'           => $trackingNumber,
@@ -301,8 +332,13 @@ class OrderStateMachine
                     'pickup_address_snapshot'   => $pickupSnapshot,
                     'recipient_snapshot'        => $recipientSnapshot,
                     'cod_amount'                => $codAmount,
+                    'weight_kg'                 => $order->total_weight_grams ? round($order->total_weight_grams / 1000, 3) : null,
+                    'shipping_zone'             => $zone,
                     'ready_at'                  => now(),
                 ]);
+
+                // A14: offer the pickup to the nearest eligible rider straight away.
+                app(\App\Services\Courier\Dispatcher::class)->offerNext($parcel);
             }
         }
 
@@ -318,8 +354,19 @@ class OrderStateMachine
         //
         //    AT_SORTING_CENTER: the pickup rider's leg is done, so they earn their share of the delivery fee now (kept
         //    even if the delivery later fails). It adds a rider_earnings row only. Idempotent.
-        if ($toStatus === OrderStatus::AT_SORTING_CENTER->value) {
+        if ($toStatus === OrderStatus::PICKED_UP->value || $toStatus === OrderStatus::AT_SORTING_CENTER->value) {
+            // A3: the rider earns the fixed pickup pay when they pick the parcel up (the hub's receipt only catches
+            // parcels picked up before this rule). Idempotent.
             app(RiderEarningsRecorder::class)->recordForReceivedOrder($order);
+        }
+
+        //    OUT_FOR_DELIVERY: a fresh 6-digit delivery code for the buyer to give the rider (A32). Each new attempt
+        //    gets a new code; wrong entries and the lock start over.
+        if ($toStatus === OrderStatus::OUT_FOR_DELIVERY->value) {
+            $parcel = Parcel::where('order_id', $order->id)->first();
+            $parcel?->forceFill([
+                'delivery_otp' => (string) random_int(100000, 999999), 'delivery_otp_attempts' => 0, 'delivery_otp_locked_until' => null,
+            ])->save();
         }
 
         //    DELIVERED: record the delivery time only. Funds stay in escrow (pending_release).

@@ -108,7 +108,7 @@ class OrderCanceller
      * A21: the vouchers of a cancelled order go back to the wallet when they have not expired. A platform voucher
      * shared by several store orders comes back only when all of them are cancelled.
      */
-    private function returnVouchers(Order $order): void
+    public function returnVouchers(Order $order): void
     {
         $usages = VoucherUsage::where('order_id', $order->id)->whereNull('returned_at')->get();
         foreach ($usages as $usage) {

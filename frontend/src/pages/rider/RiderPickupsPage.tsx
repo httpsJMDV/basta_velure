@@ -36,6 +36,7 @@ import { useToast } from '../../components/ui/Toast';
 import { PageHero, StateCard, TabBar } from './RiderUi';
 import { BTN_PRIMARY, BTN_SECONDARY } from './riderStyles';
 import PickupHandoverScreen from './PickupHandoverScreen';
+import { JobOffers } from '../../components/rider/RiderWork';
 
 // Time formatting utilities
 function formatRelativeTime(isoString?: string | null): string {
@@ -247,6 +248,8 @@ export default function RiderPickupsPage() {
           </button>
         }
       />
+
+      <JobOffers onAccepted={() => fetchPickups(false)} />
 
       {!meta.has_areas && (
         <div role="status" className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-xs">

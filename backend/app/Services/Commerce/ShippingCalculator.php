@@ -81,6 +81,14 @@ class ShippingCalculator
      *
      * @param  array{region?: ?string, province?: ?string, city?: ?string}  $place
      */
+    /** The name of the company's zone a place falls in, or null. */
+    public function zoneName(int $companyId, array $place): ?string
+    {
+        $id = $this->zoneFor($companyId, $place);
+
+        return $id ? ($this->tables[$companyId]['zones'][$id] ?? null) : null;
+    }
+
     public function zoneFor(int $companyId, array $place): ?int
     {
         $table = $this->table($companyId);

@@ -251,6 +251,8 @@ export interface LogisticsDashboard {
   riders: { active: number; pending: number; online?: number };
   parcels_now: { awaiting_pickup: number; at_hubs: number; out_for_delivery: number; failed: number };
   last_30_days: { delivered: number; returned: number };
+  /** Shipments of the chosen period (L1): Manila dates, both days included. */
+  period?: { from: string; to: string; shipments: number; picked_up: number; delivered: number; failed: number; returned: number; cod_collected: number };
 }
 
 export interface LogisticsHubRow {
@@ -663,6 +665,14 @@ export interface RiderDeliveryParcel {
   };
   /** Amount to collect from the recipient; null for prepaid orders. */
   cod_amount: number | null;
+  /** This trip is attempt N of max_attempts (R7). */
+  attempt?: number;
+  max_attempts?: number;
+  previous_failure?: string | null;
+  /** The buyer has a 6-digit delivery code to give (A32); locked for 15 minutes after 5 wrong tries. */
+  otp_required?: boolean;
+  otp_locked_until?: string | null;
+  weight_kg?: number | null;
   item_count: number;
   item_summary: string;
   assigned_at: string | null;
@@ -709,6 +719,9 @@ export interface RiderDeliveredResponse {
   tracking_number: string;
   delivered_at: string;
   cod_collected: boolean;
+  cod_amount?: number | null;
+  /** The fixed delivery pay earned (A3). */
+  pay?: string;
 }
 
 export interface RiderFailedResponse {
@@ -716,6 +729,10 @@ export interface RiderFailedResponse {
   tracking_number: string;
   reason: { code: string; label: string };
   delivery_attempts: number;
+  max_attempts?: number;
+  /** Refused, or the last attempt: the parcel goes back to the seller (A13). */
+  return_to_sender?: boolean;
+  pay?: string;
 }
 
 // ─── Hub Delivery Monitoring and Failure Triage (Feature 1.9) ──────────────────
@@ -1071,6 +1088,10 @@ export interface Order {
   refunded_at?: string | null;
   can_cancel?: boolean;
   can_return?: boolean;
+  /** A32: the 6-digit code to give the rider, while the parcel is out for delivery. */
+  delivery_otp?: string | null;
+  delivery_attempt?: { failed: number; max: number } | null;
+  returning_to_seller?: boolean;
   return_unavailable_reason?: string | null;
   return_window_ends_at?: string | null;
 }
@@ -1152,6 +1173,8 @@ export interface SellerOrder {
   refund_status?: string | null;
   refund_amount?: number | null;
   can_cancel?: boolean;
+  /** A failed delivery coming back to the shop, or back and waiting for the shop to confirm it (A13). */
+  return_to_sender?: { state: 'on_the_way' | 'awaiting_confirmation' | 'confirmed'; since: string | null; confirmed_at: string | null } | null;
   dispute?: import('./../api/commerce').ReturnRequestView | null;
 }
 

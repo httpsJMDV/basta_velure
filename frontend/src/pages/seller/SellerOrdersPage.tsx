@@ -33,7 +33,7 @@ import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
 import { Dialog, BUTTON } from '../../components/ui/Overlay';
-import { SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi } from '../../api/commerce';
+import { SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi } from '../../api/commerce';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
 
 /** Seller tabs (A10): every order is in exactly one, and the counts follow the date range. */
@@ -217,6 +217,21 @@ export default function SellerOrdersPage() {
       fetchOrders();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update order status.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmReturned = async () => {
+    if (!selectedOrder) return;
+    setActionLoading(true);
+    try {
+      const res = await confirmReturnReceivedApi<SellerOrder>(selectedOrder.id);
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.data : o)));
+      setSelectedOrder(res.data);
+      showToast(res.message);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The return could not be confirmed.'));
     } finally {
       setActionLoading(false);
     }
@@ -825,7 +840,25 @@ export default function SellerOrdersPage() {
               <p className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl text-xs text-amber-900"><span className="font-bold">Buyer's note:</span> {selectedOrder.notes}</p>
             )}
 
-            {normalizeOrderStatus(selectedOrder.status) === 'CANCELLED' && (
+            {selectedOrder.return_to_sender && (
+              <div className={`p-3 rounded-xl border text-xs ${selectedOrder.return_to_sender.state === 'confirmed' ? 'bg-gray-50 border-gray-200 text-gray-700' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                <p className="font-bold">
+                  {selectedOrder.return_to_sender.state === 'on_the_way' && 'Failed delivery: the courier is bringing the parcel back to you.'}
+                  {selectedOrder.return_to_sender.state === 'awaiting_confirmation' && 'Returned: confirm the parcel reached your shop.'}
+                  {selectedOrder.return_to_sender.state === 'confirmed' && `You confirmed the parcel came back${selectedOrder.return_to_sender.confirmed_at ? ` on ${when(selectedOrder.return_to_sender.confirmed_at)}` : ''}. The items are back in stock.`}
+                </p>
+                {selectedOrder.return_to_sender.state === 'awaiting_confirmation' && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="flex-1 min-w-[180px]">The stock goes back on sale only after you confirm. You earn nothing on this order.</span>
+                    <Button variant="primary" onClick={() => void handleConfirmReturned()} disabled={actionLoading} className="py-1.5 px-3 text-xs bg-brand-red">
+                      Parcel received
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'CANCELLED' && !selectedOrder.return_to_sender && (
               <p className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700">
                 <span className="font-bold">Cancelled by {selectedOrder.cancelled_by === 'seller' ? 'you' : selectedOrder.cancelled_by === 'buyer' ? 'the buyer' : 'Loved-IT'}</span>{selectedOrder.cancel_reason ? `: ${selectedOrder.cancel_reason}` : ''}
                 {selectedOrder.refund_status && <span className="block mt-0.5">Refund {selectedOrder.refund_status === 'refunded' ? 'sent' : 'to send from your GCash'}: {peso(selectedOrder.refund_amount)}</span>}

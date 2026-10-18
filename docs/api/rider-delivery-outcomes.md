@@ -42,25 +42,27 @@ The single source of failure reasons. Only `OTHER` requires a note.
 ---
 
 ## 2. Mark Delivered (`POST /api/v1/rider/deliveries/{tracking}/delivered`)
-`multipart/form-data`.
+`multipart/form-data`. The steps are checked in order (Rider R6, A32): the photo, the buyer's delivery code, then the cash.
 
 | Field | Rules |
 |---|---|
-| `proof_photo` | **Required.** The parcel handed over (with the recipient or at the door). An image file: `jpg`, `jpeg`, `png` or `webp`, judged by its real content type, max **8 MB** (8192 KB). |
-| `proof_photo_2` | **Required.** The delivery address (house, gate or building). Same rules, and it must be a **different file** from `proof_photo` (same bytes twice is a `422` on `proof_photo_2`). |
-| `received_by` | Optional string, max 100 characters. Who received the parcel. |
-| `cod_collected` | Boolean (`1`/`0`/`true`/`false`). **Required and must be true when the parcel has a `cod_amount`.** Ignored for prepaid parcels. |
+| `proof_photo` | **Required.** The parcel at the door or with the recipient. An image file: `jpg`, `jpeg`, `png` or `webp`, judged by its real content type, max **8 MB** (8192 KB). |
+| `proof_photo_2` | Optional. The house, gate or building. Same rules; when sent it must be a **different file** from `proof_photo` (`422` on `proof_photo_2`). |
+| `otp` | **Required when the parcel has a delivery code** (every parcel sent out through Out for Delivery has one). Exactly 6 digits; anything else is a `422` on `otp` and does not count as a try. |
+| `cod_amount` | **Required for a COD parcel**: the cash the rider counted. It must equal the parcel's COD amount **to the centavo** (`499.99` and `500.01` are refused on a `500.00` order). Ignored for prepaid parcels. |
+| `received_by` | Optional string, max 100 characters. |
 
-The COD amount is **read from the parcel**, never from the client; any amount a client sends is ignored.
+### The delivery code (A32)
+- A fresh 6-digit code is made each time the parcel goes Out for Delivery. Only the buyer sees it (`delivery_otp` on their order, while it is out for delivery); it is never in a rider, hub or courier payload.
+- A wrong code is a `422` with the tries left (`Wrong delivery code. 4 tries left.`). The **5th** wrong code locks code entry for **15 minutes** (`423`, with `locked_until`); during the lock even the right code is refused with `423`. The tries are saved even though the request is refused.
+- A parcel sent out before codes existed has none, and the step is skipped.
 
 ### What happens
-- The order is checked first. A parcel that cannot be delivered is rejected **before** the photo is stored, so nothing is kept.
-- Both photos are stored on the **private** `ids` disk under `delivery-proofs/`. They are never on a public path, and the paths are never returned by this endpoint.
-- The order moves `OUT_FOR_DELIVERY → DELIVERED` through `OrderStateMachine` with actor `rider` (history row written; the parcel follows the sync).
-- On the parcel: `delivered_at`, `delivery_proof_path`, `delivery_proof_path_2`, `received_by` and, for COD, `cod_collected_at` are set.
-- A `delivery_logs` row is written (outcome `DELIVERED`).
-- If anything fails after the photos were stored, both files are deleted.
-- **Escrow is unchanged.** Whatever the state machine already does at `DELIVERED` (marking the order items' payout `available` and `delivered_at`) still happens exactly as before, and nothing else about money changes. **Escrow still releases at `DELIVERED` until Feature 2.8** moves it to `COMPLETED`. No earnings rows are created (2.9).
+- Everything that can refuse the request runs before the photos are stored, so a refused delivery keeps nothing.
+- The photos go to the **private** `ids` disk under `delivery-proofs/`; their paths are never returned.
+- The order moves `OUT_FOR_DELIVERY → DELIVERED` through `OrderStateMachine` with actor `rider`.
+- On the parcel: `delivered_at`, the proof paths, `received_by` and, for COD, `cod_collected_at` and `cod_collected_amount`. The cash is now on the rider's COD balance (`docs/api/courier-operations.md`).
+- A `delivery_logs` row is written (outcome `DELIVERED`). The rider earns the fixed **₱50.00** delivery pay (`docs/api/delivery-fee-split.md`).
 
 #### Response: `200 OK`
 ```json
@@ -68,13 +70,16 @@ The COD amount is **read from the parcel**, never from the client; any amount a 
   "message": "Delivery recorded.",
   "tracking_number": "LIT-261014-39B685",
   "delivered_at": "2026-10-14T08:20:00+00:00",
-  "cod_collected": true
+  "cod_collected": true,
+  "cod_amount": 500,
+  "pay": "50.00"
 }
 ```
 
 #### Errors
 - `404` / `409` / `422` as in the overview.
-- `422` validation: `proof_photo` or `proof_photo_2` missing, wrong type, or over 8 MB; the two photos identical; `received_by` over 100 characters; `cod_collected` missing or false on a COD parcel.
+- `422`: photo missing, wrong type or over 8 MB; the two photos identical; `otp` not 6 digits or wrong (with the tries left); `cod_amount` missing or not exactly the order's amount.
+- `423`: code entry locked after 5 wrong codes.
 
 ---
 
@@ -87,20 +92,22 @@ JSON body.
 | `note` | Optional string, max 500. **Required when `reason` is `OTHER`.** |
 
 ### What happens
-- The order moves `OUT_FOR_DELIVERY → DELIVERY_FAILED` through `OrderStateMachine` with actor `rider`.
-- On the parcel: `failed_at`, `failure_reason` and `failure_note` are set, and `delivery_attempts` is incremented.
-- The history note is `Delivery failed: <reason label>`. The buyer can read history notes, so the rider's free-text note is **not** included there; it is kept on the parcel and in the log for the hub.
-- A `delivery_logs` row is written (outcome `DELIVERY_FAILED`, notes `CODE: label - note`).
-- The parcel stays assigned to the rider. Rescheduling or returning it is a **hub action (Feature 1.9)**.
-- Escrow is not released by a failed delivery.
+- The order moves `OUT_FOR_DELIVERY → DELIVERY_FAILED` through `OrderStateMachine` with actor `rider`; the buyer, the shop and the courier company are notified.
+- On the parcel: `failed_at`, `failure_reason` and `failure_note` are set, and `delivery_attempts` goes up by one. The attempt pays nothing.
+- The history note is `Delivery failed: <reason label>`; the rider's free-text note stays on the parcel and in the log.
+- **Return to Sender (A13):** a `REFUSED` reason, or the last allowed attempt (`LOGISTICS_MAX_DELIVERY_ATTEMPTS`, default 3), moves the parcel straight to `RETURN_TO_SENDER`. No further attempt can be scheduled; the courier company gives the trip back to the shop to a rider.
+- Otherwise the courier company (or the hub) reschedules it: the next trip shows as `attempt 2 of 3` in the rider's list.
 
 #### Response: `200 OK`
 ```json
 {
-  "message": "Delivery failure recorded.",
+  "message": "Delivery failure recorded: attempt 1 of 3.",
   "tracking_number": "LIT-261014-39B685",
   "reason": { "code": "RECIPIENT_UNAVAILABLE", "label": "Recipient unavailable" },
-  "delivery_attempts": 1
+  "delivery_attempts": 1,
+  "max_attempts": 3,
+  "return_to_sender": false,
+  "pay": "0.00"
 }
 ```
 

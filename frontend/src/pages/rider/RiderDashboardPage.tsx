@@ -20,6 +20,7 @@ import { getRiderDeliveriesApi, getRiderEarningsSummaryApi, getRiderPickupsApi }
 import type { RiderOutletContext } from './RiderLayout';
 import { IconChip, KpiSkeleton, KpiTile, PageHero, SectionCard, StateCard, type Tone } from './RiderUi';
 import { BTN_PRIMARY } from './riderStyles';
+import { AvailabilityToggle, JobOffers } from '../../components/rider/RiderWork';
 
 interface Workload {
   pickupsAccepted: number;
@@ -129,6 +130,9 @@ export default function RiderDashboardPage() {
           </>
         }
       />
+
+      <AvailabilityToggle />
+      <JobOffers onAccepted={() => void loadWork()} />
 
       {workLoading && !work ? (
         <KpiSkeleton />
