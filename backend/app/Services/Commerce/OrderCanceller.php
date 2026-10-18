@@ -93,6 +93,7 @@ class OrderCanceller
         foreach ($items as $item) {
             if ($item->product_variant_id) {
                 ProductVariant::withTrashed()->whereKey($item->product_variant_id)->increment('stock_quantity', $item->quantity);
+                ProductVariant::afterStockQuery($item->product_variant_id, $item->quantity);
             }
             if ($item->flash_sale_id) {
                 $sale = FlashSale::lockForUpdate()->find($item->flash_sale_id);

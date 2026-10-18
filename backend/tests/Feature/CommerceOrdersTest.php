@@ -386,6 +386,41 @@ class CommerceOrdersTest extends TestCase
         $this->assertSame(4, Order::whereKey([$today, $early, $late, $old])->count());
     }
 
+    /** SEL-INV-008 (A29): sales from 7 down: no alert at 6, one at 5, none at 4; a restock above 5 re-arms it. */
+    public function test_the_low_stock_alert_fires_once_when_sales_reach_five_and_rearms_after_a_restock(): void
+    {
+        $buyer = $this->buyer();
+        $addr = $this->address($buyer, $this->qc);
+        $seller = $this->seller('Low Stock Crafts', $this->qc);
+        [, $variants] = $this->product($seller, 'Bamboo Serving Tray', ['Default' => [300, 7]], 0.5);
+        $variant = $variants['Default'];
+        $alerts = fn () => $seller->notifications()->where('data->kind', 'stock.low')->count();
+
+        Sanctum::actingAs($buyer);
+        $first = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $this->assertSame([6, 0], [$variant->fresh()->stock_quantity, $alerts()]);
+        $second = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $this->assertSame([5, 1], [$variant->fresh()->stock_quantity, $alerts()]);
+        $this->assertStringContainsString('has 5 left', $seller->notifications()->where('data->kind', 'stock.low')->first()->data['body']);
+        $this->place($addr, $variant, 1, 'cod');
+        $this->assertSame([4, 1], [$variant->fresh()->stock_quantity, $alerts()]);
+
+        // Two cancellations put stock back to 6: the alert re-arms, and the next sale down to 5 alerts again.
+        $this->postJson("/api/v1/buyer/orders/{$first}/cancel", ['reason' => 'Changed my mind'])->assertOk();
+        $this->postJson("/api/v1/buyer/orders/{$second}/cancel", ['reason' => 'Changed my mind'])->assertOk();
+        $this->assertSame(6, $variant->fresh()->stock_quantity);
+        $this->assertNull($variant->fresh()->low_stock_alerted_at);
+        $this->place($addr, $variant, 1, 'cod');
+        $this->assertSame([5, 2], [$variant->fresh()->stock_quantity, $alerts()]);
+
+        // The seller's own stock edit follows the same rule.
+        Sanctum::actingAs($seller);
+        $variant->update(['stock_quantity' => 20]);
+        $variant->update(['stock_quantity' => 3]);
+        $this->assertSame(3, $alerts());
+        $this->assertSame(1, $this->getJson('/api/v1/seller/dashboard/stats')->json('data.low_stock_count'));
+    }
+
     public function test_the_admin_finds_a_case_by_buyer_or_shop_and_can_side_with_the_shop(): void
     {
         Storage::fake('public');

@@ -37,23 +37,35 @@ class ProductVariant extends Model
 
     protected static function booted(): void
     {
-        // Every stock change (checkout, cancellation, the seller's edits) passes through here, so the alert fires once
-        // when stock drops to the threshold and re-arms when stock goes back above it.
+        // The seller's edits save the model and land here. Checkout and cancellations change stock with one atomic
+        // query, which fires no model event, so they call afterStockQuery() themselves.
         static::updated(function (ProductVariant $variant) {
-            if (! $variant->wasChanged('stock_quantity')) {
-                return;
-            }
-            $old = (int) $variant->getOriginal('stock_quantity');
-            $new = (int) $variant->stock_quantity;
-            $limit = self::LOW_STOCK_THRESHOLD;
-
-            if ($new <= $limit && $old > $limit && ! $variant->low_stock_alerted_at) {
-                static::withoutEvents(fn () => $variant->forceFill(['low_stock_alerted_at' => now()])->saveQuietly());
-                app(\App\Services\StockAlerts::class)->lowStock($variant);
-            } elseif ($new > $limit && $variant->low_stock_alerted_at) {
-                static::withoutEvents(fn () => $variant->forceFill(['low_stock_alerted_at' => null])->saveQuietly());
+            if ($variant->wasChanged('stock_quantity')) {
+                self::stockChanged($variant, (int) $variant->getOriginal('stock_quantity'), (int) $variant->stock_quantity);
             }
         });
+    }
+
+    /** A29: the alert fires once when stock drops to the threshold or below, and re-arms when stock goes back above it. */
+    public static function stockChanged(ProductVariant $variant, int $old, int $new): void
+    {
+        $limit = self::LOW_STOCK_THRESHOLD;
+
+        if ($new <= $limit && $old > $limit && ! $variant->low_stock_alerted_at) {
+            static::withoutEvents(fn () => $variant->forceFill(['low_stock_alerted_at' => now()])->saveQuietly());
+            app(\App\Services\StockAlerts::class)->lowStock($variant);
+        } elseif ($new > $limit && $variant->low_stock_alerted_at) {
+            static::withoutEvents(fn () => $variant->forceFill(['low_stock_alerted_at' => null])->saveQuietly());
+        }
+    }
+
+    /** After stock was moved by $delta units with a query (checkout takes, a cancellation or return gives back). */
+    public static function afterStockQuery(int $variantId, int $delta): void
+    {
+        $variant = static::withTrashed()->find($variantId);
+        if ($variant) {
+            self::stockChanged($variant, $variant->stock_quantity - $delta, $variant->stock_quantity);
+        }
     }
 
     public function product(): BelongsTo

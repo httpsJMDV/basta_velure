@@ -236,6 +236,7 @@ class OrderPlacer
             if (! $updated) {
                 $this->conflict('stock_changed', 'An item sold out while you were checking out. Review your order and try again.', $quote);
             }
+            ProductVariant::afterStockQuery($variantId, -$qty);
         }
         foreach (collect($quote['stores'])->flatMap(fn ($s) => $s['lines'])->groupBy('product_id') as $productId => $lines) {
             Product::withTrashed()->whereKey($productId)->increment('units_sold', (int) $lines->sum('quantity'));
