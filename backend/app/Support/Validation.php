@@ -71,10 +71,12 @@ final class Validation
         return [$required ? 'required' : 'nullable', 'numeric', 'decimal:0,2', 'min:1', 'max:1000000'];
     }
 
+    public const STOCK_MAX = 99999;
+
     /** Stock or quantity: a whole number from 0 to 99,999. */
     public static function stock(bool $required = true): array
     {
-        return [$required ? 'required' : 'nullable', 'integer', 'min:0', 'max:99999'];
+        return [$required ? 'required' : 'nullable', 'integer', 'min:0', 'max:' . self::STOCK_MAX];
     }
 
     /** A free-text reason (cancel, reject, override, suspend): 10 to 300 characters. */

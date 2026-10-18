@@ -37,7 +37,30 @@ class Order extends Model
         'shipping_name', 'shipping_phone', 'shipping_address',
         'shipping_province', 'shipping_city', 'shipping_barangay',
         'shipping_province_code', 'shipping_city_code', 'shipping_barangay_code', 'notes', 'completed_at',
+        'store_voucher_id', 'store_voucher_discount', 'platform_voucher_id', 'platform_voucher_discount',
+        'shipping_voucher_id', 'shipping_voucher_discount', 'promo_discount', 'total_weight_grams', 'chargeable_weight_kg',
+        'shipping_route', 'payment_due_at', 'paid_at', 'cancel_reason', 'cancelled_by', 'cancelled_at', 'refund_status',
+        'refund_amount', 'refunded_at',
     ];
+
+    /** Paid through the sandbox e-wallet or card gateway: Loved-IT holds the money and pays the shop out. */
+    public const GATEWAY_METHODS = ['e_wallet', 'card'];
+
+    /** Prepaid: the buyer paid before delivery, so a cancellation or return is refunded. */
+    public function isPrepaid(): bool
+    {
+        return in_array($this->payment_method, [...self::GATEWAY_METHODS, 'gcash'], true) && $this->payment_status === 'paid';
+    }
+
+    /** Waiting for an e-wallet or card payment ("To Pay"). */
+    public function awaitingPayment(): bool
+    {
+        $status = $this->status instanceof OrderStatus ? $this->status->value : (string) $this->status;
+
+        return in_array($this->payment_method, self::GATEWAY_METHODS, true)
+            && in_array($this->payment_status, ['pending', 'failed'], true)
+            && $status === OrderStatus::PLACED->value;
+    }
 
     protected function casts(): array
     {
@@ -50,6 +73,15 @@ class Order extends Model
             'total'               => 'decimal:2',
             'payment_verified_at' => 'datetime',
             'completed_at'        => 'datetime',
+            'store_voucher_discount'    => 'decimal:2',
+            'platform_voucher_discount' => 'decimal:2',
+            'shipping_voucher_discount' => 'decimal:2',
+            'promo_discount'            => 'decimal:2',
+            'refund_amount'             => 'decimal:2',
+            'payment_due_at'            => 'datetime',
+            'paid_at'                   => 'datetime',
+            'cancelled_at'              => 'datetime',
+            'refunded_at'               => 'datetime',
         ];
     }
 

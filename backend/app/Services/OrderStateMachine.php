@@ -32,15 +32,18 @@ class OrderStateMachine
         ],
         OrderStatus::CONFIRMED->value => [
             OrderStatus::PREPARING->value => ['seller', 'admin'],
-            OrderStatus::CANCELLED->value => ['buyer', 'seller', 'admin'],
+            OrderStatus::CANCELLED->value => ['buyer', 'seller', 'admin', 'system'],
             OrderStatus::DISPUTED->value  => ['buyer', 'admin'],
         ],
+        // A6: the buyer can cancel until the order is Ready for Pickup; the seller until the courier picks it up.
         OrderStatus::PREPARING->value => [
             OrderStatus::READY_FOR_PICKUP->value => ['seller', 'admin'],
+            OrderStatus::CANCELLED->value        => ['buyer', 'seller', 'admin'],
             OrderStatus::DISPUTED->value         => ['buyer', 'admin'],
         ],
         OrderStatus::READY_FOR_PICKUP->value => [
             OrderStatus::PICKED_UP->value => ['rider', 'admin'],
+            OrderStatus::CANCELLED->value => ['seller', 'admin'],
             OrderStatus::DISPUTED->value  => ['buyer', 'admin'],
         ],
         OrderStatus::PICKED_UP->value => [
@@ -73,10 +76,12 @@ class OrderStateMachine
             OrderStatus::RETURNED->value          => ['hub', 'admin'],
             OrderStatus::DISPUTED->value          => ['buyer', 'admin'],
         ],
+        // A31: an unanswered return is approved by the system after 3 days; a rejection not escalated in time
+        // closes and the order completes.
         OrderStatus::DISPUTED->value => [
-            OrderStatus::RETURNED->value  => ['seller', 'admin'],
+            OrderStatus::RETURNED->value  => ['seller', 'admin', 'system'],
             OrderStatus::DELIVERED->value => ['admin'],
-            OrderStatus::COMPLETED->value => ['admin'],
+            OrderStatus::COMPLETED->value => ['admin', 'system'],
             OrderStatus::CANCELLED->value => ['admin'],
         ],
         OrderStatus::COMPLETED->value => [],
@@ -333,17 +338,19 @@ class OrderStateMachine
             app(RiderEarningsRecorder::class)->recordForDeliveredOrder($order);
         }
 
-        //    COMPLETED (by the buyer, the system's auto-complete, or an admin): start the hold. Each item
-        //    still in escrow gets a release date; the payouts:release-due command makes it available later.
-        //    Items already available or disbursed are left exactly as they are.
+        //    COMPLETED (by the buyer, the system's auto-complete, or an admin): earnings move from Pending to
+        //    Available (A15). With no hold (the default) they are available at once; with a hold configured, each
+        //    item gets a release date and payouts:release-due makes it available later. Items already available
+        //    or disbursed are left exactly as they are.
         if ($toStatus === OrderStatus::COMPLETED->value) {
             $completedAt = now();
+            $hold = $this->escrowHoldDays();
 
             Order::where('id', $order->id)->update(['completed_at' => $completedAt]);
 
             OrderItem::where('order_id', $order->id)
                 ->where('payout_status', 'pending_release')
-                ->update(['escrow_release_at' => $completedAt->copy()->addDays($this->escrowHoldDays())]);
+                ->update(['escrow_release_at' => $completedAt->copy()->addDays($hold)] + ($hold === 0 ? ['payout_status' => 'available'] : []));
         }
     }
 
@@ -352,6 +359,6 @@ class OrderStateMachine
      */
     protected function escrowHoldDays(): int
     {
-        return max(0, (int) config('payouts.escrow_hold_days', 7));
+        return max(0, (int) config('payouts.escrow_hold_days', 0));
     }
 }

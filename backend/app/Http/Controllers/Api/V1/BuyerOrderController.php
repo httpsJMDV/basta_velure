@@ -6,396 +6,165 @@ use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Dispute;
 use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\OrderStatusHistory;
-use App\Models\Payment;
-use App\Models\PlatformSetting;
-use App\Models\Product;
-use App\Models\ProductVariant;
+use App\Services\Commerce\BuyerOrderPresenter;
+use App\Services\Commerce\OrderCanceller;
+use App\Services\Commerce\ReturnService;
+use App\Services\Commerce\SandboxGateway;
 use App\Services\OrderStateMachine;
+use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
+/** The buyer's orders (B10 to B12): tabs, details, cancel, return and refund, receipt and Pay Again. */
 class BuyerOrderController extends Controller
 {
+    private const WITH = ['items.seller.sellerProfile', 'payment', 'parcel', 'dispute.photos'];
+
     public function __construct(
-        protected OrderStateMachine $stateMachine
+        protected OrderStateMachine $stateMachine,
+        protected OrderCanceller $canceller,
+        protected ReturnService $returns,
     ) {}
-    /**
-     * POST /api/v1/checkout/place-order
-     */
-    public function placeOrder(Request $request): JsonResponse
-    {
-        $user = $request->user();
-
-        $rules = [
-            'payment_method'    => ['required', 'in:gcash,cod'],
-            'shipping_name'     => ['required', 'string', 'max:150'],
-            'shipping_phone'    => ['required', 'string', 'max:30'],
-            'shipping_address'  => ['required', 'string'],
-            'shipping_province'      => ['nullable', 'string', 'max:100'],
-            'shipping_city'          => ['nullable', 'string', 'max:100'],
-            'shipping_barangay'      => ['nullable', 'string', 'max:100'],
-            'shipping_province_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
-            'shipping_city_code'     => ['required', 'string', 'regex:/^\d{9,10}$/'],
-            'shipping_barangay_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
-            'notes'                  => ['nullable', 'string', 'max:500'],
-            'items'                  => ['required', 'array', 'min:1'],
-            'items.*.product_id'     => ['required', 'integer', 'exists:products,id'],
-            'items.*.variant_id'     => ['nullable', 'integer'],
-            'items.*.quantity'       => ['required', 'integer', 'min:1'],
-        ];
-
-        $messages = [
-            'shipping_barangay_code.required' => 'Selected delivery address is missing a barangay PSGC code. Please re-select or update your delivery address to proceed with checkout.',
-            'shipping_city_code.required'     => 'Selected delivery address is missing a city/municipality PSGC code. Please re-select or update your delivery address to proceed with checkout.',
-            'shipping_province_code.required' => 'Selected delivery address is missing a province PSGC code. Please re-select or update your delivery address to proceed with checkout.',
-        ];
-
-        $data = $request->validate($rules, $messages);
-
-        // GCash goes straight to each shop's own GCash: one reference and one receipt per shop.
-        $gcash = $data['payment_method'] === 'gcash' ? $this->gcashPayments($request, $data['items']) : [];
-        $proofPaths = array_column($gcash, 'proof_path');
-
-        try {
-            return DB::transaction(function () use ($user, $data, $gcash) {
-                $preparedItems = [];
-
-                // Process and validate items
-                foreach ($data['items'] as $itemData) {
-                    $product = Product::with(['seller', 'images'])->lockForUpdate()->findOrFail($itemData['product_id']);
-                    abort_if($product->status !== 'active', 422, "Product {$product->name} is no longer available.");
-
-                    $variant = null;
-                    $unitPrice = (float) $product->base_price;
-                    $variantLabel = null;
-
-                    if (!empty($itemData['variant_id'])) {
-                        $variant = ProductVariant::where('product_id', $product->id)
-                            ->lockForUpdate()
-                            ->find($itemData['variant_id']);
-
-                        if ($variant) {
-                            $unitPrice = (float) $variant->price;
-                            $variantLabel = $variant->label ?? null;
-                            if ($variant->stock_quantity < $itemData['quantity']) {
-                                abort(422, "Insufficient stock for {$product->name}" . ($variantLabel ? " ({$variantLabel})" : ""));
-                            }
-                            $variant->decrement('stock_quantity', $itemData['quantity']);
-                        }
-                    }
-
-                    $qty = (int) $itemData['quantity'];
-                    $itemSubtotal = round($unitPrice * $qty, 2);
-
-                    // Commission calculation
-                    $commissionRate = PlatformSetting::getCommissionRateForCategory($product->category_id);
-                    $commissionAmount = round($itemSubtotal * $commissionRate, 2);
-                    $sellerEarnings = round($itemSubtotal - $commissionAmount, 2);
-
-                    $primaryImage = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
-                    $imageUrl = $primaryImage ? asset('storage/' . $primaryImage->path) : null;
-
-                    $preparedItems[] = [
-                        'seller_id'         => $product->seller_id,
-                        // Which product and variant the line was, so the buyer can review it once it arrives.
-                        'product_id'        => $product->id,
-                        'product_variant_id'=> $variant?->id,
-                        'category_id'       => $product->category_id,
-                        'product_name'      => $product->name,
-                        'variant_label'     => $variantLabel,
-                        'unit_price'        => $unitPrice,
-                        'quantity'          => $qty,
-                        'subtotal'          => $itemSubtotal,
-                        'image_url'         => $imageUrl,
-                        'commission_rate'   => $commissionRate,
-                        'commission_amount' => $commissionAmount,
-                        'seller_earnings'   => $sellerEarnings,
-                        // Paid to the shop directly (its GCash, or by the courier for COD), not through Loved-IT.
-                        'payout_status'     => 'direct',
-                    ];
-
-                    // Increment product sales metric
-                    $product->increment('units_sold', $qty);
-                }
-
-                $paymentStatus = $data['payment_method'] === 'gcash' ? 'pending_verification' : 'pending';
-                $checkoutGroupId = (string) Str::uuid();
-
-                $sellerGroups = collect($preparedItems)->groupBy('seller_id');
-                $groupCount = $sellerGroups->count();
-
-                $createdOrders = [];
-                $baseTimestamp = date('ymdHis');
-                $randomKey = strtoupper(Str::random(4));
-                $orderIdx = 1;
-
-                // The courier is assigned per shop from where the parcel starts and ends; the buyer does not pick one.
-                $courierAssigner = app(\App\Services\CourierAssigner::class);
-                $profiles = \App\Models\SellerProfile::whereIn('user_id', $sellerGroups->keys())->get(['user_id', 'address_barangay_code', 'free_delivery_min'])->keyBy('user_id');
-
-                foreach ($sellerGroups as $sellerId => $sellerItems) {
-                    $orderSubtotal = round((float) $sellerItems->sum('subtotal'), 2);
-                    // One flat delivery fee per shop order (config/shipping.php). The courier always earns it; a shop
-                    // that offers free delivery from a minimum pays it for the buyer.
-                    $courierFee = (float) \App\Support\ShippingSplit::fee();
-                    $freeFrom = $profiles[$sellerId]->free_delivery_min ?? null;
-                    $freeDelivery = $freeFrom !== null && $orderSubtotal >= (float) $freeFrom;
-                    $shippingFee = $freeDelivery ? 0.0 : $courierFee;
-                    $orderTotal = round($orderSubtotal + $shippingFee, 2);
-                    $pay = $gcash[$sellerId] ?? null;
-
-                    $orderNumber = $groupCount > 1
-                        ? "VEL-{$randomKey}-{$baseTimestamp}-{$orderIdx}"
-                        : "VEL-{$randomKey}-{$baseTimestamp}";
-                    $orderIdx++;
-
-                    $order = Order::create([
-                        'logistics_company_id' => $courierAssigner->forRoute($profiles[$sellerId]->address_barangay_code ?? null, $data['shipping_barangay_code']),
-                        'buyer_id'          => $user->id,
-                        'checkout_group_id' => $checkoutGroupId,
-                        'order_number'      => $orderNumber,
-                        'subtotal'          => $orderSubtotal,
-                        'shipping_fee'      => $shippingFee,
-                        'courier_fee'       => $courierFee,
-                        'free_delivery'     => $freeDelivery,
-                        'total'             => $orderTotal,
-                        'payment_method'    => $data['payment_method'],
-                        'payment_status'    => $paymentStatus,
-                        'settlement'        => Order::SETTLEMENT_DIRECT,
-                        'status'            => OrderStatus::PLACED->value,
-                        'payment_reference' => $pay['reference'] ?? null,
-                        'payment_proof_path'=> $pay['proof_path'] ?? null,
-                        'shipping_name'          => $data['shipping_name'],
-                        'shipping_phone'         => $data['shipping_phone'],
-                        'shipping_address'       => $data['shipping_address'],
-                        'shipping_province'      => $data['shipping_province'] ?? null,
-                        'shipping_city'          => $data['shipping_city'] ?? null,
-                        'shipping_barangay'      => $data['shipping_barangay'] ?? null,
-                        'shipping_province_code' => $data['shipping_province_code'],
-                        'shipping_city_code'     => $data['shipping_city_code'],
-                        'shipping_barangay_code' => $data['shipping_barangay_code'],
-                        'notes'                  => $data['notes'] ?? null,
-                    ]);
-
-                    // Record initial placement history
-                    OrderStatusHistory::create([
-                        'order_id'    => $order->id,
-                        'from_status' => null,
-                        'to_status'   => OrderStatus::PLACED->value,
-                        'actor_type'  => 'buyer',
-                        'actor_id'    => $user->id,
-                        'note'        => 'Order placed by customer',
-                        'created_at'  => now(),
-                    ]);
-
-                    // Create Order Items
-                    foreach ($sellerItems as $item) {
-                        $order->items()->create($item);
-                    }
-
-                    // Create Payment Record
-                    Payment::create([
-                        'order_id'         => $order->id,
-                        'method'           => $data['payment_method'],
-                        'reference_number' => $pay['reference'] ?? null,
-                        'amount'           => $orderTotal,
-                        'status'           => 'pending',
-                    ]);
-
-                    $createdOrders[] = $order;
-                }
-
-                // Receipt to the buyer and a "new order" to each seller, queued once the checkout commits.
-                app(\App\Services\MailNotifier::class)->ordersPlaced($createdOrders);
-
-                $formattedOrders = array_map(
-                    fn ($o) => $this->formatOrder($o->fresh(['items.seller.sellerProfile', 'buyer', 'statusHistories'])),
-                    $createdOrders
-                );
-
-                return response()->json([
-                    'message'           => count($createdOrders) > 1
-                        ? 'Orders placed successfully!'
-                        : 'Order placed successfully!',
-                    'data'              => $formattedOrders[0],
-                    'orders'            => $formattedOrders,
-                    'checkout_group_id' => $checkoutGroupId,
-                ], 201);
-            });
-        } catch (\Throwable $e) {
-            if ($proofPaths) {
-                Storage::disk('public')->delete($proofPaths);
-            }
-            throw $e;
-        }
-    }
 
     /**
-     * The GCash payment of each shop in the cart: its 13-digit reference and receipt, sent as gcash[SELLER_ID][reference]
-     * and gcash_proof[SELLER_ID]. A one-shop cart may still send payment_reference and payment_proof. Every shop must
-     * have set up its GCash; the receipts are stored once everything checks out.
-     *
-     * @param  array<int, array{product_id: int}>  $items
-     * @return array<int, array{reference: string, proof_path: string}> keyed by seller id
-     */
-    private function gcashPayments(Request $request, array $items): array
-    {
-        $sellerIds = Product::whereIn('id', array_column($items, 'product_id'))->distinct()->pluck('seller_id')->map(fn ($id) => (int) $id)->all();
-        $profiles = \App\Models\SellerProfile::whereIn('user_id', $sellerIds)->get(['id', 'user_id', 'shop_name', 'gcash_number'])->keyBy('user_id');
-        $single = count($sellerIds) === 1;
-        $errors = [];
-        $found = [];
-
-        foreach ($sellerIds as $sellerId) {
-            $profile = $profiles[$sellerId] ?? null;
-            if (! $profile || ! $profile->gcash_number) {
-                $errors['gcash'][] = ($profile->shop_name ?? 'A shop in your cart') . ' does not take GCash yet. Pay by cash on delivery, or check out its items separately.';
-                continue;
-            }
-
-            $refKey = $single && ! $request->has("gcash.{$sellerId}.reference") ? 'payment_reference' : "gcash.{$sellerId}.reference";
-            $proofKey = $single && ! $request->hasFile("gcash_proof.{$sellerId}") ? 'payment_proof' : "gcash_proof.{$sellerId}";
-            $reference = \App\Support\Gcash::reference($request->input($refKey));
-            $proof = $request->file($proofKey);
-
-            if ($reference === '') {
-                $errors[$refKey][] = "Enter the 13-digit reference number from your GCash receipt for {$profile->shop_name}.";
-            } elseif (strlen($reference) !== 13) {
-                $errors[$refKey][] = 'A GCash reference number has exactly 13 digits.';
-            }
-            if (! $proof) {
-                $errors[$proofKey][] = "Upload a screenshot of your GCash receipt for {$profile->shop_name}.";
-            } elseif (! str_starts_with((string) $proof->getMimeType(), 'image/') || $proof->getSize() > 5 * 1024 * 1024) {
-                $errors[$proofKey][] = 'The receipt must be a JPG or PNG image up to 5 MB.';
-            }
-            $found[$sellerId] = ['reference' => $reference, 'proof' => $proof];
-        }
-
-        if ($errors) {
-            throw \Illuminate\Validation\ValidationException::withMessages($errors);
-        }
-
-        return array_map(fn ($p) => [
-            'reference'  => $p['reference'],
-            'proof_path' => $p['proof']->store('orders/payment-proofs', 'public'),
-        ], $found);
-    }
-
-    /**
-     * GET /api/v1/buyer/orders
+     * GET /buyer/orders?tab=to_pay|to_ship|to_receive|completed|cancelled|return_refund&page=&per_page=
+     * Every order is in exactly one tab; the counts cover all of the buyer's orders (B10).
      */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $tab = $request->query('tab');
+        $perPage = min(50, max(5, (int) $request->query('per_page', 15)));
 
-        $orders = Order::with(['items.seller.sellerProfile', 'payment', 'parcel'])
-            ->where('buyer_id', $user->id)
-            ->when($request->status, function ($q, $status) {
-                if ($status === 'pending_verification') {
-                    $q->where('payment_status', 'pending_verification');
-                } else {
-                    $mappedStatus = match (strtolower($status)) {
-                        'pending'   => OrderStatus::PLACED->value,
-                        'confirmed' => OrderStatus::CONFIRMED->value,
-                        'packed', 'preparing' => OrderStatus::PREPARING->value,
-                        'shipped', 'ready_for_pickup' => OrderStatus::READY_FOR_PICKUP->value,
-                        'picked_up' => OrderStatus::PICKED_UP->value,
-                        'at_sorting_center' => OrderStatus::AT_SORTING_CENTER->value,
-                        'sorted'    => OrderStatus::SORTED->value,
-                        'assigned_to_rider' => OrderStatus::ASSIGNED_TO_RIDER->value,
-                        'out_for_delivery' => OrderStatus::OUT_FOR_DELIVERY->value,
-                        'delivered' => OrderStatus::DELIVERED->value,
-                        'completed' => OrderStatus::COMPLETED->value,
-                        'delivery_failed' => OrderStatus::DELIVERY_FAILED->value,
-                        'cancelled' => OrderStatus::CANCELLED->value,
-                        'returned'  => OrderStatus::RETURNED->value,
-                        default     => strtoupper($status),
-                    };
-                    $q->where('status', $mappedStatus);
-                }
-            })
-            ->latest()
-            ->paginate(15);
+        $query = Order::with(self::WITH)->where('buyer_id', $user->id);
+        if (in_array($tab, BuyerOrderPresenter::TABS, true)) {
+            BuyerOrderPresenter::scopeTab($query, $tab);
+        } elseif ($status = $request->query('status')) {
+            $this->legacyStatusFilter($query, (string) $status);
+        }
+        if ($q = trim((string) $request->query('search', ''))) {
+            $query->where(fn ($w) => $w->where('order_number', 'like', "%{$q}%")->orWhereHas('items', fn ($i) => $i->where('product_name', 'like', "%{$q}%")));
+        }
+        $orders = $query->latest()->paginate($perPage);
+
+        $counts = [];
+        foreach (BuyerOrderPresenter::TABS as $t) {
+            $counts[$t] = BuyerOrderPresenter::scopeTab(Order::where('buyer_id', $user->id), $t)->count();
+        }
 
         return response()->json([
-            'data' => $orders->map(fn ($o) => $this->formatOrder($o)),
-            'meta' => [
-                'current_page' => $orders->currentPage(),
-                'last_page'    => $orders->lastPage(),
-                'total'        => $orders->total(),
-            ],
+            'data'   => $orders->getCollection()->map(fn ($o) => BuyerOrderPresenter::present($o))->values(),
+            'meta'   => ['current_page' => $orders->currentPage(), 'last_page' => $orders->lastPage(), 'total' => $orders->total(), 'per_page' => $orders->perPage()],
+            'counts' => $counts + ['all' => Order::where('buyer_id', $user->id)->count()],
         ]);
     }
 
-    /**
-     * GET /api/v1/buyer/orders/{order}
-     */
+    /** GET /buyer/orders/{order} */
     public function show(Request $request, Order $order): JsonResponse
     {
-        abort_if($order->buyer_id !== $request->user()->id, 403);
+        abort_if($order->buyer_id !== $request->user()->id, 404, 'Order not found.');
+        $order->load([...self::WITH, 'statusHistories']);
 
-        $order->load(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories', 'parcel']);
+        return response()->json(['data' => BuyerOrderPresenter::present($order, detail: true)]);
+    }
+
+    /** POST /buyer/orders/{order}/cancel {reason, details?}: until the seller marks it Ready for Pickup (A6). */
+    public function cancel(Request $request, Order $order): JsonResponse
+    {
+        abort_if($order->buyer_id !== $request->user()->id, 404, 'Order not found.');
+        $data = $request->validate([
+            'reason'  => ['required', Rule::in(OrderCanceller::BUYER_REASONS)],
+            'details' => ['nullable', 'required_if:reason,Other', 'string', 'min:10', 'max:300'],
+        ], [
+            'reason.required'     => 'Choose a reason for cancelling.',
+            'reason.in'           => 'Choose a reason from the list.',
+            'details.required_if' => 'Tell the seller why you are cancelling (10 to 300 characters).',
+            ...Validation::reasonMessages('details'),
+        ]);
+        $reason = $data['reason'] === 'Other' ? trim(strip_tags($data['details'])) : $data['reason'];
+
+        $fresh = $this->canceller->cancel($order, 'buyer', $request->user()->id, $reason);
 
         return response()->json([
-            'data' => $this->formatOrder($order, detail: true),
+            'message' => $fresh->refund_status === 'refunded'
+                ? 'Order cancelled. ₱' . number_format((float) $fresh->refund_amount, 2) . ' is being refunded to your ' . ($fresh->payment_method === 'card' ? 'card' : 'e-wallet') . '.'
+                : 'Order cancelled.',
+            'data' => BuyerOrderPresenter::present($fresh->load([...self::WITH, 'statusHistories']), detail: true),
         ]);
     }
 
     /**
-     * POST /api/v1/buyer/orders/{order}/request-return
+     * POST /buyer/orders/{order}/request-return (multipart): reason from the list, a 10 to 500 character description
+     * and 1 to 5 JPG or PNG photos up to 5 MB each (A31); only after delivery, within 7 days, before completion.
      */
     public function requestReturn(Request $request, Order $order): JsonResponse
     {
         $user = $request->user();
-        abort_if($order->buyer_id !== $user->id, 403);
-
+        abort_if($order->buyer_id !== $user->id, 404, 'Order not found.');
+        if ($why = ReturnService::unavailableReason($order)) {
+            return response()->json(['message' => $why], 422);
+        }
         $data = $request->validate([
-            'reason'      => ['required', 'string', 'max:255'],
-            'description' => ['required', 'string', 'max:2000'],
+            'reason'      => ['required', Rule::in(Dispute::REASONS)],
+            'description' => ['required', 'string', 'min:10', 'max:500'],
+            'photos'      => ['required', 'array', 'min:1', 'max:5'],
+            'photos.*'    => Validation::image(),
+        ], [
+            'reason.required'      => 'Choose a reason for the return.',
+            'reason.in'            => 'Choose a reason from the list.',
+            'description.required' => 'Describe the problem (10 to 500 characters).',
+            'description.min'      => 'The description must be at least 10 characters.',
+            'description.max'      => 'The description can be at most 500 characters.',
+            'photos.required'      => 'Add at least one photo of the problem.',
+            'photos.min'           => 'Add at least one photo of the problem.',
+            'photos.max'           => 'You can add up to 5 photos.',
+            ...Validation::uploadMessages('photos.*', 'each photo'),
         ]);
 
-        // One transaction: if the state machine refuses the move (for example the order is already
-        // COMPLETED), no dispute row may be left behind.
-        DB::transaction(function () use ($order, $user, $data) {
-            \App\Models\Dispute::updateOrCreate(
-                ['order_id' => $order->id],
-                [
-                    'buyer_id'    => $user->id,
-                    'reason'      => $data['reason'],
-                    'description' => $data['description'],
-                    'status'      => 'open',
-                ]
-            );
-
-            $this->stateMachine->transition(
-                $order,
-                OrderStatus::DISPUTED,
-                'buyer',
-                $user->id,
-                "Return requested: {$data['reason']}"
-            );
-
-            app(\App\Services\MailNotifier::class)->returnRequested($order, $data['reason'] . ' — ' . $data['description']);
-        });
+        $this->returns->request($order, $user, $data['reason'], trim(strip_tags($data['description'])), $request->file('photos', []));
 
         return response()->json([
-            'message' => 'Return request submitted successfully. The seller will review within 48 hours.',
-            'data'    => $this->formatOrder($order->fresh(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories']), detail: true),
+            'message' => 'Return request sent. The shop has 3 days to answer; if it does not, the request is approved.',
+            'data'    => BuyerOrderPresenter::present($order->fresh([...self::WITH, 'statusHistories']), detail: true),
         ]);
     }
 
+    /** POST /buyer/orders/{order}/escalate-return: once, within 3 days of the shop's rejection. */
+    public function escalateReturn(Request $request, Order $order): JsonResponse
+    {
+        abort_if($order->buyer_id !== $request->user()->id, 404, 'Order not found.');
+        $this->returns->escalate($order, $request->user());
+
+        return response()->json([
+            'message' => 'Escalated. Loved-IT will review the request and decide.',
+            'data'    => BuyerOrderPresenter::present($order->fresh([...self::WITH, 'statusHistories']), detail: true),
+        ]);
+    }
+
+    /** POST /buyer/orders/{order}/pay-again: a new sandbox payment for the unpaid orders of the checkout. */
+    public function payAgain(Request $request, Order $order, SandboxGateway $gateway): JsonResponse
+    {
+        abort_if($order->buyer_id !== $request->user()->id, 404, 'Order not found.');
+        if (! $order->awaitingPayment()) {
+            return response()->json(['message' => $order->status === OrderStatus::CANCELLED
+                ? 'This order was cancelled because it was not paid within 1 hour.'
+                : 'This order does not need a payment.'], 409);
+        }
+        $session = $gateway->retry($order);
+        if (! $session) {
+            return response()->json(['message' => 'The hour to pay this order is over, so it can no longer be paid.'], 409);
+        }
+
+        return response()->json(['message' => 'Continue to the payment page.', 'data' => SandboxGateway::present($session)]);
+    }
+
     /**
-     * POST /api/v1/buyer/orders/{order}/confirm-receipt
+     * POST /buyer/orders/{order}/confirm-receipt
      *
-     * The buyer confirms the parcel arrived: DELIVERED -> COMPLETED. This starts the seller's escrow hold
-     * (the state machine sets completed_at and each item's escrow_release_at); no money moves here.
-     * Another buyer's order is a 404. Anything but DELIVERED (including a disputed order and a second
-     * submit) is a 409.
+     * The buyer confirms the parcel arrived: DELIVERED -> COMPLETED, and the shop's earnings become available (A15).
+     * Another buyer's order is a 404. Anything but DELIVERED (including a disputed order and a second submit) is 409.
      */
     public function confirmReceipt(Request $request, int $order): JsonResponse
     {
@@ -421,96 +190,40 @@ class BuyerOrderController extends Controller
                 return response()->json(['message' => 'You can confirm receipt once the order has been delivered.'], 409);
             }
 
-            $this->stateMachine->transition(
-                $locked,
-                OrderStatus::COMPLETED,
-                'buyer',
-                $user->id,
-                'Buyer confirmed receipt'
-            );
-
-            $fresh = $locked->fresh(['items.seller.sellerProfile', 'payment', 'dispute', 'statusHistories', 'parcel']);
+            $this->stateMachine->transition($locked, OrderStatus::COMPLETED, 'buyer', $user->id, 'Buyer confirmed receipt');
 
             return response()->json([
-                'message' => 'Thanks for confirming. The seller\'s payment will be released after the protection period.',
-                'data'    => $this->formatOrder($fresh, detail: true),
+                'message' => 'Thanks for confirming. You can now rate the items.',
+                'data'    => BuyerOrderPresenter::present($locked->fresh([...self::WITH, 'statusHistories']), detail: true),
             ]);
         });
     }
 
-    private function formatOrder(Order $o, bool $detail = false): array
+    /** The older ?status= filter, kept for clients that still send it. */
+    private function legacyStatusFilter($q, string $status): void
     {
-        $statusStr = $o->status instanceof OrderStatus ? $o->status->value : (string) $o->status;
+        if ($status === 'pending_verification') {
+            $q->where('payment_status', 'pending_verification');
 
-        // Feature 2.8: when the order was delivered, when it will auto-complete if the buyer does nothing,
-        // and whether a delivery proof photo exists (the photo itself is fetched from the secure endpoint).
-        $parcel = $o->relationLoaded('parcel') ? $o->parcel : $o->parcel()->first();
-        $deliveredAt = $parcel?->delivered_at;
-        $autoCompleteAt = ($statusStr === OrderStatus::DELIVERED->value && $deliveredAt)
-            ? $deliveredAt->copy()->addDays(max(0, (int) config('orders.auto_complete_days', 3)))
-            : null;
-
-        return [
-            'id'                  => $o->id,
-            'checkout_group_id'   => $o->checkout_group_id,
-            'order_number'        => $o->order_number,
-            'tracking_number'     => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
-            'courier'             => \App\Models\LogisticsCompany::summaryFor($o->logistics_company_id),
-            'status'              => $statusStr,
-            'payment_method'      => $o->payment_method,
-            'payment_status'      => $o->payment_status,
-            'payment_reference'   => $o->payment_reference,
-            'payment_proof_url'   => $o->payment_proof_path ? asset('storage/' . $o->payment_proof_path) : null,
-            'payment_verified_at' => $o->payment_verified_at?->toIso8601String(),
-            'rejection_reason'    => $o->verification_rejection_reason,
-            'subtotal'            => (float) $o->subtotal,
-            'shipping_fee'        => (float) $o->shipping_fee,
-            'free_delivery'       => (bool) $o->free_delivery,
-            // "direct": paid to the shop's GCash or the rider; "platform": an order from before direct payments.
-            'settlement'          => $o->settlement ?? \App\Models\Order::SETTLEMENT_PLATFORM,
-            'total'               => (float) $o->total,
-            'shipping_name'       => $o->shipping_name,
-            'shipping_phone'      => $o->shipping_phone,
-            'shipping_address'    => $o->shipping_address,
-            'shipping_province'   => $o->shipping_province,
-            'shipping_city'       => $o->shipping_city,
-            'shipping_barangay'   => $o->shipping_barangay,
-            'notes'               => $o->notes,
-            'created_at'          => $o->created_at?->toIso8601String(),
-            'delivered_at'            => $deliveredAt?->toIso8601String(),
-            'auto_complete_at'        => $autoCompleteAt?->toIso8601String(),
-            'completed_at'            => $o->completed_at?->toIso8601String(),
-            'delivery_proof_available' => (bool) $parcel?->delivery_proof_path,
-            'delivery_proof_count'     => (int) (bool) $parcel?->delivery_proof_path + (int) (bool) $parcel?->delivery_proof_path_2,
-            'items'               => $o->items->map(fn ($i) => [
-                'id'            => $i->id,
-                'product_id'    => $i->product_id,
-                'seller_id'     => $i->seller_id,
-                'shop_name'     => $i->seller?->sellerProfile?->shop_name ?? ($i->seller?->first_name . "'s Shop"),
-                'product_name'  => $i->product_name,
-                'variant_label' => $i->variant_label,
-                'unit_price'    => (float) $i->unit_price,
-                'quantity'      => $i->quantity,
-                'subtotal'      => (float) $i->subtotal,
-                'image_url'     => $i->image_url,
-            ])->values(),
-            'dispute'             => $o->relationLoaded('dispute') && $o->dispute ? [
-                'id'              => $o->dispute->id,
-                'reason'          => $o->dispute->reason,
-                'description'     => $o->dispute->description,
-                'status'          => $o->dispute->status,
-                'resolution_note' => $o->dispute->resolution_note,
-                'resolved_at'     => $o->dispute->resolved_at?->toIso8601String(),
-            ] : null,
-            'status_history'      => ($detail || $o->relationLoaded('statusHistories')) ? $o->statusHistories->map(fn ($h) => [
-                'id'          => $h->id,
-                'from_status' => $h->from_status,
-                'to_status'   => $h->to_status,
-                'actor_type'  => $h->actor_type,
-                'note'        => $h->note,
-                'created_at'  => $h->created_at?->toIso8601String(),
-            ])->values() : [],
-        ];
+            return;
+        }
+        $mapped = match (strtolower($status)) {
+            'pending'   => OrderStatus::PLACED->value,
+            'confirmed' => OrderStatus::CONFIRMED->value,
+            'packed', 'preparing' => OrderStatus::PREPARING->value,
+            'shipped', 'ready_for_pickup' => OrderStatus::READY_FOR_PICKUP->value,
+            'picked_up' => OrderStatus::PICKED_UP->value,
+            'at_sorting_center' => OrderStatus::AT_SORTING_CENTER->value,
+            'sorted'    => OrderStatus::SORTED->value,
+            'assigned_to_rider' => OrderStatus::ASSIGNED_TO_RIDER->value,
+            'out_for_delivery' => OrderStatus::OUT_FOR_DELIVERY->value,
+            'delivered' => OrderStatus::DELIVERED->value,
+            'completed' => OrderStatus::COMPLETED->value,
+            'delivery_failed' => OrderStatus::DELIVERY_FAILED->value,
+            'cancelled' => OrderStatus::CANCELLED->value,
+            'returned'  => OrderStatus::RETURNED->value,
+            default     => strtoupper($status),
+        };
+        $q->where('status', $mapped);
     }
 }
-

@@ -72,6 +72,12 @@ Route::prefix('v1')->group(function () {
     Route::get('/products',                    [PublicProductController::class, 'index']);
     Route::get('/products/{product}',          [PublicProductController::class, 'show']);
     Route::get('/products/{product}/reviews',  [PublicProductController::class, 'reviews']);
+    // Claimable vouchers (B7): a shop's, a product's and Loved-IT's. Code-only vouchers are never listed.
+    Route::get('/products/{product}/vouchers', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'forProduct']);
+    Route::get('/shops/{seller}/vouchers',     [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'forShop'])->whereNumber('seller');
+    Route::get('/vouchers/platform',           [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'platform']);
+    // The sandbox gateway's server-to-server callback, signed with config('payments.sandbox_secret').
+    Route::post('/payments/sandbox/callback',  [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'callback']);
     Route::get('/products/{product}/related',  [PublicProductController::class, 'related']);
     Route::get('/categories',                  [PublicCategoryController::class, 'index']);
 
@@ -154,6 +160,15 @@ Route::prefix('v1')->group(function () {
             $riders = \App\Http\Controllers\Api\V1\LogisticsRiderController::class;
             Route::get('/riders', [$riders, 'index']);
             Route::post('/riders', [$riders, 'store'])->middleware('throttle:upload');
+            // Delivery zones and shipping rates (L8), every change audit-logged
+            $shipping = \App\Http\Controllers\Api\V1\LogisticsShippingController::class;
+            Route::get('/shipping', [$shipping, 'index']);
+            Route::get('/shipping/audit', [$shipping, 'audit']);
+            Route::post('/shipping/zones', [$shipping, 'storeZone']);
+            Route::patch('/shipping/zones/{zone}', [$shipping, 'updateZone'])->whereNumber('zone');
+            Route::delete('/shipping/zones/{zone}', [$shipping, 'destroyZone'])->whereNumber('zone');
+            Route::put('/shipping/rates', [$shipping, 'upsertRate']);
+            Route::delete('/shipping/rates/{rate}', [$shipping, 'destroyRate'])->whereNumber('rate');
             Route::get('/riders/{rider}', [$riders, 'show'])->whereNumber('rider');
             Route::get('/riders/{rider}/documents/{doc}', [$riders, 'document'])->whereNumber('rider')->whereIn('doc', ['license', 'or-cr']);
             Route::post('/riders/{rider}/resend-activation', [$riders, 'resendActivation'])->whereNumber('rider')->middleware('throttle:10,1');
@@ -196,8 +211,24 @@ Route::prefix('v1')->group(function () {
         Route::delete('/addresses/{address}', [AddressController::class, 'destroy']);
         Route::patch('/addresses/{address}/default', [AddressController::class, 'setDefault']);
 
-        // Buyer checkout & orders
-        Route::post('/checkout/place-order', [BuyerOrderController::class, 'placeOrder'])->middleware('throttle:upload');
+        // Cart on the server (B6): only the buyer's own lines
+        $cart = \App\Http\Controllers\Api\V1\CartController::class;
+        Route::get('/cart', [$cart, 'index']);
+        Route::post('/cart/items', [$cart, 'store']);
+        Route::patch('/cart/items/{line}', [$cart, 'update'])->whereNumber('line');
+        Route::delete('/cart/items/{line}', [$cart, 'destroy'])->whereNumber('line');
+        Route::post('/cart/select', [$cart, 'select']);
+        Route::post('/cart/merge', [$cart, 'merge']);
+
+        // Vouchers in the wallet (B7)
+        Route::get('/buyer/vouchers', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'wallet']);
+        Route::post('/buyer/vouchers/claim', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'claim']);
+
+        // Buyer checkout & orders (B8, B9)
+        Route::post('/checkout/quote', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'quote']);
+        Route::post('/checkout/place-order', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'place'])->middleware('throttle:upload');
+        Route::get('/payments/sessions/{token}', [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'show']);
+        Route::post('/payments/sessions/{token}/complete', [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'complete']);
         // Product reviews: once per product per delivered order, with up to five photos
         Route::get('/buyer/reviews', [BuyerReviewController::class, 'index']);
         Route::get('/buyer/reviews/pending', [BuyerReviewController::class, 'pending']);
@@ -205,7 +236,10 @@ Route::prefix('v1')->group(function () {
         Route::patch('/buyer/reviews/{review}', [BuyerReviewController::class, 'update']);
         Route::get('/buyer/orders', [BuyerOrderController::class, 'index']);
         Route::get('/buyer/orders/{order}', [BuyerOrderController::class, 'show']);
-        Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn']);
+        Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn'])->middleware('throttle:upload');
+        Route::post('/buyer/orders/{order}/escalate-return', [BuyerOrderController::class, 'escalateReturn']);
+        Route::post('/buyer/orders/{order}/cancel', [BuyerOrderController::class, 'cancel']);
+        Route::post('/buyer/orders/{order}/pay-again', [BuyerOrderController::class, 'payAgain']);
         // Feature 2.8: only buyers (other roles get 403); another buyer's order is a 404 in the controller
         Route::post('/buyer/orders/{order}/confirm-receipt', [BuyerOrderController::class, 'confirmReceipt'])->middleware('role:buyer');
 
@@ -222,6 +256,13 @@ Route::prefix('v1')->group(function () {
 
         // Admin-only routes
         Route::middleware('role:admin')->prefix('admin')->group(function () {
+            // Platform and shipping vouchers (Loved-IT funded, A8)
+            $vouchers = \App\Http\Controllers\Api\V1\VoucherManagementController::class;
+            Route::get('/vouchers', [$vouchers, 'index']);
+            Route::post('/vouchers', [$vouchers, 'store']);
+            Route::patch('/vouchers/{voucher}', [$vouchers, 'update'])->whereNumber('voucher');
+            Route::post('/vouchers/{voucher}/end', [$vouchers, 'end'])->whereNumber('voucher');
+
             // Dashboard stats
             Route::get('/stats', [AdminController::class, 'stats']);
             Route::get('/dashboard-feed', [AdminController::class, 'dashboardFeed']);
@@ -422,6 +463,13 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller/orders/{order}/confirm-payment', [SellerOrderController::class, 'confirmPayment']);
             Route::post('/seller/orders/{order}/reject-payment', [SellerOrderController::class, 'rejectPayment']);
             Route::post('/seller/orders/{order}/respond-return', [SellerOrderController::class, 'respondReturn']);
+            Route::post('/seller/orders/{order}/cancel', [SellerOrderController::class, 'cancel']);
+            // Store vouchers (S9)
+            $vouchers = \App\Http\Controllers\Api\V1\VoucherManagementController::class;
+            Route::get('/seller/vouchers', [$vouchers, 'index']);
+            Route::post('/seller/vouchers', [$vouchers, 'store']);
+            Route::patch('/seller/vouchers/{voucher}', [$vouchers, 'update'])->whereNumber('voucher');
+            Route::post('/seller/vouchers/{voucher}/end', [$vouchers, 'end'])->whereNumber('voucher');
             Route::patch('/seller/orders/{order}/status', [SellerOrderController::class, 'updateStatus']);
 
             // Seller earnings & payouts

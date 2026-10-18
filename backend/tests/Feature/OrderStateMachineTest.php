@@ -25,6 +25,9 @@ class OrderStateMachineTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // These tests cover the configurable escrow hold and auto-complete window, so they pin a 7-day hold and a
+        // 3-day window. The workbook defaults (no hold, 7 days, A11 and A15) are covered in CommerceOrdersTest.
+        config(['payouts.escrow_hold_days' => 7, 'orders.auto_complete_days' => 3]);
 
         $this->buyer = User::forceCreate([
             'first_name' => 'SM',

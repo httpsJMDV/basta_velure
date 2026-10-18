@@ -1,0 +1,326 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\OrderStatus;
+use App\Models\Dispute;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Parcel;
+use App\Models\PayoutRequest;
+use App\Models\Voucher;
+use App\Services\Commerce\SandboxGateway;
+use App\Services\OrderStateMachine;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
+use Tests\Support\BuildsCommerce;
+use Tests\TestCase;
+
+/**
+ * After Place Order (Buyer B9 to B12, Seller S8, S12, S13): payment, cancellation, returns, earnings and payouts.
+ */
+class CommerceOrdersTest extends TestCase
+{
+    use BuildsCommerce;
+    use DatabaseTransactions;
+
+    private function setUpShop(): array
+    {
+        $buyer = $this->buyer();
+        $addr = $this->address($buyer, $this->qc);
+        $seller = $this->seller('Maria Clara Handicrafts', $this->qc);
+        [, $basket] = $this->product($seller, 'Rattan Fruit Basket', ['Default' => [450, 20]], 0.8);
+
+        return [$buyer, $addr, $seller, $basket['Default']];
+    }
+
+    private function place($addr, $variant, int $qty, string $method, array $extra = []): array
+    {
+        return $this->postJson('/api/v1/checkout/place-order', $extra + [
+            'address_id' => $addr->id, 'items' => [['variant_id' => $variant->id, 'quantity' => $qty]], 'payment_method' => $method,
+        ])->assertCreated()->json();
+    }
+
+    private function png(string $name = 'photo.png'): UploadedFile
+    {
+        return UploadedFile::fake()->createWithContent($name, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+    }
+
+    private function deliver(Order $order): Order
+    {
+        $order->update(['status' => OrderStatus::OUT_FOR_DELIVERY->value]);
+
+        return app(OrderStateMachine::class)->transition($order->fresh(), OrderStatus::DELIVERED, 'admin', null, 'Delivered');
+    }
+
+    public function test_a_cod_order_goes_straight_to_to_ship_and_a_wallet_order_waits_in_to_pay(): void
+    {
+        [$buyer, $addr, , $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+
+        $cod = $this->place($addr, $variant, 1, 'cod');
+        $this->assertSame('to_ship', $cod['data']['tab']);
+        $this->assertNull($cod['payment']);
+
+        $wallet = $this->place($addr, $variant, 1, 'e_wallet');
+        $this->assertSame('to_pay', $wallet['data']['tab']);
+        $this->assertNotNull($wallet['payment']['token']);
+        $this->assertEqualsWithDelta(500.00, $wallet['payment']['amount'], 0.001);
+
+        $counts = $this->getJson('/api/v1/buyer/orders')->json('counts');
+        $this->assertSame(1, $counts['to_pay']);
+        $this->assertSame(1, $counts['to_ship']);
+        $this->assertCount(1, $this->getJson('/api/v1/buyer/orders?tab=to_pay')->json('data'));
+    }
+
+    public function test_the_sandbox_gateway_pays_declines_and_cancels_once(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $res = $this->place($addr, $variant, 1, 'card');
+        $token = $res['payment']['token'];
+        $orderId = $res['data']['id'];
+
+        $this->postJson("/api/v1/payments/sessions/{$token}/complete", ['outcome' => 'cancel'])->assertOk()->assertJsonPath('data.status', 'cancelled');
+        $this->assertSame('to_pay', $this->getJson("/api/v1/buyer/orders/{$orderId}")->json('data.tab'));
+
+        $token = $this->postJson("/api/v1/buyer/orders/{$orderId}/pay-again")->assertOk()->json('data.token');
+        $this->postJson("/api/v1/payments/sessions/{$token}/complete", ['outcome' => 'decline'])->assertOk()->assertJsonPath('data.status', 'failed');
+        $this->assertSame('failed', Order::find($orderId)->payment_status);
+
+        // The seller cannot accept an unpaid order.
+        Sanctum::actingAs($seller);
+        $this->patchJson("/api/v1/seller/orders/{$orderId}/status", ['status' => 'confirmed'])->assertStatus(422);
+
+        Sanctum::actingAs($buyer);
+        $token = $this->postJson("/api/v1/buyer/orders/{$orderId}/pay-again")->assertOk()->json('data.token');
+        $this->postJson("/api/v1/payments/sessions/{$token}/complete", ['outcome' => 'success'])->assertOk()->assertJsonPath('data.status', 'paid');
+        $order = Order::find($orderId);
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertNotNull($order->payment_reference);
+        $this->assertSame('to_ship', $this->getJson("/api/v1/buyer/orders/{$orderId}")->json('data.tab'));
+        // A second success changes nothing (charged once).
+        $this->postJson("/api/v1/payments/sessions/{$token}/complete", ['outcome' => 'success'])->assertOk()->assertJsonPath('message', 'This payment was already received.');
+        $this->assertSame('pending_release', OrderItem::where('order_id', $orderId)->value('payout_status'));
+    }
+
+    public function test_the_signed_callback_marks_a_payment_after_the_browser_closed(): void
+    {
+        [$buyer, $addr, , $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $res = $this->place($addr, $variant, 1, 'e_wallet');
+        $token = $res['payment']['token'];
+
+        $this->postJson('/api/v1/payments/sandbox/callback', ['token' => $token, 'status' => 'paid', 'reference' => 'GW-1', 'signature' => 'wrong'])->assertStatus(403);
+        $sig = SandboxGateway::signature($token, 'paid', 'GW-1');
+        $this->postJson('/api/v1/payments/sandbox/callback', ['token' => $token, 'status' => 'paid', 'reference' => 'GW-1', 'signature' => $sig])->assertOk();
+        $this->postJson('/api/v1/payments/sandbox/callback', ['token' => $token, 'status' => 'paid', 'reference' => 'GW-1', 'signature' => $sig])->assertOk();
+        $this->assertSame('GW-1', Order::find($res['data']['id'])->payment_reference);
+    }
+
+    public function test_an_unpaid_order_cancels_after_an_hour_and_gives_back_stock_and_voucher(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        $mch50 = $this->voucher($this->code('MCH50'), Voucher::SCOPE_STORE, $seller, 'fixed', 50, 300, ['total_limit' => 100]);
+        Sanctum::actingAs($buyer);
+        $res = $this->place($addr, $variant, 1, 'e_wallet', ['vouchers' => ['store' => [$seller->id => $mch50->code]]]);
+        $this->assertSame(19, $variant->fresh()->stock_quantity);
+        $this->assertSame(1, $mch50->fresh()->used_count);
+
+        // At 59 minutes the payment still goes through for another order.
+        $other = $this->place($addr, $variant, 1, 'e_wallet');
+        $this->travel(59)->minutes();
+        $this->postJson("/api/v1/payments/sessions/{$other['payment']['token']}/complete", ['outcome' => 'success'])->assertJsonPath('data.status', 'paid');
+
+        $this->travel(2)->minutes();
+        $this->artisan('orders:cancel-unpaid')->assertSuccessful();
+        $order = Order::find($res['data']['id']);
+        $this->assertSame(OrderStatus::CANCELLED, $order->status);
+        $this->assertSame('Not paid within 1 hour', $order->cancel_reason);
+        $this->assertSame(19, $variant->fresh()->stock_quantity);
+        $this->assertSame(0, $mch50->fresh()->used_count);
+        $this->assertContains($mch50->code, collect($this->getJson('/api/v1/buyer/vouchers')->json('data'))->pluck('code'));
+        // Paying it now is refused.
+        $this->postJson("/api/v1/payments/sessions/{$res['payment']['token']}/complete", ['outcome' => 'success'])->assertStatus(409);
+        $this->postJson("/api/v1/buyer/orders/{$order->id}/pay-again")->assertStatus(409);
+        $this->assertSame(OrderStatus::PLACED, Order::find($other['data']['id'])->status);
+    }
+
+    public function test_the_buyer_cancels_with_a_reason_until_ready_for_pickup(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        $mch50 = $this->voucher($this->code('MCH50'), Voucher::SCOPE_STORE, $seller, 'fixed', 50, 300, ['total_limit' => 100]);
+        Sanctum::actingAs($buyer);
+        $id = $this->place($addr, $variant, 2, 'cod', ['vouchers' => ['store' => [$seller->id => $mch50->code]]])['data']['id'];
+        Sanctum::actingAs($seller);
+        $this->patchJson("/api/v1/seller/orders/{$id}/status", ['status' => 'confirmed'])->assertOk();
+        $this->assertSame(18, $variant->fresh()->stock_quantity);
+
+        Sanctum::actingAs($buyer);
+        $this->postJson("/api/v1/buyer/orders/{$id}/cancel", [])->assertStatus(422)->assertJsonValidationErrors(['reason']);
+        $this->postJson("/api/v1/buyer/orders/{$id}/cancel", ['reason' => 'Other', 'details' => 'short'])->assertStatus(422)->assertJsonValidationErrors(['details']);
+        $this->postJson("/api/v1/buyer/orders/{$id}/cancel", ['reason' => 'Changed my mind'])->assertOk()->assertJsonPath('data.status', 'CANCELLED');
+        $this->postJson("/api/v1/buyer/orders/{$id}/cancel", ['reason' => 'Changed my mind'])->assertStatus(409);
+        $this->assertSame(20, $variant->fresh()->stock_quantity);
+        $this->assertSame(0, $mch50->fresh()->used_count);
+        $this->assertTrue($seller->notifications()->where('data->title', 'Order cancelled')->get()->contains(fn ($n) => str_contains($n->data['body'], 'Changed my mind')));
+
+        // Once the seller marks it Ready for Pickup there is no buyer cancel.
+        $id2 = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        Order::find($id2)->update(['status' => OrderStatus::READY_FOR_PICKUP->value]);
+        $this->assertFalse($this->getJson("/api/v1/buyer/orders/{$id2}")->json('data.can_cancel'));
+        $this->postJson("/api/v1/buyer/orders/{$id2}/cancel", ['reason' => 'Changed my mind'])->assertStatus(409);
+        $this->assertSame(OrderStatus::READY_FOR_PICKUP, Order::find($id2)->status);
+    }
+
+    public function test_cancelling_a_paid_order_refunds_the_exact_amount(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $res = $this->place($addr, $variant, 1, 'e_wallet');
+        $this->postJson("/api/v1/payments/sessions/{$res['payment']['token']}/complete", ['outcome' => 'success'])->assertOk();
+
+        Sanctum::actingAs($seller);
+        $this->postJson("/api/v1/seller/orders/{$res['data']['id']}/cancel", [])->assertStatus(422)->assertJsonValidationErrors(['reason']);
+        $this->postJson("/api/v1/seller/orders/{$res['data']['id']}/cancel", ['reason' => 'Out of stock'])->assertOk();
+        $order = Order::find($res['data']['id']);
+        $this->assertSame('refunded', $order->refund_status);
+        $this->assertEqualsWithDelta(500.00, (float) $order->refund_amount, 0.001);
+        $this->assertSame('Out of stock', $order->cancel_reason);
+        $this->assertEqualsWithDelta(0.00, app(\App\Services\SellerBalanceCalculator::class)->forSeller($seller->id)['lifetime_earnings'], 0.001);
+    }
+
+    public function test_the_seller_can_cancel_until_the_courier_picks_up(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $id = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        Order::find($id)->update(['status' => OrderStatus::READY_FOR_PICKUP->value]);
+        Parcel::create(['order_id' => $id, 'seller_id' => $seller->id, 'tracking_number' => 'TRK' . $id, 'status' => 'PICKED_UP', 'picked_up_at' => now(),
+            'pickup_barangay' => 'Central', 'destination_barangay' => 'Central']);
+
+        Sanctum::actingAs($seller);
+        $this->postJson("/api/v1/seller/orders/{$id}/cancel", ['reason' => 'Out of stock'])->assertStatus(409);
+    }
+
+    public function test_returns_need_delivery_evidence_and_follow_the_three_day_rules(): void
+    {
+        Storage::fake('public');
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $id = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $ok = fn () => ['reason' => 'Damaged item', 'description' => 'Basket arrived with a broken rim.', 'photos' => [$this->png('a.png'), $this->png('b.png')]];
+
+        // Not before delivery.
+        $this->post("/api/v1/buyer/orders/{$id}/request-return", $ok(), ['Accept' => 'application/json'])->assertStatus(422);
+        $this->deliver(Order::find($id));
+
+        // Evidence and description rules.
+        $this->post("/api/v1/buyer/orders/{$id}/request-return", ['reason' => 'Damaged item', 'description' => 'Broken rim on arrival.', 'photos' => []], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['photos']);
+        $six = array_map(fn ($i) => $this->png("p{$i}.png"), range(1, 6));
+        $this->post("/api/v1/buyer/orders/{$id}/request-return", ['reason' => 'Damaged item', 'description' => 'Broken rim on arrival.', 'photos' => $six], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['photos']);
+        $this->post("/api/v1/buyer/orders/{$id}/request-return", ['reason' => 'Damaged item', 'description' => '123456789', 'photos' => [$this->png()]], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['description']);
+
+        $this->post("/api/v1/buyer/orders/{$id}/request-return", $ok(), ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('data.tab', 'return_refund')->assertJsonPath('data.dispute.status', 'pending');
+        $this->assertCount(2, Dispute::where('order_id', $id)->first()->photos);
+
+        // The seller rejects: a reason of 10 to 300 characters; the buyer escalates once.
+        Sanctum::actingAs($seller);
+        $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'reject', 'reason' => 'Item used'])->assertStatus(422);
+        $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'reject', 'reason' => 'Item shows signs of use and the tag is removed.'])->assertOk();
+        Sanctum::actingAs($buyer);
+        $this->assertSame('Item shows signs of use and the tag is removed.', $this->getJson("/api/v1/buyer/orders/{$id}")->json('data.dispute.seller_reason'));
+        $this->assertTrue($this->getJson("/api/v1/buyer/orders/{$id}")->json('data.dispute.can_escalate'));
+        $this->postJson("/api/v1/buyer/orders/{$id}/escalate-return")->assertOk()->assertJsonPath('data.dispute.status', 'escalated');
+        $this->postJson("/api/v1/buyer/orders/{$id}/escalate-return")->assertStatus(409);
+        Sanctum::actingAs($seller);
+        $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'approve'])->assertStatus(409);
+    }
+
+    public function test_an_unanswered_return_is_approved_after_three_days_and_refunded(): void
+    {
+        Storage::fake('public');
+        [$buyer, $addr, , $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $res = $this->place($addr, $variant, 1, 'e_wallet');
+        $this->postJson("/api/v1/payments/sessions/{$res['payment']['token']}/complete", ['outcome' => 'success'])->assertOk();
+        $this->deliver(Order::find($res['data']['id']));
+        $this->post("/api/v1/buyer/orders/{$res['data']['id']}/request-return", ['reason' => 'Wrong item', 'description' => 'I received a different basket.', 'photos' => [$this->png()]], ['Accept' => 'application/json'])->assertOk();
+
+        $this->travel(2)->days();
+        $this->artisan('returns:process-deadlines')->assertSuccessful();
+        $this->assertSame('pending', Dispute::where('order_id', $res['data']['id'])->value('status'));
+        $this->travelTo(now()->addDays(1)->addMinute());
+        $this->artisan('returns:process-deadlines')->assertSuccessful();
+        $order = Order::find($res['data']['id']);
+        $this->assertSame(OrderStatus::RETURNED, $order->status);
+        $this->assertSame('refunded', $order->refund_status);
+        $this->assertTrue((bool) Dispute::where('order_id', $order->id)->value('auto_approved'));
+    }
+
+    public function test_the_return_window_closes_seven_days_after_delivery(): void
+    {
+        Storage::fake('public');
+        [$buyer, $addr, , $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $a = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $b = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $this->deliver(Order::find($a));
+        $this->deliver(Order::find($b));
+        $payload = fn () => ['reason' => 'Damaged item', 'description' => 'Basket arrived with a broken rim.', 'photos' => [$this->png()]];
+
+        $this->travel(7)->days();
+        $this->post("/api/v1/buyer/orders/{$a}/request-return", $payload(), ['Accept' => 'application/json'])->assertOk();
+        $this->travel(1)->hours();
+        $this->post("/api/v1/buyer/orders/{$b}/request-return", $payload(), ['Accept' => 'application/json'])->assertStatus(422);
+    }
+
+    public function test_earnings_become_available_when_the_buyer_confirms_receipt(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $res = $this->place($addr, $variant, 1, 'e_wallet');
+        $this->postJson("/api/v1/payments/sessions/{$res['payment']['token']}/complete", ['outcome' => 'success'])->assertOk();
+        $id = $res['data']['id'];
+        $this->deliver(Order::find($id));
+
+        $balances = fn () => app(\App\Services\SellerBalanceCalculator::class)->forSeller($seller->id);
+        $this->assertEqualsWithDelta(427.50, $balances()['pending_balance'], 0.001);
+        $this->assertEqualsWithDelta(0.00, $balances()['available_balance'], 0.001);
+        $this->postJson("/api/v1/buyer/orders/{$id}/confirm-receipt")->assertOk();
+        $this->assertEqualsWithDelta(427.50, $balances()['available_balance'], 0.001);
+        $this->assertEqualsWithDelta(0.00, $balances()['pending_balance'], 0.001);
+
+        // A delivered order completes on its own after 7 days, not before.
+        $id2 = $this->place($addr, $variant, 1, 'cod')['data']['id'];
+        $this->deliver(Order::find($id2));
+        $this->travelTo(now()->addDays(7)->subMinute());
+        $this->artisan('orders:auto-complete');
+        $this->assertSame(OrderStatus::DELIVERED, Order::find($id2)->status);
+        $this->travel(2)->minutes();
+        $this->artisan('orders:auto-complete');
+        $this->assertSame(OrderStatus::COMPLETED, Order::find($id2)->status);
+    }
+
+    public function test_only_one_payout_request_can_be_pending(): void
+    {
+        [$buyer, $addr, $seller, $variant] = $this->setUpShop();
+        Sanctum::actingAs($buyer);
+        $res = $this->place($addr, $variant, 1, 'card');
+        $this->postJson("/api/v1/payments/sessions/{$res['payment']['token']}/complete", ['outcome' => 'success'])->assertOk();
+        $this->deliver(Order::find($res['data']['id']));
+        $this->postJson("/api/v1/buyer/orders/{$res['data']['id']}/confirm-receipt")->assertOk();
+
+        Sanctum::actingAs($seller);
+        $payload = ['amount' => 100, 'gcash_number' => '09171234567', 'gcash_name' => 'Maria Clara Santos'];
+        $this->postJson('/api/v1/seller/payouts/request', $payload)->assertCreated();
+        $this->postJson('/api/v1/seller/payouts/request', $payload)->assertStatus(422);
+        $this->assertSame(1, PayoutRequest::where('seller_id', $seller->id)->count());
+    }
+}

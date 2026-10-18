@@ -30,17 +30,13 @@ class PlatformSetting extends Model
 
     public static function getCommissionRateForCategory(?string $categoryId): float
     {
-        $baseRate = (float) static::get('base_commission_rate', 0.10);
+        // A9: 5% of the item subtotal after the shop's own discounts.
+        $baseRate = (float) static::get('base_commission_rate', 0.05);
         if (!$categoryId) {
             return $baseRate;
         }
 
-        $overrides = static::get('category_commission_overrides', [
-            'food-beverage'    => 0.08,
-            'food-grocery'     => 0.08,
-            'food_and_grocery' => 0.08,
-            'groceries'        => 0.08,
-        ]);
+        $overrides = static::get('category_commission_overrides', []);
 
         if (is_array($overrides)) {
             $catLower = strtolower(trim($categoryId));

@@ -40,8 +40,28 @@ class AdminDisputeController extends Controller
     {
         $request->validate([
             'resolution_note' => ['required', 'string', 'max:1000'],
-            'status'          => ['required', 'in:resolved,closed'],
+            'status'          => ['required_without:decision', 'nullable', 'in:resolved,closed'],
+            // An escalated return (A31): refund the buyer, or side with the shop and complete the order.
+            'decision'        => ['nullable', 'in:refund,reject'],
         ]);
+
+        if ($request->filled('decision') && $dispute->order) {
+            $note = trim(strip_tags($request->resolution_note));
+            if ($request->decision === 'refund') {
+                app(\App\Services\Commerce\ReturnService::class)->approve($dispute->order, 'admin', $request->user()->id, "Loved-IT decided: refund. {$note}");
+            } else {
+                \Illuminate\Support\Facades\DB::transaction(function () use ($dispute, $request, $note) {
+                    $dispute->update(['status' => 'closed', 'resolution_note' => "Loved-IT decided for the shop. {$note}", 'resolved_by' => $request->user()->id, 'resolved_at' => now()]);
+                    app(\App\Services\OrderStateMachine::class)->transition($dispute->order, \App\Enums\OrderStatus::COMPLETED, 'admin', $request->user()->id, 'Return dispute closed in favour of the shop');
+                });
+            }
+            AdminActivityLog::create([
+                'admin_id' => $request->user()->id, 'action' => 'resolve_dispute', 'target_type' => 'dispute', 'target_id' => $dispute->id,
+                'description' => "Dispute #{$dispute->id} decided: {$request->decision}.", 'meta' => ['order_id' => $dispute->order_id],
+            ]);
+
+            return response()->json(['data' => $this->format($dispute->fresh(['order.buyer', 'buyer', 'resolver']))]);
+        }
 
         $dispute->update([
             'status'          => $request->status,

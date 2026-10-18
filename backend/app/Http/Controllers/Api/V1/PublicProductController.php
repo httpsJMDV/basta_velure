@@ -579,6 +579,8 @@ class PublicProductController extends Controller
         return array_merge($base, [
             'variation_types' => $product->variation_types ?? [],
             'combinations'    => $this->combinations($product),
+            // Units of this product the signed-in buyer already bought, for its per-buyer purchase limit.
+            'purchased_by_you' => $viewer && $product->purchase_limit ? (\App\Services\Commerce\PurchaseLimits::bought($viewer->id, [$product->id])[$product->id] ?? 0) : 0,
             // The store sale running now, for its badge and end time.
             'store_sale'      => $sale ? [
                 'id' => $sale->id, 'type' => $sale->discount_type, 'percent' => $sale->discount_percent,
