@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Storage;
 
 class WishlistController extends Controller
 {
+    private ?\App\Services\Pricing\PriceBook $book = null;
+
     /** GET /wishlist — paginated wishlist items */
     public function index(Request $request): JsonResponse
     {
@@ -31,9 +33,10 @@ class WishlistController extends Controller
         };
 
         $paginated = $query->paginate(20);
+        $this->book = \App\Services\Pricing\PriceBook::for(collect($paginated->items())->pluck('product_id'));
 
         return response()->json([
-            'data' => collect($paginated->items())->map(fn ($item) => $this->formatWishlistItem($item)),
+            'data' => collect($paginated->items())->map(fn ($item) => $this->formatWishlistItem($item))->filter()->values(),
             'meta' => [
                 'current_page' => $paginated->currentPage(),
                 'last_page'    => $paginated->lastPage(),
@@ -119,6 +122,15 @@ class WishlistController extends Controller
         $primary = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
         $profile = $product->seller?->sellerProfile;
         $totalStock = $product->variants->sum('stock_quantity');
+        $book = $this->book ??= \App\Services\Pricing\PriceBook::for([$product->id]);
+        $range = $book->range($product);
+        // Unavailable: deleted, not active, or the store is gone; Sold out: no stock; On vacation: the store is away.
+        $availability = match (true) {
+            $product->trashed() || $product->status !== 'active' || $profile?->application_status !== 'approved' || $product->seller?->status !== 'active' => 'unavailable',
+            (bool) $profile?->on_vacation => 'on_vacation',
+            $totalStock <= 0 => 'sold_out',
+            default => 'available',
+        };
 
         return [
             'wishlist_item_id' => $item->id,
@@ -127,13 +139,14 @@ class WishlistController extends Controller
                 'id'             => $product->id,
                 'name'           => $product->name,
                 'thumbnail_url'  => $primary ? asset('storage/' . $primary->path) : null,
-                'base_price'     => (float) $product->base_price,
-                'original_price' => $product->original_price ? (float) $product->original_price : null,
-                'status'         => $product->status,
-                'total_stock'    => $totalStock,
+                'base_price'     => $range['min'],
+                'original_price' => $range['min'] < $range['regular_min'] ? $range['regular_min'] : null,
+                'status'         => $product->trashed() ? 'deleted' : $product->status,
+                'availability'   => $availability,
+                'total_stock'    => $availability === 'unavailable' ? 0 : $totalStock,
                 // So "Add to cart" can add the right variant (a product with options opens its page instead).
-                'variants'       => $product->variants->map(fn ($v) => [
-                    'id' => $v->id, 'label' => $v->label, 'price' => (float) $v->price, 'stock_quantity' => (int) $v->stock_quantity,
+                'variants'       => $availability === 'unavailable' ? [] : $product->variants->map(fn ($v) => [
+                    'id' => $v->id, 'label' => $v->label, 'price' => $book->unit($v)['price'], 'stock_quantity' => (int) $v->stock_quantity,
                 ])->values(),
                 'seller'         => [
                     'id'        => $product->seller?->id,
@@ -165,8 +178,7 @@ class WishlistController extends Controller
                 'product_count' => $productCount,
                 'has_sale'      => Product::where('seller_id', $seller?->id)
                                           ->where('status', 'active')
-                                          ->whereNotNull('original_price')
-                                          ->whereColumn('base_price', '<', 'original_price')
+                                          ->where(fn ($q) => $q->whereHas('storeSales', fn ($s) => $s->live())->orWhereHas('flashSales', fn ($f) => $f->live()))
                                           ->exists(),
             ],
         ];

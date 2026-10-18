@@ -190,6 +190,20 @@ class RiderDeliveryOutcomeTest extends TestCase
     protected function deliver(User $user, string $tracking, array $fields = [], bool $withPhoto = true)
     {
         $payload = $fields;
+        // The rider now types the cash collected (R6); the older checkbox stands for "the exact amount".
+        if (array_key_exists('cod_collected', $payload)) {
+            if (filter_var($payload['cod_collected'], FILTER_VALIDATE_BOOLEAN) && ! array_key_exists('cod_amount', $payload)) {
+                $amount = Parcel::where('tracking_number', strtoupper($tracking))->value('cod_amount');
+                if ($amount !== null) {
+                    $payload['cod_amount'] = (string) $amount;
+                }
+            }
+            unset($payload['cod_collected']);
+        }
+        // The buyer reads the delivery code out at the door (A32).
+        if (! array_key_exists('otp', $payload) && ($otp = Parcel::where('tracking_number', strtoupper($tracking))->first()?->delivery_otp)) {
+            $payload['otp'] = $otp;
+        }
         if ($withPhoto && ! array_key_exists('proof_photo', $payload)) {
             $payload['proof_photo'] = $this->photo();
         }
@@ -289,34 +303,36 @@ class RiderDeliveryOutcomeTest extends TestCase
         $this->assertSame('pending_release', $other->order->items()->first()->payout_status);
     }
 
-    public function test_cod_parcel_requires_the_cash_confirmation_and_records_when_it_was_collected(): void
+    public function test_cod_parcel_needs_the_exact_cash_amount_and_records_when_it_was_collected(): void
     {
         [$user, $rider] = $this->createRider();
         $parcel = $this->createParcel($rider, 'cod');
 
-        // Missing or false: 422 and nothing stored or changed.
-        $this->deliver($user, $parcel->tracking_number)->assertStatus(422)->assertJsonValidationErrors(['cod_collected']);
-        $this->deliver($user, $parcel->tracking_number, ['cod_collected' => '0'])->assertStatus(422)->assertJsonValidationErrors(['cod_collected']);
+        // Missing, a centavo short or over (RID-DLV-005): 422 and nothing stored or changed.
+        $this->deliver($user, $parcel->tracking_number)->assertStatus(422)->assertJsonValidationErrors(['cod_amount']);
+        foreach (['1249.99', '1250.01', 'abc'] as $wrong) {
+            $this->deliver($user, $parcel->tracking_number, ['cod_amount' => $wrong])->assertStatus(422)->assertJsonValidationErrors(['cod_amount']);
+        }
         $this->assertEquals(Parcel::STATUS_OUT_FOR_DELIVERY, $parcel->fresh()->status);
         $this->assertSame([], Storage::disk('ids')->allFiles());
 
-        $this->deliver($user, $parcel->tracking_number, ['cod_collected' => 'true'])
-            ->assertOk()->assertJsonPath('cod_collected', true);
+        $this->deliver($user, $parcel->tracking_number, ['cod_amount' => '1250.00'])
+            ->assertOk()->assertJsonPath('cod_collected', true)->assertJsonPath('cod_amount', 1250)->assertJsonPath('pay', '50.00');
 
         $parcel->refresh();
         $this->assertNotNull($parcel->cod_collected_at);
-        // The amount is the parcel's, never the client's.
-        $this->assertEquals(1250.00, (float) $parcel->cod_amount);
+        $this->assertEquals(1250.00, (float) $parcel->cod_collected_amount);
     }
 
-    public function test_a_client_supplied_cod_amount_is_ignored(): void
+    public function test_a_wrong_cod_amount_never_changes_the_parcel_amount(): void
     {
         [$user, $rider] = $this->createRider();
         $parcel = $this->createParcel($rider, 'cod');
 
-        $this->deliver($user, $parcel->tracking_number, ['cod_collected' => '1', 'cod_amount' => '1', 'amount' => '1'])->assertOk();
+        $this->deliver($user, $parcel->tracking_number, ['cod_amount' => '1', 'amount' => '1'])->assertStatus(422);
 
         $this->assertEquals(1250.00, (float) $parcel->fresh()->cod_amount);
+        $this->assertNull($parcel->fresh()->cod_collected_amount);
     }
 
     public function test_prepaid_parcels_ignore_the_cod_flag(): void
@@ -332,16 +348,18 @@ class RiderDeliveryOutcomeTest extends TestCase
         $this->assertNull($with->fresh()->cod_collected_at);
     }
 
-    public function test_a_delivery_needs_two_different_photos_and_both_are_kept_privately(): void
+    public function test_one_photo_is_enough_and_a_second_must_be_a_different_picture(): void
     {
         [$user, $rider] = $this->createRider();
         $admin = $this->makeUser('admin', 'Admin');
         $parcel = $this->createParcel($rider, 'gcash');
+        $single = $this->createParcel($rider, 'gcash');
 
-        // The second photo is required.
+        // One proof photo is enough (R6).
         $this->actingAs($user, 'sanctum')
-            ->post('/api/v1/rider/deliveries/' . $parcel->tracking_number . '/delivered', ['proof_photo' => $this->photo()], ['Accept' => 'application/json'])
-            ->assertStatus(422)->assertJsonValidationErrors(['proof_photo_2']);
+            ->post('/api/v1/rider/deliveries/' . $single->tracking_number . '/delivered', ['proof_photo' => $this->photo()], ['Accept' => 'application/json'])
+            ->assertOk();
+        $this->assertNull($single->fresh()->delivery_proof_path_2);
 
         // The same picture twice is refused, and nothing is kept.
         $this->deliver($user, $parcel->tracking_number, ['proof_photo_2' => $this->photo('again.jpg')])
@@ -465,7 +483,8 @@ class RiderDeliveryOutcomeTest extends TestCase
             ->assertJsonPath('delivery_attempts', 1);
 
         $parcel->refresh();
-        $this->assertEquals(Parcel::STATUS_DELIVERY_FAILED, $parcel->status);
+        // A refusal goes straight back to the seller (RID-FAIL-003); any other reason waits for attempt 2.
+        $this->assertEquals($code === 'REFUSED' ? Parcel::STATUS_RETURN_TO_SENDER : Parcel::STATUS_DELIVERY_FAILED, $parcel->status);
         $this->assertEquals(OrderStatus::DELIVERY_FAILED, $parcel->order->fresh()->status);
         $this->assertNotNull($parcel->failed_at);
         $this->assertSame($code, $parcel->failure_reason);

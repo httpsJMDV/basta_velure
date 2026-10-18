@@ -2,10 +2,15 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Support\PhMobile;
+use App\Support\Validation;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
-use Carbon\Carbon;
 
+/**
+ * Creating a Loved-IT account (Account Creation workbooks, A1 to A6): name, email, mobile number, date of birth and
+ * password, with consent to the Terms of Use and Privacy Policy. The account starts unverified and is activated by the
+ * 6-digit code emailed to it. Identity documents and addresses are added later from the account.
+ */
 class BuyerRegisterRequest extends FormRequest
 {
     public function authorize(): bool
@@ -13,53 +18,95 @@ class BuyerRegisterRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $this->merge(self::normalizedAccountInput($this));
+    }
+
     public function rules(): array
     {
-        return [
-            'first_name'           => ['required', 'string', 'max:50'],
-            'middle_name'          => ['nullable', 'string', 'max:50'],
-            'last_name'            => ['required', 'string', 'max:50'],
-            'sex'                  => ['required', 'in:male,female'],
-            'email'                => ['required', 'email:rfc,dns', 'max:100', 'unique:users,email'],
-            'phone'                => ['required', 'string', 'regex:/^\+[1-9]\d{6,14}$/', 'unique:users,phone'],
-            'date_of_birth'        => ['required', 'date', 'before:today', function ($attr, $value, $fail) {
-                $age = Carbon::parse($value)->age;
-                if ($age < 18) {
-                    $fail('You must be at least 18 years old to register.');
-                }
-            }],
-            'password'             => [
-                'required', 'confirmed',
-                Password::min(8)->mixedCase()->numbers()->symbols()->uncompromised(),
-            ],
-            // Address fields
-            'province'             => ['required', 'string', 'max:100'],
-            'city_municipality'    => ['required', 'string', 'max:100'],
-            'barangay'             => ['required', 'string', 'max:100'],
-            'street_address'       => ['nullable', 'string', 'max:255'],
-            // Government ID
-            'government_id_type'      => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id,school_id'],
-            'government_id_image'     => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
-            'government_id_image_back' => [
-                $this->requiresBack($this->input('government_id_type')) ? 'required' : 'nullable',
-                'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120',
-            ],
-            'avatar' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-        ];
+        return self::accountRules();
     }
 
     public function messages(): array
     {
+        return self::accountMessages();
+    }
+
+    /**
+     * The trimmed, normalized account fields shared by every registration form (buyer, seller, courier): emails are
+     * trimmed and lower-cased, and 09XXXXXXXXX / +639XXXXXXXXX become the same stored number.
+     *
+     * @return array<string, mixed>
+     */
+    public static function normalizedAccountInput(FormRequest $request): array
+    {
+        $merge = [];
+        foreach (['first_name', 'middle_name', 'last_name'] as $field) {
+            if (is_string($request->input($field))) {
+                $merge[$field] = preg_replace('/\s+/', ' ', trim($request->input($field)));
+            }
+        }
+        if (is_string($request->input('email'))) {
+            $merge['email'] = mb_strtolower(trim($request->input('email')));
+        }
+        if ($request->has('phone')) {
+            $merge['phone'] = PhMobile::prepare($request->input('phone'));
+        }
+
+        return $merge;
+    }
+
+    /**
+     * The account fields. Buyers (and riders) give a date of birth; seller and courier applications do not ask for it.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    public static function accountRules(bool $withDateOfBirth = true): array
+    {
         return [
-            'phone.regex'                       => 'Phone must be in international format (e.g. +639171234567).',
-            'government_id_image.mimes'         => 'ID image must be JPG, PNG, or PDF.',
-            'government_id_image.max'           => 'ID image must not exceed 5MB.',
-            'government_id_image_back.required' => 'A back photo is required for this ID type.',
-            'government_id_image_back.mimes'    => 'ID back image must be JPG, PNG, or PDF.',
-            'government_id_image_back.max'      => 'ID back image must not exceed 5MB.',
+            'first_name'    => Validation::personName(),
+            'middle_name'   => Validation::personName(required: false),
+            'last_name'     => Validation::personName(),
+            'email'         => ['required', 'string', 'email:rfc', 'max:100', 'unique:users,email'],
+            'phone'         => ['required', ...PhMobile::rules(), 'unique:users,phone'],
+            'date_of_birth' => $withDateOfBirth ? Validation::dateOfBirth() : Validation::dateOfBirth(required: false),
+            'password'      => ['required', 'string', 'confirmed', self::passwordRule()],
+            'password_confirmation' => ['required', 'string'],
+            'accept_terms'  => ['accepted'],
         ];
     }
 
+    /** A5: at least 8 characters with an uppercase letter, a lowercase letter, a number and a special character. */
+    public static function passwordRule(): \Illuminate\Validation\Rules\Password
+    {
+        return \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()->symbols();
+    }
+
+    /** @return array<string, string> */
+    public static function accountMessages(): array
+    {
+        return [
+            ...Validation::personNameMessages('first_name', 'First name'),
+            ...Validation::personNameMessages('middle_name', 'Middle name'),
+            ...Validation::personNameMessages('last_name', 'Last name'),
+            'email.required'        => 'Email is required.',
+            'email.email'           => 'Enter a valid email address, for example name@example.com.',
+            'email.unique'          => 'This email is already registered. Sign in instead, or use another email.',
+            'phone.required'        => 'Mobile number is required.',
+            'phone.regex'           => PhMobile::MESSAGE,
+            'phone.string'          => PhMobile::MESSAGE,
+            'phone.unique'          => 'This mobile number is already in use by another account.',
+            'date_of_birth.required'    => 'Date of birth is required.',
+            'date_of_birth.date_format' => 'Enter a valid date of birth.',
+            'password.required'     => 'Password is required.',
+            'password.confirmed'    => 'The passwords do not match.',
+            'password_confirmation.required' => 'Please confirm your password.',
+            'accept_terms.accepted' => 'You must accept the Terms of Use and Privacy Policy to create an account.',
+        ];
+    }
+
+    /** Kept for the identity-verification step (complete profile): these ID types need a photo of the back. */
     public static function requiresBack(?string $idType): bool
     {
         return in_array($idType, ['drivers_license', 'umid', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id'], true);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { loginApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -15,7 +15,7 @@ type ErrorType = 'pending' | 'disapproved' | 'not_rider' | 'invalid' | 'general'
 
 const PERKS = [
   { icon: MapPin, text: 'Pickups and drop-offs in your service areas' },
-  { icon: Wallet, text: 'Paid for every parcel: 20% of the fee per pickup, 65% per delivery' },
+  { icon: Wallet, text: 'Paid per job: ₱30 for each pickup, ₱50 for each delivery' },
 ];
 
 /** Sign-in for delivery couriers. Same layout as the buyer and logistics hub sign-in. */
@@ -23,6 +23,7 @@ export default function RiderLoginPage() {
   const { setAuth, clearAuth } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const notice = (useLocation().state as { notice?: string } | null)?.notice ?? '';
 
   const [identifier, setIdentifier] = useState('');
   const [identifierError, setIdentifierError] = useState('');
@@ -49,16 +50,20 @@ export default function RiderLoginPage() {
       if (!res.data.rider) {
         clearAuth();
         setErrorType('not_rider');
-        setErrorMessage('This account has no courier profile yet. Sign in on the main page, then apply as a courier from your account.');
+        setErrorMessage('This account is not a rider. Riders are added by their courier company, which emails you an activation link.');
         return;
       }
 
-      // A pending or disapproved applicant stays signed in and sees the application status (and can resubmit).
-      setAuth(res.data, res.token);
-      if (res.data.rider.status !== 'ACTIVE') {
-        navigate('/register/rider');
+      // Active and suspended riders open the rider pages (a suspended rider sees why there); anyone else is refused.
+      if (!['ACTIVE', 'SUSPENDED'].includes(res.data.rider.status)) {
+        clearAuth();
+        setErrorType(res.data.rider.status === 'DISAPPROVED' ? 'disapproved' : 'pending');
+        setErrorMessage(res.data.rider.status === 'DISAPPROVED'
+          ? `Your rider account was not approved${res.data.rider.rejection_reason ? `: ${res.data.rider.rejection_reason}` : '.'}`
+          : 'Your rider account is waiting for your courier company to verify it.');
         return;
       }
+      setAuth(res.data, res.token);
       showToast(`Welcome back, Courier ${res.data.first_name}!`, 'success');
       navigate('/rider/dashboard');
     } catch (err: unknown) {
@@ -117,6 +122,9 @@ export default function RiderLoginPage() {
       headline={['Ride with Loved-IT.', 'Deliver, get paid.']}
       perks={PERKS}
     >
+      {notice && !errorType && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 mb-5">{notice}</div>
+      )}
       {errorType && errorMessage && (
         <div role="alert" aria-live="assertive" className={`rounded-lg border px-4 py-3 text-sm mb-5 ${tone}`}>
           <div className="flex items-start gap-2.5">
@@ -132,12 +140,6 @@ export default function RiderLoginPage() {
             <div className="space-y-2 min-w-0">
               <p className="font-medium leading-relaxed">{errorMessage}</p>
 
-              {errorType === 'pending' && (
-                <Link to="/register/rider/pending" className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 underline hover:text-amber-900">
-                  View application status
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </Link>
-              )}
               {errorType === 'not_rider' && (
                 <Link to="/login" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
                   Go to the standard sign in
@@ -197,11 +199,9 @@ export default function RiderLoginPage() {
         </Button>
       </form>
 
-      <p className="mt-6 text-sm text-center text-gray-500">
-        Want to deliver with Loved-IT?{' '}
-        <Link to="/register/rider" className="text-brand-red font-semibold hover:underline">
-          Apply as a courier
-        </Link>
+      <p className="mt-6 text-sm text-center text-gray-500 leading-relaxed">
+        Want to deliver with Loved-IT? Riders are added by their courier company.{' '}
+        <Link to="/partner" className="text-brand-red font-semibold hover:underline">See partner options</Link>
       </p>
 
       <div className="mt-5 pt-4 border-t border-gray-100 text-center">

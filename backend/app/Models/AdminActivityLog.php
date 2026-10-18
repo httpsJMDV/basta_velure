@@ -30,4 +30,13 @@ class AdminActivityLog extends Model
     {
         return $this->belongsTo(User::class, 'admin_id');
     }
+
+    /** One entry in the admin activity log. */
+    public static function log(int $adminId, string $action, string $description, ?string $targetType = null, ?int $targetId = null, array $meta = []): self
+    {
+        return static::forceCreate([
+            'admin_id' => $adminId, 'action' => $action, 'description' => $description,
+            'target_type' => $targetType, 'target_id' => $targetId, 'meta' => $meta ?: null, 'created_at' => now(),
+        ]);
+    }
 }

@@ -135,16 +135,24 @@ class DirectSettlement
             ->whereBetween('completed_at', [$from->utc(), $to->utc()])
             ->when($sellerId, fn ($q) => $q->whereHas('items', fn ($i) => $i->where('seller_id', $sellerId)))
             ->with('items:id,order_id,seller_id,commission_amount')
-            ->get(['id']);
+            ->get(['id', 'platform_voucher_discount', 'shipping_voucher_discount']);
 
+        // A8: Loved-IT's platform and shipping vouchers are Loved-IT's money. On a direct order the buyer paid the
+        // shop (or the rider) that much less, so it is credited against the commission the shop owes.
         $lines = [];
         foreach ($orders as $order) {
             foreach ($order->items->groupBy('seller_id') as $seller => $items) {
-                $lines[$seller] ??= ['seller_id' => (int) $seller, 'orders_count' => 0, 'cents' => 0];
+                $lines[$seller] ??= ['seller_id' => (int) $seller, 'orders_count' => 0, 'commission_cents' => 0, 'credit_cents' => 0, 'cents' => 0];
                 $lines[$seller]['orders_count']++;
-                $lines[$seller]['cents'] += $items->sum(fn ($i) => Money::toCents((string) $i->commission_amount));
+                $lines[$seller]['commission_cents'] += $items->sum(fn ($i) => Money::toCents((string) $i->commission_amount));
+                $lines[$seller]['credit_cents'] += Money::toCents((string) ($order->platform_voucher_discount ?? '0'))
+                    + Money::toCents((string) ($order->shipping_voucher_discount ?? '0'));
             }
         }
+        foreach ($lines as &$line) {
+            $line['cents'] = $line['commission_cents'] - $line['credit_cents'];
+        }
+        unset($line);
 
         return collect($lines);
     }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
 import type { LogisticsDashboard } from '../../types';
@@ -20,6 +20,11 @@ const ROUTE_TITLES: Record<string, string> = {
   '/logistics/parcels': 'Parcels',
   '/logistics/reports': 'Network Reports',
   '/logistics/money': 'Settlements & Pay',
+  '/logistics/shipping': 'Zones & Rates',
+  '/logistics/dispatch': 'Dispatch',
+  '/logistics/hub-ops': 'Hub Scanning',
+  '/logistics/returns': 'Return to Sender',
+  '/logistics/cod': 'COD & Exports',
 };
 
 const POLL_MS = 60000;
@@ -63,11 +68,26 @@ export default function LogisticsLayout() {
       items: [
         { icon: Warehouse, label: 'Hubs', to: '/logistics/hubs', badge: pendingHubs },
         { icon: Bike, label: 'Riders', to: '/logistics/riders' },
+        { icon: MapPinned, label: 'Zones & rates', to: '/logistics/shipping' },
+      ],
+    },
+    {
+      heading: 'Operations',
+      items: [
+        { icon: Navigation, label: 'Dispatch', to: '/logistics/dispatch' },
+        { icon: ScanLine, label: 'Hub scanning', to: '/logistics/hub-ops' },
         { icon: Package, label: 'Parcels', to: '/logistics/parcels', badge: failed },
+        { icon: Undo2, label: 'Return to sender', to: '/logistics/returns' },
       ],
     },
     { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/logistics/reports' }] },
-    { heading: 'Money', items: [{ icon: Banknote, label: 'Settlements & pay', to: '/logistics/money' }] },
+    {
+      heading: 'Money',
+      items: [
+        { icon: Coins, label: 'COD & exports', to: '/logistics/cod' },
+        { icon: Banknote, label: 'Settlements & pay', to: '/logistics/money' },
+      ],
+    },
   ], [pendingHubs, failed]);
 
   const searchItems: ShellSearchItem[] = [
@@ -75,6 +95,11 @@ export default function LogisticsLayout() {
     { label: 'Hubs and hub applications', to: '/logistics/hubs', group: 'Network', icon: Warehouse },
     { label: 'Riders across the network', to: '/logistics/riders', group: 'Network', icon: Bike },
     { label: 'Find a parcel', to: '/logistics/parcels', group: 'Network', icon: Package },
+    { label: 'Delivery zones and shipping rates', to: '/logistics/shipping', group: 'Network', icon: MapPinned },
+    { label: 'Dispatch: unassigned pickups, auto-assign', to: '/logistics/dispatch', group: 'Operations', icon: Navigation },
+    { label: 'Hub scanning: inbound, sort, outbound', to: '/logistics/hub-ops', group: 'Operations', icon: ScanLine },
+    { label: 'Return to sender queue', to: '/logistics/returns', group: 'Operations', icon: Undo2 },
+    { label: 'COD reconciliation, remittances and exports', to: '/logistics/cod', group: 'Money', icon: Coins },
     { label: 'Network reports', to: '/logistics/reports', group: 'Insights', icon: BarChart2 },
     { label: 'Shop statements, rider and hub pay', to: '/logistics/money', group: 'Money', icon: Banknote },
   ];

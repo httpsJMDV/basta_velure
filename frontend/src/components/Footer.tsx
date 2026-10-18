@@ -4,7 +4,6 @@ import { MessageSquare, LifeBuoy, ShieldCheck, Truck, Banknote, ArrowUpRight } f
 import LovedItLogo from './LovedItLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
-import { DELIVERY_FEE } from '../utils/shipping';
 import gcashLogo from '../assets/brand/gcash-logo.svg';
 
 /** The standard "Your Privacy Choices" toggle (a check and a cross on a pill), as sites show beside that link. */
@@ -50,7 +49,6 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
     title: 'Work with us',
     links: [
       { label: 'Sell on Loved-IT', to: '/register/seller' },
-      { label: 'Become a rider', to: '/register/rider' },
       { label: 'Run a logistics hub', to: '/register/hub' },
       { label: 'Register a courier company', to: '/register/courier' },
       { label: 'Rider sign in', to: '/rider/login' },
@@ -133,7 +131,7 @@ export const Footer: React.FC = () => {
             <Truck className="w-5 h-5 mt-0.5 text-amber-300 shrink-0" aria-hidden="true" />
             <div>
               <h2 className="text-[14px] font-semibold text-white">Delivery</h2>
-              <p className="mt-1 text-[13px] leading-relaxed text-white/55">A flat ₱{DELIVERY_FEE} per shop, carried by partner couriers matched to your area. Every parcel has a tracking number.</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-white/55">One parcel per shop, priced by route and weight, carried by partner couriers matched to your area. Every parcel has a tracking number.</p>
             </div>
           </div>
         </div>

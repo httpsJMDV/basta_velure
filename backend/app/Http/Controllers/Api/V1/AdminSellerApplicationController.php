@@ -23,8 +23,10 @@ class AdminSellerApplicationController extends Controller
         $sort    = $request->query('sort', 'newest');
         $perPage = min((int) $request->query('per_page', 30), 100);
 
+        // An applicant who has not confirmed their email yet is still "Unverified": not in the review queue.
         $query = SellerProfile::with('user')
-            ->where('application_status', $status);
+            ->where('application_status', $status)
+            ->whereHas('user', fn ($u) => $u->where('status', '!=', 'unverified'));
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -103,6 +105,14 @@ class AdminSellerApplicationController extends Controller
         abort_unless(Storage::disk('ids')->exists($sellerProfile->dti_sec_registration_path), 404);
 
         return response()->file(Storage::disk('ids')->path($sellerProfile->dti_sec_registration_path));
+    }
+
+    public function bir2303(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        abort_unless($sellerProfile->bir_2303_path, 404);
+        abort_unless(Storage::disk('ids')->exists($sellerProfile->bir_2303_path), 404);
+
+        return response()->file(Storage::disk('ids')->path($sellerProfile->bir_2303_path));
     }
 
     public function fdaLto(SellerProfile $sellerProfile): \Symfony\Component\HttpFoundation\BinaryFileResponse

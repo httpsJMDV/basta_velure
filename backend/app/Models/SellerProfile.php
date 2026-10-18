@@ -15,6 +15,7 @@ class SellerProfile extends Model
     protected $hidden = ['gcash_number'];
 
     protected $fillable = [
+        'low_stock_threshold',
         'gcash_number',
         'gcash_account_name',
         'gcash_qr_path',
@@ -22,6 +23,8 @@ class SellerProfile extends Model
         'user_id',
         'shop_name',
         'shop_category',
+        'seller_type',
+        'tin',
         'shop_description',
         'shop_bio',
         'date_of_birth',
@@ -41,6 +44,12 @@ class SellerProfile extends Model
         'address_province_code',
         'address_city_code',
         'address_barangay_code',
+        'address_region',
+        'address_region_code',
+        'address_postal_code',
+        'bir_2303_path',
+        'on_vacation',
+        'vacation_started_at',
         'shop_contact_number',
         'return_policy',
         'shipping_policy',
@@ -64,6 +73,8 @@ class SellerProfile extends Model
             'date_of_birth' => 'date',
             'reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',
+            'on_vacation' => 'boolean',
+            'vacation_started_at' => 'datetime',
             // Encrypt sensitive fields at rest
             'government_id_number' => 'encrypted',
             'payout_gcash_number' => 'encrypted',

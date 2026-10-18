@@ -130,7 +130,7 @@ class RiderAuthTest extends TestCase
             ->getJson('/api/v1/rider/me');
 
         $pendingRes->assertStatus(403)
-            ->assertJsonPath('message', 'Your rider application is currently pending hub approval.');
+            ->assertJsonPath('message', 'Your rider account is waiting for your courier company to verify it.');
 
         // 2. Disapproved rider
         app('auth')->forgetGuards();
@@ -141,7 +141,7 @@ class RiderAuthTest extends TestCase
             ->getJson('/api/v1/rider/me');
 
         $disapprovedRes->assertStatus(403)
-            ->assertJsonPath('message', 'Your rider application was not approved.');
+            ->assertJsonPath('message', 'Your rider account was not approved.');
     }
 
     public function test_rider_logged_in_while_active_gets_403_immediately_when_status_changes_mid_session(): void
@@ -161,7 +161,7 @@ class RiderAuthTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/rider/me')
             ->assertStatus(403)
-            ->assertJsonPath('message', 'Your rider application was not approved.');
+            ->assertJsonPath('message', 'Your rider account was not approved.');
 
         // Change status to PENDING in DB
         $rider->update(['status' => Rider::STATUS_PENDING]);
@@ -169,7 +169,7 @@ class RiderAuthTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/rider/me')
             ->assertStatus(403)
-            ->assertJsonPath('message', 'Your rider application is currently pending hub approval.');
+            ->assertJsonPath('message', 'Your rider account is waiting for your courier company to verify it.');
     }
 
     public function test_buyer_seller_hub_owner_and_admin_each_get_403_on_rider_routes(): void

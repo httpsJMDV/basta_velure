@@ -241,6 +241,7 @@ class RiderChatService
         return match ($conversation->parcel?->status) {
             Parcel::STATUS_DELIVERED       => 'This conversation is closed because the parcel was delivered.',
             Parcel::STATUS_DELIVERY_FAILED => 'This conversation is closed because the delivery attempt failed.',
+            Parcel::STATUS_RETURN_TO_SENDER => 'This conversation is closed because the parcel is going back to the seller.',
             Parcel::STATUS_RETURNED        => 'This conversation is closed because the parcel was returned.',
             default                        => 'This conversation is closed because the parcel is no longer in an active stage for this rider.',
         };

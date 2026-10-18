@@ -3,10 +3,11 @@ import { Wallet } from 'lucide-react';
 import EarningsTab from './EarningsTab';
 import HistoryTab from './HistoryTab';
 import { PageHero, TabBar } from './RiderUi';
+import { CodRemittanceCard } from '../../components/rider/RiderWork';
 
 type TabKey = 'earnings' | 'history';
 
-/** Rider earnings (the rider's share of each delivered parcel's delivery fee) and the full delivery history. Read-only. */
+/** Rider earnings (A3: ₱30 per pickup, ₱50 per delivery, nothing for a failed attempt), the COD to remit, and the history. */
 export default function RiderEarningsPage() {
   const [tab, setTab] = useState<TabKey>('earnings');
   // The History tab is only loaded once it is opened, then kept so its filters survive switching back.
@@ -19,7 +20,9 @@ export default function RiderEarningsPage() {
 
   return (
     <div className="pb-4 space-y-4">
-      <PageHero icon={Wallet} title="Earnings" subtitle="What you earn per delivery, and every delivery you have made." />
+      <PageHero icon={Wallet} title="Earnings" subtitle="₱30 per pickup and ₱50 per delivery; a failed attempt pays nothing." />
+
+      <CodRemittanceCard />
 
       <TabBar
         label="Earnings views"

@@ -69,6 +69,7 @@ class AdminPayoutController extends Controller
             'admin_notes'  => $request->admin_notes ?? 'GCash transfer initiated / sent',
         ]);
         app(\App\Services\MailNotifier::class)->payoutUpdated($payout, 'processing');
+        app(\App\Services\Notifier::class)->payout($payout->seller_id, 'Payout sent', '₱' . number_format((float) $payout->amount, 2) . ' is on its way to your GCash.');
 
         return response()->json(['message' => 'Payout marked as Sent (Processing).']);
     }
@@ -85,6 +86,7 @@ class AdminPayoutController extends Controller
             'admin_notes'  => $request->admin_notes ?? 'Sent via GCash',
         ]);
         app(\App\Services\MailNotifier::class)->payoutUpdated($payout, 'completed');
+        app(\App\Services\Notifier::class)->payout($payout->seller_id, 'Payout completed', '₱' . number_format((float) $payout->amount, 2) . ' was transferred to your GCash.');
 
         return response()->json(['message' => 'Payout marked as completed.']);
     }
@@ -105,6 +107,7 @@ class AdminPayoutController extends Controller
             'processed_at'     => now(),
         ]);
         app(\App\Services\MailNotifier::class)->payoutUpdated($payout, 'rejected', $data['reason']);
+        app(\App\Services\Notifier::class)->payout($payout->seller_id, 'Payout not processed', 'Your payout of ' . '₱' . number_format((float) $payout->amount, 2) . " was returned to your balance: {$data['reason']}");
 
         return response()->json(['message' => 'Payout rejected. Balance has been restored.']);
     }

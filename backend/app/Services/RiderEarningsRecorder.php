@@ -11,15 +11,15 @@ use App\Support\ShippingSplit;
 use Illuminate\Database\QueryException;
 
 /**
- * Shares the delivery fee of a parcel, the way a courier pays its first-mile and last-mile riders out of the fee:
+ * What riders and hubs earn on a parcel (A3):
  *
- *  - the pickup rider (seller to hub) earns their percentage (20% by default) when the hub receives the parcel;
- *  - the delivery rider (hub to buyer) earns the rest of the riders' share (65%) when it is delivered;
- *  - the logistics hub that handled it earns what is left (15%) when it is delivered.
+ *  - the pickup rider (seller to hub) earns the fixed pickup pay (30.00) when they pick the parcel up;
+ *  - the delivery rider (hub to buyer) earns the fixed delivery pay (50.00) when it is delivered; a failed attempt
+ *    pays nothing;
+ *  - the logistics hub that handled it earns its percentage of the delivery fee (15%) when it is delivered.
  *
- * One rider doing both legs earns both shares (85%). A parcel with no pickup rider on record gives the delivery rider
- * both shares. The split is of the delivery fee the buyer actually paid on that order, copied onto the earnings rows
- * when they are written, so a later change to the fee or the percentages never rewrites history.
+ * One rider doing both legs earns both. The amounts are copied onto the earnings rows when they are written, so a
+ * later change to the pay or the percentages never rewrites history.
  *
  * It only ever adds earnings rows (per parcel: one pickup and one delivery row for riders, one for the hub). It reads
  * and changes no buyer, seller or platform money.
@@ -56,10 +56,10 @@ class RiderEarningsRecorder
             return null;
         }
 
-        $shares = ShippingSplit::split(Money::toCents($parcel->order?->courierFeeAmount() ?? '0'));
+        $cents = ShippingSplit::pickupPayCents();
 
-        return $this->recordRider($parcel, $parcel->pickup_rider_id, RiderEarning::KIND_PICKUP, $shares['pickup'], $earnedAt ?? now(),
-            ShippingSplit::pickupPercent() . '% of the delivery fee (pickup)');
+        return $this->recordRider($parcel, $parcel->pickup_rider_id, RiderEarning::KIND_PICKUP, $cents, $earnedAt ?? now(),
+            'Pickup pay (₱' . Money::fromCents($cents) . ')');
     }
 
     /**
@@ -80,20 +80,16 @@ class RiderEarningsRecorder
         }
 
         // withTrashed: a soft-deleted row still counts as "already earned", and would collide with the unique index.
-        // A parcel paid before pickups earned has one delivery row of the whole riders' share: nothing more to add.
         if (RiderEarning::withTrashed()->where('parcel_id', $parcel->id)->where('kind', RiderEarning::KIND_DELIVERY)->exists()) {
             return null;
         }
 
-        if ($parcel->pickup_rider_id) {
-            $this->recordPickup($parcel, $earnedAt);
+        // The pickup rider is paid at pickup; this catches a parcel picked up before that rule. Idempotent.
+        $this->recordPickup($parcel, $earnedAt);
+        $cents = ShippingSplit::deliveryPayCents();
 
-            return $this->recordRider($parcel, $parcel->assigned_rider_id, RiderEarning::KIND_DELIVERY, $shares['delivery'], $earnedAt,
-                ShippingSplit::deliveryPercent() . '% of the delivery fee (delivery)');
-        }
-
-        return $this->recordRider($parcel, $parcel->assigned_rider_id, RiderEarning::KIND_DELIVERY, $shares['rider'], $earnedAt,
-            ShippingSplit::riderPercent() . '% of the delivery fee (pickup and delivery)');
+        return $this->recordRider($parcel, $parcel->assigned_rider_id, RiderEarning::KIND_DELIVERY, $cents, $earnedAt,
+            'Delivery pay (₱' . Money::fromCents($cents) . ')');
     }
 
     private function recordRider(Parcel $parcel, int $riderId, string $kind, int $cents, \DateTimeInterface $earnedAt, string $notes): ?RiderEarning

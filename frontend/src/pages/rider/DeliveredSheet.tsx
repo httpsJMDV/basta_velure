@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChangeEvent } from 'react';
 import axios from 'axios';
-import { Camera, CheckCircle2, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { Camera, CheckCircle2, KeyRound, RefreshCw, RotateCcw, Wallet, X } from 'lucide-react';
 import { markRiderDeliveredApi } from '../../api/client';
 import { downscaleImage, formatBytes } from '../../utils/imageDownscale';
 import type { RiderDeliveredResponse, RiderDeliveryParcel } from '../../types';
@@ -35,13 +35,15 @@ interface PhotoSlotProps {
   hint: string;
   file: File | null;
   disabled: boolean;
+  /** A second photo is optional; the first is required. */
+  optional?: boolean;
   onChange: (file: File | null) => void;
   /** Reports that the slot is shrinking a photo, so the form waits for it. */
   onProcessing: (busy: boolean) => void;
 }
 
 /** One proof photo: take or retake it, see a preview, and shrink it in the browser before upload. */
-function PhotoSlot({ id, step, title, hint, file, disabled, onChange, onProcessing }: PhotoSlotProps) {
+function PhotoSlot({ id, step, title, hint, file, disabled, optional = false, onChange, onProcessing }: PhotoSlotProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -101,7 +103,7 @@ function PhotoSlot({ id, step, title, hint, file, disabled, onChange, onProcessi
         </span>
         <div className="min-w-0">
           <p className="text-sm font-bold text-gray-900">
-            {title} <span className="text-red-700">(required)</span>
+            {title} {optional ? <span className="font-normal text-gray-500">(optional)</span> : <span className="text-red-700">(required)</span>}
           </p>
           <p className="text-xs text-gray-500">{hint}</p>
         </div>
@@ -181,7 +183,11 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
   const [photo2, setPhoto2] = useState<File | null>(null);
   const [processingCount, setProcessingCount] = useState(0);
   const [receivedBy, setReceivedBy] = useState('');
-  const [codChecked, setCodChecked] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [codAmount, setCodAmount] = useState('');
+  const [lockedUntil, setLockedUntil] = useState<string | null>(parcel.otp_locked_until ?? null);
+  const [now, setNow] = useState(() => Date.now());
+  const otpRequired = parcel.otp_required === true;
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -201,13 +207,24 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
+  // Count the code lock down, and lift it when it ends.
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [lockedUntil]);
+  const lockLeft = lockedUntil ? Math.max(0, Math.ceil((new Date(lockedUntil).getTime() - now) / 1000)) : 0;
+  const locked = lockLeft > 0;
+
   const processing = processingCount > 0;
   const trackProcessing = (busy: boolean) => setProcessingCount((n) => Math.max(0, n + (busy ? 1 : -1)));
 
-  const canSubmit = photo !== null && photo2 !== null && !processing && (!isCod || codChecked) && !submitting;
+  const otpOk = !otpRequired || /^\d{6}$/.test(otp);
+  const codOk = !isCod || codAmount.trim() !== '';
+  const canSubmit = photo !== null && !processing && otpOk && codOk && !locked && !submitting;
 
   const handleSubmit = async () => {
-    if (!photo || !photo2 || busyRef.current) return;
+    if (!photo || busyRef.current) return;
 
     busyRef.current = true;
     setSubmitting(true);
@@ -216,9 +233,10 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
 
     const form = new FormData();
     form.append('proof_photo', photo);
-    form.append('proof_photo_2', photo2);
+    if (photo2) form.append('proof_photo_2', photo2);
     if (receivedBy.trim() !== '') form.append('received_by', receivedBy.trim());
-    if (isCod) form.append('cod_collected', codChecked ? '1' : '0');
+    if (otpRequired) form.append('otp', otp);
+    if (isCod) form.append('cod_amount', codAmount.trim());
 
     try {
       const res = await markRiderDeliveredApi(parcel.tracking_number, form, setProgress);
@@ -229,6 +247,13 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
         const message = err.response.data?.message as string | undefined;
         if (status === 404 || status === 409) {
           onConflict(message || 'This stop can no longer be updated.');
+          return;
+        }
+        if (status === 423) {
+          // Five wrong codes: entry is locked for 15 minutes, even for the right code.
+          setLockedUntil((err.response.data?.locked_until as string | undefined) ?? new Date(Date.now() + 15 * 60 * 1000).toISOString());
+          setOtp('');
+          setErrors([message || 'Too many wrong codes. Code entry is locked for 15 minutes.']);
           return;
         }
         if (status === 422) {
@@ -276,7 +301,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
         </div>
 
         <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl p-3">
-          Two different photos are the proof that the parcel reached the buyer. The buyer, the seller and the hub can see them.
+          In order: a photo of the parcel at the door, the buyer's delivery code{isCod ? ', and the cash you collected' : ''}. The buyer, the seller and your company can see the photos.
         </p>
 
         <PhotoSlot
@@ -300,6 +325,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
           hint="The house, gate or building so the location is clear."
           file={photo2}
           disabled={submitting}
+          optional
           onChange={(f) => {
             setPhoto2(f);
             setErrors([]);
@@ -325,21 +351,58 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
           />
         </div>
 
-        {/* COD confirmation */}
+        {/* The buyer's delivery code (A32) */}
+        {otpRequired && (
+          <section aria-label="Delivery code" className="space-y-2">
+            <div className="flex items-start gap-2.5">
+              <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-black flex items-center justify-center shrink-0" aria-hidden="true">3</span>
+              <div className="min-w-0">
+                <label htmlFor="delivered-otp" className="text-sm font-bold text-gray-900">Delivery code <span className="text-red-700">(required)</span></label>
+                <p className="text-xs text-gray-500">Ask the buyer for the 6-digit code on their order page.</p>
+              </div>
+            </div>
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+              <input
+                id="delivered-otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                disabled={submitting || locked}
+                placeholder="••••••"
+                className="w-full min-h-12 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-lg font-black tracking-[0.4em] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60"
+              />
+            </div>
+            {locked && (
+              <p role="status" className="text-xs font-bold text-red-800 bg-red-50 border border-red-200 rounded-xl p-2.5">
+                Locked after 5 wrong codes. Try again in {Math.floor(lockLeft / 60)}:{String(lockLeft % 60).padStart(2, '0')}.
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* COD: the exact amount (R6) */}
         {isCod && parcel.cod_amount !== null && (
-          <label className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-300 p-3 min-h-14 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={codChecked}
-              onChange={(e) => setCodChecked(e.target.checked)}
-              disabled={submitting}
-              className="w-6 h-6 mt-0.5 accent-brand-red shrink-0"
-            />
-            <span className="text-sm font-bold text-amber-950">
-              I collected {formatPeso(parcel.cod_amount)} in cash
-              <span className="block text-xs font-normal text-amber-900">Required for cash on delivery orders.</span>
-            </span>
-          </label>
+          <section aria-label="Cash collected" className="space-y-2 rounded-2xl bg-amber-50 border border-amber-300 p-3">
+            <label htmlFor="delivered-cod" className="flex items-center gap-2 text-sm font-bold text-amber-950">
+              <Wallet className="w-4 h-4" aria-hidden="true" /> Cash collected: collect exactly {formatPeso(parcel.cod_amount)}
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-900">₱</span>
+              <input
+                id="delivered-cod"
+                inputMode="decimal"
+                value={codAmount}
+                onChange={(e) => setCodAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                disabled={submitting}
+                placeholder={parcel.cod_amount.toFixed(2)}
+                className="w-full min-h-12 pl-7 pr-3 rounded-xl border border-amber-300 bg-white text-base font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500/40 disabled:opacity-60"
+              />
+            </div>
+            <p className="text-xs text-amber-900">Type what you counted. It must match the order to the centavo.</p>
+          </section>
         )}
 
         {errors.length > 0 && (

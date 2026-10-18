@@ -32,17 +32,18 @@ export default function FileUploadZone({
   function handlePick(selectedFile: File) {
     setLocalError(null);
 
-    // Validate size (max 5MB = 5 * 1024 * 1024 bytes)
-    if (selectedFile.size > 5 * 1024 * 1024) {
-      setLocalError('File size exceeds the 5MB limit.');
+    // Validate extension against what this field accepts (the server also checks the file's real content)
+    const validExtensions = accept.split(',').map((a) => a.trim().replace(/^\./, '').toLowerCase()).filter(Boolean);
+    const ext = selectedFile.name.split('.').pop()?.toLowerCase();
+    if (!ext || !validExtensions.includes(ext)) {
+      const names = Array.from(new Set(validExtensions.map((e) => (e === 'jpeg' ? 'jpg' : e).toUpperCase())));
+      setLocalError(`Only ${names.join(', ')} files are allowed.`);
       return;
     }
 
-    // Validate extension
-    const validExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
-    const ext = selectedFile.name.split('.').pop()?.toLowerCase();
-    if (!ext || !validExtensions.includes(ext)) {
-      setLocalError('Only JPG, PNG, and PDF files are allowed.');
+    // Validate size (max 5 MB = 5,242,880 bytes; exactly 5 MB is allowed)
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setLocalError('The file is larger than 5 MB. Choose a file up to 5 MB.');
       return;
     }
 

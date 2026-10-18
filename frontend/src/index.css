@@ -76,6 +76,23 @@
     animation-play-state: paused;
   }
 
+  /* The bell rings once when a notification arrives (and stays still for people who prefer less motion) */
+  @keyframes bell-ring {
+    0%, 100% { transform: rotate(0); }
+    15% { transform: rotate(14deg); }
+    30% { transform: rotate(-12deg); }
+    45% { transform: rotate(9deg); }
+    60% { transform: rotate(-6deg); }
+    75% { transform: rotate(3deg); }
+  }
+  .animate-bell-ring {
+    transform-origin: 50% 2px;
+    animation: bell-ring 0.9s ease-in-out 2;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-bell-ring { animation: none; }
+  }
+
   /* Toast countdown: the line under a toast empties as it times out, and holds while the pointer is on the toast */
   @keyframes toast-countdown {
     from { transform: scaleX(1); }

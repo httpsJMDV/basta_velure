@@ -119,16 +119,27 @@ export interface DashboardFeed {
 export interface ActivityLogEntry {
   id: number;
   action: string;
-  target_type: string;
-  target_id: number;
+  target_type: string | null;
+  target_id: number | null;
   description: string;
   meta: Record<string, unknown> | null;
   created_at: string;
-  admin: { id: number; first_name: string; last_name: string };
+  admin: { id: number | null; first_name: string | null; last_name: string | null };
+}
+
+export type ActivityArea = 'applications' | 'accounts' | 'catalog' | 'money' | 'disputes' | 'other';
+
+/** Figures for the whole activity log (not only the page shown). */
+export interface ActivityLogSummary {
+  total: number;
+  today: number;
+  week: number;
+  areas: Record<ActivityArea, number>;
+  admins: { id: number; name: string }[];
 }
 
 export type Role = 'admin' | 'buyer' | 'seller' | 'rider';
-export type UserStatus = 'active' | 'suspended';
+export type UserStatus = 'active' | 'suspended' | 'unverified' | 'pending_activation';
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
 export type SellerStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
@@ -144,6 +155,9 @@ export interface SellerProfileSummary {
   rejection_reason: string | null;
   submitted_at: string;
   address_needs_update?: boolean;
+  seller_type?: 'individual' | 'sole_proprietorship' | 'corporation' | null;
+  tin?: string | null;
+  on_vacation?: boolean;
 }
 
 export type Gender = 'male' | 'female' | 'prefer_not_to_say';
@@ -176,6 +190,9 @@ export interface User {
   avatar_url: string | null;
   has_password: boolean;
   created_at: string | null;
+  email_verified_at?: string | null;
+  /** The mobile number as 09XXXXXXXXX. */
+  phone_local?: string | null;
   seller_profile?: SellerProfileSummary;
   sorting_center?: SortingCenterSummary;
   rider?: RiderSummary;
@@ -225,6 +242,16 @@ export interface LogisticsCompanyDetail extends CourierSummary {
   submitted_at: string | null;
   reviewed_at: string | null;
   business_permit_url: string | null;
+  address_region?: string | null;
+  address_postal_code?: string | null;
+  sec_registration_no?: string | null;
+  tin?: string | null;
+  contact_first_name?: string | null;
+  contact_last_name?: string | null;
+  contact_position?: string | null;
+  service_regions?: string[];
+  service_region_names?: string[];
+  documents?: { key: string; label: string; url: string }[];
   owner?: { id: number; name: string; email: string; phone: string | null; avatar_url: string | null } | null;
   hubs_count?: number;
   approved_hubs_count?: number;
@@ -232,9 +259,11 @@ export interface LogisticsCompanyDetail extends CourierSummary {
 
 export interface LogisticsDashboard {
   hubs: { approved: number; pending: number; suspended: number; rejected: number };
-  riders: { active: number; pending: number };
+  riders: { active: number; pending: number; online?: number };
   parcels_now: { awaiting_pickup: number; at_hubs: number; out_for_delivery: number; failed: number };
   last_30_days: { delivered: number; returned: number };
+  /** Shipments of the chosen period (L1): Manila dates, both days included. */
+  period?: { from: string; to: string; shipments: number; picked_up: number; delivered: number; failed: number; returned: number; cod_collected: number };
 }
 
 export interface LogisticsHubRow {
@@ -255,15 +284,57 @@ export interface LogisticsHubRow {
 export interface LogisticsRiderRow {
   id: number;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
   avatar_url: string | null;
+  date_of_birth: string | null;
   status: RiderStatus;
+  /** Online now: switched Online, Active, and its app heard from recently. */
+  online: boolean;
+  last_seen_at: string | null;
+  active_jobs: number;
+  delivered_today: number;
   vehicle_type: string;
   plate_number: string;
-  hub_id: number;
+  license_number: string | null;
+  license_expiry: string | null;
+  hub_id: number | null;
   hub_name: string | null;
+  needs_reverification: boolean;
+  vehicle_updated_at: string | null;
+  rejection_reason: string | null;
+  suspension_reason: string | null;
+  suspended_at: string | null;
+  activation_sent_at: string | null;
+  activation_expires_at: string | null;
+  activated_at: string | null;
   account_status: string | null;
+  created_at: string | null;
+  documents?: { key: string; label: string; url: string }[];
+  audit?: AuditEntry[];
+}
+
+export interface LogisticsRidersSummary {
+  total: number;
+  online: number;
+  active: number;
+  pending_activation: number;
+  pending_verification: number;
+  suspended: number;
+  max_active_jobs: number;
+}
+
+/** One line of the operations audit log (A35): written once, never edited. */
+export interface AuditEntry {
+  id: number;
+  action: string;
+  reason: string | null;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  actor: string;
+  created_at: string | null;
 }
 
 export interface LogisticsParcelRow {
@@ -287,7 +358,7 @@ export interface LogisticsReport {
   hubs: Array<{ hub_id: number; hub_name: string; received: number; delivered: number; failed_attempts: number; returned: number; on_time_deliveries: number; on_time_rate: number | null; success_rate: number | null; avg_delivery_hours: number | null }>;
 }
 
-export type RiderStatus = 'PENDING' | 'ACTIVE' | 'DISAPPROVED';
+export type RiderStatus = 'PENDING' | 'ACTIVE' | 'DISAPPROVED' | 'PENDING_ACTIVATION' | 'SUSPENDED';
 export type RiderVehicleType = 'Motorcycle' | 'Tricycle' | 'Car' | 'Van';
 
 export interface RiderSummary {
@@ -301,6 +372,12 @@ export interface RiderSummary {
   rejection_reason?: string | null;
   submitted_at?: string | null;
   created_at?: string | null;
+  license_number?: string | null;
+  license_expiry?: string | null;
+  company_name?: string | null;
+  is_online?: boolean;
+  needs_reverification?: boolean;
+  suspension_reason?: string | null;
 }
 
 export interface PublicApprovedHub {
@@ -431,6 +508,16 @@ export interface RiderProfileData {
   vehicle_type: RiderVehicleType;
   plate_number: string;
   vehicle_updated_at: string | null;
+  license_number: string | null;
+  license_expiry: string | null;
+  company: { id: number; name: string; code: string; logo_url: string | null } | null;
+  is_online: boolean;
+  needs_reverification: boolean;
+  suspension_reason: string | null;
+  rejection_reason: string | null;
+  active_jobs: number;
+  max_active_jobs: number;
+  documents: { key: string; label: string; url: string }[];
   hub: {
     id: number;
     hub_name: string;
@@ -589,6 +676,14 @@ export interface RiderDeliveryParcel {
   };
   /** Amount to collect from the recipient; null for prepaid orders. */
   cod_amount: number | null;
+  /** This trip is attempt N of max_attempts (R7). */
+  attempt?: number;
+  max_attempts?: number;
+  previous_failure?: string | null;
+  /** The buyer has a 6-digit delivery code to give (A32); locked for 15 minutes after 5 wrong tries. */
+  otp_required?: boolean;
+  otp_locked_until?: string | null;
+  weight_kg?: number | null;
   item_count: number;
   item_summary: string;
   assigned_at: string | null;
@@ -635,6 +730,9 @@ export interface RiderDeliveredResponse {
   tracking_number: string;
   delivered_at: string;
   cod_collected: boolean;
+  cod_amount?: number | null;
+  /** The fixed delivery pay earned (A3). */
+  pay?: string;
 }
 
 export interface RiderFailedResponse {
@@ -642,6 +740,10 @@ export interface RiderFailedResponse {
   tracking_number: string;
   reason: { code: string; label: string };
   delivery_attempts: number;
+  max_attempts?: number;
+  /** Refused, or the last attempt: the parcel goes back to the seller (A13). */
+  return_to_sender?: boolean;
+  pay?: string;
 }
 
 // ─── Hub Delivery Monitoring and Failure Triage (Feature 1.9) ──────────────────
@@ -842,6 +944,12 @@ export interface SellerApplication {
   application_status: ApplicationStatus;
   shop_name: string;
   shop_description: string | null;
+  shop_category?: string | null;
+  seller_type?: 'individual' | 'sole_proprietorship' | 'corporation' | null;
+  tin?: string | null;
+  shop_contact_number?: string | null;
+  address?: { region: string | null; province: string | null; city: string | null; barangay: string | null; street: string | null; postal_code: string | null; full: string };
+  bir_2303_url?: string | null;
   date_of_birth: string;
   government_id_type: GovernmentIdType;
   government_id_image_url: string;
@@ -899,7 +1007,7 @@ export interface OrderStatusHistory {
   created_at: string;
 }
 
-export type PaymentMethod = 'gcash' | 'cod';
+export type PaymentMethod = 'gcash' | 'cod' | 'e_wallet' | 'card';
 export type PaymentStatus = 'pending' | 'pending_verification' | 'paid' | 'failed' | 'cod' | 'verification_failed' | 'refunded';
 
 export interface OrderItem {
@@ -918,7 +1026,13 @@ export interface OrderItem {
   seller_earnings?: number;
   payout_status?: string;
   image_url: string | null;
+  regular_unit_price?: number | null;
+  price_source?: 'regular' | 'sale' | 'flash' | null;
+  is_gift?: boolean;
+  promo_share?: number;
 }
+
+export type BuyerOrderTab = 'to_pay' | 'to_ship' | 'to_receive' | 'completed' | 'cancelled' | 'return_refund';
 
 export interface Order {
   id: number;
@@ -960,10 +1074,37 @@ export interface Order {
   delivery_proof_available?: boolean;
   /** How many proof photos exist (older deliveries have one, new ones have two). */
   delivery_proof_count?: number;
-  /** Set when the buyer has an open return request for this order. */
-  dispute?: { id: number; status: string } | null;
+  /** The return request (A31), with its evidence and the shop's answer. */
+  dispute?: import('./../api/commerce').ReturnRequestView | null;
   items: OrderItem[];
   status_history?: OrderStatusHistory[];
+  /** The buyer tab the order is in (A10). */
+  tab?: BuyerOrderTab;
+  payment_due_at?: string | null;
+  paid_at?: string | null;
+  /** Set while an e-wallet or card payment can still be made. */
+  payment_token?: string | null;
+  promo_discount?: number;
+  store_voucher_discount?: number;
+  platform_voucher_discount?: number;
+  shipping_voucher_discount?: number;
+  vouchers?: { scope: 'store' | 'platform' | 'shipping'; code: string | null; discount: number }[];
+  chargeable_weight_kg?: number | null;
+  shipping_route?: string | null;
+  cancel_reason?: string | null;
+  cancelled_by?: string | null;
+  cancelled_at?: string | null;
+  refund_status?: 'pending' | 'refunded' | null;
+  refund_amount?: number | null;
+  refunded_at?: string | null;
+  can_cancel?: boolean;
+  can_return?: boolean;
+  /** A32: the 6-digit code to give the rider, while the parcel is out for delivery. */
+  delivery_otp?: string | null;
+  delivery_attempt?: { failed: number; max: number } | null;
+  returning_to_seller?: boolean;
+  return_unavailable_reason?: string | null;
+  return_window_ends_at?: string | null;
 }
 
 export interface SellerOrderItem {
@@ -978,6 +1119,11 @@ export interface SellerOrderItem {
   seller_earnings: number;
   payout_status: string;
   image_url: string | null;
+  regular_unit_price?: number | null;
+  price_source?: string | null;
+  is_gift?: boolean;
+  promo_share?: number;
+  store_voucher_share?: number;
 }
 
 export interface SellerOrder {
@@ -1020,6 +1166,27 @@ export interface SellerOrder {
   } | null;
   items: SellerOrderItem[];
   status_history?: OrderStatusHistory[];
+  /** An e-wallet or card order waiting for the buyer to pay (it cannot be accepted yet). */
+  awaiting_payment?: boolean;
+  payment_due_at?: string | null;
+  paid_at?: string | null;
+  tab?: string | null;
+  shipping_route?: string | null;
+  chargeable_weight_kg?: number | null;
+  promo_discount?: number;
+  store_voucher_discount?: number;
+  store_voucher_code?: string | null;
+  platform_voucher_discount?: number;
+  shipping_voucher_discount?: number;
+  cancel_reason?: string | null;
+  cancelled_by?: string | null;
+  cancelled_at?: string | null;
+  refund_status?: string | null;
+  refund_amount?: number | null;
+  can_cancel?: boolean;
+  /** A failed delivery coming back to the shop, or back and waiting for the shop to confirm it (A13). */
+  return_to_sender?: { state: 'on_the_way' | 'awaiting_confirmation' | 'confirmed'; since: string | null; confirmed_at: string | null } | null;
+  dispute?: import('./../api/commerce').ReturnRequestView | null;
 }
 
 export interface WaybillData {
@@ -1040,6 +1207,9 @@ export interface WaybillData {
     destination_barangay: string | null;
     destination_barangay_code?: string | null;
     cod_amount: number | null;
+    /** Actual parcel weight, and the whole kilograms it is charged as (A20). */
+    weight_kg?: number | null;
+    chargeable_weight_kg?: number | null;
   };
   sender: {
     shop_name?: string;
@@ -1106,6 +1276,13 @@ export interface SellerOrderEarningsItem {
   delivered_date: string | null;
   /** Feature 2.8: when this item's escrow releases; null until the order is COMPLETED. */
   escrow_release_at?: string | null;
+  /** The shop's own voucher and promotion share on this line; they come off before the commission. */
+  seller_discounts?: number;
+  gross_after_discounts?: number;
+  /** Pending until the order is Completed, then Available (A3). */
+  earning_status?: 'pending' | 'available';
+  settlement?: string | null;
+  payment_method?: PaymentMethod | null;
 }
 
 export interface PayoutRequest {
@@ -1216,7 +1393,11 @@ export interface AdminPaymentStats {
 
 // ─── Admin Disputes ───────────────────────────────────────────────────────────
 
-export type DisputeStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+/**
+ * Return requests (A31) move pending → approved, or pending → rejected → escalated → approved/closed. The older
+ * open / in_progress / resolved / closed values are kept for claims raised before the return flow.
+ */
+export type DisputeStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'pending' | 'approved' | 'rejected' | 'escalated';
 
 export interface AdminDispute {
   id: number;
@@ -1225,12 +1406,28 @@ export interface AdminDispute {
   resolution_note: string | null;
   resolved_at: string | null;
   created_at: string;
+  /** The buyer's own words on a return request, and their evidence photos. */
+  description?: string | null;
+  photos?: string[];
+  seller?: { id: number; shop_name: string | null } | null;
+  seller_reason?: string | null;
+  seller_responded_at?: string | null;
+  /** The shop's deadline to answer, and the buyer's to escalate a rejection. */
+  respond_by?: string | null;
+  escalate_by?: string | null;
+  escalated_at?: string | null;
+  auto_approved?: boolean;
+  refund_amount?: number | null;
+  /** Still waiting for Loved-IT's decision. */
+  can_decide?: boolean;
   buyer: { id: number; first_name: string; last_name: string; email: string } | null;
   order: {
     id: number;
     order_number: string;
     total: number;
     status: OrderStatus;
+    payment_method?: PaymentMethod;
+    refund_status?: string | null;
     items?: OrderItem[];
   } | null;
   resolver?: { first_name: string; last_name: string } | null;
@@ -1240,6 +1437,17 @@ export interface AdminDisputeStats {
   open: number;
   in_progress: number;
   resolved: number;
+  /** Returns the buyer escalated after the shop rejected them. */
+  escalated?: number;
+  /** Returns the shop still has to answer. */
+  awaiting_seller?: number;
+  /** Rejected by the shop; the buyer can still escalate. */
+  rejected?: number;
+  /** Escalated returns and open claims, waiting for Loved-IT. */
+  needs_decision?: number;
+  /** Of those, waiting more than 3 days. */
+  overdue?: number;
+  total?: number;
 }
 
 // ─── Admin Reviews ────────────────────────────────────────────────────────────
@@ -1465,6 +1673,13 @@ export interface Product {
   review_count: number;
   seller: ProductSeller;
   variants: ProductVariantSummary[];
+  /** A flash sale running now (its price is already in base_price). */
+  flash_sale?: { id: number; price: number; remaining: number; quantity: number; ends_at: string; variant_id: number | null } | null;
+  /** The shop is on vacation: browsing only, no orders. */
+  on_vacation?: boolean;
+  purchase_limit?: number | null;
+  total_stock?: number;
+  price_range?: { min: number; max: number; regular_min: number; regular_max: number };
 }
 
 // ─── Product Detail ─────────────────────────────────────────────────────────
@@ -1508,6 +1723,7 @@ export interface ProductDetailSeller {
   response_rate: number | null;
   return_policy?: string | null;
   shipping_policy?: string | null;
+  on_vacation?: boolean;
 }
 
 export interface ProductDetailSpecs {
@@ -1549,10 +1765,33 @@ export interface ProductDetail extends Omit<Product, 'variants' | 'thumbnail_url
   return_policy: string | null;
   warranty: string | null;
   is_wishlisted: boolean;
-  /** The shop's own discount, in percent. */
+  /** The running store sale's percentage, when it is a percentage discount. */
   discount_percent?: number | null;
   /** Where it sits in the catalog. */
   category?: { slug: string; name: string; parent: { slug: string; name: string } | null } | null;
+  /** The seller's names for the variation types, e.g. ["Color", "Size"]. */
+  variation_types?: string[];
+  /** Every variant as its option labels, price and stock, so a sold-out combination can be disabled. */
+  combinations?: ProductCombination[];
+  price_range?: { min: number; max: number; regular_min: number; regular_max: number };
+  store_sale?: { id: number; type: 'percent' | 'fixed'; percent: number | null; sale_price: number | null; ends_at: string } | null;
+  flash_sale?: { id: number; price: number; remaining: number; quantity: number; ends_at: string; variant_id: number | null } | null;
+  upcoming_flash_sale?: { id: number; price: number; quantity: number; starts_at: string; ends_at: string; reminder_set: boolean } | null;
+  on_vacation?: boolean;
+  purchase_limit?: number | null;
+  /** Units the signed-in buyer already bought, for the per-buyer limit. */
+  purchased_by_you?: number;
+  total_stock?: number;
+}
+
+export interface ProductCombination {
+  variant_id: number;
+  label: string;
+  parts: string[];
+  stock_quantity: number;
+  price: number;
+  original_price: number | null;
+  price_source: 'regular' | 'sale' | 'flash';
 }
 
 export interface ProductReview {
@@ -1563,6 +1802,8 @@ export interface ProductReview {
   created_at: string;
   images?: string[];
   buyer: { id: number | null; name: string; avatar_url: string | null };
+  variant_label?: string | null;
+  seller_reply?: { body: string; replied_at: string | null; edited_at: string | null } | null;
 }
 
 export interface ProductReviewsResponse {
@@ -1580,6 +1821,8 @@ export interface ProductFilters {
   q?: string;                   // free-text search
   parent_category_id?: string;  // parent node ID
   category_id?: string;         // leaf node ID
+  /** A shop's own store category (its subcategories included). */
+  store_category_id?: number;
   seller_ids?: number[];
   min_price?: number;
   max_price?: number;
@@ -1605,6 +1848,7 @@ export interface StorefrontCategory {
   name: string;
   product_count: number;
   image_url: string | null;
+  requires_fda?: boolean;
   children?: StorefrontCategory[];
 }
 
@@ -1719,10 +1963,13 @@ export interface SellerProductVariant {
   label: string;          // e.g. "Red / M"
   sku: string | null;
   stock_quantity: number;
-  /** What buyers pay (after the shop's discount). */
+  /** The regular price (what the seller's form edits). */
   price: number;
-  /** The price before the discount: what the seller's form edits. */
   regular_price?: number;
+  /** What buyers pay right now, with a running store or flash sale. */
+  current_price?: number;
+  /** At or below the low-stock threshold (5). */
+  low_stock?: boolean;
 }
 
 export interface SellerProduct {
@@ -1757,7 +2004,22 @@ export interface SellerProduct {
   allergen_info: string | null;
   fda_lto_on_file: boolean;
   fda_cpr_on_file: boolean;
+  /** The lowest and highest price now (sale or flash price when one runs) and the regular range. */
+  price_range?: { min: number; max: number; regular_min: number; regular_max: number };
+  /** The names of the (at most two) variation types, e.g. ["Color", "Size"]. */
+  variation_types?: string[];
+  store_category_ids?: number[];
+  purchase_limit?: number | null;
+  published_at?: string | null;
+  /** A29: follow the shop's low-stock level, use the product's own (0: only when sold out), or no alert. */
+  low_stock_alert?: LowStockAlertMode;
+  low_stock_threshold?: number | null;
+  /** The level in force for this product (null: no alert), and the shop's level. */
+  low_stock_level?: number | null;
+  shop_low_stock_level?: number;
 }
+
+export type LowStockAlertMode = 'shop' | 'custom' | 'off';
 
 export interface SellerProductCounts {
   all: number;
@@ -1771,6 +2033,9 @@ export interface SellerProductCounts {
 // ─── Add Product Form ────────────────────────────────────────────────────────
 
 export interface ProductFormVariantRow {
+  /** The saved variant's id (edit mode), so orders keep pointing at it. */
+  id?: number;
+  sku?: string;
   /** Combination label, e.g. "Red / M" */
   combination: string;
   /** Map of variantTypeIndex → optionValue */
@@ -1813,7 +2078,6 @@ export interface AddProductFormState {
   price: string;
   stock: string;
   /** The shop's discount on every variant, in percent ('' = none). */
-  discountPercent: string;
   // Shipping
   weightValue: string;
   weightUnit: 'kg' | 'g';
@@ -1830,6 +2094,13 @@ export interface AddProductFormState {
   storageInstructions: string;
   expiryDate: string;
   allergenInfo: string;
+  /** The store's own categories this product is in (up to 3). */
+  storeCategoryIds: number[];
+  /** The most units one buyer can ever buy ('' = no limit). */
+  purchaseLimit: string;
+  /** The low-stock alert: the shop's level, this product's own, only when sold out (own level 0), or none. */
+  lowStockMode: 'shop' | 'custom' | 'sold_out' | 'off';
+  lowStockLevel: string;
 }
 
 // ─── Wishlist & Store Follows ────────────────────────────────────────────────
@@ -1841,6 +2112,8 @@ export interface WishlistProduct {
   base_price: number;
   original_price: number | null;
   status: string;
+  /** available, sold_out, on_vacation (the shop is away) or unavailable (removed, deactivated or the shop closed). */
+  availability?: 'available' | 'sold_out' | 'on_vacation' | 'unavailable';
   total_stock: number;
   variants?: { id: number; label: string; price: number; stock_quantity: number }[];
   seller: { id: number; shop_name: string; shop_slug?: string };
@@ -1886,6 +2159,8 @@ export interface Address {
   ward?: string;
   barangay_name?: string;
   barangay_code?: string;
+  region?: string | null;
+  region_code?: string | null;
   address_needs_update?: boolean;
   label?: AddressLabel;
   is_default: boolean;
@@ -1924,6 +2199,9 @@ export interface PublicShopProfile {
   is_following: boolean;
   rating_breakdown?: Record<number, number>;
   categories?: { category_id: string; category_name: string; count: number }[];
+  /** The seller's own store categories (visible ones), two levels deep. */
+  store_categories?: { id: number; name: string; product_count: number; children?: { id: number; name: string; product_count: number }[] }[];
+  on_vacation?: boolean;
 }
 
 export interface PublicShopReview {
@@ -2007,12 +2285,20 @@ export interface TopSellerItem {
 export interface PaymentMethodSplit {
   gcash: { count: number; volume: number };
   cod: { count: number; volume: number };
+  /** E-wallet and card orders paid through Loved-IT's gateway. */
+  e_wallet_card?: { count: number; volume: number };
   total_orders: number;
   total_volume: number;
 }
 
 export interface SellerReportSummary {
+  /** Item subtotals before the shop's own vouchers and promotions; shipping is not included (A9). */
   gross_sales: number;
+  /** The shop's own vouchers and promotions, which come off before the commission. */
+  seller_discounts?: number;
+  /** The window the totals cover, as Manila dates (null for all time). */
+  from?: string | null;
+  to?: string | null;
   net_earnings: number;
   commission_paid: number;
   total_orders: number;
@@ -2028,15 +2314,38 @@ export interface SellerRevenueChartPoint {
   commission: number;
 }
 
+/** A commission override on a real category; a parent's rate covers its sub-categories that have none. */
 export interface CategoryCommissionOverride {
-  category_key: string;
+  category_id: number;
   category_name: string;
+  parent_name: string | null;
+  is_parent: boolean;
+  sub_categories: number;
   rate_percent: number;
+}
+
+export interface CommissionCategoryOption {
+  id: number;
+  name: string;
+  parent_name: string | null;
+  is_parent: boolean;
+  is_active: boolean;
+  sub_categories: number;
+}
+
+export interface ReturnPolicySettings {
+  return_window_days: number;
+  seller_response_days: number;
+  escalation_days: number;
+  summary: string;
+  mediation_terms: string;
+  non_returnable_categories: Record<string, string>;
 }
 
 export interface CommissionSettings {
   base_rate_percent: number;
   overrides: CategoryCommissionOverride[];
+  categories: CommissionCategoryOption[];
 }
 
 export interface AdminPaymentListItem {
@@ -2083,7 +2392,9 @@ export interface AdminCategoryLeaf {
   is_active: boolean;
   requires_fda: boolean;
   commission_rate: number | null;
+  /** Every product in it, archived ones included (they block deleting it). */
   products_count?: number;
+  active_products_count?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -2096,7 +2407,9 @@ export interface AdminCategoryParent {
   sort_order: number;
   is_active: boolean;
   requires_fda: boolean;
-  commission_rate: null;
+  /** A parent's rate covers its sub-categories that have none of their own. */
+  commission_rate: number | null;
+  products_count?: number;
   children: AdminCategoryLeaf[];
   created_at?: string;
   updated_at?: string;
@@ -2107,6 +2420,7 @@ export interface AdminCategoryMetrics {
   total_leaves: number;
   total_products: number;
   fda_regulated_leaves: number;
+  base_commission_rate?: number;
 }
 
 export interface CategoryPayload {

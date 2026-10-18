@@ -110,6 +110,7 @@ class ReleaseDuePayouts extends Command
         foreach (User::whereIn('id', array_keys($bySeller))->get() as $seller) {
             [$amount, $count] = $bySeller[$seller->id];
             $notifier->earningsReleased($seller, round($amount, 2), $count);
+            app(\App\Services\Notifier::class)->payout($seller->id, 'Earnings available', '₱' . number_format($amount, 2) . " from {$count} sold " . ($count === 1 ? 'item is' : 'items are') . ' ready to withdraw.');
         }
 
         return self::SUCCESS;

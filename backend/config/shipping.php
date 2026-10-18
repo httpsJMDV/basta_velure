@@ -45,4 +45,22 @@ return [
 
     'pickup_share_percent' => (int) env('SHIPPING_PICKUP_SHARE_PERCENT', 20),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Rider pay per job (A3)
+    |--------------------------------------------------------------------------
+    |
+    | A rider earns a fixed amount per job, whatever the parcel's delivery fee:
+    | 30.00 for each pickup (earned when the parcel is picked up) and 50.00 for
+    | each successful delivery. A failed attempt pays nothing. The hub's share
+    | above is still a percentage of the fee. Set RIDER_PAY_PICKUP and
+    | RIDER_PAY_DELIVERY in .env to change them.
+    |
+    */
+
+    'rider_pay' => [
+        'pickup'   => (string) env('RIDER_PAY_PICKUP', '30.00'),
+        'delivery' => (string) env('RIDER_PAY_DELIVERY', '50.00'),
+    ],
+
 ];

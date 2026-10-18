@@ -593,7 +593,7 @@ class DemoDataService
 
             $unit = (float) $variant->price;
             $lineSubtotal = round($unit * $qty, 2);
-            $rate = PlatformSetting::getCommissionRateForCategory($product->category_id);
+            $rate = PlatformSetting::commissionRateForCategory($product->category_id);
             $commission = round($lineSubtotal * $rate, 2);
             $image = $product->images()->first();
 

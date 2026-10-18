@@ -9,7 +9,6 @@ import type { SelectedBarangay } from '../../components/logistics/CoverageBarang
 import {
   ApplyLayout, ApplySection, ApplyRail, SignInRequired, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus,
 } from '../../components/apply/ApplyKit';
-import { DELIVERY_FEE } from '../../utils/shipping';
 import { applyHubApi, getCouriersApi } from '../../api/client';
 import type { CourierOption } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,9 +20,8 @@ const EMPTY_ADDRESS: HubAddressValue = {
   region: '', regionName: '', province: '', provinceName: '', city: '', cityName: '', barangay: '', barangayName: '', street: '',
 };
 
-// The hub share of each delivery fee (15%, config/shipping.php).
-const peso = (n: number) => '₱' + n.toLocaleString('en-PH', { maximumFractionDigits: 2 });
-const HUB_PAY = peso(DELIVERY_FEE * 0.15);
+// The hub share of each delivery fee (15%, config/shipping.php); the fee itself comes from the courier's rate table.
+const HUB_PAY = '15% of the delivery fee';
 
 function Shell({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
@@ -186,11 +184,11 @@ export default function HubRegisterPage() {
         { label: 'Barangays you cover', done: coverageBarangays.length > 0 },
       ]}
       facts={[
-        { label: 'Hub share', value: `${HUB_PAY} per parcel` },
+        { label: 'Hub share', value: `${HUB_PAY}, per parcel` },
         { label: 'Coverage picked', value: `${coverageBarangays.length} barangay${coverageBarangays.length === 1 ? '' : 's'}` },
       ]}
       approver="The courier company you join checks your permit, your area and the ID on your account. Once approved, you approve the riders who pick your hub."
-      footnote={<>The hub share is 15% of the flat {peso(DELIVERY_FEE)} delivery fee of each parcel you sort.</>}
+      footnote={<>The hub share is 15% of the delivery fee of each parcel you sort. The fee depends on the route and the parcel's weight.</>}
     />
   );
 

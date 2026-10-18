@@ -3,16 +3,18 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, Star, Heart, Share2, ShoppingCart, MapPin, Package, MessageCircle, Store, ShieldCheck,
-  RotateCcw, Truck, X, Minus, Plus, Banknote, Check, Info,
+  RotateCcw, Truck, X, Minus, Plus, Banknote, Check, Info, Zap, Bell, BellOff,
 } from 'lucide-react';
-import { getProductApi, getProductReviewsApi, getRelatedProductsApi, getProductsApi, toggleWishlistApi } from '../api/client';
+import { getProductApi, getProductReviewsApi, getRelatedProductsApi, getProductsApi, setFlashReminderApi, toggleWishlistApi } from '../api/client';
+import { apiErrorMessage } from '../utils/apiError';
+import { claimVoucherApi, getProductVouchersApi } from '../api/commerce';
+import type { WalletVoucher } from '../api/commerce';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
 import { useToast } from '../components/ui/Toast';
 import { resolveShortLocation } from '../utils/psgc';
 import { pesoCompact as peso, discountPercent } from '../utils/pricing';
-import { DELIVERY_FEE } from '../utils/shipping';
 import { useShopPaymentInfo } from '../hooks/useShopDelivery';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
@@ -117,33 +119,105 @@ function Gallery({ images, active, onActive, name }: { images: ProductDetail['im
 
 // ── Buy panel ─────────────────────────────────────────────────────────────────
 
+/** "2h 05m 09s" until the given time, ticking every second; null once it has passed. */
+function useCountdown(iso: string | null | undefined) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!iso) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [iso]);
+  if (!iso) return null;
+  const left = new Date(iso).getTime() - now;
+  if (left <= 0) return null;
+  const s = Math.floor(left / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h > 0 ? `${h}h ` : ''}${String(m).padStart(2, '0')}m ${String(sec).padStart(2, '0')}s`;
+}
+
+const manilaTime = (iso: string) =>
+  new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
 function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalleryIndex: (idx: number) => void }) {
   const { addItem } = useCart();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<Record<string, number>>({});
-  const [qty, setQty] = useState(1);
+  const [qtyText, setQtyText] = useState('1');
+  const [qtyError, setQtyError] = useState('');
   const [wishlisted, setWishlisted] = useState(product.is_wishlisted);
   const [prompt, setPrompt] = useState(false);
   const [busy, setBusy] = useState<'cart' | 'buy' | null>(null);
+  const [reminder, setReminder] = useState(product.upcoming_flash_sale?.reminder_set ?? false);
+  const [reminderBusy, setReminderBusy] = useState(false);
 
   const groups = product.variant_groups;
+  const combos = product.combinations ?? [];
   const allSelected = groups.length === 0 || groups.every((g) => selected[g.name] != null);
-  const resolvedVariant = (() => {
-    if (groups.length === 0) return product.variants?.[0] ?? null;
-    if (groups.length === 1) return groups[0].options.find((o) => o.id === selected[groups[0].name]) ?? null;
-    const label = groups.map((g) => g.options.find((o) => o.id === selected[g.name])?.label ?? '').join(' / ');
-    return product.variants?.find((v) => v.label === label) ?? null;
-  })();
+  const chosenLabel = (g: ProductDetail['variant_groups'][number]) => g.options.find((o) => o.id === selected[g.name])?.label;
 
-  const price = resolvedVariant?.price ?? product.base_price;
-  const original = resolvedVariant?.original_price ?? product.original_price;
+  // The combination for the chosen options (Color + Size), matched on each part so "Black / M" is its own variant.
+  const combo = (() => {
+    if (groups.length === 0) return combos[0] ?? null;
+    if (!allSelected) return null;
+    const parts = groups.map((g) => (chosenLabel(g) ?? '').toLowerCase());
+    return combos.find((c) => c.parts.length === parts.length && c.parts.every((p, i) => p.toLowerCase() === parts[i])) ?? null;
+  })();
+  const variant = combo
+    ? { id: combo.variant_id, price: combo.price, original_price: combo.original_price, stock_quantity: combo.stock_quantity }
+    : groups.length === 0 ? product.variants?.[0] ?? null : null;
+
+  /** Whether an option can still be picked with the options chosen in the other groups. */
+  const optionAvailable = (groupIdx: number, label: string) => {
+    if (combos.length === 0) return true;
+    return combos.some((c) => c.stock_quantity > 0
+      && (c.parts[groupIdx] ?? '').toLowerCase() === label.toLowerCase()
+      && groups.every((g, gi) => {
+        if (gi === groupIdx) return true;
+        const picked = chosenLabel(g);
+        return !picked || (c.parts[gi] ?? '').toLowerCase() === picked.toLowerCase();
+      }));
+  };
+
+  const range = product.price_range;
+  const price = variant?.price ?? product.base_price;
+  const original = variant?.original_price ?? (variant ? null : product.original_price);
   const off = discountPercent(price, original);
-  const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock_quantity ?? 0), 0) ?? null;
-  const stock = resolvedVariant?.stock_quantity ?? totalStock;
+  const showRange = !variant && range && range.min !== range.max;
+
+  const flash = product.flash_sale;
+  const flashApplies = !!flash && (combo ? combo.price_source === 'flash' : (!flash.variant_id || groups.length === 0));
+  const flashLeft = useCountdown(flashApplies ? flash?.ends_at : null);
+  const sale = product.store_sale;
+  const upcoming = product.upcoming_flash_sale;
+
+  const totalStock = product.total_stock ?? product.variants?.reduce((sum, v) => sum + (v.stock_quantity ?? 0), 0) ?? null;
+  const stock = variant?.stock_quantity ?? totalStock;
   const soldOut = stock != null && stock <= 0;
+  const limit = product.purchase_limit ?? null;
+  // The per-buyer limit counts what this buyer already ordered (B4).
+  const bought = product.purchased_by_you ?? 0;
+  const limitLeft = limit != null ? Math.max(0, limit - bought) : null;
+  const maxQty = Math.max(1, Math.min(stock ?? 99999, limitLeft ?? 99999));
+  const onVacation = !!(product.on_vacation || product.seller?.on_vacation);
   const sold = soldLabel(product.units_sold);
+
+  function qtyProblem(text: string): string {
+    if (!/^\d+$/.test(text.trim()) || Number(text) < 1) return 'Enter a quantity of at least 1.';
+    const q = Number(text);
+    if (stock != null && q > stock) return stock === 1 ? 'Only 1 is left.' : `Only ${stock.toLocaleString()} are left.`;
+    if (limit != null && limitLeft != null && q > limitLeft) {
+      return bought > 0
+        ? `You can buy up to ${limit} of this item in total. You already bought ${bought}.`
+        : `You can buy up to ${limit} of this item in total.`;
+    }
+    return '';
+  }
+  const setQty = (q: number) => { setQtyText(String(q)); setQtyError(''); };
+  const qty = Number(qtyText) || 1;
 
   function optionImage(groupIdx: number, optIdx: number, optionCount: number) {
     if (groupIdx !== 0) return undefined;
@@ -153,7 +227,13 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
   }
 
   function choose(groupName: string, optId: number, groupIdx: number, optIdx: number, optionCount: number) {
-    setSelected((s) => ({ ...s, [groupName]: optId }));
+    // Clicking the chosen option again clears it, so the other groups show every combination again.
+    setSelected((s) => {
+      const next = { ...s };
+      if (next[groupName] === optId) delete next[groupName];
+      else next[groupName] = optId;
+      return next;
+    });
     setPrompt(false);
     setQty(1);
     if (groupIdx === 0 && product.images.length > 0) {
@@ -165,24 +245,32 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
 
   async function act(action: 'cart' | 'buy') {
     if (!allSelected) { setPrompt(true); return; }
-    const variantId = resolvedVariant?.id ?? product.variants?.[0]?.id ?? 0;
+    if (groups.length > 0 && !combo) { showToast('That combination is not available. Choose another option.', 'error'); return; }
+    const problem = qtyProblem(qtyText);
+    if (problem) { setQtyError(problem); return; }
+    const variantId = variant?.id ?? product.variants?.[0]?.id ?? 0;
+    // Buy Now checks out only this item; the cart stays as it is (B4).
+    if (action === 'buy') {
+      if (!user) { navigate('/login'); return; }
+      navigate(`/checkout?buy=${variantId}&qty=${Number(qtyText)}`);
+      return;
+    }
     setBusy(action);
     try {
       await addItem({
         variantId,
         productId: product.id,
         name: product.name,
-        variant: groups.length ? groups.map((g) => g.options.find((o) => o.id === selected[g.name])?.label ?? '').join(' / ') : '',
+        variant: groups.length ? groups.map((g) => chosenLabel(g) ?? '').join(' / ') : '',
         price,
         image: product.images[0]?.url ?? '',
-        quantity: qty,
+        quantity: Number(qtyText),
         sellerId: product.seller?.id,
         shopName: product.seller?.shop_name,
       });
-      if (action === 'buy') navigate('/cart');
-      else showToast('Added to your cart.', 'success');
-    } catch {
-      showToast('Could not add to cart. Please try again.', 'error');
+      showToast('Added to your cart.', 'success');
+    } catch (e) {
+      showToast(e instanceof Error && e.message ? e.message : apiErrorMessage(e, 'Could not add to cart. Please try again.'), 'error');
     } finally {
       setBusy(null);
     }
@@ -194,11 +282,26 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
     try { await toggleWishlistApi(product.id); } catch { setWishlisted((w) => !w); }
   }
 
+  async function toggleReminder() {
+    if (!upcoming) return;
+    if (!user) { navigate('/login'); return; }
+    setReminderBusy(true);
+    try {
+      const res = await setFlashReminderApi(upcoming.id, !reminder);
+      setReminder(res.data.reminder_set);
+      showToast(res.message, 'success');
+    } catch (e) {
+      showToast(apiErrorMessage(e, 'The reminder could not be saved.'), 'error');
+    } finally { setReminderBusy(false); }
+  }
+
   function share() {
     const url = window.location.href;
     if (navigator.share) navigator.share({ title: product.name, url }).catch(() => {});
     else navigator.clipboard?.writeText(url).then(() => showToast('Link copied.', 'success'));
   }
+
+  const blocked = soldOut || onVacation || busy !== null;
 
   return (
     <div className="flex flex-col">
@@ -222,19 +325,62 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
         {sold && <><span className="text-stone-300">•</span><span>{sold}</span></>}
       </div>
 
+      {onVacation && (
+        <div role="status" className="mt-4 flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+          <Info className="w-4 h-4 mt-0.5 shrink-0" />
+          <p><span className="font-semibold">This shop is on vacation.</span> You can save this item to your wishlist and order once the shop is back.</p>
+        </div>
+      )}
+
+      {/* Flash sale band */}
+      {flashApplies && flash && flashLeft && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-stone-900 px-4 py-2.5 text-white">
+          <p className="inline-flex items-center gap-2 text-[13px] font-semibold"><Zap className="w-4 h-4 text-amber-300 fill-amber-300" /> Flash sale</p>
+          <p className="text-[12px] text-stone-300 tabular-nums">
+            Ends in <span className="font-semibold text-white">{flashLeft}</span>
+            <span className="mx-1.5 text-stone-500">·</span>{flash.remaining.toLocaleString()} of {flash.quantity.toLocaleString()} left
+          </p>
+        </div>
+      )}
+
       {/* Price */}
-      <div className="mt-5 pb-5 border-b border-stone-200">
+      <div className={`${flashApplies && flashLeft ? 'mt-3' : 'mt-5'} pb-5 border-b border-stone-200`}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-[34px] leading-none font-bold tracking-tight text-brand-red">{peso(price)}</span>
-          {off > 0 && (
+          <span className="text-[34px] leading-none font-bold tracking-tight text-brand-red tabular-nums">
+            {showRange ? `${peso(range!.min)} – ${peso(range!.max)}` : peso(price)}
+          </span>
+          {!showRange && off > 0 && (
             <>
-              <span className="text-base text-stone-400 line-through">{peso(original!)}</span>
+              <span className="text-base text-stone-400 line-through tabular-nums">{peso(original!)}</span>
               <span className="px-1.5 h-6 rounded-md border border-brand-red/50 text-brand-red text-[12px] font-semibold flex items-center">-{off}%</span>
             </>
           )}
         </div>
-        {off > 0 && <p className="mt-1.5 text-[12px] text-emerald-700">You save {peso(Math.round((original! - price) * 100) / 100)} with the shop&apos;s discount</p>}
+        {!showRange && off > 0 && (
+          <p className="mt-1.5 text-[12px] text-emerald-700">
+            You save {peso(Math.round((original! - price) * 100) / 100)}
+            {flashApplies ? ' with the flash sale' : sale ? ` · sale ends ${manilaTime(sale.ends_at)}` : ''}
+          </p>
+        )}
+        {flashApplies && flash && qty > flash.remaining && flash.remaining > 0 && (
+          <p className="mt-1 text-[12px] text-stone-500">The flash price covers the first {flash.remaining}; the rest are at the {sale ? 'sale' : 'regular'} price.</p>
+        )}
+        {showRange && <p className="mt-1.5 text-[12px] text-stone-500">Choose the options to see the exact price.</p>}
       </div>
+
+      {/* An upcoming flash sale */}
+      {upcoming && !flashApplies && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+          <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+          <p className="flex-1 min-w-[200px] text-[13px] text-stone-700">
+            Flash sale at <span className="font-semibold text-brand-red">{peso(upcoming.price)}</span> starts {manilaTime(upcoming.starts_at)} · {upcoming.quantity} available
+          </p>
+          <button type="button" onClick={toggleReminder} disabled={reminderBusy} aria-pressed={reminder}
+            className={`h-9 px-4 rounded-full text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 ${reminder ? 'bg-stone-100 text-stone-700 hover:bg-stone-200' : 'bg-stone-900 text-white hover:bg-black'}`}>
+            {reminder ? <><BellOff className="w-3.5 h-3.5" /> Cancel reminder</> : <><Bell className="w-3.5 h-3.5" /> Remind me</>}
+          </button>
+        </div>
+      )}
 
       {/* Options */}
       {groups.map((group, gi) => {
@@ -248,13 +394,15 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
             <div className="mt-2.5 flex flex-wrap gap-2">
               {group.options.map((opt, oi) => {
                 const on = selected[group.name] === opt.id;
-                const out = opt.stock_quantity === 0;
+                const out = !optionAvailable(gi, opt.label);
                 const img = optionImage(gi, oi, group.options.length);
                 return (
                   <button
                     key={opt.id}
                     type="button"
-                    disabled={out}
+                    disabled={out && !on}
+                    aria-pressed={on}
+                    title={out ? 'Sold out with the options you chose' : undefined}
                     onClick={() => choose(group.name, opt.id, gi, oi, group.options.length)}
                     className={`min-h-[42px] rounded-xl border text-[13px] flex items-center gap-2 transition-all ${img ? 'pl-1.5 pr-3.5' : 'px-4'} ${
                       on ? 'border-stone-900 bg-stone-900 text-white'
@@ -262,7 +410,7 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
                         : 'border-stone-300 bg-white text-stone-800 hover:border-stone-900'
                     }`}
                   >
-                    {img && <img src={img.url} alt="" className="w-8 h-8 rounded-lg object-cover bg-white" />}
+                    {img && <img src={img.url} alt="" className={`w-8 h-8 rounded-lg object-cover bg-white ${out ? 'opacity-40' : ''}`} />}
                     {opt.label}
                   </button>
                 );
@@ -278,34 +426,39 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
       )}
 
       {/* Quantity */}
-      <div className="pt-5 flex items-center gap-4">
-        <div className="flex items-center h-11 rounded-full border border-stone-300 bg-white">
-          <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="w-11 h-full flex items-center justify-center text-stone-600 disabled:text-stone-300" aria-label="Fewer">
-            <Minus className="w-4 h-4" />
-          </button>
-          <input
-            type="number" min={1} max={stock ?? 999} value={qty} aria-label="Quantity"
-            onChange={(e) => setQty(Math.max(1, Math.min(stock ?? 999, Number(e.target.value) || 1)))}
-            className="w-10 h-full text-center text-sm font-semibold text-stone-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-          />
-          <button type="button" onClick={() => setQty((q) => Math.min(stock ?? 999, q + 1))} disabled={stock != null && qty >= stock} className="w-11 h-full flex items-center justify-center text-stone-600 disabled:text-stone-300" aria-label="More">
-            <Plus className="w-4 h-4" />
-          </button>
+      <div className="pt-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className={`flex items-center h-11 rounded-full border bg-white ${qtyError ? 'border-brand-red' : 'border-stone-300'}`}>
+            <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} disabled={qty <= 1} className="w-11 h-full flex items-center justify-center text-stone-600 disabled:text-stone-300" aria-label="Fewer">
+              <Minus className="w-4 h-4" />
+            </button>
+            <input
+              type="text" inputMode="numeric" value={qtyText} aria-label="Quantity" aria-invalid={!!qtyError}
+              onChange={(e) => { setQtyText(e.target.value); setQtyError(''); }}
+              onBlur={() => setQtyError(qtyProblem(qtyText))}
+              className="w-12 h-full text-center text-sm font-semibold text-stone-900 bg-transparent outline-none tabular-nums"
+            />
+            <button type="button" onClick={() => setQty(Math.min(maxQty, qty + 1))} disabled={qty >= maxQty} className="w-11 h-full flex items-center justify-center text-stone-600 disabled:text-stone-300" aria-label="More">
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          {stock != null && (
+            <span className={`text-[13px] ${soldOut ? 'text-brand-red font-semibold' : stock <= 5 ? 'text-amber-700 font-medium' : 'text-stone-500'}`}>
+              {soldOut ? (variant || groups.length === 0 ? 'Sold out' : 'Sold out in every option') : stock <= 5 ? `Only ${stock} left` : `${stock.toLocaleString()} in stock`}
+            </span>
+          )}
+          {limit != null && !soldOut && <span className="text-[12px] text-stone-500">Limit {limit} per buyer</span>}
         </div>
-        {stock != null && (
-          <span className={`text-[13px] ${soldOut ? 'text-brand-red font-semibold' : stock <= 5 ? 'text-amber-700 font-medium' : 'text-stone-500'}`}>
-            {soldOut ? 'Sold out' : stock <= 5 ? `Only ${stock} left` : `${stock.toLocaleString()} in stock`}
-          </span>
-        )}
+        {qtyError && <p role="alert" className="mt-2 text-[12px] font-medium text-brand-red">{qtyError}</p>}
       </div>
 
       {/* Actions */}
       <div className="pt-5 flex gap-2.5">
-        <button type="button" onClick={() => act('cart')} disabled={soldOut || busy !== null}
+        <button type="button" onClick={() => act('cart')} disabled={blocked}
           className="flex-1 h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
           <ShoppingCart className="w-4 h-4" /> {busy === 'cart' ? 'Adding…' : 'Add to cart'}
         </button>
-        <button type="button" onClick={() => act('buy')} disabled={soldOut || busy !== null}
+        <button type="button" onClick={() => act('buy')} disabled={blocked}
           className="flex-1 h-12 rounded-full border-[1.5px] border-stone-900 text-stone-900 hover:bg-stone-900 hover:text-white text-sm font-semibold transition-colors disabled:opacity-50">
           {busy === 'buy' ? 'One moment…' : 'Buy now'}
         </button>
@@ -319,7 +472,55 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
         </button>
       </div>
 
+      <ShopVouchers product={product} />
+
       <Assurances product={product} />
+    </div>
+  );
+}
+
+/** The shop's claimable vouchers that apply to this product, with Claim (B4, B7). */
+function ShopVouchers({ product }: { product: ProductDetail }) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const [rows, setRows] = useState<WalletVoucher[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  useEffect(() => {
+    getProductVouchersApi(product.id).then(setRows).catch(() => setRows([]));
+  }, [product.id, user?.id]);
+
+  if (rows.length === 0) return null;
+
+  const claim = async (v: WalletVoucher) => {
+    if (!user) { navigate('/login'); return; }
+    setBusy(v.id);
+    try {
+      const res = await claimVoucherApi({ voucher_id: v.id });
+      setRows((prev) => prev.map((r) => (r.id === v.id ? { ...r, claimed: true } : r)));
+      showToast(res.message, 'success');
+    } catch (e) {
+      showToast(apiErrorMessage(e, 'The voucher could not be claimed.'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="mt-5 flex flex-wrap gap-2" aria-label="Shop vouchers">
+      {rows.map((v) => (
+        <div key={v.id} className="flex items-center gap-3 rounded-xl border border-dashed border-brand-red/50 bg-rose-50/40 pl-3 pr-1.5 py-1.5">
+          <span className="min-w-0">
+            <span className="block text-[12.5px] font-semibold text-brand-red">{v.label}</span>
+            <span className="block text-[11px] text-stone-500">Min. spend {peso(v.min_spend)} · until {new Date(v.ends_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
+          </span>
+          <button type="button" onClick={() => claim(v)} disabled={v.claimed || v.used_up_by_you || busy === v.id}
+            className="h-8 px-3 rounded-lg bg-brand-red text-white text-[12px] font-semibold disabled:bg-stone-200 disabled:text-stone-500">
+            {v.used_up_by_you ? 'Used' : v.claimed ? 'Claimed' : 'Claim'}
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -350,7 +551,7 @@ function Assurances({ product }: { product: ProductDetail }) {
     {
       icon: Truck,
       title: <>Arrives <span className="font-semibold text-stone-900">{day(product.estimated_delivery_days_min)} – {day(product.estimated_delivery_days_max)}</span>{to && <> to {to}</>}</>,
-      detail: <>{freeFrom !== null ? <>Free delivery on {peso(freeFrom)}+ from this shop, otherwise {peso(DELIVERY_FEE)}</> : <>{peso(DELIVERY_FEE)} delivery per shop order</>}{from && <> · ships from {from}</>}</>,
+      detail: <>{freeFrom !== null ? <>Free delivery on {peso(freeFrom)}+ from this shop. </> : null}Shipping is by route and weight, shown at checkout{from && <> · ships from {from}</>}</>,
       action: <Link to="/settings/addresses" className="text-[12px] font-semibold text-brand-red hover:underline shrink-0">{user?.default_address ? 'Change' : 'Set address'}</Link>,
     },
     { icon: Banknote, title: 'Cash on delivery available', detail: shop && !shop.accepts_gcash ? 'Pay the rider in cash when your order arrives.' : 'Pay the rider when your order arrives, or pay the shop by GCash at checkout.' },
@@ -551,7 +752,7 @@ function Reviews({ product }: { product: ProductDetail }) {
       {total === 0 ? (
         <div className="rounded-2xl border border-dashed border-stone-300 px-6 py-10 text-center">
           <p className="text-sm font-semibold text-stone-800">No reviews yet</p>
-          <p className="mt-1 text-[13px] text-stone-500">Buyers can review this item after it is delivered.</p>
+          <p className="mt-1 text-[13px] text-stone-500">Buyers can review this item once their order is completed.</p>
         </div>
       ) : (
         <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-10">
@@ -590,7 +791,7 @@ function Reviews({ product }: { product: ProductDetail }) {
               <p className="py-10 text-center text-sm text-stone-500">No reviews with this rating.</p>
             ) : (
               <ul className="divide-y divide-stone-200 border-y border-stone-200">
-                {data.data.map((r) => <ReviewRow key={r.id} review={r} />)}
+                {data.data.map((r) => <ReviewRow key={r.id} review={r} shopName={product.seller.shop_name} />)}
               </ul>
             )}
             {data && data.meta.last_page > 1 && (
@@ -611,9 +812,9 @@ function Reviews({ product }: { product: ProductDetail }) {
   );
 }
 
-function ReviewRow({ review }: { review: ProductReview }) {
-  const parts = (review.buyer?.name ?? '').trim().split(/\s+/).filter(Boolean);
-  const name = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0] || 'Buyer';
+function ReviewRow({ review, shopName }: { review: ProductReview; shopName: string }) {
+  // The name arrives masked by the server (A*a C.).
+  const name = review.buyer?.name?.trim() || 'Buyer';
   return (
     <li className="py-5 flex gap-4">
       <span className="w-10 h-10 rounded-full bg-stone-200 overflow-hidden flex items-center justify-center text-[13px] font-semibold text-stone-600 shrink-0">
@@ -625,11 +826,25 @@ function ReviewRow({ review }: { review: ProductReview }) {
           {review.verified_purchase && <span className="text-[11px] text-emerald-700">Verified purchase</span>}
           <span className="ml-auto text-[12px] text-stone-400">{new Date(review.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
         </div>
-        <div className="mt-1"><Stars rating={review.rating} className="w-3 h-3" /></div>
-        {review.comment && <p className="mt-2 text-[14px] text-stone-700 leading-relaxed">{review.comment}</p>}
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <Stars rating={review.rating} className="w-3 h-3" />
+          {review.variant_label && review.variant_label !== 'Default' && <span className="text-[12px] text-stone-500">Variation: {review.variant_label}</span>}
+        </div>
+        {review.comment && <p className="mt-2 text-[14px] text-stone-700 leading-relaxed whitespace-pre-line">{review.comment}</p>}
         {(review.images?.length ?? 0) > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {review.images!.map((url, i) => <img key={i} src={url} alt="" className="w-20 h-20 rounded-xl object-cover ring-1 ring-stone-200" />)}
+            {review.images!.map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noreferrer"><img src={url} alt="Buyer photo" className="w-20 h-20 rounded-xl object-cover ring-1 ring-stone-200" /></a>
+            ))}
+          </div>
+        )}
+        {review.seller_reply && (
+          <div className="mt-3 rounded-xl bg-stone-100/80 px-4 py-3">
+            <p className="text-[12px] font-semibold text-stone-800">
+              Reply from {shopName}
+              {review.seller_reply.replied_at && <span className="font-normal text-stone-500"> · {new Date(review.seller_reply.replied_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}{review.seller_reply.edited_at ? ' · edited' : ''}</span>}
+            </p>
+            <p className="mt-1 text-[13px] text-stone-700 leading-relaxed whitespace-pre-line">{review.seller_reply.body}</p>
           </div>
         )}
       </div>

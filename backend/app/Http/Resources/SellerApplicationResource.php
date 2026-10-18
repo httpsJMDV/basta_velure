@@ -16,6 +16,25 @@ class SellerApplicationResource extends JsonResource
             'shop_name'            => $this->shop_name,
             'shop_category'        => $this->shop_category,
             'shop_description'     => $this->shop_description,
+            'seller_type'          => $this->seller_type,
+            'tin'                  => $this->tin,
+            'shop_contact_number'  => $this->shop_contact_number,
+            // The business (pickup) address exactly as entered
+            'address'              => [
+                'region'      => $this->address_region,
+                'province'    => $this->address_province,
+                'city'        => $this->address_city,
+                'barangay'    => $this->address_barangay,
+                'street'      => $this->address_street,
+                'postal_code' => $this->address_postal_code,
+                'full'        => implode(', ', array_filter([
+                    $this->address_street, $this->address_barangay, $this->address_city, $this->address_province,
+                    $this->address_region, $this->address_postal_code,
+                ])),
+            ],
+            'bir_2303_url'         => $this->bir_2303_path
+                ? route('admin.seller-applications.bir-2303', $this->id)
+                : null,
             'date_of_birth'        => $this->date_of_birth?->toDateString(),
             'government_id_type'   => $this->government_id_type,
             'government_id_image_url'      => route('admin.seller-applications.id-image', $this->id),

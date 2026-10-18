@@ -1,98 +1,50 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, Trash2, Plus, Minus, Store, ArrowRight, ShieldCheck, Gift } from 'lucide-react';
+import { X, ShoppingBag, Trash2, Plus, Minus, Store, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
-import { useShopPaymentInfo, shopDelivery } from '../hooks/useShopDelivery';
+import type { CartItem } from '../hooks/useCart';
 import { pesoCompact as peso } from '../utils/pricing';
-
-export interface CartItem {
-  id: number;
-  productId?: number;
-  name: string;
-  variant: string;
-  price: number;
-  quantity: number;
-  image: string;
-  sellerId?: number;
-  shopName?: string;
-}
 
 interface CartModalProps {
   open: boolean;
   onClose: () => void;
-  items?: CartItem[];
-  onRemove?: (id: number) => void;
-  onUpdateQty?: (id: number, qty: number) => void;
-  onClear?: () => void;
 }
 
 /**
- * The cart drawer. Items are grouped by shop, because every shop ships its own parcel: one delivery fee per shop,
- * or none once that shop's free-delivery minimum is met, exactly what checkout charges.
+ * The cart drawer: what was just added, grouped by shop. Signed in, it shows the live cart (an item that sold out
+ * or was removed is marked). Shipping is worked out at checkout from the delivery address.
  */
-export default function CartModal({ open, onClose, items: propItems, onRemove, onUpdateQty, onClear }: CartModalProps) {
+export default function CartModal({ open, onClose }: CartModalProps) {
   const navigate = useNavigate();
-  const cart = useCart();
+  const { items, view, signedIn, removeItem, updateQty } = useCart();
 
-  const items: CartItem[] = propItems ?? cart.items.map((i) => ({
-    id: i.variantId, productId: i.productId, name: i.name, variant: i.variant, price: i.price, quantity: i.quantity, image: i.image, sellerId: i.sellerId, shopName: i.shopName,
-  }));
-
-  const remove = (id: number) => (onRemove ? onRemove(id) : cart.removeItem(id));
-  const setQty = (id: number, qty: number) => {
-    if (qty <= 0) { remove(id); return; }
-    if (onUpdateQty) onUpdateQty(id, qty);
-    else cart.updateQty(id, qty);
-  };
-  const clear = () => (onClear ? onClear() : cart.clearCart());
-
-  const shopInfo = useShopPaymentInfo(items.map((i) => i.sellerId), open);
   const groups = useMemo(() => {
-    const map = new Map<string, { shop: string; sellerId?: number; list: CartItem[] }>();
+    const map = new Map<string, { shop: string; list: CartItem[] }>();
     items.forEach((i) => {
       const key = String(i.sellerId ?? i.shopName ?? 'Shop');
-      const g = map.get(key) ?? { shop: i.shopName || 'Shop', sellerId: i.sellerId, list: [] };
+      const g = map.get(key) ?? { shop: i.shopName || 'Shop', list: [] };
       g.list.push(i);
       map.set(key, g);
     });
-    return [...map.entries()].map(([key, g]) => {
-      const subtotal = g.list.reduce((s, i) => s + i.price * i.quantity, 0);
-      return { key, ...g, ...shopDelivery(subtotal, g.sellerId ? shopInfo[g.sellerId] : undefined) };
-    });
-  }, [items, shopInfo]);
+    return [...map.entries()].map(([key, g]) => ({ key, ...g }));
+  }, [items]);
 
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const count = items.reduce((s, i) => s + i.quantity, 0);
-  const delivery = groups.reduce((s, g) => s + g.fee, 0);
-  const total = subtotal + delivery;
-
+  const selected = signedIn ? (view?.summary.total ?? 0) : items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const selectedLines = signedIn ? (view?.summary.selected_lines ?? 0) : items.length;
   const go = (to: string) => { onClose(); navigate(to); };
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-[2px]"
-            onClick={onClose}
-          />
-          <motion.aside
-            key="drawer"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+          <motion.div key="backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-[2px]" onClick={onClose} />
+          <motion.aside key="drawer" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-[#FAF8F5] shadow-[-24px_0_60px_-20px_rgba(28,25,23,0.35)] flex flex-col"
-            role="dialog"
-            aria-label="Your cart"
-          >
-            {/* Header */}
+            role="dialog" aria-label="Your cart">
             <div className="flex items-center justify-between px-5 h-16 bg-white border-b border-stone-200 shrink-0">
               <div className="flex items-baseline gap-2">
                 <h2 className="text-[20px] font-serif font-bold tracking-tight text-[#1E1B18]">Your cart</h2>
@@ -117,77 +69,66 @@ export default function CartModal({ open, onClose, items: propItems, onRemove, o
             ) : (
               <>
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-                  {groups.map(({ key, shop, list, fee, short }) => (
+                  {groups.map(({ key, shop, list }) => (
                     <section key={key} className="rounded-2xl bg-white border border-stone-200 overflow-hidden">
-                      <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-stone-100">
-                        <span className="flex items-center gap-2 min-w-0 text-[13px] font-semibold text-stone-900">
-                          <Store className="w-4 h-4 text-stone-400 shrink-0" /><span className="truncate">{shop}</span>
-                        </span>
-                        {fee === 0
-                          ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 shrink-0"><Gift className="w-3 h-3" /> Free delivery</span>
-                          : <span className="text-[11px] text-stone-500 shrink-0">{peso(fee)} delivery</span>}
+                      <header className="flex items-center gap-2 px-4 py-2.5 border-b border-stone-100 text-[13px] font-semibold text-stone-900">
+                        <Store className="w-4 h-4 text-stone-400 shrink-0" /><span className="truncate">{shop}</span>
                       </header>
-                      {short > 0 && (
-                        <p className="px-4 py-1.5 text-[11px] text-emerald-800 bg-emerald-50/60 border-b border-emerald-100/80">
-                          Add <strong className="tabular-nums">{peso(short)}</strong> more from this shop for free delivery
-                        </p>
-                      )}
                       <ul className="divide-y divide-stone-100">
-                        {list.map((item) => (
-                          <li key={item.id} className="flex gap-3 p-3">
-                            <Link to={`/products/${item.productId}`} onClick={onClose} className="w-[72px] h-[72px] rounded-xl overflow-hidden bg-stone-50 ring-1 ring-stone-200 shrink-0">
-                              {item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> : <ShoppingBag className="w-6 h-6 m-6 text-stone-300" />}
-                            </Link>
-                            <div className="flex-1 min-w-0 flex flex-col">
-                              <div className="flex items-start gap-2">
-                                <Link to={`/products/${item.productId}`} onClick={onClose} className="flex-1 text-[13px] leading-snug text-stone-900 line-clamp-2 hover:text-brand-red">{item.name}</Link>
-                                <button type="button" onClick={() => remove(item.id)} className="w-7 h-7 -mt-1 -mr-1 rounded-full flex items-center justify-center text-stone-400 hover:text-brand-red hover:bg-rose-50 shrink-0" aria-label={`Remove ${item.name}`}>
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                              {item.variant && <span className="mt-0.5 text-[11px] text-stone-500 truncate">{item.variant}</span>}
-                              <div className="mt-auto pt-2 flex items-center justify-between gap-2">
-                                <div className="flex items-center h-8 rounded-full border border-stone-300 bg-white">
-                                  <button type="button" onClick={() => setQty(item.id, item.quantity - 1)} className="w-8 h-full flex items-center justify-center text-stone-600 hover:text-stone-900" aria-label="Fewer">
-                                    <Minus className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="w-7 text-center text-[13px] font-semibold tabular-nums">{item.quantity}</span>
-                                  <button type="button" onClick={() => setQty(item.id, item.quantity + 1)} className="w-8 h-full flex items-center justify-center text-stone-600 hover:text-stone-900" aria-label="More">
-                                    <Plus className="w-3.5 h-3.5" />
+                        {list.map((item) => {
+                          const blocked = item.status && item.status !== 'available';
+                          return (
+                            <li key={item.variantId} className={`flex gap-3 p-3 ${blocked ? 'bg-stone-50/80' : ''}`}>
+                              <Link to={`/products/${item.productId}`} onClick={onClose} className={`w-[72px] h-[72px] rounded-xl overflow-hidden bg-stone-50 ring-1 ring-stone-200 shrink-0 ${blocked ? 'opacity-50' : ''}`}>
+                                {item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> : <ShoppingBag className="w-6 h-6 m-6 text-stone-300" />}
+                              </Link>
+                              <div className="flex-1 min-w-0 flex flex-col">
+                                <div className="flex items-start gap-2">
+                                  <Link to={`/products/${item.productId}`} onClick={onClose} className="flex-1 text-[13px] leading-snug text-stone-900 line-clamp-2 hover:text-brand-red">{item.name}</Link>
+                                  <button type="button" onClick={() => removeItem(item.variantId)} className="w-7 h-7 -mt-1 -mr-1 rounded-full flex items-center justify-center text-stone-400 hover:text-brand-red hover:bg-rose-50 shrink-0" aria-label={`Remove ${item.name}`}>
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
-                                <span className="text-[14px] font-bold text-stone-900 tabular-nums">{peso(item.price * item.quantity)}</span>
+                                {item.variant && <span className="mt-0.5 text-[11px] text-stone-500 truncate">{item.variant}</span>}
+                                {blocked && item.message && <span className="mt-0.5 text-[11px] font-medium text-amber-800">{item.message}</span>}
+                                <div className="mt-auto pt-2 flex items-center justify-between gap-2">
+                                  <div className="flex items-center h-8 rounded-full border border-stone-300 bg-white">
+                                    <button type="button" onClick={() => item.quantity > 1 ? updateQty(item.variantId, item.quantity - 1) : removeItem(item.variantId)} className="w-8 h-full flex items-center justify-center text-stone-600 hover:text-stone-900" aria-label="Fewer">
+                                      <Minus className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="w-7 text-center text-[13px] font-semibold tabular-nums">{item.quantity}</span>
+                                    <button type="button" onClick={() => updateQty(item.variantId, item.quantity + 1)} className="w-8 h-full flex items-center justify-center text-stone-600 hover:text-stone-900" aria-label="More">
+                                      <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <span className="text-[14px] font-bold text-stone-900 tabular-nums">{peso(item.price * item.quantity)}</span>
+                                </div>
                               </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </section>
                   ))}
-                  <button type="button" onClick={clear} className="mx-auto block text-[12px] font-medium text-stone-500 hover:text-brand-red">Remove everything</button>
                 </div>
 
-                {/* Summary */}
                 <div className="bg-white border-t border-stone-200 px-5 pt-4 pb-5 shrink-0">
                   <dl className="space-y-1.5 text-[13px]">
-                    <div className="flex justify-between text-stone-600"><dt>Subtotal</dt><dd className="tabular-nums text-stone-900">{peso(subtotal)}</dd></div>
-                    <div className="flex justify-between text-stone-600">
-                      <dt>Delivery <span className="text-stone-400">({groups.length} parcel{groups.length === 1 ? '' : 's'})</span></dt>
-                      <dd className={delivery === 0 ? 'font-semibold text-emerald-700' : 'tabular-nums text-stone-900'}>{delivery === 0 ? 'Free' : peso(delivery)}</dd>
+                    <div className="flex justify-between items-baseline">
+                      <dt className="text-[14px] font-semibold text-stone-900">{signedIn ? 'Selected subtotal' : 'Subtotal'}</dt>
+                      <dd className="text-[22px] font-bold tracking-tight text-brand-red tabular-nums">{peso(selected)}</dd>
                     </div>
-                    <div className="flex justify-between items-baseline pt-2 mt-1 border-t border-stone-100">
-                      <dt className="text-[15px] font-semibold text-stone-900">Total</dt>
-                      <dd className="text-[22px] font-bold tracking-tight text-brand-red tabular-nums">{peso(total)}</dd>
-                    </div>
+                    <p className="text-[12px] text-stone-500">Shipping and vouchers are added at checkout.</p>
                   </dl>
-                  <button type="button" onClick={() => go('/checkout')} className="mt-4 w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
-                    Check out <ArrowRight className="w-4 h-4" />
+                  <button type="button" onClick={() => go(signedIn ? '/checkout' : '/login')} disabled={signedIn && selectedLines === 0}
+                    className="mt-4 w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                    {signedIn ? <>Check out <ArrowRight className="w-4 h-4" /></> : 'Log in to check out'}
                   </button>
                   <button type="button" onClick={() => go('/cart')} className="mt-2 w-full h-10 rounded-full text-[13px] font-semibold text-stone-700 hover:bg-stone-100 transition-colors">
                     View full cart
                   </button>
                   <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-stone-500">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> GCash to the shop or cash on delivery · 7-day returns
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Cash on delivery, GCash, e-wallet or card · 7-day returns
                   </p>
                 </div>
               </>

@@ -12,6 +12,7 @@ use App\Models\Rider;
 use App\Models\SellerProfile;
 use App\Models\SortingCenter;
 use App\Models\User;
+use App\Support\NotificationPreferences;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -74,6 +75,72 @@ class MailNotifier
             'actionUrl' => $this->url('/login'),
             'actionLabel' => 'Sign in to Loved-IT',
             'footer' => 'You received this email because of a change to your Loved-IT account status.',
+        ]);
+    }
+
+    /**
+     * The 6-digit code for a new account, a new email address or a new mobile number. Sent at once (not queued): the
+     * person is waiting on the verification screen, and the code only works for a few minutes.
+     */
+    public function verificationCode(User $user, string $code, string $purpose, string $sendTo, int $minutes): void
+    {
+        [$subject, $title, $lead] = match ($purpose) {
+            \App\Models\EmailOtp::PURPOSE_EMAIL_CHANGE => [
+                'Confirm your new Loved-IT email address',
+                'Confirm your new email.',
+                'Enter this code in your Loved-IT account settings to change your sign-in email to this address. Until you do, your old email keeps working.',
+            ],
+            \App\Models\EmailOtp::PURPOSE_PHONE_CHANGE => [
+                'Confirm your new Loved-IT mobile number',
+                'Confirm your new mobile number.',
+                'Enter this code in your Loved-IT account settings to save your new mobile number. Your number does not change until you do.',
+            ],
+            default => [
+                'Your Loved-IT verification code',
+                'Verify your email.',
+                'Welcome to Loved-IT. Enter this code on the verification page to activate your account.',
+            ],
+        };
+
+        $this->sendNow($sendTo, $user->first_name, $subject, 'verification_code', [
+            'label' => 'Verification code',
+            'title' => $title,
+            'paragraphs' => [$lead],
+            'highlight' => ['title' => 'Your code', 'body' => implode(' ', str_split($code, 3))],
+            'note' => "The code works for {$minutes} minutes and only once. If you ask for a new code, this one stops working.",
+            'footer' => 'If you did not ask for this code, you can ignore this email; nothing changes without it.',
+        ]);
+    }
+
+    /** The one-time link a rider added by their courier company uses to set a password (A13). */
+    public function riderActivation(User $user, string $companyName, string $link, int $hours): void
+    {
+        $this->sendNow($user->email, $user->first_name, 'Activate your Loved-IT rider account', 'rider_activation', [
+            'label' => 'Rider account',
+            'title' => 'Set your password to start delivering.',
+            'paragraphs' => [
+                "{$companyName} added you as a rider on Loved-IT. Open the link below to set your password and activate your account.",
+            ],
+            'details' => ['Company' => $companyName, 'Sign-in email' => $user->email],
+            'actionUrl' => $link,
+            'actionLabel' => 'Activate my account',
+            'note' => "The link works once, for {$hours} hours. If it expires, ask {$companyName} to send a new one.",
+            'footer' => 'You received this email because a courier company added you as a rider on Loved-IT.',
+        ]);
+    }
+
+    /** The courier company did not approve a rider waiting for verification. */
+    public function riderNotApproved(Rider $rider, string $reason): void
+    {
+        $this->send($rider->user, 'Update on your Loved-IT rider account', 'rider_not_approved', [
+            'tone' => 'danger',
+            'label' => 'Rider verification',
+            'title' => 'Your rider account was not approved.',
+            'paragraphs' => ['Your courier company reviewed your rider details and documents and could not approve them yet.'],
+            'highlight' => ['title' => 'Reason', 'body' => $reason],
+            'actionUrl' => $this->url('/rider/account'),
+            'actionLabel' => 'Open your rider account',
+            'footer' => 'You received this email because you are a rider on Loved-IT.',
         ]);
     }
 
@@ -348,28 +415,73 @@ class MailNotifier
             'footer' => 'You received this email because you placed an order on Loved-IT.',
         ]);
 
+        // An e-wallet or card order reaches the seller once it is paid (SandboxGateway), not while it waits for payment.
         foreach ($orders as $order) {
-            $seller = $order->items->first()?->seller;
-            if (! $seller) {
-                continue;
+            if (! in_array($order->payment_method, ['e_wallet', 'card'], true)) {
+                $this->sellerNewOrder($order);
             }
-            $this->send($seller, 'New order ' . $order->order_number, 'seller_new_order', [
-                'tone' => 'info',
-                'label' => 'New order',
-                'title' => 'You have a new order.',
-                'paragraphs' => [
-                    $order->payment_method === 'cod'
-                        ? 'A buyer placed a cash-on-delivery order. Confirm it to start fulfilment.'
-                        : 'A buyer placed a GCash order. Check the payment proof, then confirm it to start fulfilment.',
-                ],
-                'items' => $order->items->map(fn ($item) => $this->itemRow($item))->all(),
-                'totals' => ['Items' => $this->peso($order->subtotal), 'Delivery fee' => $this->peso($order->shipping_fee), 'Order total' => $this->peso($order->total)],
-                'details' => ['Order' => $order->order_number, 'Payment' => $order->payment_method === 'cod' ? 'Cash on delivery' : 'GCash', 'Ship to' => $this->address($order)],
-                'actionUrl' => $this->url('/seller/orders'),
-                'actionLabel' => 'Open order',
-                'footer' => 'You received this email because a buyer ordered from your Loved-IT shop.',
-            ]);
         }
+    }
+
+    /** "You have a new order": cash on delivery and GCash when placed, e-wallet and card when paid. */
+    public function sellerNewOrder(Order $order): void
+    {
+        $order->loadMissing(['items.seller']);
+        $seller = $order->items->first()?->seller;
+        if (! $seller) {
+            return;
+        }
+        [$paragraph, $payment] = match ($order->payment_method) {
+            'cod'   => ['A buyer placed a cash-on-delivery order. Confirm it to start fulfilment.', 'Cash on delivery'],
+            'gcash' => ['A buyer placed a GCash order. Check the payment proof, then confirm it to start fulfilment.', 'GCash'],
+            default => ['A buyer placed and paid an order. Confirm it to start fulfilment.', $order->payment_method === 'card' ? 'Card (paid)' : 'E-wallet (paid)'],
+        };
+        $this->send($seller, 'New order ' . $order->order_number, 'seller_new_order', [
+            'tone' => 'info',
+            'label' => 'New order',
+            'title' => 'You have a new order.',
+            'paragraphs' => [$paragraph],
+            'items' => $order->items->map(fn ($item) => $this->itemRow($item))->all(),
+            'totals' => ['Items' => $this->peso($order->subtotal), 'Delivery fee' => $this->peso($order->shipping_fee), 'Order total' => $this->peso($order->total)],
+            'details' => ['Order' => $order->order_number, 'Payment' => $payment, 'Ship to' => $this->address($order)],
+            'actionUrl' => $this->url('/seller/orders'),
+            'actionLabel' => 'Open order',
+            'footer' => 'You received this email because a buyer ordered from your Loved-IT shop.',
+        ]);
+    }
+
+    /** A product fell to its low-stock level or sold out (A29). Off by default; the seller can turn it on. */
+    public function lowStock(Product $product, string $title, string $body): void
+    {
+        $product->loadMissing('seller');
+        $this->send($product->seller, $title . ': ' . $product->name, 'stock_low', [
+            'tone' => 'warning',
+            'label' => $title,
+            'title' => $title === 'Sold out' ? 'A product sold out.' : 'A product is running low.',
+            'paragraphs' => [$body],
+            'actionUrl' => $this->url("/seller/products/{$product->id}/edit"),
+            'actionLabel' => 'Update stock',
+            'footer' => 'You received this email because low-stock emails are on in your notification settings.',
+        ]);
+    }
+
+    /** A buyer reviewed one of the seller's products. Off by default; the seller can turn it on. */
+    public function newReview(\App\Models\Review $review): void
+    {
+        $review->loadMissing(['product.seller', 'buyer:id,first_name']);
+        if (! $review->product?->seller) {
+            return;
+        }
+        $this->send($review->product->seller, "New {$review->rating}-star review: {$review->product->name}", 'review_new', array_filter([
+            'tone' => $review->rating >= 4 ? 'success' : 'info',
+            'label' => 'New review',
+            'title' => ($review->buyer?->first_name ?? 'A buyer') . " gave {$review->product->name} {$review->rating} out of 5.",
+            'paragraphs' => ['Reply from your Reviews page so other buyers see your answer.'],
+            'highlight' => $review->comment ? ['title' => 'Their review', 'body' => strip_tags($review->comment)] : null,
+            'actionUrl' => $this->url('/seller/reviews'),
+            'actionLabel' => 'Open reviews',
+            'footer' => 'You received this email because review emails are on in your notification settings.',
+        ]));
     }
 
     /** Status changes worth telling people about; every other step is visible in the app's tracking. */
@@ -567,9 +679,37 @@ class MailNotifier
     // ── Plumbing ─────────────────────────────────────────────────────────────
 
     /** @param array<string, mixed> $notice */
+    /** The seller emails a seller can turn off, by type, and their NotificationPreferences category. */
+    private const SELLER_PREFERENCES = [
+        'seller_new_order'  => 'new_order',
+        'seller_order_'     => 'order_updates',
+        'return_requested'  => 'returns',
+        'stock_low'         => 'low_stock',
+        'review_new'        => 'new_review',
+        'earnings_released' => 'payouts',
+        'payout_'           => 'payouts',
+        'product_'          => 'listings',
+    ];
+
+    private static function preferenceFor(string $kind): ?string
+    {
+        foreach (self::SELLER_PREFERENCES as $prefix => $category) {
+            if ($kind === $prefix || (str_ends_with($prefix, '_') && str_starts_with($kind, $prefix))) {
+                return $category;
+            }
+        }
+
+        return null;
+    }
+
     private function send(?User $to, string $subject, string $kind, array $notice): void
     {
         if (self::$muted || ! $to || ! $to->email) {
+            return;
+        }
+        // A seller who turned this kind of email off in their notification settings does not get it.
+        $category = self::preferenceFor($kind);
+        if ($category && ! NotificationPreferences::allows($to, $category, 'email')) {
             return;
         }
 
@@ -577,6 +717,20 @@ class MailNotifier
             Mail::to($to->email)->queue(new NoticeMail($subject, $notice + ['recipientName' => $to->first_name ?: 'there'], $kind));
         } catch (\Throwable $e) {
             Log::warning("Could not queue the {$kind} email.", ['user_id' => $to->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /** Sends right away instead of queueing; a failure is logged and swallowed like a queued notice. */
+    private function sendNow(string $email, ?string $name, string $subject, string $kind, array $notice): void
+    {
+        if (self::$muted || $email === '') {
+            return;
+        }
+
+        try {
+            Mail::to($email)->send(new NoticeMail($subject, $notice + ['recipientName' => $name ?: 'there'], $kind));
+        } catch (\Throwable $e) {
+            Log::warning("Could not send the {$kind} email.", ['email' => $email, 'error' => $e->getMessage()]);
         }
     }
 

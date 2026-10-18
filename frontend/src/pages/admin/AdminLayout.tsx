@@ -5,9 +5,10 @@ import {
   Users, Store, ShoppingBag,
   ShieldAlert, Star, Flag, Settings, ScrollText,
   Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, ChevronRight,
-  Bell, CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X,
+  CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X, Ticket,
   Warehouse, Truck,
 } from 'lucide-react';
+import NotificationBell from '../../components/notifications/NotificationBell';
 import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import LovedItLogo from '../../components/LovedItLogo';
@@ -35,6 +36,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/admin/products':               'Products',
   '/admin/orders':                 'Orders',
   '/admin/payments':               'Payments & Payouts',
+  '/admin/vouchers':               'Vouchers',
   '/admin/disputes':               'Disputes / Returns',
   '/admin/reviews':                'Reviews & Feedback',
   '/admin/reports':                'Reports',
@@ -90,6 +92,7 @@ function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
       items: [
         { icon: PackageCheck, label: 'Orders',             to: '/admin/orders' },
         { icon: Wallet,       label: 'Payments & Payouts', to: '/admin/payments' },
+        { icon: Ticket,       label: 'Vouchers',           to: '/admin/vouchers' },
         { icon: ShieldAlert,  label: 'Disputes / Returns', to: '/admin/disputes' },
         { icon: Flag,         label: 'Analytics & Reports',to: '/admin/reports' },
       ],
@@ -278,6 +281,7 @@ function AdminSearchBar() {
     { label: 'Categories Management', to: '/admin/categories', group: 'Catalog', icon: Tag },
     { label: 'Orders & Fulfillment', to: '/admin/orders', group: 'Commerce', icon: PackageCheck },
     { label: 'Payments & Seller Payouts', to: '/admin/payments', group: 'Commerce', icon: Wallet },
+    { label: 'Platform & Shipping Vouchers', to: '/admin/vouchers', group: 'Commerce', icon: Ticket },
     { label: 'Disputes & Return Mediation', to: '/admin/disputes', group: 'Trust & Safety', icon: ShieldAlert },
     { label: 'Customer Reviews Moderation', to: '/admin/reviews', group: 'Trust & Safety', icon: Star },
     { label: 'Platform & Return Policy Settings', to: '/admin/settings', group: 'Settings', icon: Settings },
@@ -462,7 +466,6 @@ function TopBar({
     }
   }, [user]);
 
-  const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const totalAlerts = pendingSellers + pendingBuyers;
@@ -499,69 +502,36 @@ function TopBar({
 
         {/* Right: bell + chat + admin info */}
         <div className="ml-auto flex items-center gap-1.5 shrink-0 relative">
-          {/* Notification Button */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setNotifOpen((v) => !v);
-                setUserMenuOpen(false);
-              }}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
-              title="Notifications"
-            >
-              <Bell className="w-[17px] h-[17px]" />
-              {totalAlerts > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-brand-red rounded-full ring-2 ring-[#111111]" />
-              )}
-            </button>
-
-            {/* Notification Popover */}
-            {notifOpen && (
-              <div className="absolute right-0 top-11 w-80 bg-[#1c1c1c] border border-white/10 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                  <span className="text-xs font-bold text-white">Notifications</span>
-                  <span className="text-[10px] bg-brand-red/20 text-red-300 font-bold px-2 py-0.5 rounded-full border border-brand-red/30">
-                    {totalAlerts} Action{totalAlerts === 1 ? '' : 's'}
-                  </span>
-                </div>
-                <div className="py-2 space-y-2 max-h-64 overflow-y-auto">
+          {/* Notifications: the inbox (escalated returns and other updates) and what is waiting for review */}
+          <NotificationBell
+            variant="dark"
+            attention={totalAlerts}
+            extra={totalAlerts > 0 ? (
+              <div className="border-t border-stone-100 px-3 py-2.5 bg-stone-50/60">
+                <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">Waiting for review</p>
+                <div className="space-y-1">
                   {pendingSellers > 0 && (
-                    <Link
-                      to="/admin/seller-applications"
-                      onClick={() => setNotifOpen(false)}
-                      className="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-white/5 transition-colors"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0 mt-0.5">
-                        <Store className="w-3.5 h-3.5" />
-                      </div>
+                    <Link to="/admin/seller-applications" className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-white transition-colors">
+                      <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center shrink-0 mt-0.5"><Store className="w-3.5 h-3.5" aria-hidden="true" /></div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-white leading-tight">{pendingSellers} Seller Application{pendingSellers > 1 ? 's' : ''}</p>
-                        <p className="text-[10px] text-white/50">Pending document verification</p>
+                        <p className="text-xs font-bold leading-tight text-stone-900">{pendingSellers} seller application{pendingSellers > 1 ? 's' : ''}</p>
+                        <p className="text-[11px] text-stone-500">Documents to verify</p>
                       </div>
                     </Link>
                   )}
                   {pendingBuyers > 0 && (
-                    <Link
-                      to="/admin/buyer-applications"
-                      onClick={() => setNotifOpen(false)}
-                      className="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-white/5 transition-colors"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-300 flex items-center justify-center shrink-0 mt-0.5">
-                        <UserCheck className="w-3.5 h-3.5" />
-                      </div>
+                    <Link to="/admin/buyer-applications" className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-white transition-colors">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5"><UserCheck className="w-3.5 h-3.5" aria-hidden="true" /></div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-white leading-tight">{pendingBuyers} Buyer Verification{pendingBuyers > 1 ? 's' : ''}</p>
-                        <p className="text-[10px] text-white/50">Awaiting ID review</p>
+                        <p className="text-xs font-bold leading-tight text-stone-900">{pendingBuyers} buyer verification{pendingBuyers > 1 ? 's' : ''}</p>
+                        <p className="text-[11px] text-stone-500">IDs to review</p>
                       </div>
                     </Link>
                   )}
-                  {totalAlerts === 0 && (
-                    <p className="text-center py-6 text-xs text-white/40">No pending administrative alerts</p>
-                  )}
                 </div>
               </div>
-            )}
-          </div>
+            ) : null}
+          />
 
           <Link
             to="/admin/messages"
@@ -576,7 +546,6 @@ function TopBar({
             <button
               onClick={() => {
                 setUserMenuOpen((v) => !v);
-                setNotifOpen(false);
               }}
               className="flex items-center gap-2.5 ml-1 pl-3 border-l border-white/10 hover:opacity-90 transition-opacity"
             >

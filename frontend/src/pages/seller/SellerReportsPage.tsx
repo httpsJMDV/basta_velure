@@ -7,6 +7,8 @@ import {
   Truck,
   Award,
   Wallet,
+  CreditCard,
+  CalendarRange,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -31,12 +33,22 @@ import type {
   PaymentMethodSplit,
 } from '../../types';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
+import { apiErrorMessage } from '../../utils/apiError';
+
+const peso = (n: number) => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Today's date in Manila, as YYYY-MM-DD. */
+const manilaToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+
+const fmtDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 
 const TIMEFRAMES = [
+  { label: 'Today', value: 'today' },
   { label: '7 Days', value: '7d' },
   { label: '30 Days', value: '30d' },
   { label: '90 Days', value: '90d' },
   { label: '12 Months', value: '12m' },
+  { label: 'Custom', value: 'custom' },
 ];
 
 export default function SellerReportsPage() {
@@ -45,6 +57,12 @@ export default function SellerReportsPage() {
   const [range, setRange] = useState<string>('30d');
   const [interval, setInterval] = useState<'daily' | 'monthly'>('daily');
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  // The custom range being typed, and the one last applied.
+  const [fromInput, setFromInput] = useState<string>(manilaToday());
+  const [toInput, setToInput] = useState<string>(manilaToday());
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
+  const rangeError = fromInput && toInput && toInput < fromInput ? 'The end date cannot be before the start date.' : null;
 
   const [summary, setSummary] = useState<SellerReportSummary | null>(null);
   const [chartData, setChartData] = useState<SellerRevenueChartPoint[]>([]);
@@ -52,24 +70,32 @@ export default function SellerReportsPage() {
   const [topProducts, setTopProducts] = useState<SellerTopProduct[]>([]);
 
   const loadData = useCallback(async () => {
+    if (range === 'custom' && !custom) return;
+    const params = range === 'custom' && custom ? { from: custom.from, to: custom.to } : { range };
     setLoading(true);
+    setError(null);
     try {
       const [sum, chart, split, top] = await Promise.all([
-        getSellerReportSummaryApi(range),
-        getSellerRevenueChartApi({ range, interval: range === '12m' ? 'monthly' : interval }),
-        getSellerPaymentMethodsApi(range),
-        getSellerReportTopProductsApi(range),
+        getSellerReportSummaryApi(params),
+        getSellerRevenueChartApi({ ...params, interval: range === '12m' ? 'monthly' : interval }),
+        getSellerPaymentMethodsApi(params),
+        getSellerReportTopProductsApi(params),
       ]);
       setSummary(sum);
       setChartData(chart);
       setPaymentSplit(split);
       setTopProducts(top);
-    } catch {
-      // ignore
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Could not load the report. Please try again.'));
     } finally {
       setLoading(false);
     }
-  }, [range, interval]);
+  }, [range, interval, custom]);
+
+  const applyCustom = () => {
+    if (!fromInput || !toInput || rangeError) return;
+    setCustom({ from: fromInput, to: toInput });
+  };
 
   useEffect(() => {
     loadData();
@@ -100,7 +126,9 @@ export default function SellerReportsPage() {
               </span>
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              Real-time sales velocity, net earnings disbursements, and product revenue performance
+              {summary?.from && summary?.to && !loading
+                ? `${fmtDay(summary.from)}${summary.from !== summary.to ? ` to ${fmtDay(summary.to)}` : ''} · Manila time, both days included`
+                : 'Sales, earnings and best sellers for the period you pick'}
             </p>
           </div>
         </div>
@@ -110,7 +138,10 @@ export default function SellerReportsPage() {
           {TIMEFRAMES.map((t) => (
             <button
               key={t.value}
-              onClick={() => setRange(t.value)}
+              onClick={() => {
+                setRange(t.value);
+                if (t.value === 'custom' && !custom && !rangeError) setCustom({ from: fromInput, to: toInput });
+              }}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 range === t.value
                   ? 'bg-brand-red text-white shadow-xs'
@@ -122,6 +153,55 @@ export default function SellerReportsPage() {
           ))}
         </div>
       </div>
+
+      {range === 'custom' && (
+        <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3 shadow-xs">
+          <form
+            className="flex flex-wrap items-end gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              applyCustom();
+            }}
+          >
+            <div className="flex items-center gap-2 text-xs font-bold text-gray-700 mr-1 self-center">
+              <CalendarRange className="w-4 h-4 text-brand-red" /> Custom range
+            </div>
+            <label className="text-[11px] font-semibold text-gray-500">
+              From
+              <input
+                type="date"
+                value={fromInput}
+                max={manilaToday()}
+                onChange={(e) => setFromInput(e.target.value)}
+                className="mt-1 block h-9 px-2.5 text-sm text-gray-900 bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-brand-red"
+              />
+            </label>
+            <label className="text-[11px] font-semibold text-gray-500">
+              To
+              <input
+                type="date"
+                value={toInput}
+                max={manilaToday()}
+                onChange={(e) => setToInput(e.target.value)}
+                aria-invalid={!!rangeError}
+                className={`mt-1 block h-9 px-2.5 text-sm text-gray-900 bg-white border rounded-lg focus:outline-none ${rangeError ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-brand-red'}`}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={!!rangeError || !fromInput || !toInput}
+              className="h-9 px-4 rounded-lg bg-brand-red text-white text-xs font-bold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Apply
+            </button>
+            {rangeError && <p className="basis-full text-[11px] font-semibold text-red-600">{rangeError}</p>}
+          </form>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl px-4 py-2.5">{error}</div>
+      )}
 
       {/* ── 2. Compact 4-Card Summary KPI Grid ── */}
       {loading ? (
@@ -153,8 +233,12 @@ export default function SellerReportsPage() {
               <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
                 ₱{animatedGmv.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-xs font-bold text-gray-800 mt-1">Gross Sales Volume</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Total customer order volume</p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Gross sales</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                {(summary?.seller_discounts ?? 0) > 0
+                  ? `Items sold; your discounts −${peso(summary?.seller_discounts ?? 0)}`
+                  : 'Items sold, shipping not included'}
+              </p>
             </div>
           </div>
 
@@ -165,15 +249,15 @@ export default function SellerReportsPage() {
                 <Wallet className="w-3.5 h-3.5" />
               </div>
               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                Net Profit
+                Your share
               </span>
             </div>
             <div>
               <p className="text-xl sm:text-2xl font-black text-emerald-700 tracking-tight leading-none">
                 ₱{animatedEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-xs font-bold text-gray-800 mt-1">Net Disbursed Earnings</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Credited merchant earnings</p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Net earnings</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">After your discounts and the 5% commission</p>
             </div>
           </div>
 
@@ -183,14 +267,14 @@ export default function SellerReportsPage() {
               <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
                 <Package className="w-3.5 h-3.5" />
               </div>
-              <span className="text-[10px] font-bold text-gray-400">Fulfilled</span>
+              <span className="text-[10px] font-bold text-gray-400">{summary?.delivered_orders ?? 0} delivered</span>
             </div>
             <div>
               <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
                 {animatedOrders.toLocaleString()}
               </p>
-              <p className="text-xs font-bold text-gray-800 mt-1">Total Orders Fulfilled</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Completed customer checkouts</p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Orders</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">{summary?.units_sold ?? 0} units · cancelled and returned left out</p>
             </div>
           </div>
 
@@ -200,14 +284,14 @@ export default function SellerReportsPage() {
               <div className="w-7 h-7 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center font-bold shrink-0">
                 <Coins className="w-3.5 h-3.5" />
               </div>
-              <span className="text-[10px] font-bold text-gray-400">Take-Rate</span>
+              <span className="text-[10px] font-bold text-gray-400">5%</span>
             </div>
             <div>
               <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
                 ₱{animatedFees.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-xs font-bold text-gray-800 mt-1">Platform Commission</p>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">Deducted service fees</p>
+              <p className="text-xs font-bold text-gray-800 mt-1">Loved-IT commission</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">5% of sales after your discounts</p>
             </div>
           </div>
         </div>
@@ -221,10 +305,10 @@ export default function SellerReportsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-gray-100">
             <div>
               <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Store Revenue Performance</h2>
-              <p className="text-[11px] text-gray-400">Gross Sales Volume (GMV) vs Net Merchant Credited Earnings</p>
+              <p className="text-[11px] text-gray-400">Gross sales and net earnings for the same period</p>
             </div>
 
-            {range !== '12m' && (
+            {range !== '12m' && range !== 'today' && (
               <div className="flex items-center gap-1 bg-gray-100/80 p-0.5 rounded-lg text-[11px] font-bold border border-gray-200/50">
                 <button
                   onClick={() => setInterval('daily')}
@@ -301,88 +385,42 @@ export default function SellerReportsPage() {
             </div>
             <div>
               <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Payment Method Volume</h3>
-              <p className="text-[10px] text-gray-400">Distribution across customer checkouts</p>
+              <p className="text-[10px] text-gray-400">How buyers paid for your orders</p>
             </div>
           </div>
 
           <div className="space-y-3 text-xs pt-1">
-            {/* GCash */}
-            <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-[#007DFE] flex items-center gap-1">
-                  <QrCode className="w-3.5 h-3.5" /> GCash Verified
-                </span>
-                <span className="font-mono font-bold text-gray-900">
-                  ₱{Number(paymentSplit?.gcash?.volume ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-[#007DFE] h-full rounded-full transition-all"
-                  style={{
-                    width: `${
-                      (paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0) > 0
-                        ? (((paymentSplit?.gcash?.volume ?? 0) /
-                            ((paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0))) *
-                            100
-                          ).toFixed(0)
-                        : 50
-                    }%`,
-                  }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-gray-400">
-                <span>{paymentSplit?.gcash?.count ?? 0} orders</span>
-                <span>
-                  {(paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0) > 0
-                    ? `${(
-                        ((paymentSplit?.gcash?.volume ?? 0) /
-                          ((paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0))) *
-                        100
-                      ).toFixed(0)}% share`
-                    : '0% share'}
-                </span>
-              </div>
-            </div>
-
-            {/* COD */}
-            <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-emerald-700 flex items-center gap-1">
-                  <Truck className="w-3.5 h-3.5" /> Cash on Delivery (COD)
-                </span>
-                <span className="font-mono font-bold text-gray-900">
-                  ₱{Number(paymentSplit?.cod?.volume ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-emerald-600 h-full rounded-full transition-all"
-                  style={{
-                    width: `${
-                      (paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0) > 0
-                        ? (((paymentSplit?.cod?.volume ?? 0) /
-                            ((paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0))) *
-                            100
-                          ).toFixed(0)
-                        : 50
-                    }%`,
-                  }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-gray-400">
-                <span>{paymentSplit?.cod?.count ?? 0} orders</span>
-                <span>
-                  {(paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0) > 0
-                    ? `${(
-                        ((paymentSplit?.cod?.volume ?? 0) /
-                          ((paymentSplit?.gcash?.volume ?? 0) + (paymentSplit?.cod?.volume ?? 0))) *
-                        100
-                      ).toFixed(0)}% share`
-                    : '0% share'}
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const channels = [
+                { key: 'cod', label: 'Cash on Delivery', icon: Truck, text: 'text-emerald-700', bar: 'bg-emerald-600', row: paymentSplit?.cod },
+                { key: 'gcash', label: 'GCash to your shop', icon: QrCode, text: 'text-[#007DFE]', bar: 'bg-[#007DFE]', row: paymentSplit?.gcash },
+                { key: 'e_wallet_card', label: 'E-wallet & card (via Loved-IT)', icon: CreditCard, text: 'text-violet-700', bar: 'bg-violet-600', row: paymentSplit?.e_wallet_card },
+              ];
+              const total = channels.reduce((s, c) => s + (c.row?.volume ?? 0), 0);
+              return channels.map((c) => {
+                const share = total > 0 ? Math.round(((c.row?.volume ?? 0) / total) * 100) : 0;
+                return (
+                  <div key={c.key} className="p-3 bg-gray-50 rounded-xl space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className={`font-bold ${c.text} flex items-center gap-1`}>
+                        <c.icon className="w-3.5 h-3.5" /> {c.label}
+                      </span>
+                      <span className="font-mono font-bold text-gray-900">{peso(c.row?.volume ?? 0)}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                      <div className={`${c.bar} h-full rounded-full transition-all`} style={{ width: `${share}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>{c.row?.count ?? 0} {(c.row?.count ?? 0) === 1 ? 'order' : 'orders'}</span>
+                      <span>{share}% share</span>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+            <p className="text-[10px] text-gray-400 leading-snug">
+              Order totals as the buyer paid them, shipping included. Cancelled and returned orders are left out.
+            </p>
           </div>
         </div>
 

@@ -3,7 +3,9 @@ import {
   AirVent, WashingMachine, CookingPot, Sofa, Lamp, BedDouble, UtensilsCrossed, Archive, Hammer, Drill, Wrench,
   Lightbulb, ShowerHead, Shirt, Footprints, ShoppingBag, Gem, Watch, Glasses, Sparkles, Palette, HeartPulse, Pill,
   Dumbbell, Tent, Bike, Car, Cog, HardHat, SprayCan, Baby, Milk, Puzzle, Trophy, BookOpen, PenTool, PawPrint, Bone,
-  Scissors, Store, type LucideIcon,
+  Scissors, Store,
+  Tablet, Monitor, Keyboard, Camera, Coffee, Package, CakeSlice, Egg, Tv, Microwave, Wind, Droplets, Bath, Blinds, Sprout, PaintRoller, Plug, Shovel, Construction, Moon, Waves, Backpack, Luggage, Umbrella, Smile, Stethoscope, Volleyball, Fish, Radio, CircleDot, Heart, ShieldCheck, Dices, Guitar, Brush, Gamepad2, GraduationCap, Sun, Cat, Home, Bird,
+  type LucideIcon,
 } from 'lucide-react';
 import type { StorefrontCategory } from '../../types';
 
@@ -32,6 +34,21 @@ const ICONS: Record<string, LucideIcon> = {
   'baby-kids': Baby, 'baby-gear': Baby, 'kids-clothing': Shirt, 'feeding-nursing': Milk, diapers: Baby,
   'toys-hobbies-books': Puzzle, toys: Puzzle, 'collectibles-hobbies': Trophy, books: BookOpen, stationery: PenTool,
   'pet-supplies': PawPrint, 'pet-food': Bone, 'pet-accessories': PawPrint, 'pet-health-grooming': Scissors,
+
+  tablets: Tablet, 'smartwatches-wearables': Watch, 'desktops-monitors': Monitor, 'keyboards-mice': Keyboard, cameras: Camera,
+  'coffee-tea': Coffee, 'canned-goods': Package, 'condiments-sauces': Soup, 'baking-supplies': CakeSlice, 'dairy-eggs': Egg,
+  televisions: Tv, 'microwaves-ovens': Microwave, 'vacuum-cleaners': Wind, 'water-dispensers': Droplets, 'irons-steamers': Shirt,
+  'bath-essentials': Bath, 'curtains-blinds': Blinds, 'cleaning-supplies': SprayCan, dinnerware: UtensilsCrossed, 'plants-gardening': Sprout,
+  'paint-supplies': PaintRoller, 'electrical-supplies': Plug, 'safety-gear': HardHat, 'garden-tools': Shovel, ladders: Construction,
+  skirts: Shirt, 'womens-sleepwear': Moon, 'womens-swimwear': Waves, 'womens-activewear': Dumbbell, 'womens-coord-sets': Shirt,
+  'polo-shirts': Shirt, shorts: Scissors, 'mens-underwear-socks': Shirt, 'mens-activewear': Dumbbell, 'barong-formal': Shirt, 'caps-hats': HardHat,
+  backpacks: Backpack, 'luggage-travel': Luggage, belts: Gem, 'hair-accessories': Sparkles, umbrellas: Umbrella, 'sling-bags': ShoppingBag,
+  haircare: Sparkles, fragrances: SprayCan, 'bath-body': Bath, 'oral-care': Smile, 'medical-supplies': Stethoscope, 'nail-care': Palette,
+  basketball: Volleyball, running: Footprints, swimming: Waves, 'racket-sports': Trophy, fishing: Fish, yoga: HeartPulse,
+  'car-electronics': Radio, 'tires-wheels': CircleDot, 'motorcycle-accessories': Bike, 'oils-fluids': Droplets, 'riding-gear': HardHat, 'car-parts': Cog,
+  'baby-toys': Puzzle, 'baby-bath-skincare': Bath, nursery: BedDouble, 'kids-shoes': Footprints, maternity: Heart, 'baby-safety': ShieldCheck,
+  'board-games-puzzles': Dices, 'musical-instruments': Guitar, 'arts-crafts': Brush, 'video-games': Gamepad2, 'educational-toys': GraduationCap, 'outdoor-play': Sun,
+  'cat-litter': Cat, 'pet-toys': Bone, 'pet-beds': Home, aquarium: Fish, 'bird-supplies': Bird, 'pet-carriers': Package, 'pet-treats': Cookie,
 };
 
 /** The picture for a category: its own photo, its best-selling product's photo, or an icon. */

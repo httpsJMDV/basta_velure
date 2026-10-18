@@ -815,7 +815,8 @@ class RiderChatTest extends TestCase
         $this->actingAs($user, 'sanctum')
             ->postJson("/api/v1/rider/deliveries/{$parcel->tracking_number}/failed", ['reason' => 'REFUSED'])->assertOk();
 
-        $this->assertSame(Parcel::STATUS_DELIVERY_FAILED, $parcel->fresh()->status);
+        // A refusal sends the parcel straight back to the seller (A13).
+        $this->assertSame(Parcel::STATUS_RETURN_TO_SENDER, $parcel->fresh()->status);
         $this->riderSend($user, $threadId, 'Please answer')->assertStatus(409);
         $this->viaConversations($this->buyer, $threadId, 'sorry')->assertStatus(409);
     }

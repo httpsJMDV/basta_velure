@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera, Store, MapPin, CheckCircle2, AlertTriangle,
   Loader2, Pencil, X, Phone, Clock, Shield, Copy, Check,
-  Star, Package, Users, MessageCircle, ExternalLink,
+  Star, Package, Users, MessageCircle, ExternalLink, Palmtree, Bell,
 } from 'lucide-react';
+import PhoneInput from '../../components/ui/PhoneInput';
+import { fileError, phoneError, postalError } from '../../utils/accountRules';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { useAuth } from '../../hooks/useAuth';
 import { shopUrl, shopUrlLabel } from '../../utils/shopLink';
@@ -287,6 +289,10 @@ export default function SellerShopProfilePage() {
   const [shippingPolicy, setShippingPolicy] = useState('');
   const [businessHours, setBusinessHours] = useState('');
   const [responseTime, setResponseTime] = useState('');
+  const [lowStockLevel, setLowStockLevel] = useState('5');
+  const [postalCode, setPostalCode] = useState('');
+  const [onVacation, setOnVacation] = useState(false);
+  const [vacationBusy, setVacationBusy] = useState(false);
   const [psgcAddress, setPsgcAddress] = useState<HubAddressValue>({
     region: '',
     regionName: '',
@@ -322,9 +328,12 @@ export default function SellerShopProfilePage() {
         setShippingPolicy(p.shipping_policy ?? '');
         setBusinessHours(p.business_hours ?? '');
         setResponseTime(p.response_time ?? '');
+        setLowStockLevel(String(p.low_stock_threshold ?? 5));
+        setPostalCode(p.address_postal_code ?? '');
+        setOnVacation(!!p.on_vacation);
         setPsgcAddress({
-          region: '',
-          regionName: '',
+          region: p.address_region_code ?? '',
+          regionName: p.address_region ?? '',
           province: p.address_province_code ?? '',
           provinceName: p.address_province ?? '',
           city: p.address_city_code ?? '',
@@ -342,17 +351,66 @@ export default function SellerShopProfilePage() {
     e: React.ChangeEvent<HTMLInputElement>,
     setFile: (f: File) => void,
     setPreview: (s: string) => void,
+    field: 'logo' | 'banner',
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // JPG or PNG up to 5 MB (A10); the server checks the content again.
+    const problem = fileError(file, field === 'logo' ? 'the logo' : 'the banner', { required: false });
+    setErrors((prev) => { const next = { ...prev }; if (problem) next[field] = problem; else delete next[field]; return next; });
+    e.target.value = '';
+    if (problem) return;
     setFile(file);
     setPreview(URL.createObjectURL(file));
-    e.target.value = '';
   }, []);
+
+  // Vacation mode is saved at once: buyers keep browsing the shop but cannot order until it is turned off.
+  const toggleVacation = async () => {
+    const next = !onVacation;
+    setVacationBusy(true);
+    const fd = new FormData();
+    fd.append('on_vacation', next ? '1' : '0');
+    try {
+      const updated = await updateSellerShopProfileApi(fd);
+      setProfile(updated);
+      setOnVacation(!!updated.on_vacation);
+      setToast({ type: 'success', message: next ? 'Vacation mode is on. Buyers can browse your shop but cannot order.' : 'Vacation mode is off. Buyers can order again.' });
+    } catch {
+      setToast({ type: 'error', message: 'Vacation mode could not be changed. Please try again.' });
+    } finally {
+      setVacationBusy(false);
+    }
+  };
+
+  const validateForm = (): Record<string, string> => {
+    const e: Record<string, string> = {};
+    const name = shopName.trim().replace(/\s+/g, ' ');
+    if (!name) e.shop_name = 'Store name is required.';
+    else if (name.length < 3 || name.length > 30) e.shop_name = 'Store name must be 3 to 30 characters.';
+    if (!shopContactNumber.trim()) e.shop_contact_number = 'Contact number is required.';
+    else { const phone = phoneError(shopContactNumber); if (phone) e.shop_contact_number = phone; }
+    if (shopDescription.trim().length > 500) e.shop_description = 'The store description can be at most 500 characters.';
+    if (!psgcAddress.province) e.address_province = 'Province is required.';
+    if (!psgcAddress.city) e.address_city = 'City / Municipality is required.';
+    if (!psgcAddress.barangay) e.address_barangay = 'Barangay is required.';
+    if (!psgcAddress.street.trim()) e.address_street = 'Street address is required.';
+    if (postalCode.trim()) { const p = postalError(postalCode); if (p) e.address_postal_code = p; }
+    if (!/^\d+$/.test(lowStockLevel.trim()) || Number(lowStockLevel) > 999) e.low_stock_threshold = 'Enter a whole number from 0 to 999.';
+    if (errors.logo) e.logo = errors.logo;
+    if (errors.banner) e.banner = errors.banner;
+    return e;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({});
+    const problems = validateForm();
+    setErrors(problems);
+    if (Object.keys(problems).length) {
+      if (problems.shop_contact_number) setEditingContact(true);
+      if (Object.keys(problems).some((k) => k.startsWith('address_'))) setEditingLocation(true);
+      setToast({ type: 'error', message: 'Please fix the highlighted fields.' });
+      return;
+    }
     const form = new FormData();
     form.append('shop_name', shopName.trim());
     form.append('shop_category', shopCategory.trim());
@@ -363,10 +421,14 @@ export default function SellerShopProfilePage() {
     form.append('shipping_policy', shippingPolicy.trim());
     form.append('business_hours', businessHours.trim());
     form.append('response_time', responseTime);
+    form.append('low_stock_threshold', lowStockLevel.trim());
     form.append('address_province', psgcAddress.provinceName || psgcAddress.province);
     form.append('address_city', psgcAddress.cityName || psgcAddress.city);
     form.append('address_barangay', psgcAddress.barangayName || psgcAddress.barangay);
     form.append('address_street', psgcAddress.street.trim());
+    form.append('address_region', psgcAddress.regionName);
+    form.append('address_region_code', psgcAddress.region);
+    form.append('address_postal_code', postalCode.trim());
     if (psgcAddress.province) form.append('address_province_code', psgcAddress.province);
     if (psgcAddress.city) form.append('address_city_code', psgcAddress.city);
     if (psgcAddress.barangay) form.append('address_barangay_code', psgcAddress.barangay);
@@ -386,6 +448,9 @@ export default function SellerShopProfilePage() {
         const mapped: Record<string, string> = {};
         for (const [k, v] of Object.entries(data.errors)) mapped[k] = v[0];
         setErrors(mapped);
+        if (mapped.shop_contact_number) setEditingContact(true);
+        if (Object.keys(mapped).some((k) => k.startsWith('address_'))) setEditingLocation(true);
+        setToast({ type: 'error', message: Object.values(mapped)[0] ?? 'Please fix the highlighted fields.' });
       } else {
         setToast({ type: 'error', message: 'Failed to save. Please try again.' });
       }
@@ -420,10 +485,17 @@ export default function SellerShopProfilePage() {
     <div ref={pageRef} className="max-w-3xl mx-auto space-y-5">
 
       {/* Hidden file inputs */}
-      <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => handleImagePick(e, setLogoFile, setLogoPreview)} />
-      <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => handleImagePick(e, setBannerFile, setBannerPreview)} />
+      <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
+        onChange={(e) => handleImagePick(e, setLogoFile, setLogoPreview, 'logo')} />
+      <input ref={bannerInputRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
+        onChange={(e) => handleImagePick(e, setBannerFile, setBannerPreview, 'banner')} />
+
+      {(errors.logo || errors.banner) && (
+        <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-2xl text-[13px] text-red-700">
+          {errors.logo && <p>{errors.logo}</p>}
+          {errors.banner && <p>{errors.banner}</p>}
+        </div>
+      )}
 
       {/* Address update needed warning banner */}
       {profile?.address_needs_update && (
@@ -643,6 +715,34 @@ export default function SellerShopProfilePage() {
           </div>
         </Card>
 
+        {/* ── Stock alerts (A29) ── */}
+        <Card>
+          <CardHeader icon={Bell} title="Stock Alerts" />
+          <div className="px-6 py-5 grid gap-5 sm:grid-cols-[minmax(0,220px)_1fr] items-start">
+            <Field label="Low-stock level" error={errors.low_stock_threshold}>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" min={0} max={999} step={1} inputMode="numeric"
+                  value={lowStockLevel}
+                  onChange={(e) => setLowStockLevel(e.target.value)}
+                  aria-label="Low-stock level"
+                  className={`${inputCls(errors.low_stock_threshold)} !w-28`}
+                />
+                <span className="text-[12.5px] text-gray-500">units or fewer</span>
+              </div>
+            </Field>
+            <div className="text-[12.5px] leading-relaxed text-gray-600 space-y-1.5">
+              <p>
+                You get one notification when a product's stock falls to this level, and again only after you restock above it.
+                {' '}<b className="font-semibold text-gray-800">0</b> means you hear about a product only when it sells out.
+              </p>
+              <p className="text-gray-500">
+                A grocery that sells fast might use 20; a shop of big appliances, 2. Each product can also use its own level, or none, in its Sales section.
+              </p>
+            </div>
+          </div>
+        </Card>
+
         {/* ── Contact & Location ── */}
         <Card>
           <CardHeader
@@ -669,22 +769,23 @@ export default function SellerShopProfilePage() {
             {/* Contact number */}
             {editingContact ? (
               <div className="space-y-3">
-                <Field label="Shop Contact Number" error={errors.shop_contact_number}>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="tel"
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <PhoneInput
+                      id="shop-contact"
+                      label="Shop Contact Number"
+                      required
                       value={shopContactNumber}
-                      onChange={(e) => setShopContactNumber(e.target.value.replace(/[^0-9+]/g, ''))}
-                      placeholder="+63 9XX XXX XXXX"
-                      maxLength={20}
-                      className={inputCls(errors.shop_contact_number)}
+                      onChange={(v) => { setShopContactNumber(v); setErrors((prev) => { const n = { ...prev }; delete n.shop_contact_number; return n; }); }}
+                      error={errors.shop_contact_number}
+                      hint="Buyers and couriers call this number."
                     />
-                    <button type="button" onClick={() => setEditingContact(false)}
-                      className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
                   </div>
-                </Field>
+                  <button type="button" onClick={() => setEditingContact(false)} aria-label="Close"
+                    className="mt-8 shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-3 group">
@@ -724,6 +825,14 @@ export default function SellerShopProfilePage() {
                     street: errors.address_street,
                   }}
                 />
+                <Field label="Postal Code" error={errors.address_postal_code}>
+                  <input
+                    type="text" inputMode="numeric" placeholder="e.g. 1100"
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    className={inputCls(errors.address_postal_code) + ' max-w-[160px]'}
+                  />
+                </Field>
               </div>
             ) : (
               <div className="space-y-2">
@@ -757,6 +866,30 @@ export default function SellerShopProfilePage() {
           </div>
         </Card>
 
+        {/* ── Vacation mode ── */}
+        <Card>
+          <div className="px-6 py-5 flex flex-wrap items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${onVacation ? 'bg-amber-100 text-amber-700' : 'bg-gray-50 text-gray-400'}`}>
+              <Palmtree className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-[220px]">
+              <p className="text-[14px] font-bold text-gray-900">Vacation mode {onVacation && <span className="ml-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full align-middle">On</span>}</p>
+              <p className="text-[12.5px] text-gray-500 mt-0.5">
+                {onVacation
+                  ? `Since ${profile?.vacation_started_at ? new Date(profile.vacation_started_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'today'}. Buyers see that your shop is on vacation and cannot place orders.`
+                  : 'Going away? Buyers can still browse your shop, but ordering pauses until you turn it off.'}
+              </p>
+            </div>
+            <button
+              type="button" role="switch" aria-checked={onVacation} onClick={toggleVacation} disabled={vacationBusy}
+              className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-60 ${onVacation ? 'bg-amber-500' : 'bg-gray-300'}`}
+            >
+              <span className="sr-only">Vacation mode</span>
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${onVacation ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+        </Card>
+
         {/* ── Shop Information (hidden anchor for scroll-to) ── */}
         <div ref={shopInfoRef}>
           <Card>
@@ -768,9 +901,9 @@ export default function SellerShopProfilePage() {
                   value={shopName}
                   onChange={(e) => setShopName(e.target.value)}
                   placeholder="Your shop name"
-                  maxLength={100}
                   className={inputCls(errors.shop_name)}
                 />
+                {!errors.shop_name && <p className="mt-1 text-[11px] text-gray-400 tabular-nums">3 to 30 characters, unique on Loved-IT · {shopName.trim().length}/30</p>}
               </Field>
               <Field label="Line of Business / Category" error={errors.shop_category}>
                 <CustomSelect
@@ -805,12 +938,18 @@ export default function SellerShopProfilePage() {
               <div className="w-24 shrink-0">
                 <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Status</p>
               </div>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                <CheckCircle2 className="w-3 h-3" /> Approved Seller
-              </span>
+              {isApproved ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  <CheckCircle2 className="w-3 h-3" /> Approved Seller
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                  <Clock className="w-3 h-3" /> Under review
+                </span>
+              )}
             </div>
             <div className="pt-1 border-t border-gray-100">
-              <a href="/seller/account-settings"
+              <a href="/seller/account"
                 className="text-[12px] font-semibold text-brand-red hover:text-brand-red-dark transition-colors">
                 Edit name, phone or photo → Account Settings
               </a>

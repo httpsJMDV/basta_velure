@@ -54,11 +54,18 @@ class SellerEarningsController extends Controller
                     'variant_label'     => $item->variant_label,
                     'quantity'          => $item->quantity,
                     'item_subtotal'     => (float) $item->subtotal,
+                    // The shop's own discounts on the line (its voucher share and promotions) come off before commission.
+                    'seller_discounts'  => round((float) $item->store_voucher_share + (float) $item->promo_share, 2),
+                    'gross_after_discounts' => round((float) $item->subtotal - (float) $item->store_voucher_share - (float) $item->promo_share, 2),
                     'commission_rate'   => (float) $item->commission_rate,
                     'commission_pct'    => round(((float) $item->commission_rate) * 100, 1),
                     'commission_amount' => (float) $item->commission_amount,
                     'seller_earnings'   => (float) $item->seller_earnings,
                     'payout_status'     => $item->payout_status,
+                    // A15: Pending until the order is completed, then Available.
+                    'earning_status'    => $orderStatusStr === OrderStatus::COMPLETED->value ? 'available' : 'pending',
+                    'settlement'        => $item->order?->settlement,
+                    'payment_method'    => $item->order?->payment_method,
                     'order_date'        => $item->created_at?->toIso8601String(),
                     'delivered_date'    => $item->delivered_at?->toIso8601String(),
                     // Feature 2.8 (added; no existing key changed): when this item's escrow releases.
@@ -122,6 +129,12 @@ class SellerEarningsController extends Controller
         ]);
 
         return DB::transaction(function () use ($sellerId, $data) {
+            // One request at a time (A15, A37): the seller's row lock makes a double click wait, then see the first one.
+            \App\Models\User::whereKey($sellerId)->lockForUpdate()->first();
+            if (PayoutRequest::where('seller_id', $sellerId)->whereIn('status', ['pending', 'processing'])->exists()) {
+                abort(422, 'You already have a payout request waiting to be processed. You can request another once it is done.');
+            }
+
             // Check available balance
             $grossAvailable = (float) OrderItem::where('seller_id', $sellerId)
                 ->where('payout_status', 'available')

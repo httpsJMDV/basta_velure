@@ -12,15 +12,19 @@ class Review extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'buyer_id', 'product_id', 'order_id', 'rating', 'comment',
+        'buyer_id', 'product_id', 'order_id', 'order_item_id', 'variant_label', 'rating', 'comment', 'edit_count',
         'verified_purchase', 'flagged', 'flag_reason', 'moderation_status',
+        'seller_reply', 'seller_replied_at', 'seller_reply_edited_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'verified_purchase' => 'boolean',
-            'flagged'           => 'boolean',
+            'verified_purchase'      => 'boolean',
+            'flagged'                => 'boolean',
+            'edit_count'             => 'integer',
+            'seller_replied_at'      => 'datetime',
+            'seller_reply_edited_at' => 'datetime',
         ];
     }
 

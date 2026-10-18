@@ -8,6 +8,11 @@ import {
   ChevronRight, Flag, ChevronLeft,
 } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
+import VoucherTicket from '../components/vouchers/VoucherTicket';
+import { useToast } from '../components/ui/Toast';
+import { claimVoucherApi, getShopVouchersApi } from '../api/commerce';
+import type { WalletVoucher } from '../api/commerce';
+import { apiErrorMessage } from '../utils/apiError';
 import Footer from '../components/Footer';
 import ProductCard from '../components/ui/ProductCard';
 import CustomSelect from '../components/ui/CustomSelect';
@@ -209,6 +214,45 @@ function ReportShopModal({
 
 // ─── Main Shop Profile Page ───────────────────────────────────────────────────
 
+/** The shop's claimable vouchers (B7). Code-only vouchers are never listed. */
+function ShopVoucherStrip({ sellerId }: { sellerId: number }) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const [rows, setRows] = useState<WalletVoucher[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  useEffect(() => {
+    getShopVouchersApi(sellerId).then(setRows).catch(() => setRows([]));
+  }, [sellerId, user?.id]);
+
+  if (rows.length === 0) return null;
+
+  const claim = async (v: WalletVoucher) => {
+    if (!user) { navigate('/login'); return; }
+    setBusy(v.id);
+    try {
+      const res = await claimVoucherApi({ voucher_id: v.id });
+      setRows((prev) => prev.map((r) => (r.id === v.id ? { ...r, claimed: true } : r)));
+      showToast(res.message, 'success');
+    } catch (e) {
+      showToast(apiErrorMessage(e, 'The voucher could not be claimed.'), 'error');
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <section aria-label="Shop vouchers" className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
+      <h2 className="text-base font-bold text-gray-900">Shop vouchers</h2>
+      <div className="mt-3 grid sm:grid-cols-2 gap-3">
+        {rows.map((v) => (
+          <VoucherTicket key={v.id} voucher={v} busy={busy === v.id}
+            action={v.used_up_by_you ? 'used' : v.claimed ? 'claimed' : 'claim'} onAction={() => claim(v)} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function ShopProfilePage() {
   const { slug, id } = useParams<{ slug?: string; id?: string }>();
   const shopIdentifier = slug || id || '';
@@ -239,6 +283,9 @@ export default function ShopProfilePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  // The shop's own categories, when it has them: a top-level one and, inside it, an optional subcategory.
+  const [storeCat, setStoreCat] = useState<number | null>(null);
+  const [storeSub, setStoreSub] = useState<number | null>(null);
   const [sortOption, setSortOption] = useState<string>('newest');
   const [productPage, setProductPage] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
@@ -287,6 +334,7 @@ export default function ShopProfilePage() {
       const res = await getProductsApi({
         seller_ids: [profile.seller_id],
         category_id: selectedCategory === 'all' ? undefined : String(selectedCategory),
+        store_category_id: storeSub ?? storeCat ?? undefined,
         sort: sortOption as any,
         page: productPage,
         per_page: 12,
@@ -299,7 +347,7 @@ export default function ShopProfilePage() {
     } finally {
       setProductsLoading(false);
     }
-  }, [profile, selectedCategory, sortOption, productPage]);
+  }, [profile, selectedCategory, storeCat, storeSub, sortOption, productPage]);
 
   useEffect(() => {
     if (profile) {
@@ -423,6 +471,13 @@ export default function ShopProfilePage() {
       </div>
 
       <main className="flex flex-col flex-1 w-full gap-6 px-4 py-6 mx-auto max-w-7xl">
+
+        {profile.on_vacation && (
+          <div role="status" className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span className="mt-1 w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+            <p><span className="font-semibold">{profile.shop_name} is on vacation.</span> You can browse and save items to your wishlist; ordering opens again when the shop is back.</p>
+          </div>
+        )}
 
         {/* ── 1. Header Card (Banner + Pinned Overlapping Avatar + Unobstructed Identity Block) ── */}
         <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-3xl">
@@ -735,6 +790,8 @@ export default function ShopProfilePage() {
           {/* ── Right Column: Shop Products & Shop Reviews ── */}
           <div className="flex flex-col gap-6 lg:col-span-8">
 
+            <ShopVoucherStrip sellerId={profile.seller_id} />
+
             {/* ── 7. Shop Products Section ── */}
             <div className="flex flex-col gap-5 p-6 bg-white border border-gray-100 shadow-sm rounded-3xl">
               {/* Section Header */}
@@ -754,8 +811,44 @@ export default function ShopProfilePage() {
                 </div>
               </div>
 
-              {/* Category Filter Tabs */}
-              {profile.categories && profile.categories.length > 0 && (
+              {/* The shop's own categories */}
+              {(profile.store_categories?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 pb-1 overflow-x-auto scrollbar-hide" role="tablist" aria-label="Store categories">
+                    {[{ id: null as number | null, name: `All Products (${profile.total_products})` }, ...profile.store_categories!.map((c) => ({ id: c.id as number | null, name: c.name }))].map((c) => {
+                      const active = storeCat === c.id;
+                      return (
+                        <button key={c.id ?? 'all'} type="button" role="tab" aria-selected={active}
+                          onClick={() => { setStoreCat(c.id); setStoreSub(null); setSelectedCategory('all'); setProductPage(1); }}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${active ? 'bg-brand-red text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                          {c.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const children = profile.store_categories!.find((c) => c.id === storeCat)?.children ?? [];
+                    if (!children.length) return null;
+                    return (
+                      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pl-1">
+                        {[{ id: null as number | null, name: 'Everything here' }, ...children.map((c) => ({ id: c.id as number | null, name: c.name }))].map((c) => {
+                          const active = storeSub === c.id;
+                          return (
+                            <button key={c.id ?? 'all-sub'} type="button" aria-pressed={active}
+                              onClick={() => { setStoreSub(c.id); setProductPage(1); }}
+                              className={`px-3 py-1 rounded-full border text-[11.5px] font-semibold shrink-0 transition-colors ${active ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'}`}>
+                              {c.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Category Filter Tabs (platform categories, when the shop has no categories of its own) */}
+              {!(profile.store_categories?.length) && profile.categories && profile.categories.length > 0 && (
                 <div className="flex items-center gap-2 pb-1 overflow-x-auto scrollbar-hide">
                   <button
                     onClick={() => { setSelectedCategory('all'); setProductPage(1); }}

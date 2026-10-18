@@ -115,6 +115,9 @@ export default function AdminCategoriesPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const [pageError, setPageError] = useState<string | null>(null);
+  const baseRate = metrics?.base_commission_rate ?? 5;
+
   const toggleExpand = (parentId: number) => {
     setExpandedParents((prev) => ({
       ...prev,
@@ -160,7 +163,7 @@ export default function AdminCategoriesPage() {
     } catch (err: any) {
       // Revert on failure
       loadData();
-      alert(err.response?.data?.message || 'Failed to update category status.');
+      setPageError(err.response?.data?.message || `${category.name} could not be updated. Try again.`);
     }
   };
 
@@ -192,10 +195,7 @@ export default function AdminCategoriesPage() {
       sort_order: category.sort_order,
       is_active: category.is_active,
       requires_fda: isChild ? (category as AdminCategoryLeaf).requires_fda : false,
-      commission_rate:
-        isChild && (category as AdminCategoryLeaf).commission_rate !== null
-          ? String((category as AdminCategoryLeaf).commission_rate)
-          : '',
+      commission_rate: category.commission_rate !== null && category.commission_rate !== undefined ? String(category.commission_rate) : '',
     });
     setIsModalOpen(true);
   };
@@ -217,11 +217,14 @@ export default function AdminCategoriesPage() {
       sort_order: Number(editingCategory.sort_order) || 0,
       is_active: editingCategory.is_active,
       requires_fda: editingCategory.isChild ? editingCategory.requires_fda : false,
-      commission_rate:
-        editingCategory.isChild && editingCategory.commission_rate !== ''
-          ? Number(editingCategory.commission_rate)
-          : null,
+      commission_rate: editingCategory.commission_rate.trim() !== '' ? Number(editingCategory.commission_rate) : null,
     };
+
+    const rate = editingCategory.commission_rate.trim();
+    if (rate !== '' && (!/^\d+(\.\d{1,2})?$/.test(rate) || Number(rate) > 100)) {
+      setModalError('The commission rate must be a number from 0 to 100 with at most 2 decimals.');
+      return;
+    }
 
     setIsSaving(true);
     setModalError(null);
@@ -238,7 +241,7 @@ export default function AdminCategoriesPage() {
       loadData();
     } catch (err: any) {
       setModalError(
-        err.response?.data?.message || err.response?.data?.errors?.slug?.[0] || 'Failed to save category.'
+        err.response?.data?.message || 'The category was not saved. Try again.'
       );
     } finally {
       setIsSaving(false);
@@ -397,6 +400,12 @@ export default function AdminCategoriesPage() {
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-semibold animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           {toastMessage}
+        </div>
+      )}
+      {pageError && (
+        <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-2 text-red-800 text-xs font-semibold">
+          <span>{pageError}</span>
+          <button type="button" onClick={() => setPageError(null)} className="underline shrink-0">Dismiss</button>
         </div>
       )}
 
@@ -576,6 +585,11 @@ export default function AdminCategoriesPage() {
                         >
                           {parent.is_active ? 'Active Parent' : 'Inactive'}
                         </span>
+                        {parent.commission_rate !== null && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-brand-red bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded" title="Covers its sub-categories that have no rate of their own">
+                            <Coins className="w-2.5 h-2.5" /> {parent.commission_rate}% for this category
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-gray-400 mt-0.5">
                         {childCount} Sub-Category {childCount === 1 ? 'Node' : 'Nodes'} · Sort Order: #{parent.sort_order}
@@ -664,13 +678,14 @@ export default function AdminCategoriesPage() {
                                   </span>
                                 ) : (
                                   <span className="text-[9px] font-semibold text-gray-400 bg-gray-50 px-1.5 py-0.2 rounded border border-gray-100">
-                                    Default 10%
+                                    {parent.commission_rate !== null ? `${parent.commission_rate}% from ${parent.name}` : `Platform ${baseRate}%`}
                                   </span>
                                 )}
 
                                 {/* Product Count */}
                                 <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.2 rounded">
-                                  {child.products_count ?? 0} items listed
+                                  {child.products_count ?? 0} {child.products_count === 1 ? 'product' : 'products'}
+                                  {child.products_count && child.active_products_count !== undefined && child.active_products_count !== child.products_count ? ` (${child.active_products_count} live)` : ''}
                                 </span>
                               </div>
                             </div>
@@ -873,13 +888,13 @@ export default function AdminCategoriesPage() {
                 </div>
               </div>
 
-              {/* Sub-Category Specific Settings: FDA & Commission Override */}
-              {editingCategory.isChild && (
+              {/* Rules: FDA (sub-categories) and the commission override (both levels) */}
+              {(
                 <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-100 space-y-2.5">
-                  <span className="text-xs font-bold text-gray-800 block">Sub-Category Governance</span>
+                  <span className="text-xs font-bold text-gray-800 block">Rules</span>
 
                   {/* FDA Compliance Toggle */}
-                  <div className="flex items-center justify-between gap-2">
+                  {editingCategory.isChild && <div className="flex items-center justify-between gap-2">
                     <div>
                       <span className="font-bold text-gray-900 block">FDA Compliance Gate</span>
                       <span className="text-[10px] text-gray-400">
@@ -894,20 +909,20 @@ export default function AdminCategoriesPage() {
                       }
                       className="w-4 h-4 rounded text-brand-red focus:ring-brand-red cursor-pointer"
                     />
-                  </div>
+                  </div>}
 
-                  {/* Custom Commission Override */}
-                  <div className="pt-2 border-t border-gray-200/60">
+                  {/* Commission override: the same value Platform Settings shows */}
+                  <div className={editingCategory.isChild ? 'pt-2 border-t border-gray-200/60' : ''}>
                     <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
-                      Commission Take-Rate Override (% optional)
+                      Commission rate (optional)
                     </label>
                     <div className="relative">
                       <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.1}
-                        placeholder="Leave empty for default 10%"
+                        inputMode="decimal"
+                        placeholder={(() => {
+                          const parentRate = editingCategory.isChild ? parents.find((p) => p.id === Number(editingCategory.parent_id))?.commission_rate : null;
+                          return parentRate !== null && parentRate !== undefined ? `Empty: ${parentRate}% from the parent` : `Empty: platform rate ${baseRate}%`;
+                        })()}
                         value={editingCategory.commission_rate}
                         onChange={(e) =>
                           setEditingCategory({ ...editingCategory, commission_rate: e.target.value })
@@ -918,6 +933,11 @@ export default function AdminCategoriesPage() {
                         %
                       </span>
                     </div>
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      {editingCategory.isChild
+                        ? 'Only for this sub-category. New orders use it; placed orders keep their commission.'
+                        : 'Covers every sub-category that has no rate of its own. Also editable in Platform Settings.'}
+                    </p>
                   </div>
                 </div>
               )}

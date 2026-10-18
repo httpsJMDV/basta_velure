@@ -58,7 +58,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
 // Rate limiters
-RateLimiter::for('auth', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by($request->ip()));
+RateLimiter::for('auth', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by($request->ip()));
+// Sign-up forms and their email codes: generous enough for a family behind one router, still capped per address.
+RateLimiter::for('register', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(30)->by($request->ip()));
 RateLimiter::for('upload', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by($request->ip()));
 
 // Broadcast auth for Sanctum (/api/broadcasting/auth)
@@ -70,6 +72,12 @@ Route::prefix('v1')->group(function () {
     Route::get('/products',                    [PublicProductController::class, 'index']);
     Route::get('/products/{product}',          [PublicProductController::class, 'show']);
     Route::get('/products/{product}/reviews',  [PublicProductController::class, 'reviews']);
+    // Claimable vouchers (B7): a shop's, a product's and Loved-IT's. Code-only vouchers are never listed.
+    Route::get('/products/{product}/vouchers', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'forProduct']);
+    Route::get('/shops/{seller}/vouchers',     [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'forShop'])->whereNumber('seller');
+    Route::get('/vouchers/platform',           [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'platform']);
+    // The sandbox gateway's server-to-server callback, signed with config('payments.sandbox_secret').
+    Route::post('/payments/sandbox/callback',  [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'callback']);
     Route::get('/products/{product}/related',  [PublicProductController::class, 'related']);
     Route::get('/categories',                  [PublicCategoryController::class, 'index']);
 
@@ -88,8 +96,18 @@ Route::prefix('v1')->group(function () {
     Route::get('/logistics/couriers',          [PublicSortingCenterController::class, 'couriers']);
 
     // Public auth routes
-    Route::middleware('throttle:auth')->group(function () {
+    Route::middleware('throttle:register')->group(function () {
         Route::post('/auth/register', [AuthController::class, 'registerBuyer']);
+        // A visitor applies as a seller or a courier company in one form (account + application), then verifies the email
+        Route::post('/auth/register-seller', [AuthController::class, 'applyAsSeller']);
+        Route::post('/auth/register-courier', [\App\Http\Controllers\Api\V1\CourierCompanyApplicationController::class, 'store']);
+        Route::post('/auth/verify-email', [AuthController::class, 'verifyEmail']);
+        Route::post('/auth/resend-verification', [AuthController::class, 'resendVerification']);
+        // A rider added by a courier company sets their password from the emailed link (works once, 24 hours)
+        Route::get('/auth/rider-activation', [\App\Http\Controllers\Api\V1\RiderActivationController::class, 'show']);
+        Route::post('/auth/rider-activation', [\App\Http\Controllers\Api\V1\RiderActivationController::class, 'activate']);
+    });
+    Route::middleware('throttle:auth')->group(function () {
         Route::post('/auth/login', [AuthController::class, 'login']);
         Route::post('/auth/forgot-password', [PasswordController::class, 'forgot']);
         Route::post('/auth/reset-password', [PasswordController::class, 'reset']);
@@ -112,6 +130,12 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
+        // Account security: each change is confirmed (current password, or a code sent by email)
+        Route::post('/auth/change-password', [AuthController::class, 'changePassword'])->middleware('throttle:10,1');
+        Route::post('/auth/email-change', [AuthController::class, 'requestEmailChange'])->middleware('throttle:10,1');
+        Route::post('/auth/email-change/confirm', [AuthController::class, 'confirmEmailChange'])->middleware('throttle:20,1');
+        Route::post('/auth/phone-change', [AuthController::class, 'requestPhoneChange'])->middleware('throttle:10,1');
+        Route::post('/auth/phone-change/confirm', [AuthController::class, 'confirmPhoneChange'])->middleware('throttle:20,1');
         Route::post('/auth/avatar', [AuthController::class, 'uploadAvatar'])->middleware('throttle:upload');
         Route::post('/auth/complete-profile', [AuthController::class, 'completeProfile'])->middleware('throttle:upload');
         Route::post('/auth/apply-seller', [AuthController::class, 'applyAsSeller'])->middleware('throttle:upload');
@@ -132,9 +156,55 @@ Route::prefix('v1')->group(function () {
             Route::post('/network/hubs/{hub}/reject', [$portal, 'rejectHub'])->whereNumber('hub');
             Route::post('/network/hubs/{hub}/suspend', [$portal, 'suspendHub'])->whereNumber('hub');
             Route::post('/network/hubs/{hub}/reactivate', [$portal, 'reactivateHub'])->whereNumber('hub');
-            Route::get('/riders', [$portal, 'riders']);
+            // Riders: the company adds them, verifies, suspends and reactivates them (every action is audited)
+            $riders = \App\Http\Controllers\Api\V1\LogisticsRiderController::class;
+            Route::get('/riders', [$riders, 'index']);
+            Route::post('/riders', [$riders, 'store'])->middleware('throttle:upload');
+            // Delivery zones and shipping rates (L8), every change audit-logged
+            $shipping = \App\Http\Controllers\Api\V1\LogisticsShippingController::class;
+            Route::get('/shipping', [$shipping, 'index']);
+            Route::get('/shipping/audit', [$shipping, 'audit']);
+            Route::post('/shipping/zones', [$shipping, 'storeZone']);
+            Route::patch('/shipping/zones/{zone}', [$shipping, 'updateZone'])->whereNumber('zone');
+            Route::delete('/shipping/zones/{zone}', [$shipping, 'destroyZone'])->whereNumber('zone');
+            Route::put('/shipping/rates', [$shipping, 'upsertRate']);
+            Route::delete('/shipping/rates/{rate}', [$shipping, 'destroyRate'])->whereNumber('rate');
+            Route::get('/riders/{rider}', [$riders, 'show'])->whereNumber('rider');
+            Route::get('/riders/{rider}/documents/{doc}', [$riders, 'document'])->whereNumber('rider')->whereIn('doc', ['license', 'or-cr']);
+            Route::post('/riders/{rider}/resend-activation', [$riders, 'resendActivation'])->whereNumber('rider')->middleware('throttle:10,1');
+            Route::post('/riders/{rider}/approve', [$riders, 'approve'])->whereNumber('rider');
+            Route::post('/riders/{rider}/reject', [$riders, 'reject'])->whereNumber('rider');
+            Route::post('/riders/{rider}/suspend', [$riders, 'suspend'])->whereNumber('rider');
+            Route::post('/riders/{rider}/reactivate', [$riders, 'reactivate'])->whereNumber('rider');
             Route::get('/parcels', [$portal, 'parcels']);
             Route::get('/reports', [$portal, 'reports']);
+            // Dispatch (L4): offers, the Unassigned queue, auto-assign, manual, bulk and reassign
+            $dispatch = \App\Http\Controllers\Api\V1\LogisticsDispatchController::class;
+            Route::get('/dispatch', [$dispatch, 'index']);
+            Route::get('/dispatch/riders', [$dispatch, 'riders']);
+            Route::post('/dispatch/auto-assign', [$dispatch, 'autoAssign']);
+            Route::post('/dispatch/assign', [$dispatch, 'assign']);
+            // Hub scanning (L5): inbound, sort by zone, outbound
+            $hubOps = \App\Http\Controllers\Api\V1\LogisticsHubOpsController::class;
+            Route::get('/hub-ops', [$hubOps, 'index']);
+            Route::get('/hub-ops/zones', [$hubOps, 'zones']);
+            Route::post('/hub-ops/inbound', [$hubOps, 'inbound']);
+            Route::post('/hub-ops/sort', [$hubOps, 'sort']);
+            Route::post('/hub-ops/outbound', [$hubOps, 'outbound']);
+            // One parcel (L6, L7): detail, override, Lost or Damaged, and the Return to Sender queue
+            $parcelOps = \App\Http\Controllers\Api\V1\LogisticsParcelOpsController::class;
+            Route::get('/parcels/{parcel}', [$parcelOps, 'show'])->whereNumber('parcel');
+            Route::post('/parcels/{parcel}/override', [$parcelOps, 'override'])->whereNumber('parcel');
+            Route::post('/parcels/{parcel}/exception', [$parcelOps, 'exception'])->whereNumber('parcel')->middleware('throttle:upload');
+            Route::get('/parcels/{parcel}/exception-photo', [$parcelOps, 'exceptionPhoto'])->whereNumber('parcel');
+            Route::post('/parcels/{parcel}/reschedule', [$parcelOps, 'reschedule'])->whereNumber('parcel');
+            Route::get('/returns', [$parcelOps, 'returns']);
+            Route::post('/returns/{parcel}/assign', [$parcelOps, 'assignReturn'])->whereNumber('parcel');
+            // COD reconciliation and exports (L9); only the company confirms a rider's remittance
+            $cod = \App\Http\Controllers\Api\V1\LogisticsCodController::class;
+            Route::get('/cod', [$cod, 'index']);
+            Route::post('/cod/remittances/{remittance}/confirm', [$cod, 'confirm'])->whereNumber('remittance');
+            Route::get('/exports', [$cod, 'export']);
             // Money: the weekly statement with each shop, paying riders and hubs, and the GCash shops pay
             Route::get('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'index']);
             Route::post('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'pay']);
@@ -145,6 +215,13 @@ Route::prefix('v1')->group(function () {
             Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'courier']);
             Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateCourier']);
         });
+
+        // In-app notifications (the bell): every order and shipment status change, job offers, decisions
+        $notifications = \App\Http\Controllers\Api\V1\NotificationController::class;
+        Route::get('/notifications', [$notifications, 'index']);
+        Route::get('/notifications/unread-count', [$notifications, 'unreadCount']);
+        Route::post('/notifications/read-all', [$notifications, 'markAllRead']);
+        Route::post('/notifications/{id}/read', [$notifications, 'markRead']);
 
         // Wishlist
         Route::get('/wishlist', [WishlistController::class, 'index']);
@@ -161,8 +238,24 @@ Route::prefix('v1')->group(function () {
         Route::delete('/addresses/{address}', [AddressController::class, 'destroy']);
         Route::patch('/addresses/{address}/default', [AddressController::class, 'setDefault']);
 
-        // Buyer checkout & orders
-        Route::post('/checkout/place-order', [BuyerOrderController::class, 'placeOrder'])->middleware('throttle:upload');
+        // Cart on the server (B6): only the buyer's own lines
+        $cart = \App\Http\Controllers\Api\V1\CartController::class;
+        Route::get('/cart', [$cart, 'index']);
+        Route::post('/cart/items', [$cart, 'store']);
+        Route::patch('/cart/items/{line}', [$cart, 'update'])->whereNumber('line');
+        Route::delete('/cart/items/{line}', [$cart, 'destroy'])->whereNumber('line');
+        Route::post('/cart/select', [$cart, 'select']);
+        Route::post('/cart/merge', [$cart, 'merge']);
+
+        // Vouchers in the wallet (B7)
+        Route::get('/buyer/vouchers', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'wallet']);
+        Route::post('/buyer/vouchers/claim', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'claim']);
+
+        // Buyer checkout & orders (B8, B9)
+        Route::post('/checkout/quote', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'quote']);
+        Route::post('/checkout/place-order', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'place'])->middleware('throttle:upload');
+        Route::get('/payments/sessions/{token}', [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'show']);
+        Route::post('/payments/sessions/{token}/complete', [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'complete']);
         // Product reviews: once per product per delivered order, with up to five photos
         Route::get('/buyer/reviews', [BuyerReviewController::class, 'index']);
         Route::get('/buyer/reviews/pending', [BuyerReviewController::class, 'pending']);
@@ -170,7 +263,10 @@ Route::prefix('v1')->group(function () {
         Route::patch('/buyer/reviews/{review}', [BuyerReviewController::class, 'update']);
         Route::get('/buyer/orders', [BuyerOrderController::class, 'index']);
         Route::get('/buyer/orders/{order}', [BuyerOrderController::class, 'show']);
-        Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn']);
+        Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn'])->middleware('throttle:upload');
+        Route::post('/buyer/orders/{order}/escalate-return', [BuyerOrderController::class, 'escalateReturn']);
+        Route::post('/buyer/orders/{order}/cancel', [BuyerOrderController::class, 'cancel']);
+        Route::post('/buyer/orders/{order}/pay-again', [BuyerOrderController::class, 'payAgain']);
         // Feature 2.8: only buyers (other roles get 403); another buyer's order is a 404 in the controller
         Route::post('/buyer/orders/{order}/confirm-receipt', [BuyerOrderController::class, 'confirmReceipt'])->middleware('role:buyer');
 
@@ -187,6 +283,13 @@ Route::prefix('v1')->group(function () {
 
         // Admin-only routes
         Route::middleware('role:admin')->prefix('admin')->group(function () {
+            // Platform and shipping vouchers (Loved-IT funded, A8)
+            $vouchers = \App\Http\Controllers\Api\V1\VoucherManagementController::class;
+            Route::get('/vouchers', [$vouchers, 'index']);
+            Route::post('/vouchers', [$vouchers, 'store']);
+            Route::patch('/vouchers/{voucher}', [$vouchers, 'update'])->whereNumber('voucher');
+            Route::post('/vouchers/{voucher}/end', [$vouchers, 'end'])->whereNumber('voucher');
+
             // Dashboard stats
             Route::get('/stats', [AdminController::class, 'stats']);
             Route::get('/dashboard-feed', [AdminController::class, 'dashboardFeed']);
@@ -224,6 +327,8 @@ Route::prefix('v1')->group(function () {
                 ->name('admin.seller-applications.dti-sec-registration');
             Route::get('/seller-applications/{sellerProfile}/fda-lto', [AdminSellerApplicationController::class, 'fdaLto'])
                 ->name('admin.seller-applications.fda-lto');
+            Route::get('/seller-applications/{sellerProfile}/bir-2303', [AdminSellerApplicationController::class, 'bir2303'])
+                ->name('admin.seller-applications.bir-2303');
 
             // Courier companies (J&T, Flash, ...): applications and oversight
             $couriers = \App\Http\Controllers\Api\V1\AdminCourierApplicationController::class;
@@ -235,6 +340,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/courier-applications/{company}/reactivate', [$couriers, 'reactivate'])->whereNumber('company');
             Route::get('/courier-applications/{company}/permit', [$couriers, 'permit'])->whereNumber('company')
                 ->name('admin.courier-applications.permit');
+            Route::get('/courier-applications/{company}/documents/{doc}', [$couriers, 'document'])->whereNumber('company')
+                ->whereIn('doc', ['sec', 'bir', 'rep-id'])->name('admin.courier-applications.document');
 
             // Sorting Center (Logistics Hub) applications
             Route::get('/sorting-center-applications', [AdminSortingCenterApplicationController::class, 'index']);
@@ -321,6 +428,25 @@ Route::prefix('v1')->group(function () {
             Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'send']);
         });
 
+        // Seller products: a store waiting for approval can prepare drafts; only an approved store publishes (A18)
+        Route::middleware('seller_applicant')->group(function () {
+            Route::get('/seller/products', [SellerProductController::class, 'index']);
+            Route::post('/seller/products', [SellerProductController::class, 'store'])->middleware('throttle:upload');
+            Route::post('/seller/products/bulk', [SellerProductController::class, 'bulk']);
+            Route::post('/seller/products/description-image', [SellerProductController::class, 'uploadDescriptionImage'])->middleware('throttle:upload');
+            Route::get('/seller/products/{product}', [SellerProductController::class, 'show']);
+            Route::post('/seller/products/{product}', [SellerProductController::class, 'update'])->middleware('throttle:upload');
+            Route::post('/seller/products/{product}/duplicate', [SellerProductController::class, 'duplicate']);
+            Route::patch('/seller/products/{product}/stock', [SellerProductController::class, 'updateStock']);
+            Route::patch('/seller/products/{product}/price', [SellerProductController::class, 'updatePrice']);
+            Route::patch('/seller/products/{product}/status', [SellerProductController::class, 'updateStatus']);
+            Route::delete('/seller/products/{product}', [SellerProductController::class, 'destroy']);
+        });
+
+        // Flash sale reminders (buyers)
+        Route::post('/flash-sales/{flash}/reminder', [\App\Http\Controllers\Api\V1\FlashSaleReminderController::class, 'store'])->whereNumber('flash');
+        Route::delete('/flash-sales/{flash}/reminder', [\App\Http\Controllers\Api\V1\FlashSaleReminderController::class, 'destroy'])->whereNumber('flash');
+
         // Seller: own conversation with admin (any approved seller, regardless of role value)
         Route::middleware('approved_seller')->group(function () {
             // Seller dashboard
@@ -329,20 +455,35 @@ Route::prefix('v1')->group(function () {
             Route::get('/seller/dashboard/attention', [SellerDashboardController::class, 'attention']);
             Route::get('/seller/dashboard/top-products', [SellerDashboardController::class, 'topProducts']);
 
-            // Seller products
-            Route::get('/seller/products', [SellerProductController::class, 'index']);
-            Route::post('/seller/products', [SellerProductController::class, 'store'])->middleware('throttle:upload');
-            Route::post('/seller/products/description-image', [SellerProductController::class, 'uploadDescriptionImage'])->middleware('throttle:upload');
-            Route::get('/seller/products/{product}', [SellerProductController::class, 'show']);
-            Route::post('/seller/products/{product}', [SellerProductController::class, 'update'])->middleware('throttle:upload');
-            Route::patch('/seller/products/{product}/stock', [SellerProductController::class, 'updateStock']);
-            Route::patch('/seller/products/{product}/price', [SellerProductController::class, 'updatePrice']);
-            Route::patch('/seller/products/{product}/status', [SellerProductController::class, 'updateStatus']);
-            Route::delete('/seller/products/{product}', [SellerProductController::class, 'destroy']);
+            // Store categories, promotions and reviews (approved stores)
+            $storeCats = \App\Http\Controllers\Api\V1\SellerStoreCategoryController::class;
+            Route::get('/seller/store-categories', [$storeCats, 'index']);
+            Route::post('/seller/store-categories', [$storeCats, 'store']);
+            Route::post('/seller/store-categories/reorder', [$storeCats, 'reorder']);
+            Route::patch('/seller/store-categories/{category}', [$storeCats, 'update'])->whereNumber('category');
+            Route::get('/seller/store-categories/{category}/delete-preview', [$storeCats, 'deletePreview'])->whereNumber('category');
+            Route::delete('/seller/store-categories/{category}', [$storeCats, 'destroy'])->whereNumber('category');
+
+            $promos = \App\Http\Controllers\Api\V1\SellerPromotionController::class;
+            Route::get('/seller/promotions', [$promos, 'index']);
+            Route::post('/seller/promotions', [$promos, 'storePromotion']);
+            Route::post('/seller/promotions/{promotion}/end', [$promos, 'endPromotion'])->whereNumber('promotion');
+            Route::post('/seller/sales', [$promos, 'storeSale']);
+            Route::patch('/seller/sales/{sale}', [$promos, 'updateSale'])->whereNumber('sale');
+            Route::post('/seller/sales/{sale}/end', [$promos, 'endSale'])->whereNumber('sale');
+            Route::post('/seller/flash-sales', [$promos, 'storeFlash']);
+            Route::post('/seller/flash-sales/{flash}/end', [$promos, 'endFlash'])->whereNumber('flash');
+
+            $sellerReviews = \App\Http\Controllers\Api\V1\SellerReviewController::class;
+            Route::get('/seller/reviews', [$sellerReviews, 'index']);
+            Route::post('/seller/reviews/{review}/reply', [$sellerReviews, 'reply'])->whereNumber('review');
+            Route::patch('/seller/reviews/{review}/reply', [$sellerReviews, 'updateReply'])->whereNumber('review');
 
             // Seller shop profile
             Route::get('/seller/shop-profile', [SellerShopProfileController::class, 'show']);
             Route::post('/seller/shop-profile', [SellerShopProfileController::class, 'update'])->middleware('throttle:upload');
+            Route::get('/seller/notification-preferences', [\App\Http\Controllers\Api\V1\SellerNotificationPreferenceController::class, 'show']);
+            Route::put('/seller/notification-preferences', [\App\Http\Controllers\Api\V1\SellerNotificationPreferenceController::class, 'update']);
 
             // Seller orders & verification
             Route::get('/seller/orders', [SellerOrderController::class, 'index']);
@@ -351,6 +492,15 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller/orders/{order}/confirm-payment', [SellerOrderController::class, 'confirmPayment']);
             Route::post('/seller/orders/{order}/reject-payment', [SellerOrderController::class, 'rejectPayment']);
             Route::post('/seller/orders/{order}/respond-return', [SellerOrderController::class, 'respondReturn']);
+            Route::post('/seller/orders/{order}/cancel', [SellerOrderController::class, 'cancel']);
+            // A13: a parcel back from a failed delivery; the stock returns only on this confirmation
+            Route::post('/seller/orders/{order}/confirm-return-received', [SellerOrderController::class, 'confirmReturnReceived']);
+            // Store vouchers (S9)
+            $vouchers = \App\Http\Controllers\Api\V1\VoucherManagementController::class;
+            Route::get('/seller/vouchers', [$vouchers, 'index']);
+            Route::post('/seller/vouchers', [$vouchers, 'store']);
+            Route::patch('/seller/vouchers/{voucher}', [$vouchers, 'update'])->whereNumber('voucher');
+            Route::post('/seller/vouchers/{voucher}/end', [$vouchers, 'end'])->whereNumber('voucher');
             Route::patch('/seller/orders/{order}/status', [SellerOrderController::class, 'updateStatus']);
 
             // Seller earnings & payouts
@@ -376,15 +526,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/my-conversation', [ConversationController::class, 'mine']);
             Route::get('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
                 $conv = \App\Models\Conversation::firstOrCreate(
-                    ['seller_id' => $req->user()->id],
-                    ['last_message_at' => now()]
+                    ['seller_id' => $req->user()->id, 'type' => 'seller_admin'],
+                    ['status' => 'open', 'subject' => 'Platform Support', 'last_message_at' => now()]
                 );
                 return app(ConversationController::class)->messages($req, $conv);
             });
             Route::post('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
                 $conv = \App\Models\Conversation::firstOrCreate(
-                    ['seller_id' => $req->user()->id],
-                    ['last_message_at' => now()]
+                    ['seller_id' => $req->user()->id, 'type' => 'seller_admin'],
+                    ['status' => 'open', 'subject' => 'Platform Support', 'last_message_at' => now()]
                 );
                 return app(ConversationController::class)->send($req, $conv);
             });
@@ -454,6 +604,18 @@ Route::prefix('v1')->group(function () {
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
             Route::get('/me', [RiderController::class, 'me']);
+
+            // Online / Offline, job offers, returns to the seller and COD remittance (R3, R4, R7, R9)
+            $jobs = \App\Http\Controllers\Api\V1\RiderJobController::class;
+            Route::get('/status', [$jobs, 'status']);
+            Route::post('/availability', [$jobs, 'availability']);
+            Route::get('/offers', [$jobs, 'offers']);
+            Route::post('/offers/{offer}/accept', [$jobs, 'accept'])->whereNumber('offer');
+            Route::post('/offers/{offer}/decline', [$jobs, 'decline'])->whereNumber('offer');
+            Route::get('/returns', [$jobs, 'returns']);
+            Route::post('/returns/{tracking}/delivered', [$jobs, 'returned']);
+            Route::get('/cod', [$jobs, 'cod']);
+            Route::post('/cod/remittances', [$jobs, 'remit']);
             Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'rider']);
             Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateRider']);
 
@@ -489,7 +651,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/chat/threads/{conversation}/messages', [RiderChatController::class, 'messages']);
             Route::post('/chat/threads/{conversation}/messages', [RiderChatController::class, 'send']);
             Route::post('/chat/threads/{conversation}/read', [RiderChatController::class, 'markRead']);
-            Route::put('/vehicle', [RiderController::class, 'updateVehicle']);
+            Route::post('/vehicle', [RiderController::class, 'updateVehicle'])->middleware('throttle:upload');
+            Route::put('/vehicle', [RiderController::class, 'updateVehicle'])->middleware('throttle:upload');
+            Route::post('/license', [RiderController::class, 'updateLicense'])->middleware('throttle:upload');
+            Route::get('/documents/{doc}', [RiderController::class, 'document'])->whereIn('doc', ['license', 'or-cr']);
 
             // Live location: the rider's latest point, shown to the people tracking a parcel they carry
             Route::get('/location/status', [RiderLocationController::class, 'status']);

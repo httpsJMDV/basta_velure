@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\DeliveryLog;
 use App\Models\Parcel;
 use App\Models\Rider;
+use App\Services\Courier\ReturnToSender;
+use App\Support\Money;
 use App\Services\OrderStateMachine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -179,30 +181,33 @@ class RiderDeliveryController extends Controller
         return response()->json(['data' => DeliveryFailureReason::options()]);
     }
 
+    /** Wrong delivery codes before entry locks, and for how long (A32). */
+    public const OTP_MAX_TRIES = 5;
+    public const OTP_LOCK_MINUTES = 15;
+
     /**
      * POST /api/v1/rider/deliveries/{tracking}/delivered   (multipart)
      *
-     * Mark one stop delivered with two different photos as proof. The photos go to the private disk. The COD amount
-     * is always read from the parcel, never from the client. Escrow handling at DELIVERED is the state
-     * machine's, untouched.
+     * Mark one stop delivered (R6, A32), in order: a proof photo (a second one is optional), the buyer's 6-digit
+     * delivery code, and for COD the cash collected, which must be exactly the order's COD amount. Five wrong codes
+     * lock code entry for 15 minutes; during the lock even the right code is refused. The photos go to the private
+     * disk. Escrow handling at DELIVERED is the state machine's, untouched.
      */
     public function delivered(Request $request, string $tracking): JsonResponse
     {
-        if ($request->has('cod_collected')) {
-            $request->merge([
-                'cod_collected' => filter_var($request->input('cod_collected'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
-            ]);
-        }
-
         $request->validate([
             'proof_photo'   => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
-            'proof_photo_2' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+            'proof_photo_2' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'received_by'   => ['nullable', 'string', 'max:100'],
-            'cod_collected' => ['nullable', 'boolean'],
+            'otp'           => ['nullable', 'string', 'max:20'],
+            'cod_amount'    => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+        ], [
+            'proof_photo.required' => 'Take a photo of the parcel at the door as proof of delivery.',
+            'cod_amount.numeric'   => 'Enter the cash you collected as a number, like 500 or 500.00.',
         ]);
 
-        // The two photos must be two different pictures, not the same file sent twice.
-        if (hash_file('sha256', $request->file('proof_photo')->getRealPath()) === hash_file('sha256', $request->file('proof_photo_2')->getRealPath())) {
+        // A second photo, when sent, must be a different picture, not the same file twice.
+        if ($request->hasFile('proof_photo_2') && hash_file('sha256', $request->file('proof_photo')->getRealPath()) === hash_file('sha256', $request->file('proof_photo_2')->getRealPath())) {
             throw ValidationException::withMessages([
                 'proof_photo_2' => ['Take a second, different photo.'],
             ]);
@@ -226,16 +231,52 @@ class RiderDeliveryController extends Controller
                     return $this->cannotUpdate();
                 }
 
-                // A COD parcel needs the rider to confirm the cash; the amount itself comes from the parcel.
+                // The delivery code (A32). A parcel sent out before codes existed has none and skips this step.
+                if ($parcel->delivery_otp !== null) {
+                    if ($parcel->delivery_otp_locked_until && $parcel->delivery_otp_locked_until->isFuture()) {
+                        $mins = (int) ceil(now()->diffInSeconds($parcel->delivery_otp_locked_until) / 60);
+
+                        return response()->json([
+                            'message' => "Too many wrong codes. Code entry is locked for {$mins} more minute(s).",
+                            'errors'  => ['otp' => ["Code entry is locked for {$mins} more minute(s)."]],
+                            'locked_until' => $parcel->delivery_otp_locked_until->toIso8601String(),
+                        ], 423);
+                    }
+                    $otp = trim((string) $request->input('otp', ''));
+                    if (! preg_match('/^\d{6}$/', $otp)) {
+                        throw ValidationException::withMessages(['otp' => ['Enter the 6-digit delivery code the buyer sees on their order.']]);
+                    }
+                    if (! hash_equals((string) $parcel->delivery_otp, $otp)) {
+                        $tries = (int) $parcel->delivery_otp_attempts + 1;
+                        $locked = $tries >= self::OTP_MAX_TRIES;
+                        // Saved even though the request is refused: the response below commits the transaction.
+                        Parcel::whereKey($parcel->id)->update($locked
+                            ? ['delivery_otp_attempts' => 0, 'delivery_otp_locked_until' => now()->addMinutes(self::OTP_LOCK_MINUTES)]
+                            : ['delivery_otp_attempts' => $tries]);
+                        $message = $locked
+                            ? 'Wrong code ' . self::OTP_MAX_TRIES . ' times. Code entry is locked for ' . self::OTP_LOCK_MINUTES . ' minutes.'
+                            : 'Wrong delivery code. ' . (self::OTP_MAX_TRIES - $tries) . ' tries left.';
+
+                        return response()->json(['message' => $message, 'errors' => ['otp' => [$message]]], $locked ? 423 : 422);
+                    }
+                }
+
+                // COD: the cash collected must be exactly the order's COD amount (R6).
                 $isCod = $parcel->cod_amount !== null;
-                if ($isCod && ! $request->boolean('cod_collected')) {
-                    throw ValidationException::withMessages([
-                        'cod_collected' => ['Confirm that you collected the cash on delivery amount.'],
-                    ]);
+                $collected = null;
+                if ($isCod) {
+                    $entered = $request->input('cod_amount');
+                    if ($entered === null || $entered === '') {
+                        throw ValidationException::withMessages(['cod_amount' => ['Enter the cash you collected.']]);
+                    }
+                    if (Money::toCents(number_format((float) $entered, 2, '.', '')) !== Money::toCents((string) $parcel->cod_amount)) {
+                        throw ValidationException::withMessages(['cod_amount' => ['The cash must be exactly ₱' . number_format((float) $parcel->cod_amount, 2) . ', the order\'s COD amount.']]);
+                    }
+                    $collected = $parcel->cod_amount;
                 }
 
                 // Everything that can reject the request has run; only now are the photos kept.
-                foreach (['proof_photo', 'proof_photo_2'] as $field) {
+                foreach (array_filter(['proof_photo', 'proof_photo_2'], fn ($f) => $request->hasFile($f)) as $field) {
                     $path = $request->file($field)->store('delivery-proofs', 'ids');
                     if (! $path) {
                         throw new \RuntimeException('Could not store the delivery proof.');
@@ -260,9 +301,11 @@ class RiderDeliveryController extends Controller
                 Parcel::where('id', $parcel->id)->update([
                     'delivered_at'        => $now,
                     'delivery_proof_path'   => $storedPaths['proof_photo'],
-                    'delivery_proof_path_2' => $storedPaths['proof_photo_2'],
+                    'delivery_proof_path_2' => $storedPaths['proof_photo_2'] ?? null,
                     'received_by'         => $receivedBy !== '' ? $receivedBy : null,
                     'cod_collected_at'    => $isCod ? $now : null,
+                    'cod_collected_amount' => $collected,
+                    'delivery_otp_attempts' => 0,
                 ]);
 
                 DeliveryLog::create([
@@ -278,6 +321,8 @@ class RiderDeliveryController extends Controller
                     'tracking_number' => $parcel->tracking_number,
                     'delivered_at'    => $now->toIso8601String(),
                     'cod_collected'   => $isCod,
+                    'cod_amount'      => $collected !== null ? (float) $collected : null,
+                    'pay'             => Money::fromCents(\App\Support\ShippingSplit::deliveryPayCents()),
                 ]);
             });
         } catch (\Throwable $e) {
@@ -353,11 +398,19 @@ class RiderDeliveryController extends Controller
                 'notes'     => "{$reason->value}: {$reason->label()}" . ($note !== null ? " - {$note}" : ''),
             ]);
 
+            // A13: a refusal, or the last allowed attempt, sends the parcel back to the seller at once.
+            $fresh = Parcel::with('order')->find($parcel->id);
+            $rts = app(ReturnToSender::class)->afterFailure($fresh, $reason);
+            $attempts = (int) $fresh->delivery_attempts;
+
             return response()->json([
-                'message'           => 'Delivery failure recorded.',
+                'message'           => $rts ? 'Delivery failed. The parcel goes back to the seller: no more attempts.' : "Delivery failure recorded: attempt {$attempts} of " . ReturnToSender::maxAttempts() . '.',
                 'tracking_number'   => $parcel->tracking_number,
                 'reason'            => ['code' => $reason->value, 'label' => $reason->label()],
-                'delivery_attempts' => (int) Parcel::where('id', $parcel->id)->value('delivery_attempts'),
+                'delivery_attempts' => $attempts,
+                'max_attempts'      => ReturnToSender::maxAttempts(),
+                'return_to_sender'  => $rts,
+                'pay'               => '0.00',
             ]);
         });
     }
@@ -429,6 +482,13 @@ class RiderDeliveryController extends Controller
                 ],
             ],
             'cod_amount'          => $parcel->cod_amount !== null ? (float) $parcel->cod_amount : null,
+            // "Attempt 2 of 3" (R7): the attempt this trip is, and how many are allowed.
+            'attempt'             => (int) $parcel->delivery_attempts + 1,
+            'max_attempts'        => ReturnToSender::maxAttempts(),
+            'previous_failure'    => $parcel->failure_reason ? (DeliveryFailureReason::tryFrom($parcel->failure_reason)?->label() ?? $parcel->failure_reason) : null,
+            'otp_required'        => $parcel->delivery_otp !== null,
+            'otp_locked_until'    => $parcel->delivery_otp_locked_until?->isFuture() ? $parcel->delivery_otp_locked_until->toIso8601String() : null,
+            'weight_kg'           => $parcel->weight_kg !== null ? (float) $parcel->weight_kg : null,
             'item_count'          => (int) $items->sum('quantity'),
             'item_summary'        => $this->itemSummary($items),
             'assigned_at'         => $parcel->assigned_at?->toIso8601String(),

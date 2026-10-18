@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { CartProvider } from './hooks/useCart';
 import LoginPage from './pages/auth/LoginPage';
@@ -14,9 +14,15 @@ import LogisticsRidersPage from './pages/logistics/LogisticsRidersPage';
 import LogisticsParcelsPage from './pages/logistics/LogisticsParcelsPage';
 import LogisticsReportsPage from './pages/logistics/LogisticsReportsPage';
 import LogisticsMoneyPage from './pages/logistics/LogisticsMoneyPage';
+import LogisticsShippingPage from './pages/logistics/LogisticsShippingPage';
+import LogisticsDispatchPage from './pages/logistics/LogisticsDispatchPage';
+import LogisticsHubOpsPage from './pages/logistics/LogisticsHubOpsPage';
+import LogisticsReturnsPage from './pages/logistics/LogisticsReturnsPage';
+import LogisticsCodPage from './pages/logistics/LogisticsCodPage';
 import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
-import RiderRegisterPage from './pages/auth/RiderRegisterPage';
+import VerifyEmailPage from './pages/auth/VerifyEmailPage';
+import RiderActivatePage from './pages/auth/RiderActivatePage';
 import RiderLoginPage from './pages/auth/RiderLoginPage';
 import RiderLayout from './pages/rider/RiderLayout';
 import RiderDashboardPage from './pages/rider/RiderDashboardPage';
@@ -45,8 +51,12 @@ import WaybillPage from './pages/seller/WaybillPage';
 import SellerEarningsPage from './pages/seller/SellerEarningsPage';
 import SellerPaymentsPage from './pages/seller/SellerPaymentsPage';
 import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
+import SellerStoreCategoriesPage from './pages/seller/SellerStoreCategoriesPage';
+import SellerPromotionsPage from './pages/seller/SellerPromotionsPage';
+import SellerReviewsPage from './pages/seller/SellerReviewsPage';
+import SellerVouchersPage from './pages/seller/SellerVouchersPage';
+import AdminVouchersPage from './pages/admin/AdminVouchersPage';
 import SellerAccountSettingsPage from './pages/seller/SellerAccountSettingsPage';
-import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminBuyerApplicationsPage from './pages/admin/AdminBuyerApplicationsPage';
@@ -72,6 +82,7 @@ import { ChatProvider } from './hooks/useChat';
 import HomePage from './pages/HomePage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
+import PaymentPage from './pages/PaymentPage';
 import CatalogPage from './pages/CatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ShopProfilePage from './pages/ShopProfilePage';
@@ -89,6 +100,7 @@ import {
   SettingsReturns,
   SettingsCancellations,
   SettingsReviews,
+  SettingsVouchers,
   SettingsWishlist,
 } from './pages/SettingsPage';
 import type { ReactNode } from 'react';
@@ -96,16 +108,31 @@ import type { Role } from './types';
 import ScrollToTop from './components/ScrollToTop';
 import { ToastProvider } from './components/ui/Toast';
 
+/**
+ * A Google sign-up starts without a mobile number or birthday and finishes them on /complete-profile. Accounts made
+ * with the registration form already have both; identity documents are optional and added from the account.
+ */
 function isProfileIncomplete(user: ReturnType<typeof useAuth>['user']) {
-  return user?.role === 'buyer' && (!user.date_of_birth || !user.sex || !user.government_id_type);
+  return user?.role === 'buyer' && (!user.date_of_birth || !user.phone);
 }
 
-function RequireApprovedSeller({ children }: { children: ReactNode }) {
+/**
+ * The seller centre: an approved seller, or one whose application is still waiting (A18), who can prepare product
+ * drafts. Everything else in it is for approved stores only (ApprovedSellerOnly).
+ */
+function RequireSellerApplicant({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (user.seller_profile?.application_status !== 'approved') return <Navigate to="/register/seller" replace />;
+  const status = user.seller_profile?.application_status;
+  if (status !== 'approved' && status !== 'pending') return <Navigate to="/register/seller" replace />;
   return <>{children}</>;
+}
+
+function ApprovedSellerOnly() {
+  const { user } = useAuth();
+  if (user?.seller_profile?.application_status !== 'approved') return <Navigate to="/seller/products" replace />;
+  return <Outlet />;
 }
 
 /**
@@ -168,9 +195,9 @@ function RequireActiveRider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/rider/login" replace />;
-  // Anything but an active courier goes to the courier application page, which shows the pending or disapproved
-  // status (with the hub's reason and a resubmit button) or the form.
-  if (!user.rider || user.rider.status !== 'ACTIVE') return <Navigate to="/register/rider" replace />;
+  // Riders are added by their courier company (A13). Active riders work; a suspended rider still opens the pages to
+  // see why (every action is refused by the API). Anyone else goes back to the rider sign-in page.
+  if (!user.rider || !['ACTIVE', 'SUSPENDED'].includes(user.rider.status)) return <Navigate to="/rider/login" replace />;
   return <>{children}</>;
 }
 
@@ -239,6 +266,7 @@ function AppRoutes() {
           )
         }
       />
+      <Route path="/pay/:token" element={!user ? <Navigate to="/login" replace /> : <PaymentPage />} />
       <Route path="/search" element={<CatalogPage />} />
       <Route path="/category/:parentId" element={<CatalogPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
@@ -253,9 +281,11 @@ function AppRoutes() {
       <Route path="/register/courier" element={<CourierRegisterPage />} />
       <Route path="/register/hub/pending" element={<Navigate to="/register/hub" replace />} />
       <Route path="/register/sorting-center" element={<Navigate to="/register/hub" replace />} />
-      <Route path="/register/rider" element={<RiderRegisterPage />} />
-      <Route path="/register/rider/pending" element={<Navigate to="/register/rider" replace />} />
-      <Route path="/register/courier" element={<Navigate to="/register/rider" replace />} />
+      {/* Riders cannot register themselves: their courier company adds them and they activate from an email (A13) */}
+      <Route path="/register/rider" element={<Navigate to="/rider/login" replace />} />
+      <Route path="/register/rider/pending" element={<Navigate to="/rider/login" replace />} />
+      <Route path="/rider/activate" element={<RiderActivatePage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/rider/login" element={<RiderLoginPage />} />
       <Route path="/hub/login" element={<HubLoginPage />} />
       <Route path="/partner" element={<PartnerPage />} />
@@ -288,32 +318,38 @@ function AppRoutes() {
         <Route path="returns"       element={<SettingsReturns />} />
         <Route path="cancellations" element={<SettingsCancellations />} />
         <Route path="reviews"       element={<SettingsReviews />} />
+        <Route path="vouchers"      element={<SettingsVouchers />} />
         <Route path="wishlist"      element={<SettingsWishlist />} />
       </Route>
 
-      {/* Seller — nested layout, all routes approved-seller-gated */}
+      {/* Seller centre: products and account open to a waiting applicant; the rest needs an approved store */}
       <Route
         path="/seller"
         element={
-          <RequireApprovedSeller>
+          <RequireSellerApplicant>
             <SellerLayout />
-          </RequireApprovedSeller>
+          </RequireSellerApplicant>
         }
       >
-        <Route index element={<SellerDashboard />} />
-        <Route path="products"         element={<SellerProductsPage />} />
+        <Route path="products"          element={<SellerProductsPage />} />
         <Route path="products/new"      element={<SellerAddProductPage />} />
         <Route path="products/:id/edit" element={<SellerAddProductPage />} />
-        <Route path="orders"            element={<SellerOrdersPage />} />
-        <Route path="inventory"         element={<AdminPlaceholderPage title="Inventory / Stock" />} />
-        <Route path="payments"          element={<SellerPaymentsPage />} />
-        <Route path="earnings"          element={<SellerEarningsPage />} />
-        <Route path="payouts"           element={<SellerEarningsPage />} />
-        <Route path="reports"           element={<SellerReportsPage />} />
-        <Route path="messages"          element={<SellerMessagesPage />} />
-        <Route path="reviews"           element={<AdminPlaceholderPage title="Reviews & Ratings" />} />
-        <Route path="shop-profile"      element={<SellerShopProfilePage />} />
         <Route path="account"           element={<SellerAccountSettingsPage />} />
+        <Route element={<ApprovedSellerOnly />}>
+          <Route index element={<SellerDashboard />} />
+          <Route path="store-categories"  element={<SellerStoreCategoriesPage />} />
+          <Route path="promotions"        element={<SellerPromotionsPage />} />
+          <Route path="vouchers"          element={<SellerVouchersPage />} />
+          <Route path="orders"            element={<SellerOrdersPage />} />
+          <Route path="inventory"         element={<Navigate to="/seller/products" replace />} />
+          <Route path="payments"          element={<SellerPaymentsPage />} />
+          <Route path="earnings"          element={<SellerEarningsPage />} />
+          <Route path="payouts"           element={<SellerEarningsPage />} />
+          <Route path="reports"           element={<SellerReportsPage />} />
+          <Route path="messages"          element={<SellerMessagesPage />} />
+          <Route path="reviews"           element={<SellerReviewsPage />} />
+          <Route path="shop-profile"      element={<SellerShopProfilePage />} />
+        </Route>
       </Route>
 
       {/* Standalone Printable Waybill for Seller & Admin */}
@@ -350,6 +386,7 @@ function AppRoutes() {
         <Route path="orders"              element={<AdminOrdersPage />} />
         <Route path="payments"            element={<AdminPaymentsPage />} />
         <Route path="disputes"            element={<AdminDisputesPage />} />
+        <Route path="vouchers"            element={<AdminVouchersPage />} />
         <Route path="reviews"             element={<AdminReviewsPage />} />
         <Route path="reports"             element={<AdminReportsPage />} />
         <Route path="settings"            element={<AdminPlatformSettingsPage />} />
@@ -371,6 +408,11 @@ function AppRoutes() {
         <Route path="parcels" element={<LogisticsParcelsPage />} />
         <Route path="reports" element={<LogisticsReportsPage />} />
         <Route path="money" element={<LogisticsMoneyPage />} />
+        <Route path="shipping" element={<LogisticsShippingPage />} />
+        <Route path="dispatch" element={<LogisticsDispatchPage />} />
+        <Route path="hub-ops" element={<LogisticsHubOpsPage />} />
+        <Route path="returns" element={<LogisticsReturnsPage />} />
+        <Route path="cod" element={<LogisticsCodPage />} />
       </Route>
 
       {/* Logistics / Sorting Center Hub Portal */}

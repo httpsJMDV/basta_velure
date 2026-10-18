@@ -22,6 +22,9 @@ class EscrowCommandsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // These tests cover the configurable escrow hold and auto-complete window, so they pin a 7-day hold and a
+        // 3-day window. The workbook defaults (no hold, 7 days, A11 and A15) are covered in CommerceOrdersTest.
+        config(['payouts.escrow_hold_days' => 7, 'orders.auto_complete_days' => 3]);
         Carbon::setTestNow(Carbon::parse(self::NOW));
     }
 
@@ -217,21 +220,27 @@ class EscrowCommandsTest extends TestCase
 
     // ─── scheduler ────────────────────────────────────────────────────────────
 
-    public function test_both_commands_are_scheduled_hourly(): void
+    public function test_both_commands_are_scheduled(): void
     {
         Artisan::call('schedule:list');
         $output = Artisan::output();
+        $line = fn (string $command) => collect(explode("\n", $output))->first(fn ($l) => str_contains($l, $command));
 
-        foreach (['orders:auto-complete', 'payouts:release-due'] as $command) {
-            $line = collect(explode("\n", $output))->first(fn ($l) => str_contains($l, $command));
-            $this->assertNotNull($line, "{$command} must be on the schedule");
-            $this->assertStringContainsString('0 * * * *', $line, "{$command} must run hourly");
-        }
+        // Auto-complete runs every five minutes so an order completes close to the 7-day mark (A11).
+        // schedule:list pads the cron columns to line up, so spaces are matched loosely.
+        $this->assertNotNull($line('orders:auto-complete'));
+        $this->assertMatchesRegularExpression('/\*\/5\s+\*\s+\*\s+\*\s+\*/', $line('orders:auto-complete'));
+        $this->assertNotNull($line('payouts:release-due'));
+        $this->assertMatchesRegularExpression('/\s0\s+\*\s+\*\s+\*\s+\*/', $line('payouts:release-due'));
     }
 
-    public function test_the_escrow_defaults_are_seven_hold_days_and_three_auto_complete_days(): void
+    public function test_the_defaults_follow_the_workbook_no_hold_and_seven_auto_complete_days(): void
     {
-        $this->assertSame(7, config('payouts.escrow_hold_days'));
-        $this->assertSame(3, config('orders.auto_complete_days'));
+        // A15: earnings are available when the order completes; A11: delivered orders complete after 7 days.
+        // (setUp pins other values for the rest of this class, so read the shipped config files.)
+        $this->assertSame(0, (int) env('PAYOUT_ESCROW_HOLD_DAYS', 0));
+        $this->assertSame(7, (int) env('ORDER_AUTO_COMPLETE_DAYS', 7));
+        $this->assertStringContainsString("env('PAYOUT_ESCROW_HOLD_DAYS', 0)", file_get_contents(config_path('payouts.php')));
+        $this->assertStringContainsString("env('ORDER_AUTO_COMPLETE_DAYS', 7)", file_get_contents(config_path('orders.php')));
     }
 }

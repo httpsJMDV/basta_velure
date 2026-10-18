@@ -92,8 +92,16 @@ class AddressStandardizationTest extends TestCase
         Sanctum::actingAs($applicant);
 
         $payload = [
-            'shop_name'             => 'Test Boutique ' . uniqid(),
+            'shop_name'             => 'Boutique ' . substr(uniqid(), -8),
             'shop_description'      => 'Selling authentic fashion',
+            'shop_category'         => \App\Models\Category::whereNull('parent_id')->value('name') ?? \App\Models\Category::create(['slug' => 'fashion-' . uniqid(), 'name' => 'Fashion', 'is_active' => true])->name,
+            'seller_type'           => 'individual',
+            'tin'                   => implode('-', str_split((string) random_int(100000000000, 999999999999), 3)),
+            'address_region'        => 'National Capital Region (NCR)',
+            'address_region_code'   => '130000000',
+            'address_street'        => '12 Ayala Ave.',
+            'address_postal_code'   => '1226',
+            'accept_terms'          => true,
             'government_id_type'    => 'national_id',
             'government_id_image'   => UploadedFile::fake()->create('id.jpg', 500, 'image/jpeg'),
             'selfie_with_id'        => UploadedFile::fake()->create('selfie.jpg', 500, 'image/jpeg'),
@@ -166,6 +174,7 @@ class AddressStandardizationTest extends TestCase
             'address_province'      => 'Metro Manila',
             'address_city'          => 'Taguig',
             'address_barangay'      => 'Fort Bonifacio',
+            'address_street'        => '5th Avenue',
             'address_province_code' => '130000000',
             'address_city_code'     => '137607000',
             'address_barangay_code' => '137607005',

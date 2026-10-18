@@ -1,502 +1,341 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Activity,
-  Search,
-  ShieldAlert,
-  UserCheck,
-  UserX,
-  FileCode,
-  CheckCircle2,
-  Eye,
-  X,
-  Layers,
-  Zap,
-  ChevronLeft,
-  ChevronRight,
+  Activity, ShieldAlert, UserCheck, UserX, Store, Truck, Warehouse, RotateCcw, FolderPlus, Tags, Trash2, Percent,
+  FileText, BadgeCheck, Scale, CalendarDays, CalendarClock, ClipboardCheck, ChevronRight, Braces, ArrowUpRight,
 } from 'lucide-react';
 import { getActivityLogApi } from '../../api/client';
-import type { ActivityLogEntry } from '../../types';
-import Button from '../../components/ui/Button';
+import type { ActivityArea, ActivityLogEntry, ActivityLogSummary } from '../../types';
+import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
+import {
+  FilterPanel, SearchField, StatusTabs, ListCard, ListPager, ListError, ListEmpty, Avatar, useDebouncedSearch, type ListMeta,
+} from '../../components/admin/listKit';
 import CustomSelect from '../../components/ui/CustomSelect';
-import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
+import { SidePanel } from '../../components/ui/Overlay';
+import { useMountAnim } from '../../hooks/useDashboardAnimations';
 
-const ACTION_MAP: Record<
-  string,
-  { label: string; bg: string; text: string; icon: React.ElementType }
-> = {
-  approve_seller:   { label: 'Seller Approved',    bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: UserCheck },
-  reject_seller:    { label: 'Seller Rejected',    bg: 'bg-rose-50 border-rose-200',       text: 'text-rose-700',    icon: UserX },
-  approve_buyer:    { label: 'Buyer Approved',     bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: UserCheck },
-  reject_buyer:     { label: 'Buyer Rejected',     bg: 'bg-rose-50 border-rose-200',       text: 'text-rose-700',    icon: UserX },
-  suspend_user:     { label: 'Account Suspended',  bg: 'bg-red-50 border-red-200',         text: 'text-red-700',     icon: ShieldAlert },
-  reactivate_user:  { label: 'Account Restored',   bg: 'bg-blue-50 border-blue-200',       text: 'text-blue-700',    icon: CheckCircle2 },
-  takedown_product: { label: 'Product Takedown',   bg: 'bg-amber-50 border-amber-200',     text: 'text-amber-700',   icon: ShieldAlert },
-  delete_review:    { label: 'Review Moderated',   bg: 'bg-purple-50 border-purple-200',   text: 'text-purple-700',  icon: Layers },
-  commission_update:{ label: 'Take-Rate Changed',  bg: 'bg-amber-50 border-amber-200',     text: 'text-amber-800',   icon: Zap },
-  policy_update:    { label: 'Policy Modified',    bg: 'bg-blue-50 border-blue-200',       text: 'text-blue-800',    icon: FileCode },
+const TZ = 'Asia/Manila';
+
+type Tone = 'emerald' | 'rose' | 'red' | 'blue' | 'violet' | 'amber' | 'gray';
+const TONE: Record<Tone, string> = {
+  emerald: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
+  rose: 'bg-rose-50 text-rose-600 ring-rose-100',
+  red: 'bg-red-50 text-red-700 ring-red-100',
+  blue: 'bg-blue-50 text-blue-600 ring-blue-100',
+  violet: 'bg-violet-50 text-violet-600 ring-violet-100',
+  amber: 'bg-amber-50 text-amber-700 ring-amber-100',
+  gray: 'bg-gray-100 text-gray-600 ring-gray-200',
 };
 
-const ACTION_OPTIONS = [
-  { value: '', label: 'All Operations' },
-  { value: 'approve_seller', label: 'Seller Approved' },
-  { value: 'reject_seller', label: 'Seller Rejected' },
-  { value: 'approve_buyer', label: 'Buyer Approved' },
-  { value: 'reject_buyer', label: 'Buyer Rejected' },
-  { value: 'suspend_user', label: 'Account Suspended' },
-  { value: 'reactivate_user', label: 'Account Restored' },
-  { value: 'takedown_product', label: 'Product Takedown' },
-  { value: 'delete_review', label: 'Review Moderated' },
-  { value: 'commission_update', label: 'Commission Update' },
-  { value: 'policy_update', label: 'Policy Update' },
-];
+/** Every action the admin pages record, in words. */
+const ACTIONS: Record<string, { label: string; icon: React.ElementType; tone: Tone }> = {
+  approve_buyer: { label: 'Buyer approved', icon: UserCheck, tone: 'emerald' },
+  reject_buyer: { label: 'Buyer rejected', icon: UserX, tone: 'rose' },
+  approve_seller: { label: 'Seller approved', icon: Store, tone: 'emerald' },
+  reject_seller: { label: 'Seller rejected', icon: Store, tone: 'rose' },
+  approve_courier: { label: 'Courier approved', icon: Truck, tone: 'emerald' },
+  reject_courier: { label: 'Courier rejected', icon: Truck, tone: 'rose' },
+  suspend_courier: { label: 'Courier suspended', icon: ShieldAlert, tone: 'red' },
+  reactivate_courier: { label: 'Courier reactivated', icon: RotateCcw, tone: 'blue' },
+  approve_sorting_center: { label: 'Hub approved', icon: Warehouse, tone: 'emerald' },
+  reject_sorting_center: { label: 'Hub rejected', icon: Warehouse, tone: 'rose' },
+  suspend_sorting_center: { label: 'Hub suspended', icon: ShieldAlert, tone: 'red' },
+  reactivate_sorting_center: { label: 'Hub reactivated', icon: RotateCcw, tone: 'blue' },
+  suspend_user: { label: 'Account suspended', icon: ShieldAlert, tone: 'red' },
+  reactivate_user: { label: 'Account reactivated', icon: RotateCcw, tone: 'blue' },
+  create_category: { label: 'Category added', icon: FolderPlus, tone: 'violet' },
+  update_category: { label: 'Category changed', icon: Tags, tone: 'violet' },
+  delete_category: { label: 'Category deleted', icon: Trash2, tone: 'rose' },
+  update_commission: { label: 'Commission changed', icon: Percent, tone: 'amber' },
+  update_return_policy: { label: 'Return policy changed', icon: FileText, tone: 'amber' },
+  confirm_commission: { label: 'Commission payment confirmed', icon: BadgeCheck, tone: 'emerald' },
+  resolve_dispute: { label: 'Dispute decided', icon: Scale, tone: 'blue' },
+};
 
-const PER_PAGE_OPTIONS = [
-  { value: '15', label: '15 rows' },
-  { value: '30', label: '30 rows' },
-  { value: '50', label: '50 rows' },
-  { value: '100', label: '100 rows' },
-];
-
-function getOperatorInitials(first?: string, last?: string): string {
-  const f = first?.[0] || '';
-  const l = last?.[0] || '';
-  return (f + l).toUpperCase() || 'AD';
+function actionInfo(action: string) {
+  return ACTIONS[action] ?? { label: action.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), icon: Activity, tone: 'gray' as Tone };
 }
 
-interface Meta {
-  current_page: number;
-  last_page: number;
-  total: number;
+const AREAS: { value: '' | ActivityArea; label: string }[] = [
+  { value: '', label: 'Everything' },
+  { value: 'applications', label: 'Applications' },
+  { value: 'accounts', label: 'Accounts' },
+  { value: 'catalog', label: 'Categories' },
+  { value: 'money', label: 'Commission & policy' },
+  { value: 'disputes', label: 'Disputes' },
+  { value: 'other', label: 'Other' },
+];
+
+const PERIODS = [
+  { value: '', label: 'Any time' },
+  { value: 'today', label: 'Today' },
+  { value: '7d', label: 'Last 7 days' },
+  { value: '30d', label: 'Last 30 days' },
+];
+
+/** What a log entry points at, and where the admin manages it. */
+const TARGETS: Record<string, { label: string; to: string }> = {
+  user: { label: 'Account', to: '/admin/buyers' },
+  seller_profile: { label: 'Seller', to: '/admin/sellers' },
+  logistics_company: { label: 'Courier', to: '/admin/courier-applications' },
+  sorting_center: { label: 'Hub', to: '/admin/sorting-center-applications' },
+  category: { label: 'Category', to: '/admin/categories' },
+  dispute: { label: 'Case', to: '/admin/disputes' },
+  platform_setting: { label: 'Setting', to: '/admin/settings' },
+  commission_payment: { label: 'Commission payment', to: '/admin/payments' },
+};
+
+function dayKey(iso: string) {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ });
 }
 
-export default function AdminActivityLogPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const actionParam  = searchParams.get('action') ?? '';
-  const pageParam    = Number(searchParams.get('page') ?? 1);
-  const perPageParam = searchParams.get('per_page') ?? '30';
+function dayLabel(key: string) {
+  const today = dayKey(new Date().toISOString());
+  const yesterday = dayKey(new Date(Date.now() - 86400000).toISOString());
+  const date = new Date(`${key}T12:00:00+08:00`).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: TZ });
+  return key === today ? `Today · ${date}` : key === yesterday ? `Yesterday · ${date}` : date;
+}
 
-  const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
-  const [meta, setMeta] = useState<Meta>({ current_page: 1, last_page: 1, total: 0 });
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPayload, setSelectedPayload] = useState<ActivityLogEntry | null>(null);
+const time = (iso: string) => new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: TZ });
+const stamp = (iso: string) => new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'medium', timeZone: TZ });
+const adminName = (e: ActivityLogEntry) => (e.admin?.first_name ? `${e.admin.first_name} ${e.admin.last_name ?? ''}`.trim() : 'System');
 
-  const pageRef = useMountAnim();
+function humanKey(key: string) {
+  return key.replace(/_/g, ' ').replace(/\bid\b/i, 'ID').replace(/^\w/, (c) => c.toUpperCase());
+}
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await getActivityLogApi({
-        action: actionParam || undefined,
-        page: pageParam,
-        per_page: Number(perPageParam),
-      });
-      setLogs(res.data);
-      setMeta(res.meta);
-    } finally {
-      setLoading(false);
-    }
-  }, [actionParam, pageParam, perPageParam]);
+function humanValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
 
-  useEffect(() => {
-    load();
-  }, [load]);
+function TargetChip({ e, link = true }: { e: ActivityLogEntry; link?: boolean }) {
+  if (!e.target_type) return null;
+  const t = TARGETS[e.target_type] ?? { label: humanKey(e.target_type), to: '' };
+  const text = `${t.label}${e.target_id ? ` #${e.target_id}` : ''}`;
+  const cls = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] font-semibold text-gray-600';
+  return t.to && link
+    ? <Link to={t.to} className={`${cls} hover:border-brand-red/40 hover:text-brand-red`}>{text}<ArrowUpRight className="w-3 h-3" aria-hidden="true" /></Link>
+    : <span className={cls}>{text}</span>;
+}
 
-  function handleActionFilter(value: string) {
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set('action', value);
-    else next.delete('action');
-    next.delete('page');
-    setSearchParams(next);
-  }
-
-  function handlePerPageFilter(value: string) {
-    const next = new URLSearchParams(searchParams);
-    if (value && value !== '30') next.set('per_page', value);
-    else next.delete('per_page');
-    next.delete('page');
-    setSearchParams(next);
-  }
-
-  function setPage(p: number) {
-    const next = new URLSearchParams(searchParams);
-    next.set('page', String(p));
-    setSearchParams(next);
-  }
-
-  // Client-side search filtering
-  const filteredLogs = useMemo(() => {
-    if (!searchQuery.trim()) return logs;
-    const q = searchQuery.toLowerCase();
-    return logs.filter(
-      (log) =>
-        log.description?.toLowerCase().includes(q) ||
-        log.action?.toLowerCase().includes(q) ||
-        log.target_type?.toLowerCase().includes(q) ||
-        `${log.admin?.first_name || ''} ${log.admin?.last_name || ''}`.toLowerCase().includes(q)
-    );
-  }, [logs, searchQuery]);
-
-  // Velocity Metrics
-  const totalEvents = useCountUp(meta.total);
-  const securityEvents = useCountUp(
-    logs.filter((l) => l.action.includes('suspend') || l.action.includes('reject') || l.action.includes('takedown')).length
-  );
-  const approvalEvents = useCountUp(logs.filter((l) => l.action.includes('approve')).length);
-
-  // Pagination UI Component
-  const renderPaginationControls = (isTop = false) => {
-    if (meta.last_page <= 1 && meta.total <= Number(perPageParam)) return null;
-
-    return (
-      <div className={`flex flex-wrap items-center justify-between gap-2 text-xs ${isTop ? 'pb-1' : 'pt-2 border-t border-gray-100'}`}>
-        <span className="text-gray-500 font-medium">
-          Page <strong className="text-gray-900">{meta.current_page}</strong> of{' '}
-          <strong className="text-gray-900">{meta.last_page}</strong> ({meta.total} total log entries)
-        </span>
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="secondary"
-            className="py-1 px-2.5 text-xs flex items-center gap-1 font-semibold"
-            disabled={meta.current_page <= 1 || loading}
-            onClick={() => setPage(meta.current_page - 1)}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" /> Previous
-          </Button>
-          <span className="px-2 py-0.5 text-xs font-mono font-bold bg-gray-100 rounded-lg text-gray-700">
-            {meta.current_page} / {meta.last_page}
-          </span>
-          <Button
-            variant="secondary"
-            className="py-1 px-2.5 text-xs flex items-center gap-1 font-semibold"
-            disabled={meta.current_page >= meta.last_page || loading}
-            onClick={() => setPage(meta.current_page + 1)}
-          >
-            Next <ChevronRight className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-      </div>
-    );
-  };
+function DetailPanel({ entry, onClose }: { entry: ActivityLogEntry | null; onClose: () => void }) {
+  const [raw, setRaw] = useState(false);
+  useEffect(() => setRaw(false), [entry]);
+  if (!entry) return null;
+  const info = actionInfo(entry.action);
+  const Icon = info.icon;
+  const meta = entry.meta ?? {};
 
   return (
-    <div ref={pageRef} className="pb-8 space-y-4 w-full">
-      {/* ── 1. Gradient Hero Band (Matching Products Page) ── */}
-      <div
-        className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm relative overflow-hidden border border-neutral-800"
-        style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-rose-300 shrink-0 border border-white/10">
-            <Activity className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
-                System Audit Trail &amp; Activity Log
-              </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                <span className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-amber-400 animate-spin' : 'bg-emerald-400 animate-pulse'}`} />
-                {loading ? 'Streaming…' : 'Live Synced'}
-              </span>
+    <SidePanel open onClose={onClose} title={info.label} subtitle={`Entry #${entry.id}`} width="max-w-lg">
+      <div className="space-y-5">
+        <div className="flex items-start gap-3">
+          <span className={`w-10 h-10 rounded-xl ring-1 flex items-center justify-center shrink-0 ${TONE[info.tone]}`}><Icon className="w-5 h-5" aria-hidden="true" /></span>
+          <p className="text-[14px] leading-relaxed text-gray-800">{entry.description}</p>
+        </div>
+
+        <dl className="divide-y divide-gray-100 rounded-xl border border-gray-200/80 text-[13px]">
+          {[
+            ['Done by', <span key="a" className="flex items-center gap-2"><Avatar name={adminName(entry)} size="sm" />{adminName(entry)}</span>],
+            ['When', stamp(entry.created_at)],
+            ['About', entry.target_type ? <TargetChip key="t" e={entry} /> : 'Loved-IT as a whole'],
+            ['Action code', <code key="c" className="text-[12px] text-gray-500">{entry.action}</code>],
+          ].map(([k, v]) => (
+            <div key={String(k)} className="flex items-center justify-between gap-4 px-3.5 py-2.5">
+              <dt className="text-gray-500">{k}</dt>
+              <dd className="font-semibold text-gray-900 text-right min-w-0">{v}</dd>
             </div>
-            <p className="text-[11px] text-white/60 mt-0.5">
-              Immutable forensic log of administrator actions, compliance verifications, and platform parameter mutations
-            </p>
-          </div>
-        </div>
+          ))}
+        </dl>
 
-        <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
-          <span className="text-[10px] font-mono text-white/60 bg-black/40 px-2.5 py-1 rounded-xl border border-white/10">
-            Retention: 365 Days
-          </span>
-        </div>
-      </div>
-
-      {/* ── 2. Compact 4-Card Velocity Metric Row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-gray-100 text-gray-800 flex items-center justify-center font-bold shrink-0">
-              <Layers className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-gray-400">Ledger</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-              {totalEvents.toLocaleString()}
-            </p>
-            <p className="text-xs font-bold text-gray-800 mt-1">Total Audit Entries</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Across all administrative actors</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
-              <UserCheck className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Verified</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight leading-none">
-              {approvalEvents.toLocaleString()}
-            </p>
-            <p className="text-xs font-bold text-gray-800 mt-1">Approvals &amp; Grants</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Sellers &amp; verified merchants</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center font-bold shrink-0">
-              <ShieldAlert className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-brand-red bg-rose-50 px-1.5 py-0.5 rounded">Security</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-brand-red tracking-tight leading-none">
-              {securityEvents.toLocaleString()}
-            </p>
-            <p className="text-xs font-bold text-gray-800 mt-1">Enforcements &amp; Blocks</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Suspensions &amp; product takedowns</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
-              <Zap className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">Engine</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">100%</p>
-            <p className="text-xs font-bold text-gray-800 mt-1">Audit Integrity</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Zero missing forensic signatures</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3. Filters, Rows Per Page, Search & Table Container ── */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Filters on Left: Operation Type + Rows Limit Dropdown */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
-            {/* CustomSelect Operation Filter */}
-            <div className="w-full sm:w-56">
-              <CustomSelect
-                value={actionParam}
-                onChange={handleActionFilter}
-                options={ACTION_OPTIONS}
-                placeholder="Filter by operation..."
-              />
-            </div>
-
-            {/* CustomSelect Rows Per Page Filter */}
-            <div className="w-full sm:w-36">
-              <CustomSelect
-                value={perPageParam}
-                onChange={handlePerPageFilter}
-                options={PER_PAGE_OPTIONS}
-                placeholder="Rows limit..."
-              />
-            </div>
-          </div>
-
-          {/* Search Box on Right */}
-          <div className="relative w-full md:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search description, operator, target..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red transition-all"
-            />
-          </div>
-        </div>
-
-        {/* ── TOP PAGINATION BAR ── */}
-        {renderPaginationControls(true)}
-
-        {/* ── High-Density Forensic Table ── */}
-        <div className="overflow-x-auto border border-gray-100 rounded-xl">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="px-4 py-3">Timestamp</th>
-                <th className="px-4 py-3">Operator</th>
-                <th className="px-4 py-3">Operation</th>
-                <th className="px-4 py-3">Description</th>
-                <th className="px-4 py-3">Target</th>
-                <th className="px-4 py-3 text-right">Payload</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td className="px-4 py-3"><div className="w-24 h-3.5 bg-gray-200 rounded" /></td>
-                    <td className="px-4 py-3"><div className="w-24 h-3.5 bg-gray-200 rounded" /></td>
-                    <td className="px-4 py-3"><div className="w-20 h-4 bg-gray-100 rounded-full" /></td>
-                    <td className="px-4 py-3"><div className="w-48 h-3.5 bg-gray-100 rounded" /></td>
-                    <td className="px-4 py-3"><div className="w-20 h-3.5 bg-gray-100 rounded font-mono" /></td>
-                    <td className="px-4 py-3 text-right"><div className="w-14 h-4 bg-gray-100 rounded ml-auto" /></td>
-                  </tr>
-                ))
-              ) : filteredLogs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
-                    <Activity className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                    No audit records found matching the filter criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredLogs.map((log) => {
-                  const metaInfo = ACTION_MAP[log.action] ?? {
-                    label: log.action.replace(/_/g, ' '),
-                    bg: 'bg-gray-50 border-gray-200',
-                    text: 'text-gray-700',
-                    icon: Activity,
-                  };
-                  const Icon = metaInfo.icon;
-
-                  return (
-                    <tr key={log.id} className="hover:bg-gray-50/70 transition-colors group">
-                      {/* Timestamp */}
-                      <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-[11px]">
-                        <span className="font-bold text-gray-900 block">
-                          {new Date(log.created_at).toLocaleDateString('en-PH', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
-                        </span>
-                        <span>
-                          {new Date(log.created_at).toLocaleTimeString('en-PH', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          })}
-                        </span>
-                      </td>
-
-                      {/* Operator */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-neutral-900 text-white flex items-center justify-center font-bold text-[9px] shrink-0">
-                            {getOperatorInitials(log.admin?.first_name, log.admin?.last_name)}
-                          </div>
-                          <div>
-                            <span className="font-bold text-gray-900 block leading-tight">
-                              {log.admin ? `${log.admin.first_name} ${log.admin.last_name}` : 'System Auto'}
-                            </span>
-                            <span className="text-[10px] text-gray-400 font-mono">
-                              Admin #{log.admin?.id ?? 0}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Operation */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${metaInfo.bg} ${metaInfo.text}`}
-                        >
-                          <Icon className="w-2.5 h-2.5" />
-                          {metaInfo.label}
-                        </span>
-                      </td>
-
-                      {/* Description */}
-                      <td className="px-4 py-3 text-gray-700 font-medium max-w-sm truncate" title={log.description}>
-                        {log.description}
-                      </td>
-
-                      {/* Target */}
-                      <td className="px-4 py-3 whitespace-nowrap font-mono text-[11px] text-gray-500">
-                        {log.target_type ? `${log.target_type} #${log.target_id}` : 'Platform'}
-                      </td>
-
-                      {/* Payload / Details */}
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {log.meta ? (
-                          <button
-                            onClick={() => setSelectedPayload(log)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:underline cursor-pointer"
-                          >
-                            <Eye className="w-3 h-3" /> Inspect JSON
-                          </button>
-                        ) : (
-                          <span className="text-gray-300 font-mono">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── BOTTOM PAGINATION BAR ── */}
-        {renderPaginationControls(false)}
-      </div>
-
-      {/* ── 4. JSON Payload Inspector Modal via createPortal ── */}
-      {selectedPayload && createPortal(
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-5 border border-gray-200 shadow-2xl space-y-3 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-100 shrink-0">
-              <div className="flex items-center gap-2">
-                <FileCode className="w-4 h-4 text-brand-red" />
-                <h3 className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider">
-                  Forensic Event Metadata: #{selectedPayload.id}
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedPayload(null)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
+        {Object.keys(meta).length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">Details</h3>
+              <button type="button" onClick={() => setRaw((r) => !r)} className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-gray-500 hover:text-brand-red">
+                <Braces className="w-3.5 h-3.5" aria-hidden="true" /> {raw ? 'Show as a list' : 'Show raw data'}
               </button>
             </div>
+            {raw ? (
+              <pre className="p-3 overflow-x-auto text-[11.5px] leading-relaxed rounded-xl bg-neutral-900 text-emerald-300 whitespace-pre-wrap break-all">{JSON.stringify(meta, null, 2)}</pre>
+            ) : (
+              <dl className="divide-y divide-gray-100 rounded-xl border border-gray-200/80 text-[13px]">
+                {Object.entries(meta).map(([k, v]) => (
+                  <div key={k} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3 px-3.5 py-2.5">
+                    <dt className="text-gray-500">{humanKey(k)}</dt>
+                    <dd className="font-medium text-gray-900 break-words">{humanValue(v)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </section>
+        )}
+      </div>
+    </SidePanel>
+  );
+}
 
-            <div className="space-y-1.5 text-xs shrink-0">
-              <div className="flex justify-between text-gray-500 pb-1 border-b border-gray-50">
-                <span>Operation:</span>
-                <span className="font-bold text-gray-900">{selectedPayload.action}</span>
-              </div>
-              <div className="flex justify-between text-gray-500 pb-1 border-b border-gray-50">
-                <span>Actor:</span>
-                <span className="font-bold text-gray-900">
-                  {selectedPayload.admin ? `${selectedPayload.admin.first_name} ${selectedPayload.admin.last_name}` : 'System'}
-                </span>
-              </div>
-              <div className="flex justify-between text-gray-500 pb-1 border-b border-gray-50">
-                <span>Target:</span>
-                <span className="font-mono text-gray-700">
-                  {selectedPayload.target_type} #{selectedPayload.target_id}
-                </span>
-              </div>
-            </div>
+const PER_PAGE = [15, 30, 50, 100];
 
-            <div className="bg-neutral-900 text-emerald-400 font-mono text-[11px] p-3 rounded-xl overflow-y-auto flex-1 border border-neutral-800 [scrollbar-width:thin]">
-              <pre className="whitespace-pre-wrap break-all">{JSON.stringify(selectedPayload.meta, null, 2)}</pre>
-            </div>
+export default function AdminActivityLogPage() {
+  const [params, setParams] = useSearchParams();
+  const area = params.get('area') ?? '';
+  const adminId = params.get('admin') ?? '';
+  const period = params.get('period') ?? '';
+  const search = params.get('search') ?? '';
+  const page = Number(params.get('page') ?? 1);
+  const perPage = Number(params.get('per_page') ?? 30);
 
-            <div className="flex justify-end pt-2 border-t border-gray-100 shrink-0">
-              <Button variant="secondary" onClick={() => setSelectedPayload(null)} className="py-1 px-3 text-xs">
-                Close
-              </Button>
-            </div>
+  const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
+  const [meta, setMeta] = useState<ListMeta | null>(null);
+  const [summary, setSummary] = useState<ActivityLogSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState<ActivityLogEntry | null>(null);
+  const pageRef = useMountAnim();
+
+  const update = useCallback((changes: Record<string, string>) => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(changes)) {
+        if (v) next.set(k, v);
+        else next.delete(k);
+      }
+      if (!('page' in changes)) next.delete('page');
+      return next;
+    });
+  }, [setParams]);
+
+  const [searchInput, setSearchInput] = useDebouncedSearch(search, (v) => update({ search: v }));
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setFailed(false);
+    getActivityLogApi({
+      area: area || undefined, admin_id: adminId ? Number(adminId) : undefined, period: period || undefined,
+      search: search || undefined, page, per_page: perPage,
+    })
+      .then((res) => { setLogs(res.data); setMeta(res.meta as unknown as ListMeta); setSummary(res.summary); })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  }, [area, adminId, period, search, page, perPage]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const days = useMemo(() => {
+    const groups: { key: string; entries: ActivityLogEntry[] }[] = [];
+    for (const e of logs) {
+      const key = dayKey(e.created_at);
+      const last = groups[groups.length - 1];
+      if (last?.key === key) last.entries.push(e);
+      else groups.push({ key, entries: [e] });
+    }
+    return groups;
+  }, [logs]);
+
+  const filtered = !!(area || adminId || period || search);
+  const clear = () => update({ area: '', admin: '', period: '', search: '' });
+
+  return (
+    <div ref={pageRef} className="w-full pb-8 space-y-4">
+      <PageHero icon={Activity} eyebrow="Admin / Settings" title="Activity log"
+        subtitle="Every decision an admin made on Loved-IT: what changed, who did it and when." />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {summary === null ? [1, 2, 3, 4].map((i) => <StatCardSkeleton key={i} />) : (
+          <>
+            <StatCard icon={Activity} label="All entries" value={summary.total} subtext="Since the log began" iconBg="bg-gray-100" iconColor="text-gray-700"
+              onClick={clear} active={!filtered} actionLabel="Show everything" />
+            <StatCard icon={CalendarDays} label="Today" value={summary.today} subtext="Philippine time" iconBg="bg-rose-50" iconColor="text-brand-red"
+              onClick={() => update({ period: period === 'today' ? '' : 'today' })} active={period === 'today'} actionLabel="Show today" />
+            <StatCard icon={CalendarClock} label="Last 7 days" value={summary.week} subtext="Including today" iconBg="bg-blue-50" iconColor="text-blue-600"
+              onClick={() => update({ period: period === '7d' ? '' : '7d' })} active={period === '7d'} actionLabel="Show the week" />
+            <StatCard icon={ClipboardCheck} label="Applications reviewed" value={summary.areas.applications ?? 0} subtext="Buyers, sellers, couriers and hubs"
+              iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => update({ area: area === 'applications' ? '' : 'applications' })} active={area === 'applications'} actionLabel="Show applications" />
+          </>
+        )}
+      </div>
+
+      <FilterPanel>
+        <StatusTabs
+          label="Area"
+          value={area as '' | ActivityArea}
+          onChange={(v) => update({ area: v })}
+          options={AREAS.filter((a) => a.value !== 'other' || (summary?.areas.other ?? 0) > 0).map((a) => ({
+            value: a.value, label: a.label, count: summary ? (a.value ? summary.areas[a.value] ?? 0 : summary.total) : null,
+          }))}
+        />
+        <div className="flex flex-col gap-2 md:flex-row">
+          <SearchField value={searchInput} onChange={setSearchInput} label="Search the log" placeholder="Search what happened, e.g. a shop or category name" />
+          <div className="grid grid-cols-2 gap-2 md:w-[420px] shrink-0">
+            <CustomSelect value={adminId} onChange={(v) => update({ admin: v })}
+              options={[{ value: '', label: 'Every admin' }, ...(summary?.admins ?? []).map((a) => ({ value: String(a.id), label: a.name }))]} />
+            <CustomSelect value={period} onChange={(v) => update({ period: v })} options={PERIODS} />
           </div>
-        </div>,
-        document.body
+        </div>
+      </FilterPanel>
+
+      {failed ? <ListError message="The activity log could not be loaded." onRetry={load} /> : (
+        <ListCard title="Entries" count={meta?.total} busy={loading}>
+          {loading && logs.length === 0 ? (
+            <ul aria-busy="true" className="divide-y divide-gray-100">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <li key={i} className="flex gap-3 px-4 py-3.5 animate-pulse">
+                  <div className="w-9 h-9 rounded-xl bg-gray-100" />
+                  <div className="flex-1 space-y-2"><div className="w-40 h-3 bg-gray-100 rounded" /><div className="w-3/4 h-3 bg-gray-100 rounded" /></div>
+                </li>
+              ))}
+            </ul>
+          ) : logs.length === 0 ? (
+            <ListEmpty icon={Activity} title="Nothing recorded yet" hint="Approvals, suspensions, category and commission changes, and dispute decisions show here."
+              filtered={filtered} onClear={clear} />
+          ) : (
+            <div className={loading ? 'opacity-60 transition-opacity' : ''}>
+              {days.map((d) => (
+                <section key={d.key} aria-label={dayLabel(d.key)}>
+                  <h3 className="sticky top-0 z-[1] px-4 py-1.5 bg-gray-50/95 backdrop-blur border-y border-gray-100 text-[11px] font-bold text-gray-500">{dayLabel(d.key)}</h3>
+                  <ol className="relative">
+                    {d.entries.map((e) => {
+                      const info = actionInfo(e.action);
+                      const Icon = info.icon;
+                      return (
+                        <li key={e.id} className="relative">
+                          <button type="button" onClick={() => setOpen(e)}
+                            className="group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-red-50/30 focus:outline-none focus-visible:bg-red-50/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-red">
+                            <span className={`mt-0.5 w-9 h-9 rounded-xl ring-1 flex items-center justify-center shrink-0 ${TONE[info.tone]}`}><Icon className="w-4 h-4" aria-hidden="true" /></span>
+                            <span className="flex-1 min-w-0">
+                              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="text-[13px] font-bold text-gray-900">{info.label}</span>
+                                <TargetChip e={e} link={false} />
+                              </span>
+                              <span className="block mt-0.5 text-[12.5px] leading-snug text-gray-600">{e.description}</span>
+                              <span className="flex items-center gap-1.5 mt-1.5 text-[11.5px] text-gray-400">
+                                <span className="font-semibold text-gray-600">{adminName(e)}</span>
+                                <span aria-hidden="true">·</span>
+                                <time dateTime={e.created_at} title={stamp(e.created_at)}>{time(e.created_at)}</time>
+                              </span>
+                            </span>
+                            <ChevronRight className="w-4 h-4 mt-2.5 text-gray-300 group-hover:text-brand-red shrink-0" aria-hidden="true" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+              ))}
+            </div>
+          )}
+          {meta && (
+            <ListPager meta={meta} perPage={perPage} perPageOptions={PER_PAGE} noun={['entry', 'entries']}
+              onPage={(p) => update({ page: String(p) })} onPerPage={(n) => update({ per_page: n === 30 ? '' : String(n) })} />
+          )}
+        </ListCard>
       )}
+
+      <DetailPanel entry={open} onClose={() => setOpen(null)} />
     </div>
   );
 }

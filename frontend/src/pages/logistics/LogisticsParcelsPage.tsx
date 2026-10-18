@@ -9,6 +9,7 @@ import {
   useDebouncedSearch, type ListMeta, type PillTone,
 } from '../../components/admin/listKit';
 import { getLogisticsParcelsApi, getLogisticsHubsApi } from '../../api/client';
+import CourierParcelPanel from '../../components/logistics/CourierParcelPanel';
 import type { LogisticsParcelRow, LogisticsHubRow } from '../../types';
 
 const STATUS: Record<string, [string, PillTone]> = {
@@ -20,10 +21,16 @@ const STATUS: Record<string, [string, PillTone]> = {
   OUT_FOR_DELIVERY: ['Out for delivery', 'amber'],
   DELIVERED: ['Delivered', 'emerald'],
   DELIVERY_FAILED: ['Delivery failed', 'red'],
-  RETURNED: ['Returned', 'gray'],
+  RETURN_TO_SENDER: ['Return to sender', 'red'],
+  RETURNED: ['Returned to seller', 'gray'],
+  LOST: ['Lost', 'red'],
+  DAMAGED: ['Damaged', 'red'],
 };
 
-/** Any parcel in the courier's network, by tracking or order number; "Problems" lists failed and returned ones. */
+/**
+ * Any parcel in the courier's network, by tracking number, order number, order ID or buyer name (L6); "Problems" lists
+ * failed, returning, returned, lost and damaged ones. A row opens the parcel with its timeline, audit trail and fixes.
+ */
 export default function LogisticsParcelsPage() {
   const [params, setParams] = useSearchParams();
   const problems = params.get('problems') === '1';
@@ -35,6 +42,7 @@ export default function LogisticsParcelsPage() {
   const [meta, setMeta] = useState<ListMeta>({ current_page: 1, last_page: 1, per_page: 30, total: 0, from: null, to: null });
   const [hubs, setHubs] = useState<LogisticsHubRow[]>([]);
   const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState<number | null>(null);
 
   const set = useCallback((key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -68,7 +76,7 @@ export default function LogisticsParcelsPage() {
             options={[{ value: 'all', label: 'All parcels' }, { value: 'problems', label: 'Problems' }]}
           />
           <div className="flex flex-col gap-2 sm:flex-row lg:w-[560px]">
-            <SearchField value={searchInput} onChange={setSearchInput} label="Search parcels" placeholder="Tracking or order number…" />
+            <SearchField value={searchInput} onChange={setSearchInput} label="Search parcels" placeholder="Tracking, order number or ID, buyer name…" />
             <CustomSelect className="sm:w-48" value={hubId} onChange={(v) => set('hub', v)}
               options={[{ value: '', label: 'All hubs' }, ...hubs.map((h) => ({ value: String(h.id), label: h.hub_name }))]} />
           </div>
@@ -97,7 +105,7 @@ export default function LogisticsParcelsPage() {
                 {rows?.map((p) => {
                   const [label, tone] = STATUS[p.status] ?? [p.status, 'gray' as PillTone];
                   return (
-                    <tr key={p.id} className="hover:bg-gray-50/60">
+                    <tr key={p.id} className="hover:bg-gray-50/60 cursor-pointer" onClick={() => setOpen(p.id)}>
                       <td className={TD}>
                         <p className="font-mono font-semibold text-brand-black">{p.tracking_number}</p>
                         <p className="text-[11px] text-gray-400 font-mono">{p.order_number ?? '—'}</p>
@@ -109,7 +117,7 @@ export default function LogisticsParcelsPage() {
                         {p.attempts > 0 && <p className="mt-1 text-[11px] text-gray-400">{p.attempts} attempt{p.attempts > 1 ? 's' : ''}</p>}
                       </td>
                       <td className={`${TD} hidden lg:table-cell text-right tabular-nums text-gray-800`}>{p.cod_amount !== null ? `₱${p.cod_amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}</td>
-                      <td className={`${TD} text-right`}><TrackPackageButton trackingNumber={p.tracking_number} /></td>
+                      <td className={`${TD} text-right`} onClick={(e) => e.stopPropagation()}><TrackPackageButton trackingNumber={p.tracking_number} /></td>
                     </tr>
                   );
                 })}
@@ -119,6 +127,8 @@ export default function LogisticsParcelsPage() {
           <ListPager meta={meta} perPage={30} perPageOptions={[30]} onPage={(n) => set('page', String(n))} onPerPage={() => {}} noun={['parcel', 'parcels']} />
         </ListCard>
       )}
+
+      {open !== null && <CourierParcelPanel parcelId={open} onClose={() => setOpen(null)} onChanged={load} />}
     </div>
   );
 }

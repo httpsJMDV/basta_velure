@@ -8,6 +8,7 @@ use App\Models\DeliveryLog;
 use App\Models\Parcel;
 use App\Models\Rider;
 use App\Models\RiderPickupDecline;
+use App\Services\RiderWorkload;
 use App\Services\OrderStateMachine;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -267,6 +268,16 @@ class RiderPickupController extends Controller
                 ->lockForUpdate()
                 ->get();
 
+            // A14: a rider holds at most 3 active jobs; take only as many of this shop's parcels as fit.
+            $room = Rider::MAX_ACTIVE_JOBS - app(RiderWorkload::class)->activeJobs($rider);
+            if ($room <= 0 && $availableParcels->isNotEmpty()) {
+                return response()->json([
+                    'message' => 'You already have ' . Rider::MAX_ACTIVE_JOBS . ' active jobs. Finish one before accepting another.',
+                ], 409);
+            }
+            $waiting = $availableParcels->count();
+            $availableParcels = $availableParcels->take(max(0, $room));
+
             if ($availableParcels->isEmpty()) {
                 // Check if claimed by another courier
                 $claimedByOther = Parcel::where('seller_id', $sellerId)
@@ -299,8 +310,11 @@ class RiderPickupController extends Controller
             ]);
 
             return response()->json([
-                'message'          => 'Pickup accepted successfully.',
+                'message'          => $waiting > count($parcelIds)
+                    ? 'Accepted ' . count($parcelIds) . ' of ' . $waiting . ' parcels: you can hold ' . Rider::MAX_ACTIVE_JOBS . ' jobs at a time.'
+                    : 'Pickup accepted successfully.',
                 'claimed_count'    => count($parcelIds),
+                'left_count'       => $waiting - count($parcelIds),
                 'tracking_numbers' => $trackingNumbers,
             ]);
         });

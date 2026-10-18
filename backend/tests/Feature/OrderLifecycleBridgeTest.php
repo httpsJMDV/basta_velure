@@ -127,10 +127,12 @@ class OrderLifecycleBridgeTest extends TestCase
 
         $order = $this->createOrder(OrderStatus::DELIVERED, 'cod', 'paid');
 
-        $response = $this->postJson("/api/v1/buyer/orders/{$order->id}/request-return", [
-            'reason'      => 'Defective item',
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $response = $this->post("/api/v1/buyer/orders/{$order->id}/request-return", [
+            'reason'      => 'Defective or not working',
             'description' => 'The zipper was broken upon arrival.',
-        ]);
+            'photos'      => [\Illuminate\Http\UploadedFile::fake()->createWithContent('crushed.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))],
+        ], ['Accept' => 'application/json']);
 
         $response->assertStatus(200);
         $response->assertJsonPath('data.status', 'DISPUTED');
@@ -138,8 +140,10 @@ class OrderLifecycleBridgeTest extends TestCase
 
         $dispute = Dispute::where('order_id', $order->id)->first();
         $this->assertNotNull($dispute);
-        $this->assertEquals('Defective item', $dispute->reason);
-        $this->assertEquals('open', $dispute->status);
+        $this->assertEquals('Defective or not working', $dispute->reason);
+        // A31: the shop has 3 days to answer.
+        $this->assertEquals('pending', $dispute->status);
+        $this->assertEqualsWithDelta(now()->addDays(3)->getTimestamp(), $dispute->respond_by->getTimestamp(), 5);
 
         // Verify status history
         $this->assertDatabaseHas('order_status_histories', [
@@ -219,7 +223,7 @@ class OrderLifecycleBridgeTest extends TestCase
         $response->assertStatus(200);
         $response->assertJsonPath('data.status', 'RETURNED');
         $this->assertEquals(OrderStatus::RETURNED, $order->fresh()->status);
-        $this->assertEquals('resolved', Dispute::where('order_id', $order->id)->value('status'));
+        $this->assertEquals('approved', Dispute::where('order_id', $order->id)->value('status'));
     }
 
     public function test_admin_update_status_routed_through_state_machine(): void

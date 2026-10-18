@@ -2,24 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Bike, CheckCircle2, Lock, LogOut, MessageSquare, RefreshCw, ShieldCheck, User as UserIcon, Warehouse } from 'lucide-react';
-import { getRiderChatThreadsApi, updateRiderVehicleApi, getPayoutAccountApi, updatePayoutAccountApi } from '../../api/client';
+import { AlertCircle, Lock, LogOut, MessageSquare, RefreshCw, User as UserIcon } from 'lucide-react';
+import { getRiderChatThreadsApi, getPayoutAccountApi, updatePayoutAccountApi } from '../../api/client';
+import { RiderLicenseForm, RiderProfileCard, RiderVehicleForm } from './RiderProfileSections';
 import { PayoutAccountForm } from '../../components/payments/GcashKit';
 import { useDialogA11y } from '../../hooks/useDialogA11y';
-import type { RiderThread, RiderVehicleType } from '../../types';
+import type { RiderThread } from '../../types';
 import type { RiderOutletContext } from './RiderLayout';
 import RiderChatSheet from './RiderChatSheet';
 import { PageHero, StateCard } from './RiderUi';
 import { BTN_PRIMARY } from './riderStyles';
-import CustomSelect from '../../components/ui/CustomSelect';
 
-const VEHICLE_TYPES: RiderVehicleType[] = ['Motorcycle', 'Tricycle', 'Car', 'Van'];
-const PLATE_PATTERN = /^[A-Za-z0-9\s-]+$/;
 const THREADS_POLL_MS = 15000;
 
 const COUNTERPART_LABEL = { seller: 'Seller', buyer: 'Buyer', hub: 'Hub' } as const;
-
-type FieldErrors = Partial<Record<'vehicle_type' | 'plate_number', string>>;
 
 const loadGcash = () => getPayoutAccountApi('rider');
 const saveGcash = (p: { gcash_number: string | null; gcash_name: string | null }) => updatePayoutAccountApi('rider', p);
@@ -54,16 +50,9 @@ export default function RiderAccountPage() {
         </StateCard>
       ) : riderData ? (
         <>
-          <ProfileCard
-            name={riderData.full_name}
-            hub={riderData.hub?.hub_name ?? null}
-            status={riderData.status}
-          />
-          <VehicleForm
-            vehicleType={riderData.vehicle_type}
-            plateNumber={riderData.plate_number}
-            onSaved={refreshRider}
-          />
+          <RiderProfileCard rider={riderData} />
+          <RiderVehicleForm key={`v-${riderData.vehicle_type}-${riderData.plate_number}`} rider={riderData} onSaved={refreshRider} />
+          <RiderLicenseForm key={`l-${riderData.license_expiry}`} rider={riderData} onSaved={refreshRider} />
           <section aria-labelledby="gcash-heading" className="space-y-2">
             <h2 id="gcash-heading" className="px-1 text-xs font-bold text-gray-900 uppercase tracking-wider">GCash payouts</h2>
             <PayoutAccountForm load={loadGcash} save={saveGcash} who="your courier" tone="gray" />
@@ -75,164 +64,6 @@ export default function RiderAccountPage() {
 
       <LogoutSection onConfirm={logout} busy={loggingOut} />
     </div>
-  );
-}
-
-// ─── Profile (read-only) ──────────────────────────────────────────────────────
-
-function ProfileCard({ name, hub, status }: { name: string; hub: string | null; status: string }) {
-  return (
-    <section aria-labelledby="profile-heading" className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-      <h2 id="profile-heading" className="text-xs font-bold text-gray-900 uppercase tracking-wider">Profile</h2>
-      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-        <div>
-          <dt className="text-xs font-semibold text-gray-500">Name</dt>
-          <dd className="font-bold text-gray-900">{name}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-semibold text-gray-500">Hub</dt>
-          <dd className="font-bold text-gray-900 flex items-center gap-1.5">
-            <Warehouse className="w-4 h-4 text-gray-500" aria-hidden="true" />
-            {hub ?? 'No hub on file'}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs font-semibold text-gray-500">Status</dt>
-          <dd className="font-bold text-emerald-700 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-            {status === 'ACTIVE' ? 'Active' : status}
-          </dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
-// ─── Vehicle form ─────────────────────────────────────────────────────────────
-
-function VehicleForm({
-  vehicleType,
-  plateNumber,
-  onSaved,
-}: {
-  vehicleType: RiderVehicleType;
-  plateNumber: string;
-  onSaved: () => void;
-}) {
-  const [type, setType] = useState<RiderVehicleType>(vehicleType);
-  const [plate, setPlate] = useState(plateNumber);
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const busyRef = useRef(false);
-
-  const dirty = type !== vehicleType || plate.trim().toUpperCase() !== plateNumber.toUpperCase();
-
-  const validate = (): FieldErrors => {
-    const next: FieldErrors = {};
-    const trimmed = plate.trim();
-    if (trimmed === '') next.plate_number = 'Vehicle plate number is required.';
-    else if (trimmed.length > 20) next.plate_number = 'Plate number must not exceed 20 characters.';
-    else if (!PLATE_PATTERN.test(trimmed)) next.plate_number = 'Plate number contains invalid characters.';
-    return next;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busyRef.current || !dirty) return;
-
-    const local = validate();
-    setErrors(local);
-    setSaved(false);
-    setFormError(null);
-    if (Object.keys(local).length > 0) return;
-
-    busyRef.current = true;
-    setSaving(true);
-    try {
-      const res = await updateRiderVehicleApi({ vehicle_type: type, plate_number: plate.trim() });
-      setType(res.data.vehicle_type);
-      setPlate(res.data.plate_number);
-      setSaved(true);
-      onSaved();
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err) && err.response?.status === 422) {
-        const fields = (err.response.data as { errors?: Record<string, string[]> }).errors ?? {};
-        setErrors({ vehicle_type: fields.vehicle_type?.[0], plate_number: fields.plate_number?.[0] });
-      } else if (axios.isAxiosError(err) && err.response) {
-        setFormError((err.response.data as { message?: string })?.message || 'Your vehicle could not be saved. Try again.');
-      } else {
-        setFormError('No connection. Check your network and try again.');
-      }
-    } finally {
-      busyRef.current = false;
-      setSaving(false);
-    }
-  };
-
-  return (
-    <section aria-labelledby="vehicle-heading" className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-      <div className="flex items-center gap-2">
-        <Bike className="w-4 h-4 text-gray-500" aria-hidden="true" />
-        <h2 id="vehicle-heading" className="text-xs font-bold text-gray-900 uppercase tracking-wider">Vehicle</h2>
-      </div>
-
-      <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        <CustomSelect
-          label="Vehicle type"
-          value={type}
-          onChange={(v) => {
-            setType(v as RiderVehicleType);
-            setSaved(false);
-          }}
-          options={VEHICLE_TYPES.map((t) => ({ value: t, label: t }))}
-          error={errors.vehicle_type}
-        />
-        <div className="space-y-1">
-          <label htmlFor="plate-number" className="block text-xs font-bold text-gray-700">Plate number</label>
-          <input
-            id="plate-number"
-            type="text"
-            value={plate}
-            onChange={(e) => {
-              setPlate(e.target.value.toUpperCase());
-              setSaved(false);
-            }}
-            maxLength={20}
-            autoCapitalize="characters"
-            autoComplete="off"
-            aria-invalid={errors.plate_number ? true : undefined}
-            aria-describedby={errors.plate_number ? 'plate-number-error' : 'plate-number-hint'}
-            className="w-full min-h-11 rounded-xl border border-gray-300 px-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-red/40"
-          />
-          {errors.plate_number ? (
-            <p id="plate-number-error" role="alert" className="text-xs font-semibold text-red-700">{errors.plate_number}</p>
-          ) : (
-            <p id="plate-number-hint" className="text-xs text-gray-500">Letters, numbers, spaces and hyphens. Saved in capitals.</p>
-          )}
-        </div>
-
-        <p className="text-xs text-gray-500">Changes take effect immediately. Your hub is not asked to re-check your documents.</p>
-
-        {formError && <p role="alert" className="text-xs font-semibold text-red-700">{formError}</p>}
-        {saved && (
-          <p role="status" className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-            <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-            Vehicle details saved.
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={saving || !dirty}
-          className="w-full sm:w-auto min-h-12 px-6 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
-          {saving ? 'Saving…' : 'Save vehicle'}
-        </button>
-      </form>
-    </section>
   );
 }
 

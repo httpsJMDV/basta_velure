@@ -165,7 +165,7 @@ export default function SellerEarningsPage() {
               </span>
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              Orders paid through Loved-IT and their payouts. Buyers now pay you directly; settle couriers and commission in Payments.
+              Earnings stay Pending until an order is Completed. E-wallet and card orders are paid out here; COD and GCash are paid to you directly.
             </p>
           </div>
         </div>
@@ -416,9 +416,10 @@ export default function SellerEarningsPage() {
                   <th className="px-4 py-3">Order Number</th>
                   <th className="px-4 py-3">Product / Variant</th>
                   <th className="px-4 py-3">Item Subtotal</th>
-                  <th className="px-4 py-3">Commission (% / Fee)</th>
-                  <th className="px-4 py-3">Net Credited</th>
-                  <th className="px-4 py-3 text-right">Escrow / Payout</th>
+                  <th className="px-4 py-3">Your Discounts</th>
+                  <th className="px-4 py-3">Commission</th>
+                  <th className="px-4 py-3">Net Earnings</th>
+                  <th className="px-4 py-3 text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -428,6 +429,7 @@ export default function SellerEarningsPage() {
                       <td className="px-4 py-3.5"><div className="w-20 h-4 bg-gray-200 rounded font-mono" /></td>
                       <td className="px-4 py-3.5"><div className="w-28 h-3.5 bg-gray-200 rounded" /></td>
                       <td className="px-4 py-3.5"><div className="w-16 h-4 bg-gray-200 rounded" /></td>
+                      <td className="px-4 py-3.5"><div className="w-12 h-4 bg-gray-100 rounded" /></td>
                       <td className="px-4 py-3.5"><div className="w-16 h-4 bg-gray-100 rounded" /></td>
                       <td className="px-4 py-3.5"><div className="w-16 h-4 bg-emerald-100 rounded" /></td>
                       <td className="px-4 py-3.5 text-right"><div className="w-16 h-4 bg-gray-100 rounded ml-auto" /></td>
@@ -435,7 +437,7 @@ export default function SellerEarningsPage() {
                   ))
                 ) : orderEarnings.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                    <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                       <Receipt className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                       No fulfilled customer orders logged in your store earnings trail yet.
                     </td>
@@ -454,18 +456,31 @@ export default function SellerEarningsPage() {
 
                       <td className="px-4 py-3.5">
                         <span className="font-bold text-gray-900 block">{item.product_name}</span>
-                        {item.variant_label && (
-                          <span className="text-[10px] font-mono text-gray-400">{item.variant_label} · Qty: {item.quantity}</span>
-                        )}
+                        <span className="text-[10px] font-mono text-gray-400">
+                          {item.variant_label ? `${item.variant_label} · ` : ''}Qty: {item.quantity}
+                        </span>
                       </td>
 
                       <td className="px-4 py-3.5 whitespace-nowrap font-bold text-gray-900">
                         ₱{Number(item.item_subtotal).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                       </td>
 
+                      <td className="px-4 py-3.5 whitespace-nowrap text-gray-600 font-semibold">
+                        {Number(item.seller_discounts ?? 0) > 0 ? (
+                          <>
+                            -₱{Number(item.seller_discounts).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            <span className="text-[10px] text-gray-400 block font-normal">Store voucher / promo</span>
+                          </>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+
                       <td className="px-4 py-3.5 whitespace-nowrap text-rose-600 font-semibold">
                         -₱{Number(item.commission_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                        <span className="text-[10px] text-gray-400 block font-normal">({item.commission_pct ?? 10}%)</span>
+                        <span className="text-[10px] text-gray-400 block font-normal">
+                          {item.commission_pct ?? 5}% of ₱{Number(item.gross_after_discounts ?? item.item_subtotal).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </span>
                       </td>
 
                       <td className="px-4 py-3.5 whitespace-nowrap font-black text-emerald-600">
@@ -473,21 +488,25 @@ export default function SellerEarningsPage() {
                       </td>
 
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                            item.payout_status === 'direct'
-                              ? 'bg-sky-50 text-sky-700 border-sky-200'
-                              : item.payout_status === 'available' || item.payout_status === 'paid'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}
-                        >
-                          {item.payout_status === 'direct' ? 'Paid to you' : item.payout_status}
-                        </span>
+                        {(() => {
+                          const available = item.earning_status ? item.earning_status === 'available' : item.payout_status === 'available' || item.payout_status === 'paid';
+                          return (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                available ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              {item.payout_status === 'paid' ? 'Paid out' : available ? 'Available' : 'Pending'}
+                            </span>
+                          );
+                        })()}
                         {item.payout_status === 'direct' && (
                           <span className="block mt-1 text-[10px] font-medium text-gray-500">
-                            Buyer paid you directly · <Link to="/seller/payments" className="underline hover:text-gray-800">Payments</Link>
+                            {item.payment_method === 'gcash' ? 'GCash' : 'COD'} paid to you directly · <Link to="/seller/payments" className="underline hover:text-gray-800">Payments</Link>
                           </span>
+                        )}
+                        {item.payout_status !== 'direct' && item.earning_status === 'pending' && item.payout_status !== 'pending_release' && (
+                          <span className="block mt-1 text-[10px] font-medium text-gray-500">Available when the order is Completed</span>
                         )}
                         {item.payout_status === 'pending_release' && (
                           <span className="block mt-1 text-[10px] font-medium text-gray-500">

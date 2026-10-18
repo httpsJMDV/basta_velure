@@ -64,6 +64,32 @@ final class ShippingSplit
         return (int) $percent;
     }
 
+    public const DEFAULT_PICKUP_PAY = '30.00';
+    public const DEFAULT_DELIVERY_PAY = '50.00';
+
+    /** A3: the fixed pay for one pickup, in centavos. */
+    public static function pickupPayCents(): int
+    {
+        return self::pay('pickup', self::DEFAULT_PICKUP_PAY);
+    }
+
+    /** A3: the fixed pay for one successful delivery, in centavos. */
+    public static function deliveryPayCents(): int
+    {
+        return self::pay('delivery', self::DEFAULT_DELIVERY_PAY);
+    }
+
+    private static function pay(string $kind, string $default): int
+    {
+        $configured = trim((string) config("shipping.rider_pay.{$kind}", $default));
+        if (! preg_match('/^\d+(\.\d{1,2})?$/', $configured)) {
+            Log::error("shipping.rider_pay.{$kind} is not a valid peso amount ('{$configured}'); using {$default}.");
+            $configured = $default;
+        }
+
+        return Money::toCents($configured);
+    }
+
     /** The delivery rider's percentage of the fee: the riders' share minus the pickup rider's. */
     public static function deliveryPercent(): int
     {

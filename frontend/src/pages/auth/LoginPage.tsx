@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [identifierError, setIdentifierError] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const notice = (location.state as { notice?: string } | null)?.notice ?? '';
   const [loading, setLoading] = useState(false);
 
   const { showToast } = useToast();
@@ -38,9 +39,13 @@ export default function LoginPage() {
       const next = new URLSearchParams(location.search).get('next');
       navigate(next && next.startsWith('/') && !next.startsWith('//') ? next : roleHomePath(res.data));
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })
-        ?.response?.data?.message ?? 'Login failed.';
-      setError(msg);
+      const data = (err as { response?: { data?: { message?: string; code?: string; email?: string } } })?.response?.data;
+      // An account that has not entered its email code yet goes to the verification page (A9).
+      if (data?.code === 'email_unverified' && data.email) {
+        navigate(`/verify-email?email=${encodeURIComponent(data.email)}`, { state: { message: data.message } });
+        return;
+      }
+      setError(data?.message ?? 'Login failed.');
     } finally {
       setLoading(false);
     }
@@ -58,8 +63,13 @@ export default function LoginPage() {
           <h1 className="text-3xl font-bold text-brand-black mb-1">Welcome back</h1>
           <p className="text-sm text-gray-500 mb-8">Sign in to your Loved-IT account</p>
 
+          {notice && !error && (
+            <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800">
+              {notice}
+            </div>
+          )}
           {error && (
-            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <div role="alert" className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}

@@ -25,7 +25,6 @@ import {
   confirmSellerOrderPaymentApi,
   rejectSellerOrderPaymentApi,
   updateSellerOrderStatusApi,
-  respondSellerOrderReturnApi,
 } from '../../api/client';
 import type { SellerOrder } from '../../types';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
@@ -33,8 +32,14 @@ import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../..
 import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
+import { Dialog, BUTTON } from '../../components/ui/Overlay';
+import { SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi } from '../../api/commerce';
+import { apiErrorMessage, apiProblem } from '../../utils/apiError';
 
-type OrderTab = 'all' | 'pending_verification' | 'to_ship' | 'in_transit' | 'delivered' | 'cancelled';
+/** Seller tabs (A10): every order is in exactly one, and the counts follow the date range. */
+type OrderTab = 'all' | 'new' | 'to_ship' | 'shipping' | 'completed' | 'cancelled' | 'return_refund';
+const METHOD_LABEL: Record<string, string> = { cod: 'Cash on delivery', gcash: 'GCash', e_wallet: 'E-wallet', card: 'Card' };
+const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
 function peso(n: number | string | null | undefined): string {
   return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -54,10 +59,12 @@ export default function SellerOrdersPage() {
   const [activeTab, setActiveTab] = useState<OrderTab>(tabParam);
   const [search, setSearch] = useState('');
   const [orders, setOrders] = useState<SellerOrder[]>([]);
-  const [counts, setCounts] = useState<{ pending_verification: number; to_ship: number }>({
-    pending_verification: 0,
-    to_ship: 0,
-  });
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [rangeError, setRangeError] = useState('');
+  const [cancelTarget, setCancelTarget] = useState<SellerOrder | null>(null);
+  const [rejectReturnOpen, setRejectReturnOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -103,10 +110,18 @@ export default function SellerOrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
+      if (from && to && to < from) {
+        setRangeError('The end date cannot be before the start date.');
+        setOrders([]);
+        return;
+      }
+      setRangeError('');
       const res = await getSellerOrdersApi({
-        status: activeTab === 'all' ? undefined : activeTab,
+        tab: activeTab === 'all' ? undefined : activeTab,
         search: search.trim() || undefined,
         page,
+        from: from || undefined,
+        to: to || undefined,
       });
       setOrders(res.data || []);
       if (res.meta) {
@@ -116,12 +131,14 @@ export default function SellerOrdersPage() {
       if (res.counts) {
         setCounts(res.counts);
       }
-    } catch {
+    } catch (e) {
       setOrders([]);
+      const p = apiProblem(e, '');
+      if (p.fields.to || p.fields.from) setRangeError(p.fields.to ?? p.fields.from);
     } finally {
       setLoading(false);
     }
-  }, [activeTab, search, page]);
+  }, [activeTab, search, page, from, to]);
 
   useEffect(() => {
     fetchOrders();
@@ -162,6 +179,14 @@ export default function SellerOrdersPage() {
     }
   };
 
+  const onCancelled = (o: SellerOrder, message: string) => {
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? o : x)));
+    if (selectedOrder?.id === o.id) setSelectedOrder(o);
+    setCancelTarget(null);
+    showToast(message);
+    fetchOrders();
+  };
+
   const handleRejectPayment = async () => {
     if (!selectedOrder || !rejectReason.trim()) return;
     setActionLoading(true);
@@ -197,20 +222,33 @@ export default function SellerOrdersPage() {
     }
   };
 
-  const handleRespondReturn = async (action: 'accept' | 'reject', reason?: string) => {
+  const handleConfirmReturned = async () => {
     if (!selectedOrder) return;
     setActionLoading(true);
     try {
-      const res = await respondSellerOrderReturnApi(selectedOrder.id, {
-        action,
-        reason: action === 'reject' ? reason || 'Seller rejected return request.' : undefined,
-      });
+      const res = await confirmReturnReceivedApi<SellerOrder>(selectedOrder.id);
       setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.data : o)));
       setSelectedOrder(res.data);
-      showToast(action === 'accept' ? 'Return accepted. Order marked as Returned.' : 'Return response recorded.');
+      showToast(res.message);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The return could not be confirmed.'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRespondReturn = async (action: 'approve' | 'reject', reason?: string) => {
+    if (!selectedOrder) return;
+    setActionLoading(true);
+    try {
+      const res = await respondReturnApi<SellerOrder>(selectedOrder.id, action, reason);
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.data : o)));
+      setSelectedOrder(res.data);
+      setRejectReturnOpen(false);
+      showToast(res.message);
       fetchOrders();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to respond to return.');
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The return could not be answered.'));
     } finally {
       setActionLoading(false);
     }
@@ -227,7 +265,7 @@ export default function SellerOrdersPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider">
-                Store Orders &amp; Fulfillment Engine
+                Orders
               </h1>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <span className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-amber-400 animate-spin' : 'bg-emerald-500 animate-pulse'}`} />
@@ -235,23 +273,23 @@ export default function SellerOrdersPage() {
               </span>
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              Verify customer GCash transfers, dispatch ready-to-ship packages, and manage order deliveries
+              Accept and pack new orders, hand parcels to the courier, and answer returns
             </p>
           </div>
         </div>
 
         {/* Actionable alerts badge in hero */}
         <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
-          {counts.pending_verification > 0 && (
+          {(counts.pending_verification ?? 0) > 0 && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
               <QrCode className="w-3.5 h-3.5" />
               {counts.pending_verification} Payment{counts.pending_verification !== 1 ? 's' : ''} to Verify
             </span>
           )}
-          {counts.to_ship > 0 && (
+          {(counts.to_ship ?? 0) > 0 && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
               <Truck className="w-3.5 h-3.5" />
-              {counts.to_ship} Ready to Ship
+              {counts.to_ship} to ship
             </span>
           )}
         </div>
@@ -290,16 +328,13 @@ export default function SellerOrdersPage() {
           {/* Status Tabs */}
           <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
             {[
-              { key: 'all', label: 'All Orders' },
-              {
-                key: 'pending_verification',
-                label: '⚠️ Pending GCash',
-                count: counts.pending_verification,
-              },
-              { key: 'to_ship', label: 'To Ship', count: counts.to_ship },
-              { key: 'in_transit', label: 'In Transit' },
-              { key: 'delivered', label: 'Delivered' },
-              { key: 'cancelled', label: 'Cancelled / Returned' },
+              { key: 'all', label: 'All', count: counts.all },
+              { key: 'new', label: 'New', count: counts.new },
+              { key: 'to_ship', label: 'To ship', count: counts.to_ship },
+              { key: 'shipping', label: 'Shipping', count: counts.shipping },
+              { key: 'completed', label: 'Completed', count: counts.completed },
+              { key: 'cancelled', label: 'Cancelled', count: counts.cancelled },
+              { key: 'return_refund', label: 'Return / refund', count: counts.return_refund },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -324,12 +359,22 @@ export default function SellerOrdersPage() {
             ))}
           </div>
 
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500">
+            <label className="inline-flex items-center gap-1">From
+              <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className="px-2 py-1 border border-gray-200 rounded-lg text-xs" />
+            </label>
+            <label className="inline-flex items-center gap-1">to
+              <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`px-2 py-1 border rounded-lg text-xs ${rangeError ? 'border-brand-red' : 'border-gray-200'}`} />
+            </label>
+            {(from || to) && <button type="button" onClick={() => { setFrom(''); setTo(''); }} className="font-semibold text-gray-600 hover:text-gray-900">Clear</button>}
+          </div>
+
           {/* Search Box */}
           <div className="relative w-full md:w-72 shrink-0">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search Order #, buyer name..."
+              placeholder="Order number or ID, buyer name…"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -340,7 +385,9 @@ export default function SellerOrdersPage() {
           </div>
         </div>
 
-        {/* ── High-Density Orders Table ── */}
+        {rangeError && <p role="alert" className="text-xs font-medium text-brand-red">{rangeError}</p>}
+
+        {/* ── Orders table ── */}
         <div className="overflow-x-auto border border-gray-100 rounded-xl">
           <table className="w-full text-xs text-left">
             <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
@@ -450,7 +497,11 @@ export default function SellerOrdersPage() {
 
                       {/* Payment */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        {isGcash ? (
+                        {o.payment_method === 'e_wallet' || o.payment_method === 'card' ? (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded border ${o.payment_status === 'paid' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
+                            {METHOD_LABEL[o.payment_method]} · {o.payment_status === 'paid' ? 'paid' : 'unpaid'}
+                          </span>
+                        ) : isGcash ? (
                           <div className="space-y-0.5">
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#007DFE] bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
                               <QrCode className="w-2.5 h-2.5" /> GCash
@@ -493,7 +544,11 @@ export default function SellerOrdersPage() {
                             </Button>
                           )}
 
-                          {normalizeOrderStatus(o.status) === 'PLACED' && !isGcash && (
+                          {o.awaiting_payment && (
+                            <span className="text-[10px] font-semibold text-amber-700">Waiting for payment</span>
+                          )}
+
+                          {normalizeOrderStatus(o.status) === 'PLACED' && !isGcash && !o.awaiting_payment && (
                             <Button
                               variant="primary"
                               onClick={() => handleUpdateStatus(o.id, 'CONFIRMED')}
@@ -618,7 +673,7 @@ export default function SellerOrdersPage() {
                     {getStatusLabel(selectedOrder.status)}
                   </span>
                   <span className="text-[11px] font-semibold text-gray-500">
-                    {selectedOrder.payment_method === 'cod' ? 'Cash on delivery' : 'GCash'}
+                    {METHOD_LABEL[selectedOrder.payment_method] ?? selectedOrder.payment_method}
                     {selectedOrder.courier && <> · {selectedOrder.courier.name}</>}
                   </span>
                 </div>
@@ -734,7 +789,9 @@ export default function SellerOrdersPage() {
                     <div>
                       <p className="font-bold text-gray-900">{it.product_name}</p>
                       <p className="text-[10px] text-gray-400">
-                        Qty: {it.quantity} × ₱{Number(it.unit_price).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        {it.variant_label ? `${it.variant_label} · ` : ''}Qty: {it.quantity} × ₱{Number(it.unit_price).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        {it.price_source === 'flash' ? ' · flash price' : it.price_source === 'sale' ? ' · sale price' : ''}
+                        {it.is_gift ? ' · free with a promotion' : ''}
                       </p>
                     </div>
                     <span className="font-bold text-gray-900">
@@ -751,30 +808,79 @@ export default function SellerOrdersPage() {
                 <dt>Items subtotal</dt>
                 <dd className="tabular-nums">{peso(selectedOrder.seller_subtotal)}</dd>
               </div>
+              {(selectedOrder.promo_discount ?? 0) > 0 && (
+                <div className="flex items-center justify-between text-gray-600"><dt>Your promotions</dt><dd className="tabular-nums">−{peso(selectedOrder.promo_discount)}</dd></div>
+              )}
+              {(selectedOrder.store_voucher_discount ?? 0) > 0 && (
+                <div className="flex items-center justify-between text-gray-600"><dt>Your voucher {selectedOrder.store_voucher_code}</dt><dd className="tabular-nums">−{peso(selectedOrder.store_voucher_discount)}</dd></div>
+              )}
               <div className="flex items-center justify-between text-gray-600">
-                <dt>Delivery fee</dt>
+                <dt>Delivery fee{selectedOrder.chargeable_weight_kg ? ` · ${selectedOrder.chargeable_weight_kg} kg${selectedOrder.shipping_route ? `, ${selectedOrder.shipping_route}` : ''}` : ''}</dt>
                 <dd className="tabular-nums">{peso(selectedOrder.shipping_fee)}</dd>
               </div>
+              {((selectedOrder.platform_voucher_discount ?? 0) > 0 || (selectedOrder.shipping_voucher_discount ?? 0) > 0) && (
+                <div className="flex items-center justify-between text-gray-500">
+                  <dt>Loved-IT vouchers <span className="text-[10px]">(paid by Loved-IT, not from your earnings)</span></dt>
+                  <dd className="tabular-nums">−{peso((selectedOrder.platform_voucher_discount ?? 0) + (selectedOrder.shipping_voucher_discount ?? 0))}</dd>
+                </div>
+              )}
               <div className="flex items-center justify-between pt-1.5 mt-1 border-t border-dashed border-gray-200">
                 <dt className="font-bold text-gray-900">
                   Order total {selectedOrder.payment_method === 'cod' && <span className="font-normal text-gray-500">(collected on delivery)</span>}
                 </dt>
                 <dd className="text-base font-black text-gray-900 tabular-nums">{peso(selectedOrder.order_total)}</dd>
               </div>
+              <div className="flex items-center justify-between text-gray-600 pt-1">
+                <dt>Commission (5%) · your earnings</dt>
+                <dd className="tabular-nums">−{peso(selectedOrder.seller_commission)} · <span className="font-bold text-gray-900">{peso(selectedOrder.seller_earnings)}</span></dd>
+              </div>
             </dl>
 
+            {selectedOrder.notes && (
+              <p className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl text-xs text-amber-900"><span className="font-bold">Buyer's note:</span> {selectedOrder.notes}</p>
+            )}
+
+            {selectedOrder.return_to_sender && (
+              <div className={`p-3 rounded-xl border text-xs ${selectedOrder.return_to_sender.state === 'confirmed' ? 'bg-gray-50 border-gray-200 text-gray-700' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                <p className="font-bold">
+                  {selectedOrder.return_to_sender.state === 'on_the_way' && 'Failed delivery: the courier is bringing the parcel back to you.'}
+                  {selectedOrder.return_to_sender.state === 'awaiting_confirmation' && 'Returned: confirm the parcel reached your shop.'}
+                  {selectedOrder.return_to_sender.state === 'confirmed' && `You confirmed the parcel came back${selectedOrder.return_to_sender.confirmed_at ? ` on ${when(selectedOrder.return_to_sender.confirmed_at)}` : ''}. The items are back in stock.`}
+                </p>
+                {selectedOrder.return_to_sender.state === 'awaiting_confirmation' && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="flex-1 min-w-[180px]">The stock goes back on sale only after you confirm. You earn nothing on this order.</span>
+                    <Button variant="primary" onClick={() => void handleConfirmReturned()} disabled={actionLoading} className="py-1.5 px-3 text-xs bg-brand-red">
+                      Parcel received
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'CANCELLED' && !selectedOrder.return_to_sender && (
+              <p className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700">
+                <span className="font-bold">Cancelled by {selectedOrder.cancelled_by === 'seller' ? 'you' : selectedOrder.cancelled_by === 'buyer' ? 'the buyer' : 'Loved-IT'}</span>{selectedOrder.cancel_reason ? `: ${selectedOrder.cancel_reason}` : ''}
+                {selectedOrder.refund_status && <span className="block mt-0.5">Refund {selectedOrder.refund_status === 'refunded' ? 'sent' : 'to send from your GCash'}: {peso(selectedOrder.refund_amount)}</span>}
+              </p>
+            )}
+
+            {selectedOrder.awaiting_payment && (
+              <p className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">The buyer has not paid yet. You can accept the order once it is paid; unpaid orders cancel at {when(selectedOrder.payment_due_at)}.</p>
+            )}
+
             {/* Merchant Fulfillment Actions */}
-            {normalizeOrderStatus(selectedOrder.status) === 'PLACED' && selectedOrder.payment_method === 'cod' && (
+            {normalizeOrderStatus(selectedOrder.status) === 'PLACED' && (selectedOrder.payment_method === 'cod' || ((selectedOrder.payment_method === 'e_wallet' || selectedOrder.payment_method === 'card') && selectedOrder.payment_status === 'paid')) && (
               <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
                 <span className="font-bold text-emerald-900 block">Fulfillment Next Step:</span>
-                <p className="text-[11px] text-emerald-700">Cash on Delivery order placed by customer. Confirm order to begin fulfillment.</p>
+                <p className="text-[11px] text-emerald-700">{selectedOrder.payment_method === 'cod' ? 'Cash on delivery: the rider collects the total.' : 'Paid online.'} Accept the order to start packing.</p>
                 <Button
                   variant="primary"
                   onClick={() => handleUpdateStatus(selectedOrder.id, 'CONFIRMED')}
                   disabled={actionLoading}
                   className="w-full py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Confirm COD Order
+                  <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Accept order
                 </Button>
               </div>
             )}
@@ -841,36 +947,38 @@ export default function SellerOrdersPage() {
               </div>
             )}
 
-            {normalizeOrderStatus(selectedOrder.status) === 'DISPUTED' && (
+            {selectedOrder.dispute && (
               <div className="p-3 bg-rose-50/80 border border-rose-200 rounded-xl space-y-2 text-xs">
-                <span className="font-bold text-rose-900 block">Return Request Under Review:</span>
-                <p className="text-[11px] text-rose-700">
-                  Customer has requested a return for this order. You can accept the return or reject it.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="primary"
-                    onClick={() => handleRespondReturn('accept')}
-                    disabled={actionLoading}
-                    className="flex-1 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
-                  >
-                    Accept Return
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      const reason = prompt('Please enter reason for rejecting the return request:');
-                      if (reason?.trim()) {
-                        handleRespondReturn('reject', reason.trim());
-                      }
-                    }}
-                    disabled={actionLoading}
-                    className="flex-1 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border-red-200"
-                  >
-                    Reject Return
-                  </Button>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-rose-900">Return request · {selectedOrder.dispute.reason}</span>
+                  <span className="text-[10px] font-bold uppercase text-rose-700">{selectedOrder.dispute.status === 'escalated' ? 'In dispute' : selectedOrder.dispute.status}</span>
                 </div>
+                <p className="text-[12px] text-rose-900">{selectedOrder.dispute.description}</p>
+                {selectedOrder.dispute.photos.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedOrder.dispute.photos.map((src) => (
+                      <button key={src} type="button" onClick={() => setZoomImage(src)} className="rounded-lg overflow-hidden border border-rose-200"><img src={src} alt="Return evidence" className="w-14 h-14 object-cover" /></button>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-rose-700">Amount: {peso(selectedOrder.order_total)}</p>
+                {selectedOrder.dispute.status === 'pending' && (
+                  <>
+                    <p className="text-[11px] font-semibold text-rose-800">Answer by {when(selectedOrder.dispute.respond_by)}. With no answer, the return is approved automatically.</p>
+                    <div className="flex gap-2">
+                      <Button variant="primary" onClick={() => handleRespondReturn('approve')} disabled={actionLoading} className="flex-1 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700">Approve return</Button>
+                      <Button variant="secondary" onClick={() => setRejectReturnOpen(true)} disabled={actionLoading} className="flex-1 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border-red-200">Reject with a reason</Button>
+                    </div>
+                  </>
+                )}
+                {selectedOrder.dispute.status === 'rejected' && <p className="text-[11px] text-rose-800">You rejected it: {selectedOrder.dispute.seller_reason} The buyer can escalate it to Loved-IT until {when(selectedOrder.dispute.escalate_by)}.</p>}
+                {selectedOrder.dispute.status === 'escalated' && <p className="text-[11px] text-rose-800">The buyer escalated the request. Loved-IT will decide; you can no longer approve or reject it.</p>}
+                {selectedOrder.dispute.status === 'approved' && <p className="text-[11px] text-emerald-800">Approved{selectedOrder.dispute.auto_approved ? ' automatically after 3 days' : ''}. The buyer was refunded {peso(selectedOrder.dispute.refund_amount)}; this order is not in your earnings.</p>}
               </div>
+            )}
+
+            {selectedOrder.can_cancel && (
+              <button type="button" onClick={() => setCancelTarget(selectedOrder)} className="w-full py-2 text-xs font-bold text-red-700 border border-red-200 rounded-xl hover:bg-red-50">Cancel this order</button>
             )}
 
             {/* Tracking History Timeline */}
@@ -891,6 +999,10 @@ export default function SellerOrdersPage() {
         </div>,
         document.body
       )}
+
+      <SellerCancelDialog order={cancelTarget} onClose={() => setCancelTarget(null)} onDone={onCancelled} />
+
+      <RejectReturnDialog open={rejectReturnOpen} busy={actionLoading} onClose={() => setRejectReturnOpen(false)} onConfirm={(r) => handleRespondReturn('reject', r)} />
 
       {/* ── 4. Reject Payment Modal ── */}
       {showRejectModal && selectedOrder && createPortal(
@@ -957,5 +1069,76 @@ export default function SellerOrdersPage() {
         document.body
       )}
     </div>
+  );
+}
+
+/** Cancelling needs a reason the buyer sees (S8); stock and vouchers go back and a paid order is refunded. */
+function SellerCancelDialog({ order, onClose, onDone }: { order: SellerOrder | null; onClose: () => void; onDone: (o: SellerOrder, message: string) => void }) {
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const other = reason === 'Other';
+  const detailsOk = !other || (details.trim().length >= 10 && details.trim().length <= 300);
+
+  useEffect(() => { if (order) { setReason(''); setDetails(''); setError(''); } }, [order]);
+
+  const submit = async () => {
+    if (!order || busy) return;
+    if (!reason) { setError('Choose a reason. The buyer will see it.'); return; }
+    if (!detailsOk) { setError('Explain the reason in 10 to 300 characters.'); return; }
+    setBusy(true);
+    try {
+      const res = await cancelSellerOrderApi<SellerOrder>(order.id, reason, other ? details.trim() : undefined);
+      onDone(res.data, res.message);
+    } catch (e) {
+      setError(apiErrorMessage(e, 'The order could not be cancelled.'));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog open={!!order} onClose={() => !busy && onClose()} title={`Cancel order #${order?.order_number ?? ''}?`}
+      footer={<>
+        <button type="button" className={BUTTON.quiet} onClick={onClose} disabled={busy}>Keep the order</button>
+        <button type="button" className={BUTTON.danger} onClick={submit} disabled={busy || !reason || !detailsOk}>{busy ? 'Cancelling…' : 'Cancel order'}</button>
+      </>}>
+      <p className="text-[13px] text-stone-600 mb-3">The buyer is told why. The stock goes back to your products and any voucher returns to the buyer{order?.payment_status === 'paid' ? '; the amount paid is refunded' : ''}.</p>
+      <div className="space-y-1.5" role="radiogroup" aria-label="Reason">
+        {SELLER_CANCEL_REASONS.map((r) => (
+          <label key={r} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer text-[13px] ${reason === r ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
+            <input type="radio" name="seller-cancel" checked={reason === r} onChange={() => { setReason(r); setError(''); }} className="accent-brand-red" /> {r}
+          </label>
+        ))}
+      </div>
+      {other && (
+        <div className="mt-3">
+          <textarea rows={3} value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Explain the reason to the buyer"
+            className="w-full px-3 py-2 text-[13px] rounded-xl border border-stone-300 outline-none focus:border-brand-red resize-none" />
+          <p className="text-[11px] text-stone-400 tabular-nums">{details.trim().length}/300 · at least 10</p>
+        </div>
+      )}
+      {error && <p role="alert" className="mt-2 text-[12.5px] text-brand-red">{error}</p>}
+    </Dialog>
+  );
+}
+
+function RejectReturnDialog({ open, busy, onClose, onConfirm }: { open: boolean; busy: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
+  const [reason, setReason] = useState('');
+  useEffect(() => { if (open) setReason(''); }, [open]);
+  const n = reason.trim().length;
+
+  return (
+    <Dialog open={open} onClose={() => !busy && onClose()} title="Reject the return"
+      footer={<>
+        <button type="button" className={BUTTON.quiet} onClick={onClose} disabled={busy}>Back</button>
+        <button type="button" className={BUTTON.danger} onClick={() => onConfirm(reason.trim())} disabled={busy || n < 10 || n > 300}>{busy ? 'Saving…' : 'Reject return'}</button>
+      </>}>
+      <p className="text-[13px] text-stone-600 mb-2">The buyer sees your reason and can escalate it to Loved-IT once, within 3 days.</p>
+      <label htmlFor="reject-return-reason" className="block text-[13px] font-medium text-stone-700">Reason</label>
+      <textarea id="reject-return-reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)}
+        placeholder="e.g. Item shows signs of use and the tag is removed."
+        className="mt-1 w-full px-3 py-2 text-[13px] rounded-xl border border-stone-300 outline-none focus:border-brand-red resize-none" />
+      <p className={`text-[11px] tabular-nums ${n > 0 && n < 10 ? 'text-brand-red' : 'text-stone-400'}`}>{n}/300 · at least 10 characters</p>
+    </Dialog>
   );
 }

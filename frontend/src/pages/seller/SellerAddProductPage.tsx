@@ -3,7 +3,7 @@ import {
   type ChangeEvent, type DragEvent, type KeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ImagePlus, X, GripVertical, Plus, Trash2,
   Info, CheckCircle2, Upload, AlertTriangle, Package, ChevronLeft, ChevronRight,
@@ -11,17 +11,19 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
-import { CATEGORY_TREE, leafRequiresFda } from '../../data/categories';
+import { CATEGORY_TREE, type CategoryNode } from '../../data/categories';
+import { getSellerShopProfileApi, getStorefrontCategoriesApi } from '../../api/client';
 import { downscaleImage } from '../../utils/imageDownscale';
 import {
-  createSellerProductApi,
   getSellerProductApi,
-  updateSellerProductApi,
   uploadDescriptionImageApi,
 } from '../../api/client';
+import { createSellerProductKeyedApi, getStoreCategoriesApi, updateSellerProductFullApi } from '../../api/sellerCatalog';
+import type { StoreCategoryNode } from '../../api/sellerCatalog';
+import { useAuth } from '../../hooks/useAuth';
 import type {
   AddProductFormState, ProductFormImage,
-  ProductFormVariantType, ProductFormVariantRow,
+  ProductFormVariantType, ProductFormVariantRow, SellerProductVariant,
 } from '../../types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -43,81 +45,59 @@ const EMPTY_FORM: AddProductFormState = {
   parentCategoryId: '', leafCategoryId: '',
   hasVariants: false,
   variantTypes: [], variantRows: [],
-  price: '', stock: '', discountPercent: '',
+  price: '', stock: '',
   weightValue: '', weightUnit: 'kg',
   dimensionL: '', dimensionW: '', dimensionH: '', sku: '',
   fdaLtoFile: null, fdaLtoOnFile: false, fdaCprFile: null,
   ingredients: '', netWeight: '', storageInstructions: '',
   expiryDate: '', allergenInfo: '',
+  storeCategoryIds: [], purchaseLimit: '',
+  lowStockMode: 'shop', lowStockLevel: '',
 };
 
 type FieldErrors = Partial<Record<string, string>>;
 
-const MAX_DISCOUNT = 90;
-const DISCOUNT_PRESETS = [5, 10, 15, 20, 30, 50];
+// The product rules (A7, A16, A17, A25); the server checks them again.
+const NAME_MIN = 5;
+const NAME_MAX = 120;
+const DESC_MIN = 20;
+const DESC_MAX = 3000;
+const MAX_IMAGES = 9;
+const MAX_TYPES = 2;
+const MAX_OPTIONS = 20;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_STORE_CATEGORIES = 3;
 
-/**
- * The shop's discount: a percentage off every variant. Sellers type regular prices above; buyers pay the discounted
- * price, shown struck through against the regular one on product cards.
- */
-function DiscountField({ value, onChange, error, regularPrices }: {
-  value: string;
-  onChange: (v: string) => void;
-  error?: string;
-  regularPrices: number[];
-}) {
-  const percent = Number(value) || 0;
-  const prices = regularPrices.filter((p) => p > 0);
-  const regular = prices.length ? Math.min(...prices) : 0;
-  const sale = Math.round(regular * (100 - percent)) / 100;
-  const fmt = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+/** The visible text of the rich-text description, as the server counts it. */
+function visibleText(html: string): string {
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
 
-  return (
-    <div className="mt-5 pt-5 border-t border-gray-100">
-      <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-        <div className="sm:w-52">
-          <FieldWrap label="Shop discount" error={error} hint="Optional. Applies to every variant.">
-            <div className="relative">
-              <input
-                type="number" min="0" max={MAX_DISCOUNT} step="1" placeholder="0"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className={inputCls(error) + ' pr-9'}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">%</span>
-            </div>
-          </FieldWrap>
-        </div>
-        <div className="flex flex-wrap gap-1.5 sm:pb-6">
-          {DISCOUNT_PRESETS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onChange(percent === p ? '' : String(p))}
-              className={`h-8 px-3 rounded-full border text-[12px] font-semibold transition-colors ${
-                percent === p ? 'bg-brand-red border-brand-red text-white' : 'border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'
-              }`}
-            >
-              {p}% off
-            </button>
-          ))}
-          {percent > 0 && (
-            <button type="button" onClick={() => onChange('')} className="h-8 px-3 rounded-full text-[12px] font-semibold text-gray-500 hover:text-gray-800">
-              No discount
-            </button>
-          )}
-        </div>
-      </div>
-      {percent > 0 && percent <= MAX_DISCOUNT && regular > 0 && (
-        <p className="mt-1 text-[12px] text-gray-600">
-          Buyers see <span className="font-bold text-gray-900">{fmt(sale)}</span>{' '}
-          <span className="text-gray-400 line-through">{fmt(regular)}</span>{' '}
-          <span className="px-1 rounded border border-brand-red/50 text-brand-red text-[11px] font-semibold">-{percent}%</span>
-          {prices.length > 1 && <span className="text-gray-400"> (cheapest variant)</span>}
-        </p>
-      )}
-    </div>
-  );
+function priceError(value: string): string | undefined {
+  const v = value.trim();
+  if (!v) return 'Enter a price.';
+  if (!/^\d+(\.\d{1,2})?$/.test(v)) return 'Enter a number with at most 2 decimal places.';
+  const n = Number(v);
+  if (n < 1) return 'The price must be at least ₱1.00.';
+  if (n > 1000000) return 'The price must be ₱1,000,000.00 or less.';
+  return undefined;
+}
+
+function stockError(value: string): string | undefined {
+  const v = value.trim();
+  if (!v) return 'Enter the stock.';
+  if (!/^\d+$/.test(v) || Number(v) > 99999) return 'Stock must be a whole number from 0 to 99,999.';
+  return undefined;
+}
+
+function positiveError(value: string, label: string): string | undefined {
+  if (!value.trim()) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return `${label} must be a number.`;
+  if (n <= 0) return `${label} must be more than 0.`;
+  return undefined;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,6 +109,7 @@ function uid() {
 function buildVariantRows(
   types: ProductFormVariantType[],
   images: ProductFormImage[],
+  previous: ProductFormVariantRow[] = [],
 ): ProductFormVariantRow[] {
   const filled = types.filter((t) => t.name.trim() && t.options.length > 0);
   if (filled.length === 0) return [];
@@ -155,66 +136,92 @@ function buildVariantRows(
         if (found) { imagePreview = found.preview; break; }
       }
     }
+    const combination = filled.map((_, ti) => opts[ti]).join(' / ');
+    const prev = previous.find((r) => r.combination.toLowerCase() === combination.toLowerCase());
     return {
-      combination: filled.map((_, ti) => opts[ti]).join(' / '),
+      id: prev?.id,
+      sku: prev?.sku ?? '',
+      combination,
       options: opts,
-      price: '',
-      stock: '',
+      price: prev?.price ?? '',
+      stock: prev?.stock ?? '',
       imagePreview,
     };
   });
 }
 
-function validate(form: AddProductFormState): { errors: FieldErrors; firstSection: string | null } {
+/** Whether a sub-category asks for FDA documents, from the category tree in use. */
+function fdaFor(tree: CategoryNode[], leafId: string): boolean {
+  return tree.some((p) => p.children.some((c) => c.id === leafId && c.requiresFdaDoc === true));
+}
+
+function validate(form: AddProductFormState, publish: boolean, tree: CategoryNode[]): { errors: FieldErrors; firstSection: string | null } {
   const errors: FieldErrors = {};
 
-  if (!form.name.trim()) errors.name = 'Product name is required.';
-  const descText = form.description.replace(/<[^>]*>/g, '').trim();
-  if (!descText && !form.description.includes('<img')) {
-    errors.description = 'Description is required.';
-  } else if (descText.length > 1500) {
-    errors.description = 'Description must not exceed 1,500 characters.';
-  }
-  if (form.images.length === 0 && form.existingImages.length === 0) errors.images = 'At least one product image is required.';
+  const name = form.name.trim();
+  if (!name) errors.name = 'Product name is required.';
+  else if (name.length < NAME_MIN || name.length > NAME_MAX) errors.name = `Product name must be ${NAME_MIN} to ${NAME_MAX} characters.`;
 
-  if (!form.leafCategoryId) errors.leafCategoryId = 'Please select a category.';
-
-  if (form.hasVariants) {
-    const filled = form.variantTypes.filter((t) => t.name.trim() && t.options.length > 0);
-    if (filled.length === 0) errors.variantTypes = 'Add at least one variant type with options.';
-    form.variantRows.forEach((row, i) => {
-      if (!row.price || isNaN(Number(row.price)) || Number(row.price) <= 0)
-        errors[`variantRow_price_${i}`] = 'Required';
-      if (!row.stock || isNaN(Number(row.stock)) || Number(row.stock) < 0)
-        errors[`variantRow_stock_${i}`] = 'Required';
-    });
-  } else {
-    if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0)
-      errors.price = 'Enter a valid price.';
-    if (!form.stock || isNaN(Number(form.stock)) || Number(form.stock) < 0)
-      errors.stock = 'Enter a valid stock quantity.';
+  const descLength = visibleText(form.description).length;
+  if (descLength > DESC_MAX) errors.description = 'The description must be 3,000 characters or fewer.';
+  const imageCount = form.images.length + form.existingImages.length;
+  if (imageCount > MAX_IMAGES) errors.images = `A product can have at most ${MAX_IMAGES} images.`;
+  if (form.storeCategoryIds.length > MAX_STORE_CATEGORIES) errors.storeCategoryIds = 'A product can be in at most 3 store categories.';
+  if (form.purchaseLimit.trim() && (!/^\d+$/.test(form.purchaseLimit.trim()) || Number(form.purchaseLimit) < 1)) {
+    errors.purchaseLimit = 'The purchase limit must be a whole number of at least 1.';
   }
-  if (form.discountPercent !== '') {
-    const d = Number(form.discountPercent);
-    if (!Number.isInteger(d) || d < 0 || d > MAX_DISCOUNT) errors.discountPercent = `Use a whole number from 0 to ${MAX_DISCOUNT}.`;
+  if (form.lowStockMode === 'custom' && (!/^\d+$/.test(form.lowStockLevel.trim()) || Number(form.lowStockLevel) > 999)) {
+    errors.lowStockLevel = 'Enter the alert level as a whole number from 0 to 999.';
+  }
+  const weightProblem = positiveError(form.weightValue, 'The weight');
+  if (weightProblem) errors.weightValue = weightProblem;
+  for (const key of ['dimensionL', 'dimensionW', 'dimensionH'] as const) {
+    const p = positiveError(form[key], 'Dimensions');
+    if (p) errors.dimensions = p;
   }
 
-  if (!form.weightValue || isNaN(Number(form.weightValue)) || Number(form.weightValue) <= 0)
-    errors.weightValue = 'Weight is required.';
+  if (publish) {
+    if (descLength < DESC_MIN) errors.description = `The description must be at least ${DESC_MIN} characters.`;
+    if (imageCount === 0) errors.images = 'Add at least one product image (JPG or PNG).';
+    if (!form.leafCategoryId) errors.leafCategoryId = 'Please select a category.';
+    if (!form.weightValue.trim()) errors.weightValue = 'Enter the weight.';
 
-  const needsFda = form.leafCategoryId && leafRequiresFda(form.leafCategoryId);
-  if (needsFda) {
-    if (!form.fdaLtoFile && !form.fdaLtoOnFile) errors.fdaLtoFile = 'FDA LTO is required.';
-    if (!form.fdaCprFile) errors.fdaCprFile = 'CPR/CPN document is required.';
+    if (form.hasVariants) {
+      const filled = form.variantTypes.filter((t) => t.name.trim() && t.options.length > 0);
+      if (filled.length === 0) errors.variantTypes = 'Add at least one variation type with options.';
+      const skus = new Map<string, number>();
+      form.variantRows.forEach((row, i) => {
+        const pe = priceError(row.price);
+        if (pe) errors[`variantRow_price_${i}`] = pe;
+        const se = stockError(row.stock);
+        if (se) errors[`variantRow_stock_${i}`] = se;
+        const sku = (row.sku ?? '').trim().toLowerCase();
+        if (sku) {
+          if (skus.has(sku)) errors[`variantRow_sku_${i}`] = 'Each variant needs its own SKU.';
+          skus.set(sku, i);
+        }
+      });
+    } else {
+      const pe = priceError(form.price);
+      if (pe) errors.price = pe;
+      const se = stockError(form.stock);
+      if (se) errors.stock = se;
+    }
+
+    const needsFda = form.leafCategoryId && fdaFor(tree, form.leafCategoryId);
+    if (needsFda) {
+      if (!form.fdaLtoFile && !form.fdaLtoOnFile) errors.fdaLtoFile = 'FDA LTO is required.';
+      if (!form.fdaCprFile) errors.fdaCprFile = 'CPR/CPN document is required.';
+    }
   }
 
   const sectionOrder = ['basic', 'category', 'variants', 'shipping', 'fda'];
   const sectionErrors: Record<string, string[]> = {
     basic: ['name', 'description', 'images'],
-    category: ['leafCategoryId'],
-    variants: ['variantTypes', 'price', 'stock', 'discountPercent',
+    category: ['leafCategoryId', 'storeCategoryIds'],
+    variants: ['variantTypes', 'price', 'stock', 'purchaseLimit', 'lowStockLevel',
       ...Object.keys(errors).filter((k) => k.startsWith('variantRow_'))],
-    shipping: ['weightValue'],
+    shipping: ['weightValue', 'dimensions'],
     fda: ['fdaLtoFile', 'fdaCprFile'],
   };
 
@@ -232,18 +239,21 @@ const PRODUCT_JPEG_QUALITY = 0.85;
 
 /** The form field that shows a server validation error, so nested keys like "images.2" are never lost. */
 function formFieldForServerKey(key: string, hasVariants: boolean): string {
-  const variant = key.match(/^variants\.(\d+)\.(price|stock|label)$/);
+  const variant = key.match(/^variants\.(\d+)\.(price|stock|label|sku)$/);
   if (variant) {
     const [, i, part] = variant;
-    if (part === 'label') return 'variantTypes';
-    return hasVariants ? `variantRow_${part}_${i}` : part;
+    if (!hasVariants) return part === 'label' ? 'variantTypes' : part;
+    return `variantRow_${part}_${i}`;
   }
-  if (key === 'variants' || key.startsWith('variants.')) return hasVariants ? 'variantTypes' : 'price';
+  if (key === 'variants' || key.startsWith('variants.') || key.startsWith('variation_types')) return hasVariants ? 'variantTypes' : 'price';
+  if (key.startsWith('store_category_ids')) return 'storeCategoryIds';
+  if (key === 'purchase_limit') return 'purchaseLimit';
+  if (key === 'low_stock_threshold' || key === 'low_stock_alert') return 'lowStockLevel';
+  if (key.startsWith('dimension_')) return 'dimensions';
   if (key === 'images' || key.startsWith('images.')) return 'images';
   const direct: Record<string, string> = {
     category_slug: 'leafCategoryId',
     base_price: 'price',
-    discount_percent: 'discountPercent',
     weight_kg: 'weightValue',
     fda_lto: 'fdaLtoFile',
     fda_cpr: 'fdaCprFile',
@@ -296,6 +306,73 @@ function FieldWrap({
       {children}
       {hint && !error && <p className="text-[11px] text-gray-400">{hint}</p>}
       {error && <p className="text-[11px] text-red-500 font-medium">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * When this product's low-stock alert fires (A29): at the shop's level, at its own level, only when it sells out, or
+ * never. The alert fires once when stock drops to the level from above it, so a listing that starts at or below the
+ * level (a single laptop) is offered "When sold out" instead.
+ */
+function LowStockAlertField({ form, shopLevel, error, onMode, onLevel }: {
+  form: AddProductFormState;
+  shopLevel: number | null;
+  error?: string;
+  onMode: (mode: AddProductFormState['lowStockMode']) => void;
+  onLevel: (value: string) => void;
+}) {
+  const stock = form.hasVariants
+    ? form.variantRows.reduce((sum, r) => sum + (Number(r.stock) || 0), 0)
+    : Number(form.stock) || 0;
+  const level = form.lowStockMode === 'shop' ? shopLevel
+    : form.lowStockMode === 'sold_out' ? 0
+      : form.lowStockMode === 'custom' && /^\d+$/.test(form.lowStockLevel.trim()) ? Number(form.lowStockLevel) : null;
+  const options: { value: AddProductFormState['lowStockMode']; title: string; text: string }[] = [
+    { value: 'shop', title: shopLevel !== null ? `Shop level (${shopLevel})` : 'Shop level', text: 'The level in your Shop Profile.' },
+    { value: 'custom', title: 'Own level', text: 'A level just for this product.' },
+    { value: 'sold_out', title: 'When sold out', text: 'For a single or one-of-a-kind item.' },
+    { value: 'off', title: 'No alert', text: 'Never alert for this product.' },
+  ];
+
+  return (
+    <div className="space-y-2.5 pt-4 border-t border-gray-100">
+      <div>
+        <p className="text-[13px] font-semibold text-gray-700">Low-stock alert</p>
+        <p className="text-[11.5px] text-gray-400">One notification when stock falls to this level. It comes again only after you restock above it.</p>
+      </div>
+      <div role="radiogroup" aria-label="Low-stock alert" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {options.map((o) => {
+          const on = form.lowStockMode === o.value;
+          return (
+            <button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onMode(o.value)}
+              className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${on ? 'border-brand-red bg-rose-50/60 ring-1 ring-brand-red/20' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+              <span className={`block text-[12.5px] font-bold ${on ? 'text-brand-red' : 'text-gray-800'}`}>{o.title}</span>
+              <span className="block text-[11px] leading-snug text-gray-500">{o.text}</span>
+            </button>
+          );
+        })}
+      </div>
+      {form.lowStockMode === 'custom' && (
+        <div className="space-y-1">
+          <label className="flex flex-wrap items-center gap-2 text-[13px] text-gray-700">
+            Alert when stock is
+            <input type="number" min="0" max="999" step="1" inputMode="numeric" value={form.lowStockLevel} onChange={(e) => onLevel(e.target.value)}
+              className={`${inputCls(error)} !w-24 !py-2`} aria-label="Low-stock level for this product" />
+            or fewer
+          </label>
+          {error && <p className="text-[11px] text-red-500 font-medium">{error}</p>}
+        </div>
+      )}
+      {level !== null && level > 0 && stock > 0 && stock <= level && (
+        <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+          <Info className="w-4 h-4 mt-px shrink-0" aria-hidden="true" />
+          <span>
+            You are listing {stock} {stock === 1 ? 'unit' : 'units'}, already at or below {level}, so this alert will not fire until you restock above {level}.{' '}
+            <button type="button" onClick={() => onMode('sold_out')} className="font-bold underline underline-offset-2">Alert me when it sells out</button>
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -396,6 +473,9 @@ function ImageUploader({
   onZoom: (index: number) => void;
 }) {
   const [dragging, setDragging] = useState(false);
+  const [rejected, setRejected] = useState<string[]>([]);
+  const total = images.length + existingImages.length;
+  const full = total >= MAX_IMAGES;
   const inputRef = useRef<HTMLInputElement>(null);
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
@@ -404,12 +484,26 @@ function ImageUploader({
   const addFiles = useCallback((files: FileList | null) => {
     if (!files) return;
     const next = [...images];
+    const problems: string[] = [];
     Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+      if (!['jpg', 'jpeg', 'png'].includes(ext) || (file.type && !['image/jpeg', 'image/png'].includes(file.type))) {
+        problems.push(`${file.name}: only JPG or PNG images can be added.`);
+        return;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        problems.push(`${file.name}: larger than 5 MB. Use an image up to 5 MB.`);
+        return;
+      }
+      if (next.length + existingImages.length >= MAX_IMAGES) {
+        problems.push(`${file.name}: a product can have at most ${MAX_IMAGES} images.`);
+        return;
+      }
       next.push({ id: uid(), file, preview: URL.createObjectURL(file) });
     });
+    setRejected(problems);
     onChange(next);
-  }, [images, onChange]);
+  }, [images, existingImages.length, onChange]);
 
   const remove = (id: string) => onChange(images.filter((img) => img.id !== id));
 
@@ -432,9 +526,11 @@ function ImageUploader({
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => { if (!full) inputRef.current?.click(); }}
+        aria-disabled={full}
         className={[
-          'border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 py-8 cursor-pointer transition-all',
+          'border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 py-8 transition-all',
+          full ? 'cursor-not-allowed opacity-60 border-gray-200' : 'cursor-pointer',
           dragging
             ? 'border-brand-red bg-red-50'
             : error
@@ -444,11 +540,11 @@ function ImageUploader({
       >
         <ImagePlus className={`w-8 h-8 ${dragging ? 'text-brand-red' : 'text-gray-300'}`} />
         <p className="text-[13px] font-semibold text-gray-500">
-          Drag & drop images here, or <span className="text-brand-red">browse</span>
+          {full ? 'Image limit reached' : <>Drag & drop images here, or <span className="text-brand-red">browse</span></>}
         </p>
-        <p className="text-[11px] text-gray-400">PNG, JPG, WEBP · First image = main photo</p>
+        <p className="text-[11px] text-gray-400 tabular-nums">JPG or PNG up to 5 MB · {total}/{MAX_IMAGES} images · First image = main photo</p>
         <input
-          ref={inputRef} type="file" accept="image/*" multiple hidden
+          ref={inputRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple hidden disabled={full}
           onChange={(e: ChangeEvent<HTMLInputElement>) => addFiles(e.target.files)}
         />
       </div>
@@ -519,6 +615,11 @@ function ImageUploader({
             </div>
           ))}
         </div>
+      )}
+      {rejected.length > 0 && (
+        <ul role="alert" className="text-[11px] text-red-600 font-medium space-y-0.5">
+          {rejected.map((r) => <li key={r}>{r}</li>)}
+        </ul>
       )}
       {error && <p className="text-[11px] text-red-500 font-medium">{error}</p>}
     </div>
@@ -597,13 +698,26 @@ function ChipInput({
   onOptionImageChange?: (opt: string, id: string | undefined) => void;
 }) {
   const [draft, setDraft] = useState('');
-
-  const MAX_OPTIONS = 12;
+  const [problem, setProblem] = useState('');
 
   const add = () => {
     const val = draft.trim();
-    if (val && !options.includes(val) && options.length < MAX_OPTIONS) onChange([...options, val]);
     setDraft('');
+    if (!val) return;
+    if (options.some((o) => o.toLowerCase() === val.toLowerCase())) {
+      setProblem(`"${val}" is already an option (upper and lower case count as the same).`);
+      return;
+    }
+    if (options.length >= MAX_OPTIONS) {
+      setProblem(`A variation type can have at most ${MAX_OPTIONS} options.`);
+      return;
+    }
+    if (val.includes('/')) {
+      setProblem('An option name cannot contain "/".');
+      return;
+    }
+    setProblem('');
+    onChange([...options, val]);
   };
 
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -635,10 +749,12 @@ function ChipInput({
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKey}
         onBlur={add}
-        placeholder={options.length === 0 ? 'Type option + Enter…' : options.length >= MAX_OPTIONS ? '' : 'Add more…'}
+        placeholder={options.length === 0 ? 'Type option + Enter…' : options.length >= MAX_OPTIONS ? `${MAX_OPTIONS} of ${MAX_OPTIONS} options` : 'Add more…'}
         disabled={options.length >= MAX_OPTIONS}
         className="flex-1 min-w-[120px] bg-transparent outline-none text-[13px] text-gray-700 placeholder:text-gray-400"
       />
+      <span className="w-full text-[10.5px] text-gray-400 tabular-nums">{options.length}/{MAX_OPTIONS} options</span>
+      {problem && <span role="alert" className="w-full text-[11px] font-medium text-red-600">{problem}</span>}
     </div>
   );
 }
@@ -680,7 +796,10 @@ function VariantTypesBuilder({
             <CustomSelect
               value={type.name}
               onChange={(v) => updateName(i, v)}
-              options={VARIANT_TYPE_OPTIONS}
+              options={[
+                ...VARIANT_TYPE_OPTIONS,
+                ...(type.name && !VARIANT_TYPE_OPTIONS.some((o) => o.value === type.name) ? [{ value: type.name, label: type.name }] : []),
+              ].filter((o) => o.value === type.name || !types.some((t, ti) => ti !== i && t.name.toLowerCase() === o.value.toLowerCase()))}
               placeholder={`Variant type (e.g. ${['Color', 'Size', 'Flavor'][i] ?? 'Style'})`}
             />
             <ChipInput
@@ -700,7 +819,7 @@ function VariantTypesBuilder({
           </button>
         </div>
       ))}
-      {types.length < 3 && (
+      {types.length < MAX_TYPES && (
         <button
           type="button"
           onClick={addType}
@@ -733,7 +852,7 @@ function VariantTable({
     })));
   };
 
-  const updateRow = (i: number, field: 'price' | 'stock', val: string) => {
+  const updateRow = (i: number, field: 'price' | 'stock' | 'sku', val: string) => {
     const next = [...rows];
     next[i] = { ...next[i], [field]: val };
     onChange(next);
@@ -775,13 +894,14 @@ function VariantTable({
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-gray-100">
-        <table className="w-full text-[13px] min-w-[420px]">
+        <table className="w-full text-[13px] min-w-[560px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
               <th className="text-left px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400 w-12">Img</th>
               <th className="text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Combination</th>
               <th className="text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400 w-36">Price (₱)</th>
               <th className="text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400 w-32">Stock</th>
+              <th className="text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-400 w-36">SKU</th>
             </tr>
           </thead>
           <tbody>
@@ -792,7 +912,10 @@ function VariantTable({
                     ? <img src={row.imagePreview} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-100" />
                     : <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center"><Package className="w-4 h-4 text-gray-300" /></div>}
                 </td>
-                <td className="px-4 py-2.5 font-medium text-gray-700">{row.combination}</td>
+                <td className="px-4 py-2.5 font-medium text-gray-700">
+                  {row.combination}
+                  {errors[`variantRow_label_${i}`] && <p className="text-[10px] text-red-500 mt-0.5">{errors[`variantRow_label_${i}`]}</p>}
+                </td>
                 <td className="px-4 py-2">
                   <input
                     type="number" min="0" placeholder="0.00"
@@ -819,6 +942,20 @@ function VariantTable({
                   />
                   {errors[`variantRow_stock_${i}`] && (
                     <p className="text-[10px] text-red-500 mt-0.5">{errors[`variantRow_stock_${i}`]}</p>
+                  )}
+                </td>
+                <td className="px-4 py-2">
+                  <input
+                    type="text" placeholder="Optional"
+                    value={row.sku ?? ''}
+                    onChange={(e) => updateRow(i, 'sku', e.target.value)}
+                    className={[
+                      'w-full px-2.5 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-red-100 bg-white text-[13px] font-mono',
+                      errors[`variantRow_sku_${i}`] ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-brand-red',
+                    ].join(' ')}
+                  />
+                  {errors[`variantRow_sku_${i}`] && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{errors[`variantRow_sku_${i}`]}</p>
                   )}
                 </td>
               </tr>
@@ -1034,6 +1171,103 @@ function RichTextEditor({
 
 // ─── Toggle Switch ────────────────────────────────────────────────────────────
 
+/** Rebuilds a saved product's variation types and rows from its type names and "Red / M" labels. */
+function loadVariants(
+  variants: SellerProductVariant[],
+  typeNames: string[],
+): { types: ProductFormVariantType[]; rows: ProductFormVariantRow[] } {
+  const parts = variants.map((v) => v.label.split(' / ').map((s) => s.trim()));
+  const width = typeNames.length || parts[0]?.length || 1;
+  // Older products may not follow "Option / Option": they load as one type whose options are the full labels.
+  const parsable = width <= MAX_TYPES && parts.every((p) => p.length === width);
+  const split = parsable ? parts : variants.map((v) => [v.label]);
+  const names = parsable
+    ? Array.from({ length: width }, (_, i) => typeNames[i] ?? (width === 1 ? 'Style' : `Variation ${i + 1}`))
+    : [typeNames[0] ?? 'Style'];
+
+  const types = names.map((name, ti) => {
+    const options: string[] = [];
+    split.forEach((p) => {
+      const o = p[ti];
+      if (o && !options.some((x) => x.toLowerCase() === o.toLowerCase())) options.push(o);
+    });
+    return { name, options, optionImages: {} };
+  });
+  const rows = variants.map((v, i) => ({
+    id: v.id,
+    sku: v.sku ?? '',
+    combination: split[i].join(' / '),
+    options: Object.fromEntries(split[i].map((o, ti) => [ti, o])) as Record<number, string>,
+    price: String(v.regular_price ?? v.price),
+    stock: String(v.stock_quantity),
+    imagePreview: undefined,
+  }));
+  return { types, rows };
+}
+
+// ─── Store categories (A17) ───────────────────────────────────────────────────
+
+function StoreCategoryPicker({
+  tree, selected, onChange, locked,
+}: {
+  tree: StoreCategoryNode[] | null;
+  selected: number[];
+  onChange: (ids: number[]) => void;
+  locked: boolean;
+}) {
+  if (locked) {
+    return <p className="text-[12px] text-gray-400">Store categories open once your shop is approved.</p>;
+  }
+  if (tree === null) return <div className="h-9 rounded-xl bg-gray-50 animate-pulse" />;
+
+  const flat = tree.flatMap((n) => [
+    { id: n.id, label: n.name, hidden: !n.is_visible },
+    ...(n.children ?? []).map((c) => ({ id: c.id, label: `${n.name} › ${c.name}`, hidden: !c.is_visible || !n.is_visible })),
+  ]);
+  if (flat.length === 0) {
+    return (
+      <p className="text-[12px] text-gray-500">
+        You have no store categories yet.{' '}
+        <Link to="/seller/store-categories" className="font-semibold text-brand-red hover:underline">Create them</Link>
+        {' '}to group products on your shop page.
+      </p>
+    );
+  }
+
+  const full = selected.length >= MAX_STORE_CATEGORIES;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {flat.map((c) => {
+          const on = selected.includes(c.id);
+          const disabled = !on && full;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              disabled={disabled}
+              aria-pressed={on}
+              onClick={() => onChange(on ? selected.filter((x) => x !== c.id) : [...selected, c.id])}
+              className={[
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold transition-colors',
+                on ? 'border-brand-red bg-red-50 text-brand-red' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                disabled ? 'opacity-40 cursor-not-allowed' : '',
+              ].join(' ')}
+            >
+              {on && <CheckCircle2 className="w-3.5 h-3.5" />}
+              {c.label}
+              {c.hidden && <span className="text-[10px] font-medium text-gray-400">hidden</span>}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-gray-400 tabular-nums">
+        {selected.length}/{MAX_STORE_CATEGORIES} selected{full ? ' · remove one to pick another' : ''}
+      </p>
+    </div>
+  );
+}
+
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
@@ -1074,17 +1308,67 @@ export default function SellerAddProductPage() {
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [fdaOpen, setFdaOpen] = useState(false);
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
+  const { user } = useAuth();
+  // A seller whose application is still waiting can prepare drafts; only an approved store publishes (A18).
+  const approved = user?.seller_profile?.application_status === 'approved';
+  const [storeTree, setStoreTree] = useState<StoreCategoryNode[] | null>(null);
+  const [loadedStatus, setLoadedStatus] = useState<string | null>(null);
+  // The single variant of a product without variations, so a save updates it instead of replacing it.
+  const simpleVariantId = useRef<number | undefined>(undefined);
+  // One key per new product: a double click or a retried request never creates it twice (A37).
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${uid()}${uid()}`,
+  );
+
+  // The platform categories the admin keeps (active only), with their FDA rule. The built-in list is shown only
+  // until they load, or if they cannot be loaded.
+  const [tree, setTree] = useState<CategoryNode[]>(CATEGORY_TREE);
+
+  // The shop's low-stock level, for the alert's "Shop level" choice (5 unless the seller changed it).
+  const [shopLowStock, setShopLowStock] = useState<number | null>(null);
+  useEffect(() => {
+    getSellerShopProfileApi().then((p) => setShopLowStock(p.low_stock_threshold ?? 5)).catch(() => setShopLowStock(5));
+  }, []);
+  useEffect(() => {
+    getStorefrontCategoriesApi()
+      .then((cats) => {
+        const live = cats.filter((p) => (p.children ?? []).length > 0).map((p) => ({
+          id: p.slug, label: p.name,
+          children: (p.children ?? []).map((c) => ({ id: c.slug, label: c.name, requiresFdaDoc: c.requires_fda === true })),
+        }));
+        if (live.length > 0) setTree(live);
+      })
+      .catch(() => {});
+  }, []);
+
+  // An edited product's parent category, once the tree is known.
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.leafCategoryId) return prev;
+      const parent = tree.find((n) => n.children.some((c) => c.id === prev.leafCategoryId));
+      return parent && parent.id !== prev.parentCategoryId ? { ...prev, parentCategoryId: parent.id } : prev;
+    });
+  }, [tree]);
+
+  useEffect(() => {
+    if (!approved) { setStoreTree([]); return; }
+    getStoreCategoriesApi().then(setStoreTree).catch(() => setStoreTree([]));
+  }, [approved]);
 
   // Load existing product when editing
   useEffect(() => {
     if (!isEdit) return;
     getSellerProductApi(Number(id))
       .then((p) => {
+        // The live tree may still be loading; the effect on `tree` settles the parent once it has.
         const parentEntry = CATEGORY_TREE.find((n) =>
           n.children.some((c) => c.id === p.category_id)
         );
         const hasVariants = p.variants.length > 1 ||
           (p.variants.length === 1 && p.variants[0].label !== 'Default');
+        const loaded = loadVariants(p.variants, p.variation_types ?? []);
+        simpleVariantId.current = hasVariants ? undefined : p.variants[0]?.id;
+        setLoadedStatus(p.status);
 
         let weightValue = '';
         let weightUnit: 'kg' | 'g' = 'kg';
@@ -1103,17 +1387,15 @@ export default function SellerAddProductPage() {
           images: [],
           existingImages: [...(p.images ?? [])].sort((a, b) => a.sort_order - b.sort_order),
           deletedImageIds: [],
-          // The form edits regular prices; the shop's discount is applied on save.
+          // The form edits regular prices; store and flash sales are priced on top of them.
           price: hasVariants ? '' : String(p.variants[0]?.regular_price ?? p.variants[0]?.price ?? p.base_price),
           stock: hasVariants ? '' : String(p.variants[0]?.stock_quantity ?? 0),
-          discountPercent: p.discount_percent ? String(p.discount_percent) : '',
-          variantRows: hasVariants ? p.variants.map((v) => ({
-            combination: v.label,
-            options: {},
-            price: String(v.regular_price ?? v.price),
-            stock: String(v.stock_quantity),
-            imagePreview: undefined,
-          })) : [],
+          variantTypes: hasVariants ? loaded.types : [],
+          variantRows: hasVariants ? loaded.rows : [],
+          storeCategoryIds: p.store_category_ids ?? [],
+          purchaseLimit: p.purchase_limit ? String(p.purchase_limit) : '',
+          lowStockMode: p.low_stock_alert === 'off' ? 'off' : p.low_stock_alert === 'custom' ? (p.low_stock_threshold === 0 ? 'sold_out' : 'custom') : 'shop',
+          lowStockLevel: p.low_stock_alert === 'custom' && p.low_stock_threshold ? String(p.low_stock_threshold) : '',
           weightValue,
           weightUnit,
           dimensionL: p.dimension_l_cm != null ? String(p.dimension_l_cm) : '',
@@ -1141,17 +1423,17 @@ export default function SellerAddProductPage() {
     setErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
 
   // Category
-  const parentNode = CATEGORY_TREE.find((n) => n.id === form.parentCategoryId);
+  const parentNode = tree.find((n) => n.id === form.parentCategoryId);
   const leafOptions = parentNode
     ? parentNode.children
     : [];
-  const needsFda = form.leafCategoryId ? leafRequiresFda(form.leafCategoryId) : false;
+  const needsFda = form.leafCategoryId ? fdaFor(tree, form.leafCategoryId) : false;
 
   // Sync FDA section open state
   const handleLeafChange = (leafId: string) => {
     set('leafCategoryId', leafId);
     clearError('leafCategoryId');
-    const requires = leafRequiresFda(leafId);
+    const requires = fdaFor(tree, leafId);
     if (requires && !fdaOpen) setFdaOpen(true);
     if (!requires) setFdaOpen(false);
   };
@@ -1161,16 +1443,16 @@ export default function SellerAddProductPage() {
     setForm((prev) => ({
       ...prev,
       images: imgs,
-      variantRows: prev.hasVariants ? buildVariantRows(prev.variantTypes, imgs) : prev.variantRows,
+      variantRows: prev.hasVariants && prev.variantTypes.length ? buildVariantRows(prev.variantTypes, imgs, prev.variantRows) : prev.variantRows,
     }));
     clearError('images');
     setZoomIndex((prev) => (prev !== null && prev >= imgs.length ? null : prev));
   };
 
-  // Variants
+  // Variants: rows keep their saved price, stock and SKU when options are added or removed.
   const handleVariantTypesChange = (types: ProductFormVariantType[]) => {
-    const rows = buildVariantRows(types, form.images);
-    setForm((prev) => ({ ...prev, variantTypes: types, variantRows: rows }));
+    setForm((prev) => ({ ...prev, variantTypes: types, variantRows: buildVariantRows(types, prev.images, prev.variantRows) }));
+    clearError('variantTypes');
   };
 
   const handleToggleVariants = (v: boolean) => {
@@ -1179,19 +1461,20 @@ export default function SellerAddProductPage() {
     if (!v) setForm((prev) => ({ ...prev, variantTypes: [], variantRows: [] }));
   };
 
-  // Submit
-  const handleSubmit = async (isDraft: boolean) => {
-    if (!isDraft) {
-      const { errors: errs, firstSection } = validate(form);
-      if (Object.keys(errs).length > 0) {
-        setErrors(errs);
-        if (firstSection) {
-          const el = document.getElementById(`section-${firstSection}`);
-          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        return;
+  // Submit: a draft needs only a valid name; publishing checks every rule and makes the product live at once.
+  const handleSubmit = async (publish: boolean) => {
+    if (submitting) return;
+    const { errors: errs, firstSection } = validate(form, publish, tree);
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      setServerError('');
+      if (firstSection) {
+        const el = document.getElementById(`section-${firstSection}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+      return;
     }
+    setErrors({});
     setSubmitting(true);
     setServerError('');
     try {
@@ -1199,26 +1482,35 @@ export default function SellerAddProductPage() {
       const uploads = await Promise.all(form.images.map((img) => downscaleImage(img.file, PRODUCT_MAX_EDGE, PRODUCT_JPEG_QUALITY)));
 
       const fd = new FormData();
-      fd.append('name', form.name);
+      fd.append('name', form.name.trim());
       fd.append('description', form.description);
       fd.append('category_slug', form.leafCategoryId);
-      fd.append('status', isDraft ? 'draft' : 'pending_review');
+      fd.append('status', publish ? 'active' : 'draft');
 
       if (form.hasVariants) {
+        form.variantTypes
+          .filter((t) => t.name.trim() && t.options.length > 0)
+          .forEach((t) => fd.append('variation_types[]', t.name.trim()));
         form.variantRows.forEach((row, i) => {
+          if (row.id) fd.append(`variants[${i}][id]`, String(row.id));
           fd.append(`variants[${i}][label]`, row.combination);
-          fd.append(`variants[${i}][price]`, row.price || '0');
-          fd.append(`variants[${i}][stock]`, row.stock || '0');
+          fd.append(`variants[${i}][price]`, row.price.trim());
+          fd.append(`variants[${i}][stock]`, row.stock.trim());
+          fd.append(`variants[${i}][sku]`, (row.sku ?? '').trim());
         });
-        const prices = form.variantRows.map((r) => Number(r.price)).filter(Boolean);
-        fd.append('base_price', String(prices.length ? Math.min(...prices) : 0));
       } else {
-        fd.append('base_price', form.price || '0');
+        fd.append('variation_types', '');
+        if (simpleVariantId.current) fd.append('variants[0][id]', String(simpleVariantId.current));
         fd.append('variants[0][label]', 'Default');
-        fd.append('variants[0][price]', form.price || '0');
-        fd.append('variants[0][stock]', form.stock || '0');
+        fd.append('variants[0][price]', form.price.trim());
+        fd.append('variants[0][stock]', form.stock.trim());
       }
-      fd.append('discount_percent', form.discountPercent || '0');
+      if (form.storeCategoryIds.length) form.storeCategoryIds.forEach((sc) => fd.append('store_category_ids[]', String(sc)));
+      else fd.append('store_category_ids', '');
+      fd.append('purchase_limit', form.purchaseLimit.trim());
+      fd.append('low_stock_alert', form.lowStockMode === 'sold_out' ? 'custom' : form.lowStockMode);
+      if (form.lowStockMode === 'custom') fd.append('low_stock_threshold', form.lowStockLevel.trim());
+      if (form.lowStockMode === 'sold_out') fd.append('low_stock_threshold', '0');
 
       if (form.weightValue) {
         const kg = form.weightUnit === 'g'
@@ -1242,12 +1534,12 @@ export default function SellerAddProductPage() {
       if (form.storageInstructions)  fd.append('storage_instructions', form.storageInstructions);
       if (form.allergenInfo)         fd.append('allergen_info', form.allergenInfo);
 
-      if (isEdit) {
-        await updateSellerProductApi(Number(id), fd);
-      } else {
-        await createSellerProductApi(fd);
-      }
-      navigate('/seller/products');
+      const saved = isEdit
+        ? await updateSellerProductFullApi(Number(id), fd)
+        : await createSellerProductKeyedApi(fd, idempotencyKey);
+      navigate('/seller/products', {
+        state: { flash: saved.message ?? (publish ? 'Product published. It is live in your store.' : 'Draft saved.') },
+      });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number; data?: { message?: string; errors?: Record<string, string[]> } } };
       const serverErrors = axiosErr?.response?.data?.errors;
@@ -1295,7 +1587,8 @@ export default function SellerAddProductPage() {
 
       {/* ── 1. Basic Info ─────────────────────────────────────────────────── */}
       <SectionCard id="basic" step={1} icon={Package} title="Basic Info">
-        <FieldWrap label="Product Name" required error={errors.name}>
+        <FieldWrap label="Product Name" required error={errors.name}
+          hint={`${NAME_MIN} to ${NAME_MAX} characters · ${form.name.trim().length}/${NAME_MAX}`}>
           <input
             type="text"
             value={form.name}
@@ -1307,7 +1600,7 @@ export default function SellerAddProductPage() {
 
         <FieldWrap
           label="Description" required error={errors.description}
-          hint={`This appears in the Product Details tab. Supports bold, bullet points, and embedded images. (${form.description.replace(/<[^>]*>/g, '').length}/1500)`}
+          hint={`Shown in the Product Details tab. Bold, lists and images are allowed. ${DESC_MIN} to ${DESC_MAX.toLocaleString()} characters · ${visibleText(form.description).length.toLocaleString()}/${DESC_MAX.toLocaleString()}`}
         >
           <RichTextEditor
             value={form.description}
@@ -1342,7 +1635,7 @@ export default function SellerAddProductPage() {
                 setForm((prev) => ({ ...prev, parentCategoryId: v, leafCategoryId: '' }));
                 setFdaOpen(false);
               }}
-              options={CATEGORY_TREE.map((n) => ({ value: n.id, label: n.label }))}
+              options={tree.map((n) => ({ value: n.id, label: n.label }))}
               placeholder="Select parent category…"
             />
           </FieldWrap>
@@ -1358,6 +1651,16 @@ export default function SellerAddProductPage() {
             />
           </FieldWrap>
         </div>
+
+        <FieldWrap label="Store Categories" error={errors.storeCategoryIds}
+          hint={approved ? 'Optional. Where this product appears on your shop page (up to 3).' : undefined}>
+          <StoreCategoryPicker
+            tree={storeTree}
+            locked={!approved}
+            selected={form.storeCategoryIds}
+            onChange={(ids) => { set('storeCategoryIds', ids); clearError('storeCategoryIds'); }}
+          />
+        </FieldWrap>
       </SectionCard>
 
       {/* ── 3. Variants ───────────────────────────────────────────────────── */}
@@ -1375,7 +1678,7 @@ export default function SellerAddProductPage() {
         >
           <div className="pt-2 space-y-4">
             <FieldWrap label="Variant Types" error={errors.variantTypes}
-              hint="Add up to 3 variant types, each with up to 12 options. Type an option and press Enter to add it as a chip.">
+              hint={`Up to ${MAX_TYPES} variation types, each with up to ${MAX_OPTIONS} options. Type an option and press Enter.`}>
               <VariantTypesBuilder
                 types={form.variantTypes}
                 onChange={handleVariantTypesChange}
@@ -1401,17 +1704,17 @@ export default function SellerAddProductPage() {
           style={{ maxHeight: !variantsOpen ? '9999px' : '0', opacity: !variantsOpen ? 1 : 0 }}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <FieldWrap label="Price (₱)" required error={errors.price}>
+            <FieldWrap label="Price (₱)" required error={errors.price} hint="₱1.00 to ₱1,000,000.00">
               <input
-                type="number" min="0" placeholder="0.00"
+                type="number" min="1" max="1000000" step="0.01" inputMode="decimal" placeholder="0.00"
                 value={form.price}
                 onChange={(e) => { set('price', e.target.value); clearError('price'); }}
                 className={inputCls(errors.price)}
               />
             </FieldWrap>
-            <FieldWrap label="Stock Quantity" required error={errors.stock}>
+            <FieldWrap label="Stock Quantity" required error={errors.stock} hint="0 to 99,999">
               <input
-                type="number" min="0" placeholder="0"
+                type="number" min="0" max="99999" step="1" inputMode="numeric" placeholder="0"
                 value={form.stock}
                 onChange={(e) => { set('stock', e.target.value); clearError('stock'); }}
                 className={inputCls(errors.stock)}
@@ -1420,22 +1723,41 @@ export default function SellerAddProductPage() {
           </div>
         </div>
 
-        {/* The shop's own discount (there are no platform vouchers) */}
-        <DiscountField
-          value={form.discountPercent}
-          onChange={(v) => { set('discountPercent', v); clearError('discountPercent'); }}
-          error={errors.discountPercent}
-          regularPrices={form.hasVariants ? form.variantRows.map((r) => Number(r.price)) : [Number(form.price)]}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FieldWrap label="Purchase Limit" error={errors.purchaseLimit}
+            hint="Optional. The most one buyer can buy in total, across all orders.">
+            <input
+              type="number" min="1" step="1" inputMode="numeric" placeholder="No limit"
+              value={form.purchaseLimit}
+              onChange={(e) => { set('purchaseLimit', e.target.value); clearError('purchaseLimit'); }}
+              className={inputCls(errors.purchaseLimit)}
+            />
+          </FieldWrap>
+          <div className="self-end text-[12px] text-gray-500 leading-relaxed rounded-xl border border-gray-100 bg-gray-50 px-3.5 py-2.5">
+            Discounts are scheduled store sales and flash sales.{' '}
+            {approved
+              ? <Link to="/seller/promotions" className="font-semibold text-brand-red hover:underline">Open Promotions</Link>
+              : 'They open once your shop is approved.'}
+          </div>
+        </div>
+
+        <LowStockAlertField
+          form={form}
+          shopLevel={shopLowStock}
+          error={errors.lowStockLevel}
+          onMode={(m) => { set('lowStockMode', m); clearError('lowStockLevel'); }}
+          onLevel={(v) => { set('lowStockLevel', v); clearError('lowStockLevel'); }}
         />
       </SectionCard>
 
       {/* ── 4. Shipping ───────────────────────────────────────────────────── */}
       <SectionCard id="shipping" step={4} icon={Package} title="Shipping & Details">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FieldWrap label="Weight" required error={errors.weightValue}>
+          <FieldWrap label="Weight" required error={errors.weightValue}
+            hint="Shipping is charged per kilogram, rounded up to the next kg.">
             <div className="flex gap-2">
               <input
-                type="number" min="0" placeholder="0"
+                type="number" min="0" step="any" placeholder="0"
                 value={form.weightValue}
                 onChange={(e) => { set('weightValue', e.target.value); clearError('weightValue'); }}
                 className={inputCls(errors.weightValue) + ' flex-1'}
@@ -1460,16 +1782,17 @@ export default function SellerAddProductPage() {
           </FieldWrap>
         </div>
 
-        <FieldWrap label="Dimensions (L × W × H)" hint="Optional — in cm">
+        <FieldWrap label="Dimensions (L × W × H)" hint="Optional — in cm" error={errors.dimensions}>
           <div className="grid grid-cols-3 gap-2">
             {(['dimensionL', 'dimensionW', 'dimensionH'] as const).map((key, i) => (
               <input
                 key={key}
-                type="number" min="0"
+                type="number" min="0" step="any"
+                aria-label={['Length (cm)', 'Width (cm)', 'Height (cm)'][i]}
                 placeholder={['Length', 'Width', 'Height'][i]}
                 value={form[key]}
-                onChange={(e) => set(key, e.target.value)}
-                className={inputCls()}
+                onChange={(e) => { set(key, e.target.value); clearError('dimensions'); }}
+                className={inputCls(errors.dimensions)}
               />
             ))}
           </div>
@@ -1583,23 +1906,28 @@ export default function SellerAddProductPage() {
 
       {/* ── Submit ────────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
-        <p className="text-[12px] text-gray-400 leading-snug flex-1">
-          Your product will be reviewed by our team before it appears in the marketplace.
+        <p className="text-[12px] text-gray-500 leading-snug flex-1">
+          {!approved
+            ? 'Your seller application is still being reviewed. You can save drafts now and publish them once your shop is approved.'
+            : loadedStatus === 'active'
+              ? 'This product is live. Saving updates it right away; saving as a draft hides it from buyers.'
+              : 'Publishing makes the product live in your store right away. A draft stays hidden until you publish it.'}
         </p>
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             disabled={submitting}
-            onClick={() => handleSubmit(true)}
+            onClick={() => handleSubmit(false)}
             className="px-5 py-2.5 rounded-xl border-2 border-gray-200 text-[13px] font-bold text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50"
           >
-            Save as Draft
+            {loadedStatus === 'active' ? 'Move to Drafts' : 'Save as Draft'}
           </button>
           <button
             type="button"
-            disabled={submitting}
-            onClick={() => handleSubmit(false)}
-            className="px-6 py-2.5 rounded-xl bg-brand-red text-white text-[13px] font-bold hover:bg-brand-red-dark transition-colors shadow-sm shadow-red-100 disabled:opacity-60 flex items-center gap-2"
+            disabled={submitting || !approved}
+            title={approved ? undefined : 'Publishing opens once your shop is approved.'}
+            onClick={() => handleSubmit(true)}
+            className="px-6 py-2.5 rounded-xl bg-brand-red text-white text-[13px] font-bold hover:bg-brand-red-dark transition-colors shadow-sm shadow-red-100 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {submitting && (
               <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -1607,7 +1935,7 @@ export default function SellerAddProductPage() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
             )}
-            Submit for Review
+            {loadedStatus === 'active' ? 'Save Changes' : 'Publish'}
           </button>
         </div>
       </div>

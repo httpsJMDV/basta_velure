@@ -542,7 +542,7 @@
         {
             "source": "dummyjson",
             "source_id": "38",
-            "name": "Rice",
+            "name": "Premium Rice",
             "brand": null,
             "category": "pantry-staples",
             "group": "grocery",
@@ -960,7 +960,7 @@
         {
             "source": "dummyjson",
             "source_id": "58",
-            "name": "Fork",
+            "name": "Dinner Fork",
             "brand": null,
             "category": "kitchenware",
             "group": "kitchen",
@@ -1214,7 +1214,7 @@
         {
             "source": "dummyjson",
             "source_id": "68",
-            "name": "Pan",
+            "name": "Non-Stick Frying Pan",
             "brand": null,
             "category": "kitchenware",
             "group": "kitchen",
@@ -1389,7 +1389,7 @@
         {
             "source": "dummyjson",
             "source_id": "75",
-            "name": "Tray",
+            "name": "Serving Tray",
             "brand": null,
             "category": "kitchenware",
             "group": "kitchen",

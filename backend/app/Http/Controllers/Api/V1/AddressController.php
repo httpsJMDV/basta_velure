@@ -26,9 +26,14 @@ class AddressController extends Controller
             if ($request->filled('barangay')) $request->merge(['ward' => $request->input('barangay')]);
         }
 
+        if ($request->has('phone')) {
+            $request->merge(['phone' => \App\Support\PhMobile::prepare($request->input('phone'))]);
+        }
         $data = $request->validate([
-            'full_name'     => ['required', 'string', 'max:100'],
-            'phone'         => ['required', 'string', 'max:20'],
+            'full_name'     => ['required', 'string', 'min:2', 'max:100'],
+            'phone'         => ['required', ...\App\Support\PhMobile::rules()],
+            'region'        => ['nullable', 'string', 'max:100'],
+            'region_code'   => ['nullable', 'string', 'regex:/^\d{9,10}$/'],
             'address'       => ['required', 'string', 'max:255'],
             'floor_unit'    => ['nullable', 'string', 'max:100'],
             'province'      => ['required', 'string', 'max:100'],
@@ -39,12 +44,16 @@ class AddressController extends Controller
             'barangay_code' => ['required', 'string', 'regex:/^\d{9,10}$/'],
             'label'         => ['required', 'in:home,office'],
             'is_default'    => ['boolean'],
+        ], [
+            'phone.required' => 'Enter the recipient\'s mobile number.',
+            'phone.regex'    => \App\Support\PhMobile::MESSAGE,
         ]);
 
         $user = $request->user();
 
-        if ($user->addresses()->count() >= 5) {
-            return response()->json(['message' => 'You can only save up to 5 addresses.'], 422);
+        // A30: up to 10 addresses.
+        if ($user->addresses()->count() >= Address::MAX_PER_USER) {
+            return response()->json(['message' => 'You can save up to ' . Address::MAX_PER_USER . ' addresses. Delete one to add another.', 'errors' => ['address' => ['You can save up to ' . Address::MAX_PER_USER . ' addresses. Delete one to add another.']]], 422);
         }
 
         $address = DB::transaction(function () use ($user, $data) {
@@ -73,9 +82,14 @@ class AddressController extends Controller
             if ($request->filled('barangay')) $request->merge(['ward' => $request->input('barangay')]);
         }
 
+        if ($request->has('phone')) {
+            $request->merge(['phone' => \App\Support\PhMobile::prepare($request->input('phone'))]);
+        }
         $rules = [
-            'full_name'  => ['sometimes', 'string', 'max:100'],
-            'phone'      => ['sometimes', 'string', 'max:20'],
+            'full_name'  => ['sometimes', 'string', 'min:2', 'max:100'],
+            'phone'      => ['sometimes', 'required', ...\App\Support\PhMobile::rules()],
+            'region'      => ['sometimes', 'nullable', 'string', 'max:100'],
+            'region_code' => ['sometimes', 'nullable', 'string', 'regex:/^\d{9,10}$/'],
             'address'    => ['sometimes', 'string', 'max:255'],
             'floor_unit' => ['nullable', 'string', 'max:100'],
             'province'   => ['sometimes', 'string', 'max:100'],
@@ -91,7 +105,7 @@ class AddressController extends Controller
             $rules['barangay_code'] = ['required', 'string', 'regex:/^\d{9,10}$/'];
         }
 
-        $data = $request->validate($rules);
+        $data = $request->validate($rules, ['phone.regex' => \App\Support\PhMobile::MESSAGE]);
 
         $address->update($data);
         return response()->json(['data' => $address->fresh()]);
@@ -100,6 +114,13 @@ class AddressController extends Controller
     public function destroy(Request $request, Address $address): JsonResponse
     {
         $this->authorizeAddress($request, $address);
+        // A30: the default address stays until another one is made the default (the last address can go).
+        if ($address->is_default && $request->user()->addresses()->whereKeyNot($address->id)->exists()) {
+            return response()->json([
+                'message' => 'This is your default address. Make another address the default first, then delete this one.',
+                'errors'  => ['address' => ['This is your default address. Make another address the default first, then delete this one.']],
+            ], 422);
+        }
         $address->delete();
         return response()->json(null, 204);
     }

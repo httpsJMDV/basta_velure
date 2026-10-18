@@ -20,6 +20,9 @@ class BuyerConfirmReceiptTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // These tests cover the configurable escrow hold and auto-complete window, so they pin a 7-day hold and a
+        // 3-day window. The workbook defaults (no hold, 7 days, A11 and A15) are covered in CommerceOrdersTest.
+        config(['payouts.escrow_hold_days' => 7, 'orders.auto_complete_days' => 3]);
         $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
     }
 
@@ -211,16 +214,17 @@ class BuyerConfirmReceiptTest extends TestCase
     public function test_a_return_can_be_requested_while_delivered_but_not_after_completion(): void
     {
         $buyer = $this->makeUser('buyer');
-        $payload = ['reason' => 'Damaged', 'description' => 'The box arrived crushed.'];
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $payload = fn () => ['reason' => 'Damaged item', 'description' => 'The box arrived crushed.', 'photos' => [\Illuminate\Http\UploadedFile::fake()->createWithContent('crushed.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))]];
 
         $delivered = $this->makeOrder(OrderStatus::DELIVERED, ['pending_release'], now(), $buyer);
-        $this->actingAs($buyer, 'sanctum')->postJson("/api/v1/buyer/orders/{$delivered->id}/request-return", $payload)->assertOk();
+        $this->actingAs($buyer, 'sanctum')->post("/api/v1/buyer/orders/{$delivered->id}/request-return", $payload(), ['Accept' => 'application/json'])->assertOk();
         $this->assertEquals(OrderStatus::DISPUTED, $delivered->fresh()->status);
 
         $completed = $this->makeOrder(OrderStatus::DELIVERED, ['pending_release'], now(), $buyer);
         $this->confirm($completed, $buyer)->assertOk();
 
-        $this->actingAs($buyer, 'sanctum')->postJson("/api/v1/buyer/orders/{$completed->id}/request-return", $payload)->assertStatus(422);
+        $this->actingAs($buyer, 'sanctum')->post("/api/v1/buyer/orders/{$completed->id}/request-return", $payload(), ['Accept' => 'application/json'])->assertStatus(422);
         $this->assertEquals(OrderStatus::COMPLETED, $completed->fresh()->status);
         // The refused request must not leave an open dispute behind.
         $this->assertSame(0, Dispute::where('order_id', $completed->id)->count());
@@ -286,7 +290,8 @@ class BuyerConfirmReceiptTest extends TestCase
             'quantity', 'item_subtotal', 'commission_rate', 'commission_pct', 'commission_amount',
             'seller_earnings', 'payout_status', 'order_date', 'delivered_date',
         ];
-        $this->assertEqualsCanonicalizing(array_merge($existing, ['escrow_release_at']), array_keys($after));
+        // Added later, no existing key changed: the shop's own discounts, the Pending/Available state (A15) and how the order was paid.
+        $this->assertEqualsCanonicalizing(array_merge($existing, ['escrow_release_at', 'seller_discounts', 'gross_after_discounts', 'earning_status', 'settlement', 'payment_method']), array_keys($after));
         foreach ($existing as $key) {
             if ($key === 'order_status') {
                 continue; // changes from DELIVERED to COMPLETED by design
@@ -361,7 +366,8 @@ class BuyerConfirmReceiptTest extends TestCase
             ->post("/api/v1/rider/deliveries/{$tracking}/delivered", [
                 'proof_photo'   => \Illuminate\Http\UploadedFile::fake()->createWithContent('proof.png', $png),
                 'proof_photo_2' => \Illuminate\Http\UploadedFile::fake()->createWithContent('proof-2.png', $png . 'x'),
-                'cod_collected' => '1',
+                'cod_amount'    => (string) Parcel::where('tracking_number', $tracking)->value('cod_amount'),
+                'otp'           => Parcel::where('tracking_number', $tracking)->first()->delivery_otp,
             ], ['Accept' => 'application/json'])->assertOk();
 
         // Delivered: the rider is done, but the seller's money is NOT released.

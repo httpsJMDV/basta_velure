@@ -309,7 +309,7 @@ export default function EarningsTab() {
               <StateCard
                 icon={Package}
                 title={`No earnings ${summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}`}
-                message="A pickup earns you 20% of the delivery fee once the hub receives the parcel; a delivery earns 65% (85% if you also picked it up)."
+                message="A pickup earns you ₱30 when you pick the parcel up, and a delivery earns ₱50. A failed attempt pays nothing."
               />
             ) : (
               <ul className="space-y-2">
