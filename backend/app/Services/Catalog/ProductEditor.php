@@ -28,7 +28,7 @@ class ProductEditor
     public const MAX_OPTIONS = 20;
 
     /** Field rules for the request; $publish turns on the publish requirements. */
-    public function rules(bool $publish): array
+    public function rules(bool $publish, ?Product $existing = null): array
     {
         $required = $publish ? 'required' : 'nullable';
 
@@ -42,7 +42,19 @@ class ProductEditor
                     $fail('The description must be 3,000 characters or fewer.');
                 }
             }],
-            'category_slug'        => [$required, 'string', 'max:100', 'exists:categories,slug'],
+            'category_slug'        => [$required, 'string', 'max:100', 'exists:categories,slug', function ($attr, $value, $fail) use ($existing) {
+                // An inactive category, or a parent that has sub-categories, cannot take new listings. A product
+                // already filed there may keep it while it is edited.
+                $category = Category::withCount('children')->where('slug', $value)->first();
+                if (! $category || $category->id === $existing?->category_id) {
+                    return;
+                }
+                if (! $category->is_active) {
+                    $fail('This category is no longer open for new listings. Choose another.');
+                } elseif ($category->children_count > 0) {
+                    $fail('Choose one of the sub-categories of ' . $category->name . '.');
+                }
+            }],
             'store_category_ids'   => ['nullable', 'array', 'max:' . StoreCategory::MAX_PER_PRODUCT],
             'store_category_ids.*' => ['integer', 'distinct'],
             'variation_types'      => ['nullable', 'array', 'max:' . self::MAX_TYPES],

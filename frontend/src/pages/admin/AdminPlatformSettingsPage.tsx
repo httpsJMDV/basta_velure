@@ -1,192 +1,174 @@
-import { useEffect, useState, useCallback, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, useCallback, type FormEvent } from 'react';
 import {
-  Percent,
-  Plus,
-  Trash2,
-  Save,
-  CheckCircle2,
-  QrCode,
-  Truck,
-  ShieldCheck,
-  Calculator,
-  Sliders,
-  Layers,
-  Clock,
-  Check,
+  Percent, Plus, Trash2, Save, QrCode, Truck, ShieldCheck, Calculator, Sliders, Layers, Clock, CreditCard,
+  AlertTriangle, RotateCcw, Undo2,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import CustomSelect from '../../components/ui/CustomSelect';
+import { useToast } from '../../components/ui/Toast';
 import {
-  getAdminCommissionSettingsApi,
-  updateAdminCommissionSettingsApi,
-  getAdminReturnPolicySettingsApi,
-  updateAdminReturnPolicySettingsApi,
+  getAdminCommissionSettingsApi, updateAdminCommissionSettingsApi, getAdminReturnPolicySettingsApi, updateAdminReturnPolicySettingsApi,
 } from '../../api/client';
-import type {
-  CategoryCommissionOverride,
-} from '../../types';
+import type { CategoryCommissionOverride, CommissionCategoryOption, ReturnPolicySettings } from '../../types';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
+import { apiProblem } from '../../utils/apiError';
 
-const PRESET_CATEGORIES = [
-  { key: 'food-grocery', name: 'Food & Grocery' },
-  { key: 'food-beverage', name: 'Food & Beverage' },
-  { key: 'electronics', name: 'Consumer Electronics' },
-  { key: 'fashion-apparel', name: 'Fashion & Apparel' },
-  { key: 'health-beauty', name: 'Health & Beauty' },
-  { key: 'home-living', name: 'Home & Living' },
-  { key: 'sports-outdoors', name: 'Sports & Outdoors' },
-];
+type Row = CategoryCommissionOverride & { rate: string };
 
+/** A rate typed as text: a number from 0 to 100 with at most 2 decimals. */
+function rateError(v: string): string | null {
+  const t = v.trim();
+  if (t === '') return 'Enter a rate.';
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return 'Use a number with at most 2 decimals, like 5 or 7.5.';
+  if (Number(t) > 100) return 'The rate cannot be above 100%.';
+  return null;
+}
+
+const peso = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const optionLabel = (c: CommissionCategoryOption) =>
+  `${c.parent_name ? `${c.parent_name} › ${c.name}` : `${c.name} (all ${c.sub_categories} sub-categories)`}${c.is_active ? '' : ' · inactive'}`;
+
+/**
+ * Platform Settings (A9, A31): the commission every order is charged, overrides on real categories (a parent's rate
+ * covers its sub-categories that have none), and the return policy whose numbers the return flow uses.
+ */
 export default function AdminPlatformSettingsPage() {
-  const [baseRate, setBaseRate] = useState<number>(10);
-  const [overrides, setOverrides] = useState<CategoryCommissionOverride[]>([
-    { category_key: 'food-grocery', category_name: 'Food & Grocery', rate_percent: 8 },
-  ]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Return & Refund Policy state
-  const [returnDays, setReturnDays] = useState<number>(7);
-  const [escalationHours, setEscalationHours] = useState<number>(48);
-  const [policySummary, setPolicySummary] = useState<string>(
-    '7-day standard return window upon delivery for eligible items in original, unused condition with complete packaging and tags.'
-  );
-  const [mediationTerms, setMediationTerms] = useState<string>(
-    'If the seller rejects your return or does not respond within 48 hours, your request is automatically escalated to Loved-IT Platform Mediation for binding review.'
-  );
-  const [savingPolicy, setSavingPolicy] = useState<boolean>(false);
-
-  // New override modal/form state
-  const [newCatKey, setNewCatKey] = useState<string>('fashion-apparel');
-  const [newCustomName, setNewCustomName] = useState<string>('');
-  const [newRate, setNewRate] = useState<number>(8);
-  const [isCustomCategory, setIsCustomCategory] = useState<boolean>(false);
-
-  // Simulator state
-  const [simAmount, setSimAmount] = useState<number>(1000);
-
   const pageRef = useMountAnim();
+  const { showToast } = useToast();
 
-  const loadSettings = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [commRes, policyRes] = await Promise.allSettled([
-        getAdminCommissionSettingsApi(),
-        getAdminReturnPolicySettingsApi(),
-      ]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<CommissionCategoryOption[]>([]);
+  const [saved, setSaved] = useState<{ base: string; rows: Row[] } | null>(null);
+  const [base, setBase] = useState('');
+  const [rows, setRows] = useState<Row[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [commissionErrors, setCommissionErrors] = useState<Record<string, string>>({});
+  const [newCategory, setNewCategory] = useState('');
+  const [newRate, setNewRate] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
 
-      if (commRes.status === 'fulfilled' && commRes.value) {
-        setBaseRate(commRes.value.base_rate_percent ?? 10);
-        if (commRes.value.overrides && commRes.value.overrides.length > 0) {
-          setOverrides(commRes.value.overrides);
-        }
-      }
+  const [policy, setPolicy] = useState<ReturnPolicySettings | null>(null);
+  const [savedPolicy, setSavedPolicy] = useState<ReturnPolicySettings | null>(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [policyErrors, setPolicyErrors] = useState<Record<string, string>>({});
 
-      if (policyRes.status === 'fulfilled' && policyRes.value) {
-        const p = policyRes.value;
-        if (p.return_window_days) setReturnDays(p.return_window_days);
-        if (p.auto_escalation_hours) setEscalationHours(p.auto_escalation_hours);
-        if (p.summary) setPolicySummary(p.summary);
-        if (p.mediation_terms) setMediationTerms(p.mediation_terms);
-      }
-    } catch {
-      // fallback defaults
-    } finally {
-      setLoading(false);
-    }
+  const [simAmount, setSimAmount] = useState('1000');
+
+  const applyCommission = useCallback((data: { base_rate_percent: number; overrides: CategoryCommissionOverride[]; categories: CommissionCategoryOption[] }) => {
+    const r = data.overrides.map((o) => ({ ...o, rate: String(o.rate_percent) }));
+    setCategories(data.categories);
+    setBase(String(data.base_rate_percent));
+    setRows(r);
+    setSaved({ base: String(data.base_rate_percent), rows: r });
   }, []);
 
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+  const load = useCallback(() => {
+    setLoadError(null);
+    Promise.all([getAdminCommissionSettingsApi(), getAdminReturnPolicySettingsApi()])
+      .then(([commission, returns]) => {
+        applyCommission(commission);
+        setPolicy(returns);
+        setSavedPolicy(returns);
+      })
+      .catch(() => setLoadError('The settings could not be loaded. Nothing is shown until they are, so nothing wrong gets saved.'));
+  }, [applyCommission]);
+  useEffect(() => { load(); }, [load]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  // ── Commission ─────────────────────────────────────────────────────────────
+
+  const dirty = useMemo(() => {
+    if (!saved) return false;
+    if (base.trim() !== saved.base) return true;
+    if (rows.length !== saved.rows.length) return true;
+    return rows.some((r) => {
+      const s = saved.rows.find((x) => x.category_id === r.category_id);
+      return !s || s.rate !== r.rate.trim();
+    });
+  }, [saved, base, rows]);
+
+  const baseError = rateError(base);
+  const rowErrors = Object.fromEntries(rows.map((r) => [r.category_id, rateError(r.rate)]));
+  const hasErrors = !!baseError || Object.values(rowErrors).some(Boolean);
+
+  const available = categories.filter((c) => !rows.some((r) => r.category_id === c.id));
+
+  const addOverride = (e: FormEvent) => {
+    e.preventDefault();
+    setAddError(null);
+    const cat = categories.find((c) => String(c.id) === newCategory);
+    if (!cat) { setAddError('Choose a category from the list.'); return; }
+    const err = rateError(newRate);
+    if (err) { setAddError(err); return; }
+    setRows((list) => [...list, {
+      category_id: cat.id, category_name: cat.name, parent_name: cat.parent_name, is_parent: cat.is_parent,
+      sub_categories: cat.sub_categories, rate_percent: Number(newRate), rate: newRate.trim(),
+    }]);
+    setNewCategory('');
+    setNewRate('');
+    showToast(`${cat.name} added. Press Save settings to apply it.`);
   };
 
-  const handleSaveCommission = async () => {
+  const saveCommission = async () => {
+    if (hasErrors || saving) return;
     setSaving(true);
+    setCommissionErrors({});
     try {
-      await updateAdminCommissionSettingsApi({
-        base_rate_percent: Number(baseRate),
-        overrides: overrides.map((o) => ({
-          category_key: o.category_key,
-          category_name: o.category_name,
-          rate_percent: Number(o.rate_percent),
-        })),
+      const res = await updateAdminCommissionSettingsApi({
+        base_rate_percent: Number(base),
+        overrides: rows.map((r) => ({ category_id: r.category_id, rate_percent: Number(r.rate) })),
       });
-      showToast('Platform commission settings saved and active across checkout & earnings engine.');
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to save commission settings.');
+      applyCommission(res.data);
+      showToast(res.message);
+    } catch (e) {
+      const p = apiProblem(e, 'The commission settings were not saved.');
+      setCommissionErrors({ ...p.fields, form: Object.keys(p.fields).length ? '' : p.message });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSavePolicy = async () => {
+  const discard = () => {
+    if (!saved) return;
+    setBase(saved.base);
+    setRows(saved.rows);
+    setCommissionErrors({});
+  };
+
+  // ── Return policy ──────────────────────────────────────────────────────────
+
+  const policyDirty = !!policy && !!savedPolicy && JSON.stringify(policy) !== JSON.stringify(savedPolicy);
+  const setP = (k: keyof ReturnPolicySettings, v: string | number) => {
+    setPolicy((p) => (p ? { ...p, [k]: v } : p));
+    setPolicyErrors((e) => ({ ...e, [k]: '' }));
+  };
+
+  const savePolicy = async () => {
+    if (!policy || savingPolicy) return;
     setSavingPolicy(true);
+    setPolicyErrors({});
     try {
-      await updateAdminReturnPolicySettingsApi({
-        return_window_days: Number(returnDays),
-        auto_escalation_hours: Number(escalationHours),
-        summary: policySummary,
-        mediation_terms: mediationTerms,
-      });
-      showToast('Platform-Wide Return & Refund Policy updated and broadcast to all shop touchpoints.');
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to save return policy settings.');
+      const res = await updateAdminReturnPolicySettingsApi(policy);
+      setPolicy(res.data);
+      setSavedPolicy(res.data);
+      showToast(res.message);
+    } catch (e) {
+      const p = apiProblem(e, 'The return policy was not saved.');
+      setPolicyErrors({ ...p.fields, form: Object.keys(p.fields).length ? '' : p.message });
     } finally {
       setSavingPolicy(false);
     }
   };
 
-  const handleAddOverride = (e: FormEvent) => {
-    e.preventDefault();
-    const finalKey = isCustomCategory
-      ? newCustomName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
-      : newCatKey;
-    const finalName = isCustomCategory
-      ? newCustomName.trim()
-      : PRESET_CATEGORIES.find((c) => c.key === newCatKey)?.name || newCatKey;
+  const sim = Math.max(0, Number(simAmount) || 0);
+  const baseNum = baseError ? 0 : Number(base);
+  const loading = !saved || !policy;
 
-    if (!finalKey || !finalName) return;
-
-    if (overrides.some((o) => o.category_key.toLowerCase() === finalKey.toLowerCase())) {
-      alert('An override for this category already exists.');
-      return;
-    }
-
-    setOverrides([
-      ...overrides,
-      {
-        category_key: finalKey,
-        category_name: finalName,
-        rate_percent: Number(newRate),
-      },
-    ]);
-
-    setNewCustomName('');
-    setIsCustomCategory(false);
-    showToast(`Added ${finalName} override.`);
-  };
-
-  const handleRemoveOverride = (catKey: string) => {
-    setOverrides(overrides.filter((o) => o.category_key !== catKey));
-  };
-
-  const handleOverrideRateChange = (catKey: string, rate: number) => {
-    setOverrides(
-      overrides.map((o) =>
-        o.category_key === catKey ? { ...o, rate_percent: Math.max(0, Math.min(100, rate)) } : o
-      )
-    );
-  };
+  const input = (bad?: string | null) =>
+    `w-full px-3 py-1.5 text-xs font-bold text-gray-900 bg-gray-50 border rounded-lg outline-none focus:bg-white transition-all ${bad ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-brand-red'}`;
 
   return (
     <div ref={pageRef} className="pb-8 space-y-4 w-full">
-      {/* ── 1. Compact Executive Hero Command Bar ── */}
+      {/* Hero */}
       <div
         className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
@@ -198,455 +180,283 @@ export default function AdminPlatformSettingsPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Platform Engine &amp; Policy Settings</h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                <span className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-amber-400 animate-spin' : 'bg-emerald-400 animate-pulse'}`} />
-                {loading ? 'Loading…' : 'Live Synced'}
-              </span>
+              {dirty && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400/15 text-amber-300 border border-amber-400/30">
+                  Unsaved changes
+                </span>
+              )}
             </div>
-            <p className="text-[11px] text-neutral-400 mt-0.5">
-              Configure dynamic platform commission engine, category overrides, and dispute arbitration SLA
-            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">The commission every new order is charged, and the return rules buyers and shops follow</p>
           </div>
         </div>
-
         <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
-          <Button
-            variant="primary"
-            onClick={handleSaveCommission}
-            disabled={saving || loading}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-brand-red hover:bg-[#8e2424] shadow-xs rounded-xl"
-          >
+          {dirty && (
+            <button type="button" onClick={discard} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white/80 hover:text-white rounded-xl border border-white/15">
+              <RotateCcw className="w-3.5 h-3.5" /> Discard
+            </button>
+          )}
+          <Button variant="primary" onClick={() => void saveCommission()} disabled={saving || loading || !dirty || hasErrors}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-brand-red hover:bg-[#8e2424] shadow-xs rounded-xl">
             <Save className="w-3.5 h-3.5" />
-            {saving ? 'Saving...' : 'Save Settings'}
+            {saving ? 'Saving…' : 'Save settings'}
           </Button>
         </div>
       </div>
 
-      {toastMessage && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-semibold animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          {toastMessage}
+      {loadError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-3 text-red-800 text-xs font-semibold">
+          <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {loadError}</span>
+          <button type="button" onClick={load} className="underline">Try again</button>
         </div>
       )}
+      {commissionErrors.form && (
+        <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold">{commissionErrors.form}</div>
+      )}
 
-      {/* ── SKELETON STATE ── */}
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 animate-pulse">
-          <div className="lg:col-span-3 bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-96" />
-          <div className="lg:col-span-6 space-y-3">
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-32" />
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-64" />
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-72" />
+        !loadError && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 animate-pulse">
+            <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-200/80 h-96" />
+            <div className="lg:col-span-6 space-y-3"><div className="bg-white rounded-2xl border border-gray-200/80 h-32" /><div className="bg-white rounded-2xl border border-gray-200/80 h-64" /></div>
+            <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-200/80 h-72" />
           </div>
-          <div className="lg:col-span-3 space-y-3">
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-72" />
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-40" />
-          </div>
-        </div>
+        )
       ) : (
-        /* ── Full-Width Balanced 3-Column Layout ── */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-          {/* ── LEFT COLUMN (3 Cols): Settings Index & Live Overview ── */}
+          {/* Left: summary */}
           <div className="lg:col-span-3 space-y-3">
-            {/* Quick Navigation & Section Index */}
             <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
               <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700 font-bold">
-                  <Layers className="w-3.5 h-3.5" />
-                </div>
+                <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700"><Layers className="w-3.5 h-3.5" /></div>
                 <div>
-                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Engine Sections</h3>
-                  <p className="text-[10px] text-gray-400">Jump to configuration modules</p>
+                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">In effect now</h3>
+                  <p className="text-[10px] text-gray-400">The saved values new orders and returns use</p>
                 </div>
               </div>
-
-              <div className="space-y-1 text-xs">
-                <div className="flex items-center justify-between p-2 rounded-xl bg-rose-50/60 border border-rose-100 text-brand-red font-bold">
-                  <span className="flex items-center gap-1.5"><Percent className="w-3.5 h-3.5" /> Base Commission</span>
-                  <span className="text-[10px] bg-white px-1.5 py-0.2 rounded border border-rose-200">{baseRate}%</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 text-gray-700 font-semibold hover:bg-gray-100 transition-colors">
-                  <span className="flex items-center gap-1.5"><Sliders className="w-3.5 h-3.5 text-gray-400" /> Category Overrides</span>
-                  <span className="text-[10px] bg-gray-200 px-1.5 py-0.2 rounded font-bold text-gray-700">{overrides.length}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 text-gray-700 font-semibold hover:bg-gray-100 transition-colors">
-                  <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-gray-400" /> Return Window</span>
-                  <span className="text-[10px] bg-gray-200 px-1.5 py-0.2 rounded font-bold text-gray-700">{returnDays}d</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 text-gray-700 font-semibold hover:bg-gray-100 transition-colors">
-                  <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-gray-400" /> Mediation SLA</span>
-                  <span className="text-[10px] bg-gray-200 px-1.5 py-0.2 rounded font-bold text-gray-700">{escalationHours}h</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 text-gray-700 font-semibold hover:bg-gray-100 transition-colors">
-                  <span className="flex items-center gap-1.5"><QrCode className="w-3.5 h-3.5 text-gray-400" /> Payment Rules</span>
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-bold border border-emerald-200">Enforced</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Platform Status & Compliance Card */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-2.5">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Engine Status</h3>
-              </div>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center justify-between text-gray-600">
-                  <span>Checkout Take-Rate:</span>
-                  <span className="font-bold text-emerald-600 flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Active
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-gray-600">
-                  <span>Arbitration SLA:</span>
-                  <span className="font-mono font-bold text-gray-900">{escalationHours} Hours</span>
-                </div>
-                <div className="flex items-center justify-between text-gray-600">
-                  <span>Return Window:</span>
-                  <span className="font-mono font-bold text-gray-900">{returnDays} Days</span>
-                </div>
-              </div>
-
-              <div className="p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-[10px] text-gray-500 leading-relaxed">
-                Changes saved here apply immediately across the checkout pipeline, seller balances, and refund arbitration queues.
-              </div>
+              <dl className="space-y-1 text-xs">
+                {[
+                  [Percent, 'Platform commission', `${saved!.base}%`],
+                  [Sliders, 'Category overrides', String(saved!.rows.length)],
+                  [ShieldCheck, 'Return window', `${savedPolicy!.return_window_days} days`],
+                  [Clock, 'Shop must answer in', `${savedPolicy!.seller_response_days} days`],
+                  [Undo2, 'Buyer may escalate in', `${savedPolicy!.escalation_days} days`],
+                ].map(([Icon, label, value]) => {
+                  const I = Icon as typeof Percent;
+                  return (
+                    <div key={label as string} className="flex items-center justify-between p-2 rounded-xl bg-gray-50 text-gray-700 font-semibold">
+                      <dt className="flex items-center gap-1.5"><I className="w-3.5 h-3.5 text-gray-400" /> {label as string}</dt>
+                      <dd className="text-[11px] font-bold text-gray-900 tabular-nums">{value as string}</dd>
+                    </div>
+                  );
+                })}
+              </dl>
+              <p className="p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-[10px] text-gray-500 leading-relaxed">
+                Commission is worked out when an order is placed, so a change applies to new orders only. Return deadlines are set when a request is made.
+              </p>
             </div>
           </div>
 
-          {/* ── MIDDLE COLUMN (6 Cols): Configuration & Policies ── */}
+          {/* Middle: commission and returns */}
           <div className="lg:col-span-6 space-y-3">
-            {/* Base Commission Card */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
+            <section className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
               <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
-                <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center font-bold shrink-0">
-                  <Percent className="w-3.5 h-3.5" />
-                </div>
+                <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center shrink-0"><Percent className="w-3.5 h-3.5" /></div>
                 <div>
-                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Default Base Commission Rate</h2>
-                  <p className="text-[11px] text-gray-400">
-                    Standard percentage deducted from seller item subtotal across general catalog products
-                  </p>
+                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Platform commission</h2>
+                  <p className="text-[11px] text-gray-400">Taken from what a shop sells, after its own vouchers and promotions</p>
                 </div>
               </div>
-
-              <div className="pt-1 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="relative w-36">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.1}
-                    value={baseRate}
-                    onChange={(e) => setBaseRate(Math.max(0, Math.min(100, Number(e.target.value))))}
-                    className="w-full pl-3.5 pr-8 py-1.5 text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red focus:ring-1 focus:ring-red-100 transition-all"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                <div className="w-36">
+                  <div className="relative">
+                    <input inputMode="decimal" value={base} onChange={(e) => { setBase(e.target.value); setCommissionErrors({}); }} aria-invalid={!!baseError}
+                      aria-label="Platform commission rate" className={`${input(baseError || commissionErrors.base_rate_percent)} pr-8 text-sm`} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
+                  </div>
+                  {(baseError || commissionErrors.base_rate_percent) && <p className="mt-1 text-[11px] font-medium text-red-700">{baseError || commissionErrors.base_rate_percent}</p>}
                 </div>
-                <p className="text-xs text-gray-500">
-                  Applied automatically to all store checkouts unless a category override is defined below.
-                </p>
+                <p className="text-xs text-gray-500 sm:pt-1.5">Every category without its own override below uses this rate.</p>
               </div>
-            </div>
+            </section>
 
-            {/* Category Overrides Card */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
+            <section className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                 <div>
-                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Category-Level Commission Overrides</h2>
-                  <p className="text-[11px] text-gray-400">
-                    Tailored fee rates for specialized merchant sectors (e.g. 8% Food &amp; Grocery)
-                  </p>
+                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Category overrides</h2>
+                  <p className="text-[11px] text-gray-400">A parent category's rate covers its sub-categories that have none of their own</p>
                 </div>
-                <span className="text-[10px] font-bold text-brand-red bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">
-                  {overrides.length} Active Overrides
-                </span>
+                <span className="text-[10px] font-bold text-brand-red bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">{rows.length} override{rows.length === 1 ? '' : 's'}</span>
               </div>
 
-              {/* List of active overrides */}
-              <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden text-xs">
-                {overrides.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-gray-400">
-                    No category overrides configured. Base rate ({baseRate}%) applies platform-wide.
-                  </div>
-                ) : (
-                  overrides.map((override) => (
-                    <div
-                      key={override.category_key}
-                      className="p-3 flex items-center justify-between gap-2 hover:bg-gray-50/60 transition-colors"
-                    >
-                      <div>
-                        <p className="font-bold text-gray-900">{override.category_name}</p>
-                        <p className="text-[10px] font-mono text-gray-400">key: {override.category_key}</p>
+              <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden text-xs">
+                {rows.length === 0 && <li className="p-4 text-center text-gray-400">No overrides. {baseError ? 'The platform rate' : `${base}%`} applies to every category.</li>}
+                {rows.map((r, i) => {
+                  const err = rowErrors[r.category_id] || commissionErrors[`overrides.${i}.rate_percent`] || commissionErrors[`overrides.${i}.category_id`];
+                  const changed = !saved!.rows.some((s) => s.category_id === r.category_id && s.rate === r.rate.trim());
+                  return (
+                    <li key={r.category_id} className="p-3 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900">
+                          {r.category_name}
+                          {changed && <span className="ml-1.5 text-[10px] font-semibold text-amber-700">not saved</span>}
+                        </p>
+                        <p className="text-[10.5px] text-gray-400">
+                          {r.is_parent ? `Parent category · covers ${r.sub_categories} sub-categor${r.sub_categories === 1 ? 'y' : 'ies'}` : `Sub-category of ${r.parent_name}`}
+                        </p>
+                        {err && <p className="mt-1 text-[11px] font-medium text-red-700">{err}</p>}
                       </div>
-
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <div className="relative w-24">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={0.1}
-                            value={override.rate_percent}
-                            onChange={(e) =>
-                              handleOverrideRateChange(override.category_key, Number(e.target.value))
-                            }
-                            className="w-full pl-2.5 pr-6 py-1 text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:border-brand-red transition-all"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
-                            %
-                          </span>
+                          <input inputMode="decimal" value={r.rate} aria-label={`Rate for ${r.category_name}`} aria-invalid={!!err}
+                            onChange={(e) => { const v = e.target.value; setRows((list) => list.map((x) => (x.category_id === r.category_id ? { ...x, rate: v } : x))); setCommissionErrors({}); }}
+                            className={`${input(err)} pr-6`} />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
                         </div>
-
-                        <button
-                          onClick={() => handleRemoveOverride(override.category_key)}
-                          className="p-1 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete override"
-                        >
+                        <button type="button" onClick={() => setRows((list) => list.filter((x) => x.category_id !== r.category_id))}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label={`Remove the override for ${r.category_name}`}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                    </li>
+                  );
+                })}
+              </ul>
 
-              {/* Add New Override Sub-form */}
-              <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-100 space-y-2">
-                <span className="text-xs font-bold text-gray-800 block">Add Category Override</span>
-                <form onSubmit={handleAddOverride} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                  <div className="sm:col-span-1">
-                    <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Category</label>
-                    {!isCustomCategory ? (
-                      <CustomSelect
-                        value={newCatKey}
-                        onChange={(val) => {
-                          if (val === '__custom__') {
-                            setIsCustomCategory(true);
-                          } else {
-                            setNewCatKey(val);
-                          }
-                        }}
-                        options={[
-                          ...PRESET_CATEGORIES.map((c) => ({ value: c.key, label: c.name })),
-                          { value: '__custom__', label: '+ Custom Category...' },
-                        ]}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          placeholder="e.g. Toys & Games"
-                          value={newCustomName}
-                          onChange={(e) => setNewCustomName(e.target.value)}
-                          className="w-full p-2 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-red"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setIsCustomCategory(false)}
-                          className="text-[10px] text-gray-400 hover:text-gray-700 underline shrink-0"
-                        >
-                          Presets
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
+              <form onSubmit={addOverride} className="p-3 bg-gray-50/80 rounded-xl border border-gray-100 space-y-2" noValidate>
+                <span className="text-xs font-bold text-gray-800 block">Add an override</span>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_8rem_auto] gap-2 items-end">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Override Rate</label>
+                    <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Category</label>
+                    <CustomSelect value={newCategory} onChange={(v) => { setNewCategory(v); setAddError(null); }}
+                      placeholder={available.length ? 'Choose a category' : 'Every category has an override'}
+                      options={available.map((c) => ({ value: String(c.id), label: optionLabel(c) }))} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Rate</label>
                     <div className="relative">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.1}
-                        value={newRate}
-                        onChange={(e) => setNewRate(Number(e.target.value))}
-                        className="w-full pl-2.5 pr-6 py-1.5 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-red"
-                      />
+                      <input inputMode="decimal" value={newRate} onChange={(e) => { setNewRate(e.target.value); setAddError(null); }} placeholder="8"
+                        className={`${input()} bg-white pr-6`} />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
                     </div>
                   </div>
-
-                  <Button type="submit" variant="secondary" className="text-xs font-bold py-1.5 flex items-center justify-center gap-1">
-                    <Plus className="w-3.5 h-3.5" /> Add Override
+                  <Button type="submit" variant="secondary" disabled={!available.length} className="text-xs font-bold py-1.5 flex items-center justify-center gap-1">
+                    <Plus className="w-3.5 h-3.5" /> Add
                   </Button>
-                </form>
-              </div>
-            </div>
+                </div>
+                {addError && <p className="text-[11px] font-medium text-red-700">{addError}</p>}
+                <p className="text-[10.5px] text-gray-400">Only categories from Catalog › Categories can be chosen. Added overrides apply once you press Save settings.</p>
+              </form>
+            </section>
 
-            {/* Platform Baseline Return & Refund Policy Card */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
-              <div className="flex items-start justify-between gap-3 pb-2 border-b border-gray-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center font-bold shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5" />
+            {policy && (
+              <section className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
+                <div className="flex items-start justify-between gap-3 pb-2 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center shrink-0"><ShieldCheck className="w-3.5 h-3.5" /></div>
+                    <div>
+                      <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Returns and refunds</h2>
+                      <p className="text-[11px] text-gray-400">These days are the deadlines the return flow enforces</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Baseline Return &amp; Refund Policy</h2>
-                    <p className="text-[11px] text-gray-400">
-                      Standard terms applied across all Loved-IT seller storefronts
-                    </p>
+                  <Button variant="primary" onClick={() => void savePolicy()} disabled={savingPolicy || !policyDirty}
+                    className="text-xs font-bold py-1 px-3 flex items-center gap-1 shrink-0 bg-brand-red hover:bg-[#8e2424] rounded-lg">
+                    <Save className="w-3 h-3" /> {savingPolicy ? 'Saving…' : 'Save policy'}
+                  </Button>
+                </div>
+                {policyErrors.form && <p role="alert" className="text-[11px] font-semibold text-red-700">{policyErrors.form}</p>}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {([
+                    ['return_window_days', 'Return window', 'days after delivery', 1, 90],
+                    ['seller_response_days', 'Shop must answer in', 'days, or it is approved', 1, 14],
+                    ['escalation_days', 'Buyer may escalate in', 'days after a rejection', 1, 14],
+                  ] as const).map(([key, label, hint, min, max]) => (
+                    <label key={key} className="block">
+                      <span className="block text-[10px] font-bold uppercase text-gray-500 mb-1">{label}</span>
+                      <input type="number" min={min} max={max} value={policy[key]} onChange={(e) => setP(key, e.target.value === '' ? '' : Number(e.target.value))}
+                        className={input(policyErrors[key])} />
+                      <span className={`block mt-0.5 text-[10.5px] ${policyErrors[key] ? 'text-red-700 font-medium' : 'text-gray-400'}`}>{policyErrors[key] || hint}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <label className="block">
+                  <span className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Buyer protection summary</span>
+                  <textarea rows={2} value={policy.summary} onChange={(e) => setP('summary', e.target.value)} maxLength={1000}
+                    className={`${input(policyErrors.summary)} font-normal resize-none`} />
+                  {policyErrors.summary && <span className="text-[11px] font-medium text-red-700">{policyErrors.summary}</span>}
+                </label>
+                <label className="block">
+                  <span className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Mediation terms</span>
+                  <textarea rows={2} value={policy.mediation_terms} onChange={(e) => setP('mediation_terms', e.target.value)} maxLength={1000}
+                    className={`${input(policyErrors.mediation_terms)} font-normal resize-none`} />
+                  {policyErrors.mediation_terms && <span className="text-[11px] font-medium text-red-700">{policyErrors.mediation_terms}</span>}
+                </label>
+
+                {Object.keys(policy.non_returnable_categories ?? {}).length > 0 && (
+                  <div className="p-3 bg-rose-50/50 border border-brand-red/20 rounded-xl text-[11px] text-gray-600 space-y-1">
+                    <span className="font-bold text-brand-red block text-xs">Exemptions shown to buyers</span>
+                    {Object.entries(policy.non_returnable_categories).map(([name, text]) => (
+                      <p key={name}>• <strong>{name}:</strong> {text}</p>
+                    ))}
                   </div>
-                </div>
-                <Button
-                  variant="primary"
-                  onClick={handleSavePolicy}
-                  disabled={savingPolicy}
-                  className="text-xs font-bold py-1 px-3 flex items-center gap-1 shrink-0 bg-brand-red hover:bg-[#8e2424] rounded-lg"
-                >
-                  <Save className="w-3 h-3" />
-                  {savingPolicy ? 'Saving...' : 'Save Policy'}
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
-                    Standard Return Window (Days)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={90}
-                    value={returnDays}
-                    onChange={(e) => setReturnDays(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:border-brand-red"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
-                    Auto-Escalation to Mediation (Hours)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={168}
-                    value={escalationHours}
-                    onChange={(e) => setEscalationHours(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:border-brand-red"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
-                  Buyer Protection Summary
-                </label>
-                <textarea
-                  rows={2}
-                  value={policySummary}
-                  onChange={(e) => setPolicySummary(e.target.value)}
-                  className="w-full p-2.5 text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:border-brand-red resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
-                  Binding Mediation Terms
-                </label>
-                <textarea
-                  rows={2}
-                  value={mediationTerms}
-                  onChange={(e) => setMediationTerms(e.target.value)}
-                  className="w-full p-2.5 text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:border-brand-red resize-none"
-                />
-              </div>
-
-              <div className="p-3 bg-rose-50/50 border border-brand-red/20 rounded-xl text-[11px] text-gray-600 space-y-1">
-                <span className="font-bold text-brand-red block text-xs">Exemption Safeguards:</span>
-                <p>• <strong>Food &amp; Grocery:</strong> Non-returnable once opened for safety; full refund if expired or damaged upon arrival.</p>
-                <p>• <strong>Custom Items:</strong> Non-returnable unless defective or mismatched from order specs.</p>
-              </div>
-            </div>
+                )}
+              </section>
+            )}
           </div>
 
-          {/* ── RIGHT COLUMN (3 Cols): Live Fee Simulator & Enforcement ── */}
+          {/* Right: calculator and payments */}
           <div className="lg:col-span-3 space-y-3">
-            {/* Live Simulator */}
             <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
               <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <div className="w-7 h-7 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center font-bold">
-                  <Calculator className="w-3.5 h-3.5" />
-                </div>
+                <div className="w-7 h-7 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center"><Calculator className="w-3.5 h-3.5" /></div>
                 <div>
-                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Fee Calculator</h3>
-                  <p className="text-[10px] text-gray-400">Live preview on sample cart checkout</p>
+                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Fee calculator</h3>
+                  <p className="text-[10px] text-gray-400">With the rates on screen, saved or not</p>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Item Subtotal (PHP)</label>
-                <div className="relative">
+              <label className="block">
+                <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Items sold (PHP)</span>
+                <span className="relative block">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">₱</span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={simAmount}
-                    onChange={(e) => setSimAmount(Math.max(1, Number(e.target.value)))}
-                    className="w-full pl-7 pr-3 py-1.5 text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:border-brand-red"
-                  />
-                </div>
-              </div>
-
+                  <input inputMode="decimal" value={simAmount} onChange={(e) => setSimAmount(e.target.value.replace(/[^\d.]/g, ''))} className={`${input()} pl-7`} />
+                </span>
+              </label>
               <div className="space-y-2 pt-1 border-t border-gray-100 text-xs">
-                <div className="p-2.5 bg-gray-50 rounded-xl flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-gray-900 block">General ({baseRate}%)</span>
-                    <span className="text-[10px] text-gray-400">Standard rate</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-black text-brand-red block">
-                      ₱{((simAmount * baseRate) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-[10px] text-emerald-600">
-                      Seller: ₱{(simAmount - (simAmount * baseRate) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
-
-                {overrides.map((o) => (
-                  <div key={o.category_key} className="p-2.5 bg-rose-50/40 border border-rose-100/60 rounded-xl flex justify-between items-center">
-                    <div>
-                      <span className="font-bold text-gray-900 block">{o.category_name} ({o.rate_percent}%)</span>
-                      <span className="text-[10px] text-gray-400">Override</span>
+                {[{ key: 'base', label: `Platform (${baseError ? '—' : `${base}%`})`, rate: baseNum, sub: 'Every other category' },
+                  ...rows.filter((r) => !rowErrors[r.category_id]).map((r) => ({ key: String(r.category_id), label: `${r.category_name} (${r.rate}%)`, rate: Number(r.rate), sub: r.is_parent ? 'Override, with its sub-categories' : 'Override' }))]
+                  .map((x) => (
+                    <div key={x.key} className={`p-2.5 rounded-xl flex justify-between items-center gap-2 ${x.key === 'base' ? 'bg-gray-50' : 'bg-rose-50/40 border border-rose-100/60'}`}>
+                      <div className="min-w-0">
+                        <span className="font-bold text-gray-900 block truncate">{x.label}</span>
+                        <span className="text-[10px] text-gray-400">{x.sub}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-black text-brand-red block">{peso((sim * x.rate) / 100)}</span>
+                        <span className="text-[10px] text-emerald-600">Shop: {peso(sim - (sim * x.rate) / 100)}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="font-black text-brand-red block">
-                        ₱{((simAmount * o.rate_percent) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-[10px] text-emerald-600">
-                        Seller: ₱{(simAmount - (simAmount * o.rate_percent) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 
-            {/* Payment Method Enforcement Notice */}
             <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-2.5">
               <div className="flex items-center gap-2 text-xs font-bold text-gray-900 uppercase tracking-wider pb-1 border-b border-gray-100">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                Active Payment Gateways
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Payment methods at checkout
               </div>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                Loved-IT marketplace operates strictly with <strong>GCash</strong> and <strong>Cash on Delivery (COD)</strong>.
-              </p>
-              <div className="space-y-1.5 pt-1">
-                <div className="p-2 bg-gray-50 rounded-lg text-xs flex items-center justify-between">
-                  <span className="flex items-center gap-1 font-bold text-[#007DFE]">
-                    <QrCode className="w-3 h-3" /> GCash Official
-                  </span>
-                  <span className="font-mono text-gray-600 text-[11px]">0917-835-8731</span>
-                </div>
-                <div className="p-2 bg-gray-50 rounded-lg text-xs flex items-center justify-between">
-                  <span className="flex items-center gap-1 font-bold text-blue-700">
-                    <Truck className="w-3 h-3" /> Cash on Delivery
-                  </span>
-                  <span className="text-emerald-600 font-bold text-[10px] bg-emerald-50 px-1.5 py-0.5 rounded">Active</span>
-                </div>
-              </div>
+              {[
+                [Truck, 'Cash on delivery', 'The rider collects it; the courier settles with the shop each week.', 'text-blue-700'],
+                [QrCode, 'GCash', 'Paid straight to the shop\'s own GCash; the shop confirms the receipt.', 'text-[#007DFE]'],
+                [CreditCard, 'E-wallet and card', 'Through Loved-IT\'s sandbox gateway (test mode, no real money); paid out from Earnings.', 'text-violet-700'],
+              ].map(([Icon, name, text, color]) => {
+                const I = Icon as typeof Truck;
+                return (
+                  <div key={name as string} className="p-2 bg-gray-50 rounded-lg text-xs">
+                    <span className={`flex items-center gap-1 font-bold ${color as string}`}><I className="w-3 h-3" /> {name as string}</span>
+                    <span className="block mt-0.5 text-[10.5px] text-gray-500 leading-snug">{text as string}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

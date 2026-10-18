@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
-import { CATEGORY_TREE, leafRequiresFda } from '../../data/categories';
+import { CATEGORY_TREE, type CategoryNode } from '../../data/categories';
+import { getStorefrontCategoriesApi } from '../../api/client';
 import { downscaleImage } from '../../utils/imageDownscale';
 import {
   getSellerProductApi,
@@ -148,7 +149,12 @@ function buildVariantRows(
   });
 }
 
-function validate(form: AddProductFormState, publish: boolean): { errors: FieldErrors; firstSection: string | null } {
+/** Whether a sub-category asks for FDA documents, from the category tree in use. */
+function fdaFor(tree: CategoryNode[], leafId: string): boolean {
+  return tree.some((p) => p.children.some((c) => c.id === leafId && c.requiresFdaDoc === true));
+}
+
+function validate(form: AddProductFormState, publish: boolean, tree: CategoryNode[]): { errors: FieldErrors; firstSection: string | null } {
   const errors: FieldErrors = {};
 
   const name = form.name.trim();
@@ -198,7 +204,7 @@ function validate(form: AddProductFormState, publish: boolean): { errors: FieldE
       if (se) errors.stock = se;
     }
 
-    const needsFda = form.leafCategoryId && leafRequiresFda(form.leafCategoryId);
+    const needsFda = form.leafCategoryId && fdaFor(tree, form.leafCategoryId);
     if (needsFda) {
       if (!form.fdaLtoFile && !form.fdaLtoOnFile) errors.fdaLtoFile = 'FDA LTO is required.';
       if (!form.fdaCprFile) errors.fdaCprFile = 'CPR/CPN document is required.';
@@ -1242,6 +1248,30 @@ export default function SellerAddProductPage() {
     typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${uid()}${uid()}`,
   );
 
+  // The platform categories the admin keeps (active only), with their FDA rule. The built-in list is shown only
+  // until they load, or if they cannot be loaded.
+  const [tree, setTree] = useState<CategoryNode[]>(CATEGORY_TREE);
+  useEffect(() => {
+    getStorefrontCategoriesApi()
+      .then((cats) => {
+        const live = cats.filter((p) => (p.children ?? []).length > 0).map((p) => ({
+          id: p.slug, label: p.name,
+          children: (p.children ?? []).map((c) => ({ id: c.slug, label: c.name, requiresFdaDoc: c.requires_fda === true })),
+        }));
+        if (live.length > 0) setTree(live);
+      })
+      .catch(() => {});
+  }, []);
+
+  // An edited product's parent category, once the tree is known.
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.leafCategoryId) return prev;
+      const parent = tree.find((n) => n.children.some((c) => c.id === prev.leafCategoryId));
+      return parent && parent.id !== prev.parentCategoryId ? { ...prev, parentCategoryId: parent.id } : prev;
+    });
+  }, [tree]);
+
   useEffect(() => {
     if (!approved) { setStoreTree([]); return; }
     getStoreCategoriesApi().then(setStoreTree).catch(() => setStoreTree([]));
@@ -1252,6 +1282,7 @@ export default function SellerAddProductPage() {
     if (!isEdit) return;
     getSellerProductApi(Number(id))
       .then((p) => {
+        // The live tree may still be loading; the effect on `tree` settles the parent once it has.
         const parentEntry = CATEGORY_TREE.find((n) =>
           n.children.some((c) => c.id === p.category_id)
         );
@@ -1312,17 +1343,17 @@ export default function SellerAddProductPage() {
     setErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
 
   // Category
-  const parentNode = CATEGORY_TREE.find((n) => n.id === form.parentCategoryId);
+  const parentNode = tree.find((n) => n.id === form.parentCategoryId);
   const leafOptions = parentNode
     ? parentNode.children
     : [];
-  const needsFda = form.leafCategoryId ? leafRequiresFda(form.leafCategoryId) : false;
+  const needsFda = form.leafCategoryId ? fdaFor(tree, form.leafCategoryId) : false;
 
   // Sync FDA section open state
   const handleLeafChange = (leafId: string) => {
     set('leafCategoryId', leafId);
     clearError('leafCategoryId');
-    const requires = leafRequiresFda(leafId);
+    const requires = fdaFor(tree, leafId);
     if (requires && !fdaOpen) setFdaOpen(true);
     if (!requires) setFdaOpen(false);
   };
@@ -1353,7 +1384,7 @@ export default function SellerAddProductPage() {
   // Submit: a draft needs only a valid name; publishing checks every rule and makes the product live at once.
   const handleSubmit = async (publish: boolean) => {
     if (submitting) return;
-    const { errors: errs, firstSection } = validate(form, publish);
+    const { errors: errs, firstSection } = validate(form, publish, tree);
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       setServerError('');
@@ -1521,7 +1552,7 @@ export default function SellerAddProductPage() {
                 setForm((prev) => ({ ...prev, parentCategoryId: v, leafCategoryId: '' }));
                 setFdaOpen(false);
               }}
-              options={CATEGORY_TREE.map((n) => ({ value: n.id, label: n.label }))}
+              options={tree.map((n) => ({ value: n.id, label: n.label }))}
               placeholder="Select parent category…"
             />
           </FieldWrap>

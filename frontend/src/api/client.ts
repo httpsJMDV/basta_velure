@@ -87,7 +87,7 @@ import type {
   TopSellerItem,
   PaymentMethodSplit,
   CommissionSettings,
-  CategoryCommissionOverride,
+  ReturnPolicySettings,
   SellerReportSummary,
   SellerRevenueChartPoint,
   AdminCategoryParent,
@@ -781,10 +781,10 @@ export const getPlatformPoliciesApi = () =>
   http.get<{ data: { return_policy: any } }>('/platform/policies').then((r) => r.data.data);
 
 export const getAdminReturnPolicySettingsApi = () =>
-  http.get<{ data: any }>('/admin/settings/return-policy').then((r) => r.data.data);
+  http.get<{ data: ReturnPolicySettings }>('/admin/settings/return-policy').then((r) => r.data.data);
 
-export const updateAdminReturnPolicySettingsApi = (payload: any) =>
-  http.post<{ message: string; data: any }>('/admin/settings/return-policy', payload).then((r) => r.data);
+export const updateAdminReturnPolicySettingsApi = (payload: Omit<ReturnPolicySettings, 'non_returnable_categories'> & { non_returnable_categories?: Record<string, string> }) =>
+  http.post<{ message: string; data: ReturnPolicySettings }>('/admin/settings/return-policy', payload).then((r) => r.data);
 
 // ─── Seller Orders & Payment Verification ─────────────────────────────────────
 
@@ -863,7 +863,7 @@ export const getAdminPaymentSplitApi = (params?: ReportRangeParams) =>
 export const getAdminCommissionSettingsApi = () =>
   http.get<{ data: CommissionSettings }>('/admin/settings/commission').then((r) => r.data.data);
 
-export const updateAdminCommissionSettingsApi = (payload: { base_rate_percent: number; overrides: CategoryCommissionOverride[] }) =>
+export const updateAdminCommissionSettingsApi = (payload: { base_rate_percent: number; overrides: { category_id: number; rate_percent: number }[] }) =>
   http.post<{ message: string; data: CommissionSettings }>('/admin/settings/commission', payload).then((r) => r.data);
 
 // ─── Seller Reports ────────────────────────────────────────────────────────────

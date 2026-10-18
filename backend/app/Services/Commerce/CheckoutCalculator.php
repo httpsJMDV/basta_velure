@@ -105,6 +105,7 @@ class CheckoutCalculator
                     'variant_label' => $v->label && ! in_array(strtolower($v->label), ['default', 'standard'], true) ? $v->label : null,
                     'image_url'     => $primary ? asset('storage/' . $primary->path) : null,
                     'category_slug' => $p->category?->slug,
+                    'category_id'   => $p->category_id ? (int) $p->category_id : null,
                     'quantity'      => (int) $seg['quantity'],
                     'unit_price'    => (float) $seg['unit_price'],
                     'regular_price' => (float) $seg['regular_price'],
@@ -243,7 +244,7 @@ class CheckoutCalculator
     public static function present(array $quote): array
     {
         $quote['stores'] = array_map(function ($s) {
-            $s['lines'] = array_map(fn ($l) => array_diff_key($l, array_flip(['category_slug', 'unit_grams', 'flash_sale_id', 'sale_id'])), $s['lines']);
+            $s['lines'] = array_map(fn ($l) => array_diff_key($l, array_flip(['category_slug', 'category_id', 'unit_grams', 'flash_sale_id', 'sale_id'])), $s['lines']);
 
             return $s;
         }, $quote['stores']);

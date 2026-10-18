@@ -1827,6 +1827,7 @@ export interface StorefrontCategory {
   name: string;
   product_count: number;
   image_url: string | null;
+  requires_fda?: boolean;
   children?: StorefrontCategory[];
 }
 
@@ -2281,15 +2282,38 @@ export interface SellerRevenueChartPoint {
   commission: number;
 }
 
+/** A commission override on a real category; a parent's rate covers its sub-categories that have none. */
 export interface CategoryCommissionOverride {
-  category_key: string;
+  category_id: number;
   category_name: string;
+  parent_name: string | null;
+  is_parent: boolean;
+  sub_categories: number;
   rate_percent: number;
+}
+
+export interface CommissionCategoryOption {
+  id: number;
+  name: string;
+  parent_name: string | null;
+  is_parent: boolean;
+  is_active: boolean;
+  sub_categories: number;
+}
+
+export interface ReturnPolicySettings {
+  return_window_days: number;
+  seller_response_days: number;
+  escalation_days: number;
+  summary: string;
+  mediation_terms: string;
+  non_returnable_categories: Record<string, string>;
 }
 
 export interface CommissionSettings {
   base_rate_percent: number;
   overrides: CategoryCommissionOverride[];
+  categories: CommissionCategoryOption[];
 }
 
 export interface AdminPaymentListItem {
@@ -2336,7 +2360,9 @@ export interface AdminCategoryLeaf {
   is_active: boolean;
   requires_fda: boolean;
   commission_rate: number | null;
+  /** Every product in it, archived ones included (they block deleting it). */
   products_count?: number;
+  active_products_count?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -2349,7 +2375,9 @@ export interface AdminCategoryParent {
   sort_order: number;
   is_active: boolean;
   requires_fda: boolean;
-  commission_rate: null;
+  /** A parent's rate covers its sub-categories that have none of their own. */
+  commission_rate: number | null;
+  products_count?: number;
   children: AdminCategoryLeaf[];
   created_at?: string;
   updated_at?: string;
@@ -2360,6 +2388,7 @@ export interface AdminCategoryMetrics {
   total_leaves: number;
   total_products: number;
   fda_regulated_leaves: number;
+  base_commission_rate?: number;
 }
 
 export interface CategoryPayload {

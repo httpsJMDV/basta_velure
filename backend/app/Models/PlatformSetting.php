@@ -28,41 +28,74 @@ class PlatformSetting extends Model
         return $setting->value;
     }
 
-    public static function getCommissionRateForCategory(?string $categoryId): float
+    // ── Commission (A9) ──────────────────────────────────────────────────────
+
+    /** The platform rate as a fraction (0.05 = 5%), set on Platform Settings. */
+    public static function baseCommissionRate(): float
     {
-        // A9: 5% of the item subtotal after the shop's own discounts.
-        $baseRate = (float) static::get('base_commission_rate', 0.05);
-        if (!$categoryId) {
-            return $baseRate;
-        }
-
-        $overrides = static::get('category_commission_overrides', []);
-
-        if (is_array($overrides)) {
-            $catLower = strtolower(trim($categoryId));
-            foreach ($overrides as $pattern => $rate) {
-                if (stripos($catLower, $pattern) !== false || $catLower === strtolower($pattern)) {
-                    return (float) $rate;
-                }
-            }
-        }
-
-        return $baseRate;
+        return (float) static::get('base_commission_rate', 0.05);
     }
 
+    /**
+     * The rate for a product's category, as a fraction. A category's own override (Platform Settings or the
+     * Categories page, stored as a percent on the category) wins; a sub-category without one takes its parent's;
+     * otherwise the platform rate applies. Matching is by category, never by name, so only real categories count.
+     */
+    public static function commissionRateForCategory(?int $categoryId): float
+    {
+        $base = static::baseCommissionRate();
+        $category = $categoryId ? Category::find($categoryId, ['id', 'parent_id', 'commission_rate']) : null;
+        if (! $category) {
+            return $base;
+        }
+        if ($category->commission_rate !== null) {
+            return round((float) $category->commission_rate / 100, 4);
+        }
+        $parentRate = $category->parent_id ? Category::whereKey($category->parent_id)->value('commission_rate') : null;
+
+        return $parentRate !== null ? round((float) $parentRate / 100, 4) : $base;
+    }
+
+    // ── Returns (A31) ────────────────────────────────────────────────────────
+
+    public const RETURN_DEFAULTS = [
+        'return_window_days'   => 7,
+        'seller_response_days' => 3,
+        'escalation_days'      => 3,
+        'summary'              => 'Return an item within 7 days of delivery with photos of the problem. The shop has 3 days to answer; a request it does not answer is approved and refunded.',
+        'non_returnable_categories' => [
+            'Food & Grocery' => 'Perishable food and grocery items cannot be returned once delivered for health and safety reasons, except for damaged, expired, or incorrect deliveries.',
+            'Personalized & Custom Items' => 'Custom-made, engraved, or customized orders are non-returnable unless defective or incorrect.',
+            'Personal Care & Undergarments' => 'Hygiene, cosmetics, intimate apparel, and personal care products with opened protective seals.',
+        ],
+        'mediation_terms'      => 'If the shop rejects your return, you can escalate it to Loved-IT within 3 days. Loved-IT then decides: a full refund, or the return is closed and the order completes.',
+    ];
+
+    /** The return policy, with every key present (a policy saved before a key existed gets its default). */
     public static function getReturnPolicy(): array
     {
-        return static::get('return_policy_config', [
-            'return_window_days'    => 7,
-            'auto_escalation_hours' => 48,
-            'summary'               => '7-day standard return window upon delivery for eligible items in original, unused condition with complete packaging and tags.',
-            'non_returnable_categories' => [
-                'Food & Grocery' => 'Perishable food and grocery items cannot be returned once delivered for health and safety reasons, except for damaged, expired, or incorrect deliveries.',
-                'Personalized & Custom Items' => 'Custom-made, engraved, or customized orders are non-returnable unless defective or incorrect.',
-                'Personal Care & Undergarments' => 'Hygiene, cosmetics, intimate apparel, and personal care products with opened protective seals.',
-            ],
-            'mediation_terms'       => 'If the seller rejects your return or does not respond within 48 hours, your request is automatically escalated to Loved-IT Platform Mediation for binding review.',
-        ]);
+        $saved = static::get('return_policy_config', []);
+        $policy = array_merge(self::RETURN_DEFAULTS, is_array($saved) ? $saved : []);
+        unset($policy['auto_escalation_hours']);
+
+        return $policy;
+    }
+
+    /** Days after delivery a buyer can ask for a return. */
+    public static function returnWindowDays(): int
+    {
+        return max(1, (int) static::getReturnPolicy()['return_window_days']);
+    }
+
+    /** Days the shop has to answer a return request before it is approved automatically. */
+    public static function sellerResponseDays(): int
+    {
+        return max(1, (int) static::getReturnPolicy()['seller_response_days']);
+    }
+
+    /** Days the buyer has to escalate a rejected return to Loved-IT. */
+    public static function escalationDays(): int
+    {
+        return max(1, (int) static::getReturnPolicy()['escalation_days']);
     }
 }
-

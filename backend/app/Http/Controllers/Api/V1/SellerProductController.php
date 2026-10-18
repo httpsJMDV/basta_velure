@@ -87,7 +87,7 @@ class SellerProductController extends Controller
         $publish = $this->wantsPublish($request, $product);
         $this->guardPublish($request, $publish);
 
-        $data = $request->validate($this->editor->rules($publish), $this->editor->messages());
+        $data = $request->validate($this->editor->rules($publish, $product), $this->editor->messages());
         $this->editor->checkVariants($data['variants'] ?? $product->variants->map(fn ($v) => ['id' => $v->id, 'label' => $v->label, 'sku' => $v->sku])->all(), $product, $request->user()->id);
         $this->editor->checkStoreCategories($data['store_category_ids'] ?? [], $request->user()->id);
 

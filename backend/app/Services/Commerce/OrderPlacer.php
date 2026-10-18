@@ -183,7 +183,7 @@ class OrderPlacer
         $grossTotal = 0.0;
         $exactCommission = 0.0;
         foreach ($store['lines'] as $line) {
-            $rate = PlatformSetting::getCommissionRateForCategory($line['category_slug']);
+            $rate = PlatformSetting::commissionRateForCategory($line['category_id'] ?? null);
             $gross = max(0, round($line['subtotal'] - $line['store_voucher_share'] - $line['promo_share'], 2));
             $grossTotal += $gross;
             $exactCommission += $gross * $rate;

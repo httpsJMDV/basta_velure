@@ -117,7 +117,7 @@ class BuyerOrderPresenter
             'can_cancel'          => OrderCanceller::canBuyerCancel($o),
             'can_return'          => ReturnService::unavailableReason($o) === null,
             'return_unavailable_reason' => $statusStr === OrderStatus::DELIVERED->value ? ReturnService::unavailableReason($o) : null,
-            'return_window_ends_at' => $deliveredAt ? $deliveredAt->copy()->addDays(ReturnService::WINDOW_DAYS)->toIso8601String() : null,
+            'return_window_ends_at' => $deliveredAt ? $deliveredAt->copy()->addDays(\App\Models\PlatformSetting::returnWindowDays())->toIso8601String() : null,
             'delivery_proof_available' => (bool) $parcel?->delivery_proof_path,
             'delivery_proof_count'     => (int) (bool) $parcel?->delivery_proof_path + (int) (bool) $parcel?->delivery_proof_path_2,
             'items'               => $o->items->map(fn ($i) => [

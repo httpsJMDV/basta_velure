@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Models\Dispute;
 use App\Models\DisputePhoto;
 use App\Models\Order;
+use App\Models\PlatformSetting;
 use App\Models\User;
 use App\Services\MailNotifier;
 use App\Services\Notifier;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class ReturnService
 {
+    /** The default return window; the live value is Platform Settings' (PlatformSetting::returnWindowDays()). */
     public const WINDOW_DAYS = 7;
 
     public function __construct(
@@ -51,7 +53,7 @@ class ReturnService
                 : 'You can request a return once the order is delivered.';
         }
         $at = self::deliveredAt($order);
-        if ($at && $at->copy()->addDays(self::WINDOW_DAYS)->lt(now()->startOfSecond())) {
+        if ($at && $at->copy()->addDays(PlatformSetting::returnWindowDays())->lt(now()->startOfSecond())) {
             return 'The 7-day return window for this order has ended.';
         }
 
@@ -71,7 +73,7 @@ class ReturnService
                 $dispute = Dispute::updateOrCreate(['order_id' => $locked->id], [
                     'buyer_id' => $buyer->id, 'seller_id' => $locked->items()->value('seller_id'),
                     'reason' => $reason, 'description' => $description, 'status' => 'pending',
-                    'respond_by' => now()->addDays(Dispute::RESPOND_DAYS), 'seller_reason' => null, 'seller_responded_at' => null,
+                    'respond_by' => now()->addDays(PlatformSetting::sellerResponseDays()), 'seller_reason' => null, 'seller_responded_at' => null,
                     'escalate_by' => null, 'escalated_at' => null, 'auto_approved' => false, 'resolution_note' => null,
                     'resolved_by' => null, 'resolved_at' => null, 'refund_amount' => null,
                 ]);
@@ -124,7 +126,7 @@ class ReturnService
             }
             $dispute->update([
                 'status' => 'rejected', 'seller_reason' => $reason, 'seller_responded_at' => now(),
-                'escalate_by' => now()->addDays(Dispute::ESCALATE_DAYS), 'resolution_note' => "Rejected by the shop: {$reason}",
+                'escalate_by' => now()->addDays(PlatformSetting::escalationDays()), 'resolution_note' => "Rejected by the shop: {$reason}",
             ]);
             app(Notifier::class)->toUserId($order->buyer_id, 'return.rejected', 'Return request rejected',
                 "The shop rejected your return for order {$order->order_number}: {$reason} You can escalate it to Loved-IT within 3 days.",

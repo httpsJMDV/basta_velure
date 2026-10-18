@@ -25,7 +25,7 @@ class PublicCategoryController extends Controller
     /** @return array<int, array<string, mixed>> */
     private function tree(): array
     {
-        $categories = Category::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['id', 'parent_id', 'name', 'slug']);
+        $categories = Category::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['id', 'parent_id', 'name', 'slug', 'requires_fda']);
 
         // Visible products, best sellers first, each with its primary photo.
         $products = Product::query()
@@ -45,6 +45,8 @@ class PublicCategoryController extends Controller
                 'id'            => $category->id,
                 'slug'          => $category->slug,
                 'name'          => $category->name,
+                // The seller's product form asks for FDA documents in these.
+                'requires_fda'  => (bool) $category->requires_fda,
                 'product_count' => $mine->count(),
                 'image_url'     => $cover ? asset('storage/' . $cover->images->first()->path) : null,
             ];
