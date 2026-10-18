@@ -174,6 +174,7 @@ class AddressStandardizationTest extends TestCase
             'address_province'      => 'Metro Manila',
             'address_city'          => 'Taguig',
             'address_barangay'      => 'Fort Bonifacio',
+            'address_street'        => '5th Avenue',
             'address_province_code' => '130000000',
             'address_city_code'     => '137607000',
             'address_barangay_code' => '137607005',

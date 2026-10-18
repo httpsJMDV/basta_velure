@@ -53,11 +53,12 @@ class BuyerReviewTest extends TestCase
         ]);
     }
 
-    private function order(User $buyer, string $status = 'DELIVERED'): Order
+    private function order(User $buyer, string $status = 'COMPLETED'): Order
     {
         $order = Order::create([
             'buyer_id' => $buyer->id, 'order_number' => 'VEL-R' . Str::upper(Str::random(8)), 'subtotal' => 499, 'shipping_fee' => 50, 'total' => 549,
             'payment_method' => 'cod', 'payment_status' => 'pending', 'status' => $status,
+            'completed_at' => $status === 'COMPLETED' ? now() : null,
             'shipping_name' => 'Ana', 'shipping_phone' => '09171234567', 'shipping_address' => '1 St',
             'shipping_province_code' => '040340000', 'shipping_city_code' => '040342800', 'shipping_barangay_code' => '040342801',
         ]);
@@ -69,7 +70,7 @@ class BuyerReviewTest extends TestCase
         return $order;
     }
 
-    public function test_a_delivered_product_is_reviewed_once_with_photos_and_the_rating_follows(): void
+    public function test_a_completed_order_product_is_reviewed_once_with_photos_and_the_rating_follows(): void
     {
         $order = $this->order($this->buyer);
         $this->actingAs($this->buyer, 'sanctum');
@@ -116,19 +117,68 @@ class BuyerReviewTest extends TestCase
         $this->assertSame(0, Review::where('buyer_id', $this->buyer->id)->count());
     }
 
-    public function test_the_author_can_edit_for_thirty_days(): void
+    public function test_a_delivered_order_cannot_be_rated_before_it_is_completed(): void
+    {
+        $delivered = $this->order($this->buyer, 'DELIVERED');
+        $this->actingAs($this->buyer, 'sanctum');
+
+        $this->getJson('/api/v1/buyer/reviews/pending')->assertOk()->assertJsonCount(0, 'data');
+        $this->postJson('/api/v1/buyer/reviews', ['order_id' => $delivered->id, 'product_id' => $this->product->id, 'rating' => 5])->assertStatus(422);
+        $this->assertSame(0, Review::where('buyer_id', $this->buyer->id)->count());
+    }
+
+    public function test_text_is_at_most_500_characters_and_photos_at_most_five(): void
+    {
+        $order = $this->order($this->buyer);
+        $this->actingAs($this->buyer, 'sanctum');
+
+        $this->postJson('/api/v1/buyer/reviews', ['order_id' => $order->id, 'product_id' => $this->product->id, 'rating' => 0])->assertStatus(422)->assertJsonValidationErrors(['rating']);
+        $this->postJson('/api/v1/buyer/reviews', ['order_id' => $order->id, 'product_id' => $this->product->id, 'rating' => 5, 'comment' => str_repeat('a', 501)])
+            ->assertStatus(422)->assertJsonValidationErrors(['comment']);
+        $this->post('/api/v1/buyer/reviews', [
+            'order_id' => $order->id, 'product_id' => $this->product->id, 'rating' => 5,
+            'photos' => array_map(fn ($i) => $this->photo("p{$i}.png"), range(1, 6)),
+        ], ['Accept' => 'application/json'])->assertStatus(422)->assertJsonValidationErrors(['photos']);
+        $this->post('/api/v1/buyer/reviews', [
+            'order_id' => $order->id, 'product_id' => $this->product->id, 'rating' => 5, 'comment' => str_repeat('a', 500),
+            'photos' => array_map(fn ($i) => $this->photo("p{$i}.png"), range(1, 5)),
+        ], ['Accept' => 'application/json'])->assertCreated()->assertJsonCount(5, 'data.images');
+    }
+
+    public function test_the_author_can_edit_once_within_thirty_days(): void
     {
         $order = $this->order($this->buyer);
         $this->actingAs($this->buyer, 'sanctum');
         $id = $this->postJson('/api/v1/buyer/reviews', ['order_id' => $order->id, 'product_id' => $this->product->id, 'rating' => 2])->json('data.id');
 
-        $this->patchJson("/api/v1/buyer/reviews/{$id}", ['rating' => 5, 'comment' => 'Better than I thought'])->assertOk()
-            ->assertJsonPath('data.rating', 5)->assertJsonPath('data.comment', 'Better than I thought');
-        $this->assertEquals(5.0, (float) $this->product->fresh()->avg_rating);
-
         $this->actingAs($this->user('buyer'), 'sanctum')->patchJson("/api/v1/buyer/reviews/{$id}", ['rating' => 1])->assertForbidden();
 
+        $this->actingAs($this->buyer, 'sanctum')->patchJson("/api/v1/buyer/reviews/{$id}", ['rating' => 5, 'comment' => 'Better than I thought'])->assertOk()
+            ->assertJsonPath('data.rating', 5)->assertJsonPath('data.comment', 'Better than I thought')->assertJsonPath('data.can_edit', false);
+        $this->assertEquals(5.0, (float) $this->product->fresh()->avg_rating);
+
+        // A second edit is refused.
+        $this->patchJson("/api/v1/buyer/reviews/{$id}", ['rating' => 1])->assertStatus(422);
+        $this->assertSame(5, (int) Review::find($id)->rating);
+    }
+
+    public function test_an_edit_after_thirty_days_is_refused(): void
+    {
+        $order = $this->order($this->buyer);
+        $this->actingAs($this->buyer, 'sanctum');
+        $id = $this->postJson('/api/v1/buyer/reviews', ['order_id' => $order->id, 'product_id' => $this->product->id, 'rating' => 2])->json('data.id');
+
         Review::whereKey($id)->update(['created_at' => now()->subDays(31)]);
-        $this->actingAs($this->buyer, 'sanctum')->patchJson("/api/v1/buyer/reviews/{$id}", ['rating' => 1])->assertStatus(422);
+        $this->patchJson("/api/v1/buyer/reviews/{$id}", ['rating' => 1])->assertStatus(422);
+    }
+
+    public function test_public_reviews_mask_the_buyer_name(): void
+    {
+        $order = $this->order($this->buyer);
+        $this->actingAs($this->buyer, 'sanctum');
+        $this->postJson('/api/v1/buyer/reviews', ['order_id' => $order->id, 'product_id' => $this->product->id, 'rating' => 5, 'comment' => 'Matibay at maganda!'])->assertCreated();
+
+        $this->getJson("/api/v1/products/{$this->product->id}/reviews")->assertOk()
+            ->assertJsonPath('data.0.buyer.name', 'A*a C.');
     }
 }

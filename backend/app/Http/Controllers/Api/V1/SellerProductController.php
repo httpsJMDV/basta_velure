@@ -3,353 +3,301 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\ProductImage;
-use App\Support\ProductDiscount;
+use App\Services\Catalog\ProductEditor;
+use App\Services\Pricing\PriceBook;
+use App\Support\Validation;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
+/**
+ * The seller's products (Seller workbook S4 to S6). A seller whose store is not approved yet can save drafts; only an
+ * approved store publishes (A18). Publishing makes the product Active at once; a double-clicked Publish creates one
+ * product (A37). A product or variant with unfinished orders cannot be deleted; other deletes are soft (A19).
+ */
 class SellerProductController extends Controller
 {
-    /** GET /seller/products — list the authenticated seller's products */
+    public function __construct(private readonly ProductEditor $editor) {}
+
+    /** GET /seller/products */
     public function index(Request $request): JsonResponse
     {
-        $products = Product::with(['variants', 'images', 'category'])
+        $products = Product::with(['variants', 'images', 'category', 'storeCategories'])
             ->where('seller_id', $request->user()->id)
             ->latest()
-            ->get()
-            ->map(fn ($p) => $this->formatProduct($p));
+            ->get();
+        $book = PriceBook::for($products->pluck('id'));
 
-        return response()->json(['data' => $products]);
+        return response()->json(['data' => $products->map(fn ($p) => $this->formatProduct($p, $book))]);
     }
 
-    /** GET /seller/products/{product} — fetch single product for edit form */
+    /** GET /seller/products/{product} */
     public function show(Request $request, Product $product): JsonResponse
     {
         $this->authorizeProduct($product, $request);
-        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images', 'category']))]);
+        $product->load(['variants', 'images', 'category', 'storeCategories']);
+
+        return response()->json(['data' => $this->formatProduct($product, PriceBook::for([$product->id]))]);
     }
 
-    /** PUT /seller/products/{product} — update an existing product */
+    /** POST /seller/products: a draft (status draft) or a published product (status active). */
+    public function store(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $publish = $this->wantsPublish($request);
+        $this->guardPublish($request, $publish);
+
+        $key = trim((string) ($request->header('Idempotency-Key') ?? $request->input('publish_key', '')));
+        if ($key !== '' && ($existing = Product::where('seller_id', $user->id)->where('publish_key', $key)->first())) {
+            return $this->repeat($existing);
+        }
+
+        $data = $request->validate($this->editor->rules($publish), $this->editor->messages());
+        $this->editor->checkVariants($data['variants'] ?? [], null, $user->id);
+        $this->editor->checkStoreCategories($data['store_category_ids'] ?? [], $user->id);
+        if ($publish && count($request->file('images', [])) < 1) {
+            throw ValidationException::withMessages(['images' => 'Add at least one product image to publish.']);
+        }
+        $data['publish_key'] = $key !== '' ? $key : null;
+
+        try {
+            $product = $this->editor->save(null, $data, $request, $user->id, $publish ? 'active' : 'draft');
+        } catch (QueryException $e) {
+            // Two identical submits at the same moment: the unique publish key lets only one in.
+            if ($key !== '' && ($existing = Product::where('seller_id', $user->id)->where('publish_key', $key)->first())) {
+                return $this->repeat($existing);
+            }
+            throw $e;
+        }
+
+        return response()->json([
+            'message' => $publish ? 'Product published. Buyers can find it now.' : 'Draft saved.',
+            'data'    => $this->formatProduct($product, PriceBook::for([$product->id])),
+        ], 201);
+    }
+
+    /** POST /seller/products/{product}: save changes; status active publishes, status draft keeps it a draft. */
     public function update(Request $request, Product $product): JsonResponse
     {
         $this->authorizeProduct($product, $request);
+        $product->load(['variants', 'images']);
+        $publish = $this->wantsPublish($request, $product);
+        $this->guardPublish($request, $publish);
 
-        $data = $request->validate([
-            'name'                => 'required|string|max:255',
-            'description'         => $this->descriptionRules(),
-            'category_slug'       => 'nullable|string|max:100',
-            'base_price'          => 'nullable|numeric|min:0',
-            'discount_percent'    => 'nullable|integer|min:0|max:' . ProductDiscount::MAX_PERCENT,
-            'weight_kg'           => 'nullable|numeric|min:0',
-            'dimension_l_cm'      => 'nullable|numeric|min:0',
-            'dimension_w_cm'      => 'nullable|numeric|min:0',
-            'dimension_h_cm'      => 'nullable|numeric|min:0',
-            'sku'                 => 'nullable|string|max:100',
-            'status'              => 'nullable|in:draft,pending_review,active,archived',
-            'variants'            => 'nullable|array|min:1',
-            'variants.*.label'    => 'required_with:variants|string|max:255',
-            'variants.*.price'    => 'required_with:variants|numeric|min:0',
-            'variants.*.stock'    => 'required_with:variants|integer|min:0',
-            'variants.*.sku'      => 'nullable|string|max:100',
-            'images'              => 'nullable|array',
-            'images.*'            => 'image|max:5120',
-            'delete_image_ids'    => 'nullable|array',
-            'delete_image_ids.*'  => 'integer',
-            'fda_lto'             => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'fda_cpr'             => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'net_weight_volume'   => 'nullable|string|max:10',
-            'expiry_best_before'  => 'nullable|string|max:50',
-            'ingredients'         => 'nullable|string|max:500',
-            'storage_instructions'=> 'nullable|string|max:500',
-            'allergen_info'       => 'nullable|string|max:500',
+        $data = $request->validate($this->editor->rules($publish), $this->editor->messages());
+        $this->editor->checkVariants($data['variants'] ?? $product->variants->map(fn ($v) => ['id' => $v->id, 'label' => $v->label, 'sku' => $v->sku])->all(), $product, $request->user()->id);
+        $this->editor->checkStoreCategories($data['store_category_ids'] ?? [], $request->user()->id);
+
+        if ($publish) {
+            $remaining = $product->images->count() - count(array_intersect($product->images->pluck('id')->all(), array_map('intval', $data['delete_image_ids'] ?? [])));
+            if ($remaining + count($request->file('images', [])) < 1) {
+                throw ValidationException::withMessages(['images' => 'Add at least one product image to publish.']);
+            }
+        }
+
+        $status = match (true) {
+            $publish                               => 'active',
+            $request->input('status') === 'draft'  => 'draft',
+            $request->input('status') === 'archived' => 'archived',
+            default                                => $product->status,
+        };
+        $product = $this->editor->save($product, $data, $request, $request->user()->id, $status);
+
+        return response()->json([
+            'message' => 'Product saved.',
+            'data'    => $this->formatProduct($product, PriceBook::for([$product->id])),
         ]);
-
-        $product = DB::transaction(function () use ($request, $data, $product) {
-            $categoryId = $product->category_id;
-            if (!empty($data['category_slug'])) {
-                $resolved = Category::where('slug', $data['category_slug'])->value('id');
-                if ($resolved) $categoryId = $resolved;
-            }
-
-            $product->update([
-                'category_id'          => $categoryId,
-                'name'                 => $data['name'],
-                'description'          => $data['description'] ?? null,
-                'base_price'           => $data['base_price'] ?? 0,
-                'status'               => $data['status'] ?? $product->status,
-                'weight_kg'            => $data['weight_kg'] ?? null,
-                'dimension_l_cm'       => $data['dimension_l_cm'] ?? null,
-                'dimension_w_cm'       => $data['dimension_w_cm'] ?? null,
-                'dimension_h_cm'       => $data['dimension_h_cm'] ?? null,
-                'sku'                  => $data['sku'] ?? null,
-                'net_weight_volume'    => $data['net_weight_volume'] ?? null,
-                'expiry_best_before'   => $data['expiry_best_before'] ?? null,
-                'ingredients'          => $data['ingredients'] ?? null,
-                'storage_instructions' => $data['storage_instructions'] ?? null,
-                'allergen_info'        => $data['allergen_info'] ?? null,
-                'fda_lto_path'         => $request->hasFile('fda_lto')
-                    ? $request->file('fda_lto')->store('products/fda', 'local')
-                    : $product->fda_lto_path,
-                'fda_cpr_path'         => $request->hasFile('fda_cpr')
-                    ? $request->file('fda_cpr')->store('products/fda', 'local')
-                    : $product->fda_cpr_path,
-            ]);
-
-            // Delete removed images
-            if (!empty($data['delete_image_ids'])) {
-                $toDelete = $product->images()->whereIn('id', $data['delete_image_ids'])->get();
-                foreach ($toDelete as $img) {
-                    Storage::disk('public')->delete($img->path);
-                    $img->delete();
-                }
-            }
-
-            // Replace variants (their prices are the regular prices; the discount is applied below)
-            if (!empty($data['variants'])) {
-                $product->variants()->delete();
-                foreach ($data['variants'] as $v) {
-                    $product->variants()->create([
-                        'label'          => $v['label'],
-                        'price'          => $v['price'],
-                        'stock_quantity' => $v['stock'],
-                        'sku'            => $v['sku'] ?? null,
-                    ]);
-                }
-            } else {
-                ProductDiscount::restoreRegularPrices($product);
-            }
-            ProductDiscount::apply($product, array_key_exists('discount_percent', $data) ? $data['discount_percent'] : $product->discount_percent);
-
-            // Append new images
-            if ($request->hasFile('images')) {
-                $offset = $product->images()->count();
-                foreach ($request->file('images') as $i => $file) {
-                    $path = $file->store('products/images', 'public');
-                    $product->images()->create([
-                        'path'       => $path,
-                        'is_primary' => $offset === 0 && $i === 0,
-                        'sort_order' => $offset + $i,
-                    ]);
-                }
-            }
-
-            // Re-assign primary if needed
-            $product->load('images');
-            if ($product->images->isNotEmpty() && !$product->images->contains('is_primary', true)) {
-                $product->images()->oldest('sort_order')->first()?->update(['is_primary' => true]);
-            }
-
-            return $product->fresh(['variants', 'images', 'category']);
-        });
-
-        return response()->json(['data' => $this->formatProduct($product)]);
     }
 
-    /** POST /seller/products — create a new product (draft or submit for review) */
-    public function store(Request $request): JsonResponse
+    /** POST /seller/products/{product}/duplicate: a draft copy with a new id. */
+    public function duplicate(Request $request, Product $product): JsonResponse
     {
-        $data = $request->validate([
-            'name'                => 'required|string|max:255',
-            'description'         => $this->descriptionRules(),
-            'category_slug'       => 'nullable|string|max:100',
-            'base_price'          => 'nullable|numeric|min:0',
-            'discount_percent'    => 'nullable|integer|min:0|max:' . ProductDiscount::MAX_PERCENT,
-            'weight_kg'           => 'nullable|numeric|min:0',
-            'dimension_l_cm'      => 'nullable|numeric|min:0',
-            'dimension_w_cm'      => 'nullable|numeric|min:0',
-            'dimension_h_cm'      => 'nullable|numeric|min:0',
-            'sku'                 => 'nullable|string|max:100',
-            'status'              => 'in:draft,pending_review',
-            'variants'            => 'nullable|array|min:1',
-            'variants.*.label'    => 'required_with:variants|string|max:255',
-            'variants.*.price'    => 'required_with:variants|numeric|min:0',
-            'variants.*.stock'    => 'required_with:variants|integer|min:0',
-            'variants.*.sku'      => 'nullable|string|max:100',
-            'images'              => 'nullable|array',
-            'images.*'            => 'image|max:5120',
-            'fda_lto'             => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'fda_cpr'             => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'net_weight_volume'   => 'nullable|string|max:10',
-            'expiry_best_before'  => 'nullable|string|max:50',
-            'ingredients'         => 'nullable|string|max:500',
-            'storage_instructions'=> 'nullable|string|max:500',
-            'allergen_info'       => 'nullable|string|max:500',
-        ]);
+        $this->authorizeProduct($product, $request);
+        $copy = $this->editor->duplicate($product);
 
-        $product = DB::transaction(function () use ($request, $data) {
-            $categoryId = !empty($data['category_slug'])
-                ? Category::where('slug', $data['category_slug'])->value('id')
-                : null;
-
-            $product = Product::create([
-                'seller_id'            => $request->user()->id,
-                'category_id'          => $categoryId,
-                'name'                 => $data['name'],
-                'description'          => $data['description'] ?? null,
-                'base_price'           => $data['base_price'] ?? 0,
-                'status'               => $data['status'] ?? 'draft',
-                'weight_kg'            => $data['weight_kg'] ?? null,
-                'dimension_l_cm'       => $data['dimension_l_cm'] ?? null,
-                'dimension_w_cm'       => $data['dimension_w_cm'] ?? null,
-                'dimension_h_cm'       => $data['dimension_h_cm'] ?? null,
-                'sku'                  => $data['sku'] ?? null,
-                'net_weight_volume'    => $data['net_weight_volume'] ?? null,
-                'expiry_best_before'   => $data['expiry_best_before'] ?? null,
-                'ingredients'          => $data['ingredients'] ?? null,
-                'storage_instructions' => $data['storage_instructions'] ?? null,
-                'allergen_info'        => $data['allergen_info'] ?? null,
-                'fda_lto_path'         => $request->hasFile('fda_lto')
-                    ? $request->file('fda_lto')->store('products/fda', 'local')
-                    : null,
-                'fda_cpr_path'         => $request->hasFile('fda_cpr')
-                    ? $request->file('fda_cpr')->store('products/fda', 'local')
-                    : null,
-            ]);
-
-            foreach ($data['variants'] as $v) {
-                $product->variants()->create([
-                    'label'          => $v['label'],
-                    'price'          => $v['price'],
-                    'stock_quantity' => $v['stock'],
-                    'sku'            => $v['sku'] ?? null,
-                ]);
-            }
-            ProductDiscount::apply($product, $data['discount_percent'] ?? null);
-
-            if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $i => $file) {
-                    $path = $file->store('products/images', 'public');
-                    $product->images()->create([
-                        'path'       => $path,
-                        'is_primary' => $i === 0,
-                        'sort_order' => $i,
-                    ]);
-                }
-            }
-
-            return $product->load(['variants', 'images']);
-        });
-
-        return response()->json(['data' => $this->formatProduct($product)], 201);
+        return response()->json([
+            'message' => 'Copy saved as a draft. Check it and publish when ready.',
+            'data'    => $this->formatProduct($copy, PriceBook::for([$copy->id])),
+        ], 201);
     }
 
-    /** PATCH /seller/products/{product}/stock — quick stock update */
+    /** PATCH /seller/products/{product}/stock {stock, variant_id?}: whole numbers from 0 to 99,999 (A17). */
     public function updateStock(Request $request, Product $product): JsonResponse
     {
         $this->authorizeProduct($product, $request);
+        $data = $request->validate([
+            'stock'      => Validation::stock(),
+            'variant_id' => ['nullable', 'integer'],
+        ], [
+            'stock.required' => 'Enter the stock.',
+            'stock.integer'  => 'Stock must be a whole number from 0 to 99,999.',
+            'stock.min'      => 'Stock must be a whole number from 0 to 99,999.',
+            'stock.max'      => 'Stock must be a whole number from 0 to 99,999.',
+        ]);
 
-        $data = $request->validate(['stock' => 'required|integer|min:0']);
+        $variants = $product->variants;
+        $target = ! empty($data['variant_id']) ? $variants->firstWhere('id', (int) $data['variant_id']) : ($variants->count() === 1 ? $variants->first() : null);
+        if (! $target) {
+            throw ValidationException::withMessages(['variant_id' => 'Choose which variant to restock.']);
+        }
+        $target->update(['stock_quantity' => (int) $data['stock']]);
 
-        DB::transaction(function () use ($product, $data) {
-            if ($product->variants->count() === 1) {
-                $product->variants->first()->update(['stock_quantity' => $data['stock']]);
-            } else {
-                $each = (int) floor($data['stock'] / max(1, $product->variants->count()));
-                $product->variants()->update(['stock_quantity' => $each]);
-            }
-        });
-
-        return response()->json(['data' => $this->formatProduct($product->fresh(['variants', 'images']))]);
+        return response()->json(['data' => $this->formatProduct($product->fresh(['variants', 'images', 'category', 'storeCategories']), PriceBook::for([$product->id]))]);
     }
 
-    /** PATCH /seller/products/{product}/price — quick price update (single-variant only) */
+    /** PATCH /seller/products/{product}/price {price, variant_id?} */
     public function updatePrice(Request $request, Product $product): JsonResponse
     {
         $this->authorizeProduct($product, $request);
+        $data = $request->validate([
+            'price'      => Validation::price(),
+            'variant_id' => ['nullable', 'integer'],
+        ], [
+            'price.decimal' => 'The price can have at most 2 decimal places.',
+            'price.min'     => 'The price must be at least ₱1.00.',
+            'price.max'     => 'The price must be ₱1,000,000.00 or less.',
+        ]);
 
-        $data = $request->validate(['price' => 'required|numeric|min:0.01']);
-
-        DB::transaction(function () use ($product, $data) {
-            if ($product->variants->count() === 1) {
-                $product->variants->first()->update(['price' => $data['price'], 'original_price' => null]);
-                ProductDiscount::apply($product, $product->discount_percent);
-            } else {
-                $product->update(['base_price' => $data['price']]);
-            }
+        $variants = $product->variants;
+        $target = ! empty($data['variant_id']) ? $variants->firstWhere('id', (int) $data['variant_id']) : ($variants->count() === 1 ? $variants->first() : null);
+        if (! $target) {
+            throw ValidationException::withMessages(['variant_id' => 'Choose which variant to reprice.']);
+        }
+        DB::transaction(function () use ($product, $target, $data) {
+            $target->update(['price' => $data['price'], 'original_price' => null]);
+            $product->forceFill(['base_price' => $product->variants()->min('price')])->save();
         });
 
-        return response()->json(['data' => $this->formatProduct($product->fresh(['variants', 'images']))]);
+        return response()->json(['data' => $this->formatProduct($product->fresh(['variants', 'images', 'category', 'storeCategories']), PriceBook::for([$product->id]))]);
     }
 
-    /** PATCH /seller/products/{product}/status — submit for review / archive / unarchive */
+    /** PATCH /seller/products/{product}/status {status: active|archived}: publish or reactivate, or deactivate. */
     public function updateStatus(Request $request, Product $product): JsonResponse
     {
         $this->authorizeProduct($product, $request);
-
         $data = $request->validate(['status' => 'required|in:pending_review,active,archived']);
+        $target = $data['status'] === 'pending_review' ? 'active' : $data['status'];
 
-        // Guard: can only submit draft, rejected, or admin-archived (after edit) for review
-        if ($data['status'] === 'pending_review') {
-            if (!in_array($product->status, ['draft', 'rejected']) &&
-                !($product->status === 'archived' && $product->archived_by === 'admin')) {
-                return response()->json(['message' => 'Only draft, rejected, or admin-archived products can be submitted for review.'], 422);
+        if ($target === 'active') {
+            $this->guardPublish($request, true);
+            if ($product->status === 'archived' && $product->archived_by === 'admin') {
+                return response()->json(['message' => 'This product was archived by Loved-IT. Edit it to fix the issue, then publish it again.'], 422);
             }
+            if ($problems = $this->editor->publishProblems($product)) {
+                throw ValidationException::withMessages($problems);
+            }
+            $product->update(['status' => 'active', 'archived_by' => null, 'archive_reason' => null, 'published_at' => $product->published_at ?? now()]);
+        } else {
+            $product->update(['status' => 'archived', 'archived_by' => 'seller', 'archive_reason' => null]);
         }
 
-        // Guard: cannot archive a product that is pending review
-        if ($data['status'] === 'archived' && $product->status === 'pending_review') {
-            return response()->json(['message' => 'Cannot archive a product that is pending review.'], 422);
-        }
-
-        // Guard: seller cannot unarchive an admin-archived product
-        if ($data['status'] === 'active' && $product->status === 'archived' && $product->archived_by === 'admin') {
-            return response()->json(['message' => 'This product was archived by admin. Edit and resubmit for review to restore it.'], 422);
-        }
-
-        $updates = ['status' => $data['status']];
-        // When seller archives their own product, track it
-        if ($data['status'] === 'archived') {
-            $updates['archived_by'] = 'seller';
-            $updates['archive_reason'] = null;
-        }
-        // When seller unarchives their own product
-        if ($data['status'] === 'active' && $product->archived_by === 'seller') {
-            $updates['archived_by'] = null;
-        }
-
-        $product->update($updates);
-
-        return response()->json(['data' => $this->formatProduct($product->load(['variants', 'images']))]);
+        return response()->json([
+            'message' => $target === 'active' ? 'Product is live.' : 'Product deactivated. Buyers no longer see it.',
+            'data'    => $this->formatProduct($product->fresh(['variants', 'images', 'category', 'storeCategories']), PriceBook::for([$product->id])),
+        ]);
     }
 
-    /** DELETE /seller/products/{product} */
+    /** DELETE /seller/products/{product}: refused while the product is in an unfinished order (A19). */
     public function destroy(Request $request, Product $product): JsonResponse
     {
         $this->authorizeProduct($product, $request);
-
-        if (!in_array($product->status, ['draft', 'rejected'])) {
-            return response()->json(['message' => 'Only draft or rejected products can be deleted.'], 422);
+        if ($product->hasUnfinishedOrders()) {
+            return response()->json(['message' => 'This product has unfinished orders and cannot be deleted yet. Deactivate it instead.'], 422);
         }
-
         $product->delete();
 
         return response()->json(null, 204);
     }
 
+    /**
+     * POST /seller/products/bulk {action: deactivate|activate|delete, ids[]}: every product the seller owns is tried; the
+     * response says which were done and which were skipped, with the reason.
+     */
+    public function bulk(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'action' => 'required|in:deactivate,activate,delete',
+            'ids'    => 'required|array|min:1|max:200',
+            'ids.*'  => 'integer',
+        ]);
+        if ($data['action'] === 'activate') {
+            $this->guardPublish($request, true);
+        }
+
+        $done = [];
+        $skipped = [];
+        $products = Product::with(['variants', 'images'])->where('seller_id', $request->user()->id)->whereIn('id', $data['ids'])->get();
+        foreach ($products as $product) {
+            $reason = match ($data['action']) {
+                'delete'   => $product->hasUnfinishedOrders() ? 'It has unfinished orders.' : null,
+                'activate' => ($p = $this->editor->publishProblems($product)) ? reset($p) : ($product->archived_by === 'admin' ? 'It was archived by Loved-IT.' : null),
+                default    => null,
+            };
+            if ($reason) {
+                $skipped[] = ['id' => $product->id, 'name' => $product->name, 'reason' => $reason];
+                continue;
+            }
+            match ($data['action']) {
+                'delete'     => $product->delete(),
+                'activate'   => $product->update(['status' => 'active', 'archived_by' => null, 'published_at' => $product->published_at ?? now()]),
+                'deactivate' => $product->update(['status' => 'archived', 'archived_by' => 'seller']),
+            };
+            $done[] = ['id' => $product->id, 'name' => $product->name];
+        }
+        foreach (array_diff($data['ids'], $products->pluck('id')->all()) as $missing) {
+            $skipped[] = ['id' => (int) $missing, 'name' => null, 'reason' => 'Not found in your store.'];
+        }
+
+        $verb = ['delete' => 'deleted', 'activate' => 'activated', 'deactivate' => 'deactivated'][$data['action']];
+
+        return response()->json([
+            'message' => count($done) . " product(s) {$verb}" . ($skipped ? ', ' . count($skipped) . ' skipped.' : '.'),
+            'done'    => $done,
+            'skipped' => $skipped,
+        ]);
+    }
+
+    /** POST /seller/products/description-image */
+    public function uploadDescriptionImage(Request $request): JsonResponse
+    {
+        $request->validate(['image' => Validation::image()], Validation::uploadMessages('image', 'the image'));
+        $path = $request->file('image')->store('products/descriptions', 'public');
+
+        return response()->json(['url' => asset('storage/' . $path)]);
+    }
+
     // ─── Private helpers ──────────────────────────────────────────────────────
 
-    /**
-     * The description is rich text (bold, lists, embedded images), so the 1,500-character limit the seller sees applies
-     * to the visible text, as the form counts it. The HTML itself (tags, image URLs) gets a much larger ceiling.
-     */
-    private function descriptionRules(): array
+    private function wantsPublish(Request $request, ?Product $product = null): bool
     {
-        return [
-            'nullable',
-            'string',
-            'max:20000',
-            function (string $attribute, mixed $value, \Closure $fail) {
-                $text = trim(html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-                if (mb_strlen($text) > 1500) {
-                    $fail('Description must not exceed 1,500 characters.');
-                }
-            },
-        ];
+        $status = $request->input('status');
+        if ($status === null) {
+            return $product?->status === 'active';
+        }
+
+        return in_array($status, ['active', 'pending_review', 'publish'], true);
+    }
+
+    /** Only an approved store publishes (A18). */
+    private function guardPublish(Request $request, bool $publish): void
+    {
+        if ($publish && $request->user()->sellerProfile?->application_status !== 'approved') {
+            abort(403, 'Your store must be approved before you can publish products. You can save drafts in the meantime.');
+        }
+    }
+
+    private function repeat(Product $product): JsonResponse
+    {
+        $product->load(['variants', 'images', 'category', 'storeCategories']);
+
+        return response()->json([
+            'message'  => 'This product was already saved.',
+            'repeated' => true,
+            'data'     => $this->formatProduct($product, PriceBook::for([$product->id])),
+        ]);
     }
 
     private function authorizeProduct(Product $product, Request $request): void
@@ -357,9 +305,11 @@ class SellerProductController extends Controller
         abort_if($product->seller_id !== $request->user()->id, 403);
     }
 
-    private function formatProduct(Product $product): array
+    private function formatProduct(Product $product, PriceBook $book): array
     {
         $primaryImage = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
+        $range = $book->range($product);
+        $sale = $book->saleFor($product->id);
 
         return [
             'id'                   => $product->id,
@@ -368,27 +318,32 @@ class SellerProductController extends Controller
             'category_id'          => $product->category?->slug ?? '',
             'thumbnail_url'        => $primaryImage ? asset('storage/' . $primaryImage->path) : null,
             'base_price'           => (float) $product->base_price,
-            'original_price'       => $product->original_price !== null ? (float) $product->original_price : null,
-            'discount_percent'     => $product->discount_percent,
+            'original_price'       => $range['min'] < $range['regular_min'] ? $range['regular_min'] : null,
+            'price_range'          => $range,
+            'discount_percent'     => $sale?->discount_type === 'percent' ? $sale->discount_percent : null,
             'status'               => $product->status,
             'units_sold'           => $product->units_sold,
             'rejection_reason'     => $product->rejection_reason,
             'archive_reason'       => $product->archive_reason,
             'archived_by'          => $product->archived_by,
             'created_at'           => $product->created_at,
+            'published_at'         => $product->published_at?->toIso8601String(),
             'total_stock'          => $product->variants->sum('stock_quantity'),
             'weight_kg'            => $product->weight_kg,
             'dimension_l_cm'       => $product->dimension_l_cm,
             'dimension_w_cm'       => $product->dimension_w_cm,
             'dimension_h_cm'       => $product->dimension_h_cm,
             'sku'                  => $product->sku,
+            'variation_types'      => $product->variation_types ?? [],
+            'purchase_limit'       => $product->purchase_limit,
+            'store_category_ids'   => $product->relationLoaded('storeCategories') ? $product->storeCategories->pluck('id')->values() : [],
             'net_weight_volume'    => $product->net_weight_volume,
             'expiry_best_before'   => $product->expiry_best_before,
             'ingredients'          => $product->ingredients,
             'storage_instructions' => $product->storage_instructions,
             'allergen_info'        => $product->allergen_info,
-            'fda_lto_on_file'      => !empty($product->fda_lto_path),
-            'fda_cpr_on_file'      => !empty($product->fda_cpr_path),
+            'fda_lto_on_file'      => ! empty($product->fda_lto_path),
+            'fda_cpr_on_file'      => ! empty($product->fda_cpr_path),
             'images'               => $product->images->sortBy('sort_order')->map(fn ($img) => [
                 'id'         => $img->id,
                 'url'        => asset('storage/' . $img->path),
@@ -401,21 +356,10 @@ class SellerProductController extends Controller
                 'sku'            => $v->sku,
                 'stock_quantity' => $v->stock_quantity,
                 'price'          => (float) $v->price,
-                'regular_price'  => ProductDiscount::regularPrice($v),
+                'regular_price'  => (float) $v->price,
+                'current_price'  => $book->unit($v)['price'],
+                'low_stock'      => $v->stock_quantity <= \App\Models\ProductVariant::LOW_STOCK_THRESHOLD,
             ])->values(),
         ];
-    }
-
-    /** POST /seller/products/description-image */
-    public function uploadDescriptionImage(Request $request): JsonResponse
-    {
-        $request->validate([
-            'image' => 'required|image|max:5120',
-        ]);
-
-        $path = $request->file('image')->store('products/descriptions', 'public');
-        $url  = asset('storage/' . $path);
-
-        return response()->json(['url' => $url]);
     }
 }

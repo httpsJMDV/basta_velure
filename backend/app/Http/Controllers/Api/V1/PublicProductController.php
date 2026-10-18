@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
+use App\Services\Pricing\PriceBook;
 use App\Services\ProductSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,9 +15,47 @@ use Illuminate\Support\Str;
 
 class PublicProductController extends Controller
 {
+    /** The prices of the products in this response (store sales and flash sales running now). */
+    private ?PriceBook $book = null;
+
+    private function book(Product $product): PriceBook
+    {
+        return $this->book ??= PriceBook::for([$product->id]);
+    }
+
+    /**
+     * A buyer's name as shown on a public review (BUY-RATE-001): first letter, stars, last letter of the first name,
+     * and the last name's initial ("J***n D."). One-letter names keep the letter.
+     */
+    public static function maskName(?string $first, ?string $last): string
+    {
+        $first = trim((string) $first);
+        if ($first === '') {
+            return 'Loved-IT buyer';
+        }
+        $chars = mb_str_split($first);
+        $masked = count($chars) <= 2 ? $chars[0] . '*' : $chars[0] . str_repeat('*', min(4, count($chars) - 2)) . end($chars);
+        $initial = trim((string) $last) !== '' ? ' ' . mb_strtoupper(mb_substr(trim((string) $last), 0, 1)) . '.' : '';
+
+        return $masked . $initial;
+    }
     /** GET /products */
     public function index(Request $request, ProductSearch $searcher): JsonResponse
     {
+        // A price range is checked before it filters anything: no negatives, and the minimum cannot exceed the maximum.
+        $request->validate([
+            'min_price' => ['nullable', 'numeric', 'min:0'],
+            'max_price' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'min_price.min'     => 'The minimum price cannot be negative.',
+            'max_price.min'     => 'The maximum price cannot be negative.',
+            'min_price.numeric' => 'Enter the minimum price as a number.',
+            'max_price.numeric' => 'Enter the maximum price as a number.',
+        ]);
+        if ($request->filled('min_price') && $request->filled('max_price') && (float) $request->input('min_price') > (float) $request->input('max_price')) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['min_price' => 'The minimum price cannot be more than the maximum price.']);
+        }
+
         $query = Product::with(['variants', 'images', 'seller.sellerProfile'])
             ->where('status', 'active')
             ->whereHas('seller', fn ($q) => $q->where('status', 'active'))
@@ -43,9 +82,20 @@ class PublicProductController extends Controller
             $query->where('avg_rating', '>=', (float) $request->input('min_rating'));
         }
 
-        // Promotions
+        // A store's own category (and its subcategories). A hidden or unknown category is "not found".
+        if ($request->filled('store_category_id')) {
+            $cat = \App\Models\StoreCategory::where('is_visible', true)->find((int) $request->input('store_category_id'));
+            abort_if(! $cat || ($cat->parent_id && ! \App\Models\StoreCategory::where('id', $cat->parent_id)->where('is_visible', true)->exists()), 404, 'This store category was not found.');
+            $ids = \App\Models\StoreCategory::where('parent_id', $cat->id)->where('is_visible', true)->pluck('id')->push($cat->id);
+            $query->where('seller_id', $cat->seller_id)
+                ->whereHas('storeCategories', fn ($q) => $q->whereIn('store_categories.id', $ids));
+        }
+
+        // Promotions: a store sale or a flash sale running now
         if ($request->boolean('on_sale')) {
-            $query->whereNotNull('original_price')->whereColumn('base_price', '<', 'original_price');
+            $query->where(fn ($q) => $q
+                ->whereHas('storeSales', fn ($s) => $s->live())
+                ->orWhereHas('flashSales', fn ($f) => $f->live()));
         }
         if ($request->boolean('new_arrivals')) {
             $query->where('created_at', '>=', now()->subDays(30));
@@ -120,6 +170,7 @@ class PublicProductController extends Controller
 
         $perPage   = min((int) $request->input('per_page', 28), 100);
         $paginated = $query->paginate($perPage);
+        $this->book = PriceBook::for(collect($paginated->items())->pluck('id'));
 
         // Facets — sellers and location macro-regions
         $facets = $this->buildFacets($request, $search ? ($search['ids'] ?: [0]) : null);
@@ -169,6 +220,7 @@ class PublicProductController extends Controller
             ->orderByDesc('units_sold')
             ->limit(12)
             ->get();
+        $this->book = PriceBook::for($related->pluck('id'));
 
         return response()->json([
             'data' => $related->map(fn ($p) => $this->formatProduct($p)),
@@ -212,13 +264,19 @@ class PublicProductController extends Controller
                 'rating'            => (int) $r->rating,
                 'comment'           => $r->comment,
                 'verified_purchase' => (bool) $r->verified_purchase,
+                'variant_label'     => $r->variant_label,
                 'images'            => $r->imageUrls(),
                 'created_at'        => $r->created_at?->toIso8601String(),
                 'buyer'             => [
-                    'id'         => $r->buyer?->id,
-                    'name'       => $r->buyer ? trim($r->buyer->first_name . ' ' . $r->buyer->last_name) : 'Anonymous Buyer',
+                    'id'         => null,
+                    'name'       => self::maskName($r->buyer?->first_name, $r->buyer?->last_name),
                     'avatar_url' => $r->buyer?->avatar_path ? asset('storage/' . $r->buyer->avatar_path) : null,
                 ],
+                'seller_reply'      => $r->seller_reply ? [
+                    'body' => $r->seller_reply,
+                    'replied_at' => $r->seller_replied_at?->toIso8601String(),
+                    'edited_at' => $r->seller_reply_edited_at?->toIso8601String(),
+                ] : null,
             ]),
             'meta' => [
                 'current_page'  => $paginated->currentPage(),
@@ -383,6 +441,11 @@ class PublicProductController extends Controller
     {
         $primary = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
         $profile = $product->seller?->sellerProfile;
+        $book = $this->book($product);
+        $range = $book->range($product);
+        $sale = $book->saleFor($product->id);
+        $flash = $book->flashFor($product->id);
+        $onSale = $range['min'] < $range['regular_min'] || $range['max'] < $range['regular_max'];
 
         return [
             'id'             => $product->id,
@@ -391,105 +454,111 @@ class PublicProductController extends Controller
             'category_id'    => $product->category_id,
             'status'         => $product->status,
             'thumbnail_url'  => $primary ? asset('storage/' . $primary->path) : null,
-            'base_price'     => (float) $product->base_price,
-            'original_price' => $product->original_price ? (float) $product->original_price : null,
+            // The lowest price now (sale or flash price when one runs) and the regular price it replaces.
+            'base_price'     => $range['min'],
+            'original_price' => $onSale ? $range['regular_min'] : null,
+            'price_range'    => $range,
+            'discount_percent' => $sale && $sale->discount_type === 'percent' && $range['min'] < $range['regular_min'] ? $sale->discount_percent : null,
+            'flash_sale'     => $flash ? [
+                'id' => $flash->id, 'price' => (float) $flash->flash_price, 'remaining' => $flash->remaining(),
+                'quantity' => $flash->quantity, 'ends_at' => $flash->slot_end->toIso8601String(), 'variant_id' => $flash->product_variant_id,
+            ] : null,
             'units_sold'     => (int) $product->units_sold,
             'avg_rating'     => $product->avg_rating ? (float) $product->avg_rating : null,
             'review_count'   => (int) ($product->review_count ?? 0),
+            'total_stock'    => (int) $product->variants->sum('stock_quantity'),
+            'on_vacation'    => (bool) ($profile?->on_vacation),
+            'purchase_limit' => $product->purchase_limit,
             'seller'         => [
                 'id'        => $product->seller?->id,
                 'shop_name' => $profile?->shop_name ?? ($product->seller?->first_name . ' ' . $product->seller?->last_name),
                 'city'      => $profile?->address_city ?? null,
                 'province'  => $profile?->address_province ?? null,
+                'on_vacation' => (bool) ($profile?->on_vacation),
             ],
-            'variants' => $product->variants->map(fn ($v) => [
-                'id'             => $v->id,
-                'label'          => $v->label,
-                'price'          => (float) $v->price,
-                'original_price' => $v->original_price ? (float) $v->original_price : null,
-                'stock_quantity' => (int) $v->stock_quantity,
-                'sku'            => $v->sku,
-            ]),
+            'variants' => $product->variants->map(function ($v) use ($book) {
+                $unit = $book->unit($v);
+
+                return [
+                    'id'             => $v->id,
+                    'label'          => $v->label,
+                    'price'          => $unit['price'],
+                    'original_price' => $unit['price'] < $unit['regular'] ? $unit['regular'] : null,
+                    'price_source'   => $unit['source'],
+                    'stock_quantity' => (int) $v->stock_quantity,
+                    'sku'            => $v->sku,
+                ];
+            })->values(),
         ];
     }
 
+    /**
+     * The variation selectors of the product page: one group per variation type (named as the seller named them, for
+     * example Color and Size), and every combination with its own stock, so the page can disable an option whose
+     * combination is sold out (Black + M) while the same option stays available with another (Natural + M).
+     */
     private function buildVariantGroups(Product $product): array
     {
         $variants = $product->variants;
         if ($variants->isEmpty()) {
             return [];
         }
-
-        // If only 1 variant and it is 'Default' or empty, no selection group needed
-        if ($variants->count() === 1 && in_array(strtolower(trim($variants->first()->label ?? '')), ['', 'default'])) {
+        if ($variants->count() === 1 && in_array(strtolower(trim($variants->first()->label ?? '')), ['', 'default', 'standard'], true)) {
             return [];
         }
 
-        // Check if any variant label contains multi-dimension delimiter ' / '
-        $hasMultiDimension = $variants->contains(fn ($v) => str_contains($v->label ?? '', ' / '));
-
-        if (!$hasMultiDimension) {
-            // Single dimension variation group (e.g., Flavor, Color, Size)
-            return [
-                [
-                    'name'    => 'Variation',
-                    'options' => $variants->map(fn ($v) => [
-                        'id'             => $v->id,
-                        'label'          => $v->label ?: 'Default',
-                        'stock_quantity' => (int) $v->stock_quantity,
-                        'price'          => (float) $v->price,
-                        'original_price' => $v->original_price ? (float) $v->original_price : null,
-                        'sku'            => $v->sku,
-                    ])->values()->all(),
-                ],
-            ];
-        }
-
-        // Multi-dimension variant combinations (e.g., "Red / M", "Blue / L")
-        $dimensionCount = 0;
-        $splitVariants = [];
-        foreach ($variants as $v) {
-            $parts = array_map('trim', explode('/', $v->label ?? ''));
-            $dimensionCount = max($dimensionCount, count($parts));
-            $splitVariants[] = ['variant' => $v, 'parts' => $parts];
-        }
+        $book = $this->book($product);
+        $names = array_values($product->variation_types ?? []);
+        $split = $variants->map(fn ($v) => ['variant' => $v, 'parts' => array_map('trim', explode('/', $v->label ?? ''))]);
+        $dimensions = (int) $split->max(fn ($s) => count($s['parts']));
 
         $groups = [];
-        for ($i = 0; $i < $dimensionCount; $i++) {
-            $groupName = match ($i) {
-                0 => 'Variation 1',
-                1 => 'Variation 2',
-                default => 'Variation ' . ($i + 1),
-            };
-
-            $uniqueOptions = [];
-            foreach ($splitVariants as $sv) {
-                $optLabel = $sv['parts'][$i] ?? '';
-                if ($optLabel === '') continue;
-
-                if (!isset($uniqueOptions[$optLabel])) {
-                    $uniqueOptions[$optLabel] = [
-                        'id'             => (crc32($groupName . ':' . $optLabel) & 0x7fffffff) ?: ($i * 100 + count($uniqueOptions) + 1),
-                        'label'          => $optLabel,
-                        'stock_quantity' => (int) $sv['variant']->stock_quantity,
-                        'price'          => (float) $sv['variant']->price,
-                        'original_price' => $sv['variant']->original_price ? (float) $sv['variant']->original_price : null,
-                        'sku'            => $sv['variant']->sku,
-                    ];
-                } else {
-                    $uniqueOptions[$optLabel]['stock_quantity'] += (int) $sv['variant']->stock_quantity;
+        for ($i = 0; $i < $dimensions; $i++) {
+            $options = [];
+            foreach ($split as $s) {
+                $label = $s['parts'][$i] ?? '';
+                if ($label === '') {
+                    continue;
                 }
+                $unit = $book->unit($s['variant']);
+                if (! isset($options[$label])) {
+                    $options[$label] = [
+                        'id'             => (crc32("{$i}:{$label}") & 0x7fffffff) ?: ($i * 100 + count($options) + 1),
+                        'label'          => $label,
+                        'stock_quantity' => 0,
+                        'price'          => $unit['price'],
+                        'original_price' => $unit['price'] < $unit['regular'] ? $unit['regular'] : null,
+                        'sku'            => $s['variant']->sku,
+                    ];
+                }
+                $options[$label]['stock_quantity'] += (int) $s['variant']->stock_quantity;
             }
-
-            if (!empty($uniqueOptions)) {
-                $groups[] = [
-                    'name'    => $groupName,
-                    'options' => array_values($uniqueOptions),
-                ];
+            if ($options) {
+                $groups[] = ['name' => $names[$i] ?? ($dimensions === 1 ? 'Variation' : 'Variation ' . ($i + 1)), 'position' => $i, 'options' => array_values($options)];
             }
         }
 
         return $groups;
+    }
+
+    /** @return array<int, array<string, mixed>> every variant as its options, price and stock */
+    private function combinations(Product $product): array
+    {
+        $book = $this->book($product);
+
+        return $product->variants->map(function ($v) use ($book) {
+            $unit = $book->unit($v);
+
+            return [
+                'variant_id'     => $v->id,
+                'label'          => $v->label,
+                'parts'          => array_map('trim', explode('/', $v->label ?? '')),
+                'stock_quantity' => (int) $v->stock_quantity,
+                'price'          => $unit['price'],
+                'original_price' => $unit['price'] < $unit['regular'] ? $unit['regular'] : null,
+                'price_source'   => $unit['source'],
+            ];
+        })->values()->all();
     }
 
     private function formatProductDetail(Product $product): array
@@ -501,8 +570,26 @@ class PublicProductController extends Controller
         $shopProducts = Product::where('seller_id', $product->seller_id)->where('status', 'active');
         $shopRating = Review::whereIn('product_id', (clone $shopProducts)->select('id'))->avg('rating');
 
+        $book = $this->book($product);
+        $sale = $book->saleFor($product->id);
+        $nextFlash = \App\Models\FlashSale::where('product_id', $product->id)->whereNull('ended_at')
+            ->where('slot_start', '>', now())->orderBy('slot_start')->first();
+        $viewer = auth('sanctum')->user();
+
         return array_merge($base, [
-            'discount_percent' => $product->discount_percent,
+            'variation_types' => $product->variation_types ?? [],
+            'combinations'    => $this->combinations($product),
+            // The store sale running now, for its badge and end time.
+            'store_sale'      => $sale ? [
+                'id' => $sale->id, 'type' => $sale->discount_type, 'percent' => $sale->discount_percent,
+                'sale_price' => $sale->sale_price !== null ? (float) $sale->sale_price : null, 'ends_at' => $sale->ends_at->toIso8601String(),
+            ] : null,
+            // A flash sale scheduled later, for the "upcoming flash sale" notice and the reminder button.
+            'upcoming_flash_sale' => $nextFlash ? [
+                'id' => $nextFlash->id, 'price' => (float) $nextFlash->flash_price, 'quantity' => $nextFlash->quantity,
+                'starts_at' => $nextFlash->slot_start->toIso8601String(), 'ends_at' => $nextFlash->slot_end->toIso8601String(),
+                'reminder_set' => $viewer ? \App\Models\FlashSaleReminder::where('flash_sale_id', $nextFlash->id)->where('user_id', $viewer->id)->exists() : false,
+            ] : null,
             // Where it sits in the catalog (breadcrumb, specifications).
             'category' => $category ? [
                 'slug'   => $category->slug,

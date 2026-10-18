@@ -162,7 +162,9 @@ class ConversationController extends Controller
             'product_id'      => ['nullable', 'exists:products,id'],
             'order_id'        => ['nullable', 'exists:orders,id'],
             'subject'         => ['nullable', 'string', 'max:255'],
-            'initial_message' => ['nullable', 'string', 'max:2000'],
+            'initial_message' => ['nullable', 'string', 'max:' . self::MAX_MESSAGE],
+        ], [
+            'initial_message.max' => 'A message can be at most ' . self::MAX_MESSAGE . ' characters.',
         ]);
 
         $type = $request->type;
@@ -184,7 +186,7 @@ class ConversationController extends Controller
 
             // Check if seller is approved
             $seller = User::with('sellerProfile')->find($sellerId);
-            if (!$seller || $seller->role !== 'seller') {
+            if (!$seller || !$this->isSeller($seller)) {
                 return response()->json(['message' => 'Target user is not a registered seller.'], 422);
             }
 
@@ -230,7 +232,7 @@ class ConversationController extends Controller
                 ]);
             }
         } elseif ($type === 'seller_admin') {
-            $targetSellerId = ($user->role === 'admin' && $request->filled('seller_id')) ? (int) $request->seller_id : ($user->role === 'seller' ? $user->id : $sellerId);
+            $targetSellerId = ($user->role === 'admin' && $request->filled('seller_id')) ? (int) $request->seller_id : ($this->isSeller($user) ? $user->id : $sellerId);
             if (!$targetSellerId) {
                 return response()->json(['message' => 'Seller ID is required for seller-admin chat.'], 422);
             }
@@ -353,7 +355,7 @@ class ConversationController extends Controller
         // Reset unread counter for current user role
         if ($user->role === 'admin') {
             $conversation->update(['admin_unread' => 0]);
-        } elseif ($user->role === 'seller' && $conversation->seller_id === $user->id) {
+        } elseif ($this->isSeller($user) && $conversation->seller_id === $user->id) {
             $conversation->update(['seller_unread' => 0]);
         } else {
             $conversation->update(['buyer_unread' => 0]);
@@ -386,12 +388,22 @@ class ConversationController extends Controller
         $this->authorizeConversation($request, $conversation);
         $user = $request->user();
 
+        // A25: a message is 1 to 1,000 characters; A16: an image is JPG or PNG (checked by content) up to 5 MB.
         $request->validate([
-            'body'            => ['nullable', 'string', 'max:2000'],
-            'image'           => ['nullable', 'image', 'max:5120'],
+            'body'            => ['nullable', 'string', 'max:' . self::MAX_MESSAGE],
+            'image'           => \App\Support\Validation::image(required: false),
             'attachment_type' => ['nullable', 'string', 'in:product_card,order_card,image'],
             'attachment_data' => ['nullable', 'array'],
+        ], [
+            'body.max'       => 'A message can be at most ' . self::MAX_MESSAGE . ' characters.',
+            'image.mimes'    => 'Only JPG or PNG images can be sent.',
+            'image.max'      => 'Images must be 5 MB or smaller.',
+            'image.file'     => 'Only JPG or PNG images can be sent.',
+            'image.uploaded' => 'The image could not be uploaded. Use a JPG or PNG up to 5 MB.',
         ]);
+        if (! $request->hasFile('image') && ! $request->filled('attachment_type') && trim((string) $request->input('body', '')) === '') {
+            return response()->json(['message' => 'Write a message first.', 'errors' => ['body' => ['Write a message first.']]], 422);
+        }
 
         $body = strip_tags(trim($request->body ?? ''));
         $attachmentType = $request->attachment_type;
@@ -443,7 +455,7 @@ class ConversationController extends Controller
                 return response()->json(['message' => 'Order not found.'], 422);
             }
             $items = $ord->items;
-            if ($user->role === 'seller' && !$items->contains('seller_id', $user->id)) {
+            if ($this->isSeller($user) && !$items->contains('seller_id', $user->id)) {
                 return response()->json(['message' => 'You cannot attach orders from other sellers.'], 403);
             }
             if ($user->role === 'buyer' && $ord->buyer_id !== $user->id) {
@@ -504,7 +516,7 @@ class ConversationController extends Controller
         $user = $request->user();
 
         $sellerId = $conversation->seller_id;
-        if (!$sellerId && $user->role === 'seller') {
+        if (!$sellerId && $this->isSeller($user)) {
             $sellerId = $user->id;
         }
         $search = trim((string) $request->query('q', ''));
@@ -547,7 +559,7 @@ class ConversationController extends Controller
             if ($conversation->type === 'buyer_seller' && $conversation->seller_id) {
                 $ofShop($query, $conversation->seller_id);
             }
-        } elseif ($user->role === 'seller') {
+        } elseif ($this->isSeller($user)) {
             $ofShop($query, $user->id);
             if ($conversation->buyer_id) {
                 $query->where('buyer_id', $conversation->buyer_id);
@@ -651,6 +663,41 @@ class ConversationController extends Controller
         }
     }
 
+    /** A25: chat messages are 1 to 1,000 characters. */
+    private const MAX_MESSAGE = 1000;
+
+    /** A seller is an account with an approved shop (most keep the buyer role) or an older role "seller" account. */
+    private function isSeller(?User $user): bool
+    {
+        return $user !== null && ($user->role === 'seller' || $user->isApprovedSeller());
+    }
+
+    /** GET /my-conversation: the signed-in seller's thread with Loved-IT support, created on first use. */
+    public function mine(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $conversation = Conversation::firstOrCreate(
+            ['seller_id' => $user->id, 'type' => 'seller_admin'],
+            ['status' => 'open', 'subject' => 'Platform Support', 'last_message_at' => now()]
+        );
+        $conversation->load(['buyer', 'seller.sellerProfile', 'product.images', 'order.items', 'latestMessage.sender']);
+
+        return response()->json(['data' => $this->formatConversation($conversation, $user)]);
+    }
+
+    /** GET /admin/conversations/seller/{seller}: the admin opens (or starts) the support thread with a seller. */
+    public function openForSeller(Request $request, User $seller): JsonResponse
+    {
+        abort_unless($this->isSeller($seller), 404, 'This account is not a seller.');
+        $conversation = Conversation::firstOrCreate(
+            ['seller_id' => $seller->id, 'type' => 'seller_admin'],
+            ['status' => 'open', 'subject' => 'Platform Support', 'last_message_at' => now()]
+        );
+        $conversation->load(['buyer', 'seller.sellerProfile', 'product.images', 'order.items', 'latestMessage.sender']);
+
+        return response()->json(['data' => $this->formatConversation($conversation, $request->user())]);
+    }
+
     private function incrementUnread(Conversation $conversation, User $sender): void
     {
         $column = match ($conversation->type) {
@@ -691,7 +738,7 @@ class ConversationController extends Controller
         $unread = 0;
         if ($currentUser->role === 'admin') {
             $unread = (int) $c->admin_unread;
-        } elseif ($currentUser->role === 'seller' && $c->seller_id === $currentUser->id) {
+        } elseif ($this->isSeller($currentUser) && $c->seller_id === $currentUser->id) {
             $unread = (int) $c->seller_unread;
         } elseif ($c->buyer_id === $currentUser->id) {
             $unread = (int) $c->buyer_unread;
@@ -704,7 +751,7 @@ class ConversationController extends Controller
 
         // Context recipient info
         $recipient = null;
-        if ($currentUser->role === 'buyer') {
+        if ($currentUser->role !== 'admin' && (int) $c->seller_id !== (int) $currentUser->id) {
             if ($c->type === 'buyer_admin') {
                 $recipient = [
                     'id'        => null,
@@ -722,7 +769,7 @@ class ConversationController extends Controller
                     'subtext'   => 'Store Merchant',
                 ];
             }
-        } elseif ($currentUser->role === 'seller') {
+        } elseif ($currentUser->role !== 'admin') {
             if ($c->type === 'seller_admin') {
                 $recipient = [
                     'id'        => null,

@@ -92,6 +92,9 @@ class PublicShopController extends Controller
                 'is_following'        => $isFollowing,
                 'rating_breakdown'    => $ratingBreakdown,
                 'categories'          => $categoryBreakdown,
+                // The store's own menu: visible store categories in the seller's order (A7)
+                'store_categories'    => SellerStoreCategoryController::tree($seller->id, onlyVisible: true),
+                'on_vacation'         => (bool) $profile->on_vacation,
             ],
         ]);
     }
@@ -125,9 +128,11 @@ class PublicShopController extends Controller
                 'verified_purchase' => (bool) $r->verified_purchase,
                 'images'            => $r->imageUrls(),
                 'created_at'        => $r->created_at?->toIso8601String(),
+                'variant_label'     => $r->variant_label,
+                'seller_reply'      => $r->seller_reply ? ['body' => $r->seller_reply, 'replied_at' => $r->seller_replied_at?->toIso8601String()] : null,
                 'buyer' => [
-                    'id'         => $r->buyer?->id,
-                    'name'       => $r->buyer ? trim($r->buyer->first_name . ' ' . $r->buyer->last_name) : 'Anonymous Buyer',
+                    'id'         => null,
+                    'name'       => PublicProductController::maskName($r->buyer?->first_name, $r->buyer?->last_name),
                     'avatar_url' => $r->buyer?->avatar_path ? asset('storage/' . $r->buyer->avatar_path) : null,
                 ],
                 'product' => [

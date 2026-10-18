@@ -1324,7 +1324,9 @@ function WishlistCard({ item, removing, onRemove }: { item: WishlistItem; removi
   const [adding, setAdding] = useState(false);
   const variants = p.variants ?? [];
   const single = variants.length === 1 ? variants[0] : null;
-  const outOfStock = p.status !== 'active' || p.total_stock === 0;
+  const availability = p.availability ?? (p.status !== 'active' ? 'unavailable' : p.total_stock === 0 ? 'sold_out' : 'available');
+  const outOfStock = availability !== 'available';
+  const badge = { unavailable: 'No longer available', sold_out: 'Sold out', on_vacation: 'Shop on vacation', available: '' }[availability];
   const onSale = p.original_price != null && p.original_price > p.base_price;
   const discount = onSale ? Math.round((1 - p.base_price / p.original_price!) * 100) : 0;
 
@@ -1356,7 +1358,7 @@ function WishlistCard({ item, removing, onRemove }: { item: WishlistItem; removi
             : <span className="w-full h-full flex items-center justify-center text-stone-300"><Package className="w-8 h-8" /></span>}
         </Link>
         {onSale && !outOfStock && <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-brand-red text-white text-[11px] font-bold">-{discount}%</span>}
-        {outOfStock && <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-stone-900/80 text-white text-[11px] font-semibold">{p.status !== 'active' ? 'Unavailable' : 'Sold out'}</span>}
+        {outOfStock && <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-stone-900/80 text-white text-[11px] font-semibold">{badge}</span>}
         <button type="button" onClick={onRemove} disabled={removing} aria-label="Remove from wishlist" title="Remove"
           className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/95 ring-1 ring-stone-200 flex items-center justify-center text-brand-red hover:bg-white disabled:opacity-50">
           {removing ? <span className="w-3.5 h-3.5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" /> : <Heart className="w-4 h-4 fill-brand-red" />}
@@ -1371,7 +1373,9 @@ function WishlistCard({ item, removing, onRemove }: { item: WishlistItem; removi
         </div>
         <button type="button" onClick={add} disabled={outOfStock || adding}
           className="mt-2 h-9 rounded-full border border-stone-300 text-[12.5px] font-semibold text-stone-800 hover:border-brand-red hover:text-brand-red inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:hover:border-stone-300 disabled:hover:text-stone-800">
-          {adding ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <><ShoppingCart className="w-3.5 h-3.5" /> {single ? 'Add to cart' : 'Choose options'}</>}
+          {adding ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            : outOfStock ? badge
+            : <><ShoppingCart className="w-3.5 h-3.5" /> {single ? 'Add to cart' : 'Choose options'}</>}
         </button>
       </div>
     </article>

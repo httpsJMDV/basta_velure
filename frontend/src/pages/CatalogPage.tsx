@@ -157,15 +157,24 @@ function FilterRail({ filters, facets, categories, parent, onFilter }: {
   const [minInput, setMinInput] = useState(filters.min_price != null ? String(filters.min_price) : '');
   const [maxInput, setMaxInput] = useState(filters.max_price != null ? String(filters.max_price) : '');
   const [allSellers, setAllSellers] = useState(false);
+  const [priceError, setPriceError] = useState('');
 
-  const applyPrice = () => onFilter({
-    min_price: minInput !== '' ? Number(minInput) : undefined,
-    max_price: maxInput !== '' ? Number(maxInput) : undefined,
-  });
+  // The same checks as the server: numbers only, no negatives, and the minimum not above the maximum.
+  const applyPrice = () => {
+    const min = minInput.trim();
+    const max = maxInput.trim();
+    const num = /^\d+(\.\d{1,2})?$/;
+    if (min.startsWith('-') || max.startsWith('-')) { setPriceError('Prices cannot be negative.'); return; }
+    if ((min && !num.test(min)) || (max && !num.test(max))) { setPriceError('Enter the prices as numbers, like 250 or 199.50.'); return; }
+    if (min && max && Number(min) > Number(max)) { setPriceError('The minimum price cannot be more than the maximum price.'); return; }
+    setPriceError('');
+    onFilter({ min_price: min ? Number(min) : undefined, max_price: max ? Number(max) : undefined });
+  };
   const pickPreset = (min?: number, max?: number) => {
     const same = filters.min_price === min && filters.max_price === max;
     setMinInput(same || min == null ? '' : String(min));
     setMaxInput(same || max == null ? '' : String(max));
+    setPriceError('');
     onFilter({ min_price: same ? undefined : min, max_price: same ? undefined : max });
   };
   const toggle = <T,>(current: T[] | undefined, value: T) => {
@@ -238,13 +247,16 @@ function FilterRail({ filters, facets, categories, parent, onFilter }: {
           })}
         </div>
         <form onSubmit={(e) => { e.preventDefault(); applyPrice(); }} className="flex items-center gap-1.5">
-          <input type="number" min={0} inputMode="numeric" placeholder="₱ Min" value={minInput} onChange={(e) => setMinInput(e.target.value)}
-            className="w-full min-w-0 h-9 rounded-lg border border-stone-200 bg-white px-2.5 text-[13px] outline-none focus:border-brand-red" />
+          <input type="text" inputMode="decimal" placeholder="₱ Min" aria-label="Minimum price" value={minInput} onChange={(e) => { setMinInput(e.target.value); setPriceError(''); }}
+            aria-invalid={!!priceError}
+            className={`w-full min-w-0 h-9 rounded-lg border bg-white px-2.5 text-[13px] outline-none focus:border-brand-red ${priceError ? 'border-brand-red' : 'border-stone-200'}`} />
           <span className="text-stone-300">–</span>
-          <input type="number" min={0} inputMode="numeric" placeholder="₱ Max" value={maxInput} onChange={(e) => setMaxInput(e.target.value)}
-            className="w-full min-w-0 h-9 rounded-lg border border-stone-200 bg-white px-2.5 text-[13px] outline-none focus:border-brand-red" />
+          <input type="text" inputMode="decimal" placeholder="₱ Max" aria-label="Maximum price" value={maxInput} onChange={(e) => { setMaxInput(e.target.value); setPriceError(''); }}
+            aria-invalid={!!priceError}
+            className={`w-full min-w-0 h-9 rounded-lg border bg-white px-2.5 text-[13px] outline-none focus:border-brand-red ${priceError ? 'border-brand-red' : 'border-stone-200'}`} />
           <button type="submit" className="shrink-0 h-9 px-3 rounded-lg bg-stone-900 hover:bg-black text-white text-[12px] font-semibold transition-colors">Go</button>
         </form>
+        {priceError && <p role="alert" className="mt-2 text-[12px] font-medium text-brand-red">{priceError}</p>}
       </RailSection>
 
       <RailSection title="Rating">

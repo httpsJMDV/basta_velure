@@ -468,6 +468,7 @@ export const getProductsApi = (filters: ProductFilters = {}) => {
   if (filters.q)                  params.q                  = filters.q;
   if (filters.parent_category_id) params.parent_category_id = filters.parent_category_id;
   if (filters.category_id)        params.category_id        = filters.category_id;
+  if (filters.store_category_id)  params.store_category_id  = filters.store_category_id;
   if (filters.seller_ids?.length) params.seller_ids         = filters.seller_ids.join(',');
   if (filters.min_price != null)  params.min_price          = filters.min_price;
   if (filters.max_price != null)  params.max_price          = filters.max_price;
@@ -490,6 +491,10 @@ export const getStorefrontCategoriesApi = () =>
   http.get<{ data: StorefrontCategory[] }>('/categories').then((r) => r.data.data);
 
 // Products — detail & reviews
+/** Sets or clears the buyer's reminder for an upcoming flash sale. */
+export const setFlashReminderApi = (flashSaleId: number, on: boolean) =>
+  (on ? http.post : http.delete)<{ message: string; data: { reminder_set: boolean } }>(`/flash-sales/${flashSaleId}/reminder`).then((r) => r.data);
+
 export const getProductApi = (id: number) =>
   http.get<{ data: ProductDetail }>(`/products/${id}`).then((r) => r.data.data);
 
@@ -553,6 +558,11 @@ export interface SellerShopProfile {
   address_city_code?: string | null;
   address_barangay_code?: string | null;
   address_needs_update?: boolean;
+  address_region?: string | null;
+  address_region_code?: string | null;
+  address_postal_code?: string | null;
+  on_vacation?: boolean;
+  vacation_started_at?: string | null;
   shop_contact_number: string | null;
   return_policy: string | null;
   shipping_policy: string | null;
@@ -585,11 +595,7 @@ export const getSellerProductsApi = () =>
 export const getSellerProductApi = (id: number) =>
   http.get<{ data: SellerProduct }>(`/seller/products/${id}`).then((r) => r.data.data);
 
-export const createSellerProductApi = (form: FormData) =>
-  http.post<{ data: SellerProduct }>('/seller/products', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then((r) => r.data.data);
-
+// Creating, saving, pricing and publishing products: api/sellerCatalog.ts.
 export const uploadDescriptionImageApi = (file: File) => {
   const fd = new FormData();
   fd.append('image', file);
@@ -597,23 +603,6 @@ export const uploadDescriptionImageApi = (file: File) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
 };
-
-export const updateSellerProductApi = (id: number, form: FormData) =>
-  http.post<{ data: SellerProduct }>(`/seller/products/${id}`, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then((r) => r.data.data);
-
-export const updateSellerProductStockApi = (id: number, stock: number) =>
-  http.patch(`/seller/products/${id}/stock`, { stock });
-
-export const updateSellerProductPriceApi = (id: number, price: number) =>
-  http.patch(`/seller/products/${id}/price`, { price });
-
-export const archiveSellerProductApi = (id: number, status: 'active' | 'archived') =>
-  http.patch<{ data: SellerProduct }>(`/seller/products/${id}/status`, { status }).then((r) => r.data.data);
-
-export const submitSellerProductForReviewApi = (id: number) =>
-  http.patch<{ data: SellerProduct }>(`/seller/products/${id}/status`, { status: 'pending_review' }).then((r) => r.data.data);
 
 export const deleteSellerProductApi = (id: number) =>
   http.delete(`/seller/products/${id}`);

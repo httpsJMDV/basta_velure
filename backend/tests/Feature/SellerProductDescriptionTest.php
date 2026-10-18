@@ -11,8 +11,8 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * The product description is rich text: the 1,500-character limit applies to the visible text (as the form counts
- * it), not to the HTML, whose tags and embedded image URLs would otherwise reject a short description.
+ * The product description is rich text: the 20 to 3,000 character limit (A25) applies to the visible text (as the
+ * form counts it), not to the HTML, whose tags and embedded image URLs would otherwise reject a short description.
  */
 class SellerProductDescriptionTest extends TestCase
 {
@@ -61,18 +61,18 @@ class SellerProductDescriptionTest extends TestCase
         $this->assertSame($html, Product::where('seller_id', $this->seller->id)->latest('id')->value('description'));
     }
 
-    public function test_visible_text_over_1500_characters_is_rejected_on_create_and_update(): void
+    public function test_visible_text_over_3000_characters_is_rejected_on_create_and_update(): void
     {
-        $tooLong = '<p>' . str_repeat('x', 1501) . '</p>';
+        $tooLong = '<p>' . str_repeat('x', 3001) . '</p>';
 
         $this->postJson('/api/v1/seller/products', $this->payload($tooLong))
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['description' => 'Description must not exceed 1,500 characters.']);
+            ->assertJsonValidationErrors(['description' => 'The description must be 3,000 characters or fewer.']);
 
         $id = $this->postJson('/api/v1/seller/products', $this->payload('<p>Short</p>'))->assertCreated()->json('data.id');
         $this->postJson("/api/v1/seller/products/{$id}", $this->payload($tooLong))
             ->assertStatus(422)->assertJsonValidationErrors(['description']);
-        $this->postJson("/api/v1/seller/products/{$id}", $this->payload('<p><b>' . str_repeat('y', 1500) . '</b></p>'))
+        $this->postJson("/api/v1/seller/products/{$id}", $this->payload('<p><b>' . str_repeat('y', 3000) . '</b></p>'))
             ->assertOk();
     }
 }

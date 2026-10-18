@@ -35,35 +35,72 @@ class SellerShopProfileController extends Controller
         abort_if(!$profile, 404);
 
         $addressFields = [
-            'address_province', 'address_city', 'address_barangay', 'address_street',
-            'address_province_code', 'address_city_code', 'address_barangay_code',
+            'address_region', 'address_region_code', 'address_province', 'address_city', 'address_barangay', 'address_street',
+            'address_province_code', 'address_city_code', 'address_barangay_code', 'address_postal_code',
         ];
 
+        // Store name and contact are trimmed and the mobile number normalized before the rules (A4, A25).
+        if (is_string($request->input('shop_name'))) {
+            $request->merge(['shop_name' => preg_replace('/\s+/u', ' ', trim($request->input('shop_name')))]);
+        }
+        if ($request->has('shop_contact_number')) {
+            $request->merge(['shop_contact_number' => \App\Support\PhMobile::prepare($request->input('shop_contact_number'))]);
+        }
+
         $rules = [
-            'shop_name'           => 'sometimes|string|max:100|unique:seller_profiles,shop_name,' . $profile->id,
+            'shop_name'           => ['sometimes', 'required', 'string', 'min:3', 'max:30', function ($attr, $value, $fail) use ($user) {
+                if (is_string($value) && \App\Http\Requests\Auth\SellerRegisterRequest::shopNameTaken($value, $user->id)) {
+                    $fail('This store name is already taken. Choose another name.');
+                }
+            }],
             'shop_category'       => 'sometimes|nullable|string|max:100',
             'shop_description'    => 'sometimes|nullable|string|max:500',
             'shop_bio'            => 'sometimes|nullable|string|max:100',
-            'shop_contact_number' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^[0-9+]+$/'],
+            'shop_contact_number' => ['sometimes', 'required', ...\App\Support\PhMobile::rules()],
             'return_policy'       => 'sometimes|nullable|string|max:500',
             'shipping_policy'     => 'sometimes|nullable|string|max:500',
             'business_hours'      => 'sometimes|nullable|string|max:100',
             'response_time'       => 'sometimes|nullable|string|max:50',
-            'logo'                => 'sometimes|image|max:2048',
-            'banner'              => 'sometimes|image|max:5120',
+            'logo'                => ['sometimes', ...\App\Support\Validation::image()],
+            'banner'              => ['sometimes', ...\App\Support\Validation::image()],
+            'on_vacation'         => ['sometimes', 'boolean'],
         ];
 
         if ($request->hasAny($addressFields)) {
+            $rules['address_region']        = 'nullable|string|max:100';
+            $rules['address_region_code']   = ['nullable', 'string', 'regex:/^\d{9,10}$/'];
             $rules['address_province']      = 'required|string|max:100';
             $rules['address_city']          = 'required|string|max:100';
             $rules['address_barangay']      = 'required|string|max:100';
-            $rules['address_street']        = 'nullable|string|max:255';
+            $rules['address_street']        = 'required|string|max:255';
+            $rules['address_postal_code']   = ['nullable', 'string', 'regex:' . \App\Support\Validation::POSTAL_REGEX];
             $rules['address_province_code'] = ['required', 'string', 'regex:/^\d{9,10}$/'];
             $rules['address_city_code']     = ['required', 'string', 'regex:/^\d{9,10}$/'];
             $rules['address_barangay_code'] = ['required', 'string', 'regex:/^\d{9,10}$/'];
         }
 
-        $data = $request->validate($rules);
+        $data = $request->validate($rules, [
+            'shop_name.required'           => 'Store name is required.',
+            'shop_name.min'                => 'Store name must be 3 to 30 characters.',
+            'shop_name.max'                => 'Store name must be 3 to 30 characters.',
+            'shop_description.max'         => 'The store description can be at most 500 characters.',
+            'shop_contact_number.required' => 'Contact number is required.',
+            'shop_contact_number.regex'    => \App\Support\PhMobile::MESSAGE,
+            'shop_contact_number.string'   => \App\Support\PhMobile::MESSAGE,
+            'address_province.required'    => 'Province is required.',
+            'address_city.required'        => 'City / Municipality is required.',
+            'address_barangay.required'    => 'Barangay is required.',
+            'address_street.required'      => 'Street address is required.',
+            'address_province_code.required' => 'Province is required.',
+            'address_city_code.required'   => 'City / Municipality is required.',
+            'address_barangay_code.required' => 'Barangay is required.',
+            'address_postal_code.regex'    => \App\Support\Validation::POSTAL_MESSAGE,
+            ...\App\Support\Validation::uploadMessages('logo', 'the logo'),
+            ...\App\Support\Validation::uploadMessages('banner', 'the banner'),
+        ]);
+        if (array_key_exists('on_vacation', $data)) {
+            $data['vacation_started_at'] = $data['on_vacation'] ? ($profile->vacation_started_at ?? now()) : null;
+        }
 
         if ($request->hasFile('logo')) {
             if ($profile->logo_path) Storage::disk('public')->delete($profile->logo_path);
@@ -99,8 +136,13 @@ class SellerShopProfileController extends Controller
             'address_province_code' => $p->address_province_code,
             'address_city_code'     => $p->address_city_code,
             'address_barangay_code' => $p->address_barangay_code,
+            'address_region'        => $p->address_region,
+            'address_region_code'   => $p->address_region_code,
+            'address_postal_code'   => $p->address_postal_code,
             'address_needs_update'  => $p->address_needs_update,
-            'shop_contact_number'   => $p->shop_contact_number,
+            'shop_contact_number'   => \App\Support\PhMobile::local($p->shop_contact_number),
+            'on_vacation'           => (bool) $p->on_vacation,
+            'vacation_started_at'   => $p->vacation_started_at?->toIso8601String(),
             'return_policy'       => $p->return_policy,
             'shipping_policy'     => $p->shipping_policy,
             'business_hours'      => $p->business_hours,

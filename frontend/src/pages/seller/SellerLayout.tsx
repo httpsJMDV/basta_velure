@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   Wallet, BarChart2, MessageSquare, Star, Store, Settings,
   LogOut, Menu, X, ChevronRight, ShoppingBag, Plus,
-  PanelLeft, ExternalLink, Search, CheckCircle2, AlertTriangle, AlertCircle, Banknote,
+  PanelLeft, ExternalLink, Search, CheckCircle2, AlertTriangle, AlertCircle, Banknote, FolderTree, BadgePercent,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -19,7 +19,14 @@ interface NavAction { label: string; to: string; }
 interface NavItem  { icon: React.ElementType; label: string; to: string; badge?: number; action?: NavAction; }
 interface NavGroup { heading: string; items: NavItem[]; }
 
-function buildSellerNav(badges: { pendingReview: number; newOrders: number; unreadMessages: number }): NavGroup[] {
+function buildSellerNav(badges: { pendingReview: number; newOrders: number; unreadMessages: number }, approved: boolean): NavGroup[] {
+  // A waiting applicant prepares drafts; the rest of the seller centre opens once the store is approved (A18).
+  if (!approved) {
+    return [
+      { heading: 'Selling', items: [{ icon: Package, label: 'Products', to: '/seller/products', action: { label: 'Add', to: '/seller/products/new' } }] },
+      { heading: 'Settings', items: [{ icon: Settings, label: 'Account Settings', to: '/seller/account' }] },
+    ];
+  }
   return [
     {
       heading: 'Overview',
@@ -35,6 +42,8 @@ function buildSellerNav(badges: { pendingReview: number; newOrders: number; unre
           badge: badges.pendingReview,
           action: { label: 'Add', to: '/seller/products/new' },
         },
+        { icon: FolderTree, label: 'Store Categories', to: '/seller/store-categories' },
+        { icon: BadgePercent, label: 'Promotions', to: '/seller/promotions' },
         { icon: ShoppingCart, label: 'Orders', to: '/seller/orders', badge: badges.newOrders },
       ],
     },
@@ -69,6 +78,8 @@ const SELLER_SEARCH_PAGES = [
   { label: 'Dashboard Overview', to: '/seller', group: 'Overview', icon: LayoutDashboard },
   { label: 'Products Catalog', to: '/seller/products', group: 'Selling', icon: Package },
   { label: 'Add New Product', to: '/seller/products/new', group: 'Selling', icon: Plus },
+  { label: 'Store Categories', to: '/seller/store-categories', group: 'Selling', icon: FolderTree },
+  { label: 'Promotions: sales, flash sales, bundles', to: '/seller/promotions', group: 'Selling', icon: BadgePercent },
   { label: 'Orders & Fulfillment', to: '/seller/orders', group: 'Selling', icon: ShoppingCart },
   { label: 'Payments: GCash, couriers & commission', to: '/seller/payments', group: 'Finance', icon: Banknote },
   { label: 'Earnings & Payouts', to: '/seller/earnings', group: 'Finance', icon: Wallet },
@@ -460,6 +471,8 @@ const ROUTE_LABELS: Record<string, string> = {
   '/seller':              'Dashboard',
   '/seller/products':     'Products',
   '/seller/products/new': 'Add Product',
+  '/seller/store-categories': 'Store Categories',
+  '/seller/promotions':   'Promotions',
   '/seller/orders':       'Orders',
   '/seller/payments':     'Payments',
   '/seller/earnings':     'Earnings & Payouts',
@@ -756,6 +769,8 @@ export default function SellerLayout() {
   const [unreadMessages, setUnreadMessages] = useState(0);
 
   const location = useLocation();
+  const { user } = useAuth();
+  const approved = user?.seller_profile?.application_status === 'approved';
 
   const handleToggleSidebar = () => {
     setCollapsed((prev) => {
@@ -765,8 +780,9 @@ export default function SellerLayout() {
     });
   };
 
-  // Fetch real seller alerts and unread message count
+  // Fetch real seller alerts and unread message count (an applicant has neither yet)
   useEffect(() => {
+    if (!approved) return;
     let mounted = true;
     getSellerDashboardAttentionApi()
       .then((data) => {
@@ -783,14 +799,14 @@ export default function SellerLayout() {
     return () => {
       mounted = false;
     };
-  }, [location.pathname]);
+  }, [location.pathname, approved]);
 
   const newOrdersCount = attentionItems.filter((i) => i.type === 'new_order').length;
   const nav = buildSellerNav({
     pendingReview: 0,
     newOrders: newOrdersCount,
     unreadMessages: unreadMessages,
-  });
+  }, approved);
 
   const sidebarW = collapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
   const mainML   = collapsed ? ML_COLLAPSED : ML_EXPANDED;

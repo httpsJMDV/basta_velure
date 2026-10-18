@@ -360,6 +360,25 @@ Route::prefix('v1')->group(function () {
             Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'send']);
         });
 
+        // Seller products: a store waiting for approval can prepare drafts; only an approved store publishes (A18)
+        Route::middleware('seller_applicant')->group(function () {
+            Route::get('/seller/products', [SellerProductController::class, 'index']);
+            Route::post('/seller/products', [SellerProductController::class, 'store'])->middleware('throttle:upload');
+            Route::post('/seller/products/bulk', [SellerProductController::class, 'bulk']);
+            Route::post('/seller/products/description-image', [SellerProductController::class, 'uploadDescriptionImage'])->middleware('throttle:upload');
+            Route::get('/seller/products/{product}', [SellerProductController::class, 'show']);
+            Route::post('/seller/products/{product}', [SellerProductController::class, 'update'])->middleware('throttle:upload');
+            Route::post('/seller/products/{product}/duplicate', [SellerProductController::class, 'duplicate']);
+            Route::patch('/seller/products/{product}/stock', [SellerProductController::class, 'updateStock']);
+            Route::patch('/seller/products/{product}/price', [SellerProductController::class, 'updatePrice']);
+            Route::patch('/seller/products/{product}/status', [SellerProductController::class, 'updateStatus']);
+            Route::delete('/seller/products/{product}', [SellerProductController::class, 'destroy']);
+        });
+
+        // Flash sale reminders (buyers)
+        Route::post('/flash-sales/{flash}/reminder', [\App\Http\Controllers\Api\V1\FlashSaleReminderController::class, 'store'])->whereNumber('flash');
+        Route::delete('/flash-sales/{flash}/reminder', [\App\Http\Controllers\Api\V1\FlashSaleReminderController::class, 'destroy'])->whereNumber('flash');
+
         // Seller: own conversation with admin (any approved seller, regardless of role value)
         Route::middleware('approved_seller')->group(function () {
             // Seller dashboard
@@ -368,16 +387,29 @@ Route::prefix('v1')->group(function () {
             Route::get('/seller/dashboard/attention', [SellerDashboardController::class, 'attention']);
             Route::get('/seller/dashboard/top-products', [SellerDashboardController::class, 'topProducts']);
 
-            // Seller products
-            Route::get('/seller/products', [SellerProductController::class, 'index']);
-            Route::post('/seller/products', [SellerProductController::class, 'store'])->middleware('throttle:upload');
-            Route::post('/seller/products/description-image', [SellerProductController::class, 'uploadDescriptionImage'])->middleware('throttle:upload');
-            Route::get('/seller/products/{product}', [SellerProductController::class, 'show']);
-            Route::post('/seller/products/{product}', [SellerProductController::class, 'update'])->middleware('throttle:upload');
-            Route::patch('/seller/products/{product}/stock', [SellerProductController::class, 'updateStock']);
-            Route::patch('/seller/products/{product}/price', [SellerProductController::class, 'updatePrice']);
-            Route::patch('/seller/products/{product}/status', [SellerProductController::class, 'updateStatus']);
-            Route::delete('/seller/products/{product}', [SellerProductController::class, 'destroy']);
+            // Store categories, promotions and reviews (approved stores)
+            $storeCats = \App\Http\Controllers\Api\V1\SellerStoreCategoryController::class;
+            Route::get('/seller/store-categories', [$storeCats, 'index']);
+            Route::post('/seller/store-categories', [$storeCats, 'store']);
+            Route::post('/seller/store-categories/reorder', [$storeCats, 'reorder']);
+            Route::patch('/seller/store-categories/{category}', [$storeCats, 'update'])->whereNumber('category');
+            Route::get('/seller/store-categories/{category}/delete-preview', [$storeCats, 'deletePreview'])->whereNumber('category');
+            Route::delete('/seller/store-categories/{category}', [$storeCats, 'destroy'])->whereNumber('category');
+
+            $promos = \App\Http\Controllers\Api\V1\SellerPromotionController::class;
+            Route::get('/seller/promotions', [$promos, 'index']);
+            Route::post('/seller/promotions', [$promos, 'storePromotion']);
+            Route::post('/seller/promotions/{promotion}/end', [$promos, 'endPromotion'])->whereNumber('promotion');
+            Route::post('/seller/sales', [$promos, 'storeSale']);
+            Route::patch('/seller/sales/{sale}', [$promos, 'updateSale'])->whereNumber('sale');
+            Route::post('/seller/sales/{sale}/end', [$promos, 'endSale'])->whereNumber('sale');
+            Route::post('/seller/flash-sales', [$promos, 'storeFlash']);
+            Route::post('/seller/flash-sales/{flash}/end', [$promos, 'endFlash'])->whereNumber('flash');
+
+            $sellerReviews = \App\Http\Controllers\Api\V1\SellerReviewController::class;
+            Route::get('/seller/reviews', [$sellerReviews, 'index']);
+            Route::post('/seller/reviews/{review}/reply', [$sellerReviews, 'reply'])->whereNumber('review');
+            Route::patch('/seller/reviews/{review}/reply', [$sellerReviews, 'updateReply'])->whereNumber('review');
 
             // Seller shop profile
             Route::get('/seller/shop-profile', [SellerShopProfileController::class, 'show']);
@@ -415,15 +447,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/my-conversation', [ConversationController::class, 'mine']);
             Route::get('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
                 $conv = \App\Models\Conversation::firstOrCreate(
-                    ['seller_id' => $req->user()->id],
-                    ['last_message_at' => now()]
+                    ['seller_id' => $req->user()->id, 'type' => 'seller_admin'],
+                    ['status' => 'open', 'subject' => 'Platform Support', 'last_message_at' => now()]
                 );
                 return app(ConversationController::class)->messages($req, $conv);
             });
             Route::post('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
                 $conv = \App\Models\Conversation::firstOrCreate(
-                    ['seller_id' => $req->user()->id],
-                    ['last_message_at' => now()]
+                    ['seller_id' => $req->user()->id, 'type' => 'seller_admin'],
+                    ['status' => 'open', 'subject' => 'Platform Support', 'last_message_at' => now()]
                 );
                 return app(ConversationController::class)->send($req, $conv);
             });

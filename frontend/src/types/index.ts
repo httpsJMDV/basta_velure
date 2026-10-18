@@ -1545,6 +1545,13 @@ export interface Product {
   review_count: number;
   seller: ProductSeller;
   variants: ProductVariantSummary[];
+  /** A flash sale running now (its price is already in base_price). */
+  flash_sale?: { id: number; price: number; remaining: number; quantity: number; ends_at: string; variant_id: number | null } | null;
+  /** The shop is on vacation: browsing only, no orders. */
+  on_vacation?: boolean;
+  purchase_limit?: number | null;
+  total_stock?: number;
+  price_range?: { min: number; max: number; regular_min: number; regular_max: number };
 }
 
 // ─── Product Detail ─────────────────────────────────────────────────────────
@@ -1588,6 +1595,7 @@ export interface ProductDetailSeller {
   response_rate: number | null;
   return_policy?: string | null;
   shipping_policy?: string | null;
+  on_vacation?: boolean;
 }
 
 export interface ProductDetailSpecs {
@@ -1629,10 +1637,31 @@ export interface ProductDetail extends Omit<Product, 'variants' | 'thumbnail_url
   return_policy: string | null;
   warranty: string | null;
   is_wishlisted: boolean;
-  /** The shop's own discount, in percent. */
+  /** The running store sale's percentage, when it is a percentage discount. */
   discount_percent?: number | null;
   /** Where it sits in the catalog. */
   category?: { slug: string; name: string; parent: { slug: string; name: string } | null } | null;
+  /** The seller's names for the variation types, e.g. ["Color", "Size"]. */
+  variation_types?: string[];
+  /** Every variant as its option labels, price and stock, so a sold-out combination can be disabled. */
+  combinations?: ProductCombination[];
+  price_range?: { min: number; max: number; regular_min: number; regular_max: number };
+  store_sale?: { id: number; type: 'percent' | 'fixed'; percent: number | null; sale_price: number | null; ends_at: string } | null;
+  flash_sale?: { id: number; price: number; remaining: number; quantity: number; ends_at: string; variant_id: number | null } | null;
+  upcoming_flash_sale?: { id: number; price: number; quantity: number; starts_at: string; ends_at: string; reminder_set: boolean } | null;
+  on_vacation?: boolean;
+  purchase_limit?: number | null;
+  total_stock?: number;
+}
+
+export interface ProductCombination {
+  variant_id: number;
+  label: string;
+  parts: string[];
+  stock_quantity: number;
+  price: number;
+  original_price: number | null;
+  price_source: 'regular' | 'sale' | 'flash';
 }
 
 export interface ProductReview {
@@ -1643,6 +1672,8 @@ export interface ProductReview {
   created_at: string;
   images?: string[];
   buyer: { id: number | null; name: string; avatar_url: string | null };
+  variant_label?: string | null;
+  seller_reply?: { body: string; replied_at: string | null; edited_at: string | null } | null;
 }
 
 export interface ProductReviewsResponse {
@@ -1660,6 +1691,8 @@ export interface ProductFilters {
   q?: string;                   // free-text search
   parent_category_id?: string;  // parent node ID
   category_id?: string;         // leaf node ID
+  /** A shop's own store category (its subcategories included). */
+  store_category_id?: number;
   seller_ids?: number[];
   min_price?: number;
   max_price?: number;
@@ -1799,10 +1832,13 @@ export interface SellerProductVariant {
   label: string;          // e.g. "Red / M"
   sku: string | null;
   stock_quantity: number;
-  /** What buyers pay (after the shop's discount). */
+  /** The regular price (what the seller's form edits). */
   price: number;
-  /** The price before the discount: what the seller's form edits. */
   regular_price?: number;
+  /** What buyers pay right now, with a running store or flash sale. */
+  current_price?: number;
+  /** At or below the low-stock threshold (5). */
+  low_stock?: boolean;
 }
 
 export interface SellerProduct {
@@ -1837,6 +1873,13 @@ export interface SellerProduct {
   allergen_info: string | null;
   fda_lto_on_file: boolean;
   fda_cpr_on_file: boolean;
+  /** The lowest and highest price now (sale or flash price when one runs) and the regular range. */
+  price_range?: { min: number; max: number; regular_min: number; regular_max: number };
+  /** The names of the (at most two) variation types, e.g. ["Color", "Size"]. */
+  variation_types?: string[];
+  store_category_ids?: number[];
+  purchase_limit?: number | null;
+  published_at?: string | null;
 }
 
 export interface SellerProductCounts {
@@ -1851,6 +1894,9 @@ export interface SellerProductCounts {
 // ─── Add Product Form ────────────────────────────────────────────────────────
 
 export interface ProductFormVariantRow {
+  /** The saved variant's id (edit mode), so orders keep pointing at it. */
+  id?: number;
+  sku?: string;
   /** Combination label, e.g. "Red / M" */
   combination: string;
   /** Map of variantTypeIndex → optionValue */
@@ -1893,7 +1939,6 @@ export interface AddProductFormState {
   price: string;
   stock: string;
   /** The shop's discount on every variant, in percent ('' = none). */
-  discountPercent: string;
   // Shipping
   weightValue: string;
   weightUnit: 'kg' | 'g';
@@ -1910,6 +1955,10 @@ export interface AddProductFormState {
   storageInstructions: string;
   expiryDate: string;
   allergenInfo: string;
+  /** The store's own categories this product is in (up to 3). */
+  storeCategoryIds: number[];
+  /** The most units one buyer can ever buy ('' = no limit). */
+  purchaseLimit: string;
 }
 
 // ─── Wishlist & Store Follows ────────────────────────────────────────────────
@@ -1921,6 +1970,8 @@ export interface WishlistProduct {
   base_price: number;
   original_price: number | null;
   status: string;
+  /** available, sold_out, on_vacation (the shop is away) or unavailable (removed, deactivated or the shop closed). */
+  availability?: 'available' | 'sold_out' | 'on_vacation' | 'unavailable';
   total_stock: number;
   variants?: { id: number; label: string; price: number; stock_quantity: number }[];
   seller: { id: number; shop_name: string; shop_slug?: string };
@@ -2004,6 +2055,9 @@ export interface PublicShopProfile {
   is_following: boolean;
   rating_breakdown?: Record<number, number>;
   categories?: { category_id: string; category_name: string; count: number }[];
+  /** The seller's own store categories (visible ones), two levels deep. */
+  store_categories?: { id: number; name: string; product_count: number; children?: { id: number; name: string; product_count: number }[] }[];
+  on_vacation?: boolean;
 }
 
 export interface PublicShopReview {

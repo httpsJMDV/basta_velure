@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Star, MapPin, Package, ShoppingCart, Check } from 'lucide-react';
+import { Star, MapPin, Package, ShoppingCart, Check, Zap } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { Product } from '../../types';
 import { resolveShortLocation } from '../../utils/psgc';
@@ -35,6 +35,8 @@ export default function ProductCard({ product, list = false }: ProductCardProps)
   const isOnSale = discount > 0;
   const sold = soldText(product.units_sold);
   const { add, added, soldOut, needsChoice } = useQuickAdd(product);
+  const away = !!product.on_vacation;
+  const blocked = soldOut || away;
 
   if (list) return <ListCard product={product} isOnSale={isOnSale} discount={discount} sold={sold} />;
 
@@ -44,8 +46,13 @@ export default function ProductCard({ product, list = false }: ProductCardProps)
         {product.thumbnail_url
           ? <img src={product.thumbnail_url} alt={product.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
           : <div className="w-full h-full flex items-center justify-center"><Package className="w-9 h-9 text-gray-300" /></div>}
-        {soldOut && (
-          <span className="absolute inset-x-0 bottom-0 py-1 text-center text-[11px] font-semibold text-white bg-black/55 backdrop-blur-[2px]">Sold out</span>
+        {product.flash_sale && !blocked && (
+          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-stone-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            <Zap className="w-3 h-3 text-amber-300 fill-amber-300" /> Flash
+          </span>
+        )}
+        {blocked && (
+          <span className="absolute inset-x-0 bottom-0 py-1 text-center text-[11px] font-semibold text-white bg-black/55 backdrop-blur-[2px]">{away ? 'Shop on vacation' : 'Sold out'}</span>
         )}
       </div>
 
@@ -64,12 +71,12 @@ export default function ProductCard({ product, list = false }: ProductCardProps)
           <button
             type="button"
             onClick={add}
-            disabled={soldOut}
-            title={soldOut ? 'Sold out' : needsChoice ? 'Choose an option' : 'Add to cart'}
-            aria-label={soldOut ? 'Sold out' : needsChoice ? `Choose an option for ${product.name}` : `Add ${product.name} to cart`}
+            disabled={blocked}
+            title={away ? 'This shop is on vacation' : soldOut ? 'Sold out' : needsChoice ? 'Choose an option' : 'Add to cart'}
+            aria-label={away ? 'This shop is on vacation' : soldOut ? 'Sold out' : needsChoice ? `Choose an option for ${product.name}` : `Add ${product.name} to cart`}
             className={`shrink-0 w-8 h-8 rounded-full border-[1.5px] flex items-center justify-center transition-all duration-200 active:scale-90 ${
               added ? 'bg-emerald-500 border-emerald-500 text-white'
-                : soldOut ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                : blocked ? 'border-gray-200 text-gray-300 cursor-not-allowed'
                 : 'border-gray-800 text-gray-800 hover:bg-brand-red hover:border-brand-red hover:text-white'
             }`}
           >

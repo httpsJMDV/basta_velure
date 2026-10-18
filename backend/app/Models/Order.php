@@ -36,7 +36,7 @@ class Order extends Model
         'payment_verified_by', 'verification_rejection_reason',
         'shipping_name', 'shipping_phone', 'shipping_address',
         'shipping_province', 'shipping_city', 'shipping_barangay',
-        'shipping_province_code', 'shipping_city_code', 'shipping_barangay_code', 'notes',
+        'shipping_province_code', 'shipping_city_code', 'shipping_barangay_code', 'notes', 'completed_at',
     ];
 
     protected function casts(): array

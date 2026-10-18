@@ -14,6 +14,9 @@ Artisan::command('inspire', function () {
 Schedule::command('orders:auto-complete')->hourly()->withoutOverlapping();
 Schedule::command('payouts:release-due')->hourly()->withoutOverlapping();
 
+// Flash sale reminders, just before a slot starts.
+Schedule::command('flash-sales:remind')->everyMinute()->withoutOverlapping();
+
 // A heartbeat so `php artisan scheduler:check` can tell whether the scheduler is running at all.
 Schedule::call(fn () => Cache::put(
     \App\Console\Commands\CheckSchedulerRunning::HEARTBEAT_KEY,

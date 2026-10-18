@@ -119,41 +119,49 @@ class StorefrontCatalogTest extends TestCase
         $this->assertSame([], $ids('qqqqzzzz'));
     }
 
-    public function test_a_seller_discount_applies_to_regular_prices_and_never_compounds(): void
+    public function test_a_store_sale_discounts_regular_prices_while_it_runs_and_never_compounds(): void
     {
         Sanctum::actingAs($this->seller);
         $payload = fn (array $extra = []) => $extra + [
-            'name' => 'Wireless Earbuds', 'description' => '<p>Earbuds</p>', 'status' => 'draft', 'base_price' => 1000,
+            'name' => 'Wireless Earbuds', 'description' => '<p>Earbuds</p>', 'status' => 'draft',
             'variants' => [['label' => 'Black', 'price' => 1000, 'stock' => 5], ['label' => 'White', 'price' => 1200, 'stock' => 5]],
         ];
 
-        $id = $this->postJson('/api/v1/seller/products', $payload(['discount_percent' => 20]))->assertCreated()
-            ->assertJsonPath('data.discount_percent', 20)
-            ->assertJsonPath('data.base_price', 800)
+        $id = $this->postJson('/api/v1/seller/products', $payload())->assertCreated()->json('data.id');
+        $start = \Carbon\CarbonImmutable::now('Asia/Manila');
+        $sale = $this->postJson('/api/v1/seller/sales', [
+            'product_id' => $id, 'discount_type' => 'percent', 'discount_percent' => 20,
+            'starts_at' => $start->format('Y-m-d H:i:s'), 'ends_at' => $start->addHours(2)->format('Y-m-d H:i:s'),
+        ])->assertCreated()->assertJsonPath('data.status', 'ongoing')->json('data.id');
+
+        $this->getJson("/api/v1/seller/products/{$id}")->assertOk()
+            ->assertJsonPath('data.price_range.min', 800)
+            ->assertJsonPath('data.price_range.max', 960)
             ->assertJsonPath('data.original_price', 1000)
-            ->json('data.id');
-        $variants = ProductVariant::where('product_id', $id)->orderBy('price')->get();
-        $this->assertSame([800.0, 960.0], $variants->pluck('price')->all());
-        $this->assertSame([1000.0, 1200.0], $variants->pluck('original_price')->all());
-        // The seller's form edits regular prices.
-        $this->getJson("/api/v1/seller/products/{$id}")->assertJsonPath('data.variants.0.regular_price', 1000);
+            ->assertJsonPath('data.variants.0.regular_price', 1000);
+        // Variant prices stay the regular price: saving the form again never discounts twice.
+        $variants = $this->getJson("/api/v1/seller/products/{$id}")->json('data.variants');
+        $this->postJson("/api/v1/seller/products/{$id}", $payload(['variants' => [
+            ['id' => $variants[0]['id'], 'label' => 'Black', 'price' => 1000, 'stock' => 5],
+            ['id' => $variants[1]['id'], 'label' => 'White', 'price' => 1200, 'stock' => 5],
+        ]]))->assertOk()->assertJsonPath('data.price_range.min', 800);
+        $this->assertSame([1000.0, 1200.0], ProductVariant::where('product_id', $id)->orderBy('price')->pluck('price')->all());
 
-        // Saving the form again (regular prices, same discount) does not discount twice.
-        $this->postJson("/api/v1/seller/products/{$id}", $payload(['discount_percent' => 20]))->assertOk()->assertJsonPath('data.base_price', 800);
-        // A save without variants re-applies a new discount to the regular prices.
-        $this->postJson("/api/v1/seller/products/{$id}", ['name' => 'Wireless Earbuds', 'discount_percent' => 10])->assertOk()
-            ->assertJsonPath('data.base_price', 900);
-        // Removing the discount restores the regular prices.
-        $this->postJson("/api/v1/seller/products/{$id}", $payload(['discount_percent' => 0]))->assertOk()
-            ->assertJsonPath('data.discount_percent', null)
-            ->assertJsonPath('data.original_price', null)
-            ->assertJsonPath('data.base_price', 1000);
+        // An overlapping second sale is refused; 100% is not a discount.
+        $this->postJson('/api/v1/seller/sales', [
+            'product_id' => $id, 'discount_type' => 'percent', 'discount_percent' => 10,
+            'starts_at' => $start->addHour()->format('Y-m-d H:i:s'), 'ends_at' => $start->addHours(3)->format('Y-m-d H:i:s'),
+        ])->assertStatus(422)->assertJsonValidationErrors(['starts_at']);
+        $this->postJson('/api/v1/seller/sales', [
+            'product_id' => $id, 'discount_type' => 'percent', 'discount_percent' => 100,
+            'starts_at' => $start->addDay()->format('Y-m-d H:i:s'), 'ends_at' => $start->addDays(2)->format('Y-m-d H:i:s'),
+        ])->assertStatus(422)->assertJsonValidationErrors(['discount_percent']);
 
-        $this->postJson('/api/v1/seller/products', $payload(['discount_percent' => 95]))->assertStatus(422)->assertJsonValidationErrors(['discount_percent']);
-
-        // Quick price change on a single-variant product keeps its discount.
-        $single = $this->postJson('/api/v1/seller/products', $payload(['discount_percent' => 10, 'variants' => [['label' => 'Default', 'price' => 400, 'stock' => 3]]]))->json('data.id');
-        $this->patchJson("/api/v1/seller/products/{$single}/price", ['price' => 500])->assertOk()->assertJsonPath('data.base_price', 450);
+        // Ending the sale brings the regular price back at once.
+        $this->postJson("/api/v1/seller/sales/{$sale}/end")->assertOk()->assertJsonPath('data.status', 'ended');
+        $this->getJson("/api/v1/seller/products/{$id}")->assertOk()
+            ->assertJsonPath('data.price_range.min', 1000)
+            ->assertJsonPath('data.original_price', null);
     }
 
     public function test_shops_to_know_lists_the_most_ordered_shops_with_their_best_sellers(): void

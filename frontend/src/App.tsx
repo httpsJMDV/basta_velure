@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { CartProvider } from './hooks/useCart';
 import LoginPage from './pages/auth/LoginPage';
@@ -46,8 +46,10 @@ import WaybillPage from './pages/seller/WaybillPage';
 import SellerEarningsPage from './pages/seller/SellerEarningsPage';
 import SellerPaymentsPage from './pages/seller/SellerPaymentsPage';
 import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
+import SellerStoreCategoriesPage from './pages/seller/SellerStoreCategoriesPage';
+import SellerPromotionsPage from './pages/seller/SellerPromotionsPage';
+import SellerReviewsPage from './pages/seller/SellerReviewsPage';
 import SellerAccountSettingsPage from './pages/seller/SellerAccountSettingsPage';
-import AdminPlaceholderPage from './pages/admin/AdminPlaceholderPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminBuyerApplicationsPage from './pages/admin/AdminBuyerApplicationsPage';
@@ -105,12 +107,23 @@ function isProfileIncomplete(user: ReturnType<typeof useAuth>['user']) {
   return user?.role === 'buyer' && (!user.date_of_birth || !user.phone);
 }
 
-function RequireApprovedSeller({ children }: { children: ReactNode }) {
+/**
+ * The seller centre: an approved seller, or one whose application is still waiting (A18), who can prepare product
+ * drafts. Everything else in it is for approved stores only (ApprovedSellerOnly).
+ */
+function RequireSellerApplicant({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (user.seller_profile?.application_status !== 'approved') return <Navigate to="/register/seller" replace />;
+  const status = user.seller_profile?.application_status;
+  if (status !== 'approved' && status !== 'pending') return <Navigate to="/register/seller" replace />;
   return <>{children}</>;
+}
+
+function ApprovedSellerOnly() {
+  const { user } = useAuth();
+  if (user?.seller_profile?.application_status !== 'approved') return <Navigate to="/seller/products" replace />;
+  return <Outlet />;
 }
 
 /**
@@ -298,29 +311,33 @@ function AppRoutes() {
         <Route path="wishlist"      element={<SettingsWishlist />} />
       </Route>
 
-      {/* Seller — nested layout, all routes approved-seller-gated */}
+      {/* Seller centre: products and account open to a waiting applicant; the rest needs an approved store */}
       <Route
         path="/seller"
         element={
-          <RequireApprovedSeller>
+          <RequireSellerApplicant>
             <SellerLayout />
-          </RequireApprovedSeller>
+          </RequireSellerApplicant>
         }
       >
-        <Route index element={<SellerDashboard />} />
-        <Route path="products"         element={<SellerProductsPage />} />
+        <Route path="products"          element={<SellerProductsPage />} />
         <Route path="products/new"      element={<SellerAddProductPage />} />
         <Route path="products/:id/edit" element={<SellerAddProductPage />} />
-        <Route path="orders"            element={<SellerOrdersPage />} />
-        <Route path="inventory"         element={<AdminPlaceholderPage title="Inventory / Stock" />} />
-        <Route path="payments"          element={<SellerPaymentsPage />} />
-        <Route path="earnings"          element={<SellerEarningsPage />} />
-        <Route path="payouts"           element={<SellerEarningsPage />} />
-        <Route path="reports"           element={<SellerReportsPage />} />
-        <Route path="messages"          element={<SellerMessagesPage />} />
-        <Route path="reviews"           element={<AdminPlaceholderPage title="Reviews & Ratings" />} />
-        <Route path="shop-profile"      element={<SellerShopProfilePage />} />
         <Route path="account"           element={<SellerAccountSettingsPage />} />
+        <Route element={<ApprovedSellerOnly />}>
+          <Route index element={<SellerDashboard />} />
+          <Route path="store-categories"  element={<SellerStoreCategoriesPage />} />
+          <Route path="promotions"        element={<SellerPromotionsPage />} />
+          <Route path="orders"            element={<SellerOrdersPage />} />
+          <Route path="inventory"         element={<Navigate to="/seller/products" replace />} />
+          <Route path="payments"          element={<SellerPaymentsPage />} />
+          <Route path="earnings"          element={<SellerEarningsPage />} />
+          <Route path="payouts"           element={<SellerEarningsPage />} />
+          <Route path="reports"           element={<SellerReportsPage />} />
+          <Route path="messages"          element={<SellerMessagesPage />} />
+          <Route path="reviews"           element={<SellerReviewsPage />} />
+          <Route path="shop-profile"      element={<SellerShopProfilePage />} />
+        </Route>
       </Route>
 
       {/* Standalone Printable Waybill for Seller & Admin */}
