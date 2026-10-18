@@ -145,10 +145,11 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
       role="dialog"
       aria-modal="true"
       aria-labelledby="handover-title"
-      className="fixed inset-0 z-50 bg-gray-100 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto"
     >
-      <div className="max-w-xl mx-auto min-h-full flex flex-col bg-gray-50 sm:border-x border-gray-200">
-        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+      <div className="min-h-full flex flex-col">
+        <header className="sticky top-0 z-10 bg-white border-b border-gray-200">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
           {!result && (
             <button
               type="button"
@@ -168,10 +169,11 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
           >
             {result ? 'Handover confirmed' : 'Pickup handover'}
           </h2>
+          </div>
         </header>
 
         {result ? (
-          <div className="flex-1 p-4 space-y-4">
+          <div className="flex-1 w-full max-w-xl mx-auto p-4 sm:p-6 space-y-4">
             <div className="bg-white border border-emerald-200 rounded-2xl p-5 text-center space-y-2" role="status">
               <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8" />
@@ -232,9 +234,9 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
             </button>
           </div>
         ) : (
-          <div className="flex-1 p-4 space-y-5">
+          <div className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             {/* Seller */}
-            <section className="bg-white border border-gray-200 rounded-2xl p-4 space-y-2" aria-label="Seller">
+            <section className="lg:col-start-1 bg-white border border-gray-200 rounded-2xl p-4 space-y-2" aria-label="Seller">
               <p className="text-base font-black text-gray-900">{group.shop_name}</p>
               <p className="flex items-start gap-2 text-xs text-gray-600">
                 <MapPin className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -261,7 +263,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
             </section>
 
             {/* Checklist */}
-            <section aria-label="Parcels to collect" className="space-y-2">
+            <section aria-label="Parcels to collect" className="lg:col-start-2 lg:row-start-1 lg:row-span-3 space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-gray-900">Parcels to collect</h3>
                 <span className="text-xs font-bold text-gray-600">
@@ -291,7 +293,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
             </section>
 
             {/* Scanner */}
-            <section aria-label="Scan parcels" className="space-y-2">
+            <section aria-label="Scan parcels" className="lg:col-start-1 space-y-2">
               <TrackingScanner onScan={handleScan} disabled={busy} />
               {verifying && (
                 <p className="flex items-center gap-2 text-xs text-gray-500" role="status">
@@ -310,7 +312,7 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
             </section>
 
             {/* Confirm errors */}
-            <div aria-live="assertive">
+            <div aria-live="assertive" className="lg:col-start-1">
               {confirmError && (
                 <div className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
                   <p className="font-bold">{confirmError}</p>
@@ -328,12 +330,13 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
         )}
 
         {!result && (
-          <footer className="sticky bottom-0 bg-white border-t border-gray-200 p-4">
+          <footer className="sticky bottom-0 bg-white border-t border-gray-200">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row-reverse lg:items-center lg:justify-between gap-2">
             <button
               type="button"
               onClick={handleConfirm}
               disabled={busy || scanned.length === 0}
-              className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
+              className="w-full lg:w-auto lg:px-10 min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
             >
               {submitting && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
               <span>
@@ -341,10 +344,11 @@ export default function PickupHandoverScreen({ group, onClose, onDone, onChanged
               </span>
             </button>
             {scanned.length > 0 && scanned.length < total && (
-              <p className="mt-2 text-center text-xs text-gray-500">
+              <p className="text-center lg:text-left text-xs text-gray-500">
                 Parcels you do not scan stay in My pickups.
               </p>
             )}
+            </div>
           </footer>
         )}
       </div>

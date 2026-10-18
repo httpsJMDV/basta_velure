@@ -27,12 +27,14 @@ return [
 
     'send_mail' => (bool) env('SHOWCASE_SEND_MAIL', false),
 
+    // They meet the password rule every real account meets (A5: 8+ characters, upper and lower case, a number and
+    // a symbol). Accounts seeded with the old easy ones get these from: php artisan showcase:check --fix
     'passwords' => [
-        'buyer'   => 'buyer123',
-        'seller'  => 'seller123',
-        'courier' => 'courier123',
-        'hub'     => 'hub123',
-        'rider'   => 'rider123',
+        'buyer'   => 'Buyer@123',
+        'seller'  => 'Seller@123',
+        'courier' => 'Courier@123',
+        'hub'     => 'Hub@1234',
+        'rider'   => 'Rider@123',
     ],
 
     // 1 admin + 40 sellers + 3 courier admins + 9 hub owners + 27 riders + 220 buyers = 300 accounts.

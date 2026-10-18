@@ -33,7 +33,16 @@ export function useMountAnim() {
       el.style.opacity = '1';
       el.style.transform = 'translateY(0)';
     });
-    return () => cancelAnimationFrame(id);
+    // A transform left on the page makes it the containing block of every position: fixed child, so modals and side
+    // panels inside it would open inside the page instead of over the screen. Drop it once the entrance is over.
+    const done = window.setTimeout(() => {
+      el.style.transform = '';
+      el.style.transition = '';
+    }, 500);
+    return () => {
+      cancelAnimationFrame(id);
+      window.clearTimeout(done);
+    };
   }, []);
   return ref;
 }

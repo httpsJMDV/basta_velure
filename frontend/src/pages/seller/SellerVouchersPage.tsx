@@ -5,11 +5,7 @@ import VoucherManager from '../../components/vouchers/VoucherManager';
 export default function SellerVouchersPage() {
   const pageRef = useMountAnim();
   return (
-    <div ref={pageRef} className="max-w-6xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-black text-gray-900">Vouchers</h1>
-        <p className="text-[13px] text-gray-500 mt-0.5">Discounts buyers claim or type at checkout. One store voucher per shop per order.</p>
-      </div>
+    <div ref={pageRef} className="pb-8 w-full">
       <VoucherManager />
     </div>
   );

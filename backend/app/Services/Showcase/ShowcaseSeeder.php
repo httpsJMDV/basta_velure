@@ -16,6 +16,8 @@ use App\Models\SortingCenter;
 use App\Models\User;
 use App\Services\Demo\PlaceholderImage;
 use App\Services\MailNotifier;
+use App\Support\Gcash;
+use App\Support\PhMobile;
 use Carbon\Carbon;
 use Database\Seeders\CategorySeeder;
 use Illuminate\Http\Client\Pool;
@@ -37,7 +39,9 @@ use RuntimeException;
  *
  * Every account is created the way the real flows leave it: a buyer account (users.role stays "buyer") with a
  * complete buyer profile, plus the approved seller, courier, hub or rider row. Places are real Laguna PSGC codes, so
- * checkout, pickup and delivery work across the whole network. It only adds rows and refuses to run twice.
+ * checkout, pickup and delivery work across the whole network. Last, ShowcaseRepair fills in what the real forms also
+ * ask for (TINs, licences, documents, GCash accounts), so every account passes showcase:check. It only adds rows and
+ * refuses to run twice.
  *
  * Photos are downloaded first, outside the database transaction; if anything fails, the transaction rolls back and
  * the downloaded files are removed.
@@ -144,7 +148,7 @@ class ShowcaseSeeder
         mt_srand(20261016);
         $this->places = $this->load('places.json');
         $this->catalog = $this->load('products.json')['products'];
-        $this->usedPhones = array_fill_keys(User::whereNotNull('phone')->pluck('phone')->all(), true);
+        $this->usedPhones = array_fill_keys(User::whereNotNull('phone')->pluck('phone')->map(fn ($p) => PhMobile::normalize($p) ?? $p)->all(), true);
         $this->ensureCategories();
 
         $this->say('Downloading product photos...');
@@ -262,7 +266,7 @@ class ShowcaseSeeder
                 'return_policy'             => 'Returns accepted within 7 days of delivery for items that arrive damaged or not as described.',
                 'shipping_policy'           => 'Orders are packed within 1 to 2 days and handed to the partner courier that covers your area.',
                 'business_hours'            => 'Mon to Sat, 8:00 AM to 6:00 PM',
-                'payout_gcash_number'       => $seller->phone,
+                'payout_gcash_number'       => Gcash::normalize($seller->phone),
                 'application_status'        => 'approved',
                 'reviewed_by'               => $this->admin->id,
                 'reviewed_at'               => $this->daysAgo(130 - $s),
@@ -348,6 +352,12 @@ class ShowcaseSeeder
             $counts['buyers']++;
         }
 
+        // What the real forms also ask for: TINs, licences, documents, GCash accounts (see ShowcaseRepair).
+        $repaired = app(ShowcaseRepair::class)->run();
+        foreach ($repaired['written'] as $disk => $paths) {
+            $this->written[$disk] = array_merge($this->written[$disk] ?? [], $paths);
+        }
+
         return [
             'accounts'         => $counts,
             'products'         => $products,
@@ -382,9 +392,10 @@ class ShowcaseSeeder
             'updated_at'        => $created,
         ] + ($isAdmin ? [] : [
             // The buyer profile every account has after registration and approval, so nothing sends it to
-            // /complete-profile. The ID photo is a placeholder.
+            // /complete-profile. The ID photo is a placeholder, on the disk the admin's buyer review reads.
             'government_id_type'       => $this->pick(['national_id', 'national_id', 'drivers_license', 'umid', 'postal_id', 'passport']),
-            'government_id_image_path' => $this->document('ids', "{$username}-id"),
+            'government_id_image_path' => $this->document('local', "{$username}-id"),
+            'terms_accepted_at'        => $created,
             'buyer_application_status' => 'approved',
         ]))->save();
 
@@ -407,10 +418,11 @@ class ShowcaseSeeder
         return ['first' => $first, 'last' => $last, 'sex' => $sex, 'dob' => sprintf('%04d-%02d-%02d', mt_rand(1972, 2005), mt_rand(1, 12), mt_rand(1, 28))];
     }
 
+    /** A mobile number stored the way the forms store it: +639XXXXXXXXX. */
     private function phone(): string
     {
         do {
-            $phone = $this->pick(self::PREFIXES) . str_pad((string) mt_rand(0, 9999999), 7, '0', STR_PAD_LEFT);
+            $phone = '+63' . substr($this->pick(self::PREFIXES), 1) . str_pad((string) mt_rand(0, 9999999), 7, '0', STR_PAD_LEFT);
         } while (isset($this->usedPhones[$phone]));
         $this->usedPhones[$phone] = true;
 
@@ -603,9 +615,10 @@ class ShowcaseSeeder
     {
         $letters = chr(mt_rand(65, 90)) . chr(mt_rand(65, 90)) . chr(mt_rand(65, 90));
 
+        // Stored the way the rider forms store plates: upper case, no spaces.
         return in_array($vehicle, [Rider::VEHICLE_MOTORCYCLE, Rider::VEHICLE_TRICYCLE], true)
-            ? mt_rand(100, 999) . ' ' . $letters
-            : $letters . ' ' . mt_rand(1000, 9999);
+            ? mt_rand(100, 999) . $letters
+            : $letters . mt_rand(1000, 9999);
     }
 
     private function daysAgo(int $days): Carbon

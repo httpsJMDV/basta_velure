@@ -9,6 +9,9 @@ use App\Models\Rider;
 use App\Models\SortingCenter;
 use App\Models\User;
 use App\Services\Demo\PlaceholderImage;
+use App\Models\Category;
+use App\Services\Showcase\ShowcaseAudit;
+use App\Services\Showcase\ShowcaseRepair;
 use App\Services\Showcase\ShowcaseSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Mail\Events\MessageSending;
@@ -54,22 +57,27 @@ class ShowcaseSeederTest extends TestCase
         $this->postJson('/api/v1/auth/login', ['identifier' => 'admin', 'password' => 'A-Strong-Admin-Pass-2026'])->assertOk();
 
         // Every other account signs in with its username and the shared password of its kind, and lands complete.
-        $this->postJson('/api/v1/auth/login', ['identifier' => 'buyer1', 'password' => 'buyer123'])->assertOk()
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'buyer1', 'password' => 'Buyer@123'])->assertOk()
             ->assertJsonPath('data.buyer_application_status', 'approved');
-        $this->postJson('/api/v1/auth/login', ['identifier' => 'buyer220', 'password' => 'buyer123'])->assertOk();
-        $this->postJson('/api/v1/auth/login', ['identifier' => 'seller40', 'password' => 'seller123'])->assertOk()
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'buyer220', 'password' => 'Buyer@123'])->assertOk();
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'buyer1', 'password' => 'buyer123'])->assertStatus(401);
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'seller40', 'password' => 'Seller@123'])->assertOk()
             ->assertJsonPath('data.seller_profile.application_status', 'approved');
-        $this->postJson('/api/v1/auth/login', ['identifier' => 'courier1', 'password' => 'courier123'])->assertOk()
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'courier1', 'password' => 'Courier@123'])->assertOk()
             ->assertJsonPath('data.logistics_company.status', 'APPROVED');
-        $this->postJson('/api/v1/auth/login', ['identifier' => 'hub9', 'password' => 'hub123'])->assertOk()
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'hub9', 'password' => 'Hub@1234'])->assertOk()
             ->assertJsonPath('data.sorting_center.status', 'APPROVED');
-        $this->postJson('/api/v1/auth/login', ['identifier' => 'rider27', 'password' => 'rider123'])->assertOk()
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'rider27', 'password' => 'Rider@123'])->assertOk()
             ->assertJsonPath('data.rider.status', 'ACTIVE');
         foreach (['buyer1', 'seller1', 'rider1'] as $username) {
             $user = User::where('username', $username)->sole();
             $this->assertNotNull($user->addresses()->where('is_default', true)->value('barangay_code') ?? ($username === 'rider1' ? 'n/a' : null));
-            $this->assertTrue(Storage::disk('ids')->exists($user->government_id_image_path));
+            $this->assertTrue(Storage::disk('local')->exists($user->government_id_image_path));
         }
+
+        // Every account passes the same rules a real sign-up, application and listing meets (showcase:check).
+        $this->assertSame([], app(ShowcaseAudit::class)->run());
+        $this->artisan('showcase:check')->assertExitCode(0);
 
         // Products: real names, every one with photos on disk and stock, spread over the 40 shops.
         $products = Product::whereIn('seller_id', User::where('username', 'like', 'seller%')->pluck('id'))->with('images', 'variants')->get();
@@ -98,6 +106,48 @@ class ShowcaseSeederTest extends TestCase
         // It only runs once.
         $this->expectException(RuntimeException::class);
         app(ShowcaseSeeder::class)->run('A-Strong-Admin-Pass-2026');
+    }
+
+    public function test_showcase_check_fix_repairs_accounts_seeded_the_old_way(): void
+    {
+        app(ShowcaseSeeder::class)->run('A-Strong-Admin-Pass-2026');
+
+        // What the first showcase run left: local-format numbers, the easy passwords, plates with spaces, ID photos on
+        // the wrong disk, and no TIN, licence, GCash, region or postal code.
+        $buyer = User::where('username', 'buyer7')->sole();
+        $buyer->forceFill(['phone' => '0' . substr($buyer->phone, 3), 'password' => Hash::make('buyer123'), 'terms_accepted_at' => null])->save();
+        $buyer->addresses()->update(['region' => null, 'region_code' => null]);
+        Storage::disk('ids')->put($buyer->government_id_image_path, Storage::disk('local')->get($buyer->government_id_image_path));
+        Storage::disk('local')->delete($buyer->government_id_image_path);
+        $seller = User::where('username', 'seller3')->sole();
+        $seller->sellerProfile->forceFill(['tin' => null, 'seller_type' => null, 'gcash_number' => null, 'gcash_account_name' => null,
+            'address_postal_code' => null, 'shop_category' => 'Phones, tablets and laptops'])->save();
+        $rider = Rider::where('user_id', User::where('username', 'rider2')->value('id'))->sole();
+        $rider->forceFill(['plate_number' => '987 QXZ', 'license_number' => null, 'license_expiry' => null, 'activated_at' => null])->save();
+        $company = LogisticsCompany::where('owner_user_id', User::where('username', 'courier2')->value('id'))->sole();
+        $company->forceFill(['tin' => null, 'sec_registration_no' => null, 'service_regions' => null, 'address_postal_code' => null])->save();
+
+        $problems = collect(app(ShowcaseAudit::class)->run());
+        $this->assertEqualsCanonicalizing(['buyer7', 'seller3', 'rider2', 'courier2'], $problems->pluck('account')->unique()->values()->all());
+        $this->artisan('showcase:check')->assertExitCode(1);
+
+        $this->artisan('showcase:check', ['--fix' => true, '--force' => true])->assertExitCode(0);
+        $this->assertSame([], app(ShowcaseAudit::class)->run());
+
+        $buyer->refresh();
+        $this->assertMatchesRegularExpression('/^\+639\d{9}$/', $buyer->phone);
+        $this->assertTrue(Storage::disk('local')->exists($buyer->government_id_image_path));
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'buyer7', 'password' => 'Buyer@123'])->assertOk();
+        $profile = $seller->sellerProfile->fresh();
+        $this->assertMatchesRegularExpression('/^\d{3}-\d{3}-\d{3}-000$/', $profile->tin);
+        $this->assertTrue(Category::whereNull('parent_id')->where('name', $profile->shop_category)->exists());
+        $this->assertSame($profile->gcash_number, \App\Support\Gcash::normalize($seller->phone));
+        $this->assertSame('987QXZ', $rider->fresh()->plate_number);
+        $this->assertMatchesRegularExpression('/^[A-Z]\d{2}-\d{2}-\d{6}$/', $rider->fresh()->license_number);
+        $this->assertSame(['040000000'], $company->fresh()->service_regions);
+
+        // A second run finds nothing to do.
+        $this->assertSame([], app(ShowcaseRepair::class)->run()['fixed']);
     }
 
     public function test_a_weak_admin_password_is_refused_and_the_command_refuses_the_test_database(): void

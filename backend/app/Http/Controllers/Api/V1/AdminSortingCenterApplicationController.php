@@ -118,9 +118,8 @@ class AdminSortingCenterApplicationController extends Controller
     {
         $user = $sortingCenter->user;
         abort_unless($user && $user->government_id_image_path, 404, 'Government ID image not found.');
-        abort_unless(Storage::disk('ids')->exists($user->government_id_image_path), 404, 'File not found on storage disk.');
 
-        return response()->file(Storage::disk('ids')->path($user->government_id_image_path));
+        return $this->accountIdFile($user->government_id_image_path);
     }
 
     /**
@@ -130,8 +129,19 @@ class AdminSortingCenterApplicationController extends Controller
     {
         $user = $sortingCenter->user;
         abort_unless($user && $user->government_id_image_back_path, 404, 'Government ID back image not found.');
-        abort_unless(Storage::disk('ids')->exists($user->government_id_image_back_path), 404, 'File not found on storage disk.');
 
-        return response()->file(Storage::disk('ids')->path($user->government_id_image_back_path));
+        return $this->accountIdFile($user->government_id_image_back_path);
+    }
+
+    /**
+     * The owner's ID photo is the one of their Loved-IT account: identity verification keeps it on the private "local"
+     * disk (older uploads may be on "ids").
+     */
+    private function accountIdFile(string $path): BinaryFileResponse
+    {
+        $disk = collect(['local', 'ids'])->first(fn ($d) => Storage::disk($d)->exists($path));
+        abort_unless($disk, 404, 'File not found on storage disk.');
+
+        return response()->file(Storage::disk($disk)->path($path));
     }
 }

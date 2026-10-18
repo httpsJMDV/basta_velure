@@ -1,7 +1,9 @@
-// A side panel and a centred dialog, both closing on Escape and on the backdrop, with focus moved inside on open.
+// A side panel and a centred dialog, both closing on Escape and on the backdrop, with focus moved inside on open. Both
+// render into <body>, so a transformed or clipped page around them cannot shrink them to the page's box.
 // ReasonDialog is the shared "give a reason" step (10 to 300 characters, A25) for reject, suspend, cancel and override.
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 function useEscape(open: boolean, onClose: () => void) {
@@ -29,7 +31,7 @@ export function SidePanel({ open, onClose, title, subtitle, children, footer, wi
   useEffect(() => { if (open) ref.current?.focus(); }, [open]);
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex justify-end">
       <div className="absolute inset-0 bg-stone-900/40" onClick={onClose} aria-hidden="true" />
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true"
@@ -46,7 +48,8 @@ export function SidePanel({ open, onClose, title, subtitle, children, footer, wi
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <footer className="px-5 py-3 border-t border-stone-200 bg-stone-50">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -63,7 +66,7 @@ export function Dialog({ open, onClose, title, children, footer, size = 'max-w-m
   useEffect(() => { if (open) ref.current?.focus(); }, [open]);
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-stone-900/45" onClick={onClose} aria-hidden="true" />
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true"
@@ -77,7 +80,8 @@ export function Dialog({ open, onClose, title, children, footer, size = 'max-w-m
         <div className="px-5 pb-4 overflow-y-auto">{children}</div>
         {footer && <footer className="px-5 py-3 border-t border-stone-100 flex flex-wrap justify-end gap-2">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
