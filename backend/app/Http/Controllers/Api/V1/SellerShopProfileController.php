@@ -13,6 +13,9 @@ use Illuminate\Support\Str;
 
 class SellerShopProfileController extends Controller
 {
+    /** The response times the Shop Profile offers (the shop page shows them in words). */
+    public const RESPONSE_TIMES = ['within_1_hour', 'within_few_hours', 'within_24_hours', 'within_2_days'];
+
     /** GET /seller/shop-profile */
     public function show(Request $request): JsonResponse
     {
@@ -48,19 +51,24 @@ class SellerShopProfileController extends Controller
         }
 
         $rules = [
-            'shop_name'           => ['sometimes', 'required', 'string', 'min:3', 'max:30', function ($attr, $value, $fail) use ($user) {
+            'shop_name'           => ['sometimes', ...\App\Support\Validation::shopName(), function ($attr, $value, $fail) use ($user) {
                 if (is_string($value) && \App\Http\Requests\Auth\SellerRegisterRequest::shopNameTaken($value, $user->id)) {
                     $fail('This store name is already taken. Choose another name.');
                 }
             }],
-            'shop_category'       => 'sometimes|nullable|string|max:100',
+            // One of the main platform categories, as at registration (the shop page and the admin read it that way).
+            'shop_category'       => ['sometimes', 'nullable', 'string', 'max:100', function ($attr, $value, $fail) {
+                if (is_string($value) && $value !== '' && ! \App\Models\Category::whereNull('parent_id')->where(fn ($q) => $q->where('name', $value)->orWhere('slug', $value))->exists()) {
+                    $fail('Choose your line of business from the list.');
+                }
+            }],
             'shop_description'    => 'sometimes|nullable|string|max:500',
             'shop_bio'            => 'sometimes|nullable|string|max:100',
             'shop_contact_number' => ['sometimes', 'required', ...\App\Support\PhMobile::rules()],
             'return_policy'       => 'sometimes|nullable|string|max:500',
             'shipping_policy'     => 'sometimes|nullable|string|max:500',
             'business_hours'      => 'sometimes|nullable|string|max:100',
-            'response_time'       => 'sometimes|nullable|string|max:50',
+            'response_time'       => ['sometimes', 'nullable', 'in:' . implode(',', self::RESPONSE_TIMES)],
             'logo'                => ['sometimes', ...\App\Support\Validation::image()],
             'banner'              => ['sometimes', ...\App\Support\Validation::image()],
             'on_vacation'         => ['sometimes', 'boolean'],
@@ -82,9 +90,8 @@ class SellerShopProfileController extends Controller
         }
 
         $data = $request->validate($rules, [
-            'shop_name.required'           => 'Store name is required.',
-            'shop_name.min'                => 'Store name must be 3 to 30 characters.',
-            'shop_name.max'                => 'Store name must be 3 to 30 characters.',
+            ...\App\Support\Validation::shopNameMessages(),
+            'response_time.in'             => 'Choose a response time from the list.',
             'shop_description.max'         => 'The store description can be at most 500 characters.',
             'shop_contact_number.required' => 'Contact number is required.',
             'shop_contact_number.regex'    => \App\Support\PhMobile::MESSAGE,
@@ -154,6 +161,8 @@ class SellerShopProfileController extends Controller
             'business_hours'      => $p->business_hours,
             'response_time'       => $p->response_time,
             'low_stock_threshold' => (int) ($p->low_stock_threshold ?? \App\Models\ProductVariant::LOW_STOCK_THRESHOLD),
+            // The product form shows the FDA LTO as already on file, so food products do not ask for it again.
+            'fda_lto_on_file'     => app(\App\Services\Catalog\ProductEditor::class)->shopHasLto((int) $p->user_id),
             'logo_url'            => $p->logo_path ? asset('storage/' . $p->logo_path) : null,
             'banner_url'          => $p->banner_path ? asset('storage/' . $p->banner_path) : null,
             'application_status'  => $p->application_status,

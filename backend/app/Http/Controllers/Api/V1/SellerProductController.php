@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\ProductEditor;
 use App\Services\Pricing\PriceBook;
@@ -61,6 +62,9 @@ class SellerProductController extends Controller
         if ($publish && count($request->file('images', [])) < 1) {
             throw ValidationException::withMessages(['images' => 'Add at least one product image to publish.']);
         }
+        if ($publish && ($fda = $this->editor->fdaProblems(Category::where('slug', $data['category_slug'])->first(), null, $user->id, $request->hasFile('fda_lto'), $request->hasFile('fda_cpr')))) {
+            throw ValidationException::withMessages($fda);
+        }
         $data['publish_key'] = $key !== '' ? $key : null;
 
         try {
@@ -95,6 +99,10 @@ class SellerProductController extends Controller
             $remaining = $product->images->count() - count(array_intersect($product->images->pluck('id')->all(), array_map('intval', $data['delete_image_ids'] ?? [])));
             if ($remaining + count($request->file('images', [])) < 1) {
                 throw ValidationException::withMessages(['images' => 'Add at least one product image to publish.']);
+            }
+            $category = ! empty($data['category_slug']) ? Category::where('slug', $data['category_slug'])->first() : $product->category;
+            if ($fda = $this->editor->fdaProblems($category, $product, $request->user()->id, $request->hasFile('fda_lto'), $request->hasFile('fda_cpr'))) {
+                throw ValidationException::withMessages($fda);
             }
         }
 

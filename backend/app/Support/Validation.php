@@ -26,6 +26,12 @@ final class Validation
     /** The name on a GCash or bank account (a person or a business): starts with a letter; letters, spaces and . , ' & ( ) -. */
     public const ACCOUNT_NAME_REGEX = "/^\\p{L}[\\p{L}\\p{M} .,'&()\\-]*$/u";
 
+    /** A store's name: starts with a letter or digit; letters, digits, spaces and . , ' & ( ) / # ! + - only. */
+    public const SHOP_NAME_REGEX = "/^[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N} .,'&()\\/#!+\\-]*$/u";
+
+    /** An SKU: letters, digits, dots, dashes and underscores. */
+    public const SKU_REGEX = '/^[A-Za-z0-9._\\-]+$/';
+
     /** Uploads are capped at 5 MB: 5,120 KB, exactly 5,242,880 bytes. */
     public const MAX_UPLOAD_KB = 5120;
 
@@ -125,6 +131,62 @@ final class Validation
             "{$field}.min"      => 'Enter the full name on the GCash account (2 to 120 characters).',
             "{$field}.max"      => 'Enter the full name on the GCash account (2 to 120 characters).',
             "{$field}.regex"    => 'Enter the name exactly as GCash shows it: letters, spaces and . , \' & ( ) - only.',
+        ];
+    }
+
+    /** A store's name (registration and Shop Profile): 3 to 30 characters with at least two letters, unique checked apart. */
+    public static function shopName(): array
+    {
+        return ['required', 'string', 'min:3', 'max:30', 'regex:' . self::SHOP_NAME_REGEX, 'regex:' . self::TWO_LETTERS_REGEX];
+    }
+
+    public static function shopNameMessages(string $label = 'Store name'): array
+    {
+        return [
+            'shop_name.required' => "{$label} is required.",
+            'shop_name.min'      => "{$label} must be 3 to 30 characters.",
+            'shop_name.max'      => "{$label} must be 3 to 30 characters.",
+            'shop_name.regex'    => "{$label} needs at least two letters and may use letters, numbers, spaces and . , ' & ( ) / # ! + - only.",
+        ];
+    }
+
+    /**
+     * A name buyers read, such as a product, a promotion or a voucher: $min to $max characters with at least two
+     * letters, so "12345" or "!!!!!" is not a name. Symbols are allowed ("2-in-1", "100% Cotton").
+     */
+    public static function displayName(int $min, int $max): array
+    {
+        return ['required', 'string', "min:{$min}", "max:{$max}", 'regex:' . self::TWO_LETTERS_REGEX];
+    }
+
+    public static function displayNameMessages(string $field, string $label, int $min, int $max): array
+    {
+        return [
+            "{$field}.required" => "{$label} is required.",
+            "{$field}.min"      => "{$label} must be {$min} to {$max} characters.",
+            "{$field}.max"      => "{$label} must be {$min} to {$max} characters.",
+            "{$field}.regex"    => "{$label} needs at least two letters.",
+        ];
+    }
+
+    /**
+     * The reference of a GCash transfer or bank deposit someone else matches a payment against: 4 to 40 characters,
+     * letters, digits, spaces and # / - only, with at least one digit (so "abcd" or "..." is not a reference).
+     */
+    public static function paymentReference(bool $required = false): array
+    {
+        return [$required ? 'required' : 'nullable', 'string', 'min:4', 'max:40', 'regex:/^[A-Za-z0-9][A-Za-z0-9 #\\/\\-]*$/', 'regex:/\\d/'];
+    }
+
+    public static function paymentReferenceMessages(string $field = 'reference'): array
+    {
+        $message = 'Enter the reference as the receipt shows it: 4 to 40 letters and numbers, like 1234 567 890123.';
+
+        return [
+            "{$field}.required" => 'Enter the reference of your transfer.',
+            "{$field}.min"      => $message,
+            "{$field}.max"      => $message,
+            "{$field}.regex"    => $message,
         ];
     }
 

@@ -30,7 +30,7 @@ class VoucherForm
         $request->merge(['code' => Voucher::normalizeCode($request->input('code', $editing?->code))]);
         $data = $request->validate([
             'code'            => ['required', 'string', 'regex:' . Voucher::CODE_REGEX],
-            'name'            => ['required', 'string', 'min:3', 'max:80'],
+            'name'            => \App\Support\Validation::displayName(3, 80),
             'discount_type'   => ['required', 'in:fixed,percent'],
             'amount'          => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:1000000'],
             'max_discount'    => ['nullable', 'numeric', 'decimal:0,2', 'gt:0', 'max:1000000'],
@@ -47,6 +47,9 @@ class VoucherForm
             'code.required'      => 'Enter a voucher code.',
             'code.regex'         => 'The code must be 4 to 12 letters and digits, with no spaces or symbols.',
             'name.required'      => 'Give the voucher a name buyers will see.',
+            'name.min'           => 'The voucher name must be 3 to 80 characters.',
+            'name.max'           => 'The voucher name must be 3 to 80 characters.',
+            'name.regex'         => 'The voucher name needs at least two letters.',
             'amount.gt'          => 'The discount must be more than ₱0.',
             'amount.decimal'     => 'The discount can have at most 2 decimal places.',
             'max_discount.gt'    => 'The cap must be more than ₱0.',

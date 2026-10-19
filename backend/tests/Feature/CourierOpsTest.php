@@ -554,6 +554,23 @@ class CourierOpsTest extends TestCase
         $this->as($user2)->getJson('/api/v1/rider/cod')->assertJsonPath('data.balance.outstanding', '50.00');
     }
 
+    public function test_a_remittance_reference_must_look_like_a_reference(): void
+    {
+        [$user, $rider] = $this->rider('Pedro', [$this->qc[3]]);
+        $p = $this->outForDelivery($this->ready(500.00), $user, $rider);
+        $this->deliver($user, $p)->assertOk();
+
+        foreach (['abcd', '....', '12', '#123', str_repeat('1', 41), 'GCash: 1234'] as $bad) {
+            $this->as($user)->postJson('/api/v1/rider/cod/remittances', ['amount' => 500, 'reference' => $bad])
+                ->assertStatus(422)->assertJsonValidationErrors(['reference']);
+        }
+        $this->as($user)->getJson('/api/v1/rider/cod')->assertJsonPath('data.balance.pending', '0.00');
+
+        $r = $this->as($user)->postJson('/api/v1/rider/cod/remittances', ['amount' => 500, 'reference' => '  1234   567 890123 '])
+            ->assertCreated()->json('data');
+        $this->assertSame('1234 567 890123', $r['reference']);
+    }
+
     public function test_exports_match_the_records_and_an_empty_range_has_headers_only(): void
     {
         [$user, $rider] = $this->rider('Pedro', [$this->qc[3]]);

@@ -26,6 +26,8 @@ class ProductEditor
     public const MAX_IMAGES = 9;
     public const MAX_TYPES = 2;
     public const MAX_OPTIONS = 20;
+    /** The longest option name ("Midnight Blue", "XL"), as Shopee and Lazada allow. */
+    public const OPTION_MAX = 20;
 
     /** Field rules for the request; $publish turns on the publish requirements. */
     public function rules(bool $publish, ?Product $existing = null): array
@@ -33,7 +35,7 @@ class ProductEditor
         $required = $publish ? 'required' : 'nullable';
 
         return [
-            'name'                 => ['required', 'string', 'min:5', 'max:120'],
+            'name'                 => Validation::displayName(5, 120),
             'description'          => [$required, 'string', 'max:20000', function ($attr, $value, $fail) use ($publish) {
                 $length = mb_strlen(self::visibleText($value));
                 if ($publish && $length < 20) {
@@ -64,7 +66,7 @@ class ProductEditor
             'variants.*.label'     => ['nullable', 'string', 'max:255'],
             'variants.*.price'     => $publish ? Validation::price() : ['nullable', 'numeric', 'decimal:0,2', 'min:1', 'max:1000000'],
             'variants.*.stock'     => $publish ? Validation::stock() : Validation::stock(required: false),
-            'variants.*.sku'       => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9._\-]+$/'],
+            'variants.*.sku'       => ['nullable', 'string', 'max:100', 'regex:' . Validation::SKU_REGEX],
             'weight_kg'            => [$required, 'numeric', 'gt:0', 'max:1000'],
             'dimension_l_cm'       => ['nullable', 'numeric', 'gt:0', 'max:1000'],
             'dimension_w_cm'       => ['nullable', 'numeric', 'gt:0', 'max:1000'],
@@ -73,7 +75,7 @@ class ProductEditor
             // A29: follow the shop's low-stock level, use this product's own (0: only when it sells out), or no alert.
             'low_stock_alert'      => ['nullable', 'in:shop,custom,off'],
             'low_stock_threshold'  => ['nullable', 'required_if:low_stock_alert,custom', 'integer', 'min:0', 'max:999'],
-            'sku'                  => ['nullable', 'string', 'max:100'],
+            'sku'                  => ['nullable', 'string', 'max:100', 'regex:' . Validation::SKU_REGEX],
             'images'               => ['nullable', 'array', 'max:' . self::MAX_IMAGES],
             'images.*'             => Validation::image(),
             'delete_image_ids'     => ['nullable', 'array'],
@@ -91,9 +93,12 @@ class ProductEditor
     public function messages(): array
     {
         return [
-            'name.required'          => 'Product name is required.',
-            'name.min'               => 'Product name must be 5 to 120 characters.',
-            'name.max'               => 'Product name must be 5 to 120 characters.',
+            ...Validation::displayNameMessages('name', 'Product name', 5, 120),
+            'sku.regex'              => 'An SKU may use letters, numbers, dots, dashes and underscores only.',
+            'weight_kg.max'          => 'The weight must be 1,000 kg or less.',
+            'dimension_l_cm.max'     => 'Each dimension must be 1,000 cm or less.',
+            'dimension_w_cm.max'     => 'Each dimension must be 1,000 cm or less.',
+            'dimension_h_cm.max'     => 'Each dimension must be 1,000 cm or less.',
             'description.required'   => 'A description of at least 20 characters is required to publish.',
             'category_slug.required' => 'Choose a platform category.',
             'category_slug.exists'   => 'Choose a platform category from the list.',
@@ -160,6 +165,8 @@ class ProductEditor
             foreach ($parts as $p => $part) {
                 if ($part === '') {
                     $errors["variants.{$i}.label"] = 'Option names cannot be empty.';
+                } elseif (mb_strlen($part) > self::OPTION_MAX || ! preg_match('/[\p{L}\p{N}]/u', $part)) {
+                    $errors["variants.{$i}.label"] = 'Each option name is 1 to ' . self::OPTION_MAX . ' characters with a letter or number, like "Red" or "XL".';
                 }
                 $positions[$p][mb_strtolower($part)] = true;
             }
@@ -408,8 +415,40 @@ class ProductEditor
                 $problems["variants.{$i}.stock"] = 'Stock must be a whole number from 0 to 99,999.';
             }
         }
+        $product->loadMissing('category');
+
+        return $problems + $this->fdaProblems($product->category, $product, (int) $product->seller_id);
+    }
+
+    /**
+     * A category marked "requires FDA" (food, supplements) publishes only with an FDA License to Operate (the shop's:
+     * on this product, on another of its products, or from the seller application) and this product's own CPR/CPN.
+     * $ltoUpload / $cprUpload count a file sent with the same request.
+     *
+     * @return array<string, string>
+     */
+    public function fdaProblems(?Category $category, ?Product $product, int $sellerId, bool $ltoUpload = false, bool $cprUpload = false): array
+    {
+        if (! $category?->requires_fda) {
+            return [];
+        }
+        $problems = [];
+        if (! $ltoUpload && ! $this->shopHasLto($sellerId, $product)) {
+            $problems['fda_lto'] = 'Upload your FDA License to Operate (LTO). ' . $category->name . ' products need it to be published.';
+        }
+        if (! $cprUpload && ! $product?->fda_cpr_path) {
+            $problems['fda_cpr'] = 'Upload the CPR or CPN of this product. ' . $category->name . ' products need it to be published.';
+        }
 
         return $problems;
+    }
+
+    /** Whether the shop already has an FDA LTO on file: this product's, another product's, or the application's. */
+    public function shopHasLto(int $sellerId, ?Product $product = null): bool
+    {
+        return (bool) $product?->fda_lto_path
+            || \App\Models\SellerProfile::where('user_id', $sellerId)->whereNotNull('fda_lto_path')->exists()
+            || Product::where('seller_id', $sellerId)->whereNotNull('fda_lto_path')->exists();
     }
 
     /** A draft copy of a product: same details, variants and images (the files are copied), store categories kept. */

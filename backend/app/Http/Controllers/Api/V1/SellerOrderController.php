@@ -283,9 +283,10 @@ class SellerOrderController extends Controller
         $sellerId = $request->user()->id;
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
 
+        // The buyer reads it to fix the payment, so it is a sentence ("Reference number does not match"), not "x".
         $data = $request->validate([
-            'reason' => ['required', 'string', 'max:500'],
-        ]);
+            'reason' => Validation::sentence(true, 10, 500),
+        ], Validation::sentenceMessages('reason', 'The reason', 10, 500));
 
         $order->update([
             'payment_status'                => 'verification_failed',
@@ -319,10 +320,11 @@ class SellerOrderController extends Controller
 
         $data = $request->validate([
             'action' => ['required', 'in:approve,accept,reject'],
-            'reason' => ['required_if:action,reject', 'nullable', 'string', 'min:10', 'max:300'],
+            'reason' => ['required_if:action,reject', 'nullable', 'string', 'min:10', 'max:300', 'regex:' . Validation::WORDS_REGEX],
         ], [
             'action.in'          => 'Choose Approve or Reject.',
             'reason.required_if' => 'Give the buyer a reason for rejecting (10 to 300 characters).',
+            'reason.regex'       => 'Write the reason in words; the buyer reads it.',
             ...Validation::reasonMessages(),
         ]);
 
@@ -405,11 +407,12 @@ class SellerOrderController extends Controller
     {
         $data = $request->validate([
             'reason'  => ['required', Rule::in(OrderCanceller::SELLER_REASONS)],
-            'details' => ['nullable', 'required_if:reason,Other', 'string', 'min:10', 'max:300'],
+            'details' => ['nullable', 'required_if:reason,Other', 'string', 'min:10', 'max:300', 'regex:' . Validation::WORDS_REGEX],
         ], [
             'reason.required'     => 'Choose a reason for cancelling. The buyer will see it.',
             'reason.in'           => 'Choose a reason from the list.',
             'details.required_if' => 'Explain the reason to the buyer (10 to 300 characters).',
+            'details.regex'       => 'Write the reason in words; the buyer reads it.',
             ...Validation::reasonMessages('details'),
         ]);
 

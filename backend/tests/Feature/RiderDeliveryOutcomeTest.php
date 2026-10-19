@@ -310,7 +310,8 @@ class RiderDeliveryOutcomeTest extends TestCase
 
         // Missing, a centavo short or over (RID-DLV-005): 422 and nothing stored or changed.
         $this->deliver($user, $parcel->tracking_number)->assertStatus(422)->assertJsonValidationErrors(['cod_amount']);
-        foreach (['1249.99', '1250.01', 'abc'] as $wrong) {
+        // "1250.004" has a third decimal: refused rather than rounded into a match with ₱1,250.00.
+        foreach (['1249.99', '1250.01', 'abc', '1250.004'] as $wrong) {
             $this->deliver($user, $parcel->tracking_number, ['cod_amount' => $wrong])->assertStatus(422)->assertJsonValidationErrors(['cod_amount']);
         }
         $this->assertEquals(Parcel::STATUS_OUT_FOR_DELIVERY, $parcel->fresh()->status);
@@ -426,13 +427,20 @@ class RiderDeliveryOutcomeTest extends TestCase
         }
     }
 
-    public function test_received_by_is_limited_to_100_characters(): void
+    public function test_received_by_must_be_a_name(): void
     {
         [$user, $rider] = $this->createRider();
         $parcel = $this->createParcel($rider, 'gcash');
 
-        $this->deliver($user, $parcel->tracking_number, ['received_by' => str_repeat('x', 101)])
-            ->assertStatus(422)->assertJsonValidationErrors(['received_by']);
+        // Names follow the shared rule (A2): 2 to 50 characters, letters, spaces, hyphens, apostrophes and periods.
+        foreach ([str_repeat('x', 51), '12345', '...', 'J', 'Ana <b>'] as $bad) {
+            $this->deliver($user, $parcel->tracking_number, ['received_by' => $bad])
+                ->assertStatus(422)->assertJsonValidationErrors(['received_by']);
+        }
+        $this->assertEquals(Parcel::STATUS_OUT_FOR_DELIVERY, $parcel->fresh()->status);
+
+        $this->deliver($user, $parcel->tracking_number, ['received_by' => "Ma. Niña O'Brien-Santos"])->assertOk();
+        $this->assertSame("Ma. Niña O'Brien-Santos", $parcel->fresh()->received_by);
     }
 
     public function test_a_failure_after_the_photo_was_stored_leaves_no_file_and_no_changes(): void
@@ -526,6 +534,13 @@ class RiderDeliveryOutcomeTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors(['reason']);
         $this->markFailed($user, $parcel->tracking_number, ['reason' => 'REFUSED', 'note' => str_repeat('x', 501)])
             ->assertStatus(422)->assertJsonValidationErrors(['note']);
+        // The hub and the company read the note: it must be words, not symbols, digits or a fragment.
+        foreach (['.....', '1234567', 'abc', '!!! ???'] as $bad) {
+            $this->markFailed($user, $parcel->tracking_number, ['reason' => 'OTHER', 'note' => $bad])
+                ->assertStatus(422)->assertJsonValidationErrors(['note']);
+            $this->markFailed($user, $parcel->tracking_number, ['reason' => 'RECIPIENT_UNAVAILABLE', 'note' => $bad])
+                ->assertStatus(422)->assertJsonValidationErrors(['note']);
+        }
 
         $this->assertEquals(Parcel::STATUS_OUT_FOR_DELIVERY, $parcel->fresh()->status);
         $this->assertSame(0, $parcel->fresh()->delivery_attempts);

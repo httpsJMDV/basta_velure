@@ -79,7 +79,7 @@ told.
 | `GET /logistics/returns` | The queue, each parcel with all its failure reasons. |
 | `POST /logistics/returns/{id}/assign {rider_id}` | The trip back to the shop. |
 | `GET /rider/returns` | The rider's return trips. |
-| `POST /rider/returns/{tracking}/delivered {note?}` | Handed back. The parcel is Returned; the order is **Cancelled (failed delivery)** for the buyer; a prepaid order is refunded in full; the shop earns nothing. The hub's `return-to-seller` action does the same. |
+| `POST /rider/returns/{tracking}/delivered {note?}` | `note`, when given: 5 to 300 characters, in words. Handed back. The parcel is Returned; the order is **Cancelled (failed delivery)** for the buyer; a prepaid order is refunded in full; the shop earns nothing. The hub's `return-to-seller` action does the same. |
 | `POST /seller/orders/{id}/confirm-return-received` | The shop confirms the parcel arrived; only now does the stock go back, once (`409` on a second confirmation). The seller's order shows `return_to_sender.state`: `on_the_way`, `awaiting_confirmation` or `confirmed`. |
 
 ## Cash on delivery and exports (A24, L9, R9)
@@ -89,7 +89,7 @@ A rider's balance is the COD they collected minus the remittances their company 
 | Route | What it does |
 |---|---|
 | `GET /rider/cod` | `balance` (`collected`, `confirmed`, `pending`, `outstanding`, `can_remit`), the orders behind it, and the remittances. |
-| `POST /rider/cod/remittances {amount, reference?}` with `Idempotency-Key` | Pending until the company confirms; the balance does not change before then. At most the balance; one pending at a time (`409`). A double tap with the same key returns the same remittance. |
+| `POST /rider/cod/remittances {amount, reference?}` with `Idempotency-Key` | Pending until the company confirms; the balance does not change before then. At most the balance; one pending at a time (`409`). A double tap with the same key returns the same remittance. `reference` (the GCash or deposit reference), when given: 4 to 40 letters, digits, spaces and `# / -`, with at least one digit (`abcd` or `....` is a `422`); runs of spaces are collapsed. Without one the server makes a `REM-…` reference. |
 | `GET /logistics/cod?date=` | The day per rider: collected, remitted, difference (a shortfall is flagged), the orders; and every pending remittance with its shortfall. |
 | `POST /logistics/cod/remittances/{id}/confirm` | Only the company can confirm (a rider gets `403`). Written to the audit log; the rider is told, with any amount still on their balance. |
 | `GET /logistics/exports?type=deliveries\|cod&format=csv\|xlsx&from&to` | Manila dates, both days included. Deliveries: every delivery completed in the range; COD: every collection. A total row closes each file; a range with no records gives the header row only. An end before the start is a `422`. |

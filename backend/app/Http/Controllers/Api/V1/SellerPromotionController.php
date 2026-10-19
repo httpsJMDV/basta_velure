@@ -240,7 +240,7 @@ class SellerPromotionController extends Controller
         $type = $request->input('type');
         $rules = [
             'type'      => ['required', 'in:bundle,bxgy'],
-            'name'      => ['required', 'string', 'min:3', 'max:80'],
+            'name'      => \App\Support\Validation::displayName(3, 80),
             'starts_at' => ['required', 'date'],
             'ends_at'   => ['required', 'date'],
         ];
@@ -259,7 +259,7 @@ class SellerPromotionController extends Controller
                 'get_quantity'   => ['required', 'integer', 'min:1', 'max:99'],
             ];
         }
-        $data = $request->validate($rules, [
+        $data = $request->validate($rules, \App\Support\Validation::displayNameMessages('name', 'The name', 3, 80) + [
             'min_quantity.min'     => 'A bundle needs at least 2 items.',
             'discount_percent.min' => 'The discount must be from 1% to 99%.',
             'discount_percent.max' => 'The discount must be from 1% to 99%.',
