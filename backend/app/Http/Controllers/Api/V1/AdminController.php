@@ -321,7 +321,7 @@ class AdminController extends Controller
         'applications' => ['approve_buyer', 'reject_buyer', 'approve_seller', 'reject_seller', 'approve_courier', 'reject_courier', 'approve_sorting_center', 'reject_sorting_center'],
         'accounts'     => ['suspend_user', 'reactivate_user', 'suspend_courier', 'reactivate_courier', 'suspend_sorting_center', 'reactivate_sorting_center'],
         'catalog'      => ['create_category', 'update_category', 'delete_category'],
-        'money'        => ['update_commission', 'update_return_policy', 'confirm_commission'],
+        'money'        => ['update_commission', 'update_return_policy', 'confirm_commission', 'resolve_settlement', 'remind_settlement'],
         'disputes'     => ['resolve_dispute'],
     ];
 

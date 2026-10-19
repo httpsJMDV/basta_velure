@@ -124,6 +124,8 @@ Route::prefix('v1')->group(function () {
 
         // Delivery proof photo (Feature 2.7): rider, hub, seller, buyer and admin only; authorization is in the controller
         Route::get('/parcels/{tracking}/delivery-proof', [DeliveryProofController::class, 'show']);
+        // The GCash receipt of a weekly courier ↔ shop payment (the two sides and admins)
+        Route::get('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\SettlementReceiptController::class, 'show'])->whereNumber('settlement');
         // Track package: timeline, route places and the courier's live position (buyer, seller, hub, rider, admin)
         Route::get('/parcels/{tracking}/tracking', [ParcelTrackingController::class, 'show']);
 
@@ -209,6 +211,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'index']);
             Route::post('/settlements', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'pay']);
             Route::post('/settlements/{settlement}/confirm', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'confirm'])->whereNumber('settlement');
+            Route::post('/settlements/{settlement}/dispute', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'dispute'])->whereNumber('settlement');
+            Route::post('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'receipt'])->whereNumber('settlement');
             Route::get('/payouts', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payouts']);
             Route::post('/payouts/riders/{rider}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payRider'])->whereNumber('rider');
             Route::post('/payouts/hubs/{hub}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payHub'])->whereNumber('hub');
@@ -386,6 +390,10 @@ Route::prefix('v1')->group(function () {
             // Commission shops pay on direct orders, and the GCash it goes to
             Route::get('/commission', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'index']);
             Route::post('/commission/{payment}/confirm', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'confirm'])->whereNumber('payment');
+            // Courier ↔ shop payments that went wrong: reported, overdue, voided
+            Route::get('/settlements', [\App\Http\Controllers\Api\V1\AdminSettlementController::class, 'index']);
+            Route::post('/settlements/{settlement}/resolve', [\App\Http\Controllers\Api\V1\AdminSettlementController::class, 'resolve'])->whereNumber('settlement');
+            Route::post('/settlements/{settlement}/remind', [\App\Http\Controllers\Api\V1\AdminSettlementController::class, 'remind'])->whereNumber('settlement');
             Route::get('/settings/payments', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'settings']);
             Route::put('/settings/payments', [\App\Http\Controllers\Api\V1\AdminCommissionController::class, 'updateSettings']);
 
@@ -514,6 +522,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/seller/settlements', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'index']);
             Route::post('/seller/settlements', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'pay']);
             Route::post('/seller/settlements/{settlement}/confirm', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'confirm'])->whereNumber('settlement');
+            Route::post('/seller/settlements/{settlement}/dispute', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'dispute'])->whereNumber('settlement');
+            Route::post('/seller/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'receipt'])->whereNumber('settlement');
             Route::get('/seller/commission', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'commission']);
             Route::post('/seller/commission', [\App\Http\Controllers\Api\V1\SellerSettlementController::class, 'payCommission']);
 
