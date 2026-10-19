@@ -38,8 +38,9 @@ import type {
   HubDeliveryOutRow,
   HubDispatchRider,
 } from '../../types';
-import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from './hubKit';
 import CustomSelect from '../../components/ui/CustomSelect';
+import { sentenceError } from '../../utils/accountRules';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 
 const POLL_MS = 30000;
@@ -303,23 +304,24 @@ export default function HubDeliveriesPage() {
 
   return (
     <div className="space-y-5">
-      <PageHero
+      <PageHeader
+        accent="amber"
+        updatedAt={lastUpdated}
         icon={Truck}
-        eyebrow="Operations"
         title="Deliveries"
         headingRef={headingRef}
         subtitle="Watch parcels on the road and decide what happens to failed deliveries."
-      >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+       />
 
       <section aria-label="Delivery summary" className="grid grid-cols-3 gap-2.5">
-        <StatCard compact icon={Truck} label="Out for delivery" value={counts.out} subtext="On the road now" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => switchTab('out')} active={tab === 'out'} />
-        <StatCard compact icon={AlertTriangle} label="Failed deliveries" value={counts.failed} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600" onClick={() => switchTab('failed')} active={tab === 'failed'} />
-        <StatCard compact icon={Bike} label="Riders on the road" value={out.data ? out.data.meta.riders.filter((r) => r.rider_id !== null).length : null} subtext="With parcels to deliver" iconBg="bg-violet-50" iconColor="text-violet-600" />
+        <StatCard icon={Truck} label="Out for delivery" value={counts.out} subtext="On the road now" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => switchTab('out')} active={tab === 'out'} />
+        <StatCard icon={AlertTriangle} label="Failed deliveries" value={counts.failed} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600" onClick={() => switchTab('failed')} active={tab === 'failed'} />
+        <StatCard icon={Bike} label="Riders on the road" value={out.data ? out.data.meta.riders.filter((r) => r.rider_id !== null).length : null} subtext="With parcels to deliver" iconBg="bg-violet-50" iconColor="text-violet-600" />
       </section>
 
-      {/* Tabs */}
+      {/* Tabs, filters and the list, in one card */}
+      <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="px-3 pt-3">
       <div role="tablist" aria-label="Delivery views" className="inline-flex items-center gap-0.5 p-1 bg-gray-100/80 rounded-xl max-w-full">
         {(
           [
@@ -349,12 +351,13 @@ export default function HubDeliveriesPage() {
           </button>
         ))}
       </div>
+      </div>
 
-      <div id="deliveries-panel" role="tabpanel" aria-labelledby={`deliveries-tab-${tab}`} className="space-y-4">
+      <div id="deliveries-panel" role="tabpanel" aria-labelledby={`deliveries-tab-${tab}`} className="mt-3">
         {tab === 'out' ? (
           <>
             {/* Filters */}
-            <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 p-3 border-y border-gray-100 bg-gray-50/40 sm:flex-row sm:items-center">
               <div className="relative flex-1">
                 <label htmlFor="out-search" className="sr-only">Search parcels</label>
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
@@ -364,6 +367,7 @@ export default function HubDeliveriesPage() {
                   value={outSearchInput}
                   onChange={(e) => setOutSearchInput(e.target.value)}
                   placeholder="Search tracking, order, recipient, barangay or rider"
+                  maxLength={100}
                   className="w-full min-h-[44px] pl-10 pr-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
                 />
               </div>
@@ -380,6 +384,7 @@ export default function HubDeliveriesPage() {
               />
             </div>
 
+            <div className="p-3 sm:p-4 space-y-4">
             {out.loading && !out.data ? (
               <div className="space-y-3 animate-pulse" aria-label="Loading deliveries on the road">
                 {[1, 2, 3].map((i) => (
@@ -447,11 +452,12 @@ export default function HubDeliveriesPage() {
                 ))}
               </>
             )}
+            </div>
           </>
         ) : (
           <>
             {/* Filters */}
-            <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 p-3 border-y border-gray-100 bg-gray-50/40 sm:flex-row sm:items-center">
               <div className="relative flex-1">
                 <label htmlFor="failed-search" className="sr-only">Search parcels</label>
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
@@ -461,6 +467,7 @@ export default function HubDeliveriesPage() {
                   value={failedSearchInput}
                   onChange={(e) => setFailedSearchInput(e.target.value)}
                   placeholder="Search tracking, order, recipient, barangay or rider"
+                  maxLength={100}
                   className="w-full min-h-[44px] pl-10 pr-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
                 />
               </div>
@@ -478,6 +485,7 @@ export default function HubDeliveriesPage() {
               />
             </div>
 
+            <div className="p-3 sm:p-4 space-y-4">
             {failed.loading && !failed.data ? (
               <div className="space-y-3 animate-pulse" aria-label="Loading failed deliveries">
                 {[1, 2, 3].map((i) => (
@@ -615,9 +623,11 @@ export default function HubDeliveriesPage() {
                 )}
               </>
             )}
+            </div>
           </>
         )}
       </div>
+      </section>
 
       {dialog?.kind === 'reschedule' && (
         <RescheduleDialog
@@ -641,7 +651,7 @@ export default function HubDeliveriesPage() {
 
 function ErrorPanel({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
   return (
-    <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center space-y-3 max-w-lg mx-auto">
+    <div role="alert" className="px-6 py-10 text-center space-y-3 max-w-md mx-auto">
       <AlertCircle className="w-8 h-8 text-red-500 mx-auto" aria-hidden="true" />
       <p className="text-sm font-bold text-gray-900">{title}</p>
       <p className="text-xs text-gray-500">{message}</p>
@@ -659,7 +669,7 @@ function ErrorPanel({ title, message, onRetry }: { title: string; message: strin
 
 function EmptyPanel({ title, text }: { title: string; text: string }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-3xl p-8 sm:p-12 text-center space-y-3 max-w-lg mx-auto">
+    <div className="px-6 py-12 sm:py-14 text-center space-y-3 max-w-md mx-auto">
       <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
         <Inbox className="w-7 h-7" aria-hidden="true" />
       </div>
@@ -912,6 +922,8 @@ function ReturnDialog({ parcel, onClose, onConflict, onDone }: DialogBase & { on
 
   const submit = async () => {
     if (busyRef.current) return;
+    const noteProblem = sentenceError(note, 'The note', { required: false, min: 5, max: NOTE_MAX });
+    if (noteProblem) { setErrors([noteProblem]); return; }
     busyRef.current = true;
     setSubmitting(true);
     setErrors([]);
@@ -966,7 +978,7 @@ function ReturnDialog({ parcel, onClose, onConflict, onDone }: DialogBase & { on
         <textarea
           id="return-note"
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={(e) => { setNote(e.target.value); setErrors([]); }}
           maxLength={NOTE_MAX}
           rows={3}
           disabled={submitting}

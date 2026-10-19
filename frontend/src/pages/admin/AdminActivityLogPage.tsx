@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity, ShieldAlert, UserCheck, UserX, Store, Truck, Warehouse, RotateCcw, FolderPlus, Tags, Trash2, Percent,
-  FileText, BadgeCheck, Scale, CalendarDays, CalendarClock, ClipboardCheck, ChevronRight, Braces, ArrowUpRight,
+  FileText, BadgeCheck, Scale, CalendarDays, CalendarClock, ClipboardCheck, ChevronRight, Braces, ArrowUpRight, BellRing,
 } from 'lucide-react';
 import { getActivityLogApi } from '../../api/client';
 import type { ActivityArea, ActivityLogEntry, ActivityLogSummary } from '../../types';
@@ -49,6 +49,8 @@ const ACTIONS: Record<string, { label: string; icon: React.ElementType; tone: To
   update_commission: { label: 'Commission changed', icon: Percent, tone: 'amber' },
   update_return_policy: { label: 'Return policy changed', icon: FileText, tone: 'amber' },
   confirm_commission: { label: 'Commission payment confirmed', icon: BadgeCheck, tone: 'emerald' },
+  resolve_settlement: { label: 'Courier–shop payment decided', icon: Scale, tone: 'blue' },
+  remind_settlement: { label: 'Payment reminder sent', icon: BellRing, tone: 'amber' },
   resolve_dispute: { label: 'Dispute decided', icon: Scale, tone: 'blue' },
 };
 
@@ -61,7 +63,7 @@ const AREAS: { value: '' | ActivityArea; label: string }[] = [
   { value: 'applications', label: 'Applications' },
   { value: 'accounts', label: 'Accounts' },
   { value: 'catalog', label: 'Categories' },
-  { value: 'money', label: 'Commission & policy' },
+  { value: 'money', label: 'Money & policy' },
   { value: 'disputes', label: 'Disputes' },
   { value: 'other', label: 'Other' },
 ];
@@ -83,6 +85,7 @@ const TARGETS: Record<string, { label: string; to: string }> = {
   dispute: { label: 'Case', to: '/admin/disputes' },
   platform_setting: { label: 'Setting', to: '/admin/settings' },
   commission_payment: { label: 'Commission payment', to: '/admin/payments' },
+  courier_settlement: { label: 'Courier–shop payment', to: '/admin/payments?tab=settlements' },
 };
 
 function dayKey(iso: string) {

@@ -6,11 +6,13 @@ import {
   ArrowDownToLine,
   Bike,
   Building2,
+  Warehouse,
   CheckCircle2,
   Layers,
   MapPin,
   MessageSquare,
   PackagePlus,
+  ScanLine,
   Send,
   Truck,
   UserCheck,
@@ -20,7 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useLivePolling } from '../../hooks/useLivePolling';
 import { getHubDashboardMetricsApi, getHubReportSummaryApi } from '../../api/client';
 import type { HubDashboardMetrics, HubReportDailyRow } from '../../types';
-import { PageHero, StatCard, StatCardSkeleton, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard, StatCardSkeleton, CardTag, HEADER_BUTTON, HEADER_BUTTON_PRIMARY } from './hubKit';
 import DailyChart from './reports/DailyChart';
 import { addDays, manilaToday } from './reports/reportFormat';
 import type { HubOutletContext } from './HubLayout';
@@ -87,10 +89,11 @@ export default function HubDashboardPage() {
 
   return (
     <div className="pb-8 space-y-3">
-      <PageHero
+      <PageHeader
+        accent="rose"
+        updatedAt={lastUpdated}
         icon={Building2}
-        eyebrow="Command center"
-        title={hub?.hub_name || 'Sorting Center Hub'}
+        title="Hub overview"
         subtitle={
           hub?.address_city ? (
             <span className="inline-flex items-center gap-1.5">
@@ -99,12 +102,13 @@ export default function HubDashboardPage() {
               {hub.address_barangay}, {hub.address_city}, {hub.address_province} · times in Asia/Manila
             </span>
           ) : (
-            'Times in Asia/Manila'
+            'Your parcels, people and daily operations in one place.'
           )
         }
       >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+        <Link to="/hub/dispatch" className={HEADER_BUTTON}><Send className="w-4 h-4" aria-hidden="true" /> Dispatch</Link>
+        <Link to="/hub/intake" className={HEADER_BUTTON_PRIMARY}><ScanLine className="w-4 h-4" aria-hidden="true" /> Scan parcels in</Link>
+      </PageHeader>
 
       {error && (
         <div role="alert" className="flex items-start gap-3 px-4 py-3 text-red-900 border border-red-200 bg-red-50 rounded-xl">
@@ -116,68 +120,38 @@ export default function HubDashboardPage() {
         </div>
       )}
 
+      <section className="hub-overview-banner" aria-label="Welcome to your hub">
+        <div><div className="hub-eyebrow mb-2">Your operations, at a glance</div><h2>{hub?.hub_name || 'Sorting Center Hub'}</h2><p>Keep parcels moving. Manage your team. Stay on top of every delivery.</p></div>
+        <div className="hub-banner-icon"><Warehouse size={28} strokeWidth={1.5} aria-hidden="true" /></div>
+      </section>
       {/* Key figures: each one opens the station that works on it */}
       <section aria-label="Operational summary" className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
         {loading ? (
           [1, 2, 3, 4, 5].map((i) => <StatCardSkeleton key={i} />)
         ) : (
           <>
-            <StatCard compact icon={ArrowDownToLine} label="Received today" value={metrics?.inbound_today} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600" to="/hub/intake" />
-            <StatCard compact icon={Layers} label="In sorting" value={metrics?.in_sorting} subtext="At the hub, not yet sorted" iconBg="bg-blue-50" iconColor="text-blue-600" to="/hub/sorting" />
-            <StatCard compact icon={Truck} label="Out for delivery" value={metrics?.out_for_delivery} subtext="On the road right now" iconBg="bg-amber-50" iconColor="text-amber-600" to="/hub/deliveries" />
-            <StatCard compact icon={AlertTriangle} label="Failed deliveries" value={metrics?.failed_deliveries} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600" to="/hub/deliveries" />
-            <StatCard compact icon={Bike} label="Active riders" value={metrics?.active_riders} subtext={`${pendingRiders} waiting for approval`} iconBg="bg-violet-50" iconColor="text-violet-600" to="/hub/riders" />
+            <StatCard icon={ArrowDownToLine} label="Received today" value={metrics?.inbound_today} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600"
+              to="/hub/intake" actionLabel="Parcel intake" trendEl={<CardTag tone="emerald">Today</CardTag>} />
+            <StatCard icon={Layers} label="In sorting" value={metrics?.in_sorting} subtext="At the hub, not yet sorted" iconBg="bg-blue-50" iconColor="text-blue-600"
+              to="/hub/sorting" actionLabel="Sort parcels" trendEl={metrics && metrics.in_sorting > 0 ? <CardTag tone="blue">To sort</CardTag> : undefined} />
+            <StatCard icon={Truck} label="Out for delivery" value={metrics?.out_for_delivery} subtext="On the road right now" iconBg="bg-amber-50" iconColor="text-amber-600"
+              to="/hub/deliveries" actionLabel="Watch deliveries" trendEl={<CardTag tone="amber">Live</CardTag>} />
+            <StatCard icon={AlertTriangle} label="Failed deliveries" value={metrics?.failed_deliveries} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600"
+              to="/hub/deliveries" actionLabel="Decide" trendEl={metrics && metrics.failed_deliveries > 0 ? <CardTag tone="rose">Needs you</CardTag> : undefined} />
+            <StatCard icon={Bike} label="Active riders" value={metrics?.active_riders} subtext={`${pendingRiders} waiting for approval`} iconBg="bg-violet-50" iconColor="text-violet-600"
+              to="/hub/riders" actionLabel="Riders" trendEl={pendingRiders > 0 ? <CardTag tone="violet">{pendingRiders} to review</CardTag> : undefined} />
           </>
         )}
       </section>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <div className="space-y-3 xl:col-span-2">
-          {/* The parcel's journey through the hub */}
-          <section aria-labelledby="flow-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 id="flow-heading" className="text-sm font-black text-gray-900">How a parcel moves through the hub</h2>
-                <p className="text-xs text-gray-500">Open a station to work on it.</p>
-              </div>
-            </div>
-            <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-              {stations.map((s, i) => {
-                const Icon = s.icon;
-                return (
-                  <li key={s.to} className="relative">
-                    <Link
-                      to={s.to}
-                      className="group flex flex-col h-full p-3.5 transition-all border rounded-xl border-gray-200/80 bg-gray-50/50 hover:bg-white hover:border-gray-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${s.tone}`}>
-                          <Icon className="w-4 h-4" aria-hidden="true" />
-                        </span>
-                        <span className="text-[10px] font-bold text-gray-400">Step {i + 1}</span>
-                      </div>
-                      <h3 className="mt-2.5 text-sm font-bold text-gray-900 group-hover:text-brand-red transition-colors">{s.title}</h3>
-                      <p className="mt-0.5 text-[11px] text-gray-500 leading-snug">{s.blurb}</p>
-                      <p className="mt-3 text-xl font-black tabular-nums text-gray-900">
-                        {s.figure ?? <span className="text-gray-300">n/a</span>}
-                        <span className="ml-1.5 text-[11px] font-semibold text-gray-500">{s.caption}</span>
-                      </p>
-                      <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-bold text-brand-red">
-                        Open <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ol>
-          </section>
-
+      <div className="hub-dashboard-columns">
+        <div className="space-y-5 min-w-0">
           {/* The last seven days */}
-          <section aria-labelledby="week-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <section aria-labelledby="week-heading" className="hub-panel">
+            <div className="hub-panel-heading">
               <div>
-                <h2 id="week-heading" className="text-sm font-black text-gray-900">Parcels, last 7 days</h2>
-                <p className="text-xs text-gray-500">Received, delivered, failed and returned, by day.</p>
+                <h2 id="week-heading" className="text-sm font-black text-gray-900">Parcel activity</h2>
+                <p className="text-xs text-gray-500">A seven-day view of parcel movement.</p>
               </div>
               <Link to="/hub/reports" className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-brand-red-dark">
                 Full reports <ArrowRight className="w-3 h-3" aria-hidden="true" />
@@ -186,16 +160,30 @@ export default function HubDashboardPage() {
             {week === null ? (
               <div className="h-56 rounded-xl bg-gray-100 animate-pulse" aria-busy="true" />
             ) : (
-              <DailyChart daily={week} bare height={240} />
+              <DailyChart daily={week} bare height={260} />
             )}
           </section>
+          <section aria-labelledby="flow-heading" className="hub-panel">
+            <div className="hub-panel-heading"><div><h2 id="flow-heading">Operations pipeline</h2><p>Every parcel, from arrival to doorstep.</p></div><span className="text-[10px] text-gray-400">4 stations</span></div>
+            <ol className="hub-stations">
+              {stations.map((s, i) => {
+                const Icon = s.icon;
+                return <li key={s.to}><Link to={s.to} className="hub-station">
+                  <div className="hub-station-top"><span className={['hub-stat-icon', s.tone].join(' ')}><Icon size={18} aria-hidden="true" /></span><span className="hub-station-number">0{i + 1}</span></div>
+                  <h3>{s.title}</h3><p>{s.blurb}</p><strong>{s.figure ?? 'n/a'}</strong><span className="hub-station-caption">{s.caption}</span>
+                  <span className="hub-station-open">Open station <ArrowRight size={12} aria-hidden="true" /></span>
+                </Link></li>;
+              })}
+            </ol>
+          </section>
+
         </div>
 
-        <div className="space-y-3">
+        <div className="hub-dashboard-aside space-y-5">
           {/* What needs the manager */}
-          <section aria-labelledby="attention-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
-            <h2 id="attention-heading" className="text-sm font-black text-gray-900">Needs your attention</h2>
-            <p className="text-xs text-gray-500 mb-3">Updates by itself as work comes in.</p>
+          <section aria-labelledby="attention-heading" className="hub-panel">
+            <h2 id="attention-heading" className="text-sm font-black text-gray-900">Action center</h2>
+            <p className="text-xs text-gray-500 mb-3">Your next steps, in one place.</p>
             {loading ? (
               <div className="space-y-2 animate-pulse" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="h-12 bg-gray-100 rounded-xl" />)}</div>
             ) : attention.length === 0 ? (
@@ -227,7 +215,7 @@ export default function HubDashboardPage() {
           </section>
 
           {/* The hub's territory */}
-          <section aria-labelledby="territory-heading" className="p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:p-5">
+          <section aria-labelledby="territory-heading" className="hub-panel">
             <h2 id="territory-heading" className="text-sm font-black text-gray-900">Hub profile</h2>
             <dl className="mt-3 space-y-3 text-xs">
               <div>

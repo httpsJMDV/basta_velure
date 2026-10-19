@@ -324,6 +324,13 @@ class CourierOpsTest extends TestCase
         $this->as($this->customer)->getJson("/api/v1/buyer/orders/{$parcel->order_id}")->assertOk()->assertJsonPath('data.tab', 'to_receive');
         $this->as($this->shop)->postJson("/api/v1/seller/orders/{$parcel->order_id}/cancel", ['reason' => 'Out of stock'])->assertStatus(409);
 
+        // On the way in: listed for Inbound with the rider bringing it, and only on its own hub's board.
+        $board = fn (array $query = []) => $this->as($this->ops)->getJson('/api/v1/logistics/hub-ops/zones?' . http_build_query($query))->assertOk();
+        $incoming = collect($board(['hub_id' => $this->hub->id])->json('data.incoming'))->firstWhere('tracking_number', $parcel->tracking_number);
+        $this->assertNotNull($incoming);
+        $this->assertSame('Pedro', strtok((string) $incoming['rider'], ' '));
+        $this->assertNotContains($parcel->tracking_number, array_column($board(['hub_id' => $this->hub->id + 1000])->json('data.incoming'), 'tracking_number'));
+
         // Outbound before Inbound: blocked, nothing changes.
         $this->as($this->ops)->postJson('/api/v1/logistics/hub-ops/outbound', ['tracking_number' => $parcel->tracking_number, 'rider_id' => $rider->id])->assertStatus(409);
         $this->assertSame(Parcel::STATUS_PICKED_UP, $parcel->fresh()->status);

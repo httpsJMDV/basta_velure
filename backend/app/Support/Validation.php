@@ -11,6 +11,21 @@ final class Validation
     /** Names: 2 to 50 characters; letters (including ñ and other accented letters), spaces, hyphen, apostrophe, period. */
     public const NAME_REGEX = "/^\\p{L}[\\p{L}\\p{M} .'\\-]*$/u";
 
+    /**
+     * A short label people read, such as a rider's delivery area: it starts with a letter or digit and uses letters,
+     * digits, spaces and . , ' & ( ) / # - only.
+     */
+    public const LABEL_REGEX = "/^[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N} .,'&()\\/#\\-]*$/u";
+
+    /** At least two letters anywhere, so "T", "12" or "--" is not a label. */
+    public const TWO_LETTERS_REGEX = '/\\p{L}.*\\p{L}/su';
+
+    /** At least three letters anywhere, so a reason is words, not "..." or "123". */
+    public const WORDS_REGEX = '/(?:\\p{L}.*){3}/su';
+
+    /** The name on a GCash or bank account (a person or a business): starts with a letter; letters, spaces and . , ' & ( ) -. */
+    public const ACCOUNT_NAME_REGEX = "/^\\p{L}[\\p{L}\\p{M} .,'&()\\-]*$/u";
+
     /** Uploads are capped at 5 MB: 5,120 KB, exactly 5,242,880 bytes. */
     public const MAX_UPLOAD_KB = 5120;
 
@@ -62,6 +77,54 @@ final class Validation
             "{$field}.uploaded" => "{$label} could not be uploaded. Use a {$types} file up to 5 MB.",
             "{$field}.mimes"    => "{$label} must be a {$types} file (other file types are not accepted).",
             "{$field}.max"      => "{$label} must be 5 MB or smaller.",
+        ];
+    }
+
+    /** A short label (3 to $max characters, at least two letters), such as "Zone 2 - Poblacion". */
+    public static function label(bool $required = true, int $max = 60): array
+    {
+        return [$required ? 'required' : 'nullable', 'string', 'min:3', "max:{$max}", 'regex:' . self::LABEL_REGEX, 'regex:' . self::TWO_LETTERS_REGEX];
+    }
+
+    public static function labelMessages(string $field, string $label, int $max = 60): array
+    {
+        return [
+            "{$field}.required" => "{$label} is required.",
+            "{$field}.min"      => "{$label} must be 3 to {$max} characters, like \"Zone 2 - Poblacion\".",
+            "{$field}.max"      => "{$label} must be 3 to {$max} characters, like \"Zone 2 - Poblacion\".",
+            "{$field}.regex"    => "{$label} needs at least two letters and may use letters, numbers, spaces and . , ' & ( ) / # - only.",
+        ];
+    }
+
+    /** Words someone else will read, such as a reason: $min to $max characters with at least three letters. */
+    public static function sentence(bool $required = true, int $min = 10, int $max = 500): array
+    {
+        return [$required ? 'required' : 'nullable', 'string', "min:{$min}", "max:{$max}", 'regex:' . self::WORDS_REGEX];
+    }
+
+    public static function sentenceMessages(string $field, string $label, int $min = 10, int $max = 500): array
+    {
+        return [
+            "{$field}.required" => "{$label} is required.",
+            "{$field}.min"      => "{$label} must be at least {$min} characters.",
+            "{$field}.max"      => "{$label} may not be longer than {$max} characters.",
+            "{$field}.regex"    => "{$label} must be written in words.",
+        ];
+    }
+
+    /** The name on a GCash or bank account: 2 to 120 characters, letters first. */
+    public static function accountName(bool $required = true): array
+    {
+        return [$required ? 'required' : 'nullable', 'string', 'min:2', 'max:120', 'regex:' . self::ACCOUNT_NAME_REGEX];
+    }
+
+    public static function accountNameMessages(string $field): array
+    {
+        return [
+            "{$field}.required" => 'Enter the name on the GCash account.',
+            "{$field}.min"      => 'Enter the full name on the GCash account (2 to 120 characters).',
+            "{$field}.max"      => 'Enter the full name on the GCash account (2 to 120 characters).',
+            "{$field}.regex"    => 'Enter the name exactly as GCash shows it: letters, spaces and . , \' & ( ) - only.',
         ];
     }
 

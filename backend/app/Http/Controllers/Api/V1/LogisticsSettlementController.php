@@ -11,6 +11,7 @@ use App\Models\RiderEarning;
 use App\Models\SellerProfile;
 use App\Models\SortingCenter;
 use App\Services\DirectSettlement;
+use App\Services\SettlementPayments;
 use App\Support\Gcash;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -23,7 +24,7 @@ use Illuminate\Http\Request;
  */
 class LogisticsSettlementController extends Controller
 {
-    public function __construct(private DirectSettlement $money) {}
+    public function __construct(private DirectSettlement $money, private SettlementPayments $payments) {}
 
     private function company(Request $request): LogisticsCompany
     {
@@ -41,7 +42,7 @@ class LogisticsSettlementController extends Controller
         foreach ($this->money->recentWeeks(8) as [$from, $to]) {
             $lines = $this->money->courierLines($from, $to, $company->id)->map(function (array $line) use ($from, &$toReceive, &$toPay) {
                 $settlement = $this->money->settlementFor($line['company_id'], $line['seller_id'], $from);
-                if (! $settlement) {
+                if (! $settlement || $settlement->state() === CourierSettlement::STATE_PAY_AGAIN) {
                     // From the courier's side: a positive net is money it owes the shop.
                     $line['net_cents'] > 0 ? $toPay += $line['net_cents'] : $toReceive += -$line['net_cents'];
                 }
@@ -70,20 +71,24 @@ class LogisticsSettlementController extends Controller
         ]]);
     }
 
-    /** POST /logistics/settlements: the courier sent a shop the cash it collected for a week. */
+    /** POST /logistics/settlements: the courier sent a shop the cash it collected for a week (multipart with a receipt). */
     public function pay(Request $request): JsonResponse
     {
         $company = $this->company($request);
-        $data = $request->validate(['seller_id' => ['required', 'integer'], 'week_start' => ['required', 'date'], 'reference' => ['required', 'string']]);
+        $data = $request->validate([
+            'seller_id'  => ['required', 'integer'],
+            'week_start' => ['required', 'date'],
+            'reference'  => ['required', 'string'],
+            'receipt'    => SellerSettlementController::RECEIPT_RULE,
+        ], SellerSettlementController::RECEIPT_MESSAGES);
         $reference = SellerSettlementController::reference($data['reference']);
         [$from, $to] = $this->money->week($data['week_start']);
         abort_if($from->isSameWeek(CarbonImmutable::now(DirectSettlement::TZ)), 422, 'A week can be settled once it is over.');
 
         $line = $this->money->courierLines($from, $to, $company->id, (int) $data['seller_id'])->firstWhere('seller_id', (int) $data['seller_id']);
         abort_unless($line && DirectSettlement::direction($line['net_cents']) === 'courier_pays', 422, 'You do not owe this shop anything for that week.');
-        abort_if($this->money->settlementFor($line['company_id'], $line['seller_id'], $from), 422, 'That week is already settled.');
 
-        $settlement = $this->money->recordCourierPayment($line, $from, $to, $reference, $request->user()->id);
+        $settlement = $this->payments->record($line, $from, $to, $reference, $request->file('receipt'), $request->user());
 
         return response()->json(['data' => SellerSettlementController::settlement($settlement)], 201);
     }
@@ -91,12 +96,35 @@ class LogisticsSettlementController extends Controller
     /** POST /logistics/settlements/{settlement}/confirm: the courier got the shop's payment. */
     public function confirm(Request $request, CourierSettlement $settlement): JsonResponse
     {
-        abort_unless((int) $settlement->logistics_company_id === (int) $this->company($request)->id, 404);
-        abort_unless((float) $settlement->net_amount < 0, 422, 'Only the side that received a payment can confirm it.');
-        abort_if($settlement->confirmed_at, 422, 'Already confirmed.');
-        $settlement->update(['confirmed_at' => now(), 'confirmed_by' => $request->user()->id]);
+        $this->ours($request, $settlement, 'receiver', 'Only the side that received a payment can confirm it.');
 
-        return response()->json(['data' => SellerSettlementController::settlement($settlement->fresh())]);
+        return response()->json(['data' => SellerSettlementController::settlement($this->payments->confirm($settlement, $request->user()))]);
+    }
+
+    /** POST /logistics/settlements/{settlement}/dispute {reason}: the shop's payment did not arrive. */
+    public function dispute(Request $request, CourierSettlement $settlement): JsonResponse
+    {
+        $this->ours($request, $settlement, 'receiver', 'Only the side that should receive a payment can report it.');
+        $reason = $request->validate(SellerSettlementController::DISPUTE_RULES, SellerSettlementController::DISPUTE_MESSAGES)['reason'];
+
+        return response()->json(['data' => SellerSettlementController::settlement($this->payments->dispute($settlement, $request->user(), trim($reason)))]);
+    }
+
+    /** POST /logistics/settlements/{settlement}/receipt {receipt}: the GCash receipt of a payment the courier sent. */
+    public function receipt(Request $request, CourierSettlement $settlement): JsonResponse
+    {
+        $this->ours($request, $settlement, 'payer', 'Only the side that sent a payment can attach its receipt.');
+        $request->validate(['receipt' => ['required', ...array_slice(SellerSettlementController::RECEIPT_RULE, 1)]], SellerSettlementController::RECEIPT_MESSAGES);
+
+        return response()->json(['data' => SellerSettlementController::settlement($this->payments->attachReceipt($settlement, $request->file('receipt')))]);
+    }
+
+    /** The company's own settlement (404 otherwise), on the side the action needs ('payer' or 'receiver'). */
+    private function ours(Request $request, CourierSettlement $settlement, string $as, string $wrongSide): void
+    {
+        abort_unless((int) $settlement->logistics_company_id === (int) $this->company($request)->id, 404);
+        $side = $as === 'payer' ? $settlement->payerSide() : $settlement->receiverSide();
+        abort_unless($side === 'courier', 422, $wrongSide);
     }
 
     /** GET /logistics/payouts: what each rider and hub of the network is owed, and when they were last paid. */

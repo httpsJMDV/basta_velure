@@ -1,10 +1,13 @@
 // The GCash pieces every money screen shares: who to pay (with copy and QR), the 13-digit reference field, the
-// dialog that records a payment, and the form where a rider, hub or courier sets the GCash it is paid on.
-import { useEffect, useState, type ReactNode } from 'react';
+// receipt picture, the dialog that records a payment, and the form where a rider, hub or courier sets the GCash it is
+// paid on.
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Copy, Check, QrCode, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Copy, Check, QrCode, X, AlertCircle, Loader2, ImagePlus } from 'lucide-react';
 import gcashLogo from '../../assets/brand/gcash-logo.svg';
 import type { GcashAccount, PayoutAccount } from '../../types';
+import { downscaleImage, formatBytes } from '../../utils/imageDownscale';
+import { accountNameError, gcashNumberError, squish } from '../../utils/accountRules';
 
 export function peso(n: number): string {
   return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -98,21 +101,79 @@ export function ReferenceField({ id, value, onChange, error, label = 'GCash refe
   );
 }
 
+const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const RECEIPT_MAX_BYTES = 8 * 1024 * 1024;
+
+/** Checks a receipt picture and shrinks it for upload. Throws an Error with a message for the user. */
+export async function prepareReceipt(file: File): Promise<File> {
+  if (!RECEIPT_TYPES.includes(file.type)) throw new Error('Choose a JPG, PNG or WebP picture of the receipt.');
+  const { file: out } = await downscaleImage(file);
+  if (out.size > RECEIPT_MAX_BYTES) throw new Error('That picture is over 8 MB. Take a smaller screenshot.');
+  return out;
+}
+
+/** An optional screenshot of the GCash receipt: chosen, shrunk for upload, previewed, removable. */
+export function ReceiptPicker({ file, onChange, disabled = false }: { file: File | null; onChange: (file: File | null) => void; disabled?: boolean }) {
+  const [error, setError] = useState('');
+  const [working, setWorking] = useState(false);
+  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
+  const choose = async (picked: File | undefined) => {
+    if (!picked) return;
+    setError('');
+    setWorking(true);
+    try { onChange(await prepareReceipt(picked)); } catch (e) { setError((e as Error).message); } finally { setWorking(false); }
+  };
+
+  return (
+    <div>
+      <p className="mb-1.5 text-[12px] font-medium text-stone-600">Receipt screenshot <span className="font-normal text-stone-400">(optional)</span></p>
+      {file && preview ? (
+        <div className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 p-2">
+          <img src={preview} alt="The receipt to attach" className="w-12 h-12 rounded-lg object-cover border border-stone-200 bg-white" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-medium text-stone-800">{file.name}</p>
+            <p className="text-[11.5px] text-stone-500">{formatBytes(file.size)}</p>
+          </div>
+          <button type="button" onClick={() => onChange(null)} disabled={disabled} className="h-8 px-3 rounded-full text-[12px] font-semibold text-stone-600 hover:bg-white">Remove</button>
+        </div>
+      ) : (
+        <label className={`flex items-center gap-3 rounded-xl border border-dashed px-3.5 py-3 transition-colors ${disabled || working ? 'opacity-60' : 'cursor-pointer hover:border-stone-500 hover:bg-stone-50'} ${error ? 'border-brand-red' : 'border-stone-300'}`}>
+          <span className="w-9 h-9 rounded-lg bg-stone-100 text-stone-500 flex items-center justify-center shrink-0">
+            {working ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <ImagePlus className="w-4 h-4" aria-hidden="true" />}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium text-stone-800">Attach the GCash receipt</span>
+            <span className="block text-[11.5px] text-stone-500">If the other side cannot find the transfer, Loved-IT checks this picture.</span>
+          </span>
+          <input type="file" accept={RECEIPT_TYPES.join(',')} className="sr-only" disabled={disabled || working}
+            onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ''; }} />
+        </label>
+      )}
+      {error && <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-brand-red"><AlertCircle className="w-3.5 h-3.5" />{error}</p>}
+    </div>
+  );
+}
+
 /**
  * "I sent this": the payee, the amount and the reference of the transfer. The caller records it; a server error
  * comes back through `error`.
  */
-export function RecordPaymentDialog({ title, intro, payee, amount, missingPayee, confirmLabel = 'Record payment', onConfirm, onClose }: {
+export function RecordPaymentDialog({ title, intro, payee, amount, missingPayee, confirmLabel = 'Record payment', withReceipt = false, onConfirm, onClose }: {
   title: string;
   intro: ReactNode;
   payee: GcashAccount | null;
   amount: number;
   missingPayee?: string;
   confirmLabel?: string;
-  onConfirm: (reference: string) => Promise<void>;
+  /** Offer an optional screenshot of the GCash receipt (sent to onConfirm). */
+  withReceipt?: boolean;
+  onConfirm: (reference: string, receipt: File | null) => Promise<void>;
   onClose: () => void;
 }) {
   const [reference, setReference] = useState('');
+  const [receipt, setReceipt] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -127,7 +188,7 @@ export function RecordPaymentDialog({ title, intro, payee, amount, missingPayee,
     setBusy(true);
     setError('');
     try {
-      await onConfirm(reference);
+      await onConfirm(reference, receipt);
     } catch (err) {
       const data = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
       setError(Object.values(data?.errors ?? {})[0]?.[0] ?? data?.message ?? 'That did not go through. Try again.');
@@ -149,6 +210,7 @@ export function RecordPaymentDialog({ title, intro, payee, amount, missingPayee,
             <p className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-[13px] text-amber-900">{missingPayee ?? 'They have not set up a GCash account yet. Ask them for it before you send money.'}</p>
           )}
           <ReferenceField id="record-ref" value={reference} onChange={(v) => { setReference(v); setError(''); }} error={error} label="Reference of your transfer" hint="Send the money in GCash first, then type the 13-digit reference from your receipt." />
+          {withReceipt && <ReceiptPicker file={receipt} onChange={setReceipt} disabled={busy} />}
         </div>
         <div className="flex gap-2 px-5 pb-5">
           <button type="button" onClick={onClose} disabled={busy} className="flex-1 h-11 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-700 hover:border-stone-900">Cancel</button>
@@ -187,10 +249,18 @@ export function PayoutAccountForm({ load, save, who, tone = 'stone', intro }: {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Both empty clears the account; otherwise both must be right before anything is sent.
+    if (number.trim() || name.trim()) {
+      const local = Object.fromEntries(Object.entries({
+        gcash_number: gcashNumberError(number),
+        gcash_name: accountNameError(name),
+      }).filter(([, v]) => v)) as Record<string, string>;
+      if (Object.keys(local).length) { setErrors(local); return; }
+    }
     setBusy(true);
     setErrors({});
     try {
-      const saved = await save({ gcash_number: number.trim() || null, gcash_name: name.trim() || null });
+      const saved = await save({ gcash_number: number.trim() || null, gcash_name: squish(name) || null });
       setAccount(saved);
       setNumber(saved.gcash_number ?? '');
       setName(saved.gcash_name ?? '');
@@ -228,13 +298,17 @@ export function PayoutAccountForm({ load, save, who, tone = 'stone', intro }: {
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor={`gcash-number-${who}`} className="block text-[12px] font-medium text-stone-600 mb-1.5">GCash number</label>
-          <input id={`gcash-number-${who}`} inputMode="tel" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="0917 123 4567" className={input} />
-          {errors.gcash_number && <p className="mt-1 text-[12px] text-brand-red">{errors.gcash_number}</p>}
+          <input id={`gcash-number-${who}`} inputMode="tel" maxLength={20} value={number} aria-invalid={Boolean(errors.gcash_number)}
+            onChange={(e) => { setNumber(e.target.value); setErrors(({ gcash_number: _drop, ...rest }) => rest); }}
+            placeholder="0917 123 4567" className={`${input} ${errors.gcash_number ? '!border-brand-red' : ''}`} />
+          {errors.gcash_number && <p role="alert" className="mt-1 text-[12px] text-brand-red">{errors.gcash_number}</p>}
         </div>
         <div>
           <label htmlFor={`gcash-name-${who}`} className="block text-[12px] font-medium text-stone-600 mb-1.5">Name on the account</label>
-          <input id={`gcash-name-${who}`} value={name} onChange={(e) => setName(e.target.value)} placeholder="As GCash shows it" className={input} />
-          {errors.gcash_name && <p className="mt-1 text-[12px] text-brand-red">{errors.gcash_name}</p>}
+          <input id={`gcash-name-${who}`} maxLength={120} value={name} aria-invalid={Boolean(errors.gcash_name)}
+            onChange={(e) => { setName(e.target.value); setErrors(({ gcash_name: _drop, ...rest }) => rest); }}
+            placeholder="As GCash shows it" className={`${input} ${errors.gcash_name ? '!border-brand-red' : ''}`} />
+          {errors.gcash_name && <p role="alert" className="mt-1 text-[12px] text-brand-red">{errors.gcash_name}</p>}
         </div>
       </div>
       <div className="flex gap-2">

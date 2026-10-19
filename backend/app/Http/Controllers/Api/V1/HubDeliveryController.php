@@ -16,6 +16,7 @@ use App\Services\RiderAreaCoverage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Support\Validation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -243,8 +244,8 @@ class HubDeliveryController extends Controller
     public function returnToSeller(Request $request, string $tracking): JsonResponse
     {
         $validated = $request->validate([
-            'note' => ['nullable', 'string', 'max:500'],
-        ]);
+            'note' => Validation::sentence(false, 5, 500),
+        ], Validation::sentenceMessages('note', 'The note', 5, 500));
 
         $hub = $this->hub($request);
         $trackingNumber = Str::upper(trim($tracking));

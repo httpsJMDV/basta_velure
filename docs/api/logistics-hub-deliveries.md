@@ -127,7 +127,7 @@ Gives a failed parcel another delivery attempt.
 ## 4. Return to Seller (`POST /api/v1/hub/deliveries/{tracking}/return-to-seller`)
 Sends a failed parcel back to the seller. It is always available on a `DELIVERY_FAILED` parcel, including after the attempt limit.
 
-- **Body**: `{ "note": "optional, max 500 characters" }`.
+- **Body**: `{ "note": "optional" }`. When given, 5 to 500 characters with at least three letters (`ok` or `.....` is a `422`); blank is the same as none.
 - **On success**, in one transaction with row locks: the order moves `DELIVERY_FAILED → RETURNED` through `OrderStateMachine` with actor `hub`, and `returned_at` and `return_note` are set. **Refunds, escrow, and every money field are untouched.**
 - **Email**: after the transaction commits, inside `try/catch` with logging, the seller is emailed. It is built from real data: the shop name, order number, tracking number, the failure reason label, the hub name, and a login link built from `config('app.frontend_url')` (falling back to `APP_URL`, never a hardcoded host). A mail failure never undoes the return.
 - Both emails are queued like the other application emails: with `QUEUE_CONNECTION=database` a worker (`php artisan queue:work`) must be running; with `sync` they send immediately; with `MAIL_MAILER=log` they are written to `storage/logs/laravel.log`.

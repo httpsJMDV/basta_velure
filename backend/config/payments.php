@@ -15,4 +15,16 @@ return [
 
     'sandbox_secret' => env('PAYMENTS_SANDBOX_SECRET', env('APP_KEY', 'sandbox')),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Courier and shop settlements
+    |--------------------------------------------------------------------------
+    |
+    | Days the receiving side has to confirm (or report) a weekly settlement
+    | payment before Loved-IT's admins see it as overdue.
+    |
+    */
+
+    'settlement_confirm_days' => (int) env('SETTLEMENT_CONFIRM_DAYS', 3),
+
 ];

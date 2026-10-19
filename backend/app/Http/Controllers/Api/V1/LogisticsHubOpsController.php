@@ -53,19 +53,26 @@ class LogisticsHubOpsController extends Controller
         ]]);
     }
 
-    /** GET /logistics/hub-ops/zones : sorted parcels, one list per delivery zone. */
+    /**
+     * GET /logistics/hub-ops/zones?hub_id= : what each station works on. Parcels on the way in (picked up, for Inbound),
+     * at the hub (for Sort), and sorted ones, one list per delivery zone (for Outbound). With hub_id, only that hub's.
+     */
     public function zones(Request $request): JsonResponse
     {
         $company = $this->company($request);
-        $parcels = LogisticsCompany::constrain(Parcel::query(), $company->id)->with('order:id,order_number')
-            ->whereIn('status', [Parcel::STATUS_AT_SORTING_CENTER, Parcel::STATUS_SORTED])->orderBy('sorted_at')->orderBy('scanned_in_at')->get();
+        $hubId = $request->integer('hub_id') ?: null;
+        $parcels = LogisticsCompany::constrain(Parcel::query(), $company->id)->with(['order:id,order_number', 'pickupRider.user:id,first_name,last_name'])
+            ->whereIn('status', [Parcel::STATUS_PICKED_UP, Parcel::STATUS_AT_SORTING_CENTER, Parcel::STATUS_SORTED])
+            ->when($hubId, fn ($q) => $q->where('sorting_center_id', $hubId))
+            ->orderBy('sorted_at')->orderBy('scanned_in_at')->orderBy('picked_up_at')->get();
 
         $sorted = $parcels->where('status', Parcel::STATUS_SORTED)->groupBy(fn (Parcel $p) => $p->shipping_zone ?: 'No zone')
             ->map(fn ($list, $zone) => ['zone' => $zone, 'parcels' => $list->map(fn ($p) => $this->row($p))->values()])->values();
 
         return response()->json(['data' => [
-            'to_sort' => $parcels->where('status', Parcel::STATUS_AT_SORTING_CENTER)->map(fn ($p) => $this->row($p))->values(),
-            'zones'   => $sorted,
+            'incoming' => $parcels->where('status', Parcel::STATUS_PICKED_UP)->map(fn ($p) => $this->row($p))->values(),
+            'to_sort'  => $parcels->where('status', Parcel::STATUS_AT_SORTING_CENTER)->map(fn ($p) => $this->row($p))->values(),
+            'zones'    => $sorted,
         ]]);
     }
 
@@ -186,6 +193,11 @@ class LogisticsHubOpsController extends Controller
             'status'          => $p->status,
             'zone'            => $p->shipping_zone,
             'barangay'        => $p->destination_barangay,
+            'city'            => $p->recipient_snapshot['city'] ?? null,
+            'shop'            => $p->pickup_address_snapshot['shop_name'] ?? null,
+            'rider'           => $p->relationLoaded('pickupRider') && $p->pickupRider?->user
+                ? trim($p->pickupRider->user->first_name . ' ' . $p->pickupRider->user->last_name) : null,
+            'picked_up_at'    => $p->picked_up_at?->toIso8601String(),
             'scanned_in_at'   => $p->scanned_in_at?->toIso8601String(),
             'sorted_at'       => $p->sorted_at?->toIso8601String(),
         ];

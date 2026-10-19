@@ -22,6 +22,7 @@ import type { LogisticsHubRow, LogisticsRiderRow, LogisticsRidersSummary, RiderS
 import {
   compact, dobError, emailError, fileError, firstErrors, licenseExpiryError, licenseNumberError, manilaToday, nameError, phoneError,
 } from '../../utils/accountRules';
+import { HeroStats } from '../../components/logistics/CourierKit';
 
 const TONE: Record<RiderStatus, PillTone> = { ACTIVE: 'emerald', PENDING: 'amber', DISAPPROVED: 'red', PENDING_ACTIVATION: 'blue', SUSPENDED: 'red' };
 const LABEL: Record<RiderStatus, string> = {
@@ -91,9 +92,15 @@ export default function LogisticsRidersPage() {
   const max = summary?.max_active_jobs ?? 3;
 
   return (
-    <div className="pb-8 space-y-3">
-      <PageHero icon={Bike} eyebrow="Network" title="Riders"
-        subtitle={summary ? `${summary.online} online now · ${summary.active} active · ${summary.pending_activation} waiting to activate` : 'Add your riders, verify them and see who is online.'}>
+    <div className="w-full pb-8 space-y-4">
+      <PageHero icon={Bike} eyebrow="Network" title="Riders" subtitle={`Add your riders, verify them and see who is online. Each rider holds up to ${max} jobs at a time.`}>
+        {summary && (
+          <HeroStats items={[
+            { label: 'Online now', value: summary.online, tone: summary.online ? 'good' : 'warn' },
+            { label: 'Active', value: summary.active },
+            { label: 'To activate', value: summary.pending_activation, tone: summary.pending_activation ? 'warn' : 'default' },
+          ]} />
+        )}
         <button type="button" className={HERO_BUTTON} onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add rider</button>
       </PageHero>
 

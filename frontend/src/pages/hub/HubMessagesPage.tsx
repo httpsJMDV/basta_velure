@@ -7,7 +7,7 @@ import ThreadView from '../../components/chat/ThreadView';
 import { useAuth } from '../../hooks/useAuth';
 import type { RiderThread, ThreadMeta } from '../../types';
 import type { HubOutletContext } from './HubLayout';
-import { PageHero, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader } from './hubKit';
 
 const LIST_POLL_MS = 10000;
 
@@ -97,14 +97,13 @@ export default function HubMessagesPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
+        accent="sky"
+        updatedAt={lastUpdated}
         icon={MessageSquare}
-        eyebrow="People"
         title="Rider messages"
         subtitle="Conversations riders start about the parcels they are collecting or delivering. They close when the parcel is done."
-      >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+       />
 
       <div className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden md:grid md:grid-cols-[20rem_1fr] h-[calc(100vh-14rem)] min-h-[28rem]">
         {/* Thread list: hidden on a phone while a thread is open */}
@@ -112,20 +111,25 @@ export default function HubMessagesPage() {
           aria-label="Conversations"
           className={`${selected ? 'hidden md:flex' : 'flex'} flex-col min-h-0 border-r border-gray-200`}
         >
-          <div className="flex gap-1 p-2 border-b border-gray-100" role="group" aria-label="Filter conversations">
-            {(['all', 'unread'] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                aria-pressed={filter === f}
-                className={`flex-1 min-h-10 rounded-lg text-xs font-bold ${
-                  filter === f ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {f === 'all' ? 'All' : `Unread${unreadTotal > 0 ? ` (${unreadTotal})` : ''}`}
-              </button>
-            ))}
+          <div className="p-2 border-b border-gray-100 bg-gray-50/40">
+            <div className="flex gap-0.5 p-1 bg-gray-100/80 rounded-xl" role="group" aria-label="Filter conversations">
+              {(['all', 'unread'] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFilter(f)}
+                  aria-pressed={filter === f}
+                  className={`flex-1 min-h-9 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all ${
+                    filter === f ? 'bg-white text-brand-red shadow-xs' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {f === 'all' ? 'All' : 'Unread'}
+                  {f === 'unread' && unreadTotal > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${filter === f ? 'bg-red-100 text-brand-red-dark' : 'bg-gray-200 text-gray-600'}`}>{unreadTotal}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto">

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\LogisticsCompany;
 use App\Models\Parcel;
 use App\Models\Rider;
 use App\Models\SortingCenter;
@@ -11,6 +12,41 @@ use Illuminate\Http\Request;
 
 class SortingCenterDashboardController extends Controller
 {
+    /**
+     * The hub's own details for its Settings page, and the courier company it belongs to. Read-only: the hub's name,
+     * address and coverage are approved by the courier, so changes go through the courier (its contact is included).
+     *
+     * GET /api/v1/hub/profile
+     */
+    public function profile(Request $request): JsonResponse
+    {
+        /** @var SortingCenter|null $hub */
+        $hub = $request->user()->sortingCenter;
+        abort_if(! $hub || $hub->status !== SortingCenter::STATUS_APPROVED, 403, 'Sorting center account not approved.');
+
+        $company = LogisticsCompany::find(LogisticsCompany::effectiveId($hub->logistics_company_id));
+
+        return response()->json(['data' => [
+            'id'                       => $hub->id,
+            'hub_name'                 => $hub->hub_name,
+            'status'                   => $hub->status,
+            'address_street'           => $hub->address_street,
+            'address_barangay'         => $hub->address_barangay,
+            'address_city'             => $hub->address_city,
+            'address_province'         => $hub->address_province,
+            'coverage_barangays_count' => is_array($hub->coverage_barangays) ? count($hub->coverage_barangays) : 0,
+            'has_permit'               => (bool) $hub->dti_permit_path,
+            'applied_at'               => $hub->created_at?->toIso8601String(),
+            'approved_at'              => $hub->reviewed_at?->toIso8601String(),
+            'courier'                  => $company ? [
+                'name'          => $company->name,
+                'code'          => $company->code,
+                'contact_email' => $company->contact_email,
+                'contact_phone' => $company->contact_phone,
+            ] : null,
+        ]]);
+    }
+
     /**
      * Return live metrics for the authenticated user's approved sorting center hub.
      *

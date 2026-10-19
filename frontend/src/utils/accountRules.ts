@@ -124,6 +124,74 @@ export function licenseExpiryError(value: string): string | undefined {
   return value < manilaToday() ? "This driver's license is expired. The expiry date must be today or later." : undefined;
 }
 
+/** Collapses runs of spaces and trims, as the server stores text. */
+export function squish(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+const LABEL_RE = /^[\p{L}\p{N}][\p{L}\p{M}\p{N} .,'&()/#-]*$/u;
+const TWO_LETTERS_RE = /\p{L}.*\p{L}/su;
+const WORDS_RE = /(?:\p{L}.*){3}/su;
+const ACCOUNT_NAME_RE = /^\p{L}[\p{L}\p{M} .,'&()-]*$/u;
+
+/** A short label people read, such as a delivery area (Validation::label on the server). */
+export function labelError(value: string, label: string, max = 60): string | undefined {
+  const v = squish(value);
+  if (!v) return `${label} is required.`;
+  if (v.length < 3 || v.length > max) return `${label} must be 3 to ${max} characters, like "Zone 2 - Poblacion".`;
+  if (!LABEL_RE.test(v) || !TWO_LETTERS_RE.test(v)) {
+    return `${label} needs at least two letters and may use letters, numbers, spaces and . , ' & ( ) / # - only.`;
+  }
+  return undefined;
+}
+
+/** Words someone else will read, such as a reason or a note (Validation::sentence on the server). */
+export function sentenceError(value: string, label: string, opts: { required?: boolean; min?: number; max?: number } = {}): string | undefined {
+  const { required = true, min = 10, max = 500 } = opts;
+  const v = value.trim();
+  if (!v) return required ? `${label} is required.` : undefined;
+  if (v.length < min) return `${label} must be at least ${min} characters.`;
+  if (v.length > max) return `${label} may not be longer than ${max} characters.`;
+  if (!WORDS_RE.test(v)) return `${label} must be written in words.`;
+  return undefined;
+}
+
+/** The name on a GCash account, a person's or a business's (Validation::accountName on the server). */
+export function accountNameError(value: string, required = true): string | undefined {
+  const v = squish(value);
+  if (!v) return required ? 'Enter the name on the GCash account.' : undefined;
+  if (v.length < 2 || v.length > 120) return 'Enter the full name on the GCash account (2 to 120 characters).';
+  if (!ACCOUNT_NAME_RE.test(v)) return "Enter the name exactly as GCash shows it: letters, spaces and . , ' & ( ) - only.";
+  return undefined;
+}
+
+/** A GCash number written as 09…, 9…, 63 9… or +63 9…, with spaces or dashes → "09171234567" (Gcash::normalize). */
+export function normalizeGcash(raw: string): string | null {
+  if (/[^0-9+\s-]/.test(raw)) return null;
+  let d = raw.replace(/\D+/g, '');
+  if (d.startsWith('63') && d.length === 12) d = `0${d.slice(2)}`;
+  if (d.length === 10 && d.startsWith('9')) d = `0${d}`;
+  return /^09\d{9}$/.test(d) ? d : null;
+}
+
+export function gcashNumberError(value: string, required = true): string | undefined {
+  if (!value.trim()) return required ? 'Enter the GCash mobile number.' : undefined;
+  return normalizeGcash(value) ? undefined : 'Enter the 11-digit mobile number of the GCash account, like 0917 123 4567.';
+}
+
+/** Loved-IT tracking numbers: LIT-YYMMDD-XXXXXX. Typed without dashes or in small letters, they are tidied first. */
+export function normalizeTrackingNumber(raw: string): string {
+  const v = raw.trim().toUpperCase().replace(/\s+/g, '');
+  const compact = /^LIT(\d{6})([A-Z0-9]{6})$/.exec(v);
+  return compact ? `LIT-${compact[1]}-${compact[2]}` : v;
+}
+
+export function trackingNumberError(raw: string): string | undefined {
+  const v = normalizeTrackingNumber(raw);
+  if (!v) return 'Type or scan a tracking number.';
+  return /^LIT-\d{6}-[A-Z0-9]{6}$/.test(v) ? undefined : 'That is not a Loved-IT tracking number. It looks like LIT-261017-AB12CD.';
+}
+
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 /** A10/A16: type by extension and MIME (the server also checks the content), and at most 5 MB. */

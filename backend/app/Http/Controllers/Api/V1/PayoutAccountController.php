@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Support\Gcash;
+use App\Support\Validation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,15 +38,15 @@ class PayoutAccountController extends Controller
         abort_if(! $owner, 404);
         $data = $request->validate([
             'gcash_number' => ['nullable', ...Gcash::RULE],
-            'gcash_name'   => ['nullable', 'string', 'max:120'],
-        ]);
+            'gcash_name'   => Validation::accountName(false),
+        ], Validation::accountNameMessages('gcash_name'));
 
         $raw = trim((string) ($data['gcash_number'] ?? ''));
         $number = $raw === '' ? null : Gcash::normalize($raw);
         if ($raw !== '' && ! $number) {
             throw \Illuminate\Validation\ValidationException::withMessages(['gcash_number' => 'Enter the 11-digit mobile number of the GCash account, like 0917 123 4567.']);
         }
-        $name = trim((string) ($data['gcash_name'] ?? '')) ?: null;
+        $name = \Illuminate\Support\Str::squish((string) ($data['gcash_name'] ?? '')) ?: null;
         if ($number && ! $name) {
             throw \Illuminate\Validation\ValidationException::withMessages(['gcash_name' => 'Enter the name on the GCash account.']);
         }

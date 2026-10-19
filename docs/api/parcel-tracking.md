@@ -1,6 +1,6 @@
 # Track package and live courier location
 
-Buyers, sellers, hubs, riders and admins can open **Track package** for a parcel: a timeline like the one on a shopping app, the places on the route, a map, and (while a courier carries the parcel) the courier's position on that map.
+Buyers, sellers, hubs, riders, courier companies and admins can open **Track package** for a parcel: a timeline like the one on a shopping app, the places on the route, a map, and (while a courier carries the parcel) the courier's position on that map.
 
 ## Who sees what
 
@@ -10,6 +10,7 @@ Buyers, sellers, hubs, riders and admins can open **Track package** for a parcel
 | Seller | the parcel's seller | sees the rider arriving on the pickup leg |
 | Hub | an **approved** hub that owns the parcel | |
 | Rider | the rider the parcel is **assigned** to, or the rider who **picked it up** from the seller | |
+| Courier | a member of the **approved** courier company carrying the parcel (a parcel without a company belongs to the default courier) | `viewer_role: "courier"`; also sees the delivery proof photos |
 | Admin | any parcel | |
 
 Anyone else, and an unknown tracking number, gets the same `404` (it reveals nothing about which parcels exist). `401` when not signed in.

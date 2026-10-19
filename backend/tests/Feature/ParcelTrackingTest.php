@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\LogisticsCompany;
+use App\Models\LogisticsCompanyMember;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
@@ -150,6 +152,31 @@ class ParcelTrackingTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $this->getJson($this->url($parcel))->assertStatus(401);
+    }
+
+    public function test_the_courier_company_carrying_the_parcel_may_read_it_and_a_rival_courier_may_not(): void
+    {
+        $company = fn (string $name) => LogisticsCompany::create([
+            'name' => $name . ' ' . uniqid(), 'slug' => strtolower($name) . '-' . uniqid(), 'code' => strtoupper(substr($name, 0, 2)) . rand(1000, 9999),
+            'contact_email' => strtolower($name) . uniqid() . '@example.com', 'status' => LogisticsCompany::STATUS_APPROVED,
+            'submitted_at' => now(), 'is_default' => false,
+        ]);
+        $member = function (LogisticsCompany $c): User {
+            $user = $this->user('buyer', 'Ops');
+            LogisticsCompanyMember::create(['logistics_company_id' => $c->id, 'user_id' => $user->id, 'role' => 'owner']);
+
+            return $user;
+        };
+        $carrier = $company('Bilis');
+        $ops = $member($carrier);
+        $parcel = $this->parcel('AT_SORTING_CENTER', ['logistics_company_id' => $carrier->id]);
+
+        $this->actingAs($ops, 'sanctum')->getJson($this->url($parcel))->assertOk()->assertJsonPath('data.viewer_role', 'courier');
+        $this->actingAs($member($company('Rival')), 'sanctum')->getJson($this->url($parcel))->assertStatus(404);
+
+        // A company that is no longer approved loses the view.
+        $carrier->update(['status' => LogisticsCompany::STATUS_SUSPENDED]);
+        $this->actingAs($ops, 'sanctum')->getJson($this->url($parcel))->assertStatus(404);
     }
 
     public function test_the_pickup_rider_may_read_it_while_they_collect_for_the_seller(): void

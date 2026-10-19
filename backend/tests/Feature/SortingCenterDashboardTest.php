@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\LogisticsCompany;
 use App\Models\Parcel;
 use App\Models\SortingCenter;
 use App\Models\User;
@@ -55,6 +56,34 @@ class SortingCenterDashboardTest extends TestCase
             'role'       => 'buyer',
             'status'     => 'active',
         ]);
+    }
+
+    public function test_the_hub_reads_its_own_details_and_its_courier_contact(): void
+    {
+        $company = LogisticsCompany::create([
+            'name' => 'Bilis Hatid ' . uniqid(), 'code' => 'BH' . rand(100, 999), 'slug' => 'bilis-' . uniqid(), 'status' => LogisticsCompany::STATUS_APPROVED,
+            'submitted_at' => now(), 'is_default' => false, 'contact_email' => 'ops@bilis.example', 'contact_phone' => '09171234567',
+        ]);
+        $this->hub->update(['logistics_company_id' => $company->id]);
+
+        Sanctum::actingAs($this->hubOwner);
+        $this->getJson('/api/v1/hub/profile')->assertOk()
+            ->assertJsonPath('data.hub_name', 'Valenzuela Central Logistics Hub')
+            ->assertJsonPath('data.coverage_barangays_count', 3)
+            ->assertJsonPath('data.has_permit', true)
+            ->assertJsonPath('data.courier.name', $company->name)
+            ->assertJsonPath('data.courier.contact_email', 'ops@bilis.example')
+            ->assertJsonMissingPath('data.dti_permit_path')
+            ->assertJsonMissingPath('data.gcash_number');
+
+        // Not for buyers or hubs that are not approved.
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($this->buyer);
+        $this->getJson('/api/v1/hub/profile')->assertStatus(403);
+        $this->hub->update(['status' => SortingCenter::STATUS_SUSPENDED]);
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($this->hubOwner->fresh());
+        $this->getJson('/api/v1/hub/profile')->assertStatus(403);
     }
 
     public function test_unauthenticated_request_is_rejected(): void
