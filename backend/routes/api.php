@@ -553,6 +553,7 @@ Route::prefix('v1')->group(function () {
         // Logistics / Sorting Center Hub (approved hubs only)
         Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
             Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
+            Route::get('/profile', [SortingCenterDashboardController::class, 'profile']);
             Route::get('/coverage-options',  [HubRiderController::class, 'coverageOptions']);
             Route::get('/gcash',  [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'hub']);
             Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateHub']);
