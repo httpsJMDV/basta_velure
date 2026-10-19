@@ -1,52 +1,64 @@
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Network, Warehouse, UserCheck, Bike, PackageOpen, Layers, Truck, AlertTriangle, PackageCheck, Undo2, ArrowRight, Boxes, Coins } from 'lucide-react';
+import { Network, Warehouse, UserCheck, Bike, PackageOpen, Layers, Truck, AlertTriangle, PackageCheck, Undo2, ArrowRight, Boxes, Coins, Navigation, ScanLine, Banknote } from 'lucide-react';
 import { getLogisticsDashboardApi } from '../../api/client';
 import type { LogisticsDashboard } from '../../types';
 import { apiErrorMessage } from '../../utils/apiError';
-import { PageHero, StatCard, StatCardSkeleton, SectionHeader } from '../../components/admin/dashboardKit';
+import { PageHero, StatCard, StatCardSkeleton, SectionHeader, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { HeroStats, Pipeline, RiderAvailabilityStrip, useRiderAvailability } from '../../components/logistics/CourierKit';
 import { RailCard, SplitBar } from '../../components/admin/listKit';
 import { useAuth } from '../../hooks/useAuth';
 import type { LogisticsOutletContext } from './LogisticsLayout';
 
-/** The courier's network at a glance: hubs, riders and where its parcels are right now. */
+/** The courier's network at a glance: where its parcels are now, who can work, and what needs attention. */
 export default function LogisticsDashboardPage() {
   const { user } = useAuth();
   const { dashboard: d } = useOutletContext<LogisticsOutletContext>();
   const company = user?.logistics_company;
+  const { riders } = useRiderAvailability();
+  const inNetwork = d ? d.parcels_now.awaiting_pickup + d.parcels_now.at_hubs + d.parcels_now.out_for_delivery + d.parcels_now.failed : null;
 
   return (
-    <div className="pb-8 space-y-4">
+    <div className="w-full pb-8 space-y-4">
       <PageHero
         icon={Network}
         eyebrow={`Courier · ${company?.code ?? ''}`}
         title={company?.name ?? 'Courier network'}
         subtitle="Your hubs, riders and parcels across the Loved-IT network"
       >
-        {d && d.hubs.pending > 0 && (
-          <Link to="/logistics/hubs" className="min-h-11 inline-flex items-center gap-2 px-3.5 rounded-xl bg-amber-400 text-gray-900 text-xs font-bold hover:bg-amber-300 transition-colors">
-            {d.hubs.pending} hub application{d.hubs.pending > 1 ? 's' : ''} to review <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-          </Link>
+        {d && (
+          <HeroStats items={[
+            { label: 'In your network', value: inNetwork ?? 0 },
+            { label: 'Can take a job', value: riders ? `${riders.available.length}/${riders.available.length + riders.unavailable.length}` : '…', tone: riders && riders.available.length === 0 ? 'warn' : 'good' },
+            { label: 'Active hubs', value: d.hubs.approved },
+          ]} />
         )}
+        <Link to="/logistics/dispatch" className={HERO_BUTTON}><Navigation className="w-4 h-4" aria-hidden="true" /> Dispatch</Link>
+        <Link to="/logistics/hub-ops" className={HERO_BUTTON}><ScanLine className="w-4 h-4" aria-hidden="true" /> Hub scanning</Link>
       </PageHero>
 
+      {d && d.hubs.pending > 0 && (
+        <Link to="/logistics/hubs" className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 hover:border-amber-300">
+          <UserCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1"><b>{d.hubs.pending} hub application{d.hubs.pending > 1 ? 's' : ''}</b> waiting for your review.</span>
+          <span className="inline-flex items-center gap-1 font-bold">Review <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" /></span>
+        </Link>
+      )}
+
       <section>
-        <SectionHeader title="Right now" />
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-          {!d ? [1, 2, 3, 4].map((i) => <StatCardSkeleton key={i} />) : (
-            <>
-              <StatCard icon={PackageOpen} label="Awaiting pickup" value={d.parcels_now.awaiting_pickup} subtext="Ready at sellers or on the way in" iconBg="bg-sky-50" iconColor="text-sky-600" />
-              <StatCard icon={Layers} label="At your hubs" value={d.parcels_now.at_hubs} subtext="Received or sorted" iconBg="bg-violet-50" iconColor="text-violet-600" />
-              <StatCard icon={Truck} label="Out for delivery" value={d.parcels_now.out_for_delivery} subtext="With riders" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-              <StatCard icon={AlertTriangle} label="Failed deliveries" value={d.parcels_now.failed} subtext="Waiting for the hub" iconBg="bg-red-50" iconColor="text-red-600"
-                to="/logistics/parcels?problems=1" actionLabel="Review" />
-            </>
-          )}
-        </div>
+        <SectionHeader title="Parcels right now" to="/logistics/parcels" />
+        <Pipeline steps={[
+          { label: 'Awaiting pickup', value: d?.parcels_now.awaiting_pickup ?? null, hint: 'At shops or on the way in', icon: PackageOpen, tone: 'sky', to: '/logistics/dispatch' },
+          { label: 'At your hubs', value: d?.parcels_now.at_hubs ?? null, hint: 'Received or sorted', icon: Layers, tone: 'violet', to: '/logistics/hub-ops' },
+          { label: 'Out for delivery', value: d?.parcels_now.out_for_delivery ?? null, hint: 'With riders', icon: Truck, tone: 'emerald', to: '/logistics/parcels' },
+          { label: 'Failed deliveries', value: d?.parcels_now.failed ?? null, hint: 'Waiting for the hub', icon: AlertTriangle, tone: 'red', to: '/logistics/parcels?problems=1' },
+        ]} />
       </section>
 
+      <RiderAvailabilityStrip riders={riders} />
+
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="space-y-4">
+        <section className="space-y-4 min-w-0">
           <div>
             <SectionHeader title="Network" to="/logistics/hubs" />
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
@@ -55,7 +67,7 @@ export default function LogisticsDashboardPage() {
                   <StatCard compact icon={Warehouse} label="Active hubs" value={d.hubs.approved} iconBg="bg-rose-50" iconColor="text-brand-red" to="/logistics/hubs" actionLabel="View hubs" />
                   <StatCard compact icon={UserCheck} label="Hub applications" value={d.hubs.pending} iconBg="bg-amber-50" iconColor="text-amber-600" to="/logistics/hubs" actionLabel="Review" />
                   <StatCard compact icon={Bike} label="Active riders" value={d.riders.active} iconBg="bg-emerald-50" iconColor="text-emerald-600" to="/logistics/riders" actionLabel="View riders" />
-                  <StatCard compact icon={Bike} label="Riders in review" value={d.riders.pending} subtext="Approved by their hub" iconBg="bg-gray-100" iconColor="text-gray-600" />
+                  <StatCard compact icon={Bike} label="Riders in review" value={d.riders.pending} subtext="Approved by their hub" iconBg="bg-gray-100" iconColor="text-gray-600" to="/logistics/riders" actionLabel="Verify" />
                 </>
               )}
             </div>
@@ -64,6 +76,28 @@ export default function LogisticsDashboardPage() {
         </section>
 
         <aside className="space-y-3">
+          <RailCard title="Shortcuts">
+            <ul className="-mx-1 space-y-0.5">
+              {[
+                { to: '/logistics/dispatch', icon: Navigation, label: 'Dispatch pickups', hint: 'Unassigned and offered pickups' },
+                { to: '/logistics/hub-ops', icon: ScanLine, label: 'Hub scanning', hint: 'Inbound, sort, outbound' },
+                { to: '/logistics/returns', icon: Undo2, label: 'Return to sender', hint: 'Parcels going back to shops' },
+                { to: '/logistics/cod', icon: Coins, label: 'COD & exports', hint: 'Collections and remittances' },
+                { to: '/logistics/money', icon: Banknote, label: 'Settlements & pay', hint: 'Shops, riders and hubs' },
+              ].map((l) => (
+                <li key={l.to}>
+                  <Link to={l.to} className="group flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-gray-50">
+                    <span className="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-rose-50 group-hover:text-brand-red flex items-center justify-center shrink-0"><l.icon className="w-4 h-4" aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[12.5px] font-bold text-gray-900">{l.label}</span>
+                      <span className="block text-[11px] text-gray-500 truncate">{l.hint}</span>
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-red" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </RailCard>
           {d && (
             <RailCard title="Parcels in your network">
               <SplitBar parts={[

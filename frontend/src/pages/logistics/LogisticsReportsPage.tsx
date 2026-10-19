@@ -5,10 +5,24 @@ import { ListCard, ListError, SkeletonRows, TH, TD } from '../../components/admi
 import { getLogisticsReportsApi } from '../../api/client';
 import type { LogisticsReport } from '../../types';
 import { lastDays } from '../../utils/adminReports';
+import { HeroStats } from '../../components/logistics/CourierKit';
 
 const PRESETS = [7, 30, 90] as const;
 
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
+
+/** A rate as a number and a short bar (green from 90%, amber from 70%, red below). */
+function RateBar({ v, strong }: { v: number | null; strong?: boolean }) {
+  if (v === null) return <span className="text-gray-400">—</span>;
+  const p = Math.round(v * 100);
+  const tone = p >= 90 ? 'bg-emerald-500' : p >= 70 ? 'bg-amber-500' : 'bg-red-500';
+  return (
+    <span className="inline-flex items-center justify-end gap-2">
+      <span className="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden" aria-hidden="true"><span className={`block h-full ${tone}`} style={{ width: `${p}%` }} /></span>
+      <span className={`tabular-nums ${strong ? 'font-bold' : ''}`}>{p}%</span>
+    </span>
+  );
+}
 
 /** Every hub of the network side by side over a period, with network totals. */
 export default function LogisticsReportsPage() {
@@ -27,8 +41,15 @@ export default function LogisticsReportsPage() {
   const t = report?.totals;
 
   return (
-    <div className="pb-8 space-y-3">
+    <div className="w-full pb-8 space-y-4">
       <PageHero icon={BarChart2} eyebrow="Insights" title="Network Reports" subtitle={report ? `${report.range.from} to ${report.range.to} · Philippine time` : 'Your hubs side by side'}>
+        {t && (
+          <HeroStats items={[
+            { label: 'Delivered', value: t.delivered, tone: 'good' },
+            { label: 'Success', value: pct(t.success_rate) },
+            { label: 'On time', value: pct(t.on_time_rate) },
+          ]} />
+        )}
         <div className="inline-flex p-0.5 rounded-xl bg-white/10 border border-white/10" role="group" aria-label="Period">
           {PRESETS.map((p) => (
             <button key={p} type="button" onClick={() => setDays(p)} aria-pressed={days === p}
@@ -80,8 +101,8 @@ export default function LogisticsReportsPage() {
                       <td className={`${TD} text-right tabular-nums`}>{h.delivered}</td>
                       <td className={`${TD} text-right tabular-nums ${h.failed_attempts > 0 ? 'text-red-600' : ''}`}>{h.failed_attempts}</td>
                       <td className={`${TD} text-right tabular-nums`}>{h.returned}</td>
-                      <td className={`${TD} text-right tabular-nums`}>{pct(h.success_rate)}</td>
-                      <td className={`${TD} text-right tabular-nums font-semibold`}>{pct(h.on_time_rate)}</td>
+                      <td className={`${TD} text-right`}><RateBar v={h.success_rate} /></td>
+                      <td className={`${TD} text-right`}><RateBar v={h.on_time_rate} strong /></td>
                       <td className={`${TD} text-right tabular-nums hidden md:table-cell text-gray-600`}>{h.avg_delivery_hours === null ? '—' : `${h.avg_delivery_hours} h`}</td>
                     </tr>
                   ))}

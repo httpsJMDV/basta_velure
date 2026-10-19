@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MapPinned, Plus, Pencil, Trash2, X, History, Route as RouteIcon } from 'lucide-react';
 import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { HeroStats } from '../../components/logistics/CourierKit';
 import { StatusTabs, ListCard, ListEmpty, ListError, Pill, SkeletonRows, TH, TD, relativeTime } from '../../components/admin/listKit';
 import { SidePanel, Dialog, BUTTON } from '../../components/ui/Overlay';
 import { useToast } from '../../components/ui/Toast';
@@ -68,13 +69,14 @@ export default function LogisticsShippingPage() {
   const offered = table?.rates.length ?? 0;
 
   return (
-    <div className="pb-8 space-y-3">
+    <div className="w-full pb-8 space-y-4">
       <PageHero icon={MapPinned} eyebrow="Network" title="Delivery zones & rates"
         subtitle="Where you deliver and what each route costs. Checkout uses these rates; a change applies to new checkouts only.">
         {table && (
-          <span className="text-[11px] text-white/70 tabular-nums">
-            <b className="text-white">{zones.length}</b> zones · <b className="text-white">{offered}</b> of {routes} routes priced
-          </span>
+          <HeroStats items={[
+            { label: 'Delivery zones', value: zones.length },
+            { label: 'Routes priced', value: `${offered}/${routes}`, tone: offered < routes ? 'warn' : 'good' },
+          ]} />
         )}
         <button type="button" className={HERO_BUTTON} onClick={() => setEditingZone('new')}>
           <Plus className="w-4 h-4" /> Add zone

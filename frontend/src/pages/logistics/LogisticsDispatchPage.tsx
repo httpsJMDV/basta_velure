@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Navigation, Wand2, Bike, Check, RefreshCw } from 'lucide-react';
+import { Navigation, Wand2, Bike, Check, RefreshCw, Store, MapPin, Package, WifiOff } from 'lucide-react';
 import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 import { StatusTabs, ListCard, ListEmpty, ListError, Pill, SkeletonRows, TH, TD, relativeTime } from '../../components/admin/listKit';
 import { Dialog, BUTTON } from '../../components/ui/Overlay';
@@ -10,6 +10,7 @@ import {
   type DispatchRow, type DispatchRider, type DispatchState,
 } from '../../api/courierOps';
 import { apiErrorMessage } from '../../utils/apiError';
+import { HeroStats, RiderAvailabilityStrip, useRiderAvailability } from '../../components/logistics/CourierKit';
 
 type Tab = DispatchState | 'all';
 
@@ -42,6 +43,7 @@ export default function LogisticsDispatchPage() {
   const [selected, setSelected] = useState<number[]>([]);
   const [assigning, setAssigning] = useState<DispatchRow[] | null>(null);
   const [running, setRunning] = useState(false);
+  const { riders: availability, reload: reloadRiders } = useRiderAvailability();
 
   const load = useCallback((quiet = false) => {
     if (!quiet) setFailed(false);
@@ -64,6 +66,7 @@ export default function LogisticsDispatchPage() {
       const res = await autoAssignApi(selected.length ? selected : undefined);
       showToast(res.message, res.data.offered > 0 ? 'success' : 'error');
       load(true);
+      reloadRiders();
     } catch (e) {
       showToast(apiErrorMessage(e, 'Auto-assign did not run.'), 'error');
     } finally {
@@ -72,16 +75,26 @@ export default function LogisticsDispatchPage() {
   };
 
   return (
-    <div className="pb-8 space-y-3">
-      <PageHero icon={Navigation} eyebrow="Network" title="Dispatch"
+    <div className="w-full pb-8 space-y-4">
+      <PageHero icon={Navigation} eyebrow="Operations" title="Dispatch"
         subtitle="New pickups go to the nearest Online rider for 60 seconds, up to 3 riders. The rest wait here for you.">
+        {counts && (
+          <HeroStats items={[
+            { label: 'Unassigned', value: counts.unassigned, tone: counts.unassigned ? 'warn' : 'default' },
+            { label: 'Being offered', value: counts.offering },
+            { label: 'Assigned', value: counts.assigned, tone: 'good' },
+            { label: 'Can take a job', value: availability ? `${availability.available.length}/${availability.available.length + availability.unavailable.length}` : '…', tone: availability && availability.available.length === 0 ? 'warn' : 'good' },
+          ]} />
+        )}
         <button type="button" className={HERO_BUTTON} onClick={() => void runAuto()} disabled={running}>
           {running ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
           {selected.length ? `Auto-assign ${selected.length}` : 'Run auto-assign'}
         </button>
       </PageHero>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <RiderAvailabilityStrip riders={availability} />
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-white border border-gray-200/80 rounded-2xl px-3 py-2.5 shadow-xs">
         <StatusTabs<Tab>
           label="Pickup jobs"
           value={tab}
@@ -135,11 +148,17 @@ export default function LogisticsDispatchPage() {
                         onChange={(e) => setSelected((s) => e.target.checked ? [...s, r.id] : s.filter((x) => x !== r.id))} />
                     </td>
                     <td className={TD}>
-                      <p className="font-mono font-semibold text-brand-black">{r.tracking_number}</p>
-                      <p className="text-[11px] text-gray-500 truncate max-w-[220px]">{r.shop_name ?? '—'}{r.cod_amount !== null ? ` · COD ${peso(r.cod_amount)}` : ''}</p>
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center shrink-0"><Package className="w-4 h-4" aria-hidden="true" /></span>
+                        <div className="min-w-0">
+                          <p className="font-mono font-semibold text-brand-black">{r.tracking_number}</p>
+                          <p className="text-[11px] text-gray-500 truncate max-w-[220px]">{r.order_number ?? ''}{r.cod_amount !== null ? ` · COD ${peso(r.cod_amount)}` : ' · Prepaid'}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className={`${TD} hidden md:table-cell text-gray-600`}>
-                      <span className="text-gray-800">{r.pickup_area || '—'}</span> <span className="text-gray-300">→</span> {r.dropoff_area ?? '—'}
+                    <td className={`${TD} hidden md:table-cell`}>
+                      <p className="flex items-center gap-1.5 text-[12.5px] text-gray-800"><Store className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-hidden="true" /><span className="truncate max-w-[220px]">{r.shop_name ?? 'Shop'}{r.pickup_area ? `, ${r.pickup_area}` : ''}</span></p>
+                      <p className="flex items-center gap-1.5 text-[12px] text-gray-500"><MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden="true" /><span className="truncate max-w-[220px]">{r.dropoff_area ?? '—'}</span></p>
                     </td>
                     <td className={`${TD} hidden lg:table-cell text-gray-500 whitespace-nowrap`}>{relativeTime(r.ready_at)}</td>
                     <td className={TD}>
@@ -241,7 +260,10 @@ function AssignDialog({ parcels, onClose, onDone }: { parcels: DispatchRow[]; on
           </p>
           {!riders && !error && <div className="h-32 rounded-xl bg-stone-100 animate-pulse" />}
           {riders && riders.data.length === 0 && (
-            <p className="rounded-xl border border-dashed border-stone-300 px-3 py-4 text-center text-[13px] text-stone-500">No rider can take a job right now.</p>
+            <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-[12.5px] text-amber-900">
+              <WifiOff className="w-4 h-4 mt-px shrink-0" aria-hidden="true" />
+              No rider can take a job right now. A rider must be Active, Online in the rider app, and under {riders.max} jobs.
+            </p>
           )}
           {riders && riders.data.length > 0 && (
             <ul className="space-y-1.5 max-h-72 overflow-y-auto" role="radiogroup" aria-label="Rider">
@@ -261,12 +283,18 @@ function AssignDialog({ parcels, onClose, onDone }: { parcels: DispatchRow[]; on
             </ul>
           )}
           {riders && riders.unavailable.length > 0 && (
-            <details className="text-[12px] text-stone-500">
-              <summary className="cursor-pointer font-semibold">Not available ({riders.unavailable.length})</summary>
-              <ul className="mt-1 space-y-0.5">
-                {riders.unavailable.map((r) => <li key={r.id}>{r.name}: {r.problem}</li>)}
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-stone-400">Not available now ({riders.unavailable.length})</p>
+              <ul className="space-y-1 max-h-48 overflow-y-auto">
+                {riders.unavailable.map((r) => (
+                  <li key={r.id} className="flex items-center gap-3 rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 opacity-80">
+                    <span className="w-2 h-2 rounded-full bg-stone-300 shrink-0" aria-hidden="true" />
+                    <span className="flex-1 min-w-0 text-[12.5px] font-semibold text-stone-700 truncate">{r.name}</span>
+                    <span className="text-[11.5px] text-stone-500">{r.problem}</span>
+                  </li>
+                ))}
               </ul>
-            </details>
+            </div>
           )}
           {error && <p role="alert" className="text-[12px] font-medium text-red-700">{error}</p>}
         </div>

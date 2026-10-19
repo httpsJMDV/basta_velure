@@ -59,15 +59,29 @@ export interface HubOpsParcel {
   status: string;
   zone: string | null;
   barangay: string | null;
+  city: string | null;
+  /** The shop it came from, and the rider bringing it in (parcels on the way in). */
+  shop: string | null;
+  rider: string | null;
+  picked_up_at: string | null;
   scanned_in_at: string | null;
   sorted_at: string | null;
+}
+
+export interface HubBoard {
+  /** Picked up, on the way to a hub: for Inbound. */
+  incoming: HubOpsParcel[];
+  /** Received at a hub: for Sort. */
+  to_sort: HubOpsParcel[];
+  /** Sorted, one list per delivery zone: for Outbound. */
+  zones: { zone: string; parcels: HubOpsParcel[] }[];
 }
 
 export const getHubOpsApi = () =>
   http.get<{ data: { hubs: { id: number; name: string; city: string | null }[]; counts: { incoming: number; at_hub: number; sorted: number; outbound: number } } }>('/logistics/hub-ops').then((r) => r.data.data);
 
-export const getHubZonesApi = () =>
-  http.get<{ data: { to_sort: HubOpsParcel[]; zones: { zone: string; parcels: HubOpsParcel[] }[] } }>('/logistics/hub-ops/zones').then((r) => r.data.data);
+export const getHubZonesApi = (hubId?: number) =>
+  http.get<{ data: HubBoard }>('/logistics/hub-ops/zones', { params: hubId ? { hub_id: hubId } : {} }).then((r) => r.data.data);
 
 export const scanInboundApi = (tracking: string, hubId?: number) =>
   http.post<{ message: string; data: HubOpsParcel }>('/logistics/hub-ops/inbound', { tracking_number: tracking, hub_id: hubId }).then((r) => r.data);

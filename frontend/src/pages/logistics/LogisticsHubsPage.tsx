@@ -10,6 +10,7 @@ import {
 import { getLogisticsHubsApi, getLogisticsHubApi, decideLogisticsHubApi, openAuthorizedFile } from '../../api/client';
 import type { LogisticsHubRow, SortingCenterApplicationDetail, SortingCenterStatus } from '../../types';
 import type { LogisticsOutletContext } from './LogisticsLayout';
+import { HeroStats } from '../../components/logistics/CourierKit';
 
 type Tab = SortingCenterStatus | 'ALL';
 
@@ -226,8 +227,16 @@ export default function LogisticsHubsPage() {
   ];
 
   return (
-    <div className="pb-8 space-y-3">
-      <PageHero icon={Warehouse} eyebrow="Network" title="Hubs & Applications" subtitle="Approve the hubs that apply to join you and manage the ones in your network" />
+    <div className="w-full pb-8 space-y-4">
+      <PageHero icon={Warehouse} eyebrow="Network" title="Hubs & Applications" subtitle="Approve the hubs that apply to join you and manage the ones in your network">
+        {hubs && (
+          <HeroStats items={[
+            { label: 'Applications', value: counts.PENDING, tone: counts.PENDING ? 'warn' : 'default' },
+            { label: 'Active hubs', value: counts.APPROVED, tone: 'good' },
+            { label: 'Suspended', value: counts.SUSPENDED },
+          ]} />
+        )}
+      </PageHero>
 
       <div className="grid items-start gap-3 lg:grid-cols-[250px_minmax(0,1fr)]">
         <aside className="space-y-3 lg:sticky lg:top-20">

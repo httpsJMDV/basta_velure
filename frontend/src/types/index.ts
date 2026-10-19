@@ -2793,7 +2793,7 @@ export interface ParcelTracking {
   tracking_number: string;
   order_number: string | null;
   status: string;
-  viewer_role: 'buyer' | 'seller' | 'hub' | 'rider' | 'admin';
+  viewer_role: 'buyer' | 'seller' | 'hub' | 'rider' | 'courier' | 'admin';
   origin: TrackingPlace;
   hub: TrackingPlace | null;
   destination: TrackingPlace;

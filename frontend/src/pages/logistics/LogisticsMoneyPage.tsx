@@ -12,6 +12,7 @@ import type { CourierPayoutRow, SettlementLine, SettlementWeeks as Weeks } from 
 import { RecordPaymentDialog, PayoutAccountForm, peso } from '../../components/payments/GcashKit';
 import { SettlementWeeks, shortDate } from '../../components/payments/SettlementWeeks';
 import { useToast } from '../../components/ui/Toast';
+import { HeroStats } from '../../components/logistics/CourierKit';
 
 type Tab = 'shops' | 'team' | 'account';
 type Payees = { riders: CourierPayoutRow[]; hubs: CourierPayoutRow[] };
@@ -47,15 +48,15 @@ export default function LogisticsMoneyPage() {
   const teamOwed = payees ? [...payees.riders, ...payees.hubs].reduce((s, r) => s + r.unpaid, 0) : null;
 
   return (
-    <div className="pb-8 space-y-3">
+    <div className="w-full pb-8 space-y-4">
       <PageHero icon={Banknote} eyebrow="Money" title="Settlements & pay"
         subtitle="Settle the cash your riders collect with each shop every week, and pay your riders (₱30 per pickup, ₱50 per delivery) and your hubs (15% of the fee).">
         {weeks && (
-          <div className="flex gap-2">
-            <HeroFigure label="Shops owe you" value={weeks.totals.to_receive} />
-            <HeroFigure label="You owe shops" value={weeks.totals.to_pay} />
-            {teamOwed !== null && <HeroFigure label="Owed to your team" value={teamOwed} />}
-          </div>
+          <HeroStats items={[
+            { label: 'Shops owe you', value: peso(weeks.totals.to_receive), tone: weeks.totals.to_receive > 0 ? 'good' : 'default' },
+            { label: 'You owe shops', value: peso(weeks.totals.to_pay), tone: weeks.totals.to_pay > 0 ? 'warn' : 'default' },
+            ...(teamOwed !== null ? [{ label: 'Owed to your team', value: peso(teamOwed), tone: (teamOwed > 0 ? 'warn' : 'default') as 'warn' | 'default' }] : []),
+          ]} />
         )}
       </PageHero>
 
@@ -135,15 +136,6 @@ export default function LogisticsMoneyPage() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-function HeroFigure({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl bg-white/[0.07] border border-white/10 px-3 py-1.5">
-      <p className="text-[10px] text-white/45 whitespace-nowrap">{label}</p>
-      <p className={`text-[14px] font-bold tabular-nums ${value > 0 ? 'text-white' : 'text-white/35'}`}>{peso(value)}</p>
     </div>
   );
 }

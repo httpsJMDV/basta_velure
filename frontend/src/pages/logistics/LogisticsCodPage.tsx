@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { Coins, Download, Check, AlertTriangle, ChevronDown } from 'lucide-react';
-import { PageHero } from '../../components/admin/dashboardKit';
+import { Coins, Download, Check, AlertTriangle, ChevronDown, HandCoins, ArrowRightLeft, Scale, Hourglass } from 'lucide-react';
+import { PageHero, StatCard } from '../../components/admin/dashboardKit';
 import { ListCard, ListEmpty, ListError, Pill, TH, TD } from '../../components/admin/listKit';
 import { useToast } from '../../components/ui/Toast';
 import { getCodDayApi, confirmRemittanceApi, downloadCourierExport, type CodDay } from '../../api/courierOps';
@@ -45,7 +45,7 @@ export default function LogisticsCodPage() {
   };
 
   return (
-    <div className="pb-8 space-y-3">
+    <div className="w-full pb-8 space-y-4">
       <PageHero icon={Coins} eyebrow="Money" title="COD & exports"
         subtitle="What riders collected and handed over, day by day. A remittance counts only once you confirm it.">
         <label className="flex items-center gap-2 text-[11px] text-white/70">
@@ -58,10 +58,12 @@ export default function LogisticsCodPage() {
       {failed && <ListError message="The day could not be loaded." onRetry={load} />}
 
       {day && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Figure label="Collected" value={peso(day.totals.collected)} />
-          <Figure label="Remitted" value={peso(day.totals.remitted)} />
-          <Figure label="Difference" value={peso(day.totals.difference)} tone={Number(day.totals.difference) < 0 ? 'red' : 'gray'} />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard icon={HandCoins} label="Collected" value={peso(day.totals.collected)} subtext="Cash riders took from buyers" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+          <StatCard icon={ArrowRightLeft} label="Remitted" value={peso(day.totals.remitted)} subtext="Handed over and confirmed" iconBg="bg-sky-50" iconColor="text-sky-600" />
+          <StatCard icon={Scale} label="Difference" value={peso(day.totals.difference)} subtext={Number(day.totals.difference) < 0 ? 'Riders still owe this' : 'Nothing outstanding'}
+            iconBg={Number(day.totals.difference) < 0 ? 'bg-red-50' : 'bg-gray-100'} iconColor={Number(day.totals.difference) < 0 ? 'text-red-600' : 'text-gray-600'} />
+          <StatCard icon={Hourglass} label="To confirm" value={day.pending.length} subtext="Remittances waiting for you" iconBg="bg-amber-50" iconColor="text-amber-600" />
         </div>
       )}
 
@@ -143,15 +145,6 @@ export default function LogisticsCodPage() {
       </ListCard>
 
       <ExportCard />
-    </div>
-  );
-}
-
-function Figure({ label, value, tone = 'gray' }: { label: string; value: string; tone?: 'gray' | 'red' }) {
-  return (
-    <div className={`rounded-2xl border px-4 py-3 shadow-xs ${tone === 'red' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200/80'}`}>
-      <p className="text-[10.5px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
-      <p className={`text-xl font-black tabular-nums ${tone === 'red' ? 'text-red-800' : 'text-gray-900'}`}>{value}</p>
     </div>
   );
 }
