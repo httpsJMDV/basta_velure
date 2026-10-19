@@ -21,6 +21,7 @@ import {
 import { createSellerProductKeyedApi, getStoreCategoriesApi, updateSellerProductFullApi } from '../../api/sellerCatalog';
 import type { StoreCategoryNode } from '../../api/sellerCatalog';
 import { useAuth } from '../../hooks/useAuth';
+import { displayNameError, fileError, skuError } from '../../utils/accountRules';
 import type {
   AddProductFormState, ProductFormImage,
   ProductFormVariantType, ProductFormVariantRow, SellerProductVariant,
@@ -48,7 +49,7 @@ const EMPTY_FORM: AddProductFormState = {
   price: '', stock: '',
   weightValue: '', weightUnit: 'kg',
   dimensionL: '', dimensionW: '', dimensionH: '', sku: '',
-  fdaLtoFile: null, fdaLtoOnFile: false, fdaCprFile: null,
+  fdaLtoFile: null, fdaLtoOnFile: false, fdaCprFile: null, fdaCprOnFile: false,
   ingredients: '', netWeight: '', storageInstructions: '',
   expiryDate: '', allergenInfo: '',
   storeCategoryIds: [], purchaseLimit: '',
@@ -66,7 +67,12 @@ const MAX_IMAGES = 9;
 const MAX_TYPES = 2;
 const MAX_OPTIONS = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** A photo is shrunk in the browser before upload, so a phone photo larger than 5 MB is still accepted. */
+const MAX_PICKED_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_STORE_CATEGORIES = 3;
+const OPTION_MAX = 20;
+const MAX_WEIGHT_KG = 1000;
+const MAX_DIMENSION_CM = 1000;
 
 /** The visible text of the rich-text description, as the server counts it. */
 function visibleText(html: string): string {
@@ -92,12 +98,19 @@ function stockError(value: string): string | undefined {
   return undefined;
 }
 
-function positiveError(value: string, label: string): string | undefined {
+function positiveError(value: string, label: string, max: number, unit: string): string | undefined {
   if (!value.trim()) return undefined;
   const n = Number(value);
   if (!Number.isFinite(n)) return `${label} must be a number.`;
   if (n <= 0) return `${label} must be more than 0.`;
+  if (n > max) return `${label} must be ${max.toLocaleString()} ${unit} or less.`;
   return undefined;
+}
+
+/** The weight in kilograms as the form holds it (grams are converted). */
+function weightKg(form: AddProductFormState): number {
+  const n = Number(form.weightValue);
+  return form.weightUnit === 'g' ? n / 1000 : n;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -158,9 +171,10 @@ function fdaFor(tree: CategoryNode[], leafId: string): boolean {
 function validate(form: AddProductFormState, publish: boolean, tree: CategoryNode[]): { errors: FieldErrors; firstSection: string | null } {
   const errors: FieldErrors = {};
 
-  const name = form.name.trim();
-  if (!name) errors.name = 'Product name is required.';
-  else if (name.length < NAME_MIN || name.length > NAME_MAX) errors.name = `Product name must be ${NAME_MIN} to ${NAME_MAX} characters.`;
+  const nameProblem = displayNameError(form.name, 'Product name', NAME_MIN, NAME_MAX);
+  if (nameProblem) errors.name = nameProblem;
+  const skuProblem = skuError(form.sku);
+  if (skuProblem) errors.sku = skuProblem;
 
   const descLength = visibleText(form.description).length;
   if (descLength > DESC_MAX) errors.description = 'The description must be 3,000 characters or fewer.';
@@ -173,11 +187,26 @@ function validate(form: AddProductFormState, publish: boolean, tree: CategoryNod
   if (form.lowStockMode === 'custom' && (!/^\d+$/.test(form.lowStockLevel.trim()) || Number(form.lowStockLevel) > 999)) {
     errors.lowStockLevel = 'Enter the alert level as a whole number from 0 to 999.';
   }
-  const weightProblem = positiveError(form.weightValue, 'The weight');
+  const weightProblem = positiveError(form.weightValue, 'The weight', form.weightUnit === 'g' ? MAX_WEIGHT_KG * 1000 : MAX_WEIGHT_KG, form.weightUnit);
   if (weightProblem) errors.weightValue = weightProblem;
+  // The server keeps the weight to the gram: anything that rounds to 0 kg would be "no weight".
+  else if (form.weightValue.trim() && Math.round(weightKg(form) * 1000) < 1) errors.weightValue = 'The weight must be at least 1 g.';
   for (const key of ['dimensionL', 'dimensionW', 'dimensionH'] as const) {
-    const p = positiveError(form[key], 'Dimensions');
+    const p = positiveError(form[key], 'Each dimension', MAX_DIMENSION_CM, 'cm');
     if (p) errors.dimensions = p;
+  }
+  // SKUs are checked for drafts too: the server refuses a badly formed one either way.
+  const skus = new Map<string, number>();
+  if (form.hasVariants) {
+    form.variantRows.forEach((row, i) => {
+      const sku = (row.sku ?? '').trim();
+      const problem = skuError(sku);
+      if (problem) errors[`variantRow_sku_${i}`] = problem;
+      else if (sku) {
+        if (skus.has(sku.toLowerCase())) errors[`variantRow_sku_${i}`] = 'Each variant needs its own SKU.';
+        skus.set(sku.toLowerCase(), i);
+      }
+    });
   }
 
   if (publish) {
@@ -189,17 +218,11 @@ function validate(form: AddProductFormState, publish: boolean, tree: CategoryNod
     if (form.hasVariants) {
       const filled = form.variantTypes.filter((t) => t.name.trim() && t.options.length > 0);
       if (filled.length === 0) errors.variantTypes = 'Add at least one variation type with options.';
-      const skus = new Map<string, number>();
       form.variantRows.forEach((row, i) => {
         const pe = priceError(row.price);
         if (pe) errors[`variantRow_price_${i}`] = pe;
         const se = stockError(row.stock);
         if (se) errors[`variantRow_stock_${i}`] = se;
-        const sku = (row.sku ?? '').trim().toLowerCase();
-        if (sku) {
-          if (skus.has(sku)) errors[`variantRow_sku_${i}`] = 'Each variant needs its own SKU.';
-          skus.set(sku, i);
-        }
       });
     } else {
       const pe = priceError(form.price);
@@ -211,9 +234,15 @@ function validate(form: AddProductFormState, publish: boolean, tree: CategoryNod
     const needsFda = form.leafCategoryId && fdaFor(tree, form.leafCategoryId);
     if (needsFda) {
       if (!form.fdaLtoFile && !form.fdaLtoOnFile) errors.fdaLtoFile = 'FDA LTO is required.';
-      if (!form.fdaCprFile) errors.fdaCprFile = 'CPR/CPN document is required.';
+      // A CPR already saved on this product counts; editing it does not ask for the document again.
+      if (!form.fdaCprFile && !form.fdaCprOnFile) errors.fdaCprFile = 'CPR/CPN document is required.';
     }
   }
+  // The documents are checked whenever one is chosen: JPG, PNG or PDF up to 5 MB, as the server checks them.
+  const ltoProblem = fileError(form.fdaLtoFile, 'the FDA LTO', { pdf: true, required: false });
+  if (ltoProblem) errors.fdaLtoFile = ltoProblem;
+  const cprProblem = fileError(form.fdaCprFile, 'the CPR/CPN document', { pdf: true, required: false });
+  if (cprProblem) errors.fdaCprFile = cprProblem;
 
   const sectionOrder = ['basic', 'category', 'variants', 'shipping', 'fda'];
   const sectionErrors: Record<string, string[]> = {
@@ -221,7 +250,7 @@ function validate(form: AddProductFormState, publish: boolean, tree: CategoryNod
     category: ['leafCategoryId', 'storeCategoryIds'],
     variants: ['variantTypes', 'price', 'stock', 'purchaseLimit', 'lowStockLevel',
       ...Object.keys(errors).filter((k) => k.startsWith('variantRow_'))],
-    shipping: ['weightValue', 'dimensions'],
+    shipping: ['weightValue', 'dimensions', 'sku'],
     fda: ['fdaLtoFile', 'fdaCprFile'],
   };
 
@@ -491,8 +520,8 @@ function ImageUploader({
         problems.push(`${file.name}: only JPG or PNG images can be added.`);
         return;
       }
-      if (file.size > MAX_IMAGE_BYTES) {
-        problems.push(`${file.name}: larger than 5 MB. Use an image up to 5 MB.`);
+      if (file.size > MAX_PICKED_IMAGE_BYTES) {
+        problems.push(`${file.name}: larger than 20 MB. Use a smaller photo.`);
         return;
       }
       if (next.length + existingImages.length >= MAX_IMAGES) {
@@ -542,7 +571,7 @@ function ImageUploader({
         <p className="text-[13px] font-semibold text-gray-500">
           {full ? 'Image limit reached' : <>Drag & drop images here, or <span className="text-brand-red">browse</span></>}
         </p>
-        <p className="text-[11px] text-gray-400 tabular-nums">JPG or PNG up to 5 MB · {total}/{MAX_IMAGES} images · First image = main photo</p>
+        <p className="text-[11px] text-gray-400 tabular-nums">JPG or PNG, resized for upload · {total}/{MAX_IMAGES} images · First image = main photo</p>
         <input
           ref={inputRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple hidden disabled={full}
           onChange={(e: ChangeEvent<HTMLInputElement>) => addFiles(e.target.files)}
@@ -716,6 +745,10 @@ function ChipInput({
       setProblem('An option name cannot contain "/".');
       return;
     }
+    if (val.length > OPTION_MAX || !/[\p{L}\p{N}]/u.test(val)) {
+      setProblem(`An option name is 1 to ${OPTION_MAX} characters with a letter or number, like "Red" or "XL".`);
+      return;
+    }
     setProblem('');
     onChange([...options, val]);
   };
@@ -746,7 +779,8 @@ function ChipInput({
       ))}
       <input
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        maxLength={OPTION_MAX}
+        onChange={(e) => { setDraft(e.target.value); setProblem(''); }}
         onKeyDown={onKey}
         onBlur={add}
         placeholder={options.length === 0 ? 'Type option + Enter…' : options.length >= MAX_OPTIONS ? `${MAX_OPTIONS} of ${MAX_OPTIONS} options` : 'Add more…'}
@@ -981,7 +1015,7 @@ function FdaFileInput({
     return (
       <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-        <span className="text-[13px] font-semibold text-emerald-700 flex-1">Already on file ✓</span>
+        <span className="text-[13px] font-semibold text-emerald-700 flex-1">Already on file</span>
         <button
           type="button"
           onClick={onReplace}
@@ -1326,9 +1360,16 @@ export default function SellerAddProductPage() {
 
   // The shop's low-stock level, for the alert's "Shop level" choice (5 unless the seller changed it).
   const [shopLowStock, setShopLowStock] = useState<number | null>(null);
+  // The shop's FDA LTO (from its application or an earlier product) counts for every food product.
+  const [shopLtoOnFile, setShopLtoOnFile] = useState(false);
   useEffect(() => {
-    getSellerShopProfileApi().then((p) => setShopLowStock(p.low_stock_threshold ?? 5)).catch(() => setShopLowStock(5));
+    getSellerShopProfileApi()
+      .then((p) => { setShopLowStock(p.low_stock_threshold ?? 5); setShopLtoOnFile(p.fda_lto_on_file === true); })
+      .catch(() => setShopLowStock(5));
   }, []);
+  useEffect(() => {
+    if (shopLtoOnFile) setForm((prev) => (prev.fdaLtoOnFile || prev.fdaLtoFile ? prev : { ...prev, fdaLtoOnFile: true }));
+  }, [shopLtoOnFile]);
   useEffect(() => {
     getStorefrontCategoriesApi()
       .then((cats) => {
@@ -1373,8 +1414,10 @@ export default function SellerAddProductPage() {
         let weightValue = '';
         let weightUnit: 'kg' | 'g' = 'kg';
         if (p.weight_kg != null) {
-          if (p.weight_kg < 1) { weightValue = String(p.weight_kg * 1000); weightUnit = 'g'; }
-          else { weightValue = String(p.weight_kg); weightUnit = 'kg'; }
+          // Rounded to the gram: 0.29 * 1000 is 290.00000000000006 in floating point.
+          const kg = Number(p.weight_kg);
+          if (kg < 1) { weightValue = String(Math.round(kg * 1000)); weightUnit = 'g'; }
+          else { weightValue = String(Math.round(kg * 1000) / 1000); weightUnit = 'kg'; }
         }
 
         setForm((prev) => ({
@@ -1407,7 +1450,8 @@ export default function SellerAddProductPage() {
           ingredients: p.ingredients ?? '',
           storageInstructions: p.storage_instructions ?? '',
           allergenInfo: p.allergen_info ?? '',
-          fdaLtoOnFile: p.fda_lto_on_file,
+          fdaLtoOnFile: p.fda_lto_on_file || prev.fdaLtoOnFile,
+          fdaCprOnFile: p.fda_cpr_on_file,
         }));
         if (hasVariants) setVariantsOpen(true);
         if (p.fda_lto_on_file || p.fda_cpr_on_file) setFdaOpen(true);
@@ -1480,6 +1524,14 @@ export default function SellerAddProductPage() {
     try {
       // Phone photos are often over the 5 MB limit (or HEIC): shrink them to a JPEG first, like delivery proofs.
       const uploads = await Promise.all(form.images.map((img) => downscaleImage(img.file, PRODUCT_MAX_EDGE, PRODUCT_JPEG_QUALITY)));
+      // A photo the browser could not shrink below the server's 5 MB is named here instead of failing the upload.
+      const tooBig = uploads.find((u) => u.file.size > MAX_IMAGE_BYTES);
+      if (tooBig) {
+        setErrors({ images: `${tooBig.file.name} is still over 5 MB after resizing. Use a smaller photo.` });
+        setSubmitting(false);
+        document.getElementById('section-basic')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
 
       const fd = new FormData();
       fd.append('name', form.name.trim());
@@ -1772,12 +1824,12 @@ export default function SellerAddProductPage() {
             </div>
           </FieldWrap>
 
-          <FieldWrap label="SKU" hint="Optional — your internal product code">
+          <FieldWrap label="SKU" hint="Optional. Your own product code: letters, numbers, dots, dashes and underscores." error={errors.sku}>
             <input
-              type="text" placeholder="e.g. SKU-001"
+              type="text" placeholder="e.g. SKU-001" maxLength={100} autoComplete="off"
               value={form.sku}
-              onChange={(e) => set('sku', e.target.value)}
-              className={inputCls()}
+              onChange={(e) => { set('sku', e.target.value); clearError('sku'); }}
+              className={inputCls(errors.sku)}
             />
           </FieldWrap>
         </div>
@@ -1845,6 +1897,8 @@ export default function SellerAddProductPage() {
                   file={form.fdaCprFile}
                   onFile={(f) => { set('fdaCprFile', f); clearError('fdaCprFile'); }}
                   error={errors.fdaCprFile}
+                  alreadyOnFile={form.fdaCprOnFile}
+                  onReplace={() => set('fdaCprOnFile', false)}
                 />
               </FieldWrap>
 

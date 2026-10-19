@@ -72,6 +72,29 @@ No real money moves.
   be escalated once within 3 days (`POST /buyer/orders/{id}/escalate-return`); Loved-IT then decides refund or reject
   (`PATCH /admin/disputes/{id}/resolve {decision, resolution_note}`).
 - A failed delivery that goes back to the shop is described in `docs/api/courier-operations.md`.
+- Text the buyer reads from the shop is words, not symbols or digits (at least three letters): the "Other" cancel
+  `details` (10 to 300 characters), the return-rejection `reason` (10 to 300) and the GCash payment-rejection `reason`
+  (`POST /seller/orders/{id}/reject-payment`, 10 to 500).
+
+## Seller input rules
+
+The server checks every one of these; the seller pages show the same messages before sending.
+
+| Input | Rule |
+|---|---|
+| Store name (Shop Profile and the seller application) | 3 to 30 characters, at least two letters; letters, digits, spaces and `. , ' & ( ) / # ! + -`; unique. |
+| Line of business (`shop_category`) | A main platform category (its name or slug), the list the application uses. |
+| `response_time` | `within_1_hour`, `within_few_hours`, `within_24_hours` or `within_2_days`. |
+| Product `name` | 5 to 120 characters with at least two letters (`12345` is refused; `2-in-1 Phone Stand` is fine). |
+| Product and variant `sku` | Optional; letters, digits, `.`, `_` and `-`, up to 100. |
+| Option names (each part of a variant label) | 1 to 20 characters with a letter or digit. |
+| `weight_kg`, dimensions | Above 0, at most 1,000 kg / 1,000 cm. |
+| FDA category (`requires_fda`) | Publishing (form, Products list or bulk activate) needs an FDA LTO (this product's, another of the shop's, or the application's) and this product's CPR/CPN; otherwise `422` on `fda_lto` / `fda_cpr`. `GET /seller/shop-profile` returns `fda_lto_on_file`. |
+| Store category `name` | 2 to 50 characters, at least two letters, letters, digits, spaces and `. , ' & ( ) / # -`. |
+| Promotion and voucher `name` | 3 to 80 characters with at least two letters. |
+| Review reply `body` | 2 to 500 characters with at least two letters. |
+| `POST /seller/payouts/request` | `amount` at least ₱100 with at most 2 decimals; `gcash_number` any GCash way of writing it (stored `09XXXXXXXXX`); `gcash_name` the account-name rule. |
+| `POST /seller/payment-settings` | `gcash_account_name` the account-name rule; `free_delivery_min` ₱1 to ₱1,000,000 with at most 2 decimals. |
 
 ## Seller reports (S13)
 

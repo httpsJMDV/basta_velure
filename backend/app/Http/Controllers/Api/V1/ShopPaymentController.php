@@ -53,10 +53,13 @@ class ShopPaymentController extends Controller
 
         $data = $request->validate([
             'gcash_number'       => ['sometimes', 'nullable', ...Gcash::RULE],
-            'gcash_account_name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'gcash_account_name' => ['sometimes', ...\App\Support\Validation::accountName(false)],
             'gcash_qr'           => ['sometimes', 'image', 'max:4096'],
             'remove_qr'          => ['sometimes', 'boolean'],
-            'free_delivery_min'  => ['sometimes', 'nullable', 'numeric', 'min:1', 'max:1000000'],
+            'free_delivery_min'  => ['sometimes', 'nullable', 'numeric', 'decimal:0,2', 'min:1', 'max:1000000'],
+        ], \App\Support\Validation::accountNameMessages('gcash_account_name') + [
+            'free_delivery_min.decimal' => 'Enter the amount in pesos and centavos, like 999 or 999.50.',
+            'free_delivery_min.min'     => 'The free-delivery amount must be at least ₱1.00.',
         ]);
 
         $updates = [];
@@ -68,7 +71,7 @@ class ShopPaymentController extends Controller
             $updates['gcash_number'] = $number;
         }
         if (array_key_exists('gcash_account_name', $data)) {
-            $updates['gcash_account_name'] = $data['gcash_account_name'] ? trim($data['gcash_account_name']) : null;
+            $updates['gcash_account_name'] = $data['gcash_account_name'] ? preg_replace('/\s+/u', ' ', trim($data['gcash_account_name'])) : null;
         }
         if (array_key_exists('free_delivery_min', $data)) {
             $updates['free_delivery_min'] = $data['free_delivery_min'];

@@ -9,20 +9,10 @@ import { apiErrorMessage } from '../../utils/apiError';
 import { useToast } from '../ui/Toast';
 import { SectionCard } from '../../pages/rider/RiderUi';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../../pages/rider/riderStyles';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
+import { compact, firstErrors, paymentReferenceError, squish } from '../../utils/accountRules';
 
 const peso = (v: string | number) => `₱${Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-/** Polls while the page is visible; stops in a background tab. */
-function usePoll(fn: () => void, ms: number, enabled = true) {
-  const saved = useRef(fn);
-  useEffect(() => { saved.current = fn; }, [fn]);
-  useEffect(() => {
-    if (!enabled) return;
-    const tick = () => { if (document.visibilityState === 'visible') saved.current(); };
-    const t = window.setInterval(tick, ms);
-    return () => window.clearInterval(t);
-  }, [ms, enabled]);
-}
 
 // ─── Online / Offline (R3) ───────────────────────────────────────────────────
 
@@ -37,7 +27,8 @@ export function AvailabilityToggle({ onChange }: { onChange?: (s: RiderWorkState
 
   const load = useCallback(() => { getRiderStatusApi().then((s) => { setState(s); onChange?.(s); }).catch(() => {}); }, [onChange]);
   useEffect(() => { load(); }, [load]);
-  usePoll(load, 30000);
+  // A suspension or re-verification is pushed over Reverb; the poll is the fallback.
+  useLiveRefresh(load, 30_000, busy);
 
   const toggle = async () => {
     if (!state || busy) return;
@@ -124,7 +115,8 @@ export function JobOffers({ onAccepted }: { onAccepted?: () => void }) {
     getRiderOffersApi().then((res) => { setOffers(res.data); setOnline(res.meta.online); }).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
-  usePoll(load, 5000);
+  // A new offer is pushed over Reverb the moment it is made; the short poll covers a dropped connection.
+  useLiveRefresh(load, 5_000);
 
   // Drop an offer the moment its time is up.
   useEffect(() => {
@@ -211,8 +203,11 @@ export function ReturnJobs() {
   const [jobs, setJobs] = useState<RiderReturnJob[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = useCallback(() => { getRiderReturnsApi().then(setJobs).catch(() => setJobs([])); }, []);
+  // A failed refresh keeps the list: a blip must not hide a parcel the rider is carrying back.
+  const load = useCallback(() => { getRiderReturnsApi().then(setJobs).catch(() => setJobs((prev) => prev ?? [])); }, []);
   useEffect(() => { load(); }, [load]);
+  // Live: a return the hub hands this rider appears on its own.
+  useLiveRefresh(load, 30_000, busy !== null);
 
   if (!jobs || jobs.length === 0) return null;
 
@@ -268,12 +263,14 @@ export function CodRemittanceCard() {
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<{ amount?: string; reference?: string; form?: string }>({});
   // One key per remittance, so a double tap or a retry never sends it twice.
   const key = useRef<string | null>(null);
 
   const load = useCallback(() => { getRiderCodApi().then(setCod).catch(() => {}); }, []);
   useEffect(() => { load(); }, [load]);
+  // Live: the company confirming a remittance (or a new COD delivery) updates the balance on its own.
+  useLiveRefresh(load, 30_000, busy);
 
   if (!cod) return <div className="h-40 bg-white border border-gray-200/80 rounded-2xl animate-pulse" aria-label="Loading cash on delivery" />;
 
@@ -281,21 +278,27 @@ export function CodRemittanceCard() {
   const canRemit = Number(cod.balance.can_remit);
 
   const submit = async () => {
-    setError('');
     const v = amount.trim();
-    if (!/^\d+(\.\d{1,2})?$/.test(v) || Number(v) <= 0) { setError('Enter the amount you are handing over, like 1800 or 1800.00.'); return; }
-    if (Number(v) > canRemit) { setError(`You can remit at most ${peso(canRemit)}.`); return; }
+    const local = compact({
+      amount: !/^\d+(\.\d{1,2})?$/.test(v) || Number(v) <= 0
+        ? 'Enter the amount you are handing over, like 1800 or 1800.00.'
+        : Number(v) > canRemit ? `You can remit at most ${peso(canRemit)}.` : undefined,
+      reference: paymentReferenceError(reference),
+    });
+    setErrors(local);
+    if (Object.keys(local).length) return;
     setBusy(true);
     try {
       key.current ??= `rem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      const res = await remitRiderCodApi(v, reference.trim(), key.current);
+      const res = await remitRiderCodApi(v, squish(reference), key.current);
       showToast(res.message, 'success');
       key.current = null;
       setAmount('');
       setReference('');
       load();
     } catch (e) {
-      setError(apiErrorMessage(e, 'The remittance was not sent.'));
+      const fields = firstErrors((e as { response?: { status?: number; data?: { errors?: Record<string, string[]> } } })?.response?.data?.errors);
+      setErrors(fields.amount || fields.reference ? fields : { form: apiErrorMessage(e, 'The remittance was not sent.') });
     } finally {
       setBusy(false);
     }
@@ -328,18 +331,26 @@ export function CodRemittanceCard() {
               <span className="sr-only">Amount to remit</span>
               <span className="relative block">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-500">₱</span>
-                <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
-                  placeholder={Number(cod.balance.can_remit).toFixed(2)} aria-invalid={!!error}
-                  className="w-full min-h-11 pl-7 pr-3 rounded-xl border border-gray-300 text-sm font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-red/40" />
+                <input inputMode="decimal" value={amount}
+                  onChange={(e) => { setAmount(e.target.value.replace(/[^\d.]/g, '')); setErrors(({ amount: _drop, ...rest }) => rest); }}
+                  placeholder={Number(cod.balance.can_remit).toFixed(2)} aria-invalid={errors.amount ? true : undefined}
+                  className={`w-full min-h-11 pl-7 pr-3 rounded-xl border text-sm font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-red/40 ${errors.amount ? 'border-red-500' : 'border-gray-300'}`} />
               </span>
             </label>
             <button type="submit" className={BTN_PRIMARY} disabled={busy}>
               {busy ? <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Wallet className="w-4 h-4" aria-hidden="true" />} Remit
             </button>
           </div>
-          <input value={reference} onChange={(e) => setReference(e.target.value)} maxLength={40} placeholder="GCash or deposit reference (optional)"
-            className="w-full min-h-10 px-3 rounded-xl border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40" />
-          {error && <p role="alert" className="text-xs font-semibold text-red-700">{error}</p>}
+          {errors.amount && <p role="alert" className="text-xs font-semibold text-red-700">{errors.amount}</p>}
+          <label className="block">
+            <span className="sr-only">GCash or deposit reference (optional)</span>
+            <input value={reference} maxLength={40} placeholder="GCash or deposit reference (optional)" autoComplete="off"
+              onChange={(e) => { setReference(e.target.value); setErrors(({ reference: _drop, ...rest }) => rest); }}
+              aria-invalid={errors.reference ? true : undefined}
+              className={`w-full min-h-10 px-3 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40 ${errors.reference ? 'border-red-500' : 'border-gray-200'}`} />
+          </label>
+          {errors.reference && <p role="alert" className="text-xs font-semibold text-red-700">{errors.reference}</p>}
+          {errors.form && <p role="alert" className="text-xs font-semibold text-red-700">{errors.form}</p>}
         </form>
       ) : (
         <p className="text-xs text-gray-500">Nothing to remit right now.</p>

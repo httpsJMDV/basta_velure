@@ -26,7 +26,7 @@ for the courier company.
 |---|---|---|
 | `POST …/settlements` `{week_start, reference, receipt?}` plus `company_id` (shop) or `seller_id` (courier) | the payer | Records the payment. `receipt` is optional, JPG/PNG/WebP up to 8 MB, sent as multipart. A week that is already paid is a `422`, unless it is in `pay_again`. |
 | `POST …/settlements/{id}/confirm` | the receiver | `sent` or `disputed` → `settled`. |
-| `POST …/settlements/{id}/dispute` `{reason}` | the receiver | `sent` → `disputed`. `reason` is 10 to 500 characters. A second report is a `422`. |
+| `POST …/settlements/{id}/dispute` `{reason}` | the receiver | `sent` → `disputed`. `reason` is 10 to 500 characters, in words (at least three letters). A second report is a `422`. |
 | `POST …/settlements/{id}/receipt` `{receipt}` | the payer | Adds or replaces the receipt while the payment is `sent` or `disputed`. |
 | `GET /settlements/{id}/receipt` | both sides, admins | The receipt image (private disk, `no-store`). Admins can add `?attempt=N` for an earlier, voided payment. Anyone else gets `404`. |
 

@@ -266,8 +266,10 @@ export function PayoutAccountForm({ load, save, who, tone = 'stone', intro }: {
       setName(saved.gcash_name ?? '');
       setEditing(!saved.gcash_number);
     } catch (err) {
-      const errs = (err as { response?: { data?: { errors?: Record<string, string[]> } } })?.response?.data?.errors ?? {};
-      setErrors(Object.fromEntries(Object.entries(errs).map(([k, v]) => [k, v[0]])));
+      const data = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
+      const fields = Object.fromEntries(Object.entries(data?.errors ?? {}).map(([k, v]) => [k, v[0]]));
+      // A refusal without field errors (or no connection at all) still says why nothing was saved.
+      setErrors(Object.keys(fields).length ? fields : { form: data?.message ?? 'The GCash details were not saved. Check your connection and try again.' });
     } finally {
       setBusy(false);
     }
@@ -311,6 +313,7 @@ export function PayoutAccountForm({ load, save, who, tone = 'stone', intro }: {
           {errors.gcash_name && <p role="alert" className="mt-1 text-[12px] text-brand-red">{errors.gcash_name}</p>}
         </div>
       </div>
+      {errors.form && <p role="alert" className="text-[12px] font-medium text-brand-red">{errors.form}</p>}
       <div className="flex gap-2">
         <button type="submit" disabled={busy} className="h-10 px-5 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[13px] font-semibold disabled:opacity-50">{busy ? 'Saving…' : 'Save GCash'}</button>
         {account.gcash_number && <button type="button" onClick={() => { setEditing(false); setNumber(account.gcash_number ?? ''); setName(account.gcash_name ?? ''); setErrors({}); }} className="h-10 px-4 rounded-full text-[13px] font-semibold text-stone-600 hover:bg-stone-100">Cancel</button>}

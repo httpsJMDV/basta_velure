@@ -126,11 +126,14 @@ class SellerStoreCategoryController extends Controller
         $request->merge(['name' => $name]);
 
         $data = $request->validate([
-            'name'      => ['required', 'string', 'min:1', 'max:50'],
+            // Buyers read it on the shop page: words like "New Arrivals", not "!!" or "123".
+            'name'      => ['required', 'string', 'min:2', 'max:50', 'regex:' . \App\Support\Validation::LABEL_REGEX, 'regex:' . \App\Support\Validation::TWO_LETTERS_REGEX],
             'parent_id' => ['nullable', 'integer'],
         ], [
             'name.required' => 'Enter a category name.',
+            'name.min'      => 'A category name must be 2 to 50 characters.',
             'name.max'      => 'A category name can be at most 50 characters.',
+            'name.regex'    => "A category name needs at least two letters and may use letters, numbers, spaces and . , ' & ( ) / # - only.",
         ]);
 
         $exists = StoreCategory::where('seller_id', $sellerId)

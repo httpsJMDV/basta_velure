@@ -21,6 +21,7 @@ import type { RiderOutletContext } from './RiderLayout';
 import { IconChip, KpiSkeleton, KpiTile, PageHero, SectionCard, StateCard, type Tone } from './RiderUi';
 import { BTN_PRIMARY } from './riderStyles';
 import { AvailabilityToggle, JobOffers } from '../../components/rider/RiderWork';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
 
 interface Workload {
   pickupsAccepted: number;
@@ -51,9 +52,12 @@ export default function RiderDashboardPage() {
   const [workLoading, setWorkLoading] = useState(true);
   const [workError, setWorkError] = useState(false);
 
-  const loadWork = useCallback(async () => {
-    setWorkLoading(true);
-    setWorkError(false);
+  // `silent` is the live refresh: no skeleton, and a failed attempt keeps today's numbers on screen.
+  const loadWork = useCallback(async (silent = false) => {
+    if (!silent) {
+      setWorkLoading(true);
+      setWorkError(false);
+    }
     try {
       const [mine, deliveries, earnings] = await Promise.all([
         getRiderPickupsApi('mine'),
@@ -69,16 +73,19 @@ export default function RiderDashboardPage() {
         earnedToday: earnings.total_earned,
         deliveredToday: earnings.deliveries_count,
       });
+      setWorkError(false);
     } catch {
-      setWorkError(true);
+      if (!silent) setWorkError(true);
     } finally {
-      setWorkLoading(false);
+      if (!silent) setWorkLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void loadWork();
   }, [loadWork]);
+
+  useLiveRefresh(() => void loadWork(true), 30_000);
 
   const VehicleIcon = riderData?.vehicle_type === 'Car' || riderData?.vehicle_type === 'Van' ? Car : Bike;
 
@@ -132,17 +139,13 @@ export default function RiderDashboardPage() {
       />
 
       <AvailabilityToggle />
-      <JobOffers onAccepted={() => void loadWork()} />
+      <JobOffers onAccepted={() => void loadWork(true)} />
 
       {workLoading && !work ? (
         <KpiSkeleton />
       ) : workError || !work ? (
-        <div role="alert" className="bg-white border border-gray-200/80 rounded-xl px-4 py-3 shadow-xs flex items-center justify-between gap-3">
-          <p className="text-xs text-gray-700">Could not load today&apos;s numbers. Check your connection.</p>
-          <button onClick={() => void loadWork()} className="min-h-9 px-3 rounded-lg border border-gray-200 text-xs font-bold text-gray-800 hover:bg-gray-50 inline-flex items-center gap-1.5">
-            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-            Retry
-          </button>
+        <div role="alert" className="bg-white border border-gray-200/80 rounded-xl px-4 py-3 shadow-xs">
+          <p className="text-xs text-gray-700">Could not load today&apos;s numbers. Check your connection; they load on their own once it is back.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -49,8 +49,8 @@ The single source of failure reasons. Only `OTHER` requires a note.
 | `proof_photo` | **Required.** The parcel at the door or with the recipient. An image file: `jpg`, `jpeg`, `png` or `webp`, judged by its real content type, max **8 MB** (8192 KB). |
 | `proof_photo_2` | Optional. The house, gate or building. Same rules; when sent it must be a **different file** from `proof_photo` (`422` on `proof_photo_2`). |
 | `otp` | **Required when the parcel has a delivery code** (every parcel sent out through Out for Delivery has one). Exactly 6 digits; anything else is a `422` on `otp` and does not count as a try. |
-| `cod_amount` | **Required for a COD parcel**: the cash the rider counted. It must equal the parcel's COD amount **to the centavo** (`499.99` and `500.01` are refused on a `500.00` order). Ignored for prepaid parcels. |
-| `received_by` | Optional string, max 100 characters. |
+| `cod_amount` | **Required for a COD parcel**: the cash the rider counted, a number with at most 2 decimals. It must equal the parcel's COD amount **to the centavo** (`499.99`, `500.01` and `500.004` are refused on a `500.00` order). Ignored for prepaid parcels. |
+| `received_by` | Optional. A person's name, the shared name rule: 2 to 50 characters, letters, spaces, hyphens, apostrophes and periods (`12345` or `...` is a `422`). |
 
 ### The delivery code (A32)
 - A fresh 6-digit code is made each time the parcel goes Out for Delivery. Only the buyer sees it (`delivery_otp` on their order, while it is out for delivery); it is never in a rider, hub or courier payload.
@@ -89,7 +89,7 @@ JSON body.
 | Field | Rules |
 |---|---|
 | `reason` | **Required.** One of the codes from the failure-reasons endpoint. |
-| `note` | Optional string, max 500. **Required when `reason` is `OTHER`.** |
+| `note` | Optional; when given, 5 to 500 characters with at least three letters (`.....` or `1234567` is a `422`), the same rule as the hub's return note. **Required when `reason` is `OTHER`.** |
 
 ### What happens
 - The order moves `OUT_FOR_DELIVERY → DELIVERY_FAILED` through `OrderStateMachine` with actor `rider`; the buyer, the shop and the courier company are notified.
@@ -113,7 +113,7 @@ JSON body.
 
 #### Errors
 - `404` / `409` / `422` as in the overview.
-- `422` validation: `reason` missing or unknown; `note` missing for `OTHER` (blank counts as missing) or over 500 characters.
+- `422` validation: `reason` missing or unknown; `note` missing for `OTHER` (blank counts as missing), shorter than 5 or over 500 characters, or not written in words.
 
 ---
 

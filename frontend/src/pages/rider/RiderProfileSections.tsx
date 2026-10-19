@@ -3,8 +3,9 @@
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import axios from 'axios';
-import { Bike, Building2, CheckCircle2, FileText, IdCard, RefreshCw, ShieldAlert, ShieldCheck, Warehouse } from 'lucide-react';
+import { Bike, Building2, FileText, IdCard, RefreshCw, ShieldAlert, ShieldCheck, Warehouse } from 'lucide-react';
 import CustomSelect from '../../components/ui/CustomSelect';
+import { useToast } from '../../components/ui/Toast';
 import FileUploadZone from '../../components/ui/FileUploadZone';
 import { openAuthorizedFile } from '../../api/client';
 import { updateRiderLicenseApi, updateRiderVehicleApi } from '../../api/riderAccount';
@@ -72,13 +73,15 @@ export function RiderProfileCard({ rider }: { rider: RiderProfileData }) {
   );
 }
 
+// The page re-keys these forms on the saved values, so a saved form is remounted at once: the confirmation is a toast,
+// which outlives the remount.
 export function RiderVehicleForm({ rider, onSaved }: { rider: RiderProfileData; onSaved: () => void }) {
+  const { showToast } = useToast();
   const [type, setType] = useState<RiderVehicleType>(rider.vehicle_type);
   const [plate, setPlate] = useState(rider.plate_number);
   const [orCr, setOrCr] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
 
@@ -94,7 +97,6 @@ export function RiderVehicleForm({ rider, onSaved }: { rider: RiderProfileData; 
     const fe = fileError(orCr, 'the new OR/CR', { pdf: true });
     if (fe) local.or_cr_image = fe;
     setErrors(local);
-    setSaved(false);
     setFormError(null);
     if (Object.keys(local).length) return;
 
@@ -109,7 +111,7 @@ export function RiderVehicleForm({ rider, onSaved }: { rider: RiderProfileData; 
       setType(res.data.vehicle_type);
       setPlate(res.data.plate_number);
       setOrCr(null);
-      setSaved(true);
+      showToast(res.message || 'Vehicle updated.', 'success');
       onSaved();
     } catch (err: unknown) {
       const { fields, message } = errorsFrom(err);
@@ -129,12 +131,12 @@ export function RiderVehicleForm({ rider, onSaved }: { rider: RiderProfileData; 
       </div>
       <form onSubmit={submit} noValidate className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-3">
-          <CustomSelect label="Vehicle type" value={type} onChange={(v) => { setType(v as RiderVehicleType); setSaved(false); }}
+          <CustomSelect label="Vehicle type" value={type} onChange={(v) => setType(v as RiderVehicleType)}
             options={VEHICLE_TYPES.map((t) => ({ value: t, label: t }))} error={errors.vehicle_type} />
           <div className="space-y-1">
             <label htmlFor="plate-number" className="block text-sm font-medium text-brand-gray-mid">Plate number</label>
             <input id="plate-number" type="text" value={plate} maxLength={20} autoCapitalize="characters" autoComplete="off"
-              onChange={(e) => { setPlate(e.target.value.toUpperCase()); setSaved(false); setErrors((x) => ({ ...x, plate_number: '' })); }}
+              onChange={(e) => { setPlate(e.target.value.toUpperCase()); setErrors((x) => ({ ...x, plate_number: '' })); }}
               aria-invalid={errors.plate_number ? true : undefined}
               className={`w-full min-h-11 rounded-xl border px-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-red/40 ${errors.plate_number ? 'border-red-500' : 'border-gray-300'}`} />
             {errors.plate_number && <p role="alert" className="text-xs font-semibold text-red-700">{errors.plate_number}</p>}
@@ -143,7 +145,6 @@ export function RiderVehicleForm({ rider, onSaved }: { rider: RiderProfileData; 
         <FileUploadZone label="New OR/CR" required file={orCr} onChange={(f) => { setOrCr(f); setErrors((x) => ({ ...x, or_cr_image: '' })); }} onClear={() => setOrCr(null)} error={errors.or_cr_image} />
         <p className="text-xs text-gray-500">The change shows at once. Your courier company re-verifies the new OR/CR.</p>
         {formError && <p role="alert" className="text-xs font-semibold text-red-700">{formError}</p>}
-        {saved && <p role="status" className="flex items-center gap-2 text-sm font-semibold text-emerald-700"><CheckCircle2 className="w-4 h-4" aria-hidden="true" />Vehicle updated.</p>}
         <button type="submit" disabled={saving || !dirty} className={SUBMIT}>
           {saving && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
           {saving ? 'Saving…' : 'Save vehicle'}
@@ -154,23 +155,24 @@ export function RiderVehicleForm({ rider, onSaved }: { rider: RiderProfileData; 
 }
 
 export function RiderLicenseForm({ rider, onSaved }: { rider: RiderProfileData; onSaved: () => void }) {
+  const { showToast } = useToast();
   const [expiry, setExpiry] = useState(rider.license_expiry ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const dirty = expiry !== (rider.license_expiry ?? '') || file !== null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (saving) return;
+    if (saving || !dirty) return;
     const local: Record<string, string> = {};
     const ex = licenseExpiryError(expiry);
     if (ex) local.license_expiry = ex;
     const fe = fileError(file, "the driver's license", { pdf: true, required: false });
     if (fe) local.drivers_license_image = fe;
     setErrors(local);
-    setSaved(null);
     setFormError(null);
     if (Object.keys(local).length) return;
 
@@ -181,7 +183,7 @@ export function RiderLicenseForm({ rider, onSaved }: { rider: RiderProfileData; 
       if (file) fd.append('drivers_license_image', file);
       const res = await updateRiderLicenseApi(fd);
       setFile(null);
-      setSaved(res.message);
+      showToast(res.message || 'License updated.', 'success');
       onSaved();
     } catch (err: unknown) {
       const { fields, message } = errorsFrom(err);
@@ -207,8 +209,7 @@ export function RiderLicenseForm({ rider, onSaved }: { rider: RiderProfileData; 
         </div>
         <FileUploadZone label="New driver's license (optional)" file={file} onChange={(f) => { setFile(f); setErrors((x) => ({ ...x, drivers_license_image: '' })); }} onClear={() => setFile(null)} error={errors.drivers_license_image} />
         {formError && <p role="alert" className="text-xs font-semibold text-red-700">{formError}</p>}
-        {saved && <p role="status" className="flex items-center gap-2 text-sm font-semibold text-emerald-700"><CheckCircle2 className="w-4 h-4" aria-hidden="true" />{saved}</p>}
-        <button type="submit" disabled={saving} className={SUBMIT}>
+        <button type="submit" disabled={saving || !dirty} className={SUBMIT}>
           {saving && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
           {saving ? 'Saving…' : 'Save license'}
         </button>

@@ -179,6 +179,68 @@ export function gcashNumberError(value: string, required = true): string | undef
   return normalizeGcash(value) ? undefined : 'Enter the 11-digit mobile number of the GCash account, like 0917 123 4567.';
 }
 
+const SHOP_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{M}\p{N} .,'&()/#!+-]*$/u;
+
+/** A store's name: 3 to 30 characters with at least two letters (Validation::shopName on the server). */
+export function shopNameError(value: string, label = 'Store name'): string | undefined {
+  const v = squish(value);
+  if (!v) return `${label} is required.`;
+  if (v.length < 3 || v.length > 30) return `${label} must be 3 to 30 characters.`;
+  if (!SHOP_NAME_RE.test(v) || !TWO_LETTERS_RE.test(v)) {
+    return `${label} needs at least two letters and may use letters, numbers, spaces and . , ' & ( ) / # ! + - only.`;
+  }
+  return undefined;
+}
+
+/**
+ * A name buyers read, such as a product, a promotion or a voucher: min to max characters with at least two letters
+ * (Validation::displayName on the server). Symbols are fine ("2-in-1", "100% Cotton").
+ */
+export function displayNameError(value: string, label: string, min: number, max: number): string | undefined {
+  const v = value.trim();
+  if (!v) return `${label} is required.`;
+  if (v.length < min || v.length > max) return `${label} must be ${min} to ${max} characters.`;
+  if (!TWO_LETTERS_RE.test(v)) return `${label} needs at least two letters.`;
+  return undefined;
+}
+
+/** A store category: 2 to 50 characters, words like "New Arrivals" (the server's store category rule). */
+export function storeCategoryNameError(value: string): string | undefined {
+  const v = squish(value);
+  if (!v) return 'Enter a category name.';
+  if (v.length < 2 || v.length > 50) return 'A category name must be 2 to 50 characters.';
+  if (!LABEL_RE.test(v) || !TWO_LETTERS_RE.test(v)) {
+    return "A category name needs at least two letters and may use letters, numbers, spaces and . , ' & ( ) / # - only.";
+  }
+  return undefined;
+}
+
+/** An SKU: up to 100 letters, numbers, dots, dashes and underscores. Empty is fine (it is optional). */
+export function skuError(value: string): string | undefined {
+  const v = value.trim();
+  if (!v) return undefined;
+  if (v.length > 100) return 'An SKU can be at most 100 characters.';
+  return /^[A-Za-z0-9._-]+$/.test(v) ? undefined : 'An SKU may use letters, numbers, dots, dashes and underscores only.';
+}
+
+/** Pesos with at most two decimals, like 999 or 999.50. */
+export function isPesoAmount(value: string): boolean {
+  return /^\d+(\.\d{1,2})?$/.test(value.trim());
+}
+
+/**
+ * The reference of a GCash transfer or bank deposit someone else matches a payment against: 4 to 40 characters,
+ * letters, numbers, spaces and # / - only, with at least one number (Validation::paymentReference on the server).
+ */
+export function paymentReferenceError(value: string, required = false): string | undefined {
+  const v = squish(value);
+  if (!v) return required ? 'Enter the reference of your transfer.' : undefined;
+  if (v.length < 4 || v.length > 40 || !/^[A-Za-z0-9][A-Za-z0-9 #/-]*$/.test(v) || !/\d/.test(v)) {
+    return 'Enter the reference as the receipt shows it: 4 to 40 letters and numbers, like 1234 567 890123.';
+  }
+  return undefined;
+}
+
 /** Loved-IT tracking numbers: LIT-YYMMDD-XXXXXX. Typed without dashes or in small letters, they are tidied first. */
 export function normalizeTrackingNumber(raw: string): string {
   const v = raw.trim().toUpperCase().replace(/\s+/g, '');

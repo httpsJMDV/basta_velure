@@ -187,6 +187,14 @@ class CommerceOrdersTest extends TestCase
 
         Sanctum::actingAs($seller);
         $this->postJson("/api/v1/seller/orders/{$res['data']['id']}/cancel", [])->assertStatus(422)->assertJsonValidationErrors(['reason']);
+        // "Other" needs an explanation the buyer can read: digits or symbols are not one.
+        foreach (['1234567890', '..........'] as $junk) {
+            $this->postJson("/api/v1/seller/orders/{$res['data']['id']}/cancel", ['reason' => 'Other', 'details' => $junk])
+                ->assertStatus(422)->assertJsonValidationErrors(['details']);
+        }
+        // Rejecting a payment also needs words: "x" told the buyer nothing.
+        $this->postJson("/api/v1/seller/orders/{$res['data']['id']}/reject-payment", ['reason' => 'x'])
+            ->assertStatus(422)->assertJsonValidationErrors(['reason']);
         $this->postJson("/api/v1/seller/orders/{$res['data']['id']}/cancel", ['reason' => 'Out of stock'])->assertOk();
         $order = Order::find($res['data']['id']);
         $this->assertSame('refunded', $order->refund_status);
@@ -236,6 +244,8 @@ class CommerceOrdersTest extends TestCase
         // The seller rejects: a reason of 10 to 300 characters; the buyer escalates once.
         Sanctum::actingAs($seller);
         $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'reject', 'reason' => 'Item used'])->assertStatus(422);
+        $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'reject', 'reason' => '1234567890!!'])
+            ->assertStatus(422)->assertJsonValidationErrors(['reason']);
         $this->postJson("/api/v1/seller/orders/{$id}/respond-return", ['action' => 'reject', 'reason' => 'Item shows signs of use and the tag is removed.'])->assertOk();
         Sanctum::actingAs($buyer);
         $this->assertSame('Item shows signs of use and the tag is removed.', $this->getJson("/api/v1/buyer/orders/{$id}")->json('data.dispute.seller_reason'));
@@ -337,8 +347,15 @@ class CommerceOrdersTest extends TestCase
         $this->postJson("/api/v1/buyer/orders/{$res['data']['id']}/confirm-receipt")->assertOk();
 
         Sanctum::actingAs($seller);
-        $payload = ['amount' => 100, 'gcash_number' => '09171234567', 'gcash_name' => 'Maria Clara Santos'];
+        // Bad input is refused before anything is requested: a third decimal, a fake number, a name that is not one.
+        foreach ([['amount' => '100.555'], ['gcash_number' => '12345'], ['gcash_name' => 'X'], ['gcash_name' => '12345']] as $bad) {
+            $this->postJson('/api/v1/seller/payouts/request', array_merge(['amount' => 100, 'gcash_number' => '09171234567', 'gcash_name' => 'Maria Clara Santos'], $bad))
+                ->assertStatus(422)->assertJsonValidationErrors([array_key_first($bad)]);
+        }
+        // A number typed the way GCash shows it is accepted and kept as 09XXXXXXXXX.
+        $payload = ['amount' => 100, 'gcash_number' => '+63 917 123 4567', 'gcash_name' => 'Maria Clara Santos'];
         $this->postJson('/api/v1/seller/payouts/request', $payload)->assertCreated();
+        $this->assertSame('09171234567', PayoutRequest::where('seller_id', $seller->id)->value('gcash_number'));
         $this->postJson('/api/v1/seller/payouts/request', $payload)->assertStatus(422);
         $this->assertSame(1, PayoutRequest::where('seller_id', $seller->id)->count());
     }

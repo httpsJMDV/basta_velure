@@ -22,6 +22,11 @@ import { mergeFetchedMessages, isAutoAttachmentBody } from '../../components/cha
 import { usePolling, CHAT_POLL } from '../../hooks/usePolling';
 import RiderThreadPane from '../../components/chat/RiderThreadPane';
 import { isRiderThread } from '../../lib/riderThread';
+import { useToast } from '../../components/ui/Toast';
+import { apiErrorMessage } from '../../utils/apiError';
+
+/** The server's limit for one message (ConversationController::MAX_MESSAGE). */
+const MESSAGE_MAX = 1000;
 import {
   getConversationsApi,
   getConversationMessagesApi,
@@ -39,6 +44,7 @@ const FILTER_OPTIONS = [
 
 export default function SellerMessagesPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -262,8 +268,11 @@ export default function SellerMessagesPage() {
         if (prev.some((m) => m.id === newMsg.id)) return prev;
         return [...prev, newMsg];
       });
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to send reply.');
+    } catch (err) {
+      // The reply is put back so the seller does not have to type it again.
+      setInputBody((current) => current || text);
+      setSelectedImage((current) => current ?? img);
+      showToast(apiErrorMessage(err, 'Your reply was not sent. Try again.'), 'error');
     } finally {
       setSending(false);
     }
@@ -280,8 +289,8 @@ export default function SellerMessagesPage() {
         attachment_data: { id: product.id },
       });
       setMessages((prev) => [...prev, newMsg]);
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to attach product.');
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The product could not be shared.'), 'error');
     } finally {
       setSending(false);
     }
@@ -297,8 +306,8 @@ export default function SellerMessagesPage() {
         attachment_data: { id: order.id },
       });
       setMessages((prev) => [...prev, newMsg]);
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to attach order.');
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The order could not be shared.'), 'error');
     } finally {
       setSending(false);
     }
@@ -829,6 +838,7 @@ export default function SellerMessagesPage() {
                     ref={inputRef}
                     type="text"
                     placeholder="Type your response to customer..."
+                    maxLength={MESSAGE_MAX}
                     value={inputBody}
                     onChange={(e) => setInputBody(e.target.value)}
                     className="flex-1 px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:bg-white focus:border-brand-red focus:ring-1 focus:ring-red-100 transition-all"

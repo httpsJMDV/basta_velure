@@ -16,7 +16,7 @@ import { applyAsSellerApi, getStorefrontCategoriesApi } from '../../api/client';
 import { registerSellerApi } from '../../api/account';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  compact, confirmError, emailError, fileError, firstErrors, formatTin, nameError, passwordError, phoneError, postalError, tinError,
+  compact, confirmError, emailError, fileError, firstErrors, formatTin, nameError, passwordError, phoneError, postalError, shopNameError, tinError,
 } from '../../utils/accountRules';
 
 type SellerType = 'individual' | 'sole_proprietorship' | 'corporation';
@@ -143,8 +143,7 @@ export default function SellerRegisterPage() {
       e.password = passwordError(account.password);
       e.password_confirmation = confirmError(account.password, account.password_confirmation);
     }
-    const name = shopName.trim();
-    e.shop_name = !name ? 'Shop name is required.' : name.length < 3 || name.length > 30 ? 'Shop name must be 3 to 30 characters.' : undefined;
+    e.shop_name = shopNameError(shopName, 'Shop name');
     e.shop_category = shopCategory ? undefined : 'Choose a shop category.';
     e.shop_description = description.length > 500 ? 'The shop description must be 500 characters or fewer.' : undefined;
     e.seller_type = sellerType ? undefined : 'Choose a seller type.';

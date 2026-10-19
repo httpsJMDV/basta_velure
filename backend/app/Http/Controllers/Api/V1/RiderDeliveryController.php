@@ -10,6 +10,7 @@ use App\Models\Parcel;
 use App\Models\Rider;
 use App\Services\Courier\ReturnToSender;
 use App\Support\Money;
+use App\Support\Validation;
 use App\Services\OrderStateMachine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -198,13 +199,15 @@ class RiderDeliveryController extends Controller
         $request->validate([
             'proof_photo'   => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'proof_photo_2' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
-            'received_by'   => ['nullable', 'string', 'max:100'],
+            'received_by'   => Validation::personName(required: false),
             'otp'           => ['nullable', 'string', 'max:20'],
-            'cod_amount'    => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            // Centavos at most: "500.004" must not be rounded into a match with ₱500.00.
+            'cod_amount'    => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:10000000'],
         ], [
             'proof_photo.required' => 'Take a photo of the parcel at the door as proof of delivery.',
             'cod_amount.numeric'   => 'Enter the cash you collected as a number, like 500 or 500.00.',
-        ]);
+            'cod_amount.decimal'   => 'Enter the cash you collected in pesos and centavos, like 500 or 500.00.',
+        ] + Validation::personNameMessages('received_by', 'The name of who received it'));
 
         // A second photo, when sent, must be a different picture, not the same file twice.
         if ($request->hasFile('proof_photo_2') && hash_file('sha256', $request->file('proof_photo')->getRealPath()) === hash_file('sha256', $request->file('proof_photo_2')->getRealPath())) {
@@ -345,10 +348,13 @@ class RiderDeliveryController extends Controller
     {
         $validated = $request->validate([
             'reason' => ['required', Rule::enum(DeliveryFailureReason::class)],
+            // Read by the hub and the courier company, so it must be words (the hub's own notes follow the same rule).
             'note'   => [
-                'nullable', 'string', 'max:500',
+                ...Validation::sentence(false, 5, 500),
                 Rule::requiredIf(fn () => $request->input('reason') === DeliveryFailureReason::OTHER->value),
             ],
+        ], Validation::sentenceMessages('note', 'The note', 5, 500) + [
+            'note.required' => 'Say what happened: a note is required for this reason.',
         ]);
 
         $reason = DeliveryFailureReason::from($validated['reason']);

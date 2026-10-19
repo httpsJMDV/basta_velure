@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRiderLocationStatusApi, postRiderLocationApi } from '../api/client';
 import { useLivePolling } from './useLivePolling';
+import { useLiveNotices } from './useLiveNotices';
 
 export type BeaconState =
   /** The rider has nothing to carry, so nothing is asked or sent. */
@@ -59,6 +60,8 @@ export function useRiderLocationBeacon(enabled: boolean): {
     [enabled]
   );
   const { refresh } = useLivePolling(loadStatus, STATUS_EVERY_MS);
+  // A job added to or taken off the rider's list is pushed over Reverb: check at once whether sharing is needed.
+  useLiveNotices(refresh, enabled);
 
   useEffect(() => {
     if (!enabled || !required) {

@@ -58,7 +58,7 @@ class SellerRegisterRequest extends FormRequest
         $psgc = ['required', 'string', 'regex:/^\d{9,10}$/'];
 
         $rules = [
-            'shop_name'             => ['required', 'string', 'min:3', 'max:30', function ($attr, $value, $fail) {
+            'shop_name'             => [...Validation::shopName(), function ($attr, $value, $fail) {
                 if (is_string($value) && self::shopNameTaken($value, $this->user('sanctum')?->id)) {
                     $fail('This shop name is already taken. Choose another name.');
                 }
@@ -131,9 +131,7 @@ class SellerRegisterRequest extends FormRequest
     {
         return [
             ...($this->isGuest() ? BuyerRegisterRequest::accountMessages() : []),
-            'shop_name.required'          => 'Shop name is required.',
-            'shop_name.min'               => 'Shop name must be 3 to 30 characters.',
-            'shop_name.max'               => 'Shop name must be 3 to 30 characters.',
+            ...Validation::shopNameMessages('Shop name'),
             'shop_category.required'      => 'Choose a shop category.',
             'shop_description.max'        => 'The shop description must be 500 characters or fewer.',
             'seller_type.required'        => 'Choose a seller type.',

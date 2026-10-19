@@ -11,6 +11,7 @@ import { GcashPayee, RecordPaymentDialog, peso, formatReference } from '../../co
 import { SettlementWeeks, shortDate } from '../../components/payments/SettlementWeeks';
 import { useToast } from '../../components/ui/Toast';
 import { apiErrorMessage } from '../../utils/apiError';
+import { accountNameError, compact, gcashNumberError, isPesoAmount } from '../../utils/accountRules';
 import gcashLogo from '../../assets/brand/gcash-logo.svg';
 
 type Tab = 'gcash' | 'couriers' | 'commission';
@@ -226,7 +227,7 @@ function GcashSetup({ settings, onSaved }: { settings: SellerPaymentSettings; on
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!f.type.startsWith('image/')) { setErrors((x) => ({ ...x, gcash_qr: 'The QR code must be an image.' })); return; }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) { setErrors((x) => ({ ...x, gcash_qr: 'The QR code must be a JPG, PNG or WebP picture.' })); return; }
     if (f.size > 4 * 1024 * 1024) { setErrors((x) => ({ ...x, gcash_qr: 'That image is over 4 MB.' })); return; }
     setQrFile(f);
     setRemoveQr(false);
@@ -235,9 +236,13 @@ function GcashSetup({ settings, onSaved }: { settings: SellerPaymentSettings; on
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const local: Record<string, string> = {};
-    if (freeOn && !(Number(freeMin) >= 1)) local.free_delivery_min = 'Enter the order amount, in pesos, that earns free delivery.';
-    if (number.trim() && !name.trim()) local.gcash_account_name = 'Enter the name on the GCash account, as GCash shows it to people who pay you.';
+    // The same checks the server makes, all shown at once. Clearing both GCash fields turns GCash off.
+    const local = compact({
+      free_delivery_min: freeOn && (!isPesoAmount(freeMin) || Number(freeMin) < 1 || Number(freeMin) > 1000000)
+        ? 'Enter the order amount that earns free delivery, from ₱1 to ₱1,000,000, like 999 or 999.50.' : undefined,
+      gcash_number: number.trim() ? gcashNumberError(number) : undefined,
+      gcash_account_name: number.trim() || name.trim() ? accountNameError(name) : undefined,
+    });
     if (Object.keys(local).length) { setErrors(local); return; }
 
     const form = new FormData();

@@ -28,6 +28,9 @@ import type {
   PayoutRequest,
 } from '../../types';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
+import { accountNameError, gcashNumberError, isPesoAmount, normalizeGcash, squish } from '../../utils/accountRules';
+import { apiErrorMessage } from '../../utils/apiError';
 
 export default function SellerEarningsPage() {
   const { user } = useAuth();
@@ -58,8 +61,11 @@ export default function SellerEarningsPage() {
   const [payoutSuccessMsg, setPayoutSuccessMsg] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const [loadError, setLoadError] = useState(false);
+
+  // `silent` is the live refresh: no skeleton, and a failed attempt keeps the figures on screen.
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [sumRes, payRes, earnRes] = await Promise.all([
         getSellerEarningsSummaryApi(),
@@ -69,10 +75,12 @@ export default function SellerEarningsPage() {
       setSummary(sumRes);
       setPayouts(payRes.data || []);
       setOrderEarnings(earnRes.data || []);
+      setLoadError(false);
     } catch {
-      // ignore
+      // Zeros would look like "you earned nothing": say the figures did not load instead.
+      if (!silent) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -80,8 +88,11 @@ export default function SellerEarningsPage() {
     loadData();
   }, [loadData]);
 
+  // Live: a completed order or a processed payout changes the balances; pushed over Reverb, polled as a fallback.
+  useLiveRefresh(() => void loadData(true), 60_000, showPayoutModal);
+
   const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard?.writeText(text).catch(() => {});
     setCopiedId(key);
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -103,8 +114,13 @@ export default function SellerEarningsPage() {
     e.preventDefault();
     setPayoutError(null);
 
-    const amountNum = parseFloat(payoutAmount);
-    if (isNaN(amountNum) || amountNum < 100) {
+    // "100abc" or "100.555" is not an amount (parseFloat would read them as 100 and 100.555).
+    if (!isPesoAmount(payoutAmount)) {
+      setPayoutError('Enter the amount in pesos with at most 2 decimals, like 1500 or 1500.50.');
+      return;
+    }
+    const amountNum = Number(payoutAmount.trim());
+    if (amountNum < 100) {
       setPayoutError('Minimum withdrawal amount is ₱100.00.');
       return;
     }
@@ -112,12 +128,14 @@ export default function SellerEarningsPage() {
       setPayoutError('Amount exceeds your current available balance.');
       return;
     }
-    if (!gcashNumber.trim() || gcashNumber.trim().length < 10) {
-      setPayoutError('Please provide a valid 11-digit GCash mobile number.');
+    const numberProblem = gcashNumberError(gcashNumber);
+    if (numberProblem) {
+      setPayoutError(numberProblem);
       return;
     }
-    if (!gcashName.trim()) {
-      setPayoutError('Please provide your full GCash registered account name.');
+    const nameProblem = accountNameError(gcashName);
+    if (nameProblem) {
+      setPayoutError(nameProblem);
       return;
     }
 
@@ -125,16 +143,16 @@ export default function SellerEarningsPage() {
     try {
       const res = await requestSellerPayoutApi({
         amount: amountNum,
-        gcash_number: gcashNumber.trim(),
-        gcash_name: gcashName.trim(),
+        gcash_number: normalizeGcash(gcashNumber) ?? gcashNumber.trim(),
+        gcash_name: squish(gcashName),
       });
       setPayoutSuccessMsg(res.message || 'Payout request submitted successfully.');
       loadData();
       setTimeout(() => {
         setShowPayoutModal(false);
       }, 1500);
-    } catch (err: any) {
-      setPayoutError(err.response?.data?.message || 'Failed to submit withdrawal request.');
+    } catch (err) {
+      setPayoutError(apiErrorMessage(err, 'The withdrawal request was not sent. Try again.'));
     } finally {
       setSubmittingPayout(false);
     }
@@ -182,6 +200,13 @@ export default function SellerEarningsPage() {
           </Button>
         </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-[13px] text-red-700 font-medium">
+          <span className="flex-1">Your earnings could not be loaded, so the figures below are not your real balance. Check your connection.</span>
+          <button type="button" onClick={() => void loadData()} className="font-bold underline">Try again</button>
+        </div>
+      )}
 
       {/* ── 2. Compact 4-Card Financial KPI Row ── */}
       {loading ? (

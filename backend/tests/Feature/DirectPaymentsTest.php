@@ -147,8 +147,15 @@ class DirectPaymentsTest extends TestCase
 
         $this->postJson('/api/v1/seller/payment-settings', ['gcash_number' => '+63 917 555 1234'])
             ->assertStatus(422)->assertJsonValidationErrors(['gcash_account_name']);
-        $this->postJson('/api/v1/seller/payment-settings', ['gcash_number' => '12345', 'gcash_account_name' => 'X'])
+        $this->postJson('/api/v1/seller/payment-settings', ['gcash_number' => '12345', 'gcash_account_name' => 'Rosa D.'])
             ->assertStatus(422)->assertJsonValidationErrors(['gcash_number']);
+        // The name on the account follows the account-name rule: "X" or digits are not a name.
+        foreach (['X', '12345', 'Rosa <b>'] as $bad) {
+            $this->postJson('/api/v1/seller/payment-settings', ['gcash_number' => '0917 555 1234', 'gcash_account_name' => $bad])
+                ->assertStatus(422)->assertJsonValidationErrors(['gcash_account_name']);
+        }
+        $this->postJson('/api/v1/seller/payment-settings', ['free_delivery_min' => '999.505'])
+            ->assertStatus(422)->assertJsonValidationErrors(['free_delivery_min']);
         $this->postJson('/api/v1/seller/payment-settings', ['gcash_number' => '+63 917 555 1234', 'gcash_account_name' => 'Rosa D.', 'free_delivery_min' => 999])
             ->assertOk()->assertJsonPath('data.gcash_number', '0917 555 1234')->assertJsonPath('data.accepts_gcash', true)->assertJsonPath('data.free_delivery_min', 999);
 

@@ -67,9 +67,11 @@ class SellerReviewController extends Controller
     {
         $request->merge(['body' => is_string($request->input('body')) ? trim(strip_tags($request->input('body'))) : $request->input('body')]);
 
-        return $request->validate(['body' => ['required', 'string', 'min:2', 'max:500']], [
+        return $request->validate(['body' => ['required', 'string', 'min:2', 'max:500', 'regex:' . \App\Support\Validation::TWO_LETTERS_REGEX]], [
             'body.required' => 'Write your reply.',
+            'body.min'      => 'Write your reply.',
             'body.max'      => 'A reply can be at most 500 characters.',
+            'body.regex'    => 'Write your reply in words.',
         ])['body'];
     }
 

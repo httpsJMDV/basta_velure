@@ -11,6 +11,7 @@ import VoucherTicket from './VoucherTicket';
 import { createVoucherApi, endVoucherApi, getManagedVouchersApi, updateVoucherApi } from '../../api/commerce';
 import type { ManagedVoucher, WalletVoucher } from '../../api/commerce';
 import { getSellerProductsApi } from '../../api/client';
+import { displayNameError } from '../../utils/accountRules';
 import type { SellerProduct } from '../../types';
 import { apiProblem } from '../../utils/apiError';
 import { pesoCompact as peso } from '../../utils/pricing';
@@ -448,7 +449,8 @@ function VoucherForm({ admin, editing, products, onClose, onSaved }: {
     if (!locked) {
       const c = code.trim().toUpperCase();
       if (!/^[A-Z0-9]{4,12}$/.test(c)) e.code = 'The code must be 4 to 12 letters and digits, with no spaces or symbols.';
-      if (name.trim().length < 3) e.name = 'Give the voucher a name of at least 3 characters.';
+      const nameProblem = displayNameError(name, 'The voucher name', 3, 80);
+      if (nameProblem) e.name = nameProblem;
       const a = Number(amount);
       if (!amount || !Number.isFinite(a) || a <= 0) e.amount = 'The discount must be more than ₱0.';
       else if (type === 'percent' && (!Number.isInteger(a) || a < 1 || a > 99)) e.amount = 'The percentage must be a whole number from 1% to 99%.';

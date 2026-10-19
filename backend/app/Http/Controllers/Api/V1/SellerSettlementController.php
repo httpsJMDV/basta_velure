@@ -179,10 +179,11 @@ class SellerSettlementController extends Controller
         'receipt.mimes' => 'The receipt must be a JPG, PNG or WebP picture.',
         'receipt.max'   => 'The receipt picture must be 8 MB or smaller.',
     ];
-    public const DISPUTE_RULES = ['reason' => ['required', 'string', 'min:10', 'max:500']];
+    public const DISPUTE_RULES = ['reason' => ['required', 'string', 'min:10', 'max:500', 'regex:' . \App\Support\Validation::WORDS_REGEX]];
     public const DISPUTE_MESSAGES = [
         'reason.required' => 'Say what is wrong, for example that nothing with this reference is in your GCash.',
         'reason.min'      => 'Say a little more (at least 10 characters).',
+        'reason.regex'    => 'Say what is wrong in words; the other side and Loved-IT read it.',
     ];
 
     /** @param array{orders_count: int, cod_cents: int, fee_cents: int, net_cents: int} $line */

@@ -5,12 +5,14 @@ import {
   Star, Package, Users, MessageCircle, ExternalLink, Palmtree, Bell,
 } from 'lucide-react';
 import PhoneInput from '../../components/ui/PhoneInput';
-import { fileError, phoneError, postalError } from '../../utils/accountRules';
+import { fileError, phoneError, postalError, shopNameError } from '../../utils/accountRules';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { useAuth } from '../../hooks/useAuth';
 import { shopUrl, shopUrlLabel } from '../../utils/shopLink';
+import { Link } from 'react-router-dom';
 import {
   getSellerShopProfileApi,
+  getStorefrontCategoriesApi,
   updateSellerShopProfileApi,
   type SellerShopProfile,
 } from '../../api/client';
@@ -315,6 +317,14 @@ export default function SellerShopProfilePage() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const shopInfoRef = useRef<HTMLDivElement>(null);
 
+  // The line of business is one of the platform's main categories, the same list as the seller application.
+  const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
+  useEffect(() => {
+    getStorefrontCategoriesApi()
+      .then((list) => setCategoryOptions(list.map((c) => ({ value: c.name, label: c.name }))))
+      .catch(() => setCategoryOptions([]));
+  }, []);
+
   useEffect(() => {
     getSellerShopProfileApi()
       .then((p) => {
@@ -384,9 +394,8 @@ export default function SellerShopProfilePage() {
 
   const validateForm = (): Record<string, string> => {
     const e: Record<string, string> = {};
-    const name = shopName.trim().replace(/\s+/g, ' ');
-    if (!name) e.shop_name = 'Store name is required.';
-    else if (name.length < 3 || name.length > 30) e.shop_name = 'Store name must be 3 to 30 characters.';
+    const nameProblem = shopNameError(shopName);
+    if (nameProblem) e.shop_name = nameProblem;
     if (!shopContactNumber.trim()) e.shop_contact_number = 'Contact number is required.';
     else { const phone = phoneError(shopContactNumber); if (phone) e.shop_contact_number = phone; }
     if (shopDescription.trim().length > 500) e.shop_description = 'The store description can be at most 500 characters.';
@@ -461,7 +470,7 @@ export default function SellerShopProfilePage() {
 
   const handleCopySlug = () => {
     const slug = profile?.shop_slug ?? '';
-    navigator.clipboard.writeText(shopUrl(slug));
+    void navigator.clipboard?.writeText(shopUrl(slug)).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -899,7 +908,8 @@ export default function SellerShopProfilePage() {
                 <input
                   type="text"
                   value={shopName}
-                  onChange={(e) => setShopName(e.target.value)}
+                  maxLength={30}
+                  onChange={(e) => { setShopName(e.target.value); setErrors((prev) => { const n = { ...prev }; delete n.shop_name; return n; }); }}
                   placeholder="Your shop name"
                   className={inputCls(errors.shop_name)}
                 />
@@ -907,10 +917,10 @@ export default function SellerShopProfilePage() {
               </Field>
               <Field label="Line of Business / Category" error={errors.shop_category}>
                 <CustomSelect
-                  options={[{"value":"Electronics & Gadgets","label":"Electronics & Gadgets"},{"value":"Fashion & Apparel","label":"Fashion & Apparel"},{"value":"Food & Beverage","label":"Food & Beverage"},{"value":"Health & Beauty","label":"Health & Beauty"},{"value":"Home & Living","label":"Home & Living"},{"value":"Sports & Outdoors","label":"Sports & Outdoors"},{"value":"Toys & Hobbies","label":"Toys & Hobbies"},{"value":"Books & Stationery","label":"Books & Stationery"},{"value":"Automotive","label":"Automotive"},{"value":"Pet Supplies","label":"Pet Supplies"},{"value":"Services","label":"Services"},{"value":"Other","label":"Other"}]}
+                  options={categoryOptions}
                   value={shopCategory}
-                  onChange={setShopCategory}
-                  placeholder="Select your line of business"
+                  onChange={(v) => { setShopCategory(v); setErrors((prev) => { const n = { ...prev }; delete n.shop_category; return n; }); }}
+                  placeholder={categoryOptions.length ? 'Select your line of business' : 'Loading…'}
                   error={errors.shop_category}
                 />
               </Field>
@@ -949,10 +959,10 @@ export default function SellerShopProfilePage() {
               )}
             </div>
             <div className="pt-1 border-t border-gray-100">
-              <a href="/seller/account"
+              <Link to="/seller/account"
                 className="text-[12px] font-semibold text-brand-red hover:text-brand-red-dark transition-colors">
                 Edit name, phone or photo → Account Settings
-              </a>
+              </Link>
             </div>
           </div>
         </Card>

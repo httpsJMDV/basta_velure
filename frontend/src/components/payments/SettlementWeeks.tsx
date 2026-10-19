@@ -328,10 +328,10 @@ function ReportDialog({ s, otherName, onClose, onSubmit }: {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const short = reason.trim().length < 10;
-
   const submit = async () => {
-    if (short) { setError('Say a little more (at least 10 characters).'); return; }
+    // The other side and Loved-IT read it, so it has to say something (the server checks the same).
+    if (reason.trim().length < 10) { setError('Say a little more (at least 10 characters).'); return; }
+    if (!/(?:\p{L}.*){3}/su.test(reason)) { setError('Say what is wrong in words; the other side and Loved-IT read it.'); return; }
     setBusy(true);
     setError('');
     try { await onSubmit(reason.trim()); } catch (e) { setError((e as Error).message || 'The report did not go through. Try again.'); setBusy(false); }

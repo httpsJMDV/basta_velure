@@ -12,6 +12,7 @@ use App\Services\Courier\ReturnToSender;
 use App\Services\RiderWorkload;
 use App\Support\ShippingSplit;
 use App\Support\Money;
+use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -163,7 +164,7 @@ class RiderJobController extends Controller
     /** POST /rider/returns/{tracking}/delivered: handed back to the seller. */
     public function returned(Request $request, string $tracking): JsonResponse
     {
-        $note = $request->validate(['note' => ['nullable', 'string', 'max:300']])['note'] ?? null;
+        $note = $request->validate(['note' => Validation::sentence(false, 5, 300)], Validation::sentenceMessages('note', 'The note', 5, 300))['note'] ?? null;
         $rider = $this->rider($request);
 
         DB::transaction(function () use ($request, $rider, $tracking, $note) {
@@ -196,11 +197,14 @@ class RiderJobController extends Controller
     {
         $data = $request->validate([
             'amount'    => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:1000000'],
-            'reference' => ['nullable', 'string', 'max:40'],
+            'reference' => Validation::paymentReference(),
         ], [
             'amount.gt'      => 'Enter an amount above ₱0.',
             'amount.decimal' => 'The amount can have at most 2 decimal places.',
-        ]);
+        ] + Validation::paymentReferenceMessages());
+        if (isset($data['reference'])) {
+            $data['reference'] = preg_replace('/\s+/', ' ', trim($data['reference']));
+        }
         $key = $request->header('Idempotency-Key');
         $r = $this->cod->submit($this->rider($request), (string) $data['amount'], $data['reference'] ?? null, $key ? mb_substr($key, 0, 64) : null);
 

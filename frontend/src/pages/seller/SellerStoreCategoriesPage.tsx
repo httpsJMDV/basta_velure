@@ -13,6 +13,7 @@ import {
 } from '../../api/sellerCatalog';
 import type { StoreCategoryNode } from '../../api/sellerCatalog';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
+import { storeCategoryNameError } from '../../utils/accountRules';
 
 const NAME_MAX = 50;
 
@@ -43,8 +44,8 @@ export default function SellerStoreCategoriesPage() {
 
   const add = async () => {
     const n = name.trim();
-    if (!n) { setAddError('Enter a category name.'); return; }
-    if (n.length > NAME_MAX) { setAddError(`A category name can be at most ${NAME_MAX} characters.`); return; }
+    const problem = storeCategoryNameError(n);
+    if (problem) { setAddError(problem); return; }
     setAdding(true);
     setAddError('');
     try {
@@ -255,8 +256,8 @@ function CategoryRow({
   const save = async () => {
     const v = draft.trim();
     if (v === node.name) { setEditing(false); return; }
-    if (!v) { setError('Enter a name.'); return; }
-    if (v.length > NAME_MAX) { setError(`At most ${NAME_MAX} characters.`); return; }
+    const local = storeCategoryNameError(v);
+    if (local) { setError(local); return; }
     setSaving(true);
     const problem = await onRename(v);
     setSaving(false);

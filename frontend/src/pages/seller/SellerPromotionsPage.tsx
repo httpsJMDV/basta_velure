@@ -13,6 +13,7 @@ import {
 import type { PromoStatus, PromotionsOverview, StoreSaleRow } from '../../api/sellerCatalog';
 import type { SellerProduct } from '../../types';
 import { apiProblem } from '../../utils/apiError';
+import { displayNameError } from '../../utils/accountRules';
 
 type Tab = 'sales' | 'flash' | 'bundles' | 'bxgy';
 const TZ = 'Asia/Manila';
@@ -522,7 +523,8 @@ function PromoForm({ kind, products, onClose, onSaved }: {
   const submit = async () => {
     const e: Record<string, string> = {};
     const n = name.trim();
-    if (n.length < 3 || n.length > 80) e.name = 'The name must be 3 to 80 characters.';
+    const nameProblem = displayNameError(name, 'The name', 3, 80);
+    if (nameProblem) e.name = nameProblem;
     if (kind === 'bundle') {
       if (picked.length === 0) e.product_ids = 'Choose at least one product.';
       if (!whole(minQty, 2, 99)) e.min_quantity = 'Use a whole number from 2 to 99.';
@@ -533,8 +535,11 @@ function PromoForm({ kind, products, onClose, onSaved }: {
       if (!getId) e.get_product_id = 'Choose the free product.';
       if (!whole(getQty, 1, 99)) e.get_quantity = 'Use a whole number from 1 to 99.';
     }
-    if (fromInput(start).getTime() < Date.now() - 60000) e.starts_at = 'The start cannot be in the past.';
-    if (fromInput(end) <= fromInput(start)) e.ends_at = 'The end must be after the start.';
+    // A cleared date is an Invalid Date, which compares false both ways: check that it is there first.
+    if (!start) e.starts_at = 'Choose when the promotion starts.';
+    else if (fromInput(start).getTime() < Date.now() - 60000) e.starts_at = 'The start cannot be in the past.';
+    if (!end) e.ends_at = 'Choose when the promotion ends.';
+    else if (start && fromInput(end) <= fromInput(start)) e.ends_at = 'The end must be after the start.';
     setErrors(e);
     setSummary('');
     if (Object.keys(e).length) return;
@@ -563,7 +568,7 @@ function PromoForm({ kind, products, onClose, onSaved }: {
       <FormError message={summary} />
       <div className="space-y-4">
         <Field label="Name" htmlFor="pr-name" error={errors.name} hint="Buyers see this name. 3 to 80 characters.">
-          <input id="pr-name" value={name} onChange={(e) => setName(e.target.value)} className={input(errors.name)} placeholder={kind === 'bundle' ? 'e.g. Skincare set' : 'e.g. Buy 2 get 1 free'} />
+          <input id="pr-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} className={input(errors.name)} placeholder={kind === 'bundle' ? 'e.g. Skincare set' : 'e.g. Buy 2 get 1 free'} />
         </Field>
 
         {kind === 'bundle' ? (

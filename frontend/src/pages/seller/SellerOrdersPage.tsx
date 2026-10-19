@@ -35,6 +35,9 @@ import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
 import { Dialog, BUTTON } from '../../components/ui/Overlay';
 import { SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi } from '../../api/commerce';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
+import { useToast } from '../../components/ui/Toast';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
+import { sentenceError } from '../../utils/accountRules';
 
 /** Seller tabs (A10): every order is in exactly one, and the counts follow the date range. */
 type OrderTab = 'all' | 'new' | 'to_ship' | 'shipping' | 'completed' | 'cancelled' | 'return_refund';
@@ -77,7 +80,8 @@ export default function SellerOrdersPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // The app's toast floats above the order panel, so a result is seen even with a dialog open.
+  const { showToast } = useToast();
 
   const { user } = useAuth();
   const addressNeedsUpdate = Boolean(user?.seller_profile?.address_needs_update);
@@ -102,19 +106,16 @@ export default function SellerOrdersPage() {
     };
   }, [selectedOrder, zoomImage, showRejectModal]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  // `silent` is the live refresh: no "Syncing…" flicker, and a failed attempt keeps the list on screen.
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (from && to && to < from) {
+      setRangeError('The end date cannot be before the start date.');
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+    if (!silent) setLoading(true);
     try {
-      if (from && to && to < from) {
-        setRangeError('The end date cannot be before the start date.');
-        setOrders([]);
-        return;
-      }
       setRangeError('');
       const res = await getSellerOrdersApi({
         tab: activeTab === 'all' ? undefined : activeTab,
@@ -132,17 +133,23 @@ export default function SellerOrdersPage() {
         setCounts(res.counts);
       }
     } catch (e) {
+      if (silent) return;
       setOrders([]);
-      const p = apiProblem(e, '');
+      const p = apiProblem(e, 'Your orders could not be loaded. Check your connection.');
       if (p.fields.to || p.fields.from) setRangeError(p.fields.to ?? p.fields.from);
+      else showToast(p.message, 'error');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [activeTab, search, page, from, to]);
+  }, [activeTab, search, page, from, to, showToast]);
 
   useEffect(() => {
-    fetchOrders();
+    void fetchOrders();
   }, [fetchOrders]);
+
+  // Live: a new order or a buyer's change is pushed to the seller over Reverb (the bell's channel); the poll is the
+  // fallback. The list refreshes quietly; an open order panel keeps showing what the seller is looking at.
+  useLiveRefresh(() => void fetchOrders(true), 30_000);
 
   const handleTabChange = (tab: OrderTab) => {
     setActiveTab(tab);
@@ -157,7 +164,7 @@ export default function SellerOrdersPage() {
   };
 
   const handleCopyRef = (ref: string, key: string) => {
-    navigator.clipboard.writeText(ref);
+    void navigator.clipboard?.writeText(ref).catch(() => {});
     setCopiedRef(key);
     setTimeout(() => setCopiedRef(null), 2000);
   };
@@ -171,9 +178,9 @@ export default function SellerOrdersPage() {
         setSelectedOrder(res.data);
       }
       showToast(`Order #${res.data.order_number} payment verified & confirmed.`);
-      fetchOrders();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to confirm payment.');
+      void fetchOrders(true);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The payment could not be confirmed.'), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -184,11 +191,13 @@ export default function SellerOrdersPage() {
     if (selectedOrder?.id === o.id) setSelectedOrder(o);
     setCancelTarget(null);
     showToast(message);
-    fetchOrders();
+    void fetchOrders(true);
   };
 
+  const rejectReasonError = sentenceError(rejectReason, 'The reason', { min: 10, max: 500 });
+
   const handleRejectPayment = async () => {
-    if (!selectedOrder || !rejectReason.trim()) return;
+    if (!selectedOrder || rejectReasonError) return;
     setActionLoading(true);
     try {
       const res = await rejectSellerOrderPaymentApi(selectedOrder.id, rejectReason.trim());
@@ -197,9 +206,9 @@ export default function SellerOrdersPage() {
       setShowRejectModal(false);
       setRejectReason('');
       showToast(`Payment rejected for Order #${res.data.order_number}.`);
-      fetchOrders();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to reject payment.');
+      void fetchOrders(true);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The payment could not be rejected.'), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -214,9 +223,9 @@ export default function SellerOrdersPage() {
         setSelectedOrder(res.data);
       }
       showToast(`Order #${res.data.order_number} updated to ${status.replace(/_/g, ' ')}.`);
-      fetchOrders();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update order status.');
+      void fetchOrders(true);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The order could not be updated.'), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -231,7 +240,7 @@ export default function SellerOrdersPage() {
       setSelectedOrder(res.data);
       showToast(res.message);
     } catch (err) {
-      showToast(apiErrorMessage(err, 'The return could not be confirmed.'));
+      showToast(apiErrorMessage(err, 'The return could not be confirmed.'), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -246,9 +255,9 @@ export default function SellerOrdersPage() {
       setSelectedOrder(res.data);
       setRejectReturnOpen(false);
       showToast(res.message);
-      fetchOrders();
+      void fetchOrders(true);
     } catch (err) {
-      showToast(apiErrorMessage(err, 'The return could not be answered.'));
+      showToast(apiErrorMessage(err, 'The return could not be answered.'), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -294,13 +303,6 @@ export default function SellerOrdersPage() {
           )}
         </div>
       </div>
-
-      {toastMessage && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-semibold animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          {toastMessage}
-        </div>
-      )}
 
       {addressNeedsUpdate && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3">
@@ -1017,11 +1019,16 @@ export default function SellerOrdersPage() {
 
             <textarea
               rows={3}
+              maxLength={500}
               placeholder="e.g. Reference number mismatch or blurry receipt image..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
+              aria-invalid={rejectReason.trim() !== '' && rejectReasonError ? true : undefined}
               className="w-full p-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red resize-none"
             />
+            <p className={`text-[11px] tabular-nums ${rejectReason.trim() !== '' && rejectReasonError ? 'text-red-600' : 'text-gray-400'}`}>
+              {rejectReason.trim() !== '' && rejectReasonError ? rejectReasonError : `${rejectReason.trim().length}/500 · at least 10 characters, in words`}
+            </p>
 
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="secondary" onClick={() => setShowRejectModal(false)} className="py-1 px-3 text-xs">
@@ -1030,7 +1037,7 @@ export default function SellerOrdersPage() {
               <Button
                 variant="primary"
                 onClick={handleRejectPayment}
-                disabled={!rejectReason.trim() || actionLoading}
+                disabled={!!rejectReasonError || actionLoading}
                 className="py-1 px-3 text-xs font-bold bg-red-600 hover:bg-red-700"
               >
                 Confirm Rejection
@@ -1079,14 +1086,15 @@ function SellerCancelDialog({ order, onClose, onDone }: { order: SellerOrder | n
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const other = reason === 'Other';
-  const detailsOk = !other || (details.trim().length >= 10 && details.trim().length <= 300);
+  const detailsError = other ? sentenceError(details, 'The explanation', { min: 10, max: 300 }) : undefined;
+  const detailsOk = !detailsError;
 
   useEffect(() => { if (order) { setReason(''); setDetails(''); setError(''); } }, [order]);
 
   const submit = async () => {
     if (!order || busy) return;
     if (!reason) { setError('Choose a reason. The buyer will see it.'); return; }
-    if (!detailsOk) { setError('Explain the reason in 10 to 300 characters.'); return; }
+    if (detailsError) { setError(detailsError); return; }
     setBusy(true);
     try {
       const res = await cancelSellerOrderApi<SellerOrder>(order.id, reason, other ? details.trim() : undefined);
@@ -1112,9 +1120,11 @@ function SellerCancelDialog({ order, onClose, onDone }: { order: SellerOrder | n
       </div>
       {other && (
         <div className="mt-3">
-          <textarea rows={3} value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Explain the reason to the buyer"
+          <textarea rows={3} maxLength={300} value={details} onChange={(e) => { setDetails(e.target.value); setError(''); }} placeholder="Explain the reason to the buyer"
             className="w-full px-3 py-2 text-[13px] rounded-xl border border-stone-300 outline-none focus:border-brand-red resize-none" />
-          <p className="text-[11px] text-stone-400 tabular-nums">{details.trim().length}/300 · at least 10</p>
+          <p className={`text-[11px] tabular-nums ${details.trim() && detailsError ? 'text-brand-red' : 'text-stone-400'}`}>
+            {details.trim() && detailsError ? detailsError : `${details.trim().length}/300 · at least 10 characters, in words`}
+          </p>
         </div>
       )}
       {error && <p role="alert" className="mt-2 text-[12.5px] text-brand-red">{error}</p>}
@@ -1126,19 +1136,20 @@ function RejectReturnDialog({ open, busy, onClose, onConfirm }: { open: boolean;
   const [reason, setReason] = useState('');
   useEffect(() => { if (open) setReason(''); }, [open]);
   const n = reason.trim().length;
+  const problem = sentenceError(reason, 'The reason', { min: 10, max: 300 });
 
   return (
     <Dialog open={open} onClose={() => !busy && onClose()} title="Reject the return"
       footer={<>
         <button type="button" className={BUTTON.quiet} onClick={onClose} disabled={busy}>Back</button>
-        <button type="button" className={BUTTON.danger} onClick={() => onConfirm(reason.trim())} disabled={busy || n < 10 || n > 300}>{busy ? 'Saving…' : 'Reject return'}</button>
+        <button type="button" className={BUTTON.danger} onClick={() => onConfirm(reason.trim())} disabled={busy || !!problem}>{busy ? 'Saving…' : 'Reject return'}</button>
       </>}>
       <p className="text-[13px] text-stone-600 mb-2">The buyer sees your reason and can escalate it to Loved-IT once, within 3 days.</p>
       <label htmlFor="reject-return-reason" className="block text-[13px] font-medium text-stone-700">Reason</label>
-      <textarea id="reject-return-reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)}
+      <textarea id="reject-return-reason" rows={4} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)}
         placeholder="e.g. Item shows signs of use and the tag is removed."
         className="mt-1 w-full px-3 py-2 text-[13px] rounded-xl border border-stone-300 outline-none focus:border-brand-red resize-none" />
-      <p className={`text-[11px] tabular-nums ${n > 0 && n < 10 ? 'text-brand-red' : 'text-stone-400'}`}>{n}/300 · at least 10 characters</p>
+      <p className={`text-[11px] tabular-nums ${n > 0 && problem ? 'text-brand-red' : 'text-stone-400'}`}>{n > 0 && problem ? problem : `${n}/300 · at least 10 characters, in words`}</p>
     </Dialog>
   );
 }

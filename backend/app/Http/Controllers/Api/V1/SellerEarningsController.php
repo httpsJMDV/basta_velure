@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class SellerEarningsController extends Controller
 {
@@ -120,13 +121,18 @@ class SellerEarningsController extends Controller
         $sellerId = $request->user()->id;
 
         $data = $request->validate([
-            'amount'       => ['required', 'numeric', 'min:100'],
-            'gcash_number' => ['required', 'string', 'regex:/^(09|\+639)\d{9}$/'],
-            'gcash_name'   => ['required', 'string', 'max:150'],
+            'amount'       => ['required', 'numeric', 'decimal:0,2', 'min:100', 'max:1000000'],
+            'gcash_number' => ['required', ...\App\Support\Gcash::RULE],
+            'gcash_name'   => \App\Support\Validation::accountName(),
         ], [
             'amount.min'          => 'Minimum payout request amount is ₱100.00.',
+            'amount.decimal'      => 'The amount can have at most 2 decimal places.',
             'gcash_number.regex'  => 'Please enter a valid Philippine GCash mobile number (e.g. 09171234567).',
-        ]);
+        ] + \App\Support\Validation::accountNameMessages('gcash_name'));
+        // Stored the way GCash shows it to people (09XXXXXXXXX), whatever spacing or +63 the seller typed.
+        $data['gcash_number'] = \App\Support\Gcash::normalize($data['gcash_number'])
+            ?? throw ValidationException::withMessages(['gcash_number' => 'Please enter a valid Philippine GCash mobile number (e.g. 09171234567).']);
+        $data['gcash_name'] = preg_replace('/\s+/u', ' ', trim($data['gcash_name']));
 
         return DB::transaction(function () use ($sellerId, $data) {
             // One request at a time (A15, A37): the seller's row lock makes a double click wait, then see the first one.
