@@ -167,6 +167,8 @@ function ReviewItem({ review: r, onSaved }: { review: SellerReviewRow; onSaved: 
     const text = body.trim();
     if (text.length < REPLY_MIN) { setError('Write your reply.'); return; }
     if (text.length > REPLY_MAX) { setError(`A reply can be at most ${REPLY_MAX} characters.`); return; }
+    // The buyer and every shopper read it under the review: words, not "!!" or "123" (the server checks the same).
+    if (!/\p{L}.*\p{L}/su.test(text)) { setError('Write your reply in words.'); return; }
     setBusy(true);
     setError('');
     try {

@@ -4,12 +4,13 @@ import {
   Eye, EyeOff, CheckCircle2, AlertTriangle, Loader2, Shield,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import http, { updateProfileApi, uploadAvatarApi } from '../../api/client';
+import http, { getMeApi, updateProfileApi, uploadAvatarApi } from '../../api/client';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { getSellerNotificationPreferencesApi, saveSellerNotificationPreferencesApi } from '../../api/notifications';
 import type { NotificationPreference } from '../../api/notifications';
 import AccountSecurity from '../../components/account/AccountSecurity';
-import { nameError as validateName } from '../../utils/accountRules';
+import { confirmError, fileError, nameError as validateName, passwordError, passwordRules } from '../../utils/accountRules';
+import { apiErrorMessage } from '../../utils/apiError';
 import UserAvatar from '../../components/ui/UserAvatar';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 
@@ -42,6 +43,34 @@ const inputCls = (err?: string) =>
       ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100'
       : 'border-gray-200 focus:border-brand-red focus:ring-2 focus:ring-red-100'
   }`;
+
+/**
+ * A password box with a show/hide eye. Declared here, outside the form: a component made inside the form's render is
+ * a new component on every keystroke, so React rebuilt the input and the caret left it after each letter.
+ */
+function PasswordInput({ id, value, onChange, show, onToggle, placeholder, error, autoComplete = 'new-password' }: {
+  id: string; value: string; onChange: (v: string) => void; show: boolean; onToggle: () => void;
+  placeholder: string; error?: string; autoComplete?: string;
+}) {
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-invalid={error ? true : undefined}
+        className={`${inputCls(error)} pr-10`}
+        autoComplete={autoComplete}
+      />
+      <button type="button" onClick={onToggle} aria-label={show ? 'Hide password' : 'Show password'}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
 
 function Field({ label, required, error, hint, children }: {
   label: string; required?: boolean; error?: string; hint?: string; children: React.ReactNode;
@@ -89,17 +118,24 @@ function ProfileTab() {
   // Avatar
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    // JPG or PNG up to 5 MB, the same rule as the server; a refused photo used to fail without a word.
+    const problem = fileError(file, 'the profile photo');
+    setAvatarError(problem ?? '');
+    if (problem) return;
     setUploadingAvatar(true);
     try {
       const updated = await uploadAvatarApi(file);
       setUser(updated);
+    } catch (err) {
+      setAvatarError(apiErrorMessage(err, 'The photo could not be uploaded. Try again.'));
     } finally {
       setUploadingAvatar(false);
-      e.target.value = '';
     }
   }
 
@@ -115,6 +151,7 @@ function ProfileTab() {
   const [editingSex, setEditingSex] = useState(false);
   const [sex, setSex] = useState(user?.sex ?? '');
   const [savingSex, setSavingSex] = useState(false);
+  const [sexError, setSexError] = useState('');
 
   async function saveName() {
     const problem = validateName(firstName, 'First name') ?? validateName(middleName, 'Middle name', false) ?? validateName(lastName, 'Last name');
@@ -132,13 +169,21 @@ function ProfileTab() {
   }
 
   async function saveSex() {
+    if (!sex) { setSexError('Choose Male or Female.'); return; }
+    setSexError('');
     setSavingSex(true);
     try {
       const updated = await updateProfileApi({ sex });
       setUser(updated);
       setEditingSex(false);
+    } catch (err) {
+      setSexError(apiErrorMessage(err, 'Your sex could not be saved. Try again.'));
     } finally { setSavingSex(false); }
   }
+
+  // A seller still waiting for approval can open this page too (A18): say so instead of "Approved Seller".
+  const applicationStatus = user?.seller_profile?.application_status;
+  const approved = applicationStatus === 'approved';
 
   const displayDob = () => {
     if (!user?.date_of_birth) return '—';
@@ -180,12 +225,14 @@ function ProfileTab() {
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <Camera className="w-3.5 h-3.5" />}
             </button>
-            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden" onChange={handleAvatarChange} />
           </div>
           <div>
             <p className="text-[14px] font-bold text-gray-900">{user?.first_name} {user?.last_name}</p>
             <p className="text-[12px] text-gray-400 mt-0.5">{user?.seller_profile?.shop_name}</p>
-            <p className="text-[11px] text-gray-300 mt-1">Click the camera icon to update your photo.</p>
+            {avatarError
+              ? <p role="alert" className="text-[11px] text-red-600 font-medium mt-1">{avatarError}</p>
+              : <p className="text-[11px] text-gray-400 mt-1">Click the camera icon to update your photo (JPG or PNG, up to 5 MB).</p>}
           </div>
         </div>
       </SectionCard>
@@ -257,7 +304,8 @@ function ProfileTab() {
             {editingSex ? (
               <div className="space-y-3">
                 <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide">Sex</p>
-                <CustomSelect value={sex} onChange={setSex} options={SEX_OPTIONS} placeholder="Select sex" />
+                <CustomSelect value={sex} onChange={(v) => { setSex(v); setSexError(''); }} options={SEX_OPTIONS} placeholder="Select sex" error={sexError || undefined} />
+                {sexError && <p role="alert" className="text-[11px] text-red-500 font-medium">{sexError}</p>}
                 <div className="flex gap-2">
                   <button onClick={saveSex} disabled={savingSex}
                     className="flex items-center gap-1.5 px-4 py-2 bg-brand-red text-white text-[12px] font-bold rounded-xl hover:bg-brand-red-dark transition-colors disabled:opacity-50 min-h-[36px]">
@@ -278,7 +326,7 @@ function ProfileTab() {
                     {SEX_OPTIONS.find((o) => o.value === user?.sex)?.label ?? '—'}
                   </p>
                 </div>
-                <button onClick={() => { setSex(user?.sex ?? ''); setEditingSex(true); }}
+                <button onClick={() => { setSex(user?.sex ?? ''); setSexError(''); setEditingSex(true); }}
                   className="shrink-0 p-2 rounded-xl text-gray-400 hover:text-brand-red hover:bg-red-50 transition-colors">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -292,15 +340,19 @@ function ProfileTab() {
       {/* Seller status card */}
       <SectionCard>
         <div className="px-6 py-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-            <Shield className="w-5 h-5 text-emerald-600" />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${approved ? 'bg-emerald-50' : 'bg-amber-50'}`}>
+            <Shield className={`w-5 h-5 ${approved ? 'text-emerald-600' : 'text-amber-600'}`} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-bold text-gray-900">Approved Seller</p>
-            <p className="text-[12px] text-gray-400 mt-0.5">Your seller account is active and in good standing.</p>
+            <p className="text-[13px] font-bold text-gray-900">{approved ? 'Approved Seller' : 'Seller application under review'}</p>
+            <p className="text-[12px] text-gray-400 mt-0.5">
+              {approved
+                ? 'Your seller account is active and in good standing.'
+                : 'You can prepare product drafts now. Publishing and orders open once Loved-IT approves your shop.'}
+            </p>
           </div>
-          <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-            <CheckCircle2 className="w-3 h-3" /> Active
+          <span className={`shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${approved ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-800 border-amber-100'}`}>
+            <CheckCircle2 className="w-3 h-3" /> {approved ? 'Active' : 'Under review'}
           </span>
         </div>
       </SectionCard>
@@ -311,7 +363,7 @@ function ProfileTab() {
 // ─── Security Tab ─────────────────────────────────────────────────────────────
 
 function SecurityTab({ onToast }: { onToast: (t: { type: 'success' | 'error'; message: string }) => void }) {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const hasPassword = user?.has_password ?? true;
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -323,25 +375,18 @@ function SecurityTab({ onToast }: { onToast: (t: { type: 'success' | 'error'; me
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const strength = (() => {
-    if (!newPassword) return 0;
-    let s = 0;
-    if (newPassword.length >= 8) s++;
-    if (/[A-Z]/.test(newPassword)) s++;
-    if (/[0-9]/.test(newPassword)) s++;
-    if (/[^A-Za-z0-9]/.test(newPassword)) s++;
-    return s;
-  })();
-
-  const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][strength];
-  const strengthColor = ['', 'bg-red-400', 'bg-amber-400', 'bg-blue-400', 'bg-emerald-500'][strength];
+  // The A5 rules the server enforces: 8+ characters, upper and lower case, a number and a special character.
+  const rules = passwordRules(newPassword);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errs: Record<string, string> = {};
     if (hasPassword && !currentPassword) errs.current_password = 'Current password is required.';
-    if (!newPassword || newPassword.length < 8) errs.new_password = 'New password must be at least 8 characters.';
-    if (newPassword !== confirmPassword) errs.confirm_password = 'Passwords do not match.';
+    const pw = passwordError(newPassword);
+    if (pw) errs.new_password = pw;
+    else if (hasPassword && newPassword === currentPassword) errs.new_password = 'The new password must be different from your current password.';
+    const confirm = confirmError(newPassword, confirmPassword);
+    if (confirm) errs.confirm_password = confirm;
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
     setSaving(true);
@@ -352,38 +397,25 @@ function SecurityTab({ onToast }: { onToast: (t: { type: 'success' | 'error'; me
         password_confirmation: confirmPassword,
       });
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      // A Google account now has a password: the form asks for it as the current one from here on.
+      if (!hasPassword) getMeApi().then(setUser).catch(() => {});
       onToast({ type: 'success', message: hasPassword ? 'Password changed successfully.' : 'Password set successfully.' });
     } catch (err: unknown) {
       const data = (err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } })?.response?.data;
       if (data?.errors) {
+        // The server names the fields password and password_confirmation; the form shows them as new and confirm.
+        const field: Record<string, string> = { password: 'new_password', password_confirmation: 'confirm_password' };
         const mapped: Record<string, string> = {};
-        for (const [k, v] of Object.entries(data.errors)) mapped[k] = v[0];
+        for (const [k, v] of Object.entries(data.errors)) mapped[field[k] ?? k] = v[0];
         setErrors(mapped);
+        if (!mapped.current_password && !mapped.new_password && !mapped.confirm_password) {
+          onToast({ type: 'error', message: Object.values(mapped)[0] ?? 'Failed to update password.' });
+        }
       } else {
         onToast({ type: 'error', message: data?.message ?? 'Failed to update password.' });
       }
     } finally { setSaving(false); }
   }
-
-  const PasswordInput = ({ value, onChange, show, onToggle, placeholder, error }: {
-    value: string; onChange: (v: string) => void; show: boolean; onToggle: () => void;
-    placeholder: string; error?: string;
-  }) => (
-    <div className="relative">
-      <input
-        type={show ? 'text' : 'password'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`${inputCls(error)} pr-10`}
-        autoComplete="new-password"
-      />
-      <button type="button" onClick={onToggle}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-      </button>
-    </div>
-  );
 
   return (
     <div className="space-y-5">
@@ -413,33 +445,29 @@ function SecurityTab({ onToast }: { onToast: (t: { type: 'success' | 'error'; me
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           {hasPassword && (
             <Field label="Current Password" required error={errors.current_password}>
-              <PasswordInput value={currentPassword} onChange={setCurrentPassword}
-                show={showCurrent} onToggle={() => setShowCurrent((v) => !v)}
+              <PasswordInput id="seller-current-password" value={currentPassword} onChange={(v) => { setCurrentPassword(v); setErrors(({ current_password: _drop, ...rest }) => rest); }}
+                show={showCurrent} onToggle={() => setShowCurrent((v) => !v)} autoComplete="current-password"
                 placeholder="Enter current password" error={errors.current_password} />
             </Field>
           )}
 
-          <Field label="New Password" required error={errors.new_password}
-            hint="At least 8 characters. Mix uppercase, numbers, and symbols for a stronger password.">
-            <PasswordInput value={newPassword} onChange={setNewPassword}
+          <Field label="New Password" required error={errors.new_password}>
+            <PasswordInput id="seller-new-password" value={newPassword} onChange={(v) => { setNewPassword(v); setErrors(({ new_password: _drop, ...rest }) => rest); }}
               show={showNew} onToggle={() => setShowNew((v) => !v)}
               placeholder="Enter new password" error={errors.new_password} />
-            {newPassword && (
-              <div className="mt-2 space-y-1">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= strength ? strengthColor : 'bg-gray-100'}`} />
-                  ))}
-                </div>
-                <p className={`text-[11px] font-semibold ${['', 'text-red-500', 'text-amber-500', 'text-blue-500', 'text-emerald-600'][strength]}`}>
-                  {strengthLabel}
-                </p>
-              </div>
-            )}
+            <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5" aria-label="Password rules">
+              {rules.map((r) => (
+                <li key={r.key} className={`flex items-center gap-1.5 text-[11px] ${r.ok ? 'text-emerald-700' : 'text-gray-400'}`}>
+                  {r.ok ? <Check className="w-3 h-3" aria-hidden="true" /> : <span className="w-3 h-3 rounded-full border border-gray-300" aria-hidden="true" />}
+                  {r.label}
+                  <span className="sr-only">{r.ok ? ' (done)' : ' (missing)'}</span>
+                </li>
+              ))}
+            </ul>
           </Field>
 
           <Field label="Confirm New Password" required error={errors.confirm_password}>
-            <PasswordInput value={confirmPassword} onChange={setConfirmPassword}
+            <PasswordInput id="seller-confirm-password" value={confirmPassword} onChange={(v) => { setConfirmPassword(v); setErrors(({ confirm_password: _drop, ...rest }) => rest); }}
               show={showConfirm} onToggle={() => setShowConfirm((v) => !v)}
               placeholder="Re-enter new password" error={errors.confirm_password} />
           </Field>

@@ -4,7 +4,9 @@ import axios from 'axios';
 import { AlertCircle, RefreshCw, X, XCircle } from 'lucide-react';
 import { getRiderFailureReasonsApi, markRiderFailedApi } from '../../api/client';
 import type { RiderDeliveryParcel, RiderFailedResponse, RiderFailureReason } from '../../types';
+import { sentenceError } from '../../utils/accountRules';
 
+const NOTE_MIN = 5;
 const NOTE_MAX = 500;
 
 interface FailedSheetProps {
@@ -26,6 +28,7 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
   const [reasonsError, setReasonsError] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [noteTouched, setNoteTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -67,10 +70,13 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
   const selected = reasons.find((r) => r.code === reasonCode) ?? null;
   const noteRequired = selected?.requires_note ?? false;
   const trimmedNote = note.trim();
-  const canSubmit = selected !== null && (!noteRequired || trimmedNote !== '') && !submitting;
+  // The company and the hub read the note: it has to be words, the same rule the server checks.
+  const noteError = sentenceError(note, 'The note', { required: noteRequired, min: NOTE_MIN, max: NOTE_MAX });
+  const showNoteError = noteTouched && trimmedNote !== '' ? noteError : undefined;
+  const canSubmit = selected !== null && !noteError && !submitting;
 
   const handleSubmit = async () => {
-    if (!selected || busyRef.current) return;
+    if (!selected || busyRef.current || !canSubmit) return;
 
     busyRef.current = true;
     setSubmitting(true);
@@ -190,16 +196,22 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
                 id="failed-note"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
+                onBlur={() => setNoteTouched(true)}
                 maxLength={NOTE_MAX}
                 rows={3}
                 disabled={submitting}
                 aria-required={noteRequired}
-                placeholder="What happened?"
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60"
+                aria-invalid={showNoteError ? true : undefined}
+                aria-describedby="failed-note-help"
+                placeholder="What happened? For example: Gate locked and nobody answered the phone."
+                className={`w-full px-3 py-2.5 rounded-xl border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60 ${showNoteError ? 'border-red-500' : 'border-gray-300'}`}
               />
-              <p className="text-right text-[11px] text-gray-500">
-                {note.length}/{NOTE_MAX}
-              </p>
+              <div id="failed-note-help" className="flex items-start justify-between gap-3 text-[11px]">
+                {showNoteError
+                  ? <p role="alert" className="font-semibold text-red-700">{showNoteError}</p>
+                  : <p className="text-gray-500">{noteRequired ? `At least ${NOTE_MIN} characters, in words.` : ''}</p>}
+                <p className="shrink-0 text-gray-500">{note.length}/{NOTE_MAX}</p>
+              </div>
             </div>
           </>
         )}

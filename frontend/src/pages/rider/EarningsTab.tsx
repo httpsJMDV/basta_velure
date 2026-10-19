@@ -16,6 +16,7 @@ import { IconChip, StateCard } from './RiderUi';
 import { BTN_PRIMARY } from './riderStyles';
 import { getRiderEarningsDeliveriesApi, getRiderEarningsSummaryApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
 import type {
   RiderEarnedDelivery,
   RiderEarningsBreakdownPoint,
@@ -98,63 +99,54 @@ export default function EarningsTab() {
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Each fetch gets a number; an older response that arrives late is dropped.
   const requestRef = useRef(0);
+  const pageRef = useRef(1);
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   const load = useCallback(
-    async (mode: 'initial' | 'manual' | 'silent') => {
+    async (mode: 'initial' | 'silent') => {
+      // A quiet refresh leaves the list alone once the rider has loaded more pages, so it never snaps back to page 1.
+      const withList = mode === 'initial' || pageRef.current <= 1;
       const id = ++requestRef.current;
       if (mode === 'initial') {
         setLoading(true);
         setError(null);
       }
-      if (mode === 'manual') setRefreshing(true);
       try {
         const [s, list] = await Promise.all([
           getRiderEarningsSummaryApi(type, anchor),
-          getRiderEarningsDeliveriesApi(type, anchor, 1),
+          withList ? getRiderEarningsDeliveriesApi(type, anchor, 1) : Promise.resolve(null),
         ]);
         if (id !== requestRef.current) return;
         setSummary(s);
-        setRows(list.data);
-        setPage(list.meta.current_page);
-        setLastPage(list.meta.last_page);
+        if (list) {
+          setRows(list.data);
+          setPage(list.meta.current_page);
+          setLastPage(list.meta.last_page);
+        }
         setError(null);
       } catch (err: unknown) {
         if (id !== requestRef.current || mode === 'silent') return;
-        const message = errorMessage(err, 'Could not load your earnings.');
-        setError(message);
-        if (mode === 'manual') showToast(message, 'error');
+        setError(errorMessage(err, 'Could not load your earnings.'));
       } finally {
-        if (id === requestRef.current) {
-          setLoading(false);
-          setRefreshing(false);
-        }
+        if (id === requestRef.current) setLoading(false);
       }
     },
-    [type, anchor, showToast]
+    [type, anchor]
   );
 
   useEffect(() => {
     void load('initial');
   }, [load]);
 
-  // Coming back to the app after delivering a parcel: refresh quietly.
-  useEffect(() => {
-    const onFocus = () => {
-      if (document.visibilityState === 'visible') void load('silent');
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
-    };
-  }, [load]);
+  // Live: a pickup or delivery the rider just finished (or the hub scanning in their parcel) shows up on its own.
+  useLiveRefresh(() => void load('silent'), 60_000, loadingMore);
 
   const loadMore = async () => {
     if (loadingMore || page >= lastPage) return;
@@ -219,26 +211,15 @@ export default function EarningsTab() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void load('manual')}
-            disabled={refreshing || loading}
-            aria-label="Refresh earnings"
-            className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-brand-red' : ''}`} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => summary && setAnchor(addDays(summary.period.end_date, 1))}
-            disabled={!summary || loading || summary.period.is_current}
-            aria-label={`Next ${type}`}
-            className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <ChevronRight className="w-5 h-5" aria-hidden="true" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => summary && setAnchor(addDays(summary.period.end_date, 1))}
+          disabled={!summary || loading || summary.period.is_current}
+          aria-label={`Next ${type}`}
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <ChevronRight className="w-5 h-5" aria-hidden="true" />
+        </button>
       </div>
 
       {loading ? (

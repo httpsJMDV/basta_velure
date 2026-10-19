@@ -34,9 +34,10 @@ import {
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import { PageHero, StateCard, TabBar } from './RiderUi';
-import { BTN_PRIMARY, BTN_SECONDARY } from './riderStyles';
+import { BTN_PRIMARY } from './riderStyles';
 import PickupHandoverScreen from './PickupHandoverScreen';
 import { JobOffers } from '../../components/rider/RiderWork';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
 
 // Time formatting utilities
 function formatRelativeTime(isoString?: string | null): string {
@@ -89,92 +90,61 @@ export default function RiderPickupsPage() {
   const [handoverGroup, setHandoverGroup] = useState<RiderPickupGroup | null>(null);
   const handoverTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [actionModal, setActionModal] = useState<ActionModalState | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [expandedTracking, setExpandedTracking] = useState<Record<number, boolean>>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Each fetch gets a number: a slower answer for the tab the rider just left is dropped, so the Available list can
+  // never land under My pickups (with Release and Start pickup buttons on parcels the rider never accepted).
+  const requestRef = useRef(0);
 
+  // 'silent' is the live refresh: no skeleton, and a failed attempt keeps the list on screen.
   const fetchPickups = useCallback(
-    async (isBackground = false) => {
-      if (!isBackground) {
-        setRefreshing(true);
+    async (mode: 'initial' | 'silent' = 'silent') => {
+      const id = ++requestRef.current;
+      if (mode === 'initial') {
+        setLoading(true);
+        setLoadError(null);
       }
       try {
         if (activeTab === 'picked_up') {
           const response = await getRiderPickedUpApi();
+          if (id !== requestRef.current) return;
           setPickedUp(response.data);
           setMeta(response.meta);
         } else {
           const response = await getRiderPickupsApi(activeTab);
+          if (id !== requestRef.current) return;
           setPickups(response.data);
           setMeta(response.meta);
         }
         setLoadError(null);
       } catch (err: unknown) {
-        if (!isBackground) {
-          const message = axios.isAxiosError(err)
-            ? err.response?.data?.message || 'Failed to load pickups'
-            : 'Failed to load pickups';
-          setLoadError(message);
-          showToast(message, 'error');
-        }
+        if (id !== requestRef.current || mode === 'silent') return;
+        const message = axios.isAxiosError(err)
+          ? err.response?.data?.message || 'Failed to load pickups'
+          : 'Failed to load pickups';
+        setLoadError(message);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (id === requestRef.current) setLoading(false);
       }
     },
-    [activeTab, showToast]
+    [activeTab]
   );
 
-  // Tab change triggers initial fetch
+  // A tab change loads that tab.
   useEffect(() => {
-    setLoading(true);
-    fetchPickups(false);
+    void fetchPickups('initial');
   }, [fetchPickups]);
 
-  // 30-second visibility-based polling
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Tab is visible again, fetch immediately & restart timer
-        fetchPickups(true);
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-        pollTimerRef.current = setInterval(() => {
-          fetchPickups(true);
-        }, 30000);
-      } else {
-        // Tab is hidden, clear timer to avoid background network noise
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Initial timer setup if page is visible
-    if (document.visibilityState === 'visible') {
-      pollTimerRef.current = setInterval(() => {
-        fetchPickups(true);
-      }, 30000);
-    }
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [fetchPickups]);
+  // Live: offers, new jobs and jobs taken away are pushed over Reverb; the poll catches pickups that appear in the
+  // rider's areas (nobody is notified about those).
+  useLiveRefresh(() => void fetchPickups('silent'), 30_000);
 
   // Copy tracking number or phone
   const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard?.writeText(text).catch(() => {});
     setCopiedKey(key);
     setTimeout(() => {
       setCopiedKey((prev) => (prev === key ? null : prev));
@@ -205,12 +175,12 @@ export default function RiderPickupsPage() {
         const res = await declineRiderPickupApi(group.seller_id);
         showToast(res.message || `Pickup request from ${group.shop_name} declined`, 'success');
         setActionModal(null);
-        fetchPickups(false);
+        void fetchPickups('silent');
       } else if (type === 'release') {
         const res = await releaseRiderPickupApi(group.seller_id);
         showToast(res.message || `Released ${res.released_count} parcel(s) back to the pool`, 'success');
         setActionModal(null);
-        fetchPickups(false);
+        void fetchPickups('silent');
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -219,7 +189,7 @@ export default function RiderPickupsPage() {
         showToast(msg, 'error');
         // If conflict (409) or not found (404), refresh list
         if (status === 409 || status === 404) {
-          fetchPickups(false);
+          void fetchPickups('silent');
         }
       } else {
         showToast('Operation failed', 'error');
@@ -236,20 +206,9 @@ export default function RiderPickupsPage() {
         icon={PackagePlus}
         title="Merchant pickups"
         subtitle="Accept collection requests from merchants in your delivery areas."
-        actions={
-          <button
-            onClick={() => fetchPickups(false)}
-            disabled={refreshing}
-            className={`${BTN_SECONDARY} !min-h-9 !px-3`}
-            aria-label="Refresh pickups"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-brand-red' : 'text-gray-500'}`} aria-hidden="true" />
-            Refresh
-          </button>
-        }
       />
 
-      <JobOffers onAccepted={() => fetchPickups(false)} />
+      <JobOffers onAccepted={() => void fetchPickups('silent')} />
 
       {!meta.has_areas && (
         <div role="status" className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-xs">
@@ -284,8 +243,8 @@ export default function RiderPickupsPage() {
       ) : loadError ? (
         // Error state with retry
         <StateCard icon={AlertCircle} tone="red" alert title="Could not load pickups" message={loadError}>
-          <button onClick={() => fetchPickups(false)} disabled={refreshing} className={BTN_PRIMARY}>
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <button onClick={() => void fetchPickups('initial')} className={BTN_PRIMARY}>
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
           </button>
         </StateCard>
@@ -627,7 +586,7 @@ export default function RiderPickupsPage() {
             setHandoverGroup(null);
             requestAnimationFrame(() => handoverTriggerRef.current?.focus());
           }}
-          onChanged={() => fetchPickups(true)}
+          onChanged={() => void fetchPickups('silent')}
           onDone={() => {
             setHandoverGroup(null);
             setActiveTab('picked_up');
@@ -698,9 +657,10 @@ export default function RiderPickupsPage() {
                 </p>
               )}
 
-              <div className="pt-1 text-[11px] text-gray-500 font-medium">
-                📍 {actionModal.group.pickup_address.full_address}
-              </div>
+              <p className="pt-1 flex items-start gap-1.5 text-[11px] text-gray-500 font-medium">
+                <MapPin className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden="true" />
+                <span>{actionModal.group.pickup_address.full_address}</span>
+              </p>
             </div>
 
             {/* Modal Action Buttons */}

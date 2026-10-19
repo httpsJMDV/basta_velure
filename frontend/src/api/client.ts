@@ -581,6 +581,8 @@ export interface SellerShopProfile {
   response_time: string | null;
   /** A29: alert at this stock or below (0: only when a product sells out); a product can set its own. */
   low_stock_threshold?: number;
+  /** The shop already has an FDA License to Operate on file (application or an earlier product). */
+  fda_lto_on_file?: boolean;
   logo_url: string | null;
   banner_url: string | null;
   application_status: string;

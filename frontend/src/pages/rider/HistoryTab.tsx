@@ -4,6 +4,7 @@ import { StateCard } from './RiderUi';
 import { BTN_PRIMARY, BTN_SECONDARY } from './riderStyles';
 import { getRiderHistoryApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
 import type { RiderHistoryEntry, RiderHistoryFilter, RiderHistoryOutcome } from '../../types';
 import { errorMessage, formatDateTime, formatPeso } from './earningsFormat';
 
@@ -44,11 +45,14 @@ export default function HistoryTab() {
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const requestRef = useRef(0);
+  const pageRef = useRef(1);
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   const rangeInvalid = Boolean(from && to && to < from);
   const filtered = outcome !== 'all' || Boolean(from || to || search);
@@ -59,11 +63,12 @@ export default function HistoryTab() {
   }, [searchInput]);
 
   const load = useCallback(
-    async (mode: 'initial' | 'manual') => {
+    async (mode: 'initial' | 'silent') => {
+      // A quiet refresh never throws away pages the rider loaded with Load more.
+      if (mode === 'silent' && (rangeInvalid || pageRef.current > 1)) return;
       const id = ++requestRef.current;
       if (rangeInvalid) {
         setLoading(false);
-        setRefreshing(false);
         setEntries([]);
         setTotal(0);
         setPage(1);
@@ -75,7 +80,6 @@ export default function HistoryTab() {
         setLoading(true);
         setError(null);
       }
-      if (mode === 'manual') setRefreshing(true);
       try {
         const res = await getRiderHistoryApi({ outcome, from, to, search, page: 1 });
         if (id !== requestRef.current) return;
@@ -85,23 +89,21 @@ export default function HistoryTab() {
         setTotal(res.meta.total);
         setError(null);
       } catch (err: unknown) {
-        if (id !== requestRef.current) return;
-        const message = errorMessage(err, 'Could not load your history.');
-        setError(message);
-        if (mode === 'manual') showToast(message, 'error');
+        if (id !== requestRef.current || mode === 'silent') return;
+        setError(errorMessage(err, 'Could not load your history.'));
       } finally {
-        if (id === requestRef.current) {
-          setLoading(false);
-          setRefreshing(false);
-        }
+        if (id === requestRef.current) setLoading(false);
       }
     },
-    [outcome, from, to, search, rangeInvalid, showToast]
+    [outcome, from, to, search, rangeInvalid]
   );
 
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  // Live: a parcel the rider just delivered, failed or returned shows up on its own.
+  useLiveRefresh(() => void load('silent'), 60_000, loadingMore);
 
   const loadMore = async () => {
     if (loadingMore || page >= lastPage) return;
@@ -180,29 +182,18 @@ export default function HistoryTab() {
         </p>
       )}
 
-      <div className="flex items-center gap-2">
-        <label className="relative flex-1 block">
-          <span className="sr-only">Search by tracking number or order number</span>
-          <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tracking or order number"
-            maxLength={100}
-            className="w-full min-h-11 rounded-xl border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900 focus:outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => void load('manual')}
-          disabled={refreshing || loading}
-          aria-label="Refresh history"
-          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-brand-red' : ''}`} aria-hidden="true" />
-        </button>
-      </div>
+      <label className="relative block">
+        <span className="sr-only">Search by tracking number or order number</span>
+        <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Tracking or order number"
+          maxLength={100}
+          className="w-full min-h-11 rounded-xl border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900 focus:outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+        />
+      </label>
 
       {/* Results */}
       {loading ? (

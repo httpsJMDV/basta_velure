@@ -2105,6 +2105,8 @@ export interface AddProductFormState {
   fdaLtoFile: File | null;
   fdaLtoOnFile: boolean;
   fdaCprFile: File | null;
+  /** This product already has its CPR/CPN saved. */
+  fdaCprOnFile: boolean;
   ingredients: string;
   netWeight: string;
   storageInstructions: string;

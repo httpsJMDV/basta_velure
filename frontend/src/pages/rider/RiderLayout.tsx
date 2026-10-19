@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderChatUnread, type RiderChatUnread } from '../../hooks/useRiderChatUnread';
 import { useRiderLocationBeacon } from '../../hooks/useRiderLocationBeacon';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
 import { RiderLocationGate } from './RiderLocationGate';
 import { getRiderMeApi, logoutApi } from '../../api/client';
 import type { RiderProfileData } from '../../types';
@@ -101,11 +102,15 @@ export default function RiderLayout() {
   // While the rider has a parcel to collect or carry, their phone reports its position for the map.
   const beacon = useRiderLocationBeacon(!statusRevokedMessage);
 
-  const fetchRiderProfile = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // `silent` is the live refresh: no loading state, and a failed attempt keeps what is shown.
+  const fetchRiderProfile = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       setRiderData(await getRiderMeApi());
+      setError(null);
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         if (err.response?.status === 403) {
@@ -126,15 +131,20 @@ export default function RiderLayout() {
           return;
         }
       }
-      setError('Unable to load courier profile details. Please try again.');
+      if (!silent) setError('Unable to load courier profile details. Please try again.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [clearAuth, navigate, showToast]);
 
+  const refreshRider = useCallback(() => void fetchRiderProfile(), [fetchRiderProfile]);
+
   useEffect(() => {
-    fetchRiderProfile();
+    void fetchRiderProfile();
   }, [fetchRiderProfile]);
+
+  // The status, hub and delivery areas change when the company or hub acts: picked up live, no Refresh button.
+  useLiveRefresh(() => void fetchRiderProfile(true), 60_000, statusRevokedMessage !== null);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -322,7 +332,7 @@ export default function RiderLayout() {
             >
               <Outlet
                 context={
-                  { riderData, loading, error, refreshRider: fetchRiderProfile, chat, logout: handleLogout, loggingOut } satisfies RiderOutletContext
+                  { riderData, loading, error, refreshRider, chat, logout: handleLogout, loggingOut } satisfies RiderOutletContext
                 }
               />
             </motion.div>

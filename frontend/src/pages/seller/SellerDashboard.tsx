@@ -30,6 +30,7 @@ import {
 } from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
 import type {
   SellerDashboardStats,
   SellerChartPoint,
@@ -92,8 +93,9 @@ export default function SellerDashboard() {
   const [topProducts, setTopProducts] = useState<SellerTopProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
+  // `silent` is the live refresh: the numbers update in place without the skeleton.
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [sRes, cRes, aRes, tRes] = await Promise.all([
         getSellerDashboardStatsApi(),
@@ -106,15 +108,18 @@ export default function SellerDashboard() {
       setAttentionItems(aRes);
       setTopProducts(tRes);
     } catch {
-      // ignore
+      // A failed refresh keeps the last numbers; the next one tries again.
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  // Live: new orders and other shop events are pushed over Reverb, so "Live Synced" means it.
+  useLiveRefresh(() => void loadDashboard(true), 60_000);
 
   // Animated KPI numbers
   const animatedGmv = useCountUp(stats?.today_sales ?? 0);

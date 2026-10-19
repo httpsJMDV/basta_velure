@@ -21,7 +21,8 @@ import { getRiderDeliveriesApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { RiderDeliveriesResponse, RiderDeliveryParcel, RiderDeliveryView } from '../../types';
 import { PageHero, StateCard, TabBar } from './RiderUi';
-import { BTN_PRIMARY, BTN_SECONDARY } from './riderStyles';
+import { BTN_PRIMARY } from './riderStyles';
+import { useLiveRefresh } from '../../hooks/useLiveNotices';
 import DeliveredSheet from './DeliveredSheet';
 import DeliveryCollectScreen from './DeliveryCollectScreen';
 import FailedSheet from './FailedSheet';
@@ -63,91 +64,49 @@ export default function RiderDeliveriesPage() {
   const [view, setView] = useState<RiderDeliveryView>('assigned');
   const [state, setState] = useState<RiderDeliveriesResponse>(EMPTY);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [collecting, setCollecting] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<OutcomeTarget | null>(null);
 
   const viewRef = useRef<RiderDeliveryView>('assigned');
-  const collectingRef = useRef(false);
-  const outcomeOpenRef = useRef(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const outcomeTriggerRef = useRef<HTMLElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     viewRef.current = view;
-    collectingRef.current = collecting;
-    outcomeOpenRef.current = outcome !== null;
-  }, [view, collecting, outcome]);
+  }, [view]);
 
-  const fetchDeliveries = useCallback(
-    async (target: RiderDeliveryView, mode: 'initial' | 'manual' | 'silent') => {
-      if (mode === 'initial') {
-        setLoading(true);
-        setError(null);
-      }
-      if (mode === 'manual') setRefreshing(true);
-      try {
-        const res = await getRiderDeliveriesApi(target);
-        if (viewRef.current !== target) return; // the rider switched segments meanwhile
-        setState(res);
-        setError(null);
-      } catch (err: unknown) {
-        if (mode === 'silent') return;
-        const message = axios.isAxiosError(err)
+  const fetchDeliveries = useCallback(async (target: RiderDeliveryView, mode: 'initial' | 'silent') => {
+    if (mode === 'initial') {
+      setLoading(true);
+      setError(null);
+    }
+    try {
+      const res = await getRiderDeliveriesApi(target);
+      if (viewRef.current !== target) return; // the rider switched segments meanwhile
+      setState(res);
+      setError(null);
+    } catch (err: unknown) {
+      if (mode === 'silent') return;
+      setError(
+        axios.isAxiosError(err)
           ? err.response?.data?.message || 'Could not load your deliveries.'
-          : 'Could not load your deliveries.';
-        setError(message);
-        if (mode === 'manual') showToast(message, 'error');
-      } finally {
-        if (mode === 'initial') setLoading(false);
-        if (mode === 'manual') setRefreshing(false);
-      }
-    },
-    [showToast]
-  );
+          : 'Could not load your deliveries.'
+      );
+    } finally {
+      if (mode === 'initial') setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void fetchDeliveries(view, 'initial');
   }, [view, fetchDeliveries]);
 
-  // Refetch on tab focus and poll while the page is visible. Paused while the collect screen is open,
-  // so its checklist is never reshuffled under the rider.
-  useEffect(() => {
-    const refresh = () => {
-      if (collectingRef.current || outcomeOpenRef.current) return;
-      void fetchDeliveries(viewRef.current, 'silent');
-    };
-
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const start = () => {
-      if (timer) clearInterval(timer);
-      timer = setInterval(refresh, POLL_MS);
-    };
-    const stop = () => {
-      if (timer) clearInterval(timer);
-      timer = null;
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        refresh();
-        start();
-      } else {
-        stop();
-      }
-    };
-
-    if (document.visibilityState === 'visible') start();
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('focus', refresh);
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('focus', refresh);
-    };
-  }, [fetchDeliveries]);
+  // Live: parcels the hub assigns are pushed over Reverb, with a poll as the fallback. Paused while the collect
+  // screen or an outcome sheet is open, so nothing is reshuffled under the rider.
+  useLiveRefresh(() => void fetchDeliveries(viewRef.current, 'silent'), POLL_MS, collecting || outcome !== null);
 
   const handleCopy = (text: string) => {
     void navigator.clipboard?.writeText(text);
@@ -216,18 +175,6 @@ export default function RiderDeliveriesPage() {
         icon={Truck}
         title="Deliveries"
         subtitle="Collect your parcels at the hub, then deliver them."
-        actions={
-          <button
-            type="button"
-            onClick={() => void fetchDeliveries(view, 'manual')}
-            disabled={refreshing || loading}
-            aria-label="Refresh deliveries"
-            className={`${BTN_SECONDARY} !min-h-9 !px-3`}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-brand-red' : 'text-gray-500'}`} aria-hidden="true" />
-            Refresh
-          </button>
-        }
       />
 
       <ReturnJobs />

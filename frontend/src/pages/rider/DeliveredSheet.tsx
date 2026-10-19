@@ -5,6 +5,7 @@ import axios from 'axios';
 import { Camera, CheckCircle2, KeyRound, RefreshCw, RotateCcw, Wallet, X } from 'lucide-react';
 import { markRiderDeliveredApi } from '../../api/client';
 import { downscaleImage, formatBytes } from '../../utils/imageDownscale';
+import { nameError, squish } from '../../utils/accountRules';
 import type { RiderDeliveredResponse, RiderDeliveryParcel } from '../../types';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -185,6 +186,8 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
   const [receivedBy, setReceivedBy] = useState('');
   const [otp, setOtp] = useState('');
   const [codAmount, setCodAmount] = useState('');
+  // A field's problem is shown once the rider leaves it, not on every keystroke.
+  const [touched, setTouched] = useState<{ receivedBy?: boolean; cod?: boolean }>({});
   const [lockedUntil, setLockedUntil] = useState<string | null>(parcel.otp_locked_until ?? null);
   const [now, setNow] = useState(() => Date.now());
   const otpRequired = parcel.otp_required === true;
@@ -220,11 +223,23 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
   const trackProcessing = (busy: boolean) => setProcessingCount((n) => Math.max(0, n + (busy ? 1 : -1)));
 
   const otpOk = !otpRequired || /^\d{6}$/.test(otp);
-  const codOk = !isCod || codAmount.trim() !== '';
-  const canSubmit = photo !== null && !processing && otpOk && codOk && !locked && !submitting;
+  // Checked as the rider types, the same way the server checks them.
+  const receivedByError = nameError(receivedBy, 'The name of who received it', false);
+  const codTyped = codAmount.trim();
+  const codError = !isCod || codTyped === ''
+    ? undefined
+    : !/^\d+(\.\d{1,2})?$/.test(codTyped)
+      ? 'Enter the cash as a number, like 500 or 500.00.'
+      : Math.round(Number(codTyped) * 100) !== Math.round((parcel.cod_amount ?? 0) * 100)
+        ? `That is not the order's COD amount. Collect exactly ${formatPeso(parcel.cod_amount ?? 0)}.`
+        : undefined;
+  const codOk = !isCod || (codTyped !== '' && !codError);
+  const canSubmit = photo !== null && !processing && otpOk && codOk && !receivedByError && !locked && !submitting;
+  const showReceivedByError = touched.receivedBy ? receivedByError : undefined;
+  const showCodError = touched.cod ? codError : undefined;
 
   const handleSubmit = async () => {
-    if (!photo || busyRef.current) return;
+    if (!photo || busyRef.current || !canSubmit) return;
 
     busyRef.current = true;
     setSubmitting(true);
@@ -234,9 +249,9 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
     const form = new FormData();
     form.append('proof_photo', photo);
     if (photo2) form.append('proof_photo_2', photo2);
-    if (receivedBy.trim() !== '') form.append('received_by', receivedBy.trim());
+    if (squish(receivedBy) !== '') form.append('received_by', squish(receivedBy));
     if (otpRequired) form.append('otp', otp);
-    if (isCod) form.append('cod_amount', codAmount.trim());
+    if (isCod) form.append('cod_amount', codTyped);
 
     try {
       const res = await markRiderDeliveredApi(parcel.tracking_number, form, setProgress);
@@ -343,12 +358,18 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
             type="text"
             value={receivedBy}
             onChange={(e) => setReceivedBy(e.target.value)}
-            maxLength={100}
+            onBlur={() => setTouched((t) => ({ ...t, receivedBy: true }))}
+            maxLength={50}
             disabled={submitting}
             placeholder="Name of the person who received it"
             autoComplete="off"
-            className="w-full min-h-12 px-3 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60"
+            aria-invalid={showReceivedByError ? true : undefined}
+            aria-describedby={showReceivedByError ? 'delivered-received-by-error' : undefined}
+            className={`w-full min-h-12 px-3 rounded-xl border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60 ${showReceivedByError ? 'border-red-500' : 'border-gray-300'}`}
           />
+          {showReceivedByError && (
+            <p id="delivered-received-by-error" role="alert" className="text-xs font-semibold text-red-700">{showReceivedByError}</p>
+          )}
         </div>
 
         {/* The buyer's delivery code (A32) */}
@@ -396,12 +417,19 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
                 inputMode="decimal"
                 value={codAmount}
                 onChange={(e) => setCodAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                onBlur={() => setTouched((t) => ({ ...t, cod: true }))}
                 disabled={submitting}
                 placeholder={parcel.cod_amount.toFixed(2)}
-                className="w-full min-h-12 pl-7 pr-3 rounded-xl border border-amber-300 bg-white text-base font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500/40 disabled:opacity-60"
+                aria-invalid={showCodError ? true : undefined}
+                aria-describedby="delivered-cod-hint"
+                className={`w-full min-h-12 pl-7 pr-3 rounded-xl border bg-white text-base font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500/40 disabled:opacity-60 ${showCodError ? 'border-red-500' : 'border-amber-300'}`}
               />
             </div>
-            <p className="text-xs text-amber-900">Type what you counted. It must match the order to the centavo.</p>
+            {showCodError ? (
+              <p id="delivered-cod-hint" role="alert" className="text-xs font-semibold text-red-700">{showCodError}</p>
+            ) : (
+              <p id="delivered-cod-hint" className="text-xs text-amber-900">Type what you counted. It must match the order to the centavo.</p>
+            )}
           </section>
         )}
 
