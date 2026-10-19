@@ -7,8 +7,10 @@ use App\Http\Resources\RiderAreaAssignmentResource;
 use App\Models\Rider;
 use App\Models\RiderAreaAssignment;
 use App\Models\SortingCenter;
+use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class HubRiderAreaAssignmentController extends Controller
 {
@@ -64,13 +66,13 @@ class HubRiderAreaAssignmentController extends Controller
             'Areas can only be assigned to active approved couriers.'
         );
 
+        $request->merge(['area_label' => Str::squish((string) $request->input('area_label'))]);
         $validated = $request->validate([
-            'area_label'           => ['required', 'string', 'max:100'],
+            'area_label'           => Validation::label(),
             'coverage_barangays'   => ['required', 'array', 'min:1'],
             'coverage_barangays.*' => ['required', 'string', 'regex:/^\d{9,10}$/'],
         ], [
-            'area_label.required'         => 'Area label is required.',
-            'area_label.max'              => 'Area label must not exceed 100 characters.',
+            ...Validation::labelMessages('area_label', 'Area name'),
             'coverage_barangays.required' => 'At least one coverage barangay must be assigned to this area.',
             'coverage_barangays.min'      => 'At least one coverage barangay must be assigned to this area.',
         ]);
@@ -142,12 +144,15 @@ class HubRiderAreaAssignmentController extends Controller
         abort_unless($rider->sorting_center_id === $hub->id, 404, 'Rider not found.');
         abort_unless($area->rider_id === $rider->id && $area->sorting_center_id === $hub->id, 404, 'Area assignment not found.');
 
+        if ($request->has('area_label')) {
+            $request->merge(['area_label' => Str::squish((string) $request->input('area_label'))]);
+        }
         $validated = $request->validate([
-            'area_label'           => ['sometimes', 'required', 'string', 'max:100'],
+            'area_label'           => ['sometimes', ...Validation::label()],
             'coverage_barangays'   => ['sometimes', 'required', 'array', 'min:1'],
             'coverage_barangays.*' => ['required', 'string', 'regex:/^\d{9,10}$/'],
             'is_active'            => ['sometimes', 'boolean'],
-        ]);
+        ], Validation::labelMessages('area_label', 'Area name'));
 
         $updateData = [];
 

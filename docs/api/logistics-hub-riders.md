@@ -47,7 +47,7 @@ Returns the authenticated hub's operational jurisdiction and designated PSGC bar
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `status` | `string` | No | Filter by application status: `PENDING` (default), `ACTIVE`, `DISAPPROVED`, or `all`. |
-| `search` | `string` | No | Search query matching first name, last name, email, phone, or plate number. |
+| `search` | `string` | No | Search query matching first name, last name, email, phone, or plate number (max 100 characters, else `422`). |
 | `sort` | `string` | No | Sort order: `newest` (default, newest submitted first) or `oldest`. |
 | `per_page` | `integer` | No | Number of records per page (default: `20`, max: `100`). |
 | `page` | `integer` | No | Page number for pagination. |
@@ -168,7 +168,7 @@ Approves a `PENDING` courier application, changing status to `ACTIVE`. Optionall
 ### Request Body (JSON)
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `area_label` | `string` | No | Area designation label (e.g. `Area A - Calamba Poblacion`, max 100). Required if `coverage_barangays` is provided. |
+| `area_label` | `string` | No | Area name (e.g. `Area A - Calamba Poblacion`): 3 to 60 characters with at least two letters; letters, digits, spaces and `. , ' & ( ) / # -` only, starting with a letter or digit; runs of spaces are collapsed. `T`, `!!!` or `12345` is a `422`. Required if `coverage_barangays` is provided. |
 | `coverage_barangays` | `array` | No | List of 9-to-10 digit PSGC barangay codes. Each must be within hub's coverage. Required if `area_label` is provided. |
 | `coverage_barangays.*` | `string` | Yes (if array provided) | PSGC barangay code. |
 
@@ -210,7 +210,7 @@ Disapproves a `PENDING` courier application with a required reason. Status becom
 ### Request Body (JSON)
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `reason` | `string` | Yes | Explanation for disapproval (trimmed, max 500 characters). |
+| `reason` | `string` | Yes | Explanation for disapproval, shown to the applicant: 10 to 500 characters with at least three letters (`no` or `1234567890` is a `422`). |
 
 ### Response (200 OK)
 ```json
@@ -239,7 +239,7 @@ Disapproves a `PENDING` courier application with a required reason. Status becom
 - **Route**: `POST /api/v1/hub/riders/{rider}/areas`
 - **Requirements**:
   - Rider must be `ACTIVE`.
-  - `area_label`: string (max 100, unique among active assignments for this rider).
+  - `area_label`: string, 3 to 60 characters with at least two letters; letters, digits, spaces and `. , ' & ( ) / # -` only, starting with a letter or digit; runs of spaces are collapsed. `T`, `!!!` or `12345` is a `422`; unique among active assignments for this rider. The same rule applies when renaming an area.
   - `coverage_barangays`: array of PSGC codes (min 1, distinct, all within hub's coverage).
 - **Response (201 Created)**:
 ```json

@@ -633,6 +633,21 @@ class HubDeliveryTest extends TestCase
         $this->returnIt($a->tracking_number, ['note' => str_repeat('x', 500)])->assertOk();
     }
 
+    public function test_a_note_when_given_is_written_in_words(): void
+    {
+        Mail::fake();
+        [, $rider] = $this->eligibleRider();
+        $parcel = $this->createParcel($rider);
+
+        foreach (['ok', '.....', '12345678'] as $bad) {
+            $this->returnIt($parcel->tracking_number, ['note' => $bad])->assertStatus(422)->assertJsonValidationErrors(['note']);
+        }
+        $this->assertEquals(Parcel::STATUS_DELIVERY_FAILED, $parcel->fresh()->status);
+
+        $this->returnIt($parcel->tracking_number, ['note' => '   '])->assertOk();
+        $this->assertNull($parcel->fresh()->return_note);
+    }
+
     public function test_the_seller_is_emailed_with_real_data_after_the_return(): void
     {
         Mail::fake();

@@ -11,6 +11,7 @@ use App\Models\RiderAreaAssignment;
 use App\Models\SortingCenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Support\Validation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -43,6 +44,7 @@ class HubRiderController extends Controller
     {
         $hub = $this->getAuthenticatedHub($request);
 
+        $request->validate(['search' => ['nullable', 'string', 'max:100']], ['search.max' => 'Search with 100 characters or fewer.']);
         $status  = $request->query('status', Rider::STATUS_PENDING);
         $search  = $request->query('search');
         $sort    = $request->query('sort', 'newest');
@@ -132,11 +134,13 @@ class HubRiderController extends Controller
         $initialArea = null;
 
         if ($hasInitialArea) {
+            $request->merge(['area_label' => \Illuminate\Support\Str::squish((string) $request->input('area_label'))]);
             $validatedArea = $request->validate([
-                'area_label'            => ['required', 'string', 'max:100'],
+                'area_label'            => Validation::label(),
                 'coverage_barangays'    => ['required', 'array', 'min:1'],
                 'coverage_barangays.*'  => ['required', 'string', 'regex:/^\d{9,10}$/'],
             ], [
+                ...Validation::labelMessages('area_label', 'Area name'),
                 'area_label.required'         => 'Area label is required when specifying an initial area assignment.',
                 'coverage_barangays.required' => 'At least one coverage barangay must be assigned to this area.',
                 'coverage_barangays.min'      => 'At least one coverage barangay must be assigned to this area.',
@@ -224,10 +228,11 @@ class HubRiderController extends Controller
         );
 
         $validated = $request->validate([
-            'reason' => ['required', 'string', 'max:500'],
+            'reason' => Validation::sentence(true, 10, 500),
         ], [
+            ...Validation::sentenceMessages('reason', 'The disapproval reason', 10, 500),
             'reason.required' => 'A disapproval reason is required.',
-            'reason.max'      => 'The disapproval reason may not exceed 500 characters.',
+            'reason.regex'    => 'Write the reason in words, so the applicant knows what to fix.',
         ]);
 
         $hubManagerId = $request->user()->id;

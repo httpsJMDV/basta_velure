@@ -322,6 +322,74 @@ class HubRiderVettingTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_an_area_name_must_be_a_real_name(): void
+    {
+        [, $active] = $this->createRiderForHub($this->hubA, Rider::STATUS_ACTIVE);
+        [, $pending] = $this->createRiderForHub($this->hubA, Rider::STATUS_PENDING);
+        $add = fn (string $label) => $this->actingAs($this->hubUserA)
+            ->postJson("/api/v1/hub/riders/{$active->id}/areas", ['area_label' => $label, 'coverage_barangays' => ['043405001']]);
+
+        // A letter, symbols, digits only, a leading symbol, script and too long: refused, nothing saved.
+        foreach (['T', '!!!', '12345', 'A1', '- North', '<script>', str_repeat('Zone ', 13)] as $bad) {
+            $add($bad)->assertStatus(422)->assertJsonValidationErrors(['area_label']);
+        }
+        $this->assertSame(0, RiderAreaAssignment::where('rider_id', $active->id)->count());
+
+        // A real name is kept, with its spaces tidied.
+        $add('  Zone   2 - Poblacion ')->assertCreated();
+        $area = RiderAreaAssignment::where('rider_id', $active->id)->firstOrFail();
+        $this->assertSame('Zone 2 - Poblacion', $area->area_label);
+        foreach (['Sta. Cruz (East)', "Rizal & Bonifacio St.", 'Ñ Barangays #3', 'Brgy 1/2 cluster'] as $good) {
+            $add($good)->assertCreated();
+        }
+
+        // Renaming follows the same rules; switching an area off needs no name.
+        $this->actingAs($this->hubUserA)->putJson("/api/v1/hub/riders/{$active->id}/areas/{$area->id}", ['area_label' => 'X'])
+            ->assertStatus(422)->assertJsonValidationErrors(['area_label']);
+        $this->actingAs($this->hubUserA)->putJson("/api/v1/hub/riders/{$active->id}/areas/{$area->id}", ['is_active' => false])->assertOk();
+
+        // The first area given when approving a rider, too.
+        $this->actingAs($this->hubUserA)->postJson("/api/v1/hub/riders/{$pending->id}/approve", ['area_label' => 'T', 'coverage_barangays' => ['043405001']])
+            ->assertStatus(422)->assertJsonValidationErrors(['area_label']);
+        $this->assertSame(Rider::STATUS_PENDING, $pending->fresh()->status);
+    }
+
+    public function test_a_disapproval_reason_must_be_written_in_words(): void
+    {
+        [, $pending] = $this->createRiderForHub($this->hubA, Rider::STATUS_PENDING);
+        $decline = fn (string $reason) => $this->actingAs($this->hubUserA)->postJson("/api/v1/hub/riders/{$pending->id}/disapprove", ['reason' => $reason]);
+
+        foreach (['no', 'Blurry', '..........', '1234567890', str_repeat('x', 501)] as $bad) {
+            $decline($bad)->assertStatus(422)->assertJsonValidationErrors(['reason']);
+        }
+        $this->assertSame(Rider::STATUS_PENDING, $pending->fresh()->status);
+
+        $decline('The OR/CR photo is blurry; upload a clear one.')->assertOk();
+        $this->assertSame(Rider::STATUS_DISAPPROVED, $pending->fresh()->status);
+    }
+
+    public function test_the_rider_search_is_limited_to_100_characters(): void
+    {
+        $this->actingAs($this->hubUserA)->getJson('/api/v1/hub/riders?search=' . str_repeat('a', 101))
+            ->assertStatus(422)->assertJsonValidationErrors(['search']);
+        $this->actingAs($this->hubUserA)->getJson('/api/v1/hub/riders?search=' . str_repeat('a', 100))->assertOk();
+    }
+
+    public function test_the_hub_gcash_name_must_be_a_name(): void
+    {
+        $save = fn (array $body) => $this->actingAs($this->hubUserA)->patchJson('/api/v1/hub/gcash', $body);
+
+        foreach (['1234', '!!', 'J', '<b>Hub</b>'] as $bad) {
+            $save(['gcash_number' => '0917 123 4567', 'gcash_name' => $bad])->assertStatus(422)->assertJsonValidationErrors(['gcash_name']);
+        }
+        $save(['gcash_number' => '0917 123 4567'])->assertStatus(422)->assertJsonValidationErrors(['gcash_name']);
+        $save(['gcash_number' => '12345', 'gcash_name' => 'Hazel Abad'])->assertStatus(422)->assertJsonValidationErrors(['gcash_number']);
+
+        $save(['gcash_number' => '+63 917 123 4567', 'gcash_name' => '  Hazel   Abad '])->assertOk()
+            ->assertJsonPath('data.gcash_number', '0917 123 4567')->assertJsonPath('data.gcash_name', 'Hazel Abad');
+        $save(['gcash_number' => '09171234567', 'gcash_name' => "Lakbay Express Sta. Cruz & Co."])->assertOk();
+    }
+
     public function test_area_with_barangay_outside_hub_coverage_returns_422_and_duplicates_rejected(): void
     {
         // Hub A coverage: 043405001, 043405002, 043405003
