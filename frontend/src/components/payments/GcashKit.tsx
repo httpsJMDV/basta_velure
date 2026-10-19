@@ -7,6 +7,7 @@ import { Copy, Check, QrCode, X, AlertCircle, Loader2, ImagePlus } from 'lucide-
 import gcashLogo from '../../assets/brand/gcash-logo.svg';
 import type { GcashAccount, PayoutAccount } from '../../types';
 import { downscaleImage, formatBytes } from '../../utils/imageDownscale';
+import { accountNameError, gcashNumberError, squish } from '../../utils/accountRules';
 
 export function peso(n: number): string {
   return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -248,10 +249,18 @@ export function PayoutAccountForm({ load, save, who, tone = 'stone', intro }: {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Both empty clears the account; otherwise both must be right before anything is sent.
+    if (number.trim() || name.trim()) {
+      const local = Object.fromEntries(Object.entries({
+        gcash_number: gcashNumberError(number),
+        gcash_name: accountNameError(name),
+      }).filter(([, v]) => v)) as Record<string, string>;
+      if (Object.keys(local).length) { setErrors(local); return; }
+    }
     setBusy(true);
     setErrors({});
     try {
-      const saved = await save({ gcash_number: number.trim() || null, gcash_name: name.trim() || null });
+      const saved = await save({ gcash_number: number.trim() || null, gcash_name: squish(name) || null });
       setAccount(saved);
       setNumber(saved.gcash_number ?? '');
       setName(saved.gcash_name ?? '');
@@ -289,13 +298,17 @@ export function PayoutAccountForm({ load, save, who, tone = 'stone', intro }: {
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor={`gcash-number-${who}`} className="block text-[12px] font-medium text-stone-600 mb-1.5">GCash number</label>
-          <input id={`gcash-number-${who}`} inputMode="tel" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="0917 123 4567" className={input} />
-          {errors.gcash_number && <p className="mt-1 text-[12px] text-brand-red">{errors.gcash_number}</p>}
+          <input id={`gcash-number-${who}`} inputMode="tel" maxLength={20} value={number} aria-invalid={Boolean(errors.gcash_number)}
+            onChange={(e) => { setNumber(e.target.value); setErrors(({ gcash_number: _drop, ...rest }) => rest); }}
+            placeholder="0917 123 4567" className={`${input} ${errors.gcash_number ? '!border-brand-red' : ''}`} />
+          {errors.gcash_number && <p role="alert" className="mt-1 text-[12px] text-brand-red">{errors.gcash_number}</p>}
         </div>
         <div>
           <label htmlFor={`gcash-name-${who}`} className="block text-[12px] font-medium text-stone-600 mb-1.5">Name on the account</label>
-          <input id={`gcash-name-${who}`} value={name} onChange={(e) => setName(e.target.value)} placeholder="As GCash shows it" className={input} />
-          {errors.gcash_name && <p className="mt-1 text-[12px] text-brand-red">{errors.gcash_name}</p>}
+          <input id={`gcash-name-${who}`} maxLength={120} value={name} aria-invalid={Boolean(errors.gcash_name)}
+            onChange={(e) => { setName(e.target.value); setErrors(({ gcash_name: _drop, ...rest }) => rest); }}
+            placeholder="As GCash shows it" className={`${input} ${errors.gcash_name ? '!border-brand-red' : ''}`} />
+          {errors.gcash_name && <p role="alert" className="mt-1 text-[12px] text-brand-red">{errors.gcash_name}</p>}
         </div>
       </div>
       <div className="flex gap-2">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { Camera, CameraOff, Keyboard, RefreshCw, ScanLine } from 'lucide-react';
+import { normalizeTrackingNumber, trackingNumberError } from '../../utils/accountRules';
 // Chrome on Windows and Linux (and Firefox) have no built-in BarcodeDetector, so the page loads this ponyfill on
 // demand. Its decoder is a small WebAssembly file that ships with the app, so scanning works without internet.
 import zxingWasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
@@ -79,6 +80,7 @@ export default function TrackingScanner({
   autoFocus = false,
 }: TrackingScannerProps) {
   const [manual, setManual] = useState('');
+  const [manualError, setManualError] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraStarting, setCameraStarting] = useState(false);
@@ -205,10 +207,13 @@ export default function TrackingScanner({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const code = manual.trim().toUpperCase();
-    if (!code || disabled) return;
-    onScan(code);
+    if (!manual.trim() || disabled) return;
+    // A typed number is checked first (a scanned one comes from the waybill itself).
+    const problem = trackingNumberError(manual);
+    if (problem) { setManualError(problem); return; }
+    onScan(normalizeTrackingNumber(manual));
     setManual('');
+    setManualError(null);
     inputRef.current?.focus();
   };
 
@@ -292,8 +297,11 @@ export default function TrackingScanner({
             ref={inputRef}
             type="text"
             value={manual}
-            onChange={(e) => setManual(e.target.value)}
+            onChange={(e) => { setManual(e.target.value); setManualError(null); }}
             disabled={disabled}
+            maxLength={24}
+            aria-invalid={Boolean(manualError)}
+            aria-describedby={manualError ? 'tracking-scanner-error' : undefined}
             placeholder="LIT-YYMMDD-XXXXXX"
             autoCapitalize="characters"
             autoCorrect="off"
@@ -310,7 +318,9 @@ export default function TrackingScanner({
             Add
           </button>
         </div>
-        <p className="text-[11px] text-gray-500">A USB or Bluetooth barcode scanner works here too: click the box and scan.</p>
+        {manualError
+          ? <p id="tracking-scanner-error" role="alert" className="text-[12px] font-medium text-red-700">{manualError}</p>
+          : <p className="text-[11px] text-gray-500">A USB or Bluetooth barcode scanner works here too: click the box and scan.</p>}
       </form>
     </div>
   );

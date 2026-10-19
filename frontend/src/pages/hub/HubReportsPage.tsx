@@ -30,7 +30,7 @@ import {
   validateRange,
   type RangePreset,
 } from './reports/reportFormat';
-import { PageHero, HERO_BUTTON, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader, HEADER_BUTTON } from '../../components/admin/dashboardKit';
 import DateRangeBar from '../../components/admin/DateRangeBar';
 
 interface Applied {
@@ -223,7 +223,7 @@ export default function HubReportsPage() {
   const rangeLabel = formatRange(applied.from, applied.to);
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       {/* Print-only heading: the controls are hidden on paper */}
       <div className="hidden print:block">
         <h1 className="text-xl font-black">{user?.sorting_center?.hub_name ?? 'Hub'} performance report</h1>
@@ -231,18 +231,18 @@ export default function HubReportsPage() {
       </div>
 
       <div className="print:hidden space-y-3">
-        <PageHero
+        <PageHeader
+          accent="blue"
+          updatedAt={lastUpdated}
           icon={BarChart2}
-          eyebrow="Insights"
           title="Hub reports"
           subtitle={<>Throughput, on-time delivery and rider efficiency for {rangeLabel}.</>}
         >
-          <LiveStamp updatedAt={lastUpdated} />
-          <button type="button" onClick={() => window.print()} className={HERO_BUTTON}>
+          <button type="button" onClick={() => window.print()} className={HEADER_BUTTON}>
             <Printer className="w-4 h-4" aria-hidden="true" />
             Print
           </button>
-        </PageHero>
+        </PageHeader>
 
         <DateRangeBar
           presets={PRESETS.filter((p) => p.key !== 'custom').map((p) => ({ value: p.key, label: p.label }))}

@@ -23,7 +23,7 @@ import {
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { HubSortingGroup, HubSortingParcel, HubSortingSort } from '../../types';
-import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
 import CustomSelect from '../../components/ui/CustomSelect';
 
 const POLL_MS = 30000;
@@ -289,23 +289,23 @@ export default function HubSortingPage() {
 
   return (
     <div className="space-y-5">
-      <PageHero
+      <PageHeader
+        accent="blue"
+        updatedAt={lastUpdated}
         icon={Layers}
-        eyebrow="Operations"
         title="Package Sorting"
         subtitle="Group received parcels by destination barangay and mark them sorted."
-      >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+       />
 
       <section aria-label="Sorting summary" className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-        <StatCard compact icon={MapPinOff} label="Barangays" value={loading ? null : totals.groups} subtext="With parcels waiting" iconBg="bg-blue-50" iconColor="text-blue-600" />
-        <StatCard compact icon={Package} label="Parcels to sort" value={loading ? null : totals.parcels} subtext="Scanned in, not sorted" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-        <StatCard compact icon={Clock} label="Longest wait" value={loading || groups.length === 0 ? null : waitingLabel(groups.map((g) => g.oldest_scanned_in_at).filter((v): v is string => !!v).sort()[0] ?? null)} subtext="Oldest parcel at the hub" iconBg="bg-amber-50" iconColor="text-amber-600" />
-        <StatCard compact icon={Users} label="No rider covers" value={loading ? null : groups.filter((g) => g.riders_covering === 0).length} subtext="Barangays nobody can deliver" iconBg="bg-rose-50" iconColor="text-rose-600" />
+        <StatCard icon={MapPinOff} label="Barangays" value={loading ? null : totals.groups} subtext="With parcels waiting" iconBg="bg-blue-50" iconColor="text-blue-600" />
+        <StatCard icon={Package} label="Parcels to sort" value={loading ? null : totals.parcels} subtext="Scanned in, not sorted" iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+        <StatCard icon={Clock} label="Longest wait" value={loading || groups.length === 0 ? null : waitingLabel(groups.map((g) => g.oldest_scanned_in_at).filter((v): v is string => !!v).sort()[0] ?? null)} subtext="Oldest parcel at the hub" iconBg="bg-amber-50" iconColor="text-amber-600" />
+        <StatCard icon={Users} label="No rider covers" value={loading ? null : groups.filter((g) => g.riders_covering === 0).length} subtext="Barangays nobody can deliver" iconBg="bg-rose-50" iconColor="text-rose-600" />
       </section>
-      {/* Controls */}
-      <div className="flex flex-col gap-2 p-3 bg-white border shadow-xs border-gray-200/80 rounded-2xl sm:flex-row sm:items-center">
+      {/* Controls and the list, in one card */}
+      <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex flex-col gap-2 p-3 border-b border-gray-100 bg-gray-50/40 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <label htmlFor="sorting-search" className="sr-only">Search barangay or city</label>
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
@@ -315,6 +315,7 @@ export default function HubSortingPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search barangay or city, such as Poblacion"
+            maxLength={100}
             className="w-full min-h-[44px] pl-10 pr-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent"
           />
         </div>
@@ -329,6 +330,7 @@ export default function HubSortingPage() {
         />
       </div>
       {/* States */}
+      <div className="p-3 sm:p-4">
       {loading ? (
         <div className="space-y-3 animate-pulse" aria-label="Loading sorting groups">
           {[1, 2, 3].map((i) => (
@@ -336,7 +338,7 @@ export default function HubSortingPage() {
           ))}
         </div>
       ) : error ? (
-        <div role="alert" className="bg-white border border-red-200 rounded-3xl p-8 text-center space-y-3 max-w-lg mx-auto">
+        <div role="alert" className="px-6 py-10 text-center space-y-3 max-w-md mx-auto">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto" aria-hidden="true" />
           <p className="text-sm font-bold text-gray-900">Could not load sorting groups</p>
           <p className="text-xs text-gray-500">{error}</p>
@@ -350,7 +352,7 @@ export default function HubSortingPage() {
           </button>
         </div>
       ) : groups.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-3xl p-8 sm:p-12 text-center space-y-3 max-w-lg mx-auto">
+        <div className="px-6 py-12 sm:py-14 text-center space-y-3 max-w-md mx-auto">
           <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto">
             <Inbox className="w-7 h-7" aria-hidden="true" />
           </div>
@@ -545,6 +547,8 @@ export default function HubSortingPage() {
           })}
         </ul>
       )}
+      </div>
+      </section>
 
       {/* Confirm dialog */}
       {confirmGroup && (

@@ -11,6 +11,7 @@ import {
   MapPin,
   MessageSquare,
   PackagePlus,
+  ScanLine,
   Send,
   Truck,
   UserCheck,
@@ -20,7 +21,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useLivePolling } from '../../hooks/useLivePolling';
 import { getHubDashboardMetricsApi, getHubReportSummaryApi } from '../../api/client';
 import type { HubDashboardMetrics, HubReportDailyRow } from '../../types';
-import { PageHero, StatCard, StatCardSkeleton, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard, StatCardSkeleton, CardTag, HEADER_BUTTON, HEADER_BUTTON_PRIMARY } from '../../components/admin/dashboardKit';
 import DailyChart from './reports/DailyChart';
 import { addDays, manilaToday } from './reports/reportFormat';
 import type { HubOutletContext } from './HubLayout';
@@ -87,9 +88,10 @@ export default function HubDashboardPage() {
 
   return (
     <div className="pb-8 space-y-3">
-      <PageHero
+      <PageHeader
+        accent="rose"
+        updatedAt={lastUpdated}
         icon={Building2}
-        eyebrow="Command center"
         title={hub?.hub_name || 'Sorting Center Hub'}
         subtitle={
           hub?.address_city ? (
@@ -103,8 +105,9 @@ export default function HubDashboardPage() {
           )
         }
       >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+        <Link to="/hub/dispatch" className={HEADER_BUTTON}><Send className="w-4 h-4" aria-hidden="true" /> Dispatch</Link>
+        <Link to="/hub/intake" className={HEADER_BUTTON_PRIMARY}><ScanLine className="w-4 h-4" aria-hidden="true" /> Scan parcels in</Link>
+      </PageHeader>
 
       {error && (
         <div role="alert" className="flex items-start gap-3 px-4 py-3 text-red-900 border border-red-200 bg-red-50 rounded-xl">
@@ -122,11 +125,16 @@ export default function HubDashboardPage() {
           [1, 2, 3, 4, 5].map((i) => <StatCardSkeleton key={i} />)
         ) : (
           <>
-            <StatCard compact icon={ArrowDownToLine} label="Received today" value={metrics?.inbound_today} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600" to="/hub/intake" />
-            <StatCard compact icon={Layers} label="In sorting" value={metrics?.in_sorting} subtext="At the hub, not yet sorted" iconBg="bg-blue-50" iconColor="text-blue-600" to="/hub/sorting" />
-            <StatCard compact icon={Truck} label="Out for delivery" value={metrics?.out_for_delivery} subtext="On the road right now" iconBg="bg-amber-50" iconColor="text-amber-600" to="/hub/deliveries" />
-            <StatCard compact icon={AlertTriangle} label="Failed deliveries" value={metrics?.failed_deliveries} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600" to="/hub/deliveries" />
-            <StatCard compact icon={Bike} label="Active riders" value={metrics?.active_riders} subtext={`${pendingRiders} waiting for approval`} iconBg="bg-violet-50" iconColor="text-violet-600" to="/hub/riders" />
+            <StatCard icon={ArrowDownToLine} label="Received today" value={metrics?.inbound_today} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600"
+              to="/hub/intake" actionLabel="Parcel intake" trendEl={<CardTag tone="emerald">Today</CardTag>} />
+            <StatCard icon={Layers} label="In sorting" value={metrics?.in_sorting} subtext="At the hub, not yet sorted" iconBg="bg-blue-50" iconColor="text-blue-600"
+              to="/hub/sorting" actionLabel="Sort parcels" trendEl={metrics && metrics.in_sorting > 0 ? <CardTag tone="blue">To sort</CardTag> : undefined} />
+            <StatCard icon={Truck} label="Out for delivery" value={metrics?.out_for_delivery} subtext="On the road right now" iconBg="bg-amber-50" iconColor="text-amber-600"
+              to="/hub/deliveries" actionLabel="Watch deliveries" trendEl={<CardTag tone="amber">Live</CardTag>} />
+            <StatCard icon={AlertTriangle} label="Failed deliveries" value={metrics?.failed_deliveries} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600"
+              to="/hub/deliveries" actionLabel="Decide" trendEl={metrics && metrics.failed_deliveries > 0 ? <CardTag tone="rose">Needs you</CardTag> : undefined} />
+            <StatCard icon={Bike} label="Active riders" value={metrics?.active_riders} subtext={`${pendingRiders} waiting for approval`} iconBg="bg-violet-50" iconColor="text-violet-600"
+              to="/hub/riders" actionLabel="Riders" trendEl={pendingRiders > 0 ? <CardTag tone="violet">{pendingRiders} to review</CardTag> : undefined} />
           </>
         )}
       </section>

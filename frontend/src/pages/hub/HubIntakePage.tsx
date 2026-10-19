@@ -23,7 +23,7 @@ import {
   receiveHubParcelApi,
 } from '../../api/client';
 import type { HubParcelRecord } from '../../types';
-import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
 import { useLivePolling } from '../../hooks/useLivePolling';
 
 type IntakeTab = 'scan' | 'expected' | 'received';
@@ -206,19 +206,18 @@ export default function HubIntakePage() {
 
   return (
     <div className="space-y-5">
-      <PageHero
+      <PageHeader
+        accent="emerald"
+        updatedAt={lastUpdated}
         icon={ScanLine}
-        eyebrow="Operations"
         title="Parcel Intake"
         subtitle="Scan parcels in as riders drop them off at your hub."
-      >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+       />
 
       <section aria-label="Intake summary" className="grid grid-cols-3 gap-2.5">
-        <StatCard compact icon={Truck} label="On the way" value={expected.loading ? null : expected.total} subtext="Picked up, not scanned in" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => setTab('expected')} active={tab === 'expected'} />
-        <StatCard compact icon={PackageCheck} label="Received today" value={received.loading ? null : received.total} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => setTab('received')} active={tab === 'received'} />
-        <StatCard compact icon={ScanLine} label="This session" value={sessionCount} subtext="Scanned on this screen" iconBg="bg-blue-50" iconColor="text-blue-600" onClick={() => setTab('scan')} active={tab === 'scan'} />
+        <StatCard icon={Truck} label="On the way" value={expected.loading ? null : expected.total} subtext="Picked up, not scanned in" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => setTab('expected')} active={tab === 'expected'} />
+        <StatCard icon={PackageCheck} label="Received today" value={received.loading ? null : received.total} subtext="Scanned in, Manila day" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => setTab('received')} active={tab === 'received'} />
+        <StatCard icon={ScanLine} label="This session" value={sessionCount} subtext="Scanned on this screen" iconBg="bg-blue-50" iconColor="text-blue-600" onClick={() => setTab('scan')} active={tab === 'scan'} />
       </section>
 
       {/* Tabs */}

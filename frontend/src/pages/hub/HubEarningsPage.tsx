@@ -4,7 +4,7 @@ import { getHubEarningsApi, getPayoutAccountApi, updatePayoutAccountApi } from '
 import { PayoutAccountForm } from '../../components/payments/GcashKit';
 import { useLivePolling } from '../../hooks/useLivePolling';
 import type { HubEarningsSummary } from '../../types';
-import { LiveStamp, PageHero, SectionHeader, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
+import { PageHeader, SectionHeader, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
 
 function peso(value: string | null | undefined): string {
   const n = Number(value ?? 0);
@@ -36,18 +36,17 @@ export default function HubEarningsPage() {
 
   return (
     <div className="space-y-4 pb-4">
-      <PageHero
+      <PageHeader
+        accent="emerald"
+        updatedAt={lastUpdated}
         icon={Wallet}
-        eyebrow="Insights"
         title="Earnings"
         subtitle={
           data
             ? `Your hub keeps ${data.split.hub_percent}% of the ${peso(data.delivery_fee)} delivery fee on every parcel it handles that is delivered. The riders get ${data.split.rider_percent}%: ${data.split.pickup_percent}% to the pickup rider, ${data.split.delivery_percent}% to the delivery rider.`
             : 'Your hub’s share of the delivery fee on delivered parcels.'
         }
-      >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+       />
 
       {error && !data && (
         <div role="alert" className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -61,10 +60,10 @@ export default function HubEarningsPage() {
           [1, 2, 3, 4].map((i) => <StatCardSkeleton key={i} />)
         ) : (
           <>
-            <StatCard compact money icon={Coins} label="Today" value={Number(data.today.total)} subtext={`${data.today.deliveries_count} delivered`} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-            <StatCard compact money icon={CalendarDays} label="This week" value={Number(data.week.total)} subtext={`${data.week.deliveries_count} delivered`} iconBg="bg-blue-50" iconColor="text-blue-600" />
-            <StatCard compact money icon={CalendarRange} label="This month" value={Number(data.month.total)} subtext={`${data.month.deliveries_count} delivered`} iconBg="bg-violet-50" iconColor="text-violet-600" />
-            <StatCard compact money icon={Wallet} label="All time" value={Number(data.lifetime.total)} subtext={`${data.lifetime.deliveries_count} delivered`} iconBg="bg-amber-50" iconColor="text-amber-600" />
+            <StatCard money icon={Coins} label="Today" value={Number(data.today.total)} subtext={`${data.today.deliveries_count} delivered`} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+            <StatCard money icon={CalendarDays} label="This week" value={Number(data.week.total)} subtext={`${data.week.deliveries_count} delivered`} iconBg="bg-blue-50" iconColor="text-blue-600" />
+            <StatCard money icon={CalendarRange} label="This month" value={Number(data.month.total)} subtext={`${data.month.deliveries_count} delivered`} iconBg="bg-violet-50" iconColor="text-violet-600" />
+            <StatCard money icon={Wallet} label="All time" value={Number(data.lifetime.total)} subtext={`${data.lifetime.deliveries_count} delivered`} iconBg="bg-amber-50" iconColor="text-amber-600" />
           </>
         )}
       </section>

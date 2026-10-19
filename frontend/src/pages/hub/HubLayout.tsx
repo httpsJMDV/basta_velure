@@ -22,7 +22,6 @@ import { getHubDashboardMetricsApi, getHubRidersApi } from '../../api/client';
 import {
   ShellSidebar,
   ShellTopBar,
-  SHELL_BG,
   type ShellAlert,
   type ShellNavGroup,
   type ShellSearchItem,
@@ -143,13 +142,13 @@ export default function HubLayout() {
 
   const alerts: ShellAlert[] = [];
   if (pendingRiders > 0) {
-    alerts.push({ icon: UserCheck, tone: 'bg-amber-500/20 text-amber-300', title: `${pendingRiders} rider application${pendingRiders > 1 ? 's' : ''}`, detail: 'Waiting for your approval', to: '/hub/riders' });
+    alerts.push({ icon: UserCheck, tone: 'bg-amber-50 text-amber-600', title: `${pendingRiders} rider application${pendingRiders > 1 ? 's' : ''}`, detail: 'Waiting for your approval', to: '/hub/riders' });
   }
   if (failedDeliveries > 0) {
-    alerts.push({ icon: AlertTriangle, tone: 'bg-rose-500/20 text-rose-300', title: `${failedDeliveries} failed deliver${failedDeliveries > 1 ? 'ies' : 'y'}`, detail: 'Reschedule or return to the seller', to: '/hub/deliveries' });
+    alerts.push({ icon: AlertTriangle, tone: 'bg-rose-50 text-rose-600', title: `${failedDeliveries} failed deliver${failedDeliveries > 1 ? 'ies' : 'y'}`, detail: 'Reschedule or return to the seller', to: '/hub/deliveries' });
   }
   if (chat.total > 0) {
-    alerts.push({ icon: MessageSquare, tone: 'bg-blue-500/20 text-blue-300', title: `${chat.total} unread message${chat.total > 1 ? 's' : ''}`, detail: 'From your riders', to: '/hub/messages' });
+    alerts.push({ icon: MessageSquare, tone: 'bg-blue-50 text-blue-600', title: `${chat.total} unread message${chat.total > 1 ? 's' : ''}`, detail: 'From your riders', to: '/hub/messages' });
   }
 
   const isActive = (to: string) =>
@@ -170,15 +169,15 @@ export default function HubLayout() {
   };
 
   const profile = (
-    <div className="mx-3 mt-3 p-3 rounded-xl bg-white/[0.04] border border-white/10">
-      <div className="flex items-start gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+    <div className="px-3.5 py-2.5 border-b border-gray-100 shrink-0">
+      <div className="flex items-center gap-2.5 bg-gray-50/80 border border-gray-100 rounded-xl px-2.5 py-2">
+        <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
           <Warehouse className="w-4 h-4" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold text-white truncate" title={hub?.hub_name}>{hub?.hub_name || 'Sorting Center Hub'}</p>
+          <p className="text-[12px] font-semibold text-gray-800 truncate leading-tight" title={hub?.hub_name}>{hub?.hub_name || 'Sorting Center Hub'}</p>
           {hub?.address_city && (
-            <p className="text-[11px] text-white/45 mt-0.5 flex items-center gap-1 truncate">
+            <p className="text-[10.5px] text-gray-400 mt-0.5 flex items-center gap-1 truncate">
               <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
               <span className="truncate">{hub.address_city}, {hub.address_province}</span>
             </p>
@@ -192,6 +191,7 @@ export default function HubLayout() {
   const mainML = collapsed ? ML_COLLAPSED : ML_EXPANDED;
 
   const sidebarProps = {
+    theme: 'light' as const,
     brandTo: '/hub/dashboard',
     roleBadge: 'Logistics',
     tagline: 'Hub Command Center',
@@ -208,7 +208,6 @@ export default function HubLayout() {
       {/* ── Desktop sidebar ── */}
       <aside
         className={`hidden lg:flex print:!hidden flex-col ${sidebarW} shrink-0 fixed inset-y-0 left-0 z-30 transition-all duration-200 select-none`}
-        style={SHELL_BG}
       >
         <ShellSidebar {...sidebarProps} collapsed={collapsed} />
       </aside>
@@ -216,8 +215,8 @@ export default function HubLayout() {
       {/* ── Mobile nav overlay ── */}
       {mobileOpen && (
         <div className="lg:hidden print:hidden fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Hub menu">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className={`relative ${SIDEBAR_W_EXPANDED} max-w-[85vw] flex flex-col h-full z-50`} style={SHELL_BG}>
+          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className={`relative ${SIDEBAR_W_EXPANDED} max-w-[85vw] flex flex-col h-full z-50 bg-white shadow-2xl`}>
             <ShellSidebar {...sidebarProps} collapsed={false} onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
@@ -226,7 +225,8 @@ export default function HubLayout() {
       {/* ── Top bar + content ── */}
       <div className={`flex-1 min-w-0 ${mainML} print:!ml-0 flex flex-col min-h-screen transition-all duration-200`}>
         <ShellTopBar
-          rootLabel="Loved-IT Logistics"
+          theme="light"
+          rootLabel="Loved-IT Hub"
           pageLabel={pageLabel}
           roleLabel="Hub manager"
           user={shellUser}

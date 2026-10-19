@@ -1,6 +1,6 @@
-// The dark sidebar and top bar of the admin console, as reusable pieces, so the logistics hub and the courier station
-// wear the same chrome as the admin dashboard. The look is copied from pages/admin/AdminLayout.tsx on purpose: change
-// the two together.
+// The sidebar and top bar of the portals, as reusable pieces. The dark look is the admin console's (copied from
+// pages/admin/AdminLayout.tsx on purpose: change the two together), worn by the courier station; the light look is the
+// seller portal's (pages/seller/SellerLayout.tsx), worn by the logistics hub.
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -32,7 +32,50 @@ export interface ShellUser {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
+/** The sidebar's two looks: the admin console's dark one, and the seller portal's white one. */
+const SIDEBAR_THEMES = {
+  dark: {
+    root: '',
+    rule: 'border-white/10',
+    logoTile: 'bg-white/10 border border-white/20',
+    logoVariant: 'dark' as const,
+    brand: 'text-white',
+    tagline: 'text-white/40',
+    heading: 'text-gray-500',
+    item: 'rounded-lg',
+    itemOn: 'bg-brand-red text-white',
+    itemOff: 'text-gray-400 hover:text-white hover:bg-white/[0.06]',
+    iconOn: '',
+    iconOff: '',
+    badge: 'bg-white text-brand-red',
+    userCard: 'hover:bg-white/[0.04]',
+    userName: 'text-white',
+    userEmail: 'text-white/40',
+    logout: 'bg-red-500/15 text-white/60 hover:bg-red-500/35 hover:text-white',
+  },
+  light: {
+    root: 'bg-white border-r border-gray-200',
+    rule: 'border-gray-100',
+    logoTile: 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80',
+    logoVariant: 'light' as const,
+    brand: 'text-gray-900',
+    tagline: 'text-gray-400',
+    heading: 'text-gray-400',
+    item: 'rounded-xl',
+    itemOn: 'bg-red-50 text-brand-red font-semibold',
+    itemOff: 'text-gray-600 hover:text-gray-900 hover:bg-gray-100',
+    iconOn: 'text-brand-red',
+    iconOff: 'text-gray-500 group-hover:text-gray-700',
+    badge: 'bg-brand-red text-white',
+    userCard: 'hover:bg-gray-50',
+    userName: 'text-gray-800',
+    userEmail: 'text-gray-400',
+    logout: 'text-gray-400 hover:text-red-600 hover:bg-red-50',
+  },
+};
+
 export function ShellSidebar({
+  theme = 'dark',
   brandTo,
   roleBadge,
   tagline,
@@ -45,6 +88,8 @@ export function ShellSidebar({
   onLogout,
   navLabel,
 }: {
+  /** The admin console's dark sidebar, or the seller portal's white one. */
+  theme?: ShellTheme;
   brandTo: string;
   /** The small red tag next to the name, such as "Logistics". */
   roleBadge: string;
@@ -59,21 +104,22 @@ export function ShellSidebar({
   onLogout: () => void;
   navLabel: string;
 }) {
+  const t = SIDEBAR_THEMES[theme];
   return (
-    <div className="flex flex-col h-full" style={SHELL_BG}>
+    <div className={`flex flex-col h-full ${t.root}`} style={theme === 'dark' ? SHELL_BG : undefined}>
       {/* Brand */}
-      <div className={`border-b border-white/10 shrink-0 ${collapsed ? 'px-0 py-3 flex justify-center' : 'px-4 py-3'}`}>
+      <div className={`border-b shrink-0 ${t.rule} ${collapsed ? 'px-0 py-3 flex justify-center' : 'px-4 py-3'}`}>
         <Link to={brandTo} onClick={onNavigate} className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'}`}>
-          <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center p-0.5 shrink-0 shadow-xs hover:scale-105 transition-transform">
-            <LovedItLogo variant="dark" type="icon" size="custom" showText={false} imgClassName="w-5 h-5 object-contain" />
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center p-0.5 shrink-0 shadow-xs hover:scale-105 transition-transform ${t.logoTile}`}>
+            <LovedItLogo variant={t.logoVariant} type="icon" size="custom" showText={false} imgClassName="w-5 h-5 object-contain" />
           </div>
           {!collapsed && (
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-white font-black text-[14px] tracking-tight leading-none">Loved-IT</span>
+                <span className={`font-black text-[14px] tracking-tight leading-none ${t.brand}`}>Loved-IT</span>
                 <span className="text-[8.5px] font-black uppercase tracking-wider bg-brand-red text-white px-1.5 py-0.5 rounded">{roleBadge}</span>
               </div>
-              <p className="text-white/40 text-[9.5px] uppercase tracking-[0.08em] font-semibold mt-0.5">{tagline}</p>
+              <p className={`text-[9.5px] uppercase tracking-[0.08em] font-semibold mt-0.5 ${t.tagline}`}>{tagline}</p>
             </div>
           )}
         </Link>
@@ -85,9 +131,9 @@ export function ShellSidebar({
         {nav.map((group) => (
           <div key={group.heading}>
             {!collapsed && (
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.1em] px-3 mb-1">{group.heading}</p>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.1em] px-3 mb-1 ${t.heading}`}>{group.heading}</p>
             )}
-            {collapsed && <div className="my-1 mx-2 border-t border-white/10" />}
+            {collapsed && <div className={`my-1 mx-2 border-t ${t.rule}`} />}
             {group.items.map(({ icon: Icon, label, to, badge }) => {
               const active = isActive(to);
               return (
@@ -98,16 +144,17 @@ export function ShellSidebar({
                   title={collapsed ? label : undefined}
                   aria-current={active ? 'page' : undefined}
                   className={[
-                    'relative flex items-center gap-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 mb-0.5 group',
+                    'relative flex items-center gap-2.5 text-[13px] font-medium transition-all duration-150 mb-0.5 group',
+                    t.item,
                     collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red',
-                    active ? 'bg-brand-red text-white' : 'text-gray-400 hover:text-white hover:bg-white/[0.06]',
+                    active ? t.itemOn : t.itemOff,
                   ].join(' ')}
                 >
-                  <Icon className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
+                  <Icon className={`w-[17px] h-[17px] shrink-0 transition-colors ${active ? t.iconOn : t.iconOff}`} aria-hidden="true" />
                   {!collapsed && <span className="flex-1 truncate">{label}</span>}
                   {!collapsed && badge !== undefined && badge > 0 && (
-                    <span className="min-w-[16px] h-[16px] px-1 bg-white text-brand-red text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                    <span className={`min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center leading-none ${t.badge}`}>
                       <span aria-hidden="true">{badge > 99 ? '99+' : badge}</span>
                       <span className="sr-only">{badge} waiting</span>
                     </span>
@@ -123,7 +170,7 @@ export function ShellSidebar({
       </nav>
 
       {/* User card */}
-      <div className={`border-t border-white/10 shrink-0 ${collapsed ? 'px-2 py-3' : 'px-3 py-3'}`}>
+      <div className={`border-t shrink-0 ${t.rule} ${collapsed ? 'px-2 py-3' : 'px-3 py-3'}`}>
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold">
@@ -133,25 +180,25 @@ export function ShellSidebar({
               onClick={onLogout}
               title="Log out"
               aria-label="Log out"
-              className="w-8 h-8 rounded-lg bg-red-500/15 text-white/60 hover:bg-red-500/35 hover:text-white transition-all flex items-center justify-center"
+              className={`w-8 h-8 rounded-lg transition-all flex items-center justify-center ${t.logout}`}
             >
               <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.04] transition-colors">
+          <div className={`flex items-center gap-3 px-2 py-2 rounded-xl transition-colors ${t.userCard}`}>
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center text-white text-[11px] font-bold shrink-0">
               {user.initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white text-[12px] font-semibold truncate leading-tight">{user.name}</p>
-              <p className="text-white/40 text-[10px] truncate">{user.email}</p>
+              <p className={`text-[12px] font-semibold truncate leading-tight ${t.userName}`}>{user.name}</p>
+              <p className={`text-[10px] truncate ${t.userEmail}`}>{user.email}</p>
             </div>
             <button
               onClick={onLogout}
               title="Log out"
               aria-label="Log out"
-              className="w-7 h-7 rounded-lg bg-red-500/15 text-white/60 hover:bg-red-500/35 hover:text-white transition-all flex items-center justify-center shrink-0"
+              className={`w-7 h-7 rounded-lg transition-all flex items-center justify-center shrink-0 ${t.logout}`}
             >
               <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
             </button>

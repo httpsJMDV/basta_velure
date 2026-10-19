@@ -45,7 +45,8 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import axios from 'axios';
-import { PageHero, StatCard, LiveStamp } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
+import { labelError, sentenceError, squish } from '../../utils/accountRules';
 
 const PRESET_AREA_LABELS = [
   'Area A - Central District',
@@ -356,6 +357,7 @@ export default function HubRidersPage() {
   // Action Modals State
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
   const [approveAreaLabel, setApproveAreaLabel] = useState('');
+  const [approveAreaError, setApproveAreaError] = useState<string | null>(null);
   const [approveSelectedBarangays, setApproveSelectedBarangays] = useState<string[]>([]);
   const [approving, setApproving] = useState(false);
 
@@ -488,11 +490,17 @@ export default function HubRidersPage() {
   // ─── Approve Action ────────────────────────────────────────────────────────
   async function handleApprove() {
     if (!detailData) return;
+    // An area is optional, but once started it needs a proper name and at least one barangay (nothing is dropped).
+    const wantsArea = approveAreaLabel.trim() !== '' || approveSelectedBarangays.length > 0;
+    if (wantsArea) {
+      const problem = labelError(approveAreaLabel, 'Area name')
+        ?? (approveSelectedBarangays.length === 0 ? 'Pick at least one barangay for this area, or clear the area name.' : undefined);
+      if (problem) { setApproveAreaError(problem); return; }
+    }
+    setApproveAreaError(null);
     setApproving(true);
 
-    const payload = approveAreaLabel.trim() && approveSelectedBarangays.length > 0
-      ? { area_label: approveAreaLabel.trim(), coverage_barangays: approveSelectedBarangays }
-      : undefined;
+    const payload = wantsArea ? { area_label: squish(approveAreaLabel), coverage_barangays: approveSelectedBarangays } : undefined;
 
     try {
       const res = await approveHubRiderApi(detailData.id, payload);
@@ -502,7 +510,9 @@ export default function HubRidersPage() {
       fetchRiders();
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        if (err.response?.status === 422) {
+        if (err.response?.status === 422 && err.response.data?.errors?.area_label) {
+          setApproveAreaError(err.response.data.errors.area_label[0]);
+        } else if (err.response?.status === 422) {
           showToast(err.response.data?.message || 'Approval state conflict or validation error.', 'error');
         } else {
           showToast('Failed to approve courier application.', 'error');
@@ -519,8 +529,9 @@ export default function HubRidersPage() {
     if (!detailData) return;
     setDisapproveError(null);
 
-    if (!disapproveReason.trim()) {
-      setDisapproveError('Please enter a disapproval reason for the applicant.');
+    const reasonProblem = sentenceError(disapproveReason, 'The reason', { min: 10, max: 500 });
+    if (reasonProblem) {
+      setDisapproveError(reasonProblem);
       return;
     }
 
@@ -565,8 +576,9 @@ export default function HubRidersPage() {
     if (!detailData) return;
     setAreaFormError(null);
 
-    if (!areaFormLabel.trim()) {
-      setAreaFormError('Area label is required.');
+    const labelProblem = labelError(areaFormLabel, 'Area name');
+    if (labelProblem) {
+      setAreaFormError(labelProblem);
       return;
     }
 
@@ -580,13 +592,13 @@ export default function HubRidersPage() {
     try {
       if (editingArea) {
         await updateHubRiderAreaApi(detailData.id, editingArea.id, {
-          area_label: areaFormLabel.trim(),
+          area_label: squish(areaFormLabel),
           coverage_barangays: areaFormBarangays,
         });
         showToast('Area assignment updated successfully.', 'success');
       } else {
         await createHubRiderAreaApi(detailData.id, {
-          area_label: areaFormLabel.trim(),
+          area_label: squish(areaFormLabel),
           coverage_barangays: areaFormBarangays,
         });
         showToast('New delivery area assigned successfully.', 'success');
@@ -641,22 +653,22 @@ export default function HubRidersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHero
+      <PageHeader
+        accent="rose"
+        updatedAt={lastUpdated}
         icon={Bike}
-        eyebrow="People"
         title="Riders & Fleet"
         subtitle="Review courier applications, verify their documents, and map active couriers to the barangays they deliver in."
-      >
-        <LiveStamp updatedAt={lastUpdated} />
-      </PageHero>
+       />
       {/* ─── Summary: each card is also the filter ─────────────────── */}
       <section aria-label="Courier summary" className="grid grid-cols-3 gap-2.5">
-        <StatCard compact icon={Clock} label="Pending couriers" value={counts.pending} subtext="Awaiting your review" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => handleTabChange('PENDING')} active={currentTab === 'PENDING'} />
-        <StatCard compact icon={CheckCircle} label="Active couriers" value={counts.active} subtext="Authorized fleet" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => handleTabChange('ACTIVE')} active={currentTab === 'ACTIVE'} />
-        <StatCard compact icon={XCircle} label="Disapproved" value={counts.disapproved} subtext="Declined applications" iconBg="bg-stone-100" iconColor="text-stone-600" onClick={() => handleTabChange('DISAPPROVED')} active={currentTab === 'DISAPPROVED'} />
+        <StatCard icon={Clock} label="Pending couriers" value={counts.pending} subtext="Awaiting your review" iconBg="bg-amber-50" iconColor="text-amber-600" onClick={() => handleTabChange('PENDING')} active={currentTab === 'PENDING'} />
+        <StatCard icon={CheckCircle} label="Active couriers" value={counts.active} subtext="Authorized fleet" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => handleTabChange('ACTIVE')} active={currentTab === 'ACTIVE'} />
+        <StatCard icon={XCircle} label="Disapproved" value={counts.disapproved} subtext="Declined applications" iconBg="bg-stone-100" iconColor="text-stone-600" onClick={() => handleTabChange('DISAPPROVED')} active={currentTab === 'DISAPPROVED'} />
       </section>
-      {/* ─── Controls Bar: Status Tabs and Search ─────────── */}
-      <div className="bg-white border border-gray-200/80 rounded-2xl p-3 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-4">
+      {/* ─── Tabs, search and the list, in one card ─────────── */}
+      <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="p-3 border-b border-gray-100 bg-gray-50/40 space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-4">
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl overflow-x-auto">
           {[
@@ -698,6 +710,8 @@ export default function HubRidersPage() {
               type="text"
               value={searchInputValue}
               onChange={(e) => handleSearchChange(e.target.value)}
+              maxLength={100}
+              aria-label="Search riders"
               placeholder="Search name, phone, plate..."
               className="w-full h-9 pl-9 pr-3 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none transition-colors"
             />
@@ -708,12 +722,12 @@ export default function HubRidersPage() {
 
       {/* ─── Main Content: Couriers Table & Mobile Cards ───────────── */}
       {loading ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-xs space-y-3">
+        <div className="p-12 text-center space-y-3">
           <RefreshCw className="w-6 h-6 animate-spin text-brand-red mx-auto" />
           <p className="text-xs text-gray-500 font-medium">Loading courier applications…</p>
         </div>
       ) : error ? (
-        <div className="bg-white border border-red-200 rounded-2xl p-8 text-center shadow-xs space-y-3">
+        <div role="alert" className="p-10 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
           <p className="text-sm font-bold text-gray-900">Failed to load couriers</p>
           <p className="text-xs text-gray-500 max-w-sm mx-auto">{error}</p>
@@ -726,7 +740,7 @@ export default function HubRidersPage() {
           </button>
         </div>
       ) : riders.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-xs space-y-2">
+        <div className="px-6 py-14 text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
             <Bike className="w-6 h-6" />
           </div>
@@ -738,7 +752,7 @@ export default function HubRidersPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
+        <div className="overflow-hidden">
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs text-gray-600">
@@ -906,6 +920,7 @@ export default function HubRidersPage() {
           )}
         </div>
       )}
+      </section>
 
       {/* ─── Detail Modal / Drawer ──────────────────────────────────── */}
       {selectedRiderId && (
@@ -1222,10 +1237,13 @@ export default function HubRidersPage() {
                 <input
                   type="text"
                   value={approveAreaLabel}
-                  onChange={(e) => setApproveAreaLabel(e.target.value)}
+                  onChange={(e) => { setApproveAreaLabel(e.target.value); setApproveAreaError(null); }}
+                  maxLength={60}
+                  aria-invalid={Boolean(approveAreaError)}
                   placeholder="e.g. Area A - Central District"
-                  className="w-full h-8 px-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-gray-900"
+                  className={`w-full h-8 px-2.5 text-xs bg-white border rounded-lg outline-none focus:border-gray-900 ${approveAreaError ? 'border-red-400' : 'border-gray-200'}`}
                 />
+                {approveAreaError && <p role="alert" className="mt-1 text-[11px] font-medium text-red-700">{approveAreaError}</p>}
               </div>
 
               {hubCoverage && hubCoverage.coverage_barangays.length > 0 && (
@@ -1406,7 +1424,8 @@ export default function HubRidersPage() {
               <input
                 type="text"
                 value={areaFormLabel}
-                onChange={(e) => setAreaFormLabel(e.target.value)}
+                onChange={(e) => { setAreaFormLabel(e.target.value); if (areaFormError) setAreaFormError(null); }}
+                maxLength={60}
                 placeholder="e.g. Area A - Central District"
                 className="w-full h-9 px-3 text-xs bg-white border border-gray-200 rounded-xl outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
               />

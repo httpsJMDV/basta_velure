@@ -145,6 +145,86 @@ export function PageHero({ icon: Icon, eyebrow, title, subtitle, children, headi
   );
 }
 
+const HEADER_ACCENT = {
+  rose: 'bg-rose-50 text-brand-red border-rose-100',
+  emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  violet: 'bg-violet-50 text-violet-600 border-violet-100',
+  blue: 'bg-blue-50 text-blue-600 border-blue-100',
+  amber: 'bg-amber-50 text-amber-600 border-amber-100',
+  sky: 'bg-sky-50 text-sky-600 border-sky-100',
+  gray: 'bg-gray-50 text-gray-600 border-gray-200',
+} as const;
+
+export type HeaderAccent = keyof typeof HEADER_ACCENT;
+
+const TAG_TONE = {
+  blue: 'text-blue-700 bg-blue-50 border-blue-200',
+  amber: 'text-amber-700 bg-amber-50 border-amber-200',
+  emerald: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  rose: 'text-rose-700 bg-rose-50 border-rose-200',
+  violet: 'text-violet-700 bg-violet-50 border-violet-200',
+  gray: 'text-gray-500 bg-gray-50 border-gray-200',
+} as const;
+
+/** The small word in a stat card's corner ("To ship", "Live"), for StatCard's trendEl. */
+export function CardTag({ tone = 'gray', children }: { tone?: keyof typeof TAG_TONE; children: ReactNode }) {
+  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${TAG_TONE[tone]}`}>{children}</span>;
+}
+
+/** A light header button (the seller portal's "Payouts"), and its red primary sibling. */
+export const HEADER_BUTTON =
+  'min-h-10 inline-flex items-center justify-center gap-2 px-3.5 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/40';
+export const HEADER_BUTTON_PRIMARY =
+  'min-h-10 inline-flex items-center justify-center gap-2 px-3.5 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/40';
+
+/**
+ * The light page header of the seller portal: a tinted icon tile, the title in small capitals with a live pill, a line
+ * under it, and actions on the right. PageHero's light sibling, with the same props.
+ */
+export function PageHeader({ icon: Icon, title, subtitle, accent = 'rose', updatedAt, children, headingRef }: {
+  icon: React.ElementType;
+  title: string;
+  subtitle?: ReactNode;
+  accent?: HeaderAccent;
+  /** When the page refreshes itself: the time of the last refresh, shown in the live pill (null while loading). */
+  updatedAt?: Date | null;
+  children?: ReactNode;
+  headingRef?: React.Ref<HTMLHeadingElement>;
+}) {
+  return (
+    <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${HEADER_ACCENT[accent]}`}>
+          <Icon className="w-[18px] h-[18px]" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider focus:outline-none">{title}</h1>
+            {updatedAt !== undefined && <LiveSynced updatedAt={updatedAt} />}
+          </div>
+          {subtitle && <p className="text-[11.5px] text-gray-500 mt-0.5">{subtitle}</p>}
+        </div>
+      </div>
+      {children && <div className="flex flex-wrap items-center gap-2 shrink-0">{children}</div>}
+    </div>
+  );
+}
+
+/** The light "Live" pill: the page refreshes itself; the time says when it last did. */
+export function LiveSynced({ updatedAt }: { updatedAt: Date | null }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" role="status">
+      <span className={`w-1.5 h-1.5 rounded-full ${updatedAt ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} aria-hidden="true" />
+      {updatedAt ? 'Live' : 'Syncing…'}
+      {updatedAt && (
+        <span className="hidden font-medium text-emerald-600/80 sm:inline">
+          · {updatedAt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** "Live · updated 10:32:05": the page refreshes itself, so there is no refresh button. */
 export function LiveStamp({ updatedAt }: { updatedAt: Date | null }) {
   return (
