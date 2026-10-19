@@ -2921,6 +2921,9 @@ export interface SellerPaymentSettings {
 
 export type SettlementDirection = 'courier_pays' | 'seller_pays' | 'none';
 
+/** sent: waiting for the receiver · disputed: reported not received · pay_again: voided by Loved-IT · settled */
+export type SettlementState = 'sent' | 'disputed' | 'pay_again' | 'settled';
+
 export interface SettlementRecord {
   id: number;
   reference: string;
@@ -2928,6 +2931,41 @@ export interface SettlementRecord {
   paid_by: 'courier' | 'seller';
   paid_at: string | null;
   confirmed_at: string | null;
+  state: SettlementState;
+  /** Sent, and not confirmed or reported within the confirmation window. */
+  overdue: boolean;
+  has_receipt: boolean;
+  dispute: { reason: string; at: string } | null;
+  /** What a Loved-IT admin decided, if one stepped in. */
+  resolution: { outcome: 'received' | 'pay_again'; note: string; at: string } | null;
+}
+
+export type AdminSettlementView = 'reported' | 'overdue' | 'voided' | 'history';
+
+/** A courier ↔ shop payment that needs (or needed) an admin: reported, overdue, voided, or decided. */
+export interface AdminSettlementRow extends SettlementRecord {
+  week: { start: string; end: string };
+  orders_count: number;
+  cod_collected: number;
+  courier_fees: number;
+  days_waiting: number | null;
+  reminded_at: string | null;
+  /** Waiting for the receiver, and not reminded in the last day. */
+  can_remind: boolean;
+  courier: { id: number; name: string; code: string; logo_url: string | null; gcash: GcashAccount | null } | null;
+  shop: { id: number; name: string; logo_url: string | null; gcash: GcashAccount | null };
+  /** Earlier payments of the same week that an admin voided, oldest first. */
+  attempts: {
+    number: number; reference: string | null; amount: number | null; paid_at: string | null; has_receipt: boolean;
+    dispute_reason: string | null; resolution_note: string | null; voided_at: string | null;
+  }[];
+}
+
+export interface AdminSettlementList {
+  data: AdminSettlementRow[];
+  meta: { current_page: number; last_page: number; per_page: number; total: number; from: number | null; to: number | null };
+  counts: Record<Exclude<AdminSettlementView, 'history'>, number>;
+  confirm_days: number;
 }
 
 /** One courier and one shop in one week: COD cash collected minus the courier's delivery fees. */

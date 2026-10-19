@@ -3,13 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Clock, Gift, ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import {
   getSellerPaymentSettingsApi, updateSellerPaymentSettingsApi,
-  getSellerSettlementsApi, paySellerSettlementApi, confirmSellerSettlementApi,
+  getSellerSettlementsApi, paySellerSettlementApi, confirmSellerSettlementApi, disputeSellerSettlementApi, attachSellerSettlementReceiptApi,
   getSellerCommissionApi, paySellerCommissionApi,
 } from '../../api/client';
 import type { GcashAccount, SellerCommissionMonth, SellerPaymentSettings, SettlementLine, SettlementWeeks as Weeks } from '../../types';
 import { GcashPayee, RecordPaymentDialog, peso, formatReference } from '../../components/payments/GcashKit';
 import { SettlementWeeks, shortDate } from '../../components/payments/SettlementWeeks';
 import { useToast } from '../../components/ui/Toast';
+import { apiErrorMessage } from '../../utils/apiError';
 import gcashLogo from '../../assets/brand/gcash-logo.svg';
 
 type Tab = 'gcash' | 'couriers' | 'commission';
@@ -112,7 +113,8 @@ export default function SellerPaymentsPage() {
             lines={[
               'Your courier collects the cash for every cash-on-delivery order and charges its delivery fee for every parcel, including the ones you deliver free.',
               'Each Monday the past week is added up: cash collected minus delivery fees. If the cash is bigger, the courier sends you the difference by GCash. If the fees are bigger, you send it.',
-              'Whoever sends records the GCash reference here. The other side checks their GCash and confirms.',
+              'Whoever sends records the GCash reference here, and can attach the receipt. The other side checks their GCash and confirms.',
+              'If a payment never arrives, press Not received. The courier and Loved-IT are told, and Loved-IT reviews it.',
             ]}
           />
           <SettlementWeeks
@@ -122,7 +124,19 @@ export default function SellerPaymentsPage() {
             onPay={(line, weekStart) => setPaying({ line, weekStart })}
             onConfirm={async (s) => {
               try { await confirmSellerSettlementApi(s.id); showToast('Marked as received'); load(); }
-              catch { showToast('That did not go through. Try again.', 'error'); }
+              catch (e) { showToast(apiErrorMessage(e, 'That did not go through. Try again.'), 'error'); }
+            }}
+            onDispute={async (s, reason) => {
+              try { await disputeSellerSettlementApi(s.id, reason); }
+              catch (e) { throw new Error(apiErrorMessage(e, 'The report did not go through. Try again.')); }
+              showToast('Reported. The courier and Loved-IT were told.');
+              load();
+            }}
+            onReceipt={async (s, receipt) => {
+              try { await attachSellerSettlementReceiptApi(s.id, receipt); }
+              catch (e) { throw new Error(apiErrorMessage(e, 'The receipt was not attached.')); }
+              showToast('Receipt attached');
+              load();
             }}
           />
         </div>
@@ -137,9 +151,10 @@ export default function SellerPaymentsPage() {
           payee={paying.line.company?.gcash ?? null}
           missingPayee="This courier has not added its GCash yet. Message it from Orders before you send money."
           amount={paying.line.net}
+          withReceipt
           onClose={() => setPaying(null)}
-          onConfirm={async (reference) => {
-            await paySellerSettlementApi({ company_id: paying.line.company!.id, week_start: paying.weekStart, reference });
+          onConfirm={async (reference, receipt) => {
+            await paySellerSettlementApi({ company_id: paying.line.company!.id, week_start: paying.weekStart, reference }, receipt);
             setPaying(null);
             showToast('Payment recorded. The courier will confirm it.');
             load();

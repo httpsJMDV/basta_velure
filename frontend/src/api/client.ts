@@ -9,6 +9,9 @@ import type {
   SellerPaymentSettings,
   SettlementWeeks,
   SettlementRecord,
+  AdminSettlementList,
+  AdminSettlementRow,
+  AdminSettlementView,
   SellerCommissionMonth,
   CommissionPaymentRecord,
   GcashAccount,
@@ -1283,11 +1286,40 @@ export const updateSellerPaymentSettingsApi = (form: FormData) =>
 export const getSellerSettlementsApi = () =>
   http.get<{ data: SettlementWeeks }>('/seller/settlements').then((r) => r.data.data);
 
-export const paySellerSettlementApi = (payload: { company_id: number; week_start: string; reference: string }) =>
-  http.post<{ data: SettlementRecord }>('/seller/settlements', payload).then((r) => r.data.data);
+/** A settlement payment as JSON, or as multipart when the GCash receipt picture is attached. */
+function settlementBody(payload: Record<string, string | number>, receipt?: File | null) {
+  if (!receipt) return { body: payload, config: {} };
+  const form = new FormData();
+  Object.entries(payload).forEach(([k, v]) => form.append(k, String(v)));
+  form.append('receipt', receipt);
+  return { body: form, config: { headers: { 'Content-Type': 'multipart/form-data' } } };
+}
+
+function receiptForm(receipt: File) {
+  const form = new FormData();
+  form.append('receipt', receipt);
+  return form;
+}
+
+export const paySellerSettlementApi = (payload: { company_id: number; week_start: string; reference: string }, receipt?: File | null) => {
+  const { body, config } = settlementBody(payload, receipt);
+  return http.post<{ data: SettlementRecord }>('/seller/settlements', body, config).then((r) => r.data.data);
+};
 
 export const confirmSellerSettlementApi = (id: number) =>
   http.post<{ data: SettlementRecord }>(`/seller/settlements/${id}/confirm`).then((r) => r.data.data);
+
+export const disputeSellerSettlementApi = (id: number, reason: string) =>
+  http.post<{ data: SettlementRecord }>(`/seller/settlements/${id}/dispute`, { reason }).then((r) => r.data.data);
+
+export const attachSellerSettlementReceiptApi = (id: number, receipt: File) =>
+  http.post<{ data: SettlementRecord }>(`/seller/settlements/${id}/receipt`, receiptForm(receipt), { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data.data);
+
+/** The GCash receipt of a settlement payment (attempt N = an earlier, voided payment; admins only), as a blob URL. */
+export const getSettlementReceiptBlobUrl = async (id: number, attempt?: number): Promise<string> => {
+  const res = await http.get(`/settlements/${id}/receipt`, { params: attempt ? { attempt } : undefined, responseType: 'blob' });
+  return URL.createObjectURL(res.data as Blob);
+};
 
 export const getSellerCommissionApi = () =>
   http.get<{ data: { months: SellerCommissionMonth[]; platform_gcash: GcashAccount | null } }>('/seller/commission').then((r) => r.data.data);
@@ -1298,11 +1330,19 @@ export const paySellerCommissionApi = (payload: { period: string; reference: str
 export const getCourierSettlementsApi = () =>
   http.get<{ data: SettlementWeeks }>('/logistics/settlements').then((r) => r.data.data);
 
-export const payCourierSettlementApi = (payload: { seller_id: number; week_start: string; reference: string }) =>
-  http.post<{ data: SettlementRecord }>('/logistics/settlements', payload).then((r) => r.data.data);
+export const payCourierSettlementApi = (payload: { seller_id: number; week_start: string; reference: string }, receipt?: File | null) => {
+  const { body, config } = settlementBody(payload, receipt);
+  return http.post<{ data: SettlementRecord }>('/logistics/settlements', body, config).then((r) => r.data.data);
+};
 
 export const confirmCourierSettlementApi = (id: number) =>
   http.post<{ data: SettlementRecord }>(`/logistics/settlements/${id}/confirm`).then((r) => r.data.data);
+
+export const disputeCourierSettlementApi = (id: number, reason: string) =>
+  http.post<{ data: SettlementRecord }>(`/logistics/settlements/${id}/dispute`, { reason }).then((r) => r.data.data);
+
+export const attachCourierSettlementReceiptApi = (id: number, receipt: File) =>
+  http.post<{ data: SettlementRecord }>(`/logistics/settlements/${id}/receipt`, receiptForm(receipt), { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data.data);
 
 export const getCourierPayoutsApi = () =>
   http.get<{ data: { riders: CourierPayoutRow[]; hubs: CourierPayoutRow[] } }>('/logistics/payouts').then((r) => r.data.data);
@@ -1325,6 +1365,15 @@ export const getAdminCommissionApi = (period?: string) =>
 
 export const confirmAdminCommissionApi = (id: number) =>
   http.post<{ data: CommissionPaymentRecord }>(`/admin/commission/${id}/confirm`).then((r) => r.data.data);
+
+export const getAdminSettlementsApi = (view: AdminSettlementView, page = 1) =>
+  http.get<AdminSettlementList>('/admin/settlements', { params: { view, page } }).then((r) => r.data);
+
+export const resolveAdminSettlementApi = (id: number, outcome: 'received' | 'pay_again', note: string) =>
+  http.post<{ message: string; data: AdminSettlementRow }>(`/admin/settlements/${id}/resolve`, { outcome, note }).then((r) => r.data);
+
+export const remindAdminSettlementApi = (id: number) =>
+  http.post<{ message: string; data: AdminSettlementRow }>(`/admin/settlements/${id}/remind`).then((r) => r.data);
 
 export const getAdminPaymentSettingsApi = () =>
   http.get<{ data: { platform_gcash_number: string | null; platform_gcash_name: string | null } }>('/admin/settings/payments').then((r) => r.data.data);

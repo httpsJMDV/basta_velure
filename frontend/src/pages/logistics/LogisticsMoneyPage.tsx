@@ -4,7 +4,7 @@ import { Banknote, Bike, Warehouse } from 'lucide-react';
 import { PageHero } from '../../components/admin/dashboardKit';
 import { StatusTabs, ListCard, ListEmpty, ListError, Avatar, Pill, SkeletonRows, TH, TD, formatShortDate } from '../../components/admin/listKit';
 import {
-  getCourierSettlementsApi, payCourierSettlementApi, confirmCourierSettlementApi,
+  getCourierSettlementsApi, payCourierSettlementApi, confirmCourierSettlementApi, disputeCourierSettlementApi, attachCourierSettlementReceiptApi,
   getCourierPayoutsApi, payCourierRiderApi, payCourierHubApi,
   getPayoutAccountApi, updatePayoutAccountApi,
 } from '../../api/client';
@@ -13,6 +13,7 @@ import { RecordPaymentDialog, PayoutAccountForm, peso } from '../../components/p
 import { SettlementWeeks, shortDate } from '../../components/payments/SettlementWeeks';
 import { useToast } from '../../components/ui/Toast';
 import { HeroStats } from '../../components/logistics/CourierKit';
+import { apiErrorMessage } from '../../utils/apiError';
 
 type Tab = 'shops' | 'team' | 'account';
 type Payees = { riders: CourierPayoutRow[]; hubs: CourierPayoutRow[] };
@@ -66,7 +67,7 @@ export default function LogisticsMoneyPage() {
           value={tab}
           onChange={(t) => setParams({ tab: t })}
           options={[
-            { value: 'shops', label: 'Shop statements', count: weeks ? weeks.weeks.reduce((n, w) => n + w.lines.filter((l) => !l.settlement && l.direction !== 'none').length, 0) : null },
+            { value: 'shops', label: 'Shop statements', count: weeks ? weeks.weeks.reduce((n, w) => n + w.lines.filter((l) => (!l.settlement || l.settlement.state === 'pay_again') && l.direction !== 'none').length, 0) : null },
             { value: 'team', label: 'Rider & hub pay', count: payees ? [...payees.riders, ...payees.hubs].filter((r) => r.unpaid > 0).length : null },
             { value: 'account', label: 'Company GCash' },
           ]}
@@ -82,7 +83,19 @@ export default function LogisticsMoneyPage() {
             onPay={(line, weekStart) => setPayingShop({ line, weekStart })}
             onConfirm={async (s) => {
               try { await confirmCourierSettlementApi(s.id); showToast('Marked as received'); load(); }
-              catch { showToast('That did not go through. Try again.', 'error'); }
+              catch (e) { showToast(apiErrorMessage(e, 'That did not go through. Try again.'), 'error'); }
+            }}
+            onDispute={async (s, reason) => {
+              try { await disputeCourierSettlementApi(s.id, reason); }
+              catch (e) { throw new Error(apiErrorMessage(e, 'The report did not go through. Try again.')); }
+              showToast('Reported. The shop and Loved-IT were told.');
+              load();
+            }}
+            onReceipt={async (s, receipt) => {
+              try { await attachCourierSettlementReceiptApi(s.id, receipt); }
+              catch (e) { throw new Error(apiErrorMessage(e, 'The receipt was not attached.')); }
+              showToast('Receipt attached');
+              load();
             }}
           />
         )
@@ -109,9 +122,10 @@ export default function LogisticsMoneyPage() {
           payee={payingShop.line.seller?.gcash ?? null}
           missingPayee="This shop has not set up GCash yet. Contact the shop for another way to send its money."
           amount={payingShop.line.net}
+          withReceipt
           onClose={() => setPayingShop(null)}
-          onConfirm={async (reference) => {
-            await payCourierSettlementApi({ seller_id: payingShop.line.seller!.id, week_start: payingShop.weekStart, reference });
+          onConfirm={async (reference, receipt) => {
+            await payCourierSettlementApi({ seller_id: payingShop.line.seller!.id, week_start: payingShop.weekStart, reference }, receipt);
             setPayingShop(null);
             showToast('Payment recorded. The shop will confirm it.');
             load();

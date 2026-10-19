@@ -1,16 +1,17 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Copy, Check, X, ChevronLeft, ChevronRight, Wallet, ReceiptText, ArrowUpRight, ExternalLink, ImageOff, Percent } from 'lucide-react';
-import { getAdminPaymentListApi, getAdminPayoutsApi, markAdminPayoutSentApi, completeAdminPayoutApi, rejectAdminPayoutApi } from '../../api/client';
+import { Copy, Check, X, ChevronLeft, ChevronRight, Wallet, ReceiptText, ArrowUpRight, ExternalLink, ImageOff, Percent, Scale } from 'lucide-react';
+import { getAdminPaymentListApi, getAdminPayoutsApi, markAdminPayoutSentApi, completeAdminPayoutApi, rejectAdminPayoutApi, getAdminSettlementsApi } from '../../api/client';
 import type { AdminPaymentListItem, PayoutRequest } from '../../types';
 import { PageHero } from '../../components/admin/dashboardKit';
 import { SearchField, ListError, Pill, type PillTone, TH, TD, ROW, rowKeys, relativeTime, RowAction } from '../../components/admin/listKit';
 import { getStatusLabel } from '../../utils/orderStatus';
 import { peso, whole } from '../../utils/adminReports';
 import AdminCommissionPanel from './AdminCommissionPanel';
+import AdminSettlementsPanel from './AdminSettlementsPanel';
 
-type Tab = 'payments' | 'payouts' | 'commission';
+type Tab = 'payments' | 'payouts' | 'commission' | 'settlements';
 type PageMeta = { current_page: number; last_page: number; total: number };
 const PAGE_SIZE = 20; // both endpoints paginate by 20
 const EMPTY_PAGE: PageMeta = { current_page: 1, last_page: 1, total: 0 };
@@ -280,7 +281,7 @@ function PayoutDialog({ action, busy, error, onConfirm, onCancel }: { action: Pa
 
 export default function AdminPaymentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab: Tab = (['payouts', 'commission'] as const).find((t) => t === searchParams.get('tab')) ?? 'payments';
+  const tab: Tab = (['payouts', 'commission', 'settlements'] as const).find((t) => t === searchParams.get('tab')) ?? 'payments';
   const setTab = (t: Tab) => setSearchParams({ tab: t });
 
   // Payments
@@ -305,6 +306,8 @@ export default function AdminPaymentsPage() {
   const [loadingPayouts, setLoadingPayouts] = useState(true);
   const [payoutsFailed, setPayoutsFailed] = useState(false);
   const [queue, setQueue] = useState<{ waiting: number; sent: number } | null>(null);
+  // Courier ↔ shop payments reported or left unconfirmed (the Settlements tab badge).
+  const [settlementIssues, setSettlementIssues] = useState<number | null>(null);
   const [action, setAction] = useState<PayoutAction | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -346,6 +349,9 @@ export default function AdminPaymentsPage() {
   useEffect(() => { if (tab === 'payments') loadPayments(); }, [tab, loadPayments]);
   useEffect(() => { if (tab === 'payouts') loadPayouts(); }, [tab, loadPayouts]);
   useEffect(() => { loadQueue(); }, [loadQueue]);
+  useEffect(() => {
+    getAdminSettlementsApi('reported').then((r) => setSettlementIssues(r.counts.reported + r.counts.overdue)).catch(() => {});
+  }, []);
 
   const runAction = async (text: string) => {
     if (!action) return;
@@ -373,10 +379,10 @@ export default function AdminPaymentsPage() {
   return (
     <div className="pb-8 space-y-3">
       <PageHero icon={Wallet} eyebrow="Admin / Money" title="Payments & Payouts"
-        subtitle="Buyers pay shops directly. Check GCash receipts, settle older payouts, and confirm the commission shops send each month." />
+        subtitle="Buyers pay shops directly. Check GCash receipts, settle older payouts, confirm the commission shops send each month, and review courier and shop payments that went wrong." />
 
       <div role="tablist" aria-label="Section" className="flex gap-6 px-1 border-b border-gray-200">
-        {([['payments', 'Buyer payments', ReceiptText, stats?.pending_verification], ['payouts', 'Seller payouts', ArrowUpRight, queue?.waiting], ['commission', 'Commission', Percent, 0]] as const).map(([key, label, Icon, badge]) => (
+        {([['payments', 'Buyer payments', ReceiptText, stats?.pending_verification], ['payouts', 'Seller payouts', ArrowUpRight, queue?.waiting], ['commission', 'Commission', Percent, 0], ['settlements', 'Settlements', Scale, settlementIssues]] as const).map(([key, label, Icon, badge]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
             className={`relative inline-flex items-center gap-2 pb-2.5 text-[13px] font-semibold transition-colors ${tab === key ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}>
             <Icon className="w-4 h-4" aria-hidden="true" />
@@ -461,6 +467,8 @@ export default function AdminPaymentsPage() {
         </>
       ) : tab === 'commission' ? (
         <AdminCommissionPanel />
+      ) : tab === 'settlements' ? (
+        <AdminSettlementsPanel onCounts={setSettlementIssues} />
       ) : (
         <>
           <Strip
