@@ -2,12 +2,14 @@
 
 namespace App\Support;
 
+use App\Models\LogisticsCompany;
 use App\Models\Parcel;
 use App\Models\SortingCenter;
 use App\Models\User;
 
 /**
- * Who may look at one parcel. The seller, the buyer, the parcel's approved hub, the rider carrying it and admins.
+ * Who may look at one parcel. The seller, the buyer, the parcel's approved hub, the rider carrying it, the courier
+ * company carrying it and admins.
  * Everyone else is treated as if the parcel did not exist.
  */
 class ParcelAccess
@@ -37,6 +39,17 @@ class ParcelAccess
             && $hub->id === $parcel->sorting_center_id
         ) {
             return 'hub';
+        }
+
+        // The courier company carrying the parcel: its admins follow every parcel they handle (a parcel without a
+        // company belongs to the default courier).
+        $membership = $user->logisticsMembership()->with('company:id,status')->first();
+        if (
+            $membership?->company
+            && $membership->company->status === LogisticsCompany::STATUS_APPROVED
+            && LogisticsCompany::effectiveId($parcel->logistics_company_id) === $membership->company->id
+        ) {
+            return 'courier';
         }
 
         if ($parcel->seller_id !== null && $parcel->seller_id === $user->id) {

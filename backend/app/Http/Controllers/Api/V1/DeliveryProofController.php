@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Parcel;
 use App\Models\SortingCenter;
 use App\Models\User;
+use App\Support\ParcelAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -41,34 +42,9 @@ class DeliveryProofController extends Controller
         ]);
     }
 
+    /** The same people as Track package (the delivery rider, not the pickup rider): ParcelAccess. */
     private function mayView(User $user, Parcel $parcel): bool
     {
-        if ($user->role === 'admin') {
-            return true;
-        }
-
-        // The assigned rider.
-        $rider = $user->rider;
-        if ($rider && $parcel->assigned_rider_id !== null && $rider->id === $parcel->assigned_rider_id) {
-            return true;
-        }
-
-        // The hub the parcel belongs to (an approved hub only).
-        $hub = $user->sortingCenter;
-        if (
-            $hub
-            && $hub->status === SortingCenter::STATUS_APPROVED
-            && $parcel->sorting_center_id !== null
-            && $hub->id === $parcel->sorting_center_id
-        ) {
-            return true;
-        }
-
-        // The seller and the buyer of the order.
-        if ($parcel->seller_id !== null && $parcel->seller_id === $user->id) {
-            return true;
-        }
-
-        return $parcel->order && $parcel->order->buyer_id === $user->id;
+        return ParcelAccess::role($user, $parcel, includePickupRider: false) !== null;
     }
 }

@@ -48,7 +48,7 @@ else, and accepting from it respects the 3-job limit.
 | `GET /logistics/hub-ops` | The company's approved hubs and how many parcels are at each step. |
 | `POST /logistics/hub-ops/inbound {tracking_number, hub_id?}` | Picked Up → At Hub, with the scan time. |
 | `POST /logistics/hub-ops/sort {tracking_number}` | At Hub → Sorted, into the zone of the delivery address (from the company's zones). |
-| `GET /logistics/hub-ops/zones` | Parcels to sort, and one list per zone. |
+| `GET /logistics/hub-ops/zones?hub_id=` | What each station works on: `incoming` (picked up, on the way in, with the shop and the pickup rider), `to_sort` (at a hub) and `zones` (sorted, one list per delivery zone). `hub_id` narrows it to one of the company's hubs. |
 | `POST /logistics/hub-ops/outbound {tracking_number, rider_id}` | Sorted → with the delivery rider. When the rider marks it Out for Delivery the buyer gets the delivery code. |
 
 Scans work in order and once: a repeat is a `409` ("Already received on …, nothing was changed"), Outbound before
