@@ -24,7 +24,7 @@ import {
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { HubDispatchBatch, HubDispatchParcel, HubDispatchRider, HubSortingSort } from '../../types';
-import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from './hubKit';
 import CustomSelect from '../../components/ui/CustomSelect';
 import AwaitingPickupPanel from './AwaitingPickupPanel';
 

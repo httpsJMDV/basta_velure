@@ -38,7 +38,7 @@ import type {
   HubDeliveryOutRow,
   HubDispatchRider,
 } from '../../types';
-import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from './hubKit';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { sentenceError } from '../../utils/accountRules';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';

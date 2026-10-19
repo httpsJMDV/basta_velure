@@ -545,6 +545,22 @@ export interface SortingCenterSummary {
   created_at?: string | null;
 }
 
+/** The hub's own details for its Settings page (GET /hub/profile). */
+export interface HubProfile {
+  id: number;
+  hub_name: string;
+  status: SortingCenterStatus;
+  address_street: string | null;
+  address_barangay: string | null;
+  address_city: string | null;
+  address_province: string | null;
+  coverage_barangays_count: number;
+  has_permit: boolean;
+  applied_at: string | null;
+  approved_at: string | null;
+  courier: { name: string; code: string; contact_email: string | null; contact_phone: string | null } | null;
+}
+
 export interface SortingCenterRegistrationResponse {
   message: string;
   data: {

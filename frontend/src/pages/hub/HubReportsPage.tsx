@@ -30,7 +30,7 @@ import {
   validateRange,
   type RangePreset,
 } from './reports/reportFormat';
-import { PageHeader, HEADER_BUTTON } from '../../components/admin/dashboardKit';
+import { PageHeader, HEADER_BUTTON } from './hubKit';
 import DateRangeBar from '../../components/admin/DateRangeBar';
 
 interface Applied {

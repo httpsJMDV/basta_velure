@@ -4,7 +4,7 @@ import { getHubEarningsApi, getPayoutAccountApi, updatePayoutAccountApi } from '
 import { PayoutAccountForm } from '../../components/payments/GcashKit';
 import { useLivePolling } from '../../hooks/useLivePolling';
 import type { HubEarningsSummary } from '../../types';
-import { PageHeader, SectionHeader, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
+import { PageHeader, SectionHeader, StatCard, StatCardSkeleton } from './hubKit';
 
 function peso(value: string | null | undefined): string {
   const n = Number(value ?? 0);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Gauge,
   PackagePlus,
@@ -10,17 +10,17 @@ import {
   Bike,
   BarChart2,
   MessageSquare,
-  Warehouse,
   UserCheck,
   AlertTriangle,
-  MapPin,
   Wallet,
+  Settings,
 } from 'lucide-react';
+import HubSidebar from './HubSidebar';
+import './hub.css';
 import { useAuth } from '../../hooks/useAuth';
 import { useHubChatUnread } from '../../hooks/useHubChatUnread';
 import { getHubDashboardMetricsApi, getHubRidersApi } from '../../api/client';
 import {
-  ShellSidebar,
   ShellTopBar,
   type ShellAlert,
   type ShellNavGroup,
@@ -38,7 +38,7 @@ export interface HubOutletContext {
 }
 
 const ROUTE_TITLES: Record<string, string> = {
-  '/hub/dashboard': 'Command Dashboard',
+  '/hub/dashboard': 'Overview',
   '/hub/intake': 'Parcel Intake',
   '/hub/sorting': 'Package Sorting',
   '/hub/dispatch': 'Delivery Dispatch',
@@ -47,12 +47,13 @@ const ROUTE_TITLES: Record<string, string> = {
   '/hub/messages': 'Rider Messages',
   '/hub/reports': 'Performance Reports',
   '/hub/earnings': 'Earnings',
+  '/hub/settings': 'Settings',
 };
 
-const SIDEBAR_W_EXPANDED = 'w-60';
-const SIDEBAR_W_COLLAPSED = 'w-16';
-const ML_EXPANDED = 'lg:ml-60';
-const ML_COLLAPSED = 'lg:ml-16';
+const SIDEBAR_W_EXPANDED = 'w-[264px]';
+const SIDEBAR_W_COLLAPSED = 'w-[84px]';
+const ML_EXPANDED = 'lg:ml-[264px]';
+const ML_COLLAPSED = 'lg:ml-[84px]';
 const ALERTS_POLL_MS = 60000;
 
 export default function HubLayout() {
@@ -60,6 +61,7 @@ export default function HubLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const chat = useHubChatUnread(true);
 
   // What is waiting for the hub: riders to approve and failed deliveries to triage. Read on every page change and
@@ -126,6 +128,7 @@ export default function HubLayout() {
         { icon: Wallet, label: 'Earnings', to: '/hub/earnings' },
       ],
     },
+    { heading: 'Settings', items: [{ icon: Settings, label: 'Settings', to: '/hub/settings' }] },
   ], [failedDeliveries, pendingRiders, chat.total]);
 
   const searchItems: ShellSearchItem[] = [
@@ -138,6 +141,7 @@ export default function HubLayout() {
     { label: 'Rider Messages', to: '/hub/messages', group: 'People', icon: MessageSquare },
     { label: 'Performance Reports', to: '/hub/reports', group: 'Insights', icon: BarChart2 },
     { label: 'Earnings: your share of delivery fees', to: '/hub/earnings', group: 'Insights', icon: Wallet },
+    { label: 'Settings: account, password, hub and GCash', to: '/hub/settings', group: 'Settings', icon: Settings },
   ];
 
   const alerts: ShellAlert[] = [];
@@ -168,48 +172,49 @@ export default function HubLayout() {
     initials: `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`.toUpperCase() || 'H',
   };
 
-  const profile = (
-    <div className="px-3.5 py-2.5 border-b border-gray-100 shrink-0">
-      <div className="flex items-center gap-2.5 bg-gray-50/80 border border-gray-100 rounded-xl px-2.5 py-2">
-        <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-          <Warehouse className="w-4 h-4" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-semibold text-gray-800 truncate leading-tight" title={hub?.hub_name}>{hub?.hub_name || 'Sorting Center Hub'}</p>
-          {hub?.address_city && (
-            <p className="text-[10.5px] text-gray-400 mt-0.5 flex items-center gap-1 truncate">
-              <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
-              <span className="truncate">{hub.address_city}, {hub.address_province}</span>
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
   const sidebarW = collapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
   const mainML = collapsed ? ML_COLLAPSED : ML_EXPANDED;
 
   const sidebarProps = {
-    theme: 'light' as const,
-    brandTo: '/hub/dashboard',
-    roleBadge: 'Logistics',
-    tagline: 'Hub Command Center',
-    nav,
-    isActive,
-    profile,
-    user: shellUser,
-    onLogout: handleLogout,
-    navLabel: 'Logistics hub',
+    nav, isActive, user: shellUser, onLogout: handleLogout,
+    hubName: hub?.hub_name || 'Sorting Center Hub', city: hub?.address_city,
   };
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const dialog = document.querySelector<HTMLElement>('[aria-label="Hub menu"]');
+    const previousFocus = document.activeElement as HTMLElement | null;
+    dialog?.querySelector<HTMLElement>('a, button')?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+      if (event.key !== 'Tab' || !dialog) return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>('a[href], button'));
+      const first = controls[0]; const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) setMobileOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      desktop.removeEventListener('change', closeOnDesktop);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKey);
+      previousFocus?.focus();
+    };
+  }, [mobileOpen]);
+
   return (
-    <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900 antialiased">
+    <div className="hub-workspace min-h-screen flex font-sans text-gray-900 antialiased">
+      <a href="#hub-main" className="hub-skip-link">Skip to content</a>
       {/* ── Desktop sidebar ── */}
       <aside
         className={`hidden lg:flex print:!hidden flex-col ${sidebarW} shrink-0 fixed inset-y-0 left-0 z-30 transition-all duration-200 select-none`}
       >
-        <ShellSidebar {...sidebarProps} collapsed={collapsed} />
+        <HubSidebar {...sidebarProps} collapsed={collapsed} />
       </aside>
 
       {/* ── Mobile nav overlay ── */}
@@ -217,7 +222,7 @@ export default function HubLayout() {
         <div className="lg:hidden print:hidden fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Hub menu">
           <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className={`relative ${SIDEBAR_W_EXPANDED} max-w-[85vw] flex flex-col h-full z-50 bg-white shadow-2xl`}>
-            <ShellSidebar {...sidebarProps} collapsed={false} onNavigate={() => setMobileOpen(false)} />
+            <HubSidebar {...sidebarProps} collapsed={false} onClose={() => setMobileOpen(false)} onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
       )}
@@ -235,6 +240,7 @@ export default function HubLayout() {
           alerts={alerts}
           messages={{ to: '/hub/messages', unread: chat.total }}
           menuLinks={[
+            { icon: Settings, label: 'Settings', to: '/hub/settings' },
             { icon: Bike, label: 'Riders & Fleet', to: '/hub/riders' },
             { icon: BarChart2, label: 'Performance Reports', to: '/hub/reports' },
           ]}
@@ -243,14 +249,15 @@ export default function HubLayout() {
           onLogout={handleLogout}
         />
 
-        <main className="flex-1 p-4 lg:p-6 print:p-0">
+        <main id="hub-main" className="hub-main flex-1 print:p-0">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
+              className="hub-page-content"
               key={location.pathname}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
+              transition={{ duration: reducedMotion ? 0 : 0.15, ease: 'easeOut' }}
             >
               <Outlet context={{ refreshChatUnread: chat.refresh, unreadMessages: chat.total, pendingRiders, failedDeliveries } satisfies HubOutletContext} />
             </motion.div>

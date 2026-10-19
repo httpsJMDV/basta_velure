@@ -23,7 +23,7 @@ import {
   receiveHubParcelApi,
 } from '../../api/client';
 import type { HubParcelRecord } from '../../types';
-import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from './hubKit';
 import { useLivePolling } from '../../hooks/useLivePolling';
 
 type IntakeTab = 'scan' | 'expected' | 'received';
@@ -259,7 +259,7 @@ export default function HubIntakePage() {
           role="tabpanel"
           id="intake-panel-scan"
           aria-labelledby="intake-tab-scan"
-          className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start"
+          className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-5 items-start"
         >
           {/* Scanner column */}
           <section className="bg-white border border-gray-200/80 shadow-xs rounded-2xl p-4 sm:p-5 space-y-4" aria-label="Scanner">

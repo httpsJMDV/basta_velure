@@ -23,7 +23,7 @@ import {
 } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { HubSortingGroup, HubSortingParcel, HubSortingSort } from '../../types';
-import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from './hubKit';
 import CustomSelect from '../../components/ui/CustomSelect';
 
 const POLL_MS = 30000;

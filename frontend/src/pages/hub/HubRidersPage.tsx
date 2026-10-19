@@ -45,7 +45,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import axios from 'axios';
-import { PageHeader, StatCard } from '../../components/admin/dashboardKit';
+import { PageHeader, StatCard } from './hubKit';
 import { labelError, sentenceError, squish } from '../../utils/accountRules';
 
 const PRESET_AREA_LABELS = [

@@ -40,6 +40,7 @@ import HubRidersPage from './pages/hub/HubRidersPage';
 import HubReportsPage from './pages/hub/HubReportsPage';
 import HubEarningsPage from './pages/hub/HubEarningsPage';
 import HubMessagesPage from './pages/hub/HubMessagesPage';
+import HubSettingsPage from './pages/hub/HubSettingsPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import SellerLayout from './pages/seller/SellerLayout';
@@ -434,6 +435,7 @@ function AppRoutes() {
         <Route path="reports" element={<HubReportsPage />} />
         <Route path="earnings" element={<HubEarningsPage />} />
         <Route path="messages" element={<HubMessagesPage />} />
+        <Route path="settings" element={<HubSettingsPage />} />
       </Route>
 
       {/* Rider / Courier Station — gated */}

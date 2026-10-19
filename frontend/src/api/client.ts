@@ -9,6 +9,7 @@ import type {
   SellerPaymentSettings,
   SettlementWeeks,
   SettlementRecord,
+  HubProfile,
   AdminSettlementList,
   AdminSettlementRow,
   AdminSettlementView,
@@ -1250,6 +1251,9 @@ export const getHubAwaitingPickupApi = () =>
   http.get<{ data: HubAwaitingRider[]; meta: { parcel_count: number } }>('/hub/dispatch/awaiting-pickup').then((r) => r.data);
 
 export const getHubEarningsApi = () => http.get<{ data: HubEarningsSummary }>('/hub/earnings').then((r) => r.data.data);
+
+/** The hub's own details and its courier company, for the Settings page. */
+export const getHubProfileApi = () => http.get<{ data: HubProfile }>('/hub/profile').then((r) => r.data.data);
 
 /** The most-ordered shops with their best sellers, for the storefront (cached on the server). */
 export const getFeaturedShopsApi = (limit = 4) =>

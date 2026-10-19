@@ -7,7 +7,7 @@ import ThreadView from '../../components/chat/ThreadView';
 import { useAuth } from '../../hooks/useAuth';
 import type { RiderThread, ThreadMeta } from '../../types';
 import type { HubOutletContext } from './HubLayout';
-import { PageHeader } from '../../components/admin/dashboardKit';
+import { PageHeader } from './hubKit';
 
 const LIST_POLL_MS = 10000;
 
