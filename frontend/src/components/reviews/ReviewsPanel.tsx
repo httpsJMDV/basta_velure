@@ -208,9 +208,9 @@ function ReviewComposer({ target, onClose, onSaved }: { target: Target; onClose:
     if (!files) return;
     const picked = Array.from(files);
     const tooBig = picked.find((f) => f.size > MAX_PHOTO_BYTES);
-    const ok = picked.filter((f) => f.size <= MAX_PHOTO_BYTES && /^image\/(jpeg|png|webp)$/.test(f.type));
+    const ok = picked.filter((f) => f.size <= MAX_PHOTO_BYTES && /^image\/(jpeg|png)$/.test(f.type));
     setPhotos((cur) => [...cur, ...ok].slice(0, MAX_PHOTOS));
-    setError(tooBig ? `${tooBig.name} is over 5 MB.` : ok.length < picked.length ? 'Only JPG, PNG or WEBP photos.' : '');
+    setError(tooBig ? `${tooBig.name} is over 5 MB.` : ok.length < picked.length ? 'Only JPG or PNG photos.' : '');
   };
 
   const submit = async () => {
@@ -280,13 +280,13 @@ function ReviewComposer({ target, onClose, onSaved }: { target: Target; onClose:
             <textarea
               id="review-text"
               rows={5}
-              maxLength={1000}
+              maxLength={500}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="How is the quality? Does it match the photos and description? How was the packaging?"
               className="mt-2 w-full px-3.5 py-3 text-[14px] leading-relaxed rounded-2xl border border-stone-300 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10 resize-none placeholder:text-stone-400"
             />
-            <p className="mt-1 text-right text-[11px] text-stone-400 tabular-nums">{comment.length}/1000</p>
+            <p className="mt-1 text-right text-[11px] text-stone-400 tabular-nums">{comment.length}/500</p>
           </div>
 
           {/* Photos */}
@@ -308,7 +308,7 @@ function ReviewComposer({ target, onClose, onSaved }: { target: Target; onClose:
                   </button>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png" multiple className="hidden" onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
               <p className="mt-1.5 text-[11.5px] text-stone-400">Real photos of the item you got help the most. JPG, PNG or WEBP, 5 MB each.</p>
             </div>
           ) : target.review.images.length > 0 && (

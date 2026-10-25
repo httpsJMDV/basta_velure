@@ -1,332 +1,159 @@
-import { Link } from 'react-router-dom';
-import {
-  ShieldCheck,
-  AlertTriangle,
-  CreditCard,
-  Lock,
-  CheckCircle2,
-  ArrowLeft,
-  Headphones,
-  FileCheck,
-  Eye,
-  BadgeAlert,
-  ArrowRight,
-  Clock,
-  Scale,
-} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Headphones } from 'lucide-react';
 import SiteHeader from '../../components/SiteHeader';
 import Footer from '../../components/Footer';
 import { useChat } from '../../hooks/useChat';
+import { useAuth } from '../../hooks/useAuth';
 
-const SAFETY_PILLARS = [
-  {
-    icon: Lock,
-    title: '7-Day Returns',
-    badge: 'Core Guarantee',
-    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    description:
-      'You pay the shop directly, and the shop stands behind its items. If an order arrives damaged, wrong or incomplete, request a return within 7 days of delivery and the shop refunds you.',
-    points: [
-      'Return window of 7 days after delivery',
-      'Refunds come from the shop you paid',
-      'Claims the shop will not settle go to our team',
-    ],
-  },
-  {
-    icon: FileCheck,
-    title: 'Strict Merchant Vetting',
-    badge: 'Seller Accreditation',
-    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
-    description:
-      'Every store on Loved-IT undergoes manual identity review. Sellers submit government-issued IDs, Philippine business registrations (DTI or SEC), and verified bank details before listing products.',
-    points: [
-      'Government ID and biometric identity validation',
-      'DTI / SEC corporate business permits on file',
-      'Mandatory FDA CPR & LTO licenses for food and cosmetics',
-    ],
-  },
-  {
-    icon: CreditCard,
-    title: 'Official Payment Channels Only',
-    badge: 'Financial Security',
-    badgeColor: 'bg-rose-50 text-brand-red border-rose-200',
-    description:
-      'Pay only from Loved-IT checkout: by GCash to the shop account checkout shows you, with your receipt uploaded, or in cash to the rider. Never send money to a number a seller gives you in chat or on social media.',
-    points: [
-      'The GCash name and number come from the shop\'s verified account',
-      'Every GCash payment is checked against your uploaded receipt',
-      'Payments made outside checkout are not covered by returns',
-    ],
-  },
-  {
-    icon: Scale,
-    title: '48-Hour Fair Dispute Mediation',
-    badge: 'Dispute Desk',
-    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
-    description:
-      'Received a broken, counterfeit, or wrong item? Our human dispute specialists review your case, order photos, and seller unboxing proof within 48 hours to ensure a fair refund or replacement.',
-    points: [
-      'Filing window open for 7 days post-delivery',
-      'Human-arbitrated review (no automated rejections)',
-      'Both sides are heard before a decision',
-    ],
-  },
+/** The page's sections, for the side menu and the jump links. Every rule below is how the app works today. */
+const SECTIONS = [
+  { id: 'paying', label: 'Paying safely' },
+  { id: 'returns', label: 'Returns and refunds' },
+  { id: 'delivery', label: 'Delivery' },
+  { id: 'sellers', label: 'Who sells here' },
+  { id: 'scams', label: 'Scams to avoid' },
+  { id: 'account', label: 'Your account' },
 ];
 
-const RED_FLAGS = [
-  {
-    icon: AlertTriangle,
-    title: 'Requests to Chat or Transact on Social Media',
-    text: 'A seller who asks you to finalize deals on Telegram, Viber, WhatsApp, or Facebook Messenger is trying to get you outside the protection of checkout.',
-  },
-  {
-    icon: BadgeAlert,
-    title: 'Requests for Advance Downpayments on COD',
-    text: 'Legitimate Loved-IT Cash on Delivery orders never require upfront “reservation fees” or courier deposits sent via personal GCash accounts.',
-  },
-  {
-    icon: Eye,
-    title: 'Unrealistic or Suspicious Pricing',
-    text: 'If high-end electronics or luxury cosmetics are listed at 80% below retail with stock images, check their seller verification badge and reviews before buying.',
-  },
-  {
-    icon: Lock,
-    title: 'Phishing Links & OTP Requests',
-    text: 'Loved-IT representatives will never ask for your account password, GCash MPIN, or SMS One-Time Passwords (OTPs) under any circumstance.',
-  },
+const RETURN_STEPS = [
+  { title: 'Ask within 7 days', text: 'From Orders, open the delivered order and request a return within 7 days of delivery, before you mark it received. Give a reason, a short description and 1 to 5 photos.' },
+  { title: 'The shop answers in 3 days', text: 'The shop approves or rejects your request, with a reason if it says no. If it does not answer in 3 days, your return is approved.' },
+  { title: 'Escalate once if you disagree', text: 'If the shop rejects it, you can send it to the Loved-IT team once, within 3 days. The team reads both sides and decides.' },
+  { title: 'Refund', text: 'When a return is approved you are refunded and the order shows as Returned. A rejected request that is not escalated completes the order.' },
 ];
 
-const DISPUTE_STEPS = [
-  {
-    step: '01',
-    title: 'Record Your Unboxing Video',
-    desc: 'When receiving high-value packages, inspect the exterior seal and record an uncut unboxing clip showing the shipping label and contents.',
-  },
-  {
-    step: '02',
-    title: 'File via Orders Page within 7 Days',
-    desc: 'Go to Settings > My Orders, select the order, click "Request Return / Refund", and upload photos or video evidence highlighting the issue.',
-  },
-  {
-    step: '03',
-    title: 'Loved-IT Review & Seller Response',
-    desc: 'The merchant has 48 hours to accept or provide counter-evidence. If unresolved, our dispute team steps in to render a binding decision.',
-  },
-  {
-    step: '04',
-    title: 'Refund or Replacement Settlement',
-    desc: 'Once approved, the shop sends your refund to your GCash, with no hidden restocking fees.',
-  },
+const SCAMS = [
+  { title: 'Paying outside checkout', text: 'A seller who asks you to pay a different GCash number, or to finish the deal on Messenger, Viber or Telegram, is taking you out of checkout. Payments made outside checkout are not covered by returns.' },
+  { title: 'Fees before cash on delivery', text: 'A cash-on-delivery order never needs a reservation fee or a courier deposit. You pay the rider when the parcel is in your hands.' },
+  { title: 'Asking for your delivery code early', text: 'Your 6-digit delivery code is how the rider proves you received the parcel. Give it only when you are holding the parcel.' },
+  { title: 'Prices too good to be true', text: 'Branded gadgets or cosmetics far below their usual price are a warning sign. Check the shop\'s reviews and how long it has been on Loved-IT first.' },
 ];
 
 export default function SafetyHelpPage() {
   const { openChatWithSupport, openChat } = useChat();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSupportChat = () => {
-    if (openChatWithSupport) openChatWithSupport();
-    else if (openChat) openChat();
+  const chat = () => {
+    if (!user) { navigate('/login?next=/help/safety'); return; }
+    if (openChatWithSupport) void openChatWithSupport();
+    else openChat();
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF9F8] text-stone-900 font-sans">
+    <div className="min-h-screen flex flex-col bg-[#FAF8F5] text-stone-900">
       <SiteHeader />
 
-      <main className="flex-1 w-full max-w-6xl px-4 py-8 mx-auto space-y-12 sm:px-6 lg:px-8 sm:py-12">
-        
-        {/* ── Breadcrumb & Back Link ── */}
-        <div className="flex items-center justify-between text-xs">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 font-semibold text-stone-500 hover:text-brand-red transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to Home
-          </Link>
-          <div className="items-center hidden gap-2 font-medium sm:flex text-stone-400">
-            <span>Help Center</span>
-            <span>/</span>
-            <span className="font-bold text-stone-700">Trust &amp; Buyer Protection</span>
-          </div>
-        </div>
-
-        {/* ── Hero Banner ── */}
-        <section className="relative p-6 overflow-hidden bg-white border shadow-xs rounded-3xl sm:p-10 border-stone-200/80">
-          <div className="absolute top-0 right-0 rounded-bl-full pointer-events-none w-96 h-96 bg-gradient-to-bl from-rose-100/60 via-amber-50/40 to-transparent -z-0" />
-
-          <div className="relative z-10 max-w-3xl space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-bold tracking-wide border rounded-full bg-emerald-50 border-emerald-200 text-emerald-800">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Official Loved-IT Trust &amp; Safety Desk</span>
-            </div>
-
-            <h1 className="text-2xl font-black leading-tight tracking-tight sm:text-4xl text-stone-900">
-              Your Protection is Built Into Every Single Transaction
-            </h1>
-
-            <p className="text-sm leading-relaxed sm:text-base text-stone-600">
-              We built Loved-IT to bring accountability, respect, and safety back to Philippine online shopping. From mandatory seller vetting to receipt-checked payments, 7-day returns and human dispute review, explore how our systems keep your money and identity safe.
+      <main className="flex-1">
+        <section className="max-w-[1200px] mx-auto px-4 sm:px-8 pt-10 sm:pt-14 pb-10 grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-8 lg:gap-14 items-end">
+          <div>
+            <p className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-brand-red">Help and Safety Center</p>
+            <h1 className="mt-3 font-serif text-[36px] sm:text-[50px] font-bold tracking-tight leading-[1.05] text-[#1E1B18]">Shop safely on Loved-IT.</h1>
+            <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-stone-600">
+              How paying, returns and delivery work, what to do when something goes wrong, and the scams to watch for.
             </p>
-
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={handleSupportChat}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-red hover:bg-[#852222] text-white text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer"
-              >
-                <Headphones className="w-4 h-4" />
-                <span>Chat with Support Team</span>
-              </button>
-              <Link
-                to="/about"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs sm:text-sm font-semibold transition-all border border-stone-200"
-              >
-                <span>Read About Our Mission</span>
-                <ArrowRight className="w-4 h-4 text-stone-400" />
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 4 Core Safety Pillars ── */}
-        <section className="space-y-6">
-          <div className="max-w-2xl mx-auto space-y-2 text-center">
-            <span className="text-xs font-black tracking-wider uppercase text-brand-red">Safety Standard</span>
-            <h2 className="text-xl font-black tracking-tight sm:text-3xl text-stone-900">The 4 Guarantees of Loved-IT</h2>
-            <p className="text-xs sm:text-sm text-stone-500">
-              Clear policies designed to shield shoppers and legitimate Filipino merchants from fraud, fake goods, and unpaid deliveries.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {SAFETY_PILLARS.map((pillar) => {
-              const Icon = pillar.icon;
-              return (
-                <div
-                  key={pillar.title}
-                  className="flex flex-col justify-between p-6 space-y-5 transition-colors bg-white border shadow-xs rounded-3xl sm:p-7 border-stone-200/80 hover:border-stone-300"
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center justify-center font-bold border w-11 h-11 rounded-2xl bg-rose-50 text-brand-red shrink-0 border-rose-100/80">
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${pillar.badgeColor}`}>
-                        {pillar.badge}
-                      </span>
-                    </div>
-
-                    <h3 className="text-base font-bold sm:text-lg text-stone-900">{pillar.title}</h3>
-                    <p className="text-xs font-normal leading-relaxed sm:text-sm text-stone-600">
-                      {pillar.description}
-                    </p>
-
-                    <div className="pt-1 space-y-2 border-t border-stone-100">
-                      {pillar.points.map((pt) => (
-                        <div key={pt} className="flex items-start gap-2 text-xs text-stone-600">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>{pt}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ── Warning / Red Flags Section ── */}
-        <section className="p-6 space-y-6 text-white shadow-lg bg-stone-900 rounded-3xl sm:p-10">
-          <div className="max-w-2xl space-y-2">
-            <span className="text-xs font-black tracking-wider uppercase text-amber-400">Scam Prevention</span>
-            <h2 className="text-xl font-black tracking-tight sm:text-2xl">Red Flags to Watch Out For</h2>
-            <p className="text-xs leading-relaxed sm:text-sm text-stone-400">
-              Help us maintain a safe community by reporting any merchant or buyer engaging in these prohibited behaviors.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {RED_FLAGS.map((flag) => {
-              const Icon = flag.icon;
-              return (
-                <div
-                  key={flag.title}
-                  className="bg-neutral-800/80 border border-neutral-700/60 rounded-2xl p-5 space-y-2.5"
-                >
-                  <div className="flex items-center gap-2 text-xs font-bold text-amber-400 sm:text-sm">
-                    <Icon className="w-4 h-4 shrink-0 text-amber-400" />
-                    <span>{flag.title}</span>
-                  </div>
-                  <p className="text-xs leading-relaxed text-stone-300">{flag.text}</p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ── Step by Step Dispute Flow ── */}
-        <section className="p-6 space-y-8 bg-white border shadow-xs rounded-3xl sm:p-10 border-stone-200/80">
-          <div className="max-w-2xl mx-auto space-y-2 text-center">
-            <span className="text-xs font-black tracking-wider uppercase text-brand-red">Step-by-Step Guidance</span>
-            <h2 className="text-xl font-black tracking-tight sm:text-2xl text-stone-900">How to Settle a Problem with Your Order</h2>
-            <p className="text-xs sm:text-sm text-stone-500">
-              In the rare event an item doesn't match its description or arrives damaged, here is exactly how our dispute resolution flow works.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {DISPUTE_STEPS.map((step) => (
-              <div
-                key={step.step}
-                className="flex flex-col justify-between p-5 space-y-3 border bg-stone-50/70 border-stone-200/70 rounded-2xl"
-              >
-                <div className="space-y-2">
-                  <span className="text-xs font-black text-brand-red font-mono bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg inline-block">
-                    Step {step.step}
-                  </span>
-                  <h3 className="text-xs font-bold sm:text-sm text-stone-900">{step.title}</h3>
-                  <p className="text-xs leading-relaxed text-stone-500">{step.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3 p-4 text-xs border rounded-2xl bg-amber-50/80 border-amber-200/80 text-amber-900">
-            <Clock className="w-5 h-5 text-amber-600 shrink-0" />
-            <span>
-              <strong>Important Reminder:</strong> Unpack and test your items before you click "Order Received". Once you confirm, the order is complete and a return can no longer be requested.
-            </span>
-          </div>
-        </section>
-
-        {/* ── Customer Help Desk Callout ── */}
-        <section className="flex flex-col items-center justify-between gap-6 p-6 border bg-gradient-to-r from-rose-50 via-stone-50 to-amber-50/50 rounded-3xl sm:p-8 border-stone-200/90 sm:flex-row">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-12 h-12 text-white shadow-sm rounded-2xl bg-brand-red shrink-0">
-              <Headphones className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-stone-900">Need Immediate Safety or Account Assistance?</h3>
-              <p className="text-xs text-stone-600 mt-0.5">
-                Our support team is active 7 days a week from 8:00 AM to 8:00 PM PHT.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={handleSupportChat}
-              className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-[#852222] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              Start Live Chat
+            <button type="button" onClick={chat}
+              className="mt-7 inline-flex items-center gap-2 min-h-[46px] px-6 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold transition-colors">
+              <Headphones className="w-4 h-4" /> {user ? 'Chat with Loved-IT Support' : 'Sign in to chat with Support'}
             </button>
-            <Link
-              to="/settings/messages"
-              className="px-4 py-2.5 rounded-xl bg-white hover:bg-stone-100 text-stone-700 text-xs font-semibold border border-stone-200 transition-colors"
-            >
-              Open Ticket
-            </Link>
           </div>
+          <nav aria-label="On this page" className="rounded-3xl bg-white border border-stone-200 p-2">
+            {SECTIONS.map((s, i) => (
+              <a key={s.id} href={`#${s.id}`} className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl hover:bg-stone-50 group">
+                <span className="flex items-baseline gap-3">
+                  <span className="font-serif text-[13px] font-bold text-brand-red tabular-nums">0{i + 1}</span>
+                  <span className="text-[14.5px] font-semibold text-stone-800 group-hover:text-stone-950">{s.label}</span>
+                </span>
+                <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-stone-700 transition-colors" />
+              </a>
+            ))}
+          </nav>
         </section>
 
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-8 pb-16 space-y-6">
+          <Section id="paying" n={1} title="Paying safely">
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card title="Cash on delivery">
+                Pay the rider in cash when the parcel is in your hands. The rider enters the exact amount, so you never pay more than your order total.
+              </Card>
+              <Card title="GCash to the shop">
+                Checkout shows the shop's own GCash name and number. Send the exact amount, then enter the reference number and upload the receipt. The shop checks it before it packs your order.
+              </Card>
+            </div>
+            <p className="mt-6 pl-4 border-l-2 border-brand-red text-[14px] leading-relaxed text-stone-700">
+              Only pay through Loved-IT checkout. Never send money to a number a seller gives you in chat or on social media: those payments are not covered by returns.
+            </p>
+          </Section>
+
+          <Section id="returns" n={2} title="Returns and refunds">
+            <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
+              {RETURN_STEPS.map((s, i) => (
+                <li key={s.title} className="pt-4 border-t-2 border-[#1E1B18]">
+                  <p className="font-serif text-[14px] font-bold text-brand-red tabular-nums">Step {i + 1}</p>
+                  <h3 className="mt-1 text-[16px] font-semibold text-stone-900">{s.title}</h3>
+                  <p className="mt-1.5 text-[13.5px] leading-relaxed text-stone-600">{s.text}</p>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-8 rounded-2xl bg-[#FAF8F5] border border-stone-200 px-5 py-4 text-[14px] leading-relaxed text-stone-700">
+              <span className="font-semibold text-stone-900">Check the item before you tap Order Received.</span> Once you confirm, the order is complete and a return can no longer be asked for.
+              If you do nothing, an order completes by itself 7 days after delivery.
+            </p>
+            <p className="mt-4 text-[13.5px] text-stone-600">
+              Cancelling is different: you can cancel an order yourself until the shop marks it ready for pickup. Your stock, vouchers and any prepaid amount come back.
+              {user && <> <Link to="/settings/orders" className="font-semibold text-brand-red hover:underline">Go to your orders</Link>.</>}
+            </p>
+          </Section>
+
+          <Section id="delivery" n={3} title="Delivery">
+            <ul className="grid md:grid-cols-2 gap-x-10 gap-y-5">
+              <Fact title="Track every step">Track package shows each scan, from the shop to the hub to your door, with the rider's live location while they carry it.</Fact>
+              <Fact title="Your 6-digit delivery code">Your order shows a code. The rider needs it, plus a photo, to mark the parcel delivered. Five wrong tries lock the code for 15 minutes.</Fact>
+              <Fact title="Message your rider">While your parcel is out for delivery, Track package has a Message rider button for gate codes or directions.</Fact>
+              <Fact title="If no one is home">A parcel gets up to 3 delivery tries. After that, or if you refuse it, it goes back to the shop and a prepaid order is refunded.</Fact>
+            </ul>
+          </Section>
+
+          <Section id="sellers" n={4} title="Who sells here">
+            <ul className="grid md:grid-cols-2 gap-x-10 gap-y-5">
+              <Fact title="Every shop is checked">An admin reviews each application before the shop can sell: a government ID for everyone, and DTI or SEC papers and BIR Form 2303 for registered businesses.</Fact>
+              <Fact title="Honest reviews">Only buyers whose order was completed can review a product or a shop. Shops can reply, but nobody can hide or delete a review.</Fact>
+            </ul>
+          </Section>
+
+          <Section id="scams" n={5} title="Scams to avoid" dark>
+            <ul className="grid md:grid-cols-2 gap-px bg-white/10 rounded-2xl overflow-hidden">
+              {SCAMS.map((s) => (
+                <li key={s.title} className="bg-[#1E1B18] p-6">
+                  <h3 className="text-[15.5px] font-semibold text-white">{s.title}</h3>
+                  <p className="mt-1.5 text-[13.5px] leading-relaxed text-white/70">{s.text}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-5 text-[13.5px] text-white/70">Seen one of these? Report it in chat with Loved-IT Support, with the shop's name and a screenshot.</p>
+          </Section>
+
+          <Section id="account" n={6} title="Your account">
+            <ul className="grid md:grid-cols-2 gap-x-10 gap-y-5">
+              <Fact title="Never share your codes">Nobody from Loved-IT will ask for your password, your email code or your GCash MPIN. Anyone who does is not us.</Fact>
+              <Fact title="Forgot your password?">Ask for a reset link on the sign-in page. It works once, for 1 hour, and every device signed in to your account is signed out.</Fact>
+            </ul>
+            <Link to="/forgot-password" className="mt-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-brand-red hover:underline">
+              Reset your password <ArrowRight className="w-4 h-4" />
+            </Link>
+          </Section>
+
+          <section className="rounded-3xl bg-white border border-stone-200 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div>
+              <h2 className="font-serif text-[24px] font-bold tracking-tight text-[#1E1B18]">Still need help?</h2>
+              <p className="mt-1 text-[14px] text-stone-600">Chat with Loved-IT Support. A person reads every message.</p>
+            </div>
+            <button type="button" onClick={chat}
+              className="inline-flex items-center gap-2 min-h-[46px] px-6 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold transition-colors shrink-0">
+              <Headphones className="w-4 h-4" /> Chat with Support
+            </button>
+          </section>
+        </div>
       </main>
 
       <Footer />
@@ -334,3 +161,30 @@ export default function SafetyHelpPage() {
   );
 }
 
+function Section({ id, n, title, dark = false, children }: { id: string; n: number; title: string; dark?: boolean; children: React.ReactNode }) {
+  return (
+    <section id={id} className={`scroll-mt-32 rounded-3xl p-6 sm:p-9 ${dark ? 'bg-[#1E1B18] text-white' : 'bg-white border border-stone-200'}`}>
+      <p className={`font-serif text-[14px] font-bold tabular-nums ${dark ? 'text-[#F2A9A9]' : 'text-brand-red'}`}>0{n}</p>
+      <h2 className={`mt-1 mb-6 font-serif text-[26px] sm:text-[30px] font-bold tracking-tight ${dark ? 'text-white' : 'text-[#1E1B18]'}`}>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-[#FAF8F5] border border-stone-200 p-5">
+      <h3 className="text-[16px] font-semibold text-stone-900">{title}</h3>
+      <p className="mt-1.5 text-[14px] leading-relaxed text-stone-600">{children}</p>
+    </div>
+  );
+}
+
+function Fact({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <li>
+      <h3 className="text-[15.5px] font-semibold text-stone-900">{title}</h3>
+      <p className="mt-1 text-[14px] leading-relaxed text-stone-600">{children}</p>
+    </li>
+  );
+}

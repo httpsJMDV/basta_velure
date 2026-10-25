@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Truck,
   Banknote,
-  ShieldCheck,
+  RotateCcw,
   BadgeCheck,
   ChevronRight,
   ChevronLeft,
@@ -27,62 +27,29 @@ import { getProductsApi, getFeaturedShopsApi } from '../api/client';
 import { pesoCompact, discountPercent } from '../utils/pricing';
 import type { Product, FeaturedShop } from '../types';
 
-// ─── 1. Trust Benefits Strip (Smaller height, longer horizontal span) ──────────
-const TRUST_BENEFITS = [
-  {
-    icon: Truck,
-    title: 'Flat ₱50 Delivery',
-    sub: 'Per shop, via partner couriers',
-    iconBg: 'bg-red-50 text-brand-red',
-  },
-  {
-    icon: Banknote,
-    title: 'Cash on Delivery',
-    sub: 'Pay when you receive',
-    iconBg: 'bg-amber-50 text-amber-600',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Buyer Protection',
-    sub: 'Safe payments, easy returns',
-    iconBg: 'bg-rose-50 text-rose-600',
-  },
-  {
-    icon: BadgeCheck,
-    title: 'Verified Sellers',
-    sub: 'Trusted & top-rated sellers',
-    iconBg: 'bg-emerald-50 text-emerald-600',
-  },
+// ─── 1. How buying here works: four facts that are true of every order, in one ruled band ─────────
+const BUYING_FACTS = [
+  { icon: Truck, title: 'Shipping by route and weight', sub: 'Shown in full before you pay' },
+  { icon: Banknote, title: 'Cash on delivery', sub: 'Or GCash straight to the shop' },
+  { icon: RotateCcw, title: '7-day returns', sub: 'For items damaged or not as described' },
+  { icon: BadgeCheck, title: 'Checked shops', sub: 'Every seller is verified before selling' },
 ];
 
-function TrustBenefitsStrip() {
+function BuyingFactsBand() {
   return (
-    <section className="relative z-20 -mt-5 sm:-mt-6 max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12">
-      <div className="bg-white rounded-xl sm:rounded-2xl border border-stone-200/90 shadow-sm py-3.5 sm:py-4 px-4 sm:px-8 lg:px-10">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 divide-x divide-stone-100">
-          {TRUST_BENEFITS.map((item, idx) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.title}
-                className={`flex items-center gap-3 sm:gap-3.5 ${idx > 0 ? 'pl-3 sm:pl-6 lg:pl-8' : ''}`}
-              >
-                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${item.iconBg}`}>
-                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-xs sm:text-[13px] font-bold text-gray-900 tracking-tight leading-tight truncate">
-                    {item.title}
-                  </h3>
-                  <p className="text-[11px] text-gray-500 mt-0.5 leading-tight truncate">
-                    {item.sub}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+    <section className="relative z-20 -mt-5 sm:-mt-6 max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12" aria-label="Buying on Loved-IT">
+      {/* gap-px over a stone fill draws the hairlines between cells, in two columns or four */}
+      <ul className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-stone-200/80 rounded-2xl border border-stone-200/80 overflow-hidden shadow-[0_10px_30px_-18px_rgba(28,25,23,0.35)]">
+        {BUYING_FACTS.map(({ icon: Icon, title, sub }) => (
+          <li key={title} className="bg-white flex items-start gap-3 px-4 sm:px-6 py-3.5 sm:py-4">
+            <Icon className="w-5 h-5 text-brand-red shrink-0 mt-0.5" strokeWidth={1.6} aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="block text-[12.5px] sm:text-[13.5px] font-semibold text-[#1E1B18] leading-snug">{title}</span>
+              <span className="block mt-0.5 text-[11.5px] sm:text-[12px] text-stone-500 leading-snug">{sub}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -474,7 +441,7 @@ export default function HomePage() {
 
       {/* ── Main Middle Content Area (Clean Pure White Background) ── */}
       <main className="flex-1 bg-white">
-        <TrustBenefitsStrip />
+        <BuyingFactsBand />
 
         {/* Every main category, from the live catalog */}
         <CategoriesSection />

@@ -257,7 +257,7 @@ export async function openAuthorizedFile(url: string): Promise<void> {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
-export const getPublicApprovedHubsApi = (params?: { search?: string; limit?: number }) =>
+export const getPublicApprovedHubsApi = (params?: { search?: string; limit?: number; courier_id?: number }) =>
   http.get<{ data: PublicApprovedHub[] }>('/logistics/hubs', { params }).then((r) => r.data.data);
 
 export const logoutApi = () => http.post('/auth/logout');
@@ -631,6 +631,8 @@ export interface AdminProduct {
   rejection_reason: string | null;
   archive_reason: string | null;
   archived_by: 'admin' | 'seller' | null;
+  /** The AI listing check, when it ran: checking / approved / flagged / unavailable / rejected. */
+  ai_review?: { status: string; verdict: 'approve' | 'send_to_admin' | 'reject' | null; reason: string | null; reviewed_at: string | null } | null;
   base_price: number;
   units_sold: number;
   weight_kg?: number | null;
@@ -749,6 +751,18 @@ export const sendConversationMessageApi = (
   const body = typeof payload === 'string' ? { body: payload } : payload;
   return http.post<{ data: ChatMessage }>(`/conversations/${conversationId}/messages`, body).then((r) => r.data.data);
 };
+
+/** The buyer confirms the address on a shop's order confirmation card: the updated card, then the shop's thank-you. */
+export const confirmOrderAddressApi = (conversationId: number, messageId: number) =>
+  http.post<{ data: ChatMessage[] }>(`/conversations/${conversationId}/messages/${messageId}/confirm-address`).then((r) => r.data.data);
+
+/** "Talk to a person" in the Loved-IT Support chat: the assistant stops and the Loved-IT team takes over. */
+export const handoffSupportChatApi = (conversationId: number) =>
+  http.post<{ data: Conversation }>(`/conversations/${conversationId}/handoff`).then((r) => r.data.data);
+
+/** After a handoff: the Loved-IT Assistant answers again (and replies to the buyer's last unanswered message). */
+export const resumeAssistantApi = (conversationId: number) =>
+  http.post<{ data: Conversation }>(`/conversations/${conversationId}/assistant`).then((r) => r.data.data);
 
 export const getAttachableProductsApi = (conversationId: number, q?: string) =>
   http.get<{ data: AttachableProduct[] }>(`/conversations/${conversationId}/attachable-products`, { params: q ? { q } : undefined }).then((r) => r.data.data);
@@ -1239,6 +1253,10 @@ export const conversationThreadAdapter = (threadId: number): ThreadAdapter =>
   threadAdapter({ messages: `/conversations/${threadId}/messages` });
 
 // ─── Track package and live courier location ───────────────────────────────────
+
+/** The buyer starts (or reopens) the chat with the rider bringing their parcel; only while it is out for delivery. */
+export const startRiderChatApi = (trackingNumber: string) =>
+  http.post<{ data: Conversation }>(`/parcels/${encodeURIComponent(trackingNumber)}/rider-chat`).then((r) => r.data.data);
 
 export const getParcelTrackingApi = (trackingNumber: string) =>
   http.get<{ data: ParcelTracking }>(`/parcels/${encodeURIComponent(trackingNumber)}/tracking`).then((r) => r.data.data);

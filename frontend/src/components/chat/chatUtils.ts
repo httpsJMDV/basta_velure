@@ -7,7 +7,8 @@ import type { ChatMessage } from '../../types';
 export function mergeFetchedMessages(prev: ChatMessage[], next: ChatMessage[]): ChatMessage[] {
   if (prev.length !== next.length) return next;
   for (let i = 0; i < next.length; i++) {
-    if (prev[i].id !== next[i].id || prev[i].read_at !== next[i].read_at) return next;
+    if (prev[i].id !== next[i].id || prev[i].read_at !== next[i].read_at
+      || prev[i].attachment_data?.confirmed_at !== next[i].attachment_data?.confirmed_at) return next;
   }
   return prev;
 }
@@ -58,5 +59,10 @@ export function clockTime(iso: string): string {
 /** The caption the server writes under a shared card or photo ("Shared Order #…"); the card already says it. */
 export function isAutoAttachmentBody(m: Pick<ChatMessage, 'attachment_type' | 'body'>): boolean {
   if (!m.attachment_type) return false;
-  return /^(Shared a product: |Shared Order #|Referencing |Inquiring |Sent an image$)/.test(m.body || '');
+  return /^(Shared a product: |Shared Order #|Order confirmation · #|Referencing |Inquiring |Sent an image$)/.test(m.body || '');
+}
+
+/** The buyer's order list, searched for the order a card is about. */
+export function buyerOrderHref(data: { order_number?: string }): string {
+  return data.order_number ? `/settings/orders?q=${encodeURIComponent(data.order_number)}` : '/settings/orders';
 }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { MailCheck, RotateCw } from 'lucide-react';
+import { Clock, Inbox, MailCheck, RotateCw } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import LovedItLogo from '../../components/LovedItLogo';
+import AuthShell, { AuthNotice } from '../../components/auth/AuthShell';
+import photo from '../../assets/auth/buyer-register.jpg';
 import { CodeInput } from '../../components/auth/AuthFields';
 import { resendVerificationApi, verifyEmailApi } from '../../api/account';
 import { useAuth } from '../../hooks/useAuth';
@@ -14,6 +15,12 @@ import type { User } from '../../types';
 
 const CODE_SECONDS = 5 * 60;
 const RESEND_COOLDOWN = 30;
+
+const FACTS = [
+  { icon: Clock, text: 'Each code works for 5 minutes' },
+  { icon: RotateCw, text: 'A new code cancels the one before it' },
+  { icon: Inbox, text: 'Not there? Check your spam or promotions folder' },
+];
 
 function mmss(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -99,59 +106,45 @@ export default function VerifyEmailPage() {
   const expired = left === 0;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] flex flex-col">
-      <header className="px-6 sm:px-10 py-5">
-        <Link to="/" className="inline-block">
-          <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-11 object-contain" />
-        </Link>
-      </header>
-      <main className="flex-1 flex items-start sm:items-center justify-center px-4 pb-16">
-        <div className="w-full max-w-md rounded-3xl bg-white border border-stone-200 p-6 sm:p-8">
-          <span className="w-12 h-12 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center">
-            <MailCheck className="w-6 h-6" />
+    <AuthShell
+      eyebrow="Last step"
+      title="Check your email"
+      subtitle={<>Enter the 6-digit code we sent to <span className="font-semibold text-stone-900 break-all">{email || 'your email'}</span>. Your account stays unverified until you do.</>}
+      topLink={{ text: 'Wrong email?', label: 'Register again', to: '/register' }}
+      image={photo}
+      imageAlt="Kraft paper shopping bags being packed"
+      headline="One code, and you're in."
+      facts={FACTS}
+    >
+      {info && !error && <AuthNotice tone="green" icon={MailCheck}>{info}</AuthNotice>}
+
+      <form onSubmit={verify} noValidate className="flex flex-col gap-4">
+        {!params.get('email') && (
+          <Input id="verify-email" label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        )}
+        <CodeInput value={code} onChange={(v) => { setCode(v); setError(''); }} error={error} disabled={loading} />
+
+        <div className="flex items-center justify-between gap-3 text-[12.5px]">
+          <span className={`tabular-nums ${expired ? 'text-red-600 font-semibold' : 'text-stone-500'}`}>
+            {expired ? 'This code has expired. Send a new one.' : `Code expires in ${mmss(left)}`}
           </span>
-          <h1 className="mt-4 text-[26px] font-serif font-bold tracking-tight text-[#1E1B18]">Verify your email</h1>
-          <p className="mt-1.5 text-[14px] leading-relaxed text-stone-600">
-            Enter the 6-digit code we sent to{' '}
-            <span className="font-semibold text-stone-900 break-all">{email || 'your email'}</span>.
-            Your account stays unverified until you do.
-          </p>
-
-          {info && !error && <p className="mt-4 rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2.5 text-[13px] text-emerald-800">{info}</p>}
-
-          <form onSubmit={verify} noValidate className="mt-5 flex flex-col gap-4">
-            {!params.get('email') && (
-              <Input id="verify-email" label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            )}
-            <CodeInput value={code} onChange={(v) => { setCode(v); setError(''); }} error={error} disabled={loading} />
-
-            <div className="flex items-center justify-between text-[12.5px]">
-              <span className={`tabular-nums ${expired ? 'text-red-600 font-semibold' : 'text-stone-500'}`}>
-                {expired ? 'This code has expired. Resend a new code.' : `Code expires in ${mmss(left)}`}
-              </span>
-              <button
-                type="button"
-                onClick={resend}
-                disabled={resending || cooldown > 0}
-                className="inline-flex items-center gap-1.5 font-semibold text-brand-red disabled:text-stone-400 hover:underline disabled:no-underline"
-              >
-                <RotateCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
-                {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-              </button>
-            </div>
-
-            <Button type="submit" loading={loading} className="w-full">Verify email</Button>
-          </form>
-
-          <p className="mt-5 text-[12.5px] leading-relaxed text-stone-500">
-            Can't find it? Check your spam folder. Asking for a new code cancels the previous one.
-          </p>
-          <p className="mt-3 text-[13px] text-stone-600">
-            Wrong email? <Link to="/register" className="font-semibold text-brand-red hover:underline">Register again</Link> or{' '}
-            <Link to="/login" className="font-semibold text-brand-red hover:underline">sign in</Link>.
-          </p>
+          <button
+            type="button"
+            onClick={resend}
+            disabled={resending || cooldown > 0}
+            className="inline-flex items-center gap-1.5 font-semibold text-brand-red disabled:text-stone-400 hover:underline disabled:no-underline"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
+            {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+          </button>
         </div>
-      </main>
-    </div>
+
+        <Button type="submit" loading={loading} className="w-full">Verify email</Button>
+      </form>
+
+      <p className="mt-6 text-[13px] leading-relaxed text-stone-500">
+        Already verified? <Link to="/login" className="font-semibold text-brand-red hover:underline">Sign in</Link>.
+      </p>
+    </AuthShell>
   );
 }

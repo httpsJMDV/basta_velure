@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera, Store, MapPin, CheckCircle2, AlertTriangle,
   Loader2, Pencil, X, Phone, Clock, Shield, Copy, Check,
-  Star, Package, Users, MessageCircle, ExternalLink, Palmtree, Bell,
+  ExternalLink, Palmtree, Bell, BadgeCheck,
 } from 'lucide-react';
 import PhoneInput from '../../components/ui/PhoneInput';
 import { fileError, phoneError, postalError, shopNameError } from '../../utils/accountRules';
@@ -490,8 +490,17 @@ export default function SellerShopProfilePage() {
     );
   }
 
+  const placeLabel = [psgcAddress.cityName, psgcAddress.provinceName].filter(Boolean).join(', ');
+  const stats = [
+    { label: 'Product rating', value: profile?.avg_rating ? `${Number(profile.avg_rating).toFixed(1)} ★` : 'No reviews yet' },
+    { label: 'Followers', value: (profile?.follower_count ?? 0).toLocaleString() },
+    { label: 'Products', value: String(profile?.total_products ?? 0) },
+    { label: 'Usually replies', value: RESPONSE_TIME_OPTIONS.find((o) => o.value === responseTime)?.label ?? '—' },
+    { label: 'On Loved-IT since', value: formatJoinDate(profile?.created_at ?? null) },
+  ];
+
   return (
-    <div ref={pageRef} className="max-w-3xl mx-auto space-y-5">
+    <div ref={pageRef} className="max-w-6xl mx-auto">
 
       {/* Hidden file inputs */}
       <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
@@ -499,290 +508,195 @@ export default function SellerShopProfilePage() {
       <input ref={bannerInputRef} type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
         onChange={(e) => handleImagePick(e, setBannerFile, setBannerPreview, 'banner')} />
 
-      {(errors.logo || errors.banner) && (
-        <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-2xl text-[13px] text-red-700">
-          {errors.logo && <p>{errors.logo}</p>}
-          {errors.banner && <p>{errors.banner}</p>}
-        </div>
-      )}
+      <div className="mb-5">
+        <h1 className="text-2xl font-black text-gray-900">Shop profile</h1>
+        <p className="text-[13px] text-gray-500 mt-0.5">This is how buyers see your shop. Click the banner or the logo to change them.</p>
+      </div>
 
-      {/* Address update needed warning banner */}
-      {profile?.address_needs_update && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-900">Pickup Address Update Required</p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              Re-select your shop address so couriers can match your pickup area.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setEditingLocation(true)}
-            className="text-xs font-semibold text-brand-red hover:underline shrink-0"
-          >
-            Edit Address &rarr;
-          </button>
-        </div>
-      )}
+      <form onSubmit={handleSubmit} className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
+        <div className="min-w-0 space-y-5">
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-
-        {/* ── Profile Header Card ── */}
-        <Card className="overflow-hidden">
-
-          {/* Banner — avatar is absolutely pinned to its bottom-left, LinkedIn-style */}
-          <div className="relative h-36 bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer group"
-            onClick={() => bannerInputRef.current?.click()}>
-            {bannerSrc
-              ? <img src={bannerSrc} alt="Shop banner" className="w-full h-full object-cover" />
-              : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-300">
-                  <Camera className="w-8 h-8" />
-                  <span className="text-[12px] font-semibold">Click to upload banner</span>
-                </div>
-              )}
-            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <button type="button" onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); }}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-black/60 hover:bg-black/80 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition-colors">
-              <Camera className="w-3 h-3" /> Edit Banner
-            </button>
-            {bannerFile && (
-              <span className="absolute top-3 right-3 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">New</span>
-            )}
-            {/* Avatar pinned to bottom-left of banner, half overlapping */}
-            <div className="absolute -bottom-10 left-6 group/avatar w-28 h-28 rounded-full border-4 border-white shadow-lg bg-gray-100 cursor-pointer overflow-hidden z-10"
-              onClick={(e) => { e.stopPropagation(); logoInputRef.current?.click(); }}>
-              {logoSrc
-                ? <img src={logoSrc} alt="Shop logo" className="w-full h-full object-cover" />
-                : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-red to-brand-red-dark text-white text-3xl font-black">
-                    {initials(user?.first_name ?? '', user?.last_name ?? '')}
-                  </div>
-                )}
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity rounded-full">
-                <Pencil className="w-5 h-5 text-white" />
-              </div>
-              {logoFile && (
-                <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white" />
-              )}
+          {(errors.logo || errors.banner) && (
+            <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-2xl text-[13px] text-red-700">
+              {errors.logo && <p>{errors.logo}</p>}
+              {errors.banner && <p>{errors.banner}</p>}
             </div>
-          </div>
-          {/* Identity */}
-          <div className="px-6 pt-14 pb-5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-[22px] font-black text-gray-900 leading-tight">
-                {shopName || 'Your Shop Name'}
-              </h1>
-              {isApproved && (
-                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[11px] font-bold px-2 py-0.5 rounded-full border border-emerald-100 shrink-0">
-                  <CheckCircle2 className="w-3 h-3" /> Verified Seller
-                </span>
-              )}
-              <button type="button"
-                onClick={() => { shopInfoRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-                className="text-gray-300 hover:text-brand-red transition-colors shrink-0">
-                <Pencil className="w-3.5 h-3.5" />
+          )}
+
+          {profile?.address_needs_update && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-900">Pickup address update required</p>
+                <p className="text-xs text-amber-700 mt-0.5">Re-select your shop address so couriers can match your pickup area.</p>
+              </div>
+              <button type="button" onClick={() => setEditingLocation(true)} className="text-xs font-semibold text-brand-red hover:underline shrink-0">
+                Edit address &rarr;
               </button>
             </div>
-            <p className="text-[11px] text-gray-400 mt-0.5">{shopCategory || 'Line of business'}</p>
-            <InlineBio value={shopBio} onChange={setShopBio} />
-            {profile?.shop_slug && (
-              <div className="flex items-center gap-1.5 mt-2">
-                <a
-                  href={shopUrl(profile.shop_slug)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-gray-400 hover:text-brand-red hover:underline truncate"
-                  title="Open your public shop page"
-                >
-                  {shopUrlLabel(profile.shop_slug)}
-                </a>
-                <button type="button" onClick={handleCopySlug} className="text-gray-300 hover:text-brand-red transition-colors shrink-0">
-                  {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                </button>
-              </div>
-            )}
-          </div>
-        </Card>
+          )}
 
-        {/* ── Stats Row ── */}
-        <Card>
-          <div className="grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-gray-100">
-            {[
-              {
-                icon: Star,
-                label: 'Rating',
-                value: profile?.avg_rating ? `${profile.avg_rating} ★` : '—',
-                color: 'text-amber-500',
-              },
-              {
-                icon: Users,
-                label: 'Followers',
-                value: profile?.follower_count ? profile.follower_count.toLocaleString() : '0',
-                color: 'text-gray-400',
-              },
-              {
-                icon: Package,
-                label: 'Products',
-                value: profile?.total_products?.toString() ?? '0',
-                color: 'text-gray-400',
-              },
-              {
-                icon: MessageCircle,
-                label: 'Response',
-                value: RESPONSE_TIME_OPTIONS.find((o) => o.value === profile?.response_time)?.label ?? '—',
-                color: 'text-gray-400',
-              },
-              {
-                icon: ExternalLink,
-                label: 'Member Since',
-                value: formatJoinDate(profile?.created_at ?? null),
-                color: 'text-gray-400',
-              },
-            ].map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="flex flex-col items-center justify-center py-3 px-2 gap-0.5">
-                <Icon className={`w-3.5 h-3.5 ${color}`} />
-                <p className="text-[12px] font-bold text-gray-800 text-center leading-tight">{value}</p>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-
-        {/* ── About ── */}
-        <Card>
-          <CardHeader title="About" />
-          <div className="px-6 py-5">
-            <AboutSection value={shopDescription} onChange={setShopDescription} error={errors.shop_description} />
-          </div>
-        </Card>
-
-        {/* ── Shop Policies ── */}
-        <Card>
-          <CardHeader icon={Shield} title="Shop Policies & Returns" />
-          <div className="px-6 py-5 space-y-5">
-            {/* Platform Baseline Policy Banner */}
-            <div className="p-4 bg-rose-50/60 border border-brand-red/20 rounded-2xl space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-brand-red">
-                <Shield className="w-4 h-4 text-brand-red" />
-                <span>Loved-IT Guaranteed Platform Policy (Active & Platform-Enforced)</span>
-              </div>
-              <p className="text-[12px] text-gray-600 leading-relaxed">
-                All shops operate under Loved-IT's 7-day standard return baseline for eligible items upon delivery (exceptions: Food & Groceries and custom-made items). Loved-IT provides binding dispute mediation if returns are contested.
-              </p>
+          {/* The storefront header, as buyers see it */}
+          <Card className="overflow-hidden">
+            <div className="relative h-32 sm:h-44 bg-[#EDE6DC] cursor-pointer group" onClick={() => bannerInputRef.current?.click()}>
+              {bannerSrc
+                ? <img src={bannerSrc} alt="Shop banner" className="w-full h-full object-cover" />
+                : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-stone-500">
+                    <Camera className="w-6 h-6" />
+                    <span className="text-[12px] font-semibold">Add a banner · JPG or PNG, up to 5 MB</span>
+                  </div>
+                )}
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <button type="button" onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); }}
+                className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-white/95 hover:bg-white text-stone-800 text-[11.5px] font-semibold px-3 py-1.5 rounded-full shadow-sm transition-colors">
+                <Camera className="w-3.5 h-3.5" /> Change banner
+              </button>
+              {bannerFile && <span className="absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">New, not saved yet</span>}
             </div>
 
-            <EditableTextCard
-              icon={undefined}
-              title="Additional Return Terms"
-              subtitle="Add extra terms specific to your shop (e.g. original packaging requirements, inspection notes). Note: These supplement and cannot override Loved-IT's baseline return window."
-              value={returnPolicy}
-              onChange={setReturnPolicy}
-              placeholder="e.g. Items must be returned in original branded box with all accessories intact..."
-              maxLen={500}
-              error={errors.return_policy}
-              rows={3}
-            />
-            <EditableTextCard
-              icon={undefined}
-              title="Shipping Details"
-              subtitle="Specify your dispatch handling time, preferred couriers, or local pickup guidelines."
-              value={shippingPolicy}
-              onChange={setShippingPolicy}
-              placeholder="e.g. Orders placed before 2PM ship the same day via standard logistics..."
-              maxLen={500}
-              error={errors.shipping_policy}
-              rows={3}
-            />
-          </div>
-        </Card>
-
-        {/* ── Business Hours & Response Time ── */}
-        <Card>
-          <CardHeader icon={Clock} title="Business Hours & Response Time" />
-          <div className="px-6 py-5 grid sm:grid-cols-2 gap-5">
-            <Field label="Business Hours" error={errors.business_hours}>
-              <input
-                type="text"
-                value={businessHours}
-                onChange={(e) => setBusinessHours(e.target.value)}
-                placeholder="e.g. Mon–Sat, 9AM–6PM"
-                maxLength={100}
-                className={inputCls(errors.business_hours)}
-              />
-            </Field>
-            <Field label="Response Time" error={errors.response_time}>
-              <CustomSelect
-                options={RESPONSE_TIME_OPTIONS}
-                value={responseTime}
-                onChange={setResponseTime}
-                placeholder="Select response time"
-              />
-            </Field>
-          </div>
-        </Card>
-
-        {/* ── Stock alerts (A29) ── */}
-        <Card>
-          <CardHeader icon={Bell} title="Stock Alerts" />
-          <div className="px-6 py-5 grid gap-5 sm:grid-cols-[minmax(0,220px)_1fr] items-start">
-            <Field label="Low-stock level" error={errors.low_stock_threshold}>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" min={0} max={999} step={1} inputMode="numeric"
-                  value={lowStockLevel}
-                  onChange={(e) => setLowStockLevel(e.target.value)}
-                  aria-label="Low-stock level"
-                  className={`${inputCls(errors.low_stock_threshold)} !w-28`}
-                />
-                <span className="text-[12.5px] text-gray-500">units or fewer</span>
+            <div className="p-5 sm:p-6 flex items-start gap-4 sm:gap-5">
+              <button type="button" onClick={() => logoInputRef.current?.click()} aria-label="Change the logo"
+                className="relative group w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-stone-200 bg-white shrink-0">
+                {logoSrc
+                  ? <img src={logoSrc} alt="Shop logo" className="w-full h-full object-cover" />
+                  : <span className="w-full h-full bg-[#1E1B18] text-[#FAF8F5] font-serif text-2xl font-bold flex items-center justify-center">{initials(shopName.split(' ')[0] ?? '', shopName.split(' ')[1] ?? '') || initials(user?.first_name ?? '', user?.last_name ?? '')}</span>}
+                <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-5 h-5 text-white" /></span>
+                {logoFile && <span className="absolute top-1.5 right-1.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />}
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-serif text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight text-[#1E1B18] break-words">{shopName || 'Your shop name'}</h2>
+                  <button type="button" onClick={() => shopInfoRef.current?.scrollIntoView({ behavior: 'smooth' })} aria-label="Edit the shop name"
+                    className="text-stone-300 hover:text-brand-red transition-colors shrink-0">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-stone-500">
+                  {isApproved
+                    ? <span className="inline-flex items-center gap-1 font-semibold text-stone-800"><BadgeCheck className="w-4 h-4 text-brand-red" /> Verified shop</span>
+                    : <span className="inline-flex items-center gap-1 font-semibold text-amber-700"><Clock className="w-3.5 h-3.5" /> Under review</span>}
+                  <span>{shopCategory || 'Line of business'}</span>
+                  {placeLabel && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{placeLabel}</span>}
+                </p>
+                <InlineBio value={shopBio} onChange={setShopBio} />
               </div>
-            </Field>
-            <div className="text-[12.5px] leading-relaxed text-gray-600 space-y-1.5">
-              <p>
-                You get one notification when a product's stock falls to this level, and again only after you restock above it.
-                {' '}<b className="font-semibold text-gray-800">0</b> means you hear about a product only when it sells out.
-              </p>
-              <p className="text-gray-500">
-                A grocery that sells fast might use 20; a shop of big appliances, 2. Each product can also use its own level, or none, in its Sales section.
-              </p>
             </div>
-          </div>
-        </Card>
 
-        {/* ── Contact & Location ── */}
-        <Card>
-          <CardHeader
-            icon={MapPin}
-            title="Contact & Location"
-            action={
-              <div className="flex items-center gap-2">
-                {!editingContact && (
-                  <button type="button" onClick={() => setEditingContact(true)}
-                    className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-red hover:text-brand-red-dark transition-colors">
-                    <Pencil className="w-3.5 h-3.5" /> Edit
-                  </button>
-                )}
-                {!editingLocation && (
-                  <button type="button" onClick={() => setEditingLocation(true)}
-                    className="flex items-center gap-1.5 text-[12px] font-semibold text-gray-400 hover:text-brand-red transition-colors">
-                    <MapPin className="w-3.5 h-3.5" /> Address
-                  </button>
-                )}
+            <dl className="grid grid-cols-2 sm:grid-cols-5 border-t border-gray-100 [&>div]:border-gray-100 [&>div]:border-b sm:[&>div]:border-b-0 [&>div:not(:first-child)]:sm:border-l">
+              {stats.map((s) => (
+                <div key={s.label} className="px-5 py-4 min-w-0">
+                  <dt className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-gray-400">{s.label}</dt>
+                  <dd className="mt-1 text-[13.5px] font-semibold text-gray-900 truncate">{s.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+
+          {/* About */}
+          <Card>
+            <CardHeader title="About the shop" />
+            <div className="px-6 py-5">
+              <AboutSection value={shopDescription} onChange={setShopDescription} error={errors.shop_description} />
+            </div>
+          </Card>
+
+          {/* Returns and shipping */}
+          <Card>
+            <CardHeader icon={Shield} title="Returns and shipping" />
+            <div className="px-6 py-5 space-y-5">
+              <div className="p-4 bg-[#FAF8F5] border border-stone-200 rounded-2xl">
+                <p className="text-[13px] font-semibold text-stone-900">7-day returns on Loved-IT (every shop)</p>
+                <p className="mt-1 text-[12.5px] text-stone-600 leading-relaxed">
+                  Buyers can return an eligible item within 7 days of delivery if it is damaged or not as described. Food and made-to-order items are excluded. Your terms below add to this; they cannot shorten it.
+                </p>
               </div>
-            }
-          />
-          <div className="px-6 py-5 space-y-5">
-            {/* Contact number */}
-            {editingContact ? (
-              <div className="space-y-3">
+              <EditableTextCard
+                icon={undefined}
+                title="Your return terms"
+                subtitle="Extra terms for your shop, such as keeping the original packaging."
+                value={returnPolicy}
+                onChange={setReturnPolicy}
+                placeholder="e.g. Items must be returned in the original box with all accessories."
+                maxLen={500}
+                error={errors.return_policy}
+                rows={3}
+              />
+              <EditableTextCard
+                icon={undefined}
+                title="Shipping notes"
+                subtitle="When you ship, and anything buyers should know about packing or pickup."
+                value={shippingPolicy}
+                onChange={setShippingPolicy}
+                placeholder="e.g. Orders placed before 2 PM are packed the same day."
+                maxLen={500}
+                error={errors.shipping_policy}
+                rows={3}
+              />
+            </div>
+          </Card>
+
+          {/* Hours and replies */}
+          <Card>
+            <CardHeader icon={Clock} title="Hours and replies" />
+            <div className="px-6 py-5 grid sm:grid-cols-2 gap-5">
+              <Field label="Business hours" error={errors.business_hours}>
+                <input type="text" value={businessHours} onChange={(e) => setBusinessHours(e.target.value)} placeholder="e.g. Mon–Sat, 9 AM–6 PM" maxLength={100} className={inputCls(errors.business_hours)} />
+              </Field>
+              <Field label="You usually reply" error={errors.response_time}>
+                <CustomSelect options={RESPONSE_TIME_OPTIONS} value={responseTime} onChange={setResponseTime} placeholder="Select" />
+              </Field>
+            </div>
+          </Card>
+
+          {/* Stock alerts (A29) */}
+          <Card>
+            <CardHeader icon={Bell} title="Stock alerts" />
+            <div className="px-6 py-5 grid gap-5 sm:grid-cols-[minmax(0,220px)_1fr] items-start">
+              <Field label="Low-stock level" error={errors.low_stock_threshold}>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={0} max={999} step={1} inputMode="numeric" value={lowStockLevel} onChange={(e) => setLowStockLevel(e.target.value)}
+                    aria-label="Low-stock level" className={`${inputCls(errors.low_stock_threshold)} !w-28`} />
+                  <span className="text-[12.5px] text-gray-500">units or fewer</span>
+                </div>
+              </Field>
+              <div className="text-[12.5px] leading-relaxed text-gray-600 space-y-1.5">
+                <p>
+                  You get one notification when a product's stock falls to this level, and again only after you restock above it.
+                  {' '}<b className="font-semibold text-gray-800">0</b> means you hear about a product only when it sells out.
+                </p>
+                <p className="text-gray-500">A grocery that sells fast might use 20; a shop of big appliances, 2. Each product can also use its own level, or none, in its Sales section.</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Contact and location */}
+          <Card>
+            <CardHeader
+              icon={MapPin}
+              title="Contact and location"
+              action={
+                <div className="flex items-center gap-3">
+                  {!editingContact && (
+                    <button type="button" onClick={() => setEditingContact(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-red hover:text-brand-red-dark transition-colors">
+                      <Pencil className="w-3.5 h-3.5" /> Phone
+                    </button>
+                  )}
+                  {!editingLocation && (
+                    <button type="button" onClick={() => setEditingLocation(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-red hover:text-brand-red-dark transition-colors">
+                      <Pencil className="w-3.5 h-3.5" /> Address
+                    </button>
+                  )}
+                </div>
+              }
+            />
+            <div className="px-6 py-5 space-y-5">
+              {editingContact ? (
                 <div className="flex items-start gap-2">
                   <div className="flex-1">
                     <PhoneInput
                       id="shop-contact"
-                      label="Shop Contact Number"
+                      label="Shop contact number"
                       required
                       value={shopContactNumber}
                       onChange={(v) => { setShopContactNumber(v); setErrors((prev) => { const n = { ...prev }; delete n.shop_contact_number; return n; }); }}
@@ -790,204 +704,151 @@ export default function SellerShopProfilePage() {
                       hint="Buyers and couriers call this number."
                     />
                   </div>
-                  <button type="button" onClick={() => setEditingContact(false)} aria-label="Close"
-                    className="mt-8 shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
+                  <button type="button" onClick={() => setEditingContact(false)} aria-label="Close" className="mt-8 shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 group">
-                <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                  <Phone className="w-3.5 h-3.5 text-gray-400" />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Contact</p>
+                    <p className="text-[13px] text-gray-700 font-medium truncate">{shopContactNumber || <span className="text-gray-400 italic">Not set</span>}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Contact</p>
-                  <p className="text-[13px] text-gray-700 font-medium truncate">
-                    {shopContactNumber || <span className="text-gray-400 italic">Not set</span>}
-                  </p>
-                </div>
-                <button type="button" onClick={() => setEditingContact(true)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-brand-red">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+              )}
 
-            {/* Address */}
-            {editingLocation ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide">Shop Address</p>
-                  <button type="button" onClick={() => setEditingLocation(false)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
+              {editingLocation ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide">Shop address</p>
+                    <button type="button" onClick={() => setEditingLocation(false)} aria-label="Close" className="text-gray-400 hover:text-gray-600 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <PsgcCascadingAddress
+                    value={psgcAddress}
+                    onChange={setPsgcAddress}
+                    errors={{
+                      province: errors.address_province || errors.address_province_code,
+                      city: errors.address_city || errors.address_city_code,
+                      barangay: errors.address_barangay || errors.address_barangay_code,
+                      street: errors.address_street,
+                    }}
+                  />
+                  <Field label="Postal code" error={errors.address_postal_code}>
+                    <input type="text" inputMode="numeric" placeholder="e.g. 1100" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} className={inputCls(errors.address_postal_code) + ' max-w-[160px]'} />
+                  </Field>
                 </div>
-                <PsgcCascadingAddress
-                  value={psgcAddress}
-                  onChange={setPsgcAddress}
-                  errors={{
-                    province: errors.address_province || errors.address_province_code,
-                    city: errors.address_city || errors.address_city_code,
-                    barangay: errors.address_barangay || errors.address_barangay_code,
-                    street: errors.address_street,
-                  }}
-                />
-                <Field label="Postal Code" error={errors.address_postal_code}>
-                  <input
-                    type="text" inputMode="numeric" placeholder="e.g. 1100"
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
-                    className={inputCls(errors.address_postal_code) + ' max-w-[160px]'}
+              ) : (
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <LocationDisplay address={psgcAddress} />
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Shop information (the header's pencil scrolls here) */}
+          <div ref={shopInfoRef} className="scroll-mt-24">
+            <Card>
+              <CardHeader icon={Store} title="Shop name and line of business" />
+              <div className="px-6 py-5 grid sm:grid-cols-2 gap-5">
+                <Field label="Shop name" required error={errors.shop_name}>
+                  <input type="text" value={shopName} maxLength={30} placeholder="Your shop name" className={inputCls(errors.shop_name)}
+                    onChange={(e) => { setShopName(e.target.value); setErrors((prev) => { const n = { ...prev }; delete n.shop_name; return n; }); }} />
+                  {!errors.shop_name && <p className="mt-1 text-[11px] text-gray-400 tabular-nums">3 to 30 characters, unique on Loved-IT · {shopName.trim().length}/30</p>}
+                </Field>
+                <Field label="Line of business" error={errors.shop_category}>
+                  <CustomSelect
+                    options={categoryOptions}
+                    value={shopCategory}
+                    onChange={(v) => { setShopCategory(v); setErrors((prev) => { const n = { ...prev }; delete n.shop_category; return n; }); }}
+                    placeholder={categoryOptions.length ? 'Select your line of business' : 'Loading…'}
+                    error={errors.shop_category}
                   />
                 </Field>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 group">
-                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                  </div>
-                  <LocationDisplay address={psgcAddress} />
-                  <button type="button" onClick={() => setEditingLocation(true)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-brand-red">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {profile?.address_needs_update && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>Re-select your shop address so couriers can match your pickup area.</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setEditingLocation(true)}
-                      className="font-semibold text-brand-red hover:underline shrink-0 ml-2"
-                    >
-                      Update
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            </Card>
           </div>
-        </Card>
 
-        {/* ── Vacation mode ── */}
-        <Card>
-          <div className="px-6 py-5 flex flex-wrap items-center gap-4">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${onVacation ? 'bg-amber-100 text-amber-700' : 'bg-gray-50 text-gray-400'}`}>
-              <Palmtree className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-[220px]">
-              <p className="text-[14px] font-bold text-gray-900">Vacation mode {onVacation && <span className="ml-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full align-middle">On</span>}</p>
-              <p className="text-[12.5px] text-gray-500 mt-0.5">
-                {onVacation
-                  ? `Since ${profile?.vacation_started_at ? new Date(profile.vacation_started_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'today'}. Buyers see that your shop is on vacation and cannot place orders.`
-                  : 'Going away? Buyers can still browse your shop, but ordering pauses until you turn it off.'}
-              </p>
-            </div>
-            <button
-              type="button" role="switch" aria-checked={onVacation} onClick={toggleVacation} disabled={vacationBusy}
-              className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-60 ${onVacation ? 'bg-amber-500' : 'bg-gray-300'}`}
-            >
-              <span className="sr-only">Vacation mode</span>
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${onVacation ? 'translate-x-5' : ''}`} />
-            </button>
-          </div>
-        </Card>
-
-        {/* ── Shop Information (hidden anchor for scroll-to) ── */}
-        <div ref={shopInfoRef}>
+          {/* Account */}
           <Card>
-            <CardHeader icon={Store} title="Shop Information" />
-            <div className="px-6 py-5 space-y-5">
-              <Field label="Shop Name" required error={errors.shop_name}>
-                <input
-                  type="text"
-                  value={shopName}
-                  maxLength={30}
-                  onChange={(e) => { setShopName(e.target.value); setErrors((prev) => { const n = { ...prev }; delete n.shop_name; return n; }); }}
-                  placeholder="Your shop name"
-                  className={inputCls(errors.shop_name)}
-                />
-                {!errors.shop_name && <p className="mt-1 text-[11px] text-gray-400 tabular-nums">3 to 30 characters, unique on Loved-IT · {shopName.trim().length}/30</p>}
-              </Field>
-              <Field label="Line of Business / Category" error={errors.shop_category}>
-                <CustomSelect
-                  options={categoryOptions}
-                  value={shopCategory}
-                  onChange={(v) => { setShopCategory(v); setErrors((prev) => { const n = { ...prev }; delete n.shop_category; return n; }); }}
-                  placeholder={categoryOptions.length ? 'Select your line of business' : 'Loading…'}
-                  error={errors.shop_category}
-                />
-              </Field>
+            <CardHeader icon={Shield} title="Account" />
+            <div className="px-6 py-5 space-y-3">
+              {[
+                { label: 'Full name', value: `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() },
+                { label: 'Email', value: user?.email ?? '—' },
+                { label: 'Phone', value: user?.phone ?? '—' },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center gap-3">
+                  <p className="w-24 shrink-0 text-[11px] text-gray-400 uppercase tracking-wide font-semibold">{label}</p>
+                  <p className="text-[13px] text-gray-700 font-medium flex-1 truncate">{value || '—'}</p>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-gray-100">
+                <Link to="/seller/account" className="text-[12px] font-semibold text-brand-red hover:text-brand-red-dark transition-colors">
+                  Edit your name, phone or photo in Account settings
+                </Link>
+              </div>
             </div>
           </Card>
         </div>
 
-        {/* ── Account Information ── */}
-        <Card>
-          <CardHeader icon={Shield} title="Account Information" />
-          <div className="px-6 py-5 space-y-4">
-            {[
-              { label: 'Full Name', value: `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() },
-              { label: 'Email', value: user?.email ?? '—' },
-              { label: 'Phone', value: user?.phone ?? '—' },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex items-center gap-3">
-                <div className="w-24 shrink-0">
-                  <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">{label}</p>
+        {/* The rail: the public page, vacation mode and Save, always in view */}
+        <aside className="lg:sticky lg:top-6 space-y-4">
+          <Card className="p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-400">Your shop page</p>
+            {profile?.shop_slug ? (
+              <>
+                <a href={shopUrl(profile.shop_slug)} target="_blank" rel="noopener noreferrer" className="mt-2 block text-[12.5px] font-mono text-gray-700 truncate hover:text-brand-red" title={shopUrl(profile.shop_slug)}>
+                  {shopUrlLabel(profile.shop_slug)}
+                </a>
+                <div className="mt-3 flex gap-2">
+                  <a href={shopUrl(profile.shop_slug)} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 min-h-10 rounded-full border border-gray-300 bg-white text-[12.5px] font-semibold text-gray-800 hover:border-gray-900 inline-flex items-center justify-center gap-1.5">
+                    <ExternalLink className="w-3.5 h-3.5" /> View as a buyer
+                  </a>
+                  <button type="button" onClick={handleCopySlug} aria-label="Copy the shop link" title={copied ? 'Copied' : 'Copy link'}
+                    className="w-10 h-10 rounded-full border border-gray-300 bg-white text-gray-600 hover:border-gray-900 flex items-center justify-center">
+                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                  </button>
                 </div>
-                <p className="text-[13px] text-gray-700 font-medium flex-1 truncate">{value || '—'}</p>
-              </div>
-            ))}
-            <div className="flex items-center gap-3">
-              <div className="w-24 shrink-0">
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Status</p>
-              </div>
-              {isApproved ? (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                  <CheckCircle2 className="w-3 h-3" /> Approved Seller
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
-                  <Clock className="w-3 h-3" /> Under review
-                </span>
-              )}
-            </div>
-            <div className="pt-1 border-t border-gray-100">
-              <Link to="/seller/account"
-                className="text-[12px] font-semibold text-brand-red hover:text-brand-red-dark transition-colors">
-                Edit name, phone or photo → Account Settings
-              </Link>
-            </div>
-          </div>
-        </Card>
+              </>
+            ) : <p className="mt-2 text-[12.5px] text-gray-500">Your link appears once the shop is approved.</p>}
+          </Card>
 
-        {/* ── Save Bar ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <p className="text-[12px] text-gray-400 hidden sm:block">
-              Changes are saved to your shop profile and visible to buyers.
-            </p>
-            <button
-              type="submit"
-              disabled={saving}
-              className="ml-auto flex items-center gap-2 bg-brand-red hover:bg-brand-red-dark disabled:opacity-60 text-white text-[13px] font-bold px-6 py-2.5 rounded-xl transition-colors min-h-[44px]"
-            >
-              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Changes'}
+          <Card className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="flex items-center gap-1.5 text-[13.5px] font-bold text-gray-900">
+                  <Palmtree className={`w-4 h-4 ${onVacation ? 'text-amber-600' : 'text-gray-400'}`} /> Vacation mode
+                </p>
+                <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                  {onVacation
+                    ? `On since ${profile?.vacation_started_at ? new Date(profile.vacation_started_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'today'}. Buyers can browse but not order.`
+                    : 'Going away? Buyers keep browsing; ordering pauses until you turn it off.'}
+                </p>
+              </div>
+              <button type="button" role="switch" aria-checked={onVacation} onClick={toggleVacation} disabled={vacationBusy}
+                className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-60 shrink-0 ${onVacation ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                <span className="sr-only">Vacation mode</span>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${onVacation ? 'translate-x-5' : ''}`} />
+              </button>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <button type="submit" disabled={saving}
+              className="w-full flex items-center justify-center gap-2 bg-brand-red hover:bg-brand-red-dark disabled:opacity-60 text-white text-[13px] font-bold px-6 rounded-full transition-colors min-h-[44px]">
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save changes'}
             </button>
-          </div>
-        </div>
-
+            <p className="mt-2 text-[11.5px] text-gray-500 text-center">Buyers see the changes on your shop page once saved.</p>
+          </Card>
+        </aside>
       </form>
 
-      {/* ── Toast ── */}
       {toast && <Toast type={toast.type} message={toast.message} onDismiss={() => setToast(null)} />}
-
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getHubChatThreadsApi } from '../api/client';
+import { getHubCourierThreadApi } from '../api/courierChat';
 
 const HUB_UNREAD_POLL_MS = 15000;
 
 /**
- * Total unread rider messages for the hub, for the badge on the Messages nav item. Polls every 15 seconds while the
+ * Total unread messages for the hub (its riders and its courier company), for the badge on the Messages nav item. Polls every 15 seconds while the
  * tab is visible; `refresh` lets the Messages page update it right after the hub reads a thread.
  */
 export function useHubChatUnread(enabled: boolean): { total: number; refresh: () => void } {
@@ -15,8 +16,8 @@ export function useHubChatUnread(enabled: boolean): { total: number; refresh: ()
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     try {
-      const res = await getHubChatThreadsApi({ per_page: 1 });
-      setTotal(res.meta.unread_total);
+      const [riders, courier] = await Promise.all([getHubChatThreadsApi({ per_page: 1 }), getHubCourierThreadApi().catch(() => null)]);
+      setTotal(riders.meta.unread_total + (courier?.unread ?? 0));
     } catch {
       // A missed badge refresh is not worth an error; the next poll tries again.
     } finally {

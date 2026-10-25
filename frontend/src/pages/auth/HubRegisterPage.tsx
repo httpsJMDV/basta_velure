@@ -14,6 +14,7 @@ import type { CourierOption } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import { AlertCircle, MapPin, ShieldCheck, Mail, Warehouse, CheckCircle2, ArrowRight } from 'lucide-react';
 import axios from 'axios';
+import photo from '../../assets/auth/hub-register.jpg';
 import type { ReactNode } from 'react';
 
 const EMPTY_ADDRESS: HubAddressValue = {
@@ -26,8 +27,9 @@ const HUB_PAY = '15% of the delivery fee';
 function Shell({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
     <ApplyLayout
-      icon={Warehouse}
       kicker="Run a logistics hub"
+      image={photo}
+      imageAlt="A forklift between shelves of parcels in a warehouse"
       title="Run a sorting hub"
       intro="Receive parcels from pickup riders, sort them by barangay, and send your riders out for the last mile. You apply from your Loved-IT account to a partner courier company."
       aside={aside}

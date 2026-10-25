@@ -56,32 +56,16 @@ function Gallery({ images, active, onActive, name }: { images: ProductDetail['im
 
   if (!count) {
     return (
-      <div className="aspect-square max-w-[560px] rounded-3xl bg-white ring-1 ring-stone-200/70 flex items-center justify-center">
+      <div className="aspect-square rounded-2xl bg-white border border-stone-200 flex items-center justify-center">
         <Package className="w-16 h-16 text-stone-300" />
       </div>
     );
   }
 
+  // The photo on top and the thumbnails in one row under it, so no column of empty space sits beside a short list.
   return (
-    <div className="flex flex-col-reverse lg:flex-row gap-3">
-      {count > 1 && (
-        <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto no-scrollbar lg:max-h-[472px] shrink-0">
-          {images.map((img, i) => (
-            <button
-              key={img.id}
-              type="button"
-              onClick={() => onActive(i)}
-              onMouseEnter={() => onActive(i)}
-              aria-label={`Photo ${i + 1}`}
-              className={`shrink-0 w-16 h-16 lg:w-[72px] lg:h-[72px] rounded-xl overflow-hidden bg-white transition-all ${i === active ? 'ring-2 ring-stone-900' : 'ring-1 ring-stone-200 opacity-70 hover:opacity-100'}`}
-            >
-              <img src={img.url} alt="" className="w-full h-full object-cover" />
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="relative flex-1 aspect-square rounded-3xl bg-white ring-1 ring-stone-200/70 overflow-hidden group">
+    <div className="flex flex-col gap-2.5">
+      <div className="relative aspect-square rounded-2xl bg-white border border-stone-200 overflow-hidden group">
         <AnimatePresence mode="wait" initial={false}>
           <motion.img
             key={images[active]?.id ?? active}
@@ -113,6 +97,25 @@ function Gallery({ images, active, onActive, name }: { images: ProductDetail['im
           </>
         )}
       </div>
+
+      {count > 1 && (
+        // A border (not a ring) marks the chosen photo: it is drawn inside the box, so the scrolling row cannot clip it.
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {images.map((img, i) => (
+            <button
+              key={img.id}
+              type="button"
+              onClick={() => onActive(i)}
+              onMouseEnter={() => onActive(i)}
+              aria-label={`Photo ${i + 1}`}
+              aria-current={i === active}
+              className={`shrink-0 w-[64px] h-[64px] rounded-lg overflow-hidden bg-white border-2 transition-colors ${i === active ? 'border-stone-900' : 'border-stone-200 hover:border-stone-400'}`}
+            >
+              <img src={img.url} alt="" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -137,8 +140,14 @@ function useCountdown(iso: string | null | undefined) {
   return `${h > 0 ? `${h}h ` : ''}${String(m).padStart(2, '0')}m ${String(sec).padStart(2, '0')}s`;
 }
 
-const manilaTime = (iso: string) =>
-  new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+// The year shows when it is not this year, so a sale ending next October never reads as one that already ended.
+const manilaYear = (d: Date) => d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric' });
+const manilaTime = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila', month: 'short', day: 'numeric', ...(manilaYear(d) !== manilaYear(new Date()) && { year: 'numeric' }), hour: 'numeric', minute: '2-digit',
+  });
+};
 
 function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalleryIndex: (idx: number) => void }) {
   const { addItem } = useCart();
@@ -915,8 +924,8 @@ export default function ProductDetailPage() {
     return (
       <div className="min-h-screen bg-[#FAF8F5]">
         <SiteHeader />
-        <div className="max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12 py-8 grid lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-10">
-          <div className="aspect-square rounded-3xl bg-stone-200/60 animate-pulse" />
+        <div className="max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12 py-8 grid lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,480px)_minmax(0,1fr)] gap-10">
+          <div className="aspect-square rounded-2xl bg-stone-200/60 animate-pulse" />
           <div className="space-y-4">
             <div className="h-4 w-32 rounded bg-stone-200/60 animate-pulse" />
             <div className="h-8 w-4/5 rounded bg-stone-200/60 animate-pulse" />
@@ -960,8 +969,8 @@ export default function ProductDetailPage() {
 
         {/* Gallery + buy panel */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
-          className="grid lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-8 lg:gap-12 items-start">
-          <div className="w-full max-w-[560px] mx-auto lg:mx-0 lg:sticky lg:top-[126px]">
+          className="grid lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,480px)_minmax(0,1fr)] gap-8 lg:gap-12 items-start">
+          <div className="w-full max-w-[480px] mx-auto lg:mx-0 lg:sticky lg:top-[126px]">
             <Gallery images={product.images} active={Math.min(photo, Math.max(0, product.images.length - 1))} onActive={setPhoto} name={product.name} />
           </div>
           <BuyPanel product={product} onGalleryIndex={setPhoto} />

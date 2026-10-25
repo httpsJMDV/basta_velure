@@ -8,6 +8,8 @@ import SellerRegisterPage from './pages/auth/SellerRegisterPage';
 import HubRegisterPage from './pages/auth/HubRegisterPage';
 import CourierRegisterPage from './pages/auth/CourierRegisterPage';
 import LogisticsLayout from './pages/logistics/LogisticsLayout';
+import LogisticsMessagesPage from './pages/logistics/LogisticsMessagesPage';
+import LogisticsSettingsPage from './pages/logistics/LogisticsSettingsPage';
 import LogisticsDashboardPage from './pages/logistics/LogisticsDashboardPage';
 import LogisticsHubsPage from './pages/logistics/LogisticsHubsPage';
 import LogisticsRidersPage from './pages/logistics/LogisticsRidersPage';
@@ -23,6 +25,7 @@ import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplications
 import HubLoginPage from './pages/auth/HubLoginPage';
 import VerifyEmailPage from './pages/auth/VerifyEmailPage';
 import RiderActivatePage from './pages/auth/RiderActivatePage';
+import RiderApplyPage from './pages/auth/RiderApplyPage';
 import RiderLoginPage from './pages/auth/RiderLoginPage';
 import RiderLayout from './pages/rider/RiderLayout';
 import RiderDashboardPage from './pages/rider/RiderDashboardPage';
@@ -87,6 +90,7 @@ import PaymentPage from './pages/PaymentPage';
 import CatalogPage from './pages/CatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ShopProfilePage from './pages/ShopProfilePage';
+import ShopReviewsPage from './pages/ShopReviewsPage';
 import PrivacyPolicyPage from './pages/legal/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/legal/TermsOfServicePage';
 import CookiePolicyPage from './pages/legal/CookiePolicyPage';
@@ -272,6 +276,7 @@ function AppRoutes() {
       <Route path="/category/:parentId" element={<CatalogPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
       <Route path="/shop/:slug" element={<ShopProfilePage />} />
+      <Route path="/shop/:slug/reviews" element={<ShopReviewsPage />} />
       <Route path="/store/:id" element={<ShopProfilePage />} />
 
       {/* Auth pages — redirect away if already logged in */}
@@ -282,8 +287,8 @@ function AppRoutes() {
       <Route path="/register/courier" element={<CourierRegisterPage />} />
       <Route path="/register/hub/pending" element={<Navigate to="/register/hub" replace />} />
       <Route path="/register/sorting-center" element={<Navigate to="/register/hub" replace />} />
-      {/* Riders cannot register themselves: their courier company adds them and they activate from an email (A13) */}
-      <Route path="/register/rider" element={<Navigate to="/rider/login" replace />} />
+      {/* Riders apply for a hub here, or their courier company adds them; either way they activate from an email (A13) */}
+      <Route path="/register/rider" element={<RiderApplyPage />} />
       <Route path="/register/rider/pending" element={<Navigate to="/rider/login" replace />} />
       <Route path="/rider/activate" element={<RiderActivatePage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
@@ -414,6 +419,8 @@ function AppRoutes() {
         <Route path="hub-ops" element={<LogisticsHubOpsPage />} />
         <Route path="returns" element={<LogisticsReturnsPage />} />
         <Route path="cod" element={<LogisticsCodPage />} />
+        <Route path="messages" element={<LogisticsMessagesPage />} />
+        <Route path="settings" element={<LogisticsSettingsPage />} />
       </Route>
 
       {/* Logistics / Sorting Center Hub Portal */}

@@ -7,10 +7,11 @@ import { useChat } from '../../hooks/useChat';
 import AvatarWithFallback from '../ui/AvatarWithFallback';
 import ChatAttachmentBubble from './ChatAttachmentBubble';
 import { useChatAttach, AttachMenu } from './ChatAttach';
-import { isAutoAttachmentBody } from './chatUtils';
+import { isAutoAttachmentBody, buyerOrderHref } from './chatUtils';
 import FloatingToolbar from './FloatingToolbar';
 import RiderThreadPane from './RiderThreadPane';
 import { isRiderThread } from '../../lib/riderThread';
+import { SupportModeBar, SupportSenderLabel, AssistantTyping, AssistantText, AfterTyping, assistantIsTyping, scrollToBottom } from './SupportAssistantKit';
 
 export default function BuyerFloatingChat() {
   const { user } = useAuth();
@@ -33,6 +34,9 @@ export default function BuyerFloatingChat() {
     clearActiveConversation,
     openChatWithSupport,
     sendMessage,
+    confirmOrderAddress,
+    talkToPerson,
+    backToAssistant,
     refreshConversations,
   } = useChat();
 
@@ -166,6 +170,10 @@ export default function BuyerFloatingChat() {
   ] as const;
   const iconButton = 'w-8 h-8 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors';
   const isSupportThread = activeConversation?.type === 'buyer_admin';
+  // The inbox copy is kept fresh by the websocket and polling, so a handoff made by the assistant shows here too.
+  const supportMode = isSupportThread
+    ? conversations.find((c) => c.id === activeConversation?.id)?.support_mode ?? activeConversation?.support_mode
+    : null;
   const threadName = isSupportThread ? 'Loved-IT Support' : activeConversation?.seller?.shop_name || 'Shop';
   const threadAvatar = isSupportThread ? null : activeConversation?.seller?.shop_logo || null;
 
@@ -345,7 +353,7 @@ export default function BuyerFloatingChat() {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-[14px] font-semibold text-stone-900 truncate leading-tight">{threadName}</p>
-                    <p className="text-[11px] text-stone-500 truncate">{isSupportThread ? 'Official Loved-IT support' : 'Shop on Loved-IT'}</p>
+                    <p className="text-[11px] text-stone-500 truncate">{isSupportThread ? (supportMode === 'ai' ? 'Assistant replies right away' : 'Official Loved-IT support') : 'Shop on Loved-IT'}</p>
                   </div>
                   <Link to="/settings/messages" onClick={closeChat} className={iconButton} title="Open full page" aria-label="Open full page">
                     <Maximize2 className="w-4 h-4" />
@@ -354,6 +362,8 @@ export default function BuyerFloatingChat() {
                     <X className="w-[18px] h-[18px]" />
                   </button>
                 </div>
+
+                {isSupportThread && <SupportModeBar mode={supportMode} assistantAvailable={activeConversation.assistant_available} onTalkToPerson={talkToPerson} onBackToAssistant={backToAssistant} />}
 
                 {/* What the conversation is about */}
                 {(activeConversation.product || activeConversation.order) && (
@@ -392,7 +402,7 @@ export default function BuyerFloatingChat() {
                   ) : messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center px-6">
                       <p className="text-[13px] font-semibold text-stone-900">Say hello to {threadName}</p>
-                      <p className="mt-1 text-[12px] text-stone-500">Ask about stock, sizes, shipping or the shop&apos;s policies.</p>
+                      <p className="mt-1 text-[12px] text-stone-500">{isSupportThread ? 'Ask about an order, delivery, payment or returns.' : <>Ask about stock, sizes, shipping or the shop&apos;s policies.</>}</p>
                     </div>
                   ) : (
                     messages.map((m, idx) => {
@@ -422,8 +432,10 @@ export default function BuyerFloatingChat() {
                               </span>
                             )}
                             <div className={`flex flex-col max-w-[78%] ${isMe ? 'items-end' : 'items-start'}`}>
-                              {m.attachment_type && m.attachment_data && (
-                                <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={isMe} orderHref={() => '/settings/orders'} />
+                              {isSupportThread && !isMe && !grouped && <SupportSenderLabel role={m.sender_role} />}
+                              {m.attachment_type && m.attachment_data && m.sender_role !== 'assistant' && (
+                                <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={isMe} orderHref={buyerOrderHref}
+                                  onConfirmAddress={!isMe && m.attachment_type === 'order_confirmation' ? () => confirmOrderAddress(m.id) : undefined} />
                               )}
                               {m.body && !isAutoAttachmentBody(m) && (
                                 <div
@@ -434,8 +446,18 @@ export default function BuyerFloatingChat() {
                                       : `bg-white text-stone-900 ring-1 ring-stone-200 rounded-[18px] ${nextSame ? 'rounded-bl-md' : 'rounded-bl-sm'} ${grouped ? 'rounded-tl-md' : ''}`
                                   }`}
                                 >
-                                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                                  <p className="whitespace-pre-wrap break-words">
+                                    {m.sender_role === 'assistant'
+                                      ? <AssistantText message={m} onGrow={() => scrollToBottom(messagesEndRef.current?.parentElement)} />
+                                      : m.body}
+                                  </p>
                                 </div>
+                              )}
+                              {/* The assistant's order cards come under its reply, once the reply has typed out. */}
+                              {m.sender_role === 'assistant' && m.attachment_type && m.attachment_data && (
+                                <AfterTyping message={m} onShow={() => scrollToBottom(messagesEndRef.current?.parentElement)}>
+                                  <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={false} orderHref={buyerOrderHref} />
+                                </AfterTyping>
                               )}
                               {isLastMine && (
                                 <span className="mt-1 px-1 text-[10px] text-stone-400">
@@ -448,6 +470,7 @@ export default function BuyerFloatingChat() {
                       );
                     })
                   )}
+                  {isSupportThread && assistantIsTyping(supportMode, messages, user?.id) && <AssistantTyping />}
                   <div ref={messagesEndRef} />
                 </div>
 
@@ -484,6 +507,7 @@ export default function BuyerFloatingChat() {
                         ref={inputRef}
                         type="text"
                         placeholder="Write a message"
+                        maxLength={1000}
                         value={inputBody}
                         onChange={(e) => setInputBody(e.target.value)}
                         className="flex-1 min-w-0 h-full px-1.5 text-[13px] bg-transparent outline-none placeholder:text-stone-400"

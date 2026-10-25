@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Store, ShieldCheck, Mail, Clock } from 'lucide-react';
+import photo from '../../assets/auth/seller.jpg';
+import { ShieldCheck, Mail, Clock } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import CustomSelect from '../../components/ui/CustomSelect';
@@ -57,8 +58,10 @@ const EMPTY_DOCS: Docs = {
 function Shell({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <ApplyLayout
-      icon={Store}
       kicker="Sell on Loved-IT"
+      image={photo}
+      imageAlt="A seller labelling a parcel for an order"
+      imagePosition="center 30%"
       title="Open your shop"
       intro="Tell us about your shop and send the documents for your seller type. We confirm your email first, then an admin reviews the application, usually within 1 to 3 business days."
       aside={aside}

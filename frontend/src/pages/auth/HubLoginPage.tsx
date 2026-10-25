@@ -6,10 +6,12 @@ import { loginApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
-import PortalLoginShell from '../../components/auth/PortalLoginShell';
+import AuthShell, { AuthNotice } from '../../components/auth/AuthShell';
+import { PasswordField } from '../../components/auth/AuthFields';
+import photo from '../../assets/auth/hub.jpg';
 import { useToast } from '../../components/ui/Toast';
 import { validateLoginIdentifier } from '../../utils/loginIdentifier';
-import { AlertCircle, ArrowRight, Ban, Clock, Eye, EyeOff, Layers, ScanLine, ShieldAlert, Send, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowRight, Ban, Clock, Layers, ScanLine, ShieldAlert, Send, XCircle } from 'lucide-react';
 
 type HubLoginError = 'pending' | 'rejected' | 'suspended' | 'not_hub' | 'invalid' | 'general';
 
@@ -19,7 +21,7 @@ const PERKS = [
   { icon: Send, text: 'Track every delivery and failed attempt' },
 ];
 
-/** Sign-in for logistics hub (sorting center) owners. Same layout as the buyer and courier sign-in. */
+/** Sign-in for logistics hub (sorting center) owners, on the same layout as every other sign-in page. */
 export default function HubLoginPage() {
   const { setAuth, clearAuth } = useAuth();
   const navigate = useNavigate();
@@ -28,7 +30,6 @@ export default function HubLoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [identifierError, setIdentifierError] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorType, setErrorType] = useState<HubLoginError | null>(null);
@@ -102,61 +103,39 @@ export default function HubLoginPage() {
     }
   }
 
-  const tone =
-    errorType === 'pending'
-      ? 'bg-amber-50 border-amber-200 text-amber-900'
-      : errorType === 'not_hub'
-        ? 'bg-gray-50 border-gray-200 text-gray-900'
-        : 'bg-red-50 border-red-200 text-red-700';
+  const tone = errorType === 'pending' ? 'amber' : errorType === 'not_hub' ? 'gray' : 'red';
+  const Icon = errorType === 'pending' ? Clock : errorType === 'rejected' ? XCircle : errorType === 'suspended' ? Ban : errorType === 'not_hub' ? ShieldAlert : AlertCircle;
 
   return (
-    <PortalLoginShell
-      badge="Logistics hub sign in"
-      heading="Welcome back"
+    <AuthShell
+      eyebrow="Logistics hub sign in"
+      title="Welcome back"
       subtitle="Sign in to run your hub: intake, sorting, dispatch and deliveries."
-      image="https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1200&q=80"
-      imageAlt="Parcels being sorted in a logistics warehouse"
-      headline={['Run your hub.', 'Keep parcels moving.']}
-      perks={PERKS}
+      topLink={{ text: 'No hub yet?', label: 'Apply to run one', to: '/register/hub' }}
+      image={photo}
+      imageAlt="Shelves of parcels in a logistics warehouse"
+      headline="Run your hub. Keep parcels moving."
+      facts={PERKS}
     >
       {errorType && errorMessage && (
-        <div role="alert" aria-live="assertive" className={`rounded-lg border px-4 py-3 text-sm mb-5 ${tone}`}>
-          <div className="flex items-start gap-2.5">
-            {errorType === 'pending' ? (
-              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-            ) : errorType === 'rejected' ? (
-              <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            ) : errorType === 'suspended' ? (
-              <Ban className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            ) : errorType === 'not_hub' ? (
-              <ShieldAlert className="w-4 h-4 text-gray-600 shrink-0 mt-0.5" aria-hidden="true" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            )}
-            <div className="space-y-2 min-w-0">
-              <p className="font-medium leading-relaxed">{errorMessage}</p>
-
-              {errorType === 'pending' && (
-                <Link to="/register/hub" className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 underline hover:text-amber-900">
-                  View application status
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </Link>
-              )}
-              {errorType === 'rejected' && (
-                <Link to="/register/hub" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
-                  Apply again with a corrected application
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </Link>
-              )}
-              {errorType === 'not_hub' && (
-                <Link to="/login" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
-                  Go to the standard sign in
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
+        <AuthNotice tone={tone} icon={Icon}>
+          <p className="font-medium">{errorMessage}</p>
+          {errorType === 'pending' && (
+            <Link to="/register/hub" className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 underline hover:text-amber-900">
+              View application status <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </Link>
+          )}
+          {errorType === 'rejected' && (
+            <Link to="/register/hub" className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
+              Apply again with a corrected application <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </Link>
+          )}
+          {errorType === 'not_hub' && (
+            <Link to="/login" className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
+              Go to the shopper sign in <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </Link>
+          )}
+        </AuthNotice>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
@@ -173,53 +152,17 @@ export default function HubLoginPage() {
           disabled={loading}
           required
         />
-
-        <div>
-          <div className="relative">
-            <Input
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pr-12"
-              disabled={loading}
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute bottom-0 right-0 w-11 h-11 flex items-center justify-center text-gray-500 hover:text-gray-700 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-            >
-              {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
-            </button>
-          </div>
-          <div className="flex justify-end mt-1.5">
-            <Link to="/forgot-password" className="text-xs text-brand-red hover:underline font-medium">
-              Forgot password?
-            </Link>
-          </div>
+        <div className="flex flex-col gap-1">
+          <PasswordField id="hub-password" label="Password" autoComplete="current-password" value={password} onChange={setPassword} />
+          <Link to="/forgot-password" className="self-end mt-1 text-[12.5px] font-medium text-brand-red hover:underline">Forgot password?</Link>
         </div>
 
-        <Button type="submit" loading={loading} className="w-full mt-1">
-          Sign In
-        </Button>
+        <Button type="submit" loading={loading} className="w-full mt-1">Sign in</Button>
       </form>
 
-      <p className="mt-6 text-sm text-center text-gray-500">
-        Want to run a hub with Loved-IT?{' '}
-        <Link to="/register/hub" className="text-brand-red font-semibold hover:underline">
-          Register a logistics hub
-        </Link>
+      <p className="mt-7 text-[13px] text-center text-stone-500 sm:hidden">
+        No hub yet? <Link to="/register/hub" className="font-semibold text-brand-red hover:underline">Apply to run one</Link>
       </p>
-
-      <div className="mt-5 pt-4 border-t border-gray-100 text-center">
-        <Link to="/login" className="inline-flex items-center gap-1.5 text-xs text-brand-red hover:text-brand-red-dark font-semibold">
-          <span>Buyer, seller or courier? Standard Sign In</span>
-          <span aria-hidden="true">&rarr;</span>
-        </Link>
-      </div>
-    </PortalLoginShell>
+    </AuthShell>
   );
 }

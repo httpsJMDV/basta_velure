@@ -153,6 +153,14 @@ export default function AdminMessagesPage() {
     return () => { alive = false; };
   }, [sellerIdParam]);
 
+  // ?conversation=ID (from a "buyer wants to talk to a person" notice): open that chat.
+  const conversationParam = Number(searchParams.get('conversation')) || null;
+  useEffect(() => {
+    if (!conversationParam) return;
+    setSelectedId(conversationParam);
+    setMobilePane('thread');
+  }, [conversationParam]);
+
   // Thread: whenever another conversation opens. Fetching marks its messages read.
   useEffect(() => {
     if (!selectedId) return;
@@ -352,7 +360,7 @@ export default function AdminMessagesPage() {
 
   const totalUnread = conversations.reduce((s, c) => s + (c.unread || 0), 0);
   const who = selectedConv ? identity(selectedConv) : null;
-  const lastMineId = [...messages].reverse().find((m) => m.sender_role === 'admin')?.id;
+  const lastMineId = [...messages].reverse().find((m) => m.sender_role === 'admin' || m.sender_role === 'assistant')?.id;
   const resolved = selectedConv?.status === 'resolved';
 
   return (
@@ -507,7 +515,9 @@ export default function AdminMessagesPage() {
                     <h2 className="text-[14px] font-bold text-gray-900 truncate">{who.name}</h2>
                     <span className={`px-1.5 py-px rounded text-[10px] font-semibold shrink-0 ${KIND_TONE[who.kind]}`}>{who.kind}</span>
                   </div>
-                  <p className="text-[12px] text-gray-500 truncate">{who.sub}</p>
+                  <p className="text-[12px] text-gray-500 truncate">
+                    {selectedConv.support_mode === 'ai' ? 'The Loved-IT Assistant is answering. Reply to take over.' : who.sub}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -554,7 +564,9 @@ export default function AdminMessagesPage() {
                         const endsGroup = !next || next.sender_id !== m.sender_id
                           || new Date(next.created_at).toDateString() !== new Date(m.created_at).toDateString()
                           || new Date(next.created_at).getTime() - t >= GROUP_GAP_MS;
-                        const mine = m.sender_role === 'admin';
+                        // The Loved-IT Assistant answers for support, so its replies sit on the support side.
+                        const bot = m.sender_role === 'assistant';
+                        const mine = m.sender_role === 'admin' || bot;
                         const avatar = m.sender_avatar || (m.sender_role === 'seller' ? selectedConv.seller?.shop_logo || selectedConv.seller?.avatar_url : selectedConv.buyer?.avatar_url) || null;
                         const showBody = !!m.body && !isAutoAttachmentBody(m);
                         return (
@@ -576,11 +588,14 @@ export default function AdminMessagesPage() {
                                 {!mine && !joinsPrev && who.isShopChat && (
                                   <span className="mb-1 px-1 text-[11px] font-semibold text-gray-500">{m.sender_shop_name || m.sender_name}</span>
                                 )}
+                                {bot && !joinsPrev && <span className="mb-1 px-1 text-[11px] font-semibold text-gray-500">Loved-IT Assistant</span>}
                                 {m.attachment_type && m.attachment_data && (
                                   <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={mine} orderHref={orderLink} />
                                 )}
                                 {showBody && (
-                                  <div className={`px-3.5 py-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words ${mine
+                                  <div className={`px-3.5 py-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words ${bot
+                                    ? `bg-gray-800 text-white rounded-2xl ${endsGroup ? 'rounded-br-md' : ''}`
+                                    : mine
                                     ? `bg-brand-red text-white rounded-2xl ${endsGroup ? 'rounded-br-md' : ''}`
                                     : `bg-white text-gray-900 border border-gray-200/80 rounded-2xl ${endsGroup ? 'rounded-bl-md' : ''}`}`}>
                                     {m.body}

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, Copy, Home, Loader2, MapPinOff, Radio, Store, Warehouse, X } from 'lucide-react';
-import { getDeliveryProofBlobUrl, getParcelTrackingApi } from '../../api/client';
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, Copy, Home, Loader2, MapPinOff, MessageCircle, Radio, Store, Warehouse, X } from 'lucide-react';
+import { getDeliveryProofBlobUrl, getParcelTrackingApi, startRiderChatApi } from '../../api/client';
+import { useChat } from '../../hooks/useChat';
 import { useLivePolling } from '../../hooks/useLivePolling';
 import type { ParcelTracking, TrackingEvent } from '../../types';
 import TrackingMap from './TrackingMap';
@@ -161,6 +162,40 @@ function CourierBanner({ tracking, now }: { tracking: ParcelTracking; now: numbe
   );
 }
 
+/** The buyer's way to reach the rider bringing their parcel: opens (or reopens) the chat in the floating messenger. */
+function MessageRiderButton({ trackingNumber, riderName, onOpened }: { trackingNumber: string; riderName: string | null; onOpened: () => void }) {
+  const { selectConversation, openChat, refreshConversations } = useChat();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const conversation = await startRiderChatApi(trackingNumber);
+      void refreshConversations();
+      selectConversation(conversation);
+      openChat();
+      onOpened();
+    } catch (err) {
+      setError((axios.isAxiosError(err) && err.response?.data?.message) || 'The chat could not be opened. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <button type="button" onClick={start} disabled={busy}
+        className="w-full min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-900 hover:border-gray-900 transition-colors disabled:opacity-60">
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <MessageCircle className="w-4 h-4" aria-hidden="true" />}
+        Message {riderName ?? 'the rider'}
+      </button>
+      {error && <p role="alert" className="mt-1.5 text-xs font-medium text-red-700">{error}</p>}
+    </div>
+  );
+}
+
 interface TrackingSheetProps {
   trackingNumber: string;
   onClose: () => void;
@@ -302,6 +337,7 @@ export default function TrackingSheet({ trackingNumber, onClose }: TrackingSheet
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
               <div className={`lg:col-span-3 space-y-4 ${showMap ? 'lg:sticky lg:top-[84px]' : ''}`}>
                 <CourierBanner tracking={tracking} now={now} />
+                {tracking.can_message_rider && <MessageRiderButton trackingNumber={tracking.tracking_number} riderName={tracking.courier.name} onOpened={onClose} />}
                 {showMap ? (
                   <div className="rounded-2xl overflow-hidden border border-gray-200/80 shadow-xs bg-white">
                     <TrackingMap tracking={tracking} className="h-72 sm:h-96 lg:h-[min(560px,calc(100vh-300px))]" />

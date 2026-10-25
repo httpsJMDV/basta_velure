@@ -1,57 +1,37 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Store, CheckCircle2, ShieldCheck, Shield, MapPin, Phone, Clock,
-  RotateCcw, Truck, MessageCircle, UserPlus, UserCheck,
-  Star, Package, Users, Copy, Check, X,
-  ChevronRight, Flag, ChevronLeft,
+  Store, BadgeCheck, MapPin, Phone, Clock, RotateCcw, Truck, MessageCircle, UserPlus, UserCheck,
+  Package, Copy, Check, ChevronRight, ChevronLeft, Flag, ShieldCheck, PenLine,
 } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
-import VoucherTicket from '../components/vouchers/VoucherTicket';
-import { useToast } from '../components/ui/Toast';
-import { claimVoucherApi, getShopVouchersApi } from '../api/commerce';
-import type { WalletVoucher } from '../api/commerce';
-import { apiErrorMessage } from '../utils/apiError';
 import Footer from '../components/Footer';
+import VoucherTicket from '../components/vouchers/VoucherTicket';
 import ProductCard from '../components/ui/ProductCard';
 import CustomSelect from '../components/ui/CustomSelect';
-import Button from '../components/ui/Button';
+import { useToast } from '../components/ui/Toast';
+import { Stars, ShopReviewSummaryBlock, ShopReviewList, ShopReviewDialog, SeeAllShopReviews } from '../components/reviews/ShopReviewKit';
+import { claimVoucherApi, getShopVouchersApi } from '../api/commerce';
+import type { WalletVoucher } from '../api/commerce';
+import { getMyShopReviewApi } from '../api/shopReviews';
+import type { MyShopReview, ShopReviewSummary } from '../api/shopReviews';
+import { apiErrorMessage } from '../utils/apiError';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
 import { resolveShortLocation } from '../utils/psgc';
 import { shopUrl, shopUrlLabel } from '../utils/shopLink';
-import {
-  getPublicShopProfileApi,
-  getShopReviewsApi,
-  getProductsApi,
-  toggleStoreFollowApi,
-} from '../api/client';
-import type {
-  PublicShopProfile,
-  PublicShopReview,
-  Product,
-} from '../types';
+import { getPublicShopProfileApi, getShopReviewsApi, getProductsApi, toggleStoreFollowApi } from '../api/client';
+import type { PublicShopProfile, PublicShopReview, Product } from '../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  }
-  return (name.slice(0, 2) || 'SH').toUpperCase();
+  return (parts.length >= 2 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2) || 'SH').toUpperCase();
 }
 
-function formatJoinDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
-}
-
-function formatReviewDate(iso: string): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-}
+const joined = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : '—');
+const shortDate = (iso: string) => (iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 
 const RESPONSE_TIME_MAP: Record<string, string> = {
   within_1_hour: 'Within 1 hour',
@@ -61,158 +41,14 @@ const RESPONSE_TIME_MAP: Record<string, string> = {
   within_1_day: 'Within 1 day',
   within_2_days: 'Within 2 days',
 };
+const responseTime = (val: string | null | undefined) =>
+  !val ? null : RESPONSE_TIME_MAP[val] ?? val.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
-function formatResponseTime(val: string | null | undefined): string {
-  if (!val) return 'Within a few hours';
-  if (RESPONSE_TIME_MAP[val]) return RESPONSE_TIME_MAP[val];
-  return val
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
+const EMPTY_SUMMARY: ShopReviewSummary = { average: null, count: 0, rating_counts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }, latest: [] };
 
-function StarRow({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'md' | 'lg' }) {
-  const cls = size === 'lg' ? 'w-5 h-5' : size === 'md' ? 'w-4 h-4' : 'w-3.5 h-3.5';
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          className={`${cls} ${i <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'fill-gray-200 text-gray-200'}`}
-        />
-      ))}
-    </div>
-  );
-}
+type Tab = 'products' | 'reviews' | 'about';
 
-// ─── Report Shop Modal ────────────────────────────────────────────────────────
-
-function ReportShopModal({
-  shopName,
-  isOpen,
-  onClose,
-}: {
-  shopName: string;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const [reason, setReason] = useState('Inappropriate or misleading content');
-  const [details, setDetails] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-
-  const reasons = [
-    'Inappropriate or misleading content',
-    'Counterfeit or illegal items',
-    'Suspicious or fraudulent seller activity',
-    'Non-responsive or abusive behavior',
-    'Other policy violation',
-  ];
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      onClose();
-    }, 2000);
-  }
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 16 }}
-            className="relative z-10 w-full max-w-md p-6 bg-white border border-gray-100 shadow-2xl rounded-3xl"
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div className="flex items-center gap-2 text-brand-red">
-                <Flag className="w-5 h-5" />
-                <h3 className="text-base font-bold text-gray-900">Report {shopName}</h3>
-              </div>
-              <button onClick={onClose} className="p-1 text-gray-400 rounded-xl hover:bg-gray-100">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {submitted ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500" />
-                <p className="text-base font-bold text-gray-900">Report Submitted</p>
-                <p className="text-xs text-gray-500">Thank you. Our moderation team will investigate this shop.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">
-                    Reason for Report
-                  </label>
-                  <div className="flex flex-col gap-2">
-                    {reasons.map((r) => (
-                      <label
-                        key={r}
-                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                          reason === r
-                            ? 'border-brand-red bg-red-50/50 font-semibold text-gray-900'
-                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="reportReason"
-                          checked={reason === r}
-                          onChange={() => setReason(r)}
-                          className="w-4 h-4 accent-brand-red"
-                        />
-                        <span>{r}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">
-                    Additional Details (Optional)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={details}
-                    onChange={(e) => setDetails(e.target.value)}
-                    placeholder="Provide any additional context or proof..."
-                    className="w-full p-3 text-xs border border-gray-200 outline-none rounded-xl focus:border-brand-red focus:ring-1 focus:ring-brand-red"
-                  />
-                </div>
-
-                <div className="flex gap-2.5 pt-2">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <Button type="submit" className="flex-1 py-2.5 text-xs font-semibold">
-                    Submit Report
-                  </Button>
-                </div>
-              </form>
-            )}
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-// ─── Main Shop Profile Page ───────────────────────────────────────────────────
+// ─── Vouchers ─────────────────────────────────────────────────────────────────
 
 /** The shop's claimable vouchers (B7). Code-only vouchers are never listed. */
 function ShopVoucherStrip({ sellerId }: { sellerId: number }) {
@@ -241,9 +77,9 @@ function ShopVoucherStrip({ sellerId }: { sellerId: number }) {
   };
 
   return (
-    <section aria-label="Shop vouchers" className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
-      <h2 className="text-base font-bold text-gray-900">Shop vouchers</h2>
-      <div className="mt-3 grid sm:grid-cols-2 gap-3">
+    <section aria-label="Shop vouchers" className="mb-6">
+      <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-stone-500">Shop vouchers</h2>
+      <div className="mt-3 grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
         {rows.map((v) => (
           <VoucherTicket key={v.id} voucher={v} busy={busy === v.id}
             action={v.used_up_by_you ? 'used' : v.claimed ? 'claimed' : 'claim'} onAction={() => claim(v)} />
@@ -253,37 +89,35 @@ function ShopVoucherStrip({ sellerId }: { sellerId: number }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+/**
+ * A shop's storefront: the header (banner, logo, name, how it is rated), then Products, Reviews and About. Shop
+ * reviews (about the shop itself) sit beside the product reviews; a buyer with a completed order can write one.
+ */
 export default function ShopProfilePage() {
   const { slug, id } = useParams<{ slug?: string; id?: string }>();
   const shopIdentifier = slug || id || '';
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { openChatWithSeller } = useChat();
+  const { openChatWithSeller, openChatWithSupport } = useChat();
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = (['products', 'reviews', 'about'] as const).find((t) => t === params.get('tab')) ?? 'products';
+  const setTab = (t: Tab) => setParams((p) => { const n = new URLSearchParams(p); if (t === 'products') n.delete('tab'); else n.set('tab', t); return n; }, { replace: true });
 
-  // Shop state
   const [profile, setProfile] = useState<PublicShopProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-
-  // Address resolution
-  const [resolvedLocation, setResolvedLocation] = useState<string>('');
-
-  // Follow state
+  const [location, setLocation] = useState('');
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
-
-  // Copy URL state
   const [copied, setCopied] = useState(false);
 
-  // Report modal
-  const [reportOpen, setReportOpen] = useState(false);
-
-  // Products state
+  // Products
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  // The shop's own categories, when it has them: a top-level one and, inside it, an optional subcategory.
   const [storeCat, setStoreCat] = useState<number | null>(null);
   const [storeSub, setStoreSub] = useState<number | null>(null);
   const [sortOption, setSortOption] = useState<string>('newest');
@@ -291,15 +125,18 @@ export default function ShopProfilePage() {
   const [totalProducts, setTotalProducts] = useState(0);
   const [lastProductPage, setLastProductPage] = useState(1);
 
-  // Reviews state
+  // Product reviews
   const [reviews, setReviews] = useState<PublicShopReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewRatingFilter, setReviewRatingFilter] = useState<number | undefined>(undefined);
   const [reviewPage, setReviewPage] = useState(1);
-  const [, setTotalReviews] = useState(0);
   const [lastReviewPage, setLastReviewPage] = useState(1);
 
-  // Load shop profile
+  // Shop reviews
+  const [shopSummary, setShopSummary] = useState<ShopReviewSummary>(EMPTY_SUMMARY);
+  const [mine, setMine] = useState<MyShopReview | null>(null);
+  const [writing, setWriting] = useState(false);
+
   const loadProfile = useCallback(async () => {
     if (!shopIdentifier) return;
     setLoading(true);
@@ -309,11 +146,9 @@ export default function ShopProfilePage() {
       setProfile(data);
       setIsFollowing(data.is_following);
       setFollowerCount(data.follower_count);
-
-      // Resolve address to City, Province words
+      setShopSummary(data.shop_reviews ?? EMPTY_SUMMARY);
       if (data.address_province || data.address_city) {
-        resolveShortLocation(data.address_province, data.address_city)
-          .then((loc) => setResolvedLocation(loc || 'Philippines'));
+        resolveShortLocation(data.address_province, data.address_city).then((loc) => setLocation(loc || 'Philippines'));
       }
     } catch {
       setError(true);
@@ -322,11 +157,13 @@ export default function ShopProfilePage() {
     }
   }, [shopIdentifier]);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useEffect(() => { void loadProfile(); }, [loadProfile]);
 
-  // Load products for this seller
+  useEffect(() => {
+    if (!profile || !user) { setMine(null); return; }
+    getMyShopReviewApi(profile.shop_slug).then(setMine).catch(() => setMine(null));
+  }, [profile, user]);
+
   const loadProducts = useCallback(async () => {
     if (!profile) return;
     setProductsLoading(true);
@@ -335,7 +172,7 @@ export default function ShopProfilePage() {
         seller_ids: [profile.seller_id],
         category_id: selectedCategory === 'all' ? undefined : String(selectedCategory),
         store_category_id: storeSub ?? storeCat ?? undefined,
-        sort: sortOption as any,
+        sort: sortOption as 'newest',
         page: productPage,
         per_page: 12,
       });
@@ -343,85 +180,67 @@ export default function ShopProfilePage() {
       setTotalProducts(res.meta.total);
       setLastProductPage(res.meta.last_page);
     } catch {
-      // ignore
+      // keep what is shown
     } finally {
       setProductsLoading(false);
     }
   }, [profile, selectedCategory, storeCat, storeSub, sortOption, productPage]);
 
-  useEffect(() => {
-    if (profile) {
-      loadProducts();
-    }
-  }, [profile, loadProducts]);
+  useEffect(() => { if (profile) void loadProducts(); }, [profile, loadProducts]);
 
-  // Load reviews for this seller
   const loadReviews = useCallback(async () => {
     if (!profile) return;
     setReviewsLoading(true);
     try {
-      const res = await getShopReviewsApi(profile.seller_id, {
-        rating: reviewRatingFilter,
-        page: reviewPage,
-      });
+      const res = await getShopReviewsApi(profile.seller_id, { rating: reviewRatingFilter, page: reviewPage });
       setReviews(res.data);
-      setTotalReviews(res.meta.total);
       setLastReviewPage(res.meta.last_page);
     } catch {
-      // ignore
+      // keep what is shown
     } finally {
       setReviewsLoading(false);
     }
   }, [profile, reviewRatingFilter, reviewPage]);
 
-  useEffect(() => {
-    if (profile) {
-      loadReviews();
-    }
-  }, [profile, loadReviews]);
+  useEffect(() => { if (profile && tab === 'reviews') void loadReviews(); }, [profile, tab, loadReviews]);
 
-  // Follow toggle handler
-  async function handleToggleFollow() {
+  async function toggleFollow() {
     if (!profile) return;
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+    if (!user) { navigate('/login'); return; }
     setFollowLoading(true);
     try {
       const res = await toggleStoreFollowApi(profile.seller_id);
       setIsFollowing(res.following);
       setFollowerCount((c) => (res.following ? c + 1 : Math.max(0, c - 1)));
     } catch {
-      // optimistic fallback
+      // the button stays as it was
     } finally {
       setFollowLoading(false);
     }
   }
 
-  // Copy slug URL handler
-  function handleCopyUrl() {
+  function copyLink() {
     if (!profile) return;
-    navigator.clipboard.writeText(shopUrl(profile.shop_slug));
+    void navigator.clipboard?.writeText(shopUrl(profile.shop_slug)).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
+  // A report goes to Loved-IT Support in chat, where a person reads it.
+  function report() {
+    if (!profile) return;
+    if (!user) { navigate('/login'); return; }
+    void openChatWithSupport(undefined, `I want to report the shop "${profile.shop_name}" (${shopUrl(profile.shop_slug)}). Reason: `);
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-brand-gray-soft">
+      <div className="min-h-screen bg-[#FAF8F5]">
         <SiteHeader />
-        <div className="flex flex-col gap-6 px-4 py-8 mx-auto max-w-7xl">
-          <div className="h-64 bg-gray-200 rounded-3xl animate-pulse" />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-20 bg-gray-200 rounded-2xl animate-pulse" />
-            ))}
-          </div>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="bg-gray-200 h-96 rounded-2xl animate-pulse" />
-            <div className="bg-gray-200 lg:col-span-2 h-96 rounded-2xl animate-pulse" />
-          </div>
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-6 space-y-5">
+          <div className="h-56 rounded-3xl bg-stone-200/60 animate-pulse" />
+          <div className="h-10 w-1/2 rounded-xl bg-stone-200/60 animate-pulse" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">{[1, 2, 3, 4].map((i) => <div key={i} className="aspect-square rounded-2xl bg-stone-200/60 animate-pulse" />)}</div>
         </div>
       </div>
     );
@@ -429,684 +248,381 @@ export default function ShopProfilePage() {
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-brand-gray-soft">
+      <div className="min-h-screen bg-[#FAF8F5] flex flex-col">
         <SiteHeader />
-        <div className="px-4 py-32 mx-auto text-center max-w-7xl">
-          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-50 text-brand-red">
-            <Store className="w-8 h-8" />
-          </div>
-          <h2 className="mb-2 text-2xl font-bold text-gray-900">Shop Not Found</h2>
-          <p className="max-w-sm mx-auto mb-6 text-sm text-gray-500">
-            The shop you are looking for does not exist or is currently unavailable.
-          </p>
-          <Link to="/">
-            <Button>Return to Home</Button>
-          </Link>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-24">
+          <Store className="w-10 h-10 text-stone-300" />
+          <h1 className="mt-4 font-serif text-2xl font-bold text-[#1E1B18]">This shop is not available</h1>
+          <p className="mt-2 max-w-sm text-sm text-stone-500">It may have changed its name, or it is closed for now.</p>
+          <Link to="/search" className="mt-6 h-10 px-5 rounded-full bg-stone-900 text-white text-sm font-semibold flex items-center">Keep shopping</Link>
         </div>
-        <SiteFooter />
+        <Footer />
       </div>
     );
   }
 
+  const reply = responseTime(profile.response_time);
+  const reviewCount = shopSummary.count + profile.total_reviews;
+  const storeCats = profile.store_categories ?? [];
   const sortOptions = [
     { value: 'newest', label: 'Latest' },
-    { value: 'best_selling', label: 'Best Selling' },
-    { value: 'price_asc', label: 'Price: Low to High' },
-    { value: 'price_desc', label: 'Price: High to Low' },
+    { value: 'best_selling', label: 'Best selling' },
+    { value: 'price_asc', label: 'Price: low to high' },
+    { value: 'price_desc', label: 'Price: high to low' },
+  ];
+  const activeCatName = storeCat !== null
+    ? (storeCats.find((c) => c.id === storeCat)?.children?.find((c) => c.id === storeSub)?.name ?? storeCats.find((c) => c.id === storeCat)?.name)
+    : selectedCategory !== 'all' ? profile.categories?.find((c) => c.category_id === selectedCategory)?.category_name : null;
+
+  const stats: { label: string; value: React.ReactNode; onClick?: () => void }[] = [
+    {
+      label: 'Shop rating',
+      value: shopSummary.average !== null
+        ? <span className="inline-flex items-center gap-1.5">{shopSummary.average.toFixed(1)} <Stars value={shopSummary.average} size="xs" /></span>
+        : 'No reviews yet',
+      onClick: () => setTab('reviews'),
+    },
+    { label: 'Product rating', value: profile.avg_rating != null ? `${profile.avg_rating.toFixed(1)} (${profile.total_reviews})` : 'No reviews yet', onClick: () => setTab('reviews') },
+    { label: 'Followers', value: followerCount.toLocaleString() },
+    { label: 'Products', value: profile.total_products.toLocaleString() },
+    { label: 'Usually replies', value: reply ?? '—' },
+    { label: 'On Loved-IT since', value: joined(profile.joined_date) },
   ];
 
   return (
-    <div className="flex flex-col min-h-screen bg-brand-gray-soft">
+    <div className="flex flex-col min-h-screen bg-[#FAF8F5]">
       <SiteHeader />
 
-      {/* Breadcrumb */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="flex items-center h-12 gap-2 px-4 mx-auto text-sm max-w-7xl">
-          <Link to="/" className="text-gray-500 transition-colors hover:text-brand-red">Home</Link>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-          <span className="text-gray-500">Shops</span>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-          <span className="font-semibold text-gray-800 truncate">{profile.shop_name}</span>
-        </div>
-      </div>
-
-      <main className="flex flex-col flex-1 w-full gap-6 px-4 py-6 mx-auto max-w-7xl">
+      <main className="flex-1 w-full max-w-[1280px] mx-auto px-4 sm:px-8 pb-16">
+        <nav className="flex items-center gap-1.5 py-4 text-[12px] text-stone-500" aria-label="Breadcrumb">
+          <Link to="/" className="hover:text-brand-red">Home</Link>
+          <ChevronRight className="w-3 h-3 text-stone-300" />
+          <span>Shops</span>
+          <ChevronRight className="w-3 h-3 text-stone-300" />
+          <span className="text-stone-800 truncate">{profile.shop_name}</span>
+        </nav>
 
         {profile.on_vacation && (
-          <div role="status" className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <span className="mt-1 w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-            <p><span className="font-semibold">{profile.shop_name} is on vacation.</span> You can browse and save items to your wishlist; ordering opens again when the shop is back.</p>
+          <p role="status" className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900">
+            <span className="mt-1.5 w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+            <span><span className="font-semibold">{profile.shop_name} is on vacation.</span> You can browse and save items; ordering opens again when the shop is back.</span>
+          </p>
+        )}
+
+        {/* Header: banner, then the shop's identity beside its actions, then how it is rated */}
+        <section className="rounded-3xl bg-white border border-stone-200 overflow-hidden">
+          {/* A thin brand-red strip when the shop has no banner, so the page does not open on an empty block */}
+          <div className={profile.banner_url ? 'h-32 sm:h-48 bg-[#EDE6DC]' : 'h-3 bg-brand-red'}>
+            {profile.banner_url && <img src={profile.banner_url} alt="" className="w-full h-full object-cover" />}
+          </div>
+          <div className="p-5 sm:p-7 flex flex-col lg:flex-row lg:items-center gap-5">
+            <div className="flex items-start gap-4 sm:gap-5 min-w-0 flex-1">
+              {profile.logo_url
+                ? <img src={profile.logo_url} alt="" className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border border-stone-200 bg-white shrink-0" />
+                : <span className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#1E1B18] text-[#FAF8F5] font-serif text-2xl font-bold flex items-center justify-center shrink-0">{initials(profile.shop_name)}</span>}
+              <div className="min-w-0">
+                <h1 className="font-serif text-[26px] sm:text-[34px] font-bold tracking-tight leading-[1.1] text-[#1E1B18] break-words">{profile.shop_name}</h1>
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-stone-500">
+                  {profile.application_status === 'approved' && (
+                    <span className="inline-flex items-center gap-1 font-semibold text-stone-800"><BadgeCheck className="w-4 h-4 text-brand-red" /> Verified shop</span>
+                  )}
+                  {profile.shop_category && <span>{profile.shop_category}</span>}
+                  {location && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{location}</span>}
+                </p>
+                {profile.shop_bio && <p className="mt-2.5 max-w-2xl text-[14px] leading-relaxed text-stone-600">{profile.shop_bio}</p>}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button type="button" onClick={toggleFollow} disabled={followLoading}
+                className={`min-h-[42px] px-5 rounded-full text-[13.5px] font-semibold inline-flex items-center gap-2 transition-colors disabled:opacity-60 ${isFollowing ? 'border border-stone-300 bg-white text-stone-800 hover:border-stone-900' : 'bg-brand-red text-white hover:bg-brand-red-dark'}`}>
+                {isFollowing ? <><UserCheck className="w-4 h-4" /> Following</> : <><UserPlus className="w-4 h-4" /> Follow</>}
+              </button>
+              <button type="button" onClick={() => { if (!user) { navigate('/login'); return; } void openChatWithSeller(profile.seller_id); }}
+                className="min-h-[42px] px-4 rounded-full border border-stone-300 bg-white text-[13.5px] font-semibold text-stone-800 hover:border-stone-900 inline-flex items-center gap-2">
+                <MessageCircle className="w-4 h-4" /> Chat
+              </button>
+              <button type="button" onClick={copyLink} title={copied ? 'Link copied' : 'Copy shop link'} aria-label="Copy shop link"
+                className="w-[42px] h-[42px] rounded-full border border-stone-300 bg-white text-stone-600 hover:border-stone-900 hover:text-stone-900 flex items-center justify-center">
+                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-t border-stone-100 [&>div]:border-stone-100 [&>div]:border-b lg:[&>div]:border-b-0 [&>div:not(:first-child)]:lg:border-l">
+            {stats.map((s) => {
+              const body = (
+                <>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">{s.label}</dt>
+                  <dd className="mt-1 text-[14px] font-semibold text-stone-900 tabular-nums">{s.value}</dd>
+                </>
+              );
+              return (
+                <div key={s.label} className="min-w-0">
+                  {s.onClick
+                    ? <button type="button" onClick={s.onClick} className="w-full text-left px-5 py-4 hover:bg-stone-50 transition-colors">{body}</button>
+                    : <div className="px-5 py-4">{body}</div>}
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+
+        {/* Tabs */}
+        <div className="mt-6 flex items-center gap-1 border-b border-stone-200" role="tablist" aria-label="Shop sections">
+          {([['products', `Products (${profile.total_products})`], ['reviews', `Reviews (${reviewCount})`], ['about', 'About']] as const).map(([key, label]) => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+              className={`px-4 py-3 -mb-px border-b-2 text-[14px] font-semibold transition-colors ${tab === key ? 'border-brand-red text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-900'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'products' && (
+          <div className="mt-6 grid lg:grid-cols-[220px_minmax(0,1fr)] gap-6 lg:gap-8 items-start">
+            {/* Categories: a list on a wide screen, chips on a phone */}
+            <aside className="lg:sticky lg:top-[126px]">
+              <p className="hidden lg:block text-[11px] font-semibold uppercase tracking-[0.1em] text-stone-400 mb-2">Categories</p>
+              <ul className="flex lg:flex-col gap-1.5 lg:gap-0.5 overflow-x-auto no-scrollbar pb-1 lg:pb-0">
+                <CatItem label="All products" count={profile.total_products} active={storeCat === null && selectedCategory === 'all'}
+                  onClick={() => { setStoreCat(null); setStoreSub(null); setSelectedCategory('all'); setProductPage(1); }} />
+                {storeCats.length > 0
+                  ? storeCats.map((c) => (
+                    <li key={c.id} className="shrink-0 lg:shrink">
+                      <CatButton label={c.name} count={c.product_count} active={storeCat === c.id && storeSub === null}
+                        onClick={() => { setStoreCat(c.id); setStoreSub(null); setSelectedCategory('all'); setProductPage(1); }} />
+                      {storeCat === c.id && (c.children?.length ?? 0) > 0 && (
+                        <ul className="hidden lg:block ml-3 pl-2 border-l border-stone-200 my-1">
+                          {c.children!.map((sub) => (
+                            <li key={sub.id}><CatButton small label={sub.name} count={sub.product_count} active={storeSub === sub.id} onClick={() => { setStoreSub(sub.id); setProductPage(1); }} /></li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))
+                  : (profile.categories ?? []).map((c) => (
+                    <CatItem key={c.category_id} label={c.category_name} count={c.count} active={selectedCategory === c.category_id}
+                      onClick={() => { setSelectedCategory(c.category_id); setStoreCat(null); setStoreSub(null); setProductPage(1); }} />
+                  ))}
+              </ul>
+            </aside>
+
+            <div className="min-w-0">
+              <ShopVoucherStrip sellerId={profile.seller_id} />
+              <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="font-serif text-[22px] font-bold tracking-tight text-[#1E1B18]">{activeCatName ?? 'All products'}</h2>
+                  <p className="text-[12.5px] text-stone-500 tabular-nums">{totalProducts.toLocaleString()} item{totalProducts === 1 ? '' : 's'}</p>
+                </div>
+                <div className="w-48"><CustomSelect value={sortOption} onChange={(v) => { setSortOption(v); setProductPage(1); }} options={sortOptions} /></div>
+              </div>
+
+              {productsLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <div key={i} className="aspect-[3/4] rounded-2xl bg-stone-200/60 animate-pulse" />)}</div>
+              ) : products.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-stone-300 bg-white py-16 text-center">
+                  <Package className="w-8 h-8 mx-auto text-stone-300" />
+                  <p className="mt-3 text-[14px] font-semibold text-stone-700">Nothing here yet</p>
+                  <p className="mt-1 text-[12.5px] text-stone-500">Try another category or All products.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-6">
+                  {products.map((p) => <ProductCard key={p.id} product={p} />)}
+                </div>
+              )}
+
+              <Pager page={productPage} last={lastProductPage} onPage={setProductPage} />
+            </div>
           </div>
         )}
 
-        {/* ── 1. Header Card (Banner + Pinned Overlapping Avatar + Unobstructed Identity Block) ── */}
-        <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-3xl">
-          {/* Banner Container with Pinned Avatar */}
-          <div className="relative w-full h-48 sm:h-64 bg-gradient-to-r from-gray-800 via-gray-900 to-black">
-            {profile.banner_url ? (
-              <img
-                src={profile.banner_url}
-                alt={profile.shop_name}
-                className="object-cover w-full h-full"
-              />
-            ) : (
-              <div className="flex items-center justify-center w-full h-full bg-gradient-to-r from-rose-950 via-zinc-900 to-neutral-900">
-                <Store className="w-20 h-20 text-white/10" />
+        {tab === 'reviews' && (
+          <div className="mt-6 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 items-start">
+            {/* Reviews of the shop itself */}
+            <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-7">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-serif text-[22px] font-bold tracking-tight text-[#1E1B18]">About the shop</h2>
+                  <p className="text-[12.5px] text-stone-500">Shipping, packing and how the seller answers, from buyers with a completed order.</p>
+                </div>
+                <ReviewAction mine={mine} signedIn={!!user} onWrite={() => setWriting(true)} onSignIn={() => navigate(`/login?next=${encodeURIComponent(`/shop/${profile.shop_slug}?tab=reviews`)}`)} />
               </div>
-            )}
-
-            {/* Pinned Avatar (half overlapping banner bottom, z-index 10) */}
-            <div className="absolute z-10 flex items-center justify-center overflow-hidden bg-white border-4 border-white rounded-full shadow-xl -bottom-12 left-6 sm:left-8 w-28 h-28 sm:w-32 sm:h-32">
-              {profile.logo_url ? (
-                <img
-                  src={profile.logo_url}
-                  alt={profile.shop_name}
-                  className="object-cover w-full h-full"
-                />
-              ) : (
-                <div className="flex items-center justify-center w-full h-full text-2xl font-black text-white bg-gradient-to-br from-brand-red to-brand-red-dark sm:text-3xl">
-                  {initials(profile.shop_name)}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Identity block (pt-16 ensures name/details are never covered) */}
-          <div className="px-6 pt-16 pb-6 sm:px-8">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-              {/* Shop Title & Badges */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl font-black leading-tight text-gray-900 sm:text-3xl">
-                    {profile.shop_name}
-                  </h1>
-                  {profile.application_status === 'approved' && (
-                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                      Verified Seller
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Active Now
-                  </span>
-                </div>
-                {profile.shop_category && (
-                  <p className="mt-1 text-xs font-bold tracking-wide text-gray-400 uppercase">
-                    {profile.shop_category}
-                  </p>
-                )}
+              <div className="mt-6"><ShopReviewSummaryBlock summary={shopSummary} /></div>
+              <div className="mt-6 pt-5 border-t border-stone-100">
+                <ShopReviewList reviews={shopSummary.latest} shopName={profile.shop_name} emptyText="No one has reviewed the shop yet. Buyers can review it once an order from it is completed." />
               </div>
+              {shopSummary.count > shopSummary.latest.length && <div className="mt-5"><SeeAllShopReviews slug={profile.shop_slug} count={shopSummary.count} /></div>}
+            </section>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                <button
-                  onClick={handleToggleFollow}
-                  disabled={followLoading}
-                  className={`min-h-[42px] px-5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-xs ${
-                    isFollowing
-                      ? 'bg-gray-100 hover:bg-red-50 hover:text-brand-red hover:border-brand-red border border-gray-200 text-gray-700'
-                      : 'bg-brand-red hover:bg-brand-red-dark text-white shadow-brand-red/20'
-                  }`}
-                >
-                  {isFollowing ? (
-                    <>
-                      <UserCheck className="w-4 h-4 text-brand-red" />
-                      <span>Following</span>
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-4 h-4" />
-                      <span>Follow</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!user) {
-                      navigate('/login');
-                      return;
-                    }
-                    openChatWithSeller(profile.seller_id);
-                  }}
-                  className="min-h-[42px] px-4 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm flex items-center gap-2 hover:border-brand-red hover:text-brand-red transition-colors bg-white shadow-xs"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Chat</span>
-                </button>
-
-                <button
-                  onClick={() => setReportOpen(true)}
-                  className="p-2.5 rounded-xl border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors"
-                  title="Report this shop"
-                >
-                  <Flag className="w-4 h-4" />
-                </button>
+            {/* Reviews of its products */}
+            <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-7">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <h2 className="font-serif text-[22px] font-bold tracking-tight text-[#1E1B18]">Product reviews</h2>
+                <p className="inline-flex items-center gap-1.5 text-[13px] text-stone-600">
+                  <Stars value={profile.avg_rating ?? 0} size="xs" />
+                  <span className="font-semibold text-stone-900 tabular-nums">{profile.avg_rating != null ? profile.avg_rating.toFixed(1) : '–'}</span>
+                  <span className="text-stone-400">({profile.total_reviews})</span>
+                </p>
               </div>
-            </div>
-
-            {/* Shop Bio */}
-            {profile.shop_bio && (
-              <p className="mt-3 text-sm leading-relaxed text-gray-600">
-                {profile.shop_bio}
-              </p>
-            )}
-
-            {/* Store Link with Copy Button */}
-            <div className="mt-4 pt-3.5 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-medium text-gray-400 shrink-0">Store link:</span>
-                <div className="flex items-center min-w-0 bg-gray-50 rounded-lg border border-gray-200 font-mono font-medium">
-                  <a
-                    href={shopUrl(profile.shop_slug)}
-                    className="px-3 py-1.5 text-gray-700 hover:text-brand-red hover:underline truncate"
-                    title={shopUrl(profile.shop_slug)}
-                  >
-                    {shopUrlLabel(profile.shop_slug)}
-                  </a>
-                  <button
-                    type="button"
-                    onClick={handleCopyUrl}
-                    title={copied ? 'Copied' : 'Copy link'}
-                    aria-label="Copy store link"
-                    className="shrink-0 self-stretch px-2.5 border-l border-gray-200 rounded-r-lg hover:bg-gray-100 transition-colors"
-                  >
-                    {copied ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5 text-gray-400" />
-                    )}
-                  </button>
-                </div>
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {[undefined, 5, 4, 3, 2, 1].map((s) => {
+                  const on = reviewRatingFilter === s;
+                  const n = s === undefined ? profile.total_reviews : profile.rating_breakdown?.[s] ?? 0;
+                  return (
+                    <button key={s ?? 'all'} type="button" aria-pressed={on} onClick={() => { setReviewRatingFilter(s); setReviewPage(1); }}
+                      className={`px-3 py-1.5 rounded-full border text-[12.5px] font-medium transition-colors ${on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'}`}>
+                      {s === undefined ? 'All' : `${s} star${s === 1 ? '' : 's'}`} <span className={on ? 'text-white/70' : 'text-stone-400'}>{n}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── 2. Stats Row (Neutral Gray Icons, Amber Star) ── */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {/* Rating */}
-          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-50 text-amber-600 shrink-0">
-              <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Rating</p>
-              <p className="text-base font-black text-gray-900">
-                {profile.avg_rating != null ? profile.avg_rating.toFixed(1) : 'New'}
-                <span className="ml-1 text-xs font-normal text-gray-400">({profile.total_reviews})</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Followers */}
-          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
-            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Followers</p>
-              <p className="text-base font-black text-gray-900">{followerCount.toLocaleString()}</p>
-            </div>
-          </div>
-
-          {/* Products */}
-          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
-            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
-              <Package className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Products</p>
-              <p className="text-base font-black text-gray-900">{profile.total_products}</p>
-            </div>
-          </div>
-
-          {/* Response Time */}
-          <div className="flex items-center gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
-            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Response</p>
-              <p className="text-sm font-black text-gray-900 truncate">
-                {formatResponseTime(profile.response_time)}
-              </p>
-            </div>
-          </div>
-
-          {/* Member Since */}
-          <div className="flex items-center col-span-2 gap-3 p-4 bg-white border border-gray-100 shadow-sm rounded-2xl sm:col-span-1">
-            <div className="flex items-center justify-center w-10 h-10 text-gray-500 bg-gray-100 rounded-xl shrink-0">
-              <Store className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Member Since</p>
-              <p className="text-sm font-black text-gray-900">{formatJoinDate(profile.joined_date)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Main Two-Column Balanced Content (35% Left / 65% Right) ── */}
-        <div className="grid items-start grid-cols-1 gap-6 lg:grid-cols-12">
-
-          {/* ── Left Column: Shop Info, Policies, Contact ── */}
-          <div className="flex flex-col gap-5 lg:col-span-4">
-
-            {/* 3. About Section */}
-            <div className="flex flex-col gap-3 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
-              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
-                <Store className="w-4 h-4 text-brand-red" /> About the Shop
-              </h2>
-              <p className="text-xs leading-relaxed text-gray-600 whitespace-pre-line">
-                {profile.shop_description || 'No detailed description provided by this seller yet.'}
-              </p>
-            </div>
-
-            {/* 4. Shop Policies (Hybrid Model) */}
-            <div className="flex flex-col gap-3.5 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
-              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
-                <ShieldCheck className="w-4 h-4 text-brand-red" /> Policies &amp; Guarantees
-              </h2>
-
-              {/* Platform Guaranteed Policy Badge */}
-              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-50/60 border border-brand-red/20">
-                <Shield className="w-4 h-4 text-brand-red mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-bold text-gray-900">Loved-IT 7-Day Guaranteed Return</p>
-                    <span className="text-[9px] font-bold bg-brand-red text-white px-2 py-0.5 rounded-full">Platform Policy</span>
-                  </div>
-                  <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">
-                    Standard 7-day return window upon delivery for eligible items in original condition. Protected by Loved-IT Dispute Mediation. (Perishable foods &amp; custom items excluded).
-                  </p>
-                </div>
-              </div>
-
-              {/* Seller Additional Return Terms */}
-              {profile.return_policy && (
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
-                  <RotateCcw className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-gray-800">Additional Store Return Terms</p>
-                    <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed">
-                      {profile.return_policy}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Shipping Policy */}
-              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
-                <Truck className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-800">Shipping Details</p>
-                  <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed">
-                    {profile.shipping_policy || 'Orders are processed within 24–48 business hours with verified courier partners.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 5. Business Hours & Response Time (Formatted without underscores) */}
-            <div className="flex flex-col gap-3 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
-              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
-                <Clock className="w-4 h-4 text-brand-red" /> Business Hours
-              </h2>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-gray-50">
-                  <span className="text-gray-500">Operating Hours:</span>
-                  <span className="font-semibold text-gray-800">{profile.business_hours || 'Mon – Sat: 9:00 AM – 6:00 PM'}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-gray-500">Average Response:</span>
-                  <span className="font-semibold text-gray-800">{formatResponseTime(profile.response_time)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 6. Contact & Location (City/Province words only for privacy) */}
-            <div className="flex flex-col gap-3 p-5 bg-white border border-gray-100 shadow-sm rounded-2xl">
-              <h2 className="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
-                <MapPin className="w-4 h-4 text-brand-red" /> Contact &amp; Location
-              </h2>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2.5 text-gray-700">
-                  <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span>{resolvedLocation || 'Philippines'}</span>
-                </div>
-                {profile.shop_contact_number && (
-                  <div className="flex items-center gap-2.5 text-gray-700">
-                    <Phone className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span>{profile.shop_contact_number}</span>
+              <div className="mt-5">
+                {reviewsLoading ? (
+                  <div className="space-y-4">{[1, 2, 3].map((i) => <div key={i} className="h-20 rounded-xl bg-stone-100 animate-pulse" />)}</div>
+                ) : reviews.length === 0 ? (
+                  <p className="py-6 text-[13px] text-stone-500">No product reviews {reviewRatingFilter ? 'with this rating' : 'yet'}.</p>
+                ) : (
+                  <div className="divide-y divide-stone-100">
+                    {reviews.map((r) => (
+                      <article key={r.id} className="py-5 first:pt-0">
+                        <div className="flex items-start gap-3">
+                          {r.buyer.avatar_url
+                            ? <img src={r.buyer.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                            : <span className="w-9 h-9 rounded-full bg-stone-100 text-stone-600 text-[13px] font-semibold flex items-center justify-center shrink-0">{initials(r.buyer.name).slice(0, 1)}</span>}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13.5px] font-semibold text-stone-900">{r.buyer.name}</p>
+                            <p className="mt-0.5 flex items-center gap-2 text-[12px] text-stone-500"><Stars value={r.rating} size="xs" />{shortDate(r.created_at)}</p>
+                          </div>
+                        </div>
+                        {r.comment && <p className="mt-2.5 text-[13.5px] leading-relaxed text-stone-700">{r.comment}</p>}
+                        {r.product && (
+                          <Link to={`/products/${r.product.id}`} className="mt-2.5 inline-flex items-center gap-2 max-w-full px-2 py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-[12px] text-stone-600">
+                            {r.product.thumbnail_url && <img src={r.product.thumbnail_url} alt="" className="w-6 h-6 rounded object-cover" />}
+                            <span className="truncate">{r.product.name}</span>
+                          </Link>
+                        )}
+                      </article>
+                    ))}
                   </div>
                 )}
               </div>
-            </div>
-
+              <Pager page={reviewPage} last={lastReviewPage} onPage={setReviewPage} />
+            </section>
           </div>
+        )}
 
-          {/* ── Right Column: Shop Products & Shop Reviews ── */}
-          <div className="flex flex-col gap-6 lg:col-span-8">
+        {tab === 'about' && (
+          <div className="mt-6 grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6 items-start">
+            <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-7">
+              <h2 className="font-serif text-[22px] font-bold tracking-tight text-[#1E1B18]">About {profile.shop_name}</h2>
+              <p className="mt-3 text-[14px] leading-relaxed text-stone-700 whitespace-pre-line">{profile.shop_description || 'The shop has not written about itself yet.'}</p>
 
-            <ShopVoucherStrip sellerId={profile.seller_id} />
+              <h3 className="mt-8 text-[13px] font-semibold uppercase tracking-[0.1em] text-stone-500">Returns and shipping</h3>
+              <ul className="mt-3 divide-y divide-stone-100">
+                <AboutRow icon={ShieldCheck} title="7-day returns on Loved-IT"
+                  text="Return an eligible item within 7 days of delivery if it is damaged or not as described. Loved-IT steps in if you and the shop cannot agree. Perishable food and made-to-order items are excluded." />
+                {profile.return_policy && <AboutRow icon={RotateCcw} title="The shop's return terms" text={profile.return_policy} />}
+                <AboutRow icon={Truck} title="Shipping" text={profile.shipping_policy || 'The shop has not added shipping notes. The delivery fee and courier are shown at checkout.'} />
+              </ul>
+            </section>
 
-            {/* ── 7. Shop Products Section ── */}
-            <div className="flex flex-col gap-5 p-6 bg-white border border-gray-100 shadow-sm rounded-3xl">
-              {/* Section Header */}
-              <div className="flex flex-col justify-between gap-4 pb-4 border-b border-gray-100 sm:flex-row sm:items-center">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Shop Products</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">{totalProducts} active items in store</p>
-                </div>
+            <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-7">
+              <h3 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-stone-500">Hours and contact</h3>
+              <dl className="mt-3 space-y-3 text-[13.5px]">
+                <InfoRow icon={Clock} label="Hours" value={profile.business_hours || 'Not listed'} />
+                <InfoRow icon={MessageCircle} label="Usually replies" value={reply ?? 'Not listed'} />
+                <InfoRow icon={MapPin} label="Ships from" value={location || 'Philippines'} />
+                {profile.shop_contact_number && <InfoRow icon={Phone} label="Phone" value={profile.shop_contact_number} />}
+              </dl>
 
-                {/* Sort Dropdown */}
-                <div className="w-48 shrink-0">
-                  <CustomSelect
-                    value={sortOption}
-                    onChange={(v) => { setSortOption(v); setProductPage(1); }}
-                    options={sortOptions}
-                  />
-                </div>
-              </div>
-
-              {/* The shop's own categories */}
-              {(profile.store_categories?.length ?? 0) > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 pb-1 overflow-x-auto scrollbar-hide" role="tablist" aria-label="Store categories">
-                    {[{ id: null as number | null, name: `All Products (${profile.total_products})` }, ...profile.store_categories!.map((c) => ({ id: c.id as number | null, name: c.name }))].map((c) => {
-                      const active = storeCat === c.id;
-                      return (
-                        <button key={c.id ?? 'all'} type="button" role="tab" aria-selected={active}
-                          onClick={() => { setStoreCat(c.id); setStoreSub(null); setSelectedCategory('all'); setProductPage(1); }}
-                          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${active ? 'bg-brand-red text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                          {c.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {(() => {
-                    const children = profile.store_categories!.find((c) => c.id === storeCat)?.children ?? [];
-                    if (!children.length) return null;
-                    return (
-                      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pl-1">
-                        {[{ id: null as number | null, name: 'Everything here' }, ...children.map((c) => ({ id: c.id as number | null, name: c.name }))].map((c) => {
-                          const active = storeSub === c.id;
-                          return (
-                            <button key={c.id ?? 'all-sub'} type="button" aria-pressed={active}
-                              onClick={() => { setStoreSub(c.id); setProductPage(1); }}
-                              className={`px-3 py-1 rounded-full border text-[11.5px] font-semibold shrink-0 transition-colors ${active ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'}`}>
-                              {c.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Category Filter Tabs (platform categories, when the shop has no categories of its own) */}
-              {!(profile.store_categories?.length) && profile.categories && profile.categories.length > 0 && (
-                <div className="flex items-center gap-2 pb-1 overflow-x-auto scrollbar-hide">
-                  <button
-                    onClick={() => { setSelectedCategory('all'); setProductPage(1); }}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${
-                      selectedCategory === 'all'
-                        ? 'bg-brand-red text-white shadow-xs'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    All Products ({profile.total_products})
-                  </button>
-                  {profile.categories.map((cat) => {
-                    const active = selectedCategory === cat.category_id;
-                    return (
-                      <button
-                        key={cat.category_id}
-                        onClick={() => { setSelectedCategory(cat.category_id); setProductPage(1); }}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${
-                          active
-                            ? 'bg-brand-red text-white shadow-xs'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {cat.category_name} ({cat.count})
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Products Grid */}
-              {productsLoading ? (
-                <div className="grid grid-cols-2 gap-4 py-8 sm:grid-cols-3">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="bg-gray-100 aspect-square rounded-2xl animate-pulse" />
-                  ))}
-                </div>
-              ) : products.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 py-16 text-center">
-                  <Package className="w-12 h-12 text-gray-300" />
-                  <p className="text-sm font-semibold text-gray-600">No active products found in this category</p>
-                  <p className="text-xs text-gray-400">Select "All Products" to browse all available items.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                  {products.map((p) => (
-                    <ProductCard key={p.id} product={p} />
-                  ))}
-                </div>
-              )}
-
-              {/* Product Pagination */}
-              {lastProductPage > 1 && (
-                <div className="flex items-center justify-center gap-2 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={() => setProductPage((p) => Math.max(1, p - 1))}
-                    disabled={productPage === 1}
-                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <span className="px-3 text-xs font-semibold text-gray-600">
-                    Page {productPage} of {lastProductPage}
-                  </span>
-                  <button
-                    onClick={() => setProductPage((p) => Math.min(lastProductPage, p + 1))}
-                    disabled={productPage === lastProductPage}
-                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* ── 8. Shop Reviews Section ── */}
-            <div className="flex flex-col gap-5 p-6 bg-white border border-gray-100 shadow-sm rounded-3xl">
-              <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Shop Reviews</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Feedback from verified buyers</p>
-                </div>
-                <div className="flex items-center gap-1 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
-                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  <span className="text-sm font-black text-amber-800">
-                    {profile.avg_rating != null ? profile.avg_rating.toFixed(1) : 'New'}
-                  </span>
-                  <span className="text-xs font-medium text-amber-600">/ 5.0</span>
-                </div>
-              </div>
-
-              {/* Rating Breakdown Bar Chart */}
-              {profile.rating_breakdown && (
-                <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl">
-                  {[5, 4, 3, 2, 1].map((stars) => {
-                    const count = profile.rating_breakdown?.[stars] ?? 0;
-                    const pct = profile.total_reviews > 0 ? (count / profile.total_reviews) * 100 : 0;
-                    return (
-                      <div key={stars} className="flex items-center gap-3 text-xs">
-                        <div className="flex items-center w-12 gap-1 font-semibold text-gray-600 shrink-0">
-                          <span>{stars}</span>
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                        </div>
-                        <div className="flex-1 h-2 overflow-hidden bg-gray-200 rounded-full">
-                          <div
-                            className="h-full transition-all duration-300 rounded-full bg-amber-400"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="w-10 text-right text-gray-400 font-medium text-[11px] shrink-0">
-                          {count}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Star Rating Filters */}
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => { setReviewRatingFilter(undefined); setReviewPage(1); }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    reviewRatingFilter === undefined
-                      ? 'bg-brand-red text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  All ({profile.total_reviews})
+              <h3 className="mt-7 text-[13px] font-semibold uppercase tracking-[0.1em] text-stone-500">Shop link</h3>
+              <div className="mt-2.5 flex items-center rounded-xl border border-stone-200 bg-stone-50 text-[12.5px] font-mono">
+                <a href={shopUrl(profile.shop_slug)} className="flex-1 min-w-0 px-3 py-2 truncate text-stone-700 hover:text-brand-red">{shopUrlLabel(profile.shop_slug)}</a>
+                <button type="button" onClick={copyLink} aria-label="Copy shop link" className="px-3 self-stretch border-l border-stone-200 hover:bg-stone-100">
+                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-stone-400" />}
                 </button>
-                {[5, 4, 3, 2, 1].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => { setReviewRatingFilter(s); setReviewPage(1); }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all ${
-                      reviewRatingFilter === s
-                        ? 'bg-brand-red text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    <span>{s}</span>
-                    <Star className="w-3 h-3 fill-current" />
-                  </button>
-                ))}
               </div>
 
-              {/* Reviews List */}
-              {reviewsLoading ? (
-                <div className="flex flex-col gap-4 py-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />
-                  ))}
-                </div>
-              ) : reviews.length === 0 ? (
-                <div className="py-10 text-xs text-center text-gray-400">
-                  No reviews found for this filter.
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {reviews.map((r) => (
-                    <div key={r.id} className="p-4 rounded-2xl border border-gray-100 bg-white flex flex-col gap-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex items-center justify-center w-8 h-8 overflow-hidden text-xs font-bold text-gray-700 bg-gray-100 rounded-full shrink-0">
-                            {r.buyer.avatar_url ? (
-                              <img src={r.buyer.avatar_url} alt={r.buyer.name} className="object-cover w-full h-full" />
-                            ) : (
-                              initials(r.buyer.name)
-                            )}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-gray-900">{r.buyer.name}</span>
-                              {r.verified_purchase && (
-                                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded font-semibold border border-emerald-100">
-                                  Verified Purchase
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-gray-400">{formatReviewDate(r.created_at)}</span>
-                          </div>
-                        </div>
-                        <StarRow rating={r.rating} />
-                      </div>
-
-                      {/* Comment */}
-                      {r.comment && (
-                        <p className="text-xs leading-relaxed text-gray-700">{r.comment}</p>
-                      )}
-
-                      {/* Purchased product thumbnail link */}
-                      {r.product && (
-                        <Link
-                          to={`/products/${r.product.id}`}
-                          className="self-start flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-100 mt-1"
-                        >
-                          {r.product.thumbnail_url && (
-                            <img
-                              src={r.product.thumbnail_url}
-                              alt={r.product.name}
-                              className="object-cover w-5 h-5 rounded"
-                            />
-                          )}
-                          <span className="text-[11px] text-gray-500 font-medium truncate max-w-[200px]">
-                            {r.product.name}
-                          </span>
-                        </Link>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Reviews Pagination */}
-              {lastReviewPage > 1 && (
-                <div className="flex items-center justify-center gap-2 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={() => setReviewPage((p) => Math.max(1, p - 1))}
-                    disabled={reviewPage === 1}
-                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <span className="px-3 text-xs font-semibold text-gray-600">
-                    Page {reviewPage} of {lastReviewPage}
-                  </span>
-                  <button
-                    onClick={() => setReviewPage((p) => Math.min(lastReviewPage, p + 1))}
-                    disabled={reviewPage === lastReviewPage}
-                    className="p-2 text-gray-500 border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-
+              <button type="button" onClick={report} className="mt-6 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-stone-500 hover:text-brand-red">
+                <Flag className="w-3.5 h-3.5" /> Report this shop to Loved-IT
+              </button>
+            </section>
           </div>
-
-        </div>
-
+        )}
       </main>
 
-      {/* Report Modal */}
-      <ReportShopModal
-        shopName={profile.shop_name}
-        isOpen={reportOpen}
-        onClose={() => setReportOpen(false)}
-      />
+      {mine && (
+        <ShopReviewDialog open={writing} onClose={() => setWriting(false)} shop={profile.shop_slug} shopName={profile.shop_name} mine={mine}
+          onSaved={(review, editsLeft) => {
+            setMine({ ...mine, review, edits_left_today: editsLeft });
+            void loadProfile();
+          }} />
+      )}
 
-      {/* ── 9. Global Site Footer ── */}
-      <SiteFooter />
+      <Footer />
     </div>
   );
 }
 
-// ─── Site Footer Component ───────────────────────────────────────────────────
+// ─── Small pieces ─────────────────────────────────────────────────────────────
 
-function SiteFooter() {
-  return <Footer />;
+function CatButton({ label, count, active, onClick, small = false }: { label: string; count: number; active: boolean; onClick: () => void; small?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={active}
+      className={`w-full flex items-center justify-between gap-3 whitespace-nowrap lg:whitespace-normal text-left rounded-full lg:rounded-lg border lg:border-0 px-3.5 lg:px-3 ${small ? 'py-1.5 text-[12.5px]' : 'py-1.5 lg:py-2 text-[13px]'} transition-colors ${active ? 'border-stone-900 bg-stone-900 text-white lg:bg-white lg:text-stone-900 lg:font-semibold lg:shadow-[inset_2px_0_0_#B91C1C]' : 'border-stone-300 bg-white lg:bg-transparent text-stone-600 hover:text-stone-900 lg:hover:bg-white'}`}>
+      <span className="min-w-0 lg:truncate">{label}</span>
+      <span className={`text-[11.5px] tabular-nums ${active ? 'text-white/70 lg:text-stone-400' : 'text-stone-400'}`}>{count}</span>
+    </button>
+  );
+}
+
+function CatItem(props: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return <li className="shrink-0 lg:shrink"><CatButton {...props} /></li>;
+}
+
+function Pager({ page, last, onPage }: { page: number; last: number; onPage: (p: number) => void }) {
+  if (last <= 1) return null;
+  return (
+    <div className="mt-8 flex items-center justify-center gap-3">
+      <button type="button" onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Previous page"
+        className="w-9 h-9 rounded-full border border-stone-300 bg-white flex items-center justify-center text-stone-600 hover:border-stone-900 disabled:opacity-40">
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      <span className="text-[13px] text-stone-600 tabular-nums">Page {page} of {last}</span>
+      <button type="button" onClick={() => onPage(Math.min(last, page + 1))} disabled={page === last} aria-label="Next page"
+        className="w-9 h-9 rounded-full border border-stone-300 bg-white flex items-center justify-center text-stone-600 hover:border-stone-900 disabled:opacity-40">
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+/** Write, edit, sign in, or why the buyer cannot review yet. */
+function ReviewAction({ mine, signedIn, onWrite, onSignIn }: { mine: MyShopReview | null; signedIn: boolean; onWrite: () => void; onSignIn: () => void }) {
+  const btn = 'min-h-10 px-4 rounded-full text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors';
+  if (!signedIn) return <button type="button" onClick={onSignIn} className={`${btn} border border-stone-300 bg-white text-stone-800 hover:border-stone-900`}>Sign in to review</button>;
+  if (!mine) return null;
+  if (mine.review) return <button type="button" onClick={onWrite} className={`${btn} border border-stone-300 bg-white text-stone-800 hover:border-stone-900`}><PenLine className="w-4 h-4" /> Edit your review</button>;
+  if (mine.can_review) return <button type="button" onClick={onWrite} className={`${btn} bg-brand-red text-white hover:bg-brand-red-dark`}><PenLine className="w-4 h-4" /> Review this shop</button>;
+  return <p className="max-w-[220px] text-[12px] leading-snug text-stone-500 sm:text-right">{mine.reason}</p>;
+}
+
+function AboutRow({ icon: Icon, title, text }: { icon: React.ElementType; title: string; text: string }) {
+  return (
+    <li className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
+      <Icon className="w-5 h-5 mt-0.5 shrink-0 text-stone-400" strokeWidth={1.75} />
+      <div className="min-w-0">
+        <p className="text-[14px] font-semibold text-stone-900">{title}</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-stone-600 whitespace-pre-line">{text}</p>
+      </div>
+    </li>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <Icon className="w-4 h-4 mt-0.5 shrink-0 text-stone-400" strokeWidth={1.75} />
+      <dt className="w-28 shrink-0 text-stone-500">{label}</dt>
+      <dd className="min-w-0 text-stone-900 break-words">{value}</dd>
+    </div>
+  );
 }

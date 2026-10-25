@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { KeyRound, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, KeyRound, Lock, ShieldCheck } from 'lucide-react';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
-import LovedItLogo from '../../components/LovedItLogo';
+import AuthShell, { AuthNotice } from '../../components/auth/AuthShell';
+import { PasswordField } from '../../components/auth/AuthFields';
 import { resetPasswordApi } from '../../api/client';
+import photo from '../../assets/auth/buyer-login.jpg';
+
+const FACTS = [
+  { icon: KeyRound, text: 'At least 8 characters, with upper and lower case, a number and a symbol' },
+  { icon: ShieldCheck, text: 'Every device signed in to your account is signed out' },
+  { icon: Lock, text: 'Nobody at Loved-IT will ever ask for your password' },
+];
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -36,87 +42,34 @@ export default function ResetPasswordPage() {
     }
   }
 
-  if (!token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-gray-soft">
-        <div className="text-center">
-          <p className="text-brand-black font-semibold mb-2">Invalid or missing reset link.</p>
-          <Link to="/forgot-password" className="text-brand-red text-sm hover:underline">Request a new one</Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex">
-      <div className="flex flex-col justify-center w-full md:w-1/2 px-6 py-12 sm:px-12 lg:px-16 bg-white">
-        <div className="max-w-sm w-full mx-auto">
-          <Link to="/" className="inline-block mb-8 group">
-            <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-12 sm:h-14 object-contain group-hover:opacity-95 transition-opacity" />
-          </Link>
-
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-6">
-              <KeyRound className="w-6 h-6 text-brand-red" />
-            </div>
-
-            <h1 className="text-3xl font-bold text-brand-black mb-1">Set new password</h1>
-            <p className="text-sm text-gray-500 mb-8">
-              Must be at least 8 characters with uppercase, numbers, and symbols.
-            </p>
-
-            {error && (
-              <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <Input
-                label="New Password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <Input
-                label="Confirm New Password"
-                type="password"
-                autoComplete="new-password"
-                value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
-                required
-              />
-              <Button type="submit" loading={loading} className="w-full mt-1">
-                Reset Password
-              </Button>
-            </form>
-
-            <Link
-              to="/login"
-              className="mt-6 flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-brand-black transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Sign In
-            </Link>
-          </motion.div>
-        </div>
-      </div>
-
-      <div className="hidden md:block md:w-1/2 relative overflow-hidden bg-brand-black">
-        <img
-          src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200&q=80"
-          alt="Loved-IT marketplace"
-          className="absolute inset-0 w-full h-full object-cover opacity-70"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent flex items-end p-12">
-          <div>
-            <p className="text-white text-3xl font-bold">Almost there.</p>
-            <p className="text-white/60 mt-2 text-base">Create a strong new password.</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AuthShell
+      title={token ? 'Set a new password' : 'This reset link is not valid'}
+      subtitle={token ? 'Pick one you do not use on any other site.' : 'The link is missing its code. Ask for a new one.'}
+      topLink={{ text: 'Remembered it?', label: 'Sign in', to: '/login' }}
+      image={photo}
+      imageAlt="A parcel being handed to a shopper"
+      imagePosition="35% center"
+      headline="Almost there."
+      facts={FACTS}
+    >
+      {!token ? (
+        <Link to="/forgot-password" className="inline-flex min-h-[46px] w-full items-center justify-center rounded-full bg-brand-red text-white text-sm font-semibold hover:bg-brand-red-dark">
+          Request a new link
+        </Link>
+      ) : (
+        <>
+          {error && <AuthNotice tone="red">{error}</AuthNotice>}
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <PasswordField id="new-password" label="New password" value={password} onChange={setPassword} showRules />
+            <PasswordField id="new-password-confirm" label="Confirm new password" value={confirmation} onChange={setConfirmation} />
+            <Button type="submit" loading={loading} className="w-full mt-1">Save new password</Button>
+          </form>
+        </>
+      )}
+      <Link to="/login" className="mt-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-stone-600 hover:text-brand-red">
+        <ArrowLeft className="w-4 h-4" /> Back to sign in
+      </Link>
+    </AuthShell>
   );
 }
