@@ -310,6 +310,9 @@ export interface LogisticsRiderRow {
   activation_sent_at: string | null;
   activation_expires_at: string | null;
   activated_at: string | null;
+  /** Applied on the public "Become a rider" form and waiting for a decision (approving emails the activation link). */
+  applicant: boolean;
+  applied_at: string | null;
   account_status: string | null;
   created_at: string | null;
   documents?: { key: string; label: string; url: string }[];
@@ -322,6 +325,8 @@ export interface LogisticsRidersSummary {
   active: number;
   pending_activation: number;
   pending_verification: number;
+  /** Applications from the public form waiting for a decision. */
+  applications: number;
   suspended: number;
   max_active_jobs: number;
 }
@@ -398,6 +403,19 @@ export interface RiderRegistrationResponse {
   };
 }
 
+/** POST /auth/register-rider: the public "Become a rider" form. */
+export interface RiderApplicationResult {
+  message: string;
+  data: {
+    email: string;
+    hub: string;
+    courier: string | null;
+    /** An earlier application that was not approved was replaced by this one. */
+    reapplied: boolean;
+    applied_at: string | null;
+  };
+}
+
 export interface HubRiderSummaryItem {
   id: number;
   user: {
@@ -411,6 +429,9 @@ export interface HubRiderSummaryItem {
   plate_number: string;
   status: RiderStatus;
   submitted_at: string | null;
+  /** Applied on the public form and waiting for a decision. */
+  applicant: boolean;
+  applied_at: string | null;
   active_areas_count: number;
   created_at: string | null;
 }
@@ -455,6 +476,10 @@ export interface HubRiderDetailItem {
   reviewer_name: string | null;
   reviewed_at: string | null;
   submitted_at: string | null;
+  applicant: boolean;
+  applied_at: string | null;
+  license_number: string | null;
+  license_expiry: string | null;
   created_at: string | null;
   documents: {
     or_cr_url: string | null;
@@ -1600,11 +1625,15 @@ export interface Conversation {
   last_message?: {
     id: number;
     body: string;
-    sender_id: number;
+    sender_id: number | null;
     created_at: string;
   } | null;
   last_message_at: string | null;
   unread: number;
+  /** Loved-IT Support only: "ai" while the Loved-IT Assistant answers, "human" once a person has taken over. */
+  support_mode?: 'ai' | 'human' | null;
+  /** Loved-IT Support only: the assistant can be asked back after a handoff. */
+  assistant_available?: boolean;
   created_at: string;
   // Backward compatibility fields
   shop_name?: string;
@@ -1643,13 +1672,14 @@ export interface ChatMessage {
   id: number;
   conversation_id: number;
   body: string;
-  sender_id: number;
+  /** null for the Loved-IT Assistant (sender_role "assistant"), which has no account. */
+  sender_id: number | null;
   sender_role?: Role | string;
   sender_name?: string;
   sender_shop_name?: string | null;
   sender_owner_name?: string | null;
   sender_avatar?: string | null;
-  attachment_type?: 'product_card' | 'order_card' | 'image' | string | null;
+  attachment_type?: 'product_card' | 'order_card' | 'order_confirmation' | 'image' | string | null;
   attachment_data?: any;
   read_at: string | null;
   created_at: string;
@@ -2005,6 +2035,8 @@ export interface SellerProduct {
   rejection_reason: string | null;
   archive_reason: string | null;
   archived_by: 'admin' | 'seller' | null;
+  /** "checking" while the AI listing check runs after publishing. */
+  ai_review_status?: string | null;
   created_at: string;
   variants: SellerProductVariant[];
   total_stock: number;
@@ -2220,6 +2252,8 @@ export interface PublicShopProfile {
   /** The seller's own store categories (visible ones), two levels deep. */
   store_categories?: { id: number; name: string; product_count: number; children?: { id: number; name: string; product_count: number }[] }[];
   on_vacation?: boolean;
+  /** Reviews of the shop itself (not its products): average, counts and the 3 latest. */
+  shop_reviews?: import('../api/shopReviews').ShopReviewSummary;
 }
 
 export interface PublicShopReview {
@@ -2818,6 +2852,8 @@ export interface ParcelTracking {
   courier: TrackingCourier;
   events: TrackingEvent[];
   proof: { count: number; delivered_at: string | null; received_by: string | null };
+  /** The buyer may start a chat with the rider (out for delivery only). */
+  can_message_rider?: boolean;
 }
 
 export interface RiderLocationStatus {

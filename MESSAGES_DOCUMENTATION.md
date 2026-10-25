@@ -65,7 +65,7 @@ The database uses two primary tables: `conversations` and `messages`.
 | `conversation_id` | `BIGINT UNSIGNED` | ❌ | Foreign key referencing `conversations(id)` (Cascade delete) |
 | `sender_id` | `BIGINT UNSIGNED` | ❌ | Foreign key referencing `users(id)` |
 | `body` | `TEXT` | ❌ | Text message content |
-| `attachment_type` | `VARCHAR(50)` | ✅ | Type of attachment (`product_card`, `order_card`, `image`) |
+| `attachment_type` | `VARCHAR(50)` | ✅ | Type of attachment (`product_card`, `order_card`, `image`, and `order_confirmation`, which only the server sends: see section 8) |
 | `attachment_data` | `JSON` | ✅ | Structured payload (e.g. `{ id, name, price, image }`) |
 | `read_at` | `TIMESTAMP` | ✅ | Timestamp when recipient viewed the message |
 | `created_at` / `updated_at` | `TIMESTAMP` | ❌ | Timestamps |
@@ -341,3 +341,11 @@ Riders can message the people involved in a parcel they are working on. These ar
 - **Text only, 1000 characters, rate limited** (20 sends per minute per user). No images, product cards or order cards, and `PATCH /conversations/{id}/status` does not apply.
 - **Privacy.** Payloads carry names only (never phone, email or address). Buyers and sellers see the rider by first name, labelled "Delivery rider" with the tracking number. Admins cannot read rider threads, and the websocket channel admits only the two participants.
 - **Unread and delivery.** The rider and hub poll `GET .../messages?after_id=<id>` every 3 seconds while a conversation is on screen and mark read explicitly (`POST .../read`). The buyer and seller pages keep their websocket channels and also receive `MessageSent` and `ConversationUpdated` for these threads (rider named by first name only).
+
+## 8. Order Confirmation from the Shop
+
+Like TikTok Shop, every shop in a checkout messages the buyer when the order is placed (`App\Services\Commerce\OrderConfirmationMessenger`, called by `OrderPlacer` after the checkout commits; an e-wallet or card order gets it once `SandboxGateway` marks it paid).
+
+- **What is sent.** In the buyer and shop's `buyer_seller` thread (created if missing), in the shop's name: the text "Thanks for your order! Please confirm that your shipping address is correct.", then a message with `attachment_type = order_confirmation` and body `Order confirmation · #<order number>`. Its `attachment_data` is a snapshot: `id`, `order_number`, `total`, `items_count`, `items_summary` (the first product), `image`, `recipient`, `phone`, `address`, `payment_method`, `confirmed_at` (null) and `auto: true`. Both messages raise `buyer_unread` and are broadcast like any message. A chat failure is logged and never fails the order.
+- **Confirming.** `POST /api/v1/conversations/{conversation}/messages/{message}/confirm-address` (the thread's buyer only, 20 per minute). It sets `confirmed_at` on the card and the shop answers "Thank you for confirming your address." The response is `{ data: [card, reply] }`; a second call changes nothing and returns `{ data: [card] }`. `403` for anyone but the buyer, `404` for a message that is not a confirmation card, `409` once the order is cancelled or has left the shop (after `READY_FOR_PICKUP`).
+- **Frontend.** `ChatAttachmentBubble` draws the card. The buyer sees **Confirm address** and **View details** (their order list searched for that order, `/settings/orders?q=`); the shop and the admin see "Waiting for the buyer to confirm" or "Address confirmed".

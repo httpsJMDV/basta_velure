@@ -1,6 +1,6 @@
 // Account creation, email verification, account security and rider activation (docs/api/accounts.md).
 import { http } from './client';
-import type { User } from '../types';
+import type { RiderApplicationResult, User } from '../types';
 
 export interface RegistrationResult {
   message: string;
@@ -19,6 +19,10 @@ export const registerSellerApi = (form: FormData) =>
 /** A visitor's courier company application (contact person's account + company). */
 export const registerCourierApi = (form: FormData) =>
   http.post<RegistrationResult>('/auth/register-courier', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
+
+/** A visitor's rider application for one hub. No account until the hub approves it; then the activation email. */
+export const registerRiderApi = (form: FormData) =>
+  http.post<RiderApplicationResult>('/auth/register-rider', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
 
 export const verifyEmailApi = (email: string, code: string) =>
   http.post<{ message: string; data: User; token: string }>('/auth/verify-email', { email, code }).then((r) => r.data);

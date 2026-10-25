@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { Avatar } from '../../components/admin/listKit';
+import { AiReviewBanner, aiReviewText } from '../../components/admin/AiReviewNote';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -528,8 +529,9 @@ export default function AdminProductReviewPage() {
       </header>
 
       {/* ── Notes that change what the admin does next ── */}
-      {(actionError || (product.status === 'rejected' && product.rejection_reason) || (product.status === 'archived' && product.archive_reason)) && (
+      {(actionError || (product.status === 'pending_review' && aiReviewText(product.ai_review)) || (product.status === 'rejected' && product.rejection_reason) || (product.status === 'archived' && product.archive_reason)) && (
         <div className="mt-4 space-y-2">
+          <AiReviewBanner product={product} />
           {actionError && (
             <div role="alert" className="flex items-center justify-between gap-3 py-2.5 pl-4 pr-2 text-[13px] text-red-800 bg-red-50 border-l-2 border-red-500 rounded-r-lg">
               {actionError}

@@ -6,6 +6,9 @@ import {
 import type { AdminReview, AdminReviewShop, AdminReviewShopSort, AdminReviewSummary, AdminFeedback } from '../../types';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { PageHero, StatCard, StatCardSkeleton, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { getAdminShopReviewsApi } from '../../api/shopReviews';
+import type { ShopReviewPage } from '../../api/shopReviews';
+import { ShopReviewItem, ShopReviewSummaryBlock } from '../../components/reviews/ShopReviewKit';
 import {
   type ListMeta, FilterPanel, SearchField, StatusTabs, ListCard, ListPager, ListEmpty, ListError, Pill, Avatar, RowAction,
   CardGrid, TileShell, SkeletonTiles, SkeletonCards, RailCard, useViewMode, ViewToggle, TH, TD, ROW, rowKeys, relativeTime,
@@ -333,6 +336,8 @@ function ShopReviewsView({ shopId, onBack }: { shopId: number; onBack: () => voi
   const [rating, setRating] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(12);
+  // Product reviews of the shop, or reviews of the shop itself (read-only either way).
+  const [kind, setKind] = useState<'products' | 'shop'>('products');
 
   useEffect(() => {
     const id = window.setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 300);
@@ -405,6 +410,16 @@ function ShopReviewsView({ shopId, onBack }: { shopId: number; onBack: () => voi
         </aside>
 
         <section className="min-w-0 space-y-3">
+          <div className="inline-flex p-1 rounded-xl bg-white border border-gray-200/80 shadow-xs" role="tablist" aria-label="Review kinds">
+            {([['products', 'Product reviews'], ['shop', 'Shop reviews']] as const).map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)}
+                className={`px-3.5 h-9 rounded-lg text-[12.5px] font-bold transition-colors ${kind === k ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {kind === 'shop' ? <AdminOwnShopReviews shopId={shopId} /> : (<>
           <FilterPanel>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <SearchField value={searchInput} onChange={setSearchInput} label="Search this shop's reviews" placeholder="Search comments, products or buyers…" />
@@ -471,8 +486,57 @@ function ShopReviewsView({ shopId, onBack }: { shopId: number; onBack: () => voi
               <ListPager meta={meta} perPage={perPage} perPageOptions={PER_PAGE_OPTIONS} onPage={setPage} onPerPage={(n) => { setPerPage(n); setPage(1); }} noun={['review', 'reviews']} />
             </ListCard>
           )}
+          </>)}
         </section>
       </div>
+    </div>
+  );
+}
+
+/** Reviews of the shop itself (not its products): read-only, with who wrote each one. */
+function AdminOwnShopReviews({ shopId }: { shopId: number }) {
+  const [data, setData] = useState<ShopReviewPage | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [rating, setRating] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+
+  const load = useCallback(() => {
+    setFailed(false);
+    getAdminShopReviewsApi(shopId, { rating: rating ?? undefined, page })
+      .then(setData)
+      .catch(() => setFailed(true));
+  }, [shopId, rating, page]);
+  useEffect(() => { load(); }, [load]);
+
+  if (failed) return <ListError message="The shop reviews could not be loaded." onRetry={load} />;
+
+  return (
+    <div className="space-y-3">
+      <div className="p-5 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+        {data ? <ShopReviewSummaryBlock summary={data.summary} /> : <div className="h-28 bg-gray-100 rounded-xl animate-pulse" />}
+      </div>
+      <FilterPanel>
+        <CustomSelect className="sm:w-44" value={rating === null ? '' : String(rating)} onChange={(v) => { setRating(v ? Number(v) : null); setPage(1); }} options={RATING_OPTIONS} />
+      </FilterPanel>
+      <ListCard title="Shop reviews" count={data?.meta.total ?? 0} busy={!data}>
+        {!data ? <SkeletonCards /> : data.data.length === 0 ? (
+          <ListEmpty icon={MessageSquare} title={rating ? 'No shop reviews with this rating' : 'No shop reviews yet'}
+            hint={rating ? 'Try another rating.' : 'Buyers can review a shop once one of their orders from it is completed.'} filtered={!!rating} onClear={() => { setRating(null); setPage(1); }} />
+        ) : (
+          <div className="px-4 sm:px-5 py-4 divide-y divide-gray-100">
+            {data.data.map((r) => <ShopReviewItem key={r.id} review={r} />)}
+          </div>
+        )}
+        {data && data.meta.last_page > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-[12.5px] text-gray-600">
+            <span className="tabular-nums">Page {data.meta.current_page} of {data.meta.last_page}</span>
+            <div className="flex gap-1">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 h-8 rounded-lg hover:bg-gray-100 disabled:opacity-30">Previous</button>
+              <button type="button" disabled={page >= data.meta.last_page} onClick={() => setPage((p) => p + 1)} className="px-3 h-8 rounded-lg hover:bg-gray-100 disabled:opacity-30">Next</button>
+            </div>
+          </div>
+        )}
+      </ListCard>
     </div>
   );
 }

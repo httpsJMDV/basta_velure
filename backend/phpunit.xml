@@ -25,6 +25,15 @@
         <env name="ORDER_AUTO_COMPLETE_DAYS" value="7" force="true"/>
         <server name="PAYOUT_ESCROW_HOLD_DAYS" value="0"/>
         <server name="ORDER_AUTO_COMPLETE_DAYS" value="7"/>
+        <!-- The AI features never call Groq or Claude from tests, whatever .env says; AI tests bind a fake model. -->
+        <env name="AI_PRODUCT_CHECK" value="false" force="true"/>
+        <env name="AI_SUPPORT_BOT" value="false" force="true"/>
+        <env name="GROQ_API_KEY" value="" force="true"/>
+        <env name="ANTHROPIC_API_KEY" value="" force="true"/>
+        <server name="AI_PRODUCT_CHECK" value="false"/>
+        <server name="AI_SUPPORT_BOT" value="false"/>
+        <server name="GROQ_API_KEY" value=""/>
+        <server name="ANTHROPIC_API_KEY" value=""/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>

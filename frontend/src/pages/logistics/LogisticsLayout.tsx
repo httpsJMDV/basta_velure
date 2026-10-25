@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings } from 'lucide-react';
+import { getCourierChatUnreadApi } from '../../api/courierChat';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
 import type { LogisticsDashboard } from '../../types';
@@ -11,6 +12,8 @@ import { ShellSidebar, ShellTopBar, SHELL_BG, type ShellAlert, type ShellNavGrou
 export interface LogisticsOutletContext {
   dashboard: LogisticsDashboard | null;
   refresh: () => void;
+  /** Updates the unread badge on Messages, right after a thread is read. */
+  refreshChatUnread: () => void;
 }
 
 const ROUTE_TITLES: Record<string, string> = {
@@ -25,6 +28,8 @@ const ROUTE_TITLES: Record<string, string> = {
   '/logistics/hub-ops': 'Hub Scanning',
   '/logistics/returns': 'Return to Sender',
   '/logistics/cod': 'COD & Exports',
+  '/logistics/messages': 'Messages',
+  '/logistics/settings': 'Settings',
 };
 
 const POLL_MS = 60000;
@@ -43,12 +48,16 @@ export default function LogisticsLayout() {
   const load = useCallback(() => {
     getLogisticsDashboardApi().then(setDashboard).catch(() => {});
   }, []);
+  const [chatUnread, setChatUnread] = useState(0);
+  const loadChatUnread = useCallback(() => {
+    getCourierChatUnreadApi().then(setChatUnread).catch(() => {});
+  }, []);
 
-  useEffect(() => { load(); }, [load, location.pathname]);
+  useEffect(() => { load(); loadChatUnread(); }, [load, loadChatUnread, location.pathname]);
   useEffect(() => {
-    const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, POLL_MS);
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') { load(); loadChatUnread(); } }, POLL_MS);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, loadChatUnread]);
 
   function toggleCollapse() {
     setCollapsed((c) => {
@@ -69,6 +78,7 @@ export default function LogisticsLayout() {
         { icon: Warehouse, label: 'Hubs', to: '/logistics/hubs', badge: pendingHubs },
         { icon: Bike, label: 'Riders', to: '/logistics/riders' },
         { icon: MapPinned, label: 'Zones & rates', to: '/logistics/shipping' },
+        { icon: MessageSquare, label: 'Messages', to: '/logistics/messages', badge: chatUnread },
       ],
     },
     {
@@ -88,7 +98,8 @@ export default function LogisticsLayout() {
         { icon: Banknote, label: 'Settlements & pay', to: '/logistics/money' },
       ],
     },
-  ], [pendingHubs, failed]);
+    { heading: 'Account', items: [{ icon: Settings, label: 'Settings', to: '/logistics/settings' }] },
+  ], [pendingHubs, failed, chatUnread]);
 
   const searchItems: ShellSearchItem[] = [
     { label: 'Network overview', to: '/logistics', group: 'Overview', icon: Gauge },
@@ -102,6 +113,8 @@ export default function LogisticsLayout() {
     { label: 'COD reconciliation, remittances and exports', to: '/logistics/cod', group: 'Money', icon: Coins },
     { label: 'Network reports', to: '/logistics/reports', group: 'Insights', icon: BarChart2 },
     { label: 'Shop statements, rider and hub pay', to: '/logistics/money', group: 'Money', icon: Banknote },
+    { label: 'Messages with your hubs', to: '/logistics/messages', group: 'Network', icon: MessageSquare },
+    { label: 'Settings: account, company and GCash', to: '/logistics/settings', group: 'Account', icon: Settings },
   ];
 
   const alerts: ShellAlert[] = [];
@@ -174,7 +187,7 @@ export default function LogisticsLayout() {
         <main className="flex-1 p-4 lg:p-6 print:p-0">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={location.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15, ease: 'easeOut' }}>
-              <Outlet context={{ dashboard, refresh: load } satisfies LogisticsOutletContext} />
+              <Outlet context={{ dashboard, refresh: load, refreshChatUnread: loadChatUnread } satisfies LogisticsOutletContext} />
             </motion.div>
           </AnimatePresence>
         </main>

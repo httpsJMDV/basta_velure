@@ -55,18 +55,18 @@ const OPTIONS: PartnerOption[] = [
     icon: Bike,
     title: 'Ride for a courier company',
     short: 'Pick up and deliver parcels near you',
-    pitch: 'Riders work for a partner courier company. The company adds you, you set your password from the email it sends, then you go Online to receive pickup and delivery jobs near you.',
+    pitch: 'Riders work from a hub of a partner courier company. Pick the hub near you and apply; once the hub approves you, set your password from the email we send and go Online to receive pickup and delivery jobs near you.',
     earn: { value: `${peso(30)} + ${peso(50)}`, label: 'for each completed pickup and each successful delivery' },
     requirements: [
       'You are 18 or older',
       'Driver’s license number, expiry date and a copy of the license',
       'Vehicle OR/CR, plus your vehicle type and plate number',
-      'A courier company that adds you as its rider',
+      'An email of your own for the rider account',
     ],
-    steps: ['Your courier company adds you', 'Set your password from the activation email', 'Go Online and accept jobs'],
-    note: 'Riders cannot sign up on their own. Ask the courier company you work for to add you.',
-    registerTo: '/rider/login',
-    registerLabel: 'I have an activation email',
+    steps: ['Pick a hub and apply', 'The hub checks your license and OR/CR', 'Set your password from the email, then go Online'],
+    note: 'Your courier company can also add you directly; then you only set your password from their email.',
+    registerTo: '/register/rider',
+    registerLabel: 'Apply to ride',
     signInTo: '/rider/login',
     signInLabel: 'Rider sign in',
   },
@@ -244,7 +244,7 @@ export default function PartnerPage() {
         </section>
 
         <p className="mt-6 flex items-center gap-2 text-[12.5px] text-stone-500">
-          <PackageCheck className="w-4 h-4 text-stone-400" /> Every application is made from a Loved-IT buyer account, so your name, contact details and ID are already on file.
+          <PackageCheck className="w-4 h-4 text-stone-400" /> Seller, hub and courier applications use your Loved-IT account, so your name, contact details and ID are already on file. Riders apply with an email of their own.
         </p>
       </main>
 

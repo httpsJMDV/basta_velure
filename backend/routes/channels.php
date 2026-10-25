@@ -23,6 +23,11 @@ Broadcast::channel('conversation.{conversationId}', function (User $user, $conve
         return app(RiderChatService::class)->roleOf($user, $conversation) !== null;
     }
 
+    // A courier company's thread with its hub is polled, never broadcast, and private to the two of them.
+    if ($conversation?->isCourierThread()) {
+        return false;
+    }
+
     if ($user->role === 'admin') {
         return true;
     }

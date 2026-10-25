@@ -18,9 +18,133 @@ use Illuminate\Validation\ValidationException;
  * Riders are added by their courier company (A13): the company creates the rider, who starts as Pending Activation
  * and receives a one-time link, valid for 24 hours, to set their password. Activating makes the rider Active; there
  * is no separate admin or hub approval.
+ *
+ * A rider can also apply on the public "Become a rider" form. The application is Pending and has no usable password;
+ * the hub they chose (or its courier company) approves it, which moves it to Pending Activation and sends the same
+ * activation link, or rejects it with a reason, after which the rider may apply again.
  */
 class RiderOnboarding
 {
+    /**
+     * A visitor's application (ApplyRiderRequest). An earlier application that was not approved is updated in place,
+     * so the same email and mobile number can be used again.
+     *
+     * @param  array<string, mixed>  $data  validated ApplyRiderRequest input
+     */
+    public function apply(SortingCenter $hub, array $data, UploadedFile $license, UploadedFile $orCr, ?Rider $previous = null): Rider
+    {
+        $licensePath = $license->store('rider_licenses', 'ids');
+        $orCrPath = $orCr->store('rider_or_cr', 'ids');
+        $oldFiles = $previous ? array_filter([$previous->drivers_license_path, $previous->or_cr_path]) : [];
+
+        try {
+            $rider = DB::transaction(function () use ($hub, $data, $licensePath, $orCrPath, $previous) {
+                $account = [
+                    'first_name'    => $data['first_name'],
+                    'middle_name'   => $data['middle_name'] ?? null,
+                    'last_name'     => $data['last_name'],
+                    'email'         => $data['email'],
+                    'phone'         => $data['phone'],
+                    'date_of_birth' => $data['date_of_birth'],
+                ];
+                if ($previous) {
+                    $user = $previous->user;
+                    $user->fill($account)->save();
+                } else {
+                    // No usable password until the application is approved and the rider sets one.
+                    $user = User::create($account + ['password' => Str::random(48)]);
+                    $user->forceFill(['role' => 'rider', 'status' => 'pending_activation'])->save();
+                }
+
+                $rider = $previous ?? new Rider(['user_id' => $user->id]);
+                $rider->forceFill([
+                    'logistics_company_id' => LogisticsCompany::effectiveId($hub->logistics_company_id),
+                    'sorting_center_id'    => $hub->id,
+                    'vehicle_type'         => $data['vehicle_type'],
+                    'plate_number'         => $data['plate_number'],
+                    'license_number'       => $data['license_number'],
+                    'license_expiry'       => $data['license_expiry'],
+                    'drivers_license_path' => $licensePath,
+                    'or_cr_path'           => $orCrPath,
+                    'status'               => Rider::STATUS_PENDING,
+                    'rejection_reason'     => null,
+                    'reviewed_by'          => null,
+                    'reviewed_at'          => null,
+                    'submitted_at'         => now(),
+                    'applied_at'           => now(),
+                ])->save();
+
+                AuditLog::record($user, $previous ? 'rider.reapplied' : 'rider.applied', $rider, null, [
+                    'name' => trim($user->first_name . ' ' . $user->last_name), 'email' => $user->email, 'hub' => $hub->hub_name,
+                    'plate_number' => $rider->plate_number, 'license_number' => $rider->license_number,
+                ], companyId: $rider->logistics_company_id, actorRole: 'applicant');
+
+                return $rider;
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('ids')->delete([$licensePath, $orCrPath]);
+            throw $e;
+        }
+
+        if ($oldFiles) {
+            Storage::disk('ids')->delete($oldFiles);
+        }
+
+        $rider->load(['user', 'sortingCenter']);
+        app(MailNotifier::class)->riderApplicationReceived($rider);
+        app(Notifier::class)->toUserId($hub->user_id, 'rider.application', 'New rider application',
+            trim($rider->user->first_name . ' ' . $rider->user->last_name) . " applied to ride for {$hub->hub_name}. Check their license and OR/CR, then approve or reject.",
+            '/hub/riders?tab=PENDING');
+
+        return $rider;
+    }
+
+    /**
+     * The hub or the courier approves an application: the rider moves to Pending Activation and gets the link to set
+     * a password (the same link a rider added by the company gets).
+     */
+    public function approveApplication(Rider $rider, User $by, string $actorRole): Rider
+    {
+        $rider = DB::transaction(function () use ($rider, $by, $actorRole) {
+            $rider = Rider::with('user')->lockForUpdate()->findOrFail($rider->id);
+            abort_unless($rider->isApplicant(), 409, 'This application has already been decided.');
+
+            $rider->forceFill([
+                'status' => Rider::STATUS_PENDING_ACTIVATION, 'rejection_reason' => null,
+                'reviewed_by' => $by->id, 'reviewed_at' => now(),
+            ])->save();
+            AuditLog::record($by, 'rider.application_approved', $rider, ['status' => Rider::STATUS_PENDING], ['status' => Rider::STATUS_PENDING_ACTIVATION],
+                companyId: $rider->companyId(), actorRole: $actorRole);
+
+            return $rider;
+        });
+
+        $this->sendActivation($rider);
+
+        return $rider;
+    }
+
+    /** The hub or the courier rejects an application with a reason; the rider is told and may apply again. */
+    public function rejectApplication(Rider $rider, User $by, string $reason, string $actorRole): Rider
+    {
+        $rider = DB::transaction(function () use ($rider, $by, $reason, $actorRole) {
+            $rider = Rider::with('user')->lockForUpdate()->findOrFail($rider->id);
+            abort_unless($rider->isApplicant(), 409, 'This application has already been decided.');
+
+            $rider->forceFill([
+                'status' => Rider::STATUS_DISAPPROVED, 'rejection_reason' => $reason,
+                'reviewed_by' => $by->id, 'reviewed_at' => now(),
+            ])->save();
+            AuditLog::record($by, 'rider.application_rejected', $rider, ['status' => Rider::STATUS_PENDING], ['status' => Rider::STATUS_DISAPPROVED], $reason,
+                companyId: $rider->companyId(), actorRole: $actorRole);
+
+            return $rider;
+        });
+
+        app(MailNotifier::class)->riderApplicationRejected($rider->load('sortingCenter'), $reason);
+
+        return $rider;
+    }
     /**
      * @param  array<string, mixed>  $data  validated AddRiderRequest input
      */
@@ -97,7 +221,8 @@ class RiderOnboarding
         $company ??= LogisticsCompany::find($rider->companyId());
         $link = rtrim(explode(',', (string) (config('app.frontend_url') ?: 'http://localhost:5173'))[0], '/') . '/rider/activate?token=' . $token;
 
-        app(MailNotifier::class)->riderActivation($rider->user, $company?->name ?? 'Your courier company', $link, $hours);
+        app(MailNotifier::class)->riderActivation($rider->user, $company?->name ?? 'Your courier company', $link, $hours,
+            $rider->applied_at ? $rider->sortingCenter?->hub_name : null);
     }
 
     /**

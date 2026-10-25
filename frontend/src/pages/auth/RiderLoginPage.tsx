@@ -6,19 +6,21 @@ import { loginApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
-import PortalLoginShell from '../../components/auth/PortalLoginShell';
+import AuthShell, { AuthNotice } from '../../components/auth/AuthShell';
+import { PasswordField } from '../../components/auth/AuthFields';
+import photo from '../../assets/auth/rider.jpg';
 import { useToast } from '../../components/ui/Toast';
 import { validateLoginIdentifier } from '../../utils/loginIdentifier';
-import { AlertCircle, ArrowRight, Clock, Eye, EyeOff, MapPin, ShieldAlert, Wallet, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowRight, Clock, MapPin, ShieldAlert, Wallet, XCircle } from 'lucide-react';
 
-type ErrorType = 'pending' | 'disapproved' | 'not_rider' | 'invalid' | 'general';
+type ErrorType = 'pending' | 'disapproved' | 'reapply' | 'not_rider' | 'invalid' | 'general';
 
 const PERKS = [
   { icon: MapPin, text: 'Pickups and drop-offs in your service areas' },
   { icon: Wallet, text: 'Paid per job: ₱30 for each pickup, ₱50 for each delivery' },
 ];
 
-/** Sign-in for delivery couriers. Same layout as the buyer and logistics hub sign-in. */
+/** Sign-in for delivery riders, on the same layout as every other sign-in page. */
 export default function RiderLoginPage() {
   const { setAuth, clearAuth } = useAuth();
   const navigate = useNavigate();
@@ -28,7 +30,6 @@ export default function RiderLoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [identifierError, setIdentifierError] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorType, setErrorType] = useState<ErrorType | null>(null);
@@ -50,7 +51,7 @@ export default function RiderLoginPage() {
       if (!res.data.rider) {
         clearAuth();
         setErrorType('not_rider');
-        setErrorMessage('This account is not a rider. Riders are added by their courier company, which emails you an activation link.');
+        setErrorMessage('This account is not a rider. Riders sign in with their own email: apply to be a rider, or ask your courier company to add you.');
         return;
       }
 
@@ -71,9 +72,13 @@ export default function RiderLoginPage() {
         const status = err.response?.status;
         const msg = err.response?.data?.message;
 
+        const code = err.response?.data?.code;
         if (status === 403) {
           // Hub/Rider status gating 403 from AuthController
-          if (msg && msg.toLowerCase().includes('pending')) {
+          if (code === 'rider_application_pending' || code === 'rider_application_rejected') {
+            setErrorType(code === 'rider_application_pending' ? 'pending' : 'reapply');
+            setErrorMessage(msg);
+          } else if (msg && msg.toLowerCase().includes('pending')) {
             setErrorType('pending');
             setErrorMessage(msg);
           } else if (msg && (msg.toLowerCase().includes('not approved') || msg.toLowerCase().includes('disapproved'))) {
@@ -105,50 +110,35 @@ export default function RiderLoginPage() {
     }
   }
 
-  const tone =
-    errorType === 'pending'
-      ? 'bg-amber-50 border-amber-200 text-amber-900'
-      : errorType === 'not_rider'
-        ? 'bg-gray-50 border-gray-200 text-gray-900'
-        : 'bg-red-50 border-red-200 text-red-700';
+  const tone = errorType === 'pending' ? 'amber' : errorType === 'not_rider' ? 'gray' : 'red';
+  const Icon = errorType === 'pending' ? Clock : errorType === 'disapproved' || errorType === 'reapply' ? XCircle : errorType === 'not_rider' ? ShieldAlert : AlertCircle;
 
   return (
-    <PortalLoginShell
-      badge="Courier sign in"
-      heading="Welcome back"
+    <AuthShell
+      eyebrow="Rider sign in"
+      title="Welcome back"
       subtitle="Sign in to see your pickups, deliveries and earnings."
-      image="https://images.unsplash.com/photo-1526367790999-0150786686a2?w=1200&q=80"
-      imageAlt="A courier on a motorbike delivering parcels"
-      headline={['Ride with Loved-IT.', 'Deliver, get paid.']}
-      perks={PERKS}
+      topLink={{ text: 'Shopping instead?', label: 'Shopper sign in', to: '/login' }}
+      image={photo}
+      imageAlt="A delivery rider on a scooter in the city"
+      headline="Ride with Loved-IT. Deliver, get paid."
+      facts={PERKS}
     >
-      {notice && !errorType && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 mb-5">{notice}</div>
-      )}
+      {notice && !errorType && <AuthNotice tone="green">{notice}</AuthNotice>}
       {errorType && errorMessage && (
-        <div role="alert" aria-live="assertive" className={`rounded-lg border px-4 py-3 text-sm mb-5 ${tone}`}>
-          <div className="flex items-start gap-2.5">
-            {errorType === 'pending' ? (
-              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-            ) : errorType === 'disapproved' ? (
-              <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            ) : errorType === 'not_rider' ? (
-              <ShieldAlert className="w-4 h-4 text-gray-600 shrink-0 mt-0.5" aria-hidden="true" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            )}
-            <div className="space-y-2 min-w-0">
-              <p className="font-medium leading-relaxed">{errorMessage}</p>
-
-              {errorType === 'not_rider' && (
-                <Link to="/login" className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
-                  Go to the standard sign in
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
+        <AuthNotice tone={tone} icon={Icon}>
+          <p className="font-medium">{errorMessage}</p>
+          {errorType === 'not_rider' && (
+            <Link to="/login" className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
+              Go to the shopper sign in <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </Link>
+          )}
+          {errorType === 'reapply' && (
+            <Link to="/register/rider" className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline">
+              Apply again <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </Link>
+          )}
+        </AuthNotice>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
@@ -165,51 +155,19 @@ export default function RiderLoginPage() {
           disabled={loading}
           required
         />
-
-        <div>
-          <div className="relative">
-            <Input
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pr-12"
-              disabled={loading}
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute bottom-0 right-0 w-11 h-11 flex items-center justify-center text-gray-500 hover:text-gray-700 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-            >
-              {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
-            </button>
-          </div>
-          <div className="flex justify-end mt-1.5">
-            <Link to="/forgot-password" className="text-xs text-brand-red hover:underline font-medium">
-              Forgot password?
-            </Link>
-          </div>
+        <div className="flex flex-col gap-1">
+          <PasswordField id="rider-password" label="Password" autoComplete="current-password" value={password} onChange={setPassword} />
+          <Link to="/forgot-password" className="self-end mt-1 text-[12.5px] font-medium text-brand-red hover:underline">Forgot password?</Link>
         </div>
 
-        <Button type="submit" loading={loading} className="w-full mt-1">
-          Sign In
-        </Button>
+        <Button type="submit" loading={loading} className="w-full mt-1">Sign in</Button>
       </form>
 
-      <p className="mt-6 text-sm text-center text-gray-500 leading-relaxed">
-        Want to deliver with Loved-IT? Riders are added by their courier company.{' '}
-        <Link to="/partner" className="text-brand-red font-semibold hover:underline">See partner options</Link>
+      <p className="mt-7 rounded-xl bg-white border border-stone-200 px-4 py-3 text-[13px] leading-relaxed text-stone-600">
+        Want to deliver with us?{' '}
+        <Link to="/register/rider" className="font-semibold text-brand-red hover:underline">Apply to be a rider</Link>.
+        Once a hub approves you, we email you a link to set your password.
       </p>
-
-      <div className="mt-5 pt-4 border-t border-gray-100 text-center">
-        <Link to="/login" className="inline-flex items-center gap-1.5 text-xs text-brand-red hover:text-brand-red-dark font-semibold">
-          <span>Buyer, seller or hub owner? Standard Sign In</span>
-          <span aria-hidden="true">&rarr;</span>
-        </Link>
-      </div>
-    </PortalLoginShell>
+    </AuthShell>
   );
 }

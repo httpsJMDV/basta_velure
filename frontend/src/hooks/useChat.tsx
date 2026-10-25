@@ -8,6 +8,9 @@ import {
   startConversationApi,
   getConversationMessagesApi,
   sendConversationMessageApi,
+  confirmOrderAddressApi,
+  handoffSupportChatApi,
+  resumeAssistantApi,
 } from '../api/client';
 import type {
   Conversation,
@@ -34,6 +37,12 @@ interface ChatContextType {
   openChatWithSeller: (sellerId: number, product?: ProductContext, initialMessage?: string) => Promise<Conversation | null>;
   openChatWithSupport: (order?: OrderContext, initialMessage?: string) => Promise<Conversation | null>;
   sendMessage: (body: string, attachmentType?: string, attachmentData?: any, imageFile?: File) => Promise<void>;
+  /** Confirms the address on a shop's order confirmation card; resolves to an error message, or null. */
+  confirmOrderAddress: (messageId: number) => Promise<string | null>;
+  /** "Talk to a person" in the Loved-IT Support chat; resolves to an error message, or null. */
+  talkToPerson: () => Promise<string | null>;
+  /** After a handoff, "Ask the assistant instead"; resolves to an error message, or null. */
+  backToAssistant: () => Promise<string | null>;
   refreshConversations: () => Promise<void>;
   refreshMessages: () => Promise<void>;
 }
@@ -357,6 +366,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [activeConversation]
   );
 
+  const confirmOrderAddress = useCallback(
+    async (messageId: number) => {
+      if (!activeConversation) return null;
+      try {
+        const updated = await confirmOrderAddressApi(activeConversation.id, messageId);
+        setMessages((prev) => {
+          const byId = new Map(updated.map((m) => [m.id, m]));
+          const merged = prev.map((m) => byId.get(m.id) ?? m);
+          return [...merged, ...updated.filter((m) => !prev.some((p) => p.id === m.id))];
+        });
+        return null;
+      } catch (err: any) {
+        return err.response?.data?.message || 'The address could not be confirmed. Try again.';
+      }
+    },
+    [activeConversation]
+  );
+
+  // Switches the Loved-IT Support chat between the assistant and the Loved-IT team.
+  const switchSupport = useCallback(async (call: (id: number) => Promise<Conversation>, failure: string) => {
+    const id = activeConvRef.current?.id;
+    if (!id) return null;
+    try {
+      const updated = await call(id);
+      setActiveConversation((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+      setConversations((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+      refreshThreadSilently();
+      return null;
+    } catch (err: any) {
+      return err.response?.data?.message || failure;
+    }
+  }, [refreshThreadSilently]);
+
+  const talkToPerson = useCallback(
+    () => switchSupport(handoffSupportChatApi, 'Could not reach the Loved-IT team. Try again.'),
+    [switchSupport]
+  );
+  const backToAssistant = useCallback(
+    () => switchSupport(resumeAssistantApi, 'The assistant could not be reached. Try again.'),
+    [switchSupport]
+  );
+
   return (
     <ChatContext.Provider
       value={{
@@ -377,6 +428,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         openChatWithSeller,
         openChatWithSupport,
         sendMessage,
+        confirmOrderAddress,
+        talkToPerson,
+        backToAssistant,
         refreshConversations,
         refreshMessages,
       }}

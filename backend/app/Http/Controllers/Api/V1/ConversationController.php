@@ -11,7 +11,9 @@ use App\Models\Message;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Commerce\OrderConfirmationMessenger;
 use App\Services\RiderChatService;
+use App\Services\SupportChat;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,17 @@ class ConversationController extends Controller
     private function riderChat(): RiderChatService
     {
         return app(RiderChatService::class);
+    }
+
+    private function supportChat(): SupportChat
+    {
+        return app(SupportChat::class);
+    }
+
+    /** A buyer's message in their Loved-IT Support chat while the assistant answers it (Amaru task 8). */
+    private function assistantAnswers(Conversation $conversation, User $sender): bool
+    {
+        return (int) $sender->id === (int) $conversation->buyer_id && $this->supportChat()->answers($conversation);
     }
 
     // ── List conversations for current user ──────────────────────────────────
@@ -44,7 +57,7 @@ class ConversationController extends Controller
         if ($user->role === 'admin') {
             // Admin can see all or filter by role / status / type / search. Rider delivery threads are private
             // to their participants (feature 2.10), so they are never listed here.
-            $query->whereNotIn('type', Conversation::RIDER_TYPES);
+            $query->whereNotIn('type', Conversation::PRIVATE_TYPES);
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
             }
@@ -293,10 +306,18 @@ class ConversationController extends Controller
                 'attachment_data' => $attachmentData,
             ]);
 
-            $this->incrementUnread($conversation, $user);
+            $assistant = $this->assistantAnswers($conversation, $user);
+            if ($assistant) {
+                $conversation->update(['last_message_at' => now()]);
+            } else {
+                $this->incrementUnread($conversation, $user);
+            }
 
             $this->safeBroadcast(fn () => MessageSent::dispatch($initialMsg->load('sender.sellerProfile')));
             $this->broadcastConversationUpdates($conversation);
+            if ($assistant) {
+                $this->supportChat()->queueAnswer($initialMsg);
+            }
         }
 
         $conversation->load([
@@ -346,10 +367,10 @@ class ConversationController extends Controller
         $this->authorizeConversation($request, $conversation);
         $user = $request->user();
 
-        // Mark messages from others as read
+        // Mark messages from others as read (the assistant's have no sender account).
         $readCount = Message::where('conversation_id', $conversation->id)
             ->whereNull('read_at')
-            ->where('sender_id', '!=', $user->id)
+            ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $user->id))
             ->update(['read_at' => now()]);
 
         // Reset unread counter for current user role
@@ -483,7 +504,8 @@ class ConversationController extends Controller
             return response()->json(['message' => 'Message body or attachment is required.'], 422);
         }
 
-        $message = DB::transaction(function () use ($conversation, $body, $attachmentType, $attachmentData, $user) {
+        $assistant = $this->assistantAnswers($conversation, $user);
+        $message = DB::transaction(function () use ($conversation, $body, $attachmentType, $attachmentData, $user, $assistant) {
             $msg = Message::create([
                 'conversation_id' => $conversation->id,
                 'sender_id'       => $user->id,
@@ -492,7 +514,15 @@ class ConversationController extends Controller
                 'attachment_data' => $attachmentData,
             ]);
 
-            $this->incrementUnread($conversation, $user);
+            // While the assistant answers, the admins' unread count waits for a handoff.
+            if ($assistant) {
+                $conversation->update(['last_message_at' => now()]);
+            } else {
+                $this->incrementUnread($conversation, $user);
+            }
+            if ($user->role === 'admin') {
+                $this->supportChat()->staffReplied($conversation);
+            }
 
             return $msg;
         });
@@ -501,10 +531,74 @@ class ConversationController extends Controller
 
         $this->safeBroadcast(fn () => MessageSent::dispatch($message));
         $this->broadcastConversationUpdates($conversation);
+        if ($assistant) {
+            $this->supportChat()->queueAnswer($message);
+        }
 
         return response()->json([
             'data' => $this->formatMessage($message),
         ], 201);
+    }
+
+    // ── "Talk to a person" in the Loved-IT Support chat (Amaru task 8) ───────
+
+    /** POST /conversations/{conversation}/handoff: the buyer asks for a person instead of the assistant. */
+    public function handoff(Request $request, Conversation $conversation): JsonResponse
+    {
+        abort_unless($conversation->type === 'buyer_admin', 404, 'Conversation not found.');
+        abort_unless((int) $conversation->buyer_id === (int) $request->user()->id, 403, 'Only the buyer can ask for a person.');
+
+        if ($this->supportChat()->answers($conversation)) {
+            $this->supportChat()->handOff($conversation, 'The buyer tapped "Talk to a person".', SupportChat::HANDED_OVER);
+        }
+        $conversation->refresh()->load(['buyer', 'seller.sellerProfile', 'product.images', 'order.items', 'latestMessage.sender']);
+
+        return response()->json(['data' => $this->formatConversation($conversation, $request->user())]);
+    }
+
+    /** POST /conversations/{conversation}/assistant: after a handoff, the buyer asks for the assistant again. */
+    public function resumeAssistant(Request $request, Conversation $conversation): JsonResponse
+    {
+        abort_unless($conversation->type === 'buyer_admin', 404, 'Conversation not found.');
+        abort_unless((int) $conversation->buyer_id === (int) $request->user()->id, 403, 'Only the buyer can do this.');
+        abort_unless(SupportChat::enabled(), 409, 'The assistant is not available right now. A person from the Loved-IT team will reply.');
+
+        $this->supportChat()->resume($conversation);
+        $conversation->refresh()->load(['buyer', 'seller.sellerProfile', 'product.images', 'order.items', 'latestMessage.sender']);
+
+        return response()->json(['data' => $this->formatConversation($conversation, $request->user())]);
+    }
+
+    // ── The buyer starts a chat with the rider bringing their parcel ─────────
+
+    /** POST /parcels/{tracking}/rider-chat: from Track package, while the parcel is out for delivery. */
+    public function startRiderChat(Request $request, string $tracking): JsonResponse
+    {
+        $conversation = $this->riderChat()->openThreadForBuyer($request->user(), $tracking);
+        $this->riderChat()->loadForFormatting(collect([$conversation]));
+
+        return response()->json([
+            'data' => $this->riderChat()->formatConversation($conversation, RiderChatService::ROLE_BUYER, $this->riderChat()->isOpen($conversation)),
+        ], $conversation->wasRecentlyCreated ? 201 : 200);
+    }
+
+    // ── The buyer confirms the address on the shop's order confirmation card ─
+
+    public function confirmAddress(Request $request, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_if($conversation->isRiderThread(), 404, 'Conversation not found.');
+        abort_unless((int) $message->conversation_id === (int) $conversation->id
+            && $message->attachment_type === OrderConfirmationMessenger::TYPE, 404, 'Message not found.');
+        abort_unless((int) $conversation->buyer_id === (int) $request->user()->id, 403, 'Only the buyer can confirm the address.');
+
+        $result = app(OrderConfirmationMessenger::class)->confirm($conversation, $message);
+
+        return response()->json([
+            'data' => array_values(array_filter([
+                $this->formatMessage($result['card']->load('sender.sellerProfile')),
+                $result['reply'] ? $this->formatMessage($result['reply']->load('sender.sellerProfile')) : null,
+            ])),
+        ]);
     }
 
     // ── Get attachable products for a conversation ───────────────────────────
@@ -603,7 +697,7 @@ class ConversationController extends Controller
     public function updateStatus(Request $request, Conversation $conversation): JsonResponse
     {
         // A rider thread opens and closes with its parcel; nobody resolves it by hand.
-        abort_if($conversation->isRiderThread(), 404, 'Conversation not found.');
+        abort_if($conversation->isRiderThread() || $conversation->isCourierThread(), 404, 'Conversation not found.');
         $user = $request->user();
         if ($user->role !== 'admin' && $conversation->seller_id !== $user->id) {
             abort(403, 'Unauthorized to modify conversation status.');
@@ -614,6 +708,10 @@ class ConversationController extends Controller
         ]);
 
         $conversation->update(['status' => $request->status]);
+        if ($request->status === 'resolved') {
+            // The next question in a resolved Loved-IT Support chat goes to the assistant again.
+            $this->supportChat()->resolved($conversation);
+        }
 
         $this->broadcastConversationUpdates($conversation);
 
@@ -718,6 +816,8 @@ class ConversationController extends Controller
 
     private function authorizeConversation(Request $request, Conversation $conversation): void
     {
+        // A courier company's thread with its hub is reached only through /logistics/chat and /hub/courier-chat.
+        abort_if($conversation->isCourierThread(), 404, 'Conversation not found.');
         $user = $request->user();
         if ($user->role === 'admin') {
             return;
@@ -859,6 +959,10 @@ class ConversationController extends Controller
             ] : null,
             'last_message_at' => $c->last_message_at,
             'unread'          => $unread,
+            // Loved-IT Support only: "ai" while the Loved-IT Assistant answers, "human" once a person has taken over.
+            'support_mode'    => $this->supportChat()->modeOf($c),
+            // Whether the assistant can be asked back after a handoff (it is switched on and a key is set).
+            'assistant_available' => $c->type === 'buyer_admin' && SupportChat::enabled(),
             'created_at'      => $c->created_at,
         ];
     }
@@ -871,7 +975,10 @@ class ConversationController extends Controller
         $senderOwnerName = null;
         $senderRole = $m->sender?->role ?? 'buyer';
 
-        if ($m->sender) {
+        if ($m->sender_kind === 'ai') {
+            $senderRole = 'assistant';
+            $senderName = SupportChat::ASSISTANT_NAME;
+        } elseif ($m->sender) {
             $senderOwnerName = "{$m->sender->first_name} {$m->sender->last_name}";
             $sellerProfile = $m->sender->sellerProfile;
 

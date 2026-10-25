@@ -34,13 +34,23 @@ function toInput(d: Date | string) {
   return `${p.y}-${p.m}-${p.d}T${p.h}:${p.min}`;
 }
 
+/** A sale or promotion runs at most 90 days (the server checks the same), so a mistyped year is caught. */
+const MAX_RUN_DAYS = 90;
+function tooLong(start: string, end: string): string | undefined {
+  const last = new Date(fromInput(start).getTime() + MAX_RUN_DAYS * 86400000);
+  return fromInput(end) > last ? `A sale can run for at most ${MAX_RUN_DAYS} days. Choose an end on or before ${when(last.toISOString())}.` : undefined;
+}
+
 /** The Manila wall time of a datetime-local value, as a Date. */
 function fromInput(v: string): Date {
   return new Date(`${v}:00+08:00`);
 }
 
 function when(iso: string) {
-  return new Date(iso).toLocaleString('en-PH', { timeZone: TZ, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  // The year shows when it is not this year, so a typo like 2027 for 2026 is easy to spot.
+  const d = new Date(iso);
+  const year = (x: Date) => x.toLocaleString('en-PH', { timeZone: TZ, year: 'numeric' });
+  return d.toLocaleString('en-PH', { timeZone: TZ, month: 'short', day: 'numeric', ...(year(d) !== year(new Date()) && { year: 'numeric' }), hour: 'numeric', minute: '2-digit' });
 }
 
 const peso = (n: number) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -334,6 +344,7 @@ function SaleForm({ products, editing, onClose, onSaved }: {
     else if (!running && fromInput(start).getTime() < Date.now() - 60000) e.starts_at = 'The start cannot be in the past.';
     if (!end) e.ends_at = 'Choose when the sale ends.';
     else if (start && fromInput(end) <= fromInput(start)) e.ends_at = 'The end must be after the start.';
+    else if (start && tooLong(start, end)) e.ends_at = tooLong(start, end)!;
     setErrors(e);
     setSummary('');
     if (Object.keys(e).length) return;
@@ -540,6 +551,7 @@ function PromoForm({ kind, products, onClose, onSaved }: {
     else if (fromInput(start).getTime() < Date.now() - 60000) e.starts_at = 'The start cannot be in the past.';
     if (!end) e.ends_at = 'Choose when the promotion ends.';
     else if (start && fromInput(end) <= fromInput(start)) e.ends_at = 'The end must be after the start.';
+    else if (start && tooLong(start, end)) e.ends_at = tooLong(start, end)!;
     setErrors(e);
     setSummary('');
     if (Object.keys(e).length) return;

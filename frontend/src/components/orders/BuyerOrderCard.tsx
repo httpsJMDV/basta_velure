@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Store, ShoppingBag, Star, X, Clock, Gift, Zap, ImagePlus, AlertCircle, CheckCircle2, ShieldAlert, KeyRound } from 'lucide-react';
 import type { Order } from '../../types';
@@ -316,6 +316,7 @@ function ReturnDialog({ open, order, onClose, onDone }: { open: boolean; order: 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const previews = useMemo(() => photos.map((f) => URL.createObjectURL(f)), [photos]);
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
   const addPhotos = (list: FileList | null) => {
     if (!list) return;

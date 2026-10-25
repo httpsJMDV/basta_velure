@@ -6,9 +6,10 @@ import { useChat } from '../../hooks/useChat';
 import AvatarWithFallback from '../../components/ui/AvatarWithFallback';
 import ChatAttachmentBubble from '../../components/chat/ChatAttachmentBubble';
 import { useChatAttach, AttachMenu } from '../../components/chat/ChatAttach';
-import { isAutoAttachmentBody, inboxTime, dayLabel, clockTime } from '../../components/chat/chatUtils';
+import { isAutoAttachmentBody, buyerOrderHref, inboxTime, dayLabel, clockTime } from '../../components/chat/chatUtils';
 import RiderThreadPane from '../../components/chat/RiderThreadPane';
 import { isRiderThread } from '../../lib/riderThread';
+import { SupportModeBar, SupportSenderLabel, AssistantTyping, AssistantText, AfterTyping, assistantIsTyping, scrollToBottom } from '../../components/chat/SupportAssistantKit';
 import type { Conversation } from '../../types';
 
 type Tab = 'all' | 'sellers' | 'delivery' | 'support';
@@ -40,7 +41,7 @@ export default function BuyerMessagesPage() {
   const { user } = useAuth();
   const {
     conversations, activeConversation, messages, loadingConversations, loadingMessages, sendingMessage, wsConnected,
-    selectConversation, clearActiveConversation, openChatWithSupport, sendMessage, refreshConversations,
+    selectConversation, clearActiveConversation, openChatWithSupport, sendMessage, confirmOrderAddress, talkToPerson, backToAssistant, refreshConversations,
   } = useChat();
 
   const [search, setSearch] = useState('');
@@ -94,6 +95,8 @@ export default function BuyerMessagesPage() {
 
   const active = activeConversation;
   const activeWho = active ? who(active) : null;
+  // Loved-IT Support: the inbox copy is kept fresh, so a handoff made by the assistant shows here too.
+  const supportMode = active?.type === 'buyer_admin' ? conversations.find((c) => c.id === active.id)?.support_mode ?? active.support_mode : null;
   const lastMineId = [...messages].reverse().find((m) => m.sender_id === user?.id)?.id;
 
   return (
@@ -209,12 +212,14 @@ export default function BuyerMessagesPage() {
                 <Face c={active} size="w-10 h-10" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-semibold text-stone-900 truncate">{activeWho.name}</p>
-                  <p className="text-[12px] text-stone-500 truncate">{activeWho.kind === 'support' ? 'Official Loved-IT support' : 'Shop on Loved-IT'}</p>
+                  <p className="text-[12px] text-stone-500 truncate">{activeWho.kind === 'support' ? (supportMode === 'ai' ? 'Assistant replies right away' : 'Official Loved-IT support') : 'Shop on Loved-IT'}</p>
                 </div>
                 {activeWho.kind === 'shop' && active.seller?.shop_name && (
                   <Link to={`/shop/${active.seller.shop_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`} className="hidden sm:inline-flex h-8 px-3 rounded-full border border-stone-300 text-[12px] font-semibold text-stone-700 hover:border-stone-900 items-center">Visit shop</Link>
                 )}
               </div>
+
+              {activeWho.kind === 'support' && <SupportModeBar mode={supportMode} assistantAvailable={active.assistant_available} onTalkToPerson={talkToPerson} onBackToAssistant={backToAssistant} />}
 
               {(active.product || active.order) && (
                 <div className="px-4 py-2 border-b border-stone-200 shrink-0">
@@ -240,7 +245,7 @@ export default function BuyerMessagesPage() {
                 ) : messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center px-6">
                     <p className="text-[13px] font-semibold text-stone-900">Say hello to {activeWho.name}</p>
-                    <p className="mt-1 text-[12px] text-stone-500">Ask about stock, sizes or shipping, or share an order with the + button.</p>
+                    <p className="mt-1 text-[12px] text-stone-500">{activeWho.kind === 'support' ? 'Ask about an order, delivery, payment or returns.' : 'Ask about stock, sizes or shipping, or share an order with the + button.'}</p>
                   </div>
                 ) : (
                   messages.map((m, i) => {
@@ -262,13 +267,21 @@ export default function BuyerMessagesPage() {
                         <div className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'} ${joinsPrev ? 'mt-0.5' : 'mt-3'}`}>
                           {!mine && <span className="w-8 shrink-0">{endsGroup && <Face c={active} size="w-8 h-8" />}</span>}
                           <div className={`flex flex-col min-w-0 max-w-[min(78%,480px)] ${mine ? 'items-end' : 'items-start'}`}>
-                            {m.attachment_type && m.attachment_data && <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={mine} orderHref={() => '/settings/orders'} />}
+                            {activeWho.kind === 'support' && !mine && !joinsPrev && <SupportSenderLabel role={m.sender_role} />}
+                            {m.attachment_type && m.attachment_data && m.sender_role !== 'assistant' && <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={mine} orderHref={buyerOrderHref}
+                              onConfirmAddress={!mine && m.attachment_type === 'order_confirmation' ? () => confirmOrderAddress(m.id) : undefined} />}
                             {m.body && !isAutoAttachmentBody(m) && (
                               <div className={`px-3.5 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap break-words ${mine
                                 ? `bg-brand-red text-white rounded-[18px] ${endsGroup ? 'rounded-br-md' : ''}`
                                 : `bg-white text-stone-900 ring-1 ring-stone-200 rounded-[18px] ${endsGroup ? 'rounded-bl-md' : ''}`}`}>
-                                {m.body}
+                                {m.sender_role === 'assistant' ? <AssistantText message={m} onGrow={() => scrollToBottom(endRef.current?.parentElement)} /> : m.body}
                               </div>
+                            )}
+                            {/* The assistant's order cards come under its reply, once the reply has typed out. */}
+                            {m.sender_role === 'assistant' && m.attachment_type && m.attachment_data && (
+                              <AfterTyping message={m} onShow={() => scrollToBottom(endRef.current?.parentElement)}>
+                                <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={false} orderHref={buyerOrderHref} />
+                              </AfterTyping>
                             )}
                             {endsGroup && (
                               <span className="mt-1 px-1 text-[10.5px] text-stone-400">
@@ -281,6 +294,7 @@ export default function BuyerMessagesPage() {
                     );
                   })
                 )}
+                {activeWho.kind === 'support' && assistantIsTyping(supportMode, messages, user?.id) && <AssistantTyping />}
                 <div ref={endRef} />
               </div>
 
@@ -303,6 +317,7 @@ export default function BuyerMessagesPage() {
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}
                       placeholder={`Message ${activeWho.name}`}
                       aria-label="Message"
+                      maxLength={1000}
                       className="block w-full resize-none bg-transparent px-4 py-2.5 text-[13.5px] leading-5 outline-none placeholder:text-stone-400 max-h-[120px]"
                     />
                   </div>

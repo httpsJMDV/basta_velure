@@ -7,6 +7,7 @@ import {
   type AdminProduct,
 } from '../../api/client';
 import { PageHero } from '../../components/admin/dashboardKit';
+import { AiReviewLine } from '../../components/admin/AiReviewNote';
 import {
   type ListMeta, FilterPanel, SearchField, ListCard, ListPager, ListEmpty, ListError, Pill, type PillTone,
   RowAction, SkeletonTiles, SkeletonRows, RailCard, Checklist, useViewMode, ViewToggle, TH, TD, ROW, rowKeys, relativeTime,
@@ -281,6 +282,7 @@ export default function AdminProductsPage() {
                               <span className={`text-[11px] ${stock === 0 ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>{stock === 0 ? 'Out of stock' : `${whole(stock)} in stock`}</span>
                             </div>
                             <p className="mt-0.5 text-[11px] text-gray-400">{p.category?.name ?? 'No category'} · {relativeTime(p.created_at)}</p>
+                            <AiReviewLine product={p} />
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 px-3 py-2.5 mt-auto border-t border-gray-100 bg-gray-50/60">
                             {actionsFor(p).review
@@ -317,6 +319,7 @@ export default function AdminProductsPage() {
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-900 truncate max-w-[280px]">{p.name}</p>
                                 <p className="text-[11px] text-gray-400">{p.category?.name ?? 'No category'} · {p.variants.length} variant{p.variants.length === 1 ? '' : 's'}</p>
+                                <div className="max-w-[320px]"><AiReviewLine product={p} /></div>
                               </div>
                             </div>
                           </td>

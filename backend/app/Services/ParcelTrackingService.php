@@ -54,6 +54,8 @@ class ParcelTrackingService
                 'province'     => (string) ($recipient['province'] ?? ''),
             ],
             'courier'         => $this->courier($parcel),
+            // The buyer can start a chat with the rider bringing the parcel (Message rider), only while it is out for delivery.
+            'can_message_rider' => $viewerRole === 'buyer' && app(RiderChatService::class)->buyerCanMessageRider($parcel),
             'events'          => $this->events($parcel),
             'proof'           => [
                 'count'        => (int) (bool) $parcel->delivery_proof_path + (int) (bool) $parcel->delivery_proof_path_2,

@@ -98,10 +98,10 @@ const VIEW_LABELS: Record<View, string> = {
   pending_review: 'Pending review',
 };
 
-function StatusBadge({ view }: { view: View }) {
+function StatusBadge({ view, checking = false }: { view: View; checking?: boolean }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${VIEW_STYLES[view]}`}>
-      {VIEW_LABELS[view]}
+      {view === 'pending_review' && checking ? 'Being checked' : VIEW_LABELS[view]}
     </span>
   );
 }
@@ -283,7 +283,7 @@ function ProductRow({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1 lg:hidden"><StatusBadge view={view} /></div>
+          <div className="flex items-center gap-2 mt-1 lg:hidden"><StatusBadge view={view} checking={p.ai_review_status === 'checking'} /></div>
           {(view === 'rejected' && p.rejection_reason) || (view === 'removed' && p.archive_reason) ? (
             <p className={`mt-1.5 max-w-[300px] text-[11px] leading-snug ${view === 'rejected' ? 'text-red-600' : 'text-amber-700'}`}>
               <span className="font-semibold">{view === 'rejected' ? 'Rejected: ' : 'Removed by Loved-IT: '}</span>
@@ -313,7 +313,7 @@ function ProductRow({
           <span className="text-[12px] text-gray-500 tabular-nums">{p.units_sold.toLocaleString()}</span>
         </td>
 
-        <td className="px-3 py-3 text-center hidden lg:table-cell"><StatusBadge view={view} /></td>
+        <td className="px-3 py-3 text-center hidden lg:table-cell"><StatusBadge view={view} checking={p.ai_review_status === 'checking'} /></td>
 
         <td className="px-3 py-3">
           <div className="flex items-center gap-0.5 justify-end">
@@ -545,7 +545,9 @@ export default function SellerProductsPage() {
       try {
         const res = await setSellerProductStatusApi(p.id, 'active');
         replace(res.data);
-        showToast(p.status === 'draft' ? `"${p.name}" is live.` : `"${p.name}" is active again.`);
+        showToast(res.data.status === 'pending_review'
+          ? `"${p.name}" is being checked. It goes live as soon as it passes.`
+          : p.status === 'draft' ? `"${p.name}" is live.` : `"${p.name}" is active again.`);
       } catch (e) {
         const problem = apiProblem(e, 'The product could not be published.');
         const list = Object.values(problem.fields);

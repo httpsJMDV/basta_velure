@@ -185,6 +185,63 @@ class RiderChatTest extends TestCase
             : $user->postJson("/api/v1/conversations/{$threadId}/messages", ['body' => $body]);
     }
 
+    // ── The buyer starts the chat (Message rider) ────────────────────────────
+
+    public function test_the_buyer_starts_the_rider_chat_from_track_package_while_the_parcel_is_out_for_delivery(): void
+    {
+        [$riderUser, $rider] = $this->makeRider();
+        $parcel = $this->deliveryParcel($rider);
+
+        $this->actingAs($this->buyer, 'sanctum')->getJson("/api/v1/parcels/{$parcel->tracking_number}/tracking")
+            ->assertOk()->assertJsonPath('data.can_message_rider', true);
+        $this->actingAs($this->seller, 'sanctum')->getJson("/api/v1/parcels/{$parcel->tracking_number}/tracking")
+            ->assertOk()->assertJsonPath('data.can_message_rider', false);
+
+        $id = $this->actingAs($this->buyer, 'sanctum')->postJson("/api/v1/parcels/{$parcel->tracking_number}/rider-chat")
+            ->assertCreated()->json('data.id');
+        $thread = Conversation::find($id);
+        $this->assertSame(Conversation::TYPE_RIDER_BUYER, $thread->type);
+        $this->assertSame($riderUser->id, (int) $thread->rider_id);
+        $this->assertSame($this->buyer->id, (int) $thread->buyer_id);
+
+        // Both sides can write, and the rider opening "their" buyer thread finds the same one.
+        $this->viaConversations($this->buyer, $id, 'Hi, I am at the gate.')->assertCreated();
+        $this->riderSend($riderUser, $id, 'On my way, 5 minutes.')->assertCreated();
+        $this->assertSame($id, $this->openThread($riderUser, $parcel, 'buyer')->json('data.id'));
+        $this->actingAs($this->buyer, 'sanctum')->postJson("/api/v1/parcels/{$parcel->tracking_number}/rider-chat")
+            ->assertOk()->assertJsonPath('data.id', $id);
+    }
+
+    public function test_message_rider_waits_for_out_for_delivery_and_is_only_for_the_orders_buyer(): void
+    {
+        [, $rider] = $this->makeRider();
+        $assigned = $this->deliveryParcel($rider, Parcel::STATUS_ASSIGNED_TO_RIDER);
+
+        $this->actingAs($this->buyer, 'sanctum')->getJson("/api/v1/parcels/{$assigned->tracking_number}/tracking")
+            ->assertOk()->assertJsonPath('data.can_message_rider', false);
+        $this->actingAs($this->buyer, 'sanctum')->postJson("/api/v1/parcels/{$assigned->tracking_number}/rider-chat")
+            ->assertStatus(409)->assertJsonPath('message', 'You can message the rider while your parcel is out for delivery.');
+
+        $out = $this->deliveryParcel($rider);
+        $this->actingAs($this->makeUser('buyer', 'Other'), 'sanctum')->postJson("/api/v1/parcels/{$out->tracking_number}/rider-chat")->assertNotFound();
+        $this->actingAs($this->buyer, 'sanctum')->postJson('/api/v1/parcels/LIT-000000-XXXXXX/rider-chat')->assertNotFound();
+    }
+
+    public function test_out_for_delivery_names_the_rider_in_the_buyers_notification_and_email(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        [, $rider] = $this->makeRider();
+        $order = $this->deliveryParcel($rider)->order;
+
+        app(\App\Services\Notifier::class)->orderStatusChanged($order, 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY', 'rider');
+        app(\App\Services\MailNotifier::class)->orderStatusChanged($order, 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY');
+
+        $note = $this->buyer->notifications()->where('data->kind', 'order.status')->latest()->first();
+        $this->assertSame('Juan is bringing your parcel', $note->data['title']);
+        \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\NoticeMail::class,
+            fn ($mail) => $mail->hasTo($this->buyer->email) && $mail->notice['title'] === 'Juan is bringing your parcel today.');
+    }
+
     // ── Who may open a thread ────────────────────────────────────────────────
 
     public function test_a_rider_opens_a_thread_for_their_own_active_parcel_and_reopening_returns_the_same_one(): void

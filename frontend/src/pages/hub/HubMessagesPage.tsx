@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
-import { AlertCircle, ArrowLeft, Lock, MessageSquare, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Lock, MessageSquare, RefreshCw, Truck } from 'lucide-react';
 import { getHubChatThreadsApi, hubThreadAdapter } from '../../api/client';
+import { getHubCourierThreadApi, hubCourierThreadAdapter } from '../../api/courierChat';
+import type { HubCourierThread } from '../../api/courierChat';
 import ThreadView from '../../components/chat/ThreadView';
 import { useAuth } from '../../hooks/useAuth';
 import type { RiderThread, ThreadMeta } from '../../types';
@@ -24,19 +26,22 @@ function timeAgo(iso: string | null): string {
 }
 
 /**
- * The hub's inbox for rider conversations. Riders start a thread from a pickup or delivery; the hub reads it here
- * and replies. A thread whose parcel has finished stays readable but cannot be replied to.
+ * The hub's inbox: its courier company, pinned at the top, and the rider conversations. Riders start a thread from a
+ * pickup or delivery; the hub reads it here and replies. A thread whose parcel has finished stays readable but cannot
+ * be replied to.
  */
 export default function HubMessagesPage() {
   const { user } = useAuth();
   const { refreshChatUnread } = useOutletContext<HubOutletContext>();
 
   const [threads, setThreads] = useState<RiderThread[]>([]);
+  const [courier, setCourier] = useState<HubCourierThread | null>(null);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // A rider thread's id, or 'courier' for the thread with the courier company.
+  const [selectedId, setSelectedId] = useState<number | 'courier' | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const load = useCallback(
@@ -46,9 +51,10 @@ export default function HubMessagesPage() {
         setError(null);
       }
       try {
-        const res = await getHubChatThreadsApi({ per_page: 100 });
+        const [res, courierThread] = await Promise.all([getHubChatThreadsApi({ per_page: 100 }), getHubCourierThreadApi().catch(() => null)]);
         setThreads(res.data);
-        setUnreadTotal(res.meta.unread_total);
+        setCourier(courierThread);
+        setUnreadTotal(res.meta.unread_total + (courierThread?.unread ?? 0));
         setError(null);
         setLastUpdated(new Date());
       } catch (err: unknown) {
@@ -81,14 +87,17 @@ export default function HubMessagesPage() {
     };
   }, [load]);
 
+  const courierOpen = selectedId === 'courier' && courier !== null;
   const selected = threads.find((t) => t.id === selectedId) ?? null;
   const visible = filter === 'unread' ? threads.filter((t) => t.unread > 0) : threads;
+  const showCourier = courier !== null && (filter === 'all' || courier.unread > 0);
 
   const selectedThreadId = selected?.id ?? null;
-  const adapter = useMemo(() => (selectedThreadId !== null ? hubThreadAdapter(selectedThreadId) : null), [selectedThreadId]);
-  const initialMeta: ThreadMeta | undefined = selected
-    ? { is_closed: selected.is_closed, can_send: selected.can_send, closed_message: selected.closed_message }
-    : undefined;
+  const adapter = useMemo(() => (courierOpen ? hubCourierThreadAdapter : selectedThreadId !== null ? hubThreadAdapter(selectedThreadId) : null), [courierOpen, selectedThreadId]);
+  const initialMeta: ThreadMeta | undefined = courierOpen
+    ? courier!.meta
+    : selected ? { is_closed: selected.is_closed, can_send: selected.can_send, closed_message: selected.closed_message } : undefined;
+  const anyOpen = courierOpen || selected !== null;
 
   const onActivity = useCallback(() => {
     void load('silent');
@@ -101,15 +110,15 @@ export default function HubMessagesPage() {
         accent="sky"
         updatedAt={lastUpdated}
         icon={MessageSquare}
-        title="Rider messages"
-        subtitle="Conversations riders start about the parcels they are collecting or delivering. They close when the parcel is done."
+        title="Messages"
+        subtitle="Your courier company, and the conversations riders start about the parcels they carry (those close when the parcel is done)."
        />
 
       <div className="bg-white border border-gray-200/80 shadow-xs rounded-2xl overflow-hidden md:grid md:grid-cols-[20rem_1fr] h-[calc(100vh-14rem)] min-h-[28rem]">
         {/* Thread list: hidden on a phone while a thread is open */}
         <section
           aria-label="Conversations"
-          className={`${selected ? 'hidden md:flex' : 'flex'} flex-col min-h-0 border-r border-gray-200`}
+          className={`${anyOpen ? 'hidden md:flex' : 'flex'} flex-col min-h-0 border-r border-gray-200`}
         >
           <div className="p-2 border-b border-gray-100 bg-gray-50/40">
             <div className="flex gap-0.5 p-1 bg-gray-100/80 rounded-xl" role="group" aria-label="Filter conversations">
@@ -133,6 +142,27 @@ export default function HubMessagesPage() {
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto">
+            {showCourier && courier && (
+              <button type="button" onClick={() => setSelectedId('courier')} aria-current={courierOpen ? 'true' : undefined}
+                className={`w-full min-h-16 px-4 py-3 text-left flex items-start gap-3 border-b border-gray-200 hover:bg-gray-50 ${courierOpen ? 'bg-gray-50' : 'bg-white'}`}>
+                {courier.company?.logo_url
+                  ? <img src={courier.company.logo_url} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0" />
+                  : <span className="w-9 h-9 rounded-lg bg-gray-900 text-white flex items-center justify-center shrink-0"><Truck className="w-4 h-4" aria-hidden="true" /></span>}
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="text-sm font-bold text-gray-900 truncate">{courier.company?.name ?? 'Your courier company'}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Your courier company</p>
+                  {courier.last_message && <p className="text-xs text-gray-600 truncate">{courier.last_message.body}</p>}
+                </div>
+                <div className="shrink-0 text-right space-y-1">
+                  <p className="text-[11px] text-gray-400">{timeAgo(courier.last_message?.created_at ?? null)}</p>
+                  {courier.unread > 0 && (
+                    <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-white text-[11px] font-black">
+                      {courier.unread}<span className="sr-only"> unread</span>
+                    </span>
+                  )}
+                </div>
+              </button>
+            )}
             {loading ? (
               <div className="p-3 space-y-2 animate-pulse" aria-label="Loading conversations">
                 <div className="h-16 rounded-xl bg-gray-100" />
@@ -205,8 +235,30 @@ export default function HubMessagesPage() {
         </section>
 
         {/* Thread */}
-        <section aria-label="Conversation" className={`${selected ? 'flex' : 'hidden md:flex'} flex-col min-h-0`}>
-          {selected && adapter && user ? (
+        <section aria-label="Conversation" className={`${anyOpen ? 'flex' : 'hidden md:flex'} flex-col min-h-0`}>
+          {courierOpen && adapter && user ? (
+            <>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200">
+                <button type="button" onClick={() => setSelectedId(null)} aria-label="Back to conversations"
+                  className="md:hidden min-h-11 min-w-11 -ml-2 inline-flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100">
+                  <ArrowLeft className="w-5 h-5" aria-hidden="true" />
+                </button>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-black text-gray-900 truncate">{courier!.company?.name ?? 'Your courier company'}</h2>
+                  <p className="text-xs text-gray-500 truncate">Your courier company · only its team and your hub see this</p>
+                </div>
+              </div>
+              <ThreadView
+                key="courier"
+                adapter={adapter}
+                currentUserId={user.id}
+                initialMeta={initialMeta}
+                onActivity={onActivity}
+                emptyHint="No messages yet. Ask your courier about riders, parcels or pay."
+                className="flex-1"
+              />
+            </>
+          ) : selected && adapter && user ? (
             <>
               <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200">
                 <button

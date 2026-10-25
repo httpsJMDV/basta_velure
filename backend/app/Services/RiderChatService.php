@@ -142,6 +142,43 @@ class RiderChatService
         });
     }
 
+    /**
+     * The buyer starts (or reopens) the chat with the rider bringing their parcel, from Track package. Only while
+     * the parcel is out for delivery and its rider is active; anyone else's parcel is a 404.
+     */
+    public function openThreadForBuyer(User $buyer, string $trackingNumber): Conversation
+    {
+        return DB::transaction(function () use ($buyer, $trackingNumber) {
+            $parcel = Parcel::with(['order', 'assignedRider'])
+                ->where('tracking_number', Str::upper(trim($trackingNumber)))
+                ->lockForUpdate()
+                ->first();
+
+            if (! $parcel || ! $parcel->order || (int) $parcel->order->buyer_id !== (int) $buyer->id) {
+                abort(404, 'Parcel not found.');
+            }
+            if (! $this->buyerCanMessageRider($parcel)) {
+                $this->fail409('You can message the rider while your parcel is out for delivery.');
+            }
+
+            return Conversation::firstOrCreate(
+                ['parcel_id' => $parcel->id, 'rider_id' => $parcel->assignedRider->user_id, 'type' => Conversation::TYPE_RIDER_BUYER],
+                [
+                    'status' => 'open', 'buyer_id' => $buyer->id, 'order_id' => $parcel->order_id,
+                    'subject' => 'Delivery ' . $parcel->tracking_number, 'last_message_at' => now(),
+                ],
+            );
+        });
+    }
+
+    /** Whether the buyer may start a chat with the parcel's rider: out for delivery, with an active rider. */
+    public function buyerCanMessageRider(Parcel $parcel): bool
+    {
+        return $parcel->status === Parcel::STATUS_OUT_FOR_DELIVERY
+            && $parcel->assigned_rider_id !== null
+            && $parcel->assignedRider?->status === Rider::STATUS_ACTIVE;
+    }
+
     // ── Who is in a thread ───────────────────────────────────────────────────
 
     /** The role this user plays in the thread, or null when they are not a participant. */

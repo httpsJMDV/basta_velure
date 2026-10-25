@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { PageHeader, StatCard } from './hubKit';
+import RiderApplyLink from '../../components/logistics/RiderApplyLink';
 import { labelError, sentenceError, squish } from '../../utils/accountRules';
 
 const PRESET_AREA_LABELS = [
@@ -121,6 +122,13 @@ function RiderStatusBadge({ status }: { status: RiderStatus }) {
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
           <XCircle className="w-3 h-3 text-red-600" />
           Disapproved
+        </span>
+      );
+    case 'PENDING_ACTIVATION':
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
+          <Clock className="w-3 h-3 text-sky-600" />
+          Setting password
         </span>
       );
     default:
@@ -666,6 +674,14 @@ export default function HubRidersPage() {
         <StatCard icon={CheckCircle} label="Active couriers" value={counts.active} subtext="Authorized fleet" iconBg="bg-emerald-50" iconColor="text-emerald-600" onClick={() => handleTabChange('ACTIVE')} active={currentTab === 'ACTIVE'} />
         <StatCard icon={XCircle} label="Disapproved" value={counts.disapproved} subtext="Declined applications" iconBg="bg-stone-100" iconColor="text-stone-600" onClick={() => handleTabChange('DISAPPROVED')} active={currentTab === 'DISAPPROVED'} />
       </section>
+      {hubCoverage && (
+        <RiderApplyLink
+          query={`hub=${hubCoverage.hub_id}`}
+          title="Recruit riders"
+          hint={`Share this link or print the QR code. Riders who apply through it pick ${hubCoverage.hub_name} and show up under Pending for you to review.`}
+          fileName={`rider-application-${hubCoverage.hub_name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+        />
+      )}
       {/* ─── Tabs, search and the list, in one card ─────────── */}
       <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
       <div className="p-3 border-b border-gray-100 bg-gray-50/40 space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-4">
@@ -793,6 +809,7 @@ export default function HubRidersPage() {
                       </td>
                       <td className="py-3.5 px-4">
                         <RiderStatusBadge status={r.status} />
+                        {r.applicant && <div className="mt-1 text-[11px] text-gray-400">Applied online</div>}
                       </td>
                       <td className="py-3.5 px-4">
                         {needsArea ? (
@@ -1051,6 +1068,18 @@ export default function HubRidersPage() {
                       <span className="text-gray-400 text-[10px] block font-semibold uppercase">License Plate Number</span>
                       <span className="font-mono font-bold text-blue-700">{detailData.plate_number}</span>
                     </div>
+                    {detailData.license_number && (
+                      <>
+                        <div>
+                          <span className="text-gray-400 text-[10px] block font-semibold uppercase">Driver's License No.</span>
+                          <span className="font-mono font-bold text-gray-900">{detailData.license_number}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 text-[10px] block font-semibold uppercase">License Expiry</span>
+                          <span className="font-bold text-gray-900">{formatDate(detailData.license_expiry)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1218,7 +1247,9 @@ export default function HubRidersPage() {
             </div>
 
             <p className="text-xs text-gray-600 leading-relaxed">
-              Authorizing this courier will change their status to <strong>ACTIVE</strong> and send an official approval email. They will gain immediate access to report for dispatch.
+              {detailData.applicant
+                ? <>This rider applied online. Approving emails them a link to set their password (it works for 24 hours); they become <strong>ACTIVE</strong> once they set it.</>
+                : <>Authorizing this courier will change their status to <strong>ACTIVE</strong> and send an official approval email. They will gain immediate access to report for dispatch.</>}
             </p>
 
             {/* Optional Initial Area Assignment */}

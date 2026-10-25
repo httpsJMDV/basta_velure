@@ -616,12 +616,12 @@ function AddressForm({ initial, onSave, onCancel, saving, serverErrors }: {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="addr-street" className="text-xs font-medium text-gray-500 uppercase tracking-wide">Address <span className="text-brand-red">*</span></label>
-        <input id="addr-street" className={inputCls(shown.address)} placeholder="House/Lot No., Street Name" value={form.address} onChange={(e) => set('address', e.target.value)} />
+        <input id="addr-street" maxLength={255} className={inputCls(shown.address)} placeholder="House/Lot No., Street Name" value={form.address} onChange={(e) => set('address', e.target.value)} />
         <Err k="address" />
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="addr-unit" className="text-xs font-medium text-gray-500 uppercase tracking-wide">Floor / Unit <span className="text-gray-400 normal-case font-normal">(optional)</span></label>
-        <input id="addr-unit" className={inputCls()} placeholder="e.g. Unit 3B, 2nd Floor" value={form.floor_unit ?? ''} onChange={(e) => set('floor_unit', e.target.value)} />
+        <input id="addr-unit" maxLength={100} className={inputCls()} placeholder="e.g. Unit 3B, 2nd Floor" value={form.floor_unit ?? ''} onChange={(e) => set('floor_unit', e.target.value)} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -905,8 +905,10 @@ function OrdersPanel({ fixedTab, title = 'Orders', subtitle = 'Everything you bo
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
+  // ?q= opens the list searched for one order (the chat's order cards link here).
+  const fromQuery = new URLSearchParams(location.search).get('q') ?? '';
+  const [search, setSearch] = useState(fromQuery);
+  const [query, setQuery] = useState(fromQuery);
 
   useEffect(() => {
     const t = window.setTimeout(() => { setQuery(search.trim()); setPage(1); }, 300);

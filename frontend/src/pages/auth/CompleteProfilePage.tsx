@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Check, ChevronRight, Clock, IdCard, MapPin, Upload, UserRound } from 'lucide-react';
 import { completeProfileApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import CustomSelect from '../../components/ui/CustomSelect';
 import PhoneInput from '../../components/ui/PhoneInput';
 import Input from '../../components/ui/Input';
 import DatePicker from '../../components/ui/DatePicker';
-import LovedItLogo from '../../components/LovedItLogo';
-import { ArrowLeft, Check, ChevronRight, Upload, X } from 'lucide-react';
+import AuthShell, { AuthNotice } from '../../components/auth/AuthShell';
+import photo from '../../assets/auth/profile.jpg';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ const SEX_OPTIONS = [
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
 ];
 
+// Government-issued IDs only: every account is 18 or older, so a school ID is no longer accepted.
 const GOV_ID_OPTIONS = [
   { value: 'national_id',     label: 'National ID (PhilSys)' },
   { value: 'drivers_license', label: "Driver's License" },
@@ -27,7 +29,6 @@ const GOV_ID_OPTIONS = [
   { value: 'philhealth_id',   label: 'PhilHealth ID' },
   { value: 'voters_id',       label: "Voter's ID" },
   { value: 'postal_id',       label: 'Postal ID' },
-  { value: 'school_id',       label: 'School ID' },
 ];
 
 interface PsgcItem { code: string; name: string; }
@@ -42,44 +43,35 @@ function calcAge(dob: string): number | null {
   return age;
 }
 
+const PRIMARY = 'min-h-[46px] flex items-center justify-center gap-2 rounded-lg bg-brand-red text-white text-sm font-semibold hover:bg-brand-red-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+const SECONDARY = 'min-h-[46px] flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white text-sm font-semibold text-stone-700 hover:border-stone-900 transition-colors disabled:opacity-40';
+
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
-const STEPS = ['Personal Info', 'Address', 'Government ID'];
+const STEPS = [
+  { label: 'About you', title: 'About you', sub: 'Your photo, mobile number and birthday.', icon: UserRound },
+  { label: 'Address', title: 'Your address', sub: 'Where should we deliver your orders?', icon: MapPin },
+  { label: 'Valid ID', title: 'A valid ID', sub: 'A government-issued ID, so we know it is really you.', icon: IdCard },
+];
 
+/** Three segments that fill as the steps are done, with the step names under them. */
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="flex items-center justify-center gap-0 mb-8">
-      {STEPS.map((label, i) => {
-        const done    = i < current;
-        const active  = i === current;
+    <ol className="grid grid-cols-3 gap-2 mb-7" aria-label="Steps">
+      {STEPS.map((s, i) => {
+        const done = i < current;
+        const active = i === current;
         return (
-          <div key={i} className="flex items-center">
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={[
-                'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300',
-                done   ? 'bg-brand-red text-white'
-                : active ? 'bg-brand-red text-white ring-4 ring-brand-red/20'
-                : 'bg-gray-100 text-gray-400',
-              ].join(' ')}>
-                {done ? <Check className="w-4 h-4" /> : i + 1}
-              </div>
-              <span className={[
-                'text-[11px] font-semibold whitespace-nowrap',
-                active ? 'text-brand-red' : done ? 'text-gray-500' : 'text-gray-300',
-              ].join(' ')}>
-                {label}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && (
-              <div className={[
-                'w-16 sm:w-24 h-0.5 mx-2 mb-5 transition-all duration-300',
-                i < current ? 'bg-brand-red' : 'bg-gray-200',
-              ].join(' ')} />
-            )}
-          </div>
+          <li key={s.label} aria-current={active ? 'step' : undefined}>
+            <span className={`block h-1 rounded-full transition-colors duration-300 ${done || active ? 'bg-brand-red' : 'bg-stone-200'}`} />
+            <span className={`mt-2 flex items-center gap-1.5 text-[12px] font-semibold ${active ? 'text-stone-900' : done ? 'text-stone-500' : 'text-stone-400'}`}>
+              {done && <Check className="w-3.5 h-3.5 text-brand-red" strokeWidth={3} />}
+              {s.label}
+            </span>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -100,42 +92,28 @@ function AvatarUpload({
   const usingGoogle = !file && !!googleAvatarUrl && previewUrl === googleAvatarUrl;
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-brand-gray-mid">
-        Profile Photo <span className="text-brand-red">*</span>
-      </label>
-      <input
-        ref={inputRef} type="file"
-        accept="image/jpeg,image/png,image/webp"
-        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
-        className="hidden"
-      />
+      <span className="text-sm font-medium text-brand-gray-mid">Profile photo <span className="text-brand-red">*</span></span>
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => onChange(e.target.files?.[0] ?? null)} className="hidden" />
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
         className={[
-          'w-full rounded-xl border-2 border-dashed flex items-center gap-4 px-4 py-3 transition-all',
-          error ? 'border-red-400 bg-red-50'
-            : (file || usingGoogle) ? 'border-brand-red bg-red-50'
-            : 'border-gray-200 bg-gray-50 hover:border-brand-red hover:bg-red-50',
+          'w-full rounded-xl border flex items-center gap-4 px-4 py-3 text-left bg-white transition-colors',
+          error ? 'border-red-400' : (file || usingGoogle) ? 'border-stone-300' : 'border-dashed border-stone-300 hover:border-brand-red',
         ].join(' ')}
       >
         {previewUrl ? (
-          <img src={previewUrl} alt="Preview" className="w-14 h-14 rounded-full object-cover border-2 border-brand-red shrink-0" />
+          <img src={previewUrl} alt="" className="w-14 h-14 rounded-full object-cover ring-2 ring-white shadow-sm shrink-0" />
         ) : (
-          <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
-            <Upload className="w-5 h-5 text-gray-400" />
-          </div>
+          <span className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><Upload className="w-5 h-5 text-stone-400" /></span>
         )}
-        <div className="text-left">
-          <p className="text-sm font-semibold text-gray-700">
-            {file ? file.name : usingGoogle ? 'Using your Google photo' : 'Upload a photo'}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {usingGoogle
-              ? 'Click to replace with a different photo. A clear, formal photo is recommended.'
-              : 'A clear, formal photo is recommended — but any photo is okay. JPG, PNG or WebP, max 5MB.'}
-          </p>
-        </div>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-stone-800 truncate">{file ? file.name : usingGoogle ? 'Using your Google photo' : 'Upload a photo'}</span>
+          <span className="block text-xs text-stone-500 mt-0.5">
+            {file || usingGoogle ? 'Click to choose a different photo.' : 'A clear photo of your face. JPG, PNG or WebP, up to 5 MB.'}
+          </span>
+        </span>
+        <span className="ml-auto shrink-0 text-[12.5px] font-semibold text-brand-red">{file || usingGoogle ? 'Change' : 'Choose'}</span>
       </button>
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
@@ -166,50 +144,29 @@ function Step1({
 
   return (
     <form onSubmit={handleNext} className="flex flex-col gap-5">
-      <AvatarUpload
-        file={avatarFile}
-        previewUrl={avatarPreview}
-        googleAvatarUrl={googleAvatarUrl}
-        error={errors.avatar}
-        onChange={onAvatarChange}
-      />
+      <AvatarUpload file={avatarFile} previewUrl={avatarPreview} googleAvatarUrl={googleAvatarUrl} error={errors.avatar} onChange={onAvatarChange} />
 
-      <PhoneInput
-        label="Phone Number"
-        required
-        value={data.phone}
-        onChange={(v) => onChange({ phone: v })}
-        error={errors.phone}
-      />
+      <PhoneInput label="Mobile number" required value={data.phone} onChange={(v) => onChange({ phone: v })} error={errors.phone} />
 
-      <div className="flex flex-col gap-1">
-        <DatePicker
-          label="Birthday"
-          required
-          value={data.date_of_birth}
-          onChange={(v) => onChange({ date_of_birth: v })}
-          error={errors.date_of_birth || ageError}
-          maxDate={new Date().toISOString().split('T')[0]}
-        />
-        {age !== null && !ageError && (
-          <p className="text-xs text-gray-400 mt-0.5">Age: {age}</p>
-        )}
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1">
+          <DatePicker
+            label="Birthday"
+            required
+            value={data.date_of_birth}
+            onChange={(v) => onChange({ date_of_birth: v })}
+            error={errors.date_of_birth || ageError}
+            maxDate={new Date().toISOString().split('T')[0]}
+          />
+          {age !== null && !ageError && <p className="text-xs text-stone-400 mt-0.5">Age {age}</p>}
+        </div>
+        <CustomSelect label="Sex" required value={data.sex} onChange={(v) => onChange({ sex: v })} options={SEX_OPTIONS} placeholder="Select" error={errors.sex} />
       </div>
-
-      <CustomSelect
-        label="Sex"
-        required
-        value={data.sex}
-        onChange={(v) => onChange({ sex: v })}
-        options={SEX_OPTIONS}
-        placeholder="Select sex"
-        error={errors.sex}
-      />
 
       <button
         type="submit"
         disabled={!hasAvatar || !data.phone || data.phone === '+63' || !data.date_of_birth || !data.sex || !!ageError}
-        className="mt-2 min-h-[48px] w-full flex items-center justify-center gap-2 bg-brand-red text-white font-bold rounded-xl hover:bg-brand-red-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className={`mt-1 w-full ${PRIMARY}`}
       >
         Continue <ChevronRight className="w-4 h-4" />
       </button>
@@ -300,22 +257,24 @@ function Step2({
         placeholder={provinces.length === 0 ? 'Loading…' : 'Select province'}
         error={errors.province}
       />
-      <CustomSelect
-        label="City / Municipality" required
-        value={data.city_municipality} onChange={handleCity}
-        options={cities.map((c) => ({ value: c.code, label: c.name }))}
-        placeholder={loadingCities ? 'Loading…' : data.province ? 'Select city/municipality' : 'Select province first'}
-        disabled={!data.province || loadingCities}
-        error={errors.city_municipality}
-      />
-      <CustomSelect
-        label="Barangay" required
-        value={data.barangay} onChange={(v) => onChange({ barangay: v })}
-        options={barangays.map((b) => ({ value: b.code, label: b.name }))}
-        placeholder={loadingBrgy ? 'Loading…' : data.city_municipality ? 'Select barangay' : 'Select city first'}
-        disabled={!data.city_municipality || loadingBrgy}
-        error={errors.barangay}
-      />
+      <div className="grid sm:grid-cols-2 gap-4">
+        <CustomSelect
+          label="City / Municipality" required
+          value={data.city_municipality} onChange={handleCity}
+          options={cities.map((c) => ({ value: c.code, label: c.name }))}
+          placeholder={loadingCities ? 'Loading…' : data.province ? 'Select city' : 'Province first'}
+          disabled={!data.province || loadingCities}
+          error={errors.city_municipality}
+        />
+        <CustomSelect
+          label="Barangay" required
+          value={data.barangay} onChange={(v) => onChange({ barangay: v })}
+          options={barangays.map((b) => ({ value: b.code, label: b.name }))}
+          placeholder={loadingBrgy ? 'Loading…' : data.city_municipality ? 'Select barangay' : 'City first'}
+          disabled={!data.city_municipality || loadingBrgy}
+          error={errors.barangay}
+        />
+      </div>
       <Input
         label="Street / House No."
         value={data.street_address}
@@ -323,17 +282,9 @@ function Step2({
         placeholder="e.g. 123 Rizal St., Unit 4B"
       />
 
-      <div className="flex gap-3 mt-2">
-        <button
-          type="button" onClick={onBack}
-          className="min-h-[48px] flex-1 flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-600 font-bold rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-colors"
-        >
-          Back
-        </button>
-        <button
-          type="submit" disabled={!canProceed}
-          className="min-h-[48px] flex-[2] flex items-center justify-center gap-2 bg-brand-red text-white font-bold rounded-xl hover:bg-brand-red-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
+      <div className="flex gap-3 mt-1">
+        <button type="button" onClick={onBack} className={`flex-1 ${SECONDARY}`}>Back</button>
+        <button type="submit" disabled={!canProceed} className={`flex-[2] ${PRIMARY}`}>
           Continue <ChevronRight className="w-4 h-4" />
         </button>
       </div>
@@ -358,39 +309,26 @@ function IdUploadZone({
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-brand-gray-mid">
-        {label} <span className="text-brand-red">*</span>
-      </label>
-      <input
-        ref={inputRef} type="file"
-        accept="image/jpeg,image/png,application/pdf"
-        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
-        className="hidden"
-      />
+      <span className="text-sm font-medium text-brand-gray-mid">{label} <span className="text-brand-red">*</span></span>
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,application/pdf" onChange={(e) => onChange(e.target.files?.[0] ?? null)} className="hidden" />
       <button
         type="button" onClick={() => inputRef.current?.click()}
         className={[
-          'min-h-[90px] w-full rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 px-4 py-4 transition-all',
-          error ? 'border-red-400 bg-red-50'
-            : file ? 'border-brand-red bg-red-50'
-            : 'border-gray-200 bg-gray-50 hover:border-brand-red hover:bg-red-50',
+          'min-h-[96px] w-full rounded-xl border bg-white flex flex-col items-center justify-center gap-1.5 px-4 py-4 transition-colors',
+          error ? 'border-red-400' : file ? 'border-stone-300' : 'border-dashed border-stone-300 hover:border-brand-red',
         ].join(' ')}
       >
         {file ? (
           <>
-            <div className="w-9 h-9 rounded-full bg-brand-red/10 flex items-center justify-center">
-              <Check className="w-4 h-4 text-brand-red" />
-            </div>
-            <span className="text-sm font-semibold text-brand-red truncate max-w-full px-4">{file.name}</span>
-            <span className="text-xs text-gray-400">Click to change</span>
+            <span className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center"><Check className="w-4 h-4 text-emerald-600" /></span>
+            <span className="text-sm font-semibold text-stone-800 truncate max-w-full px-4">{file.name}</span>
+            <span className="text-xs text-stone-500">Click to change</span>
           </>
         ) : (
           <>
-            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-              <Upload className="w-4 h-4 text-gray-400" />
-            </div>
-            <span className="text-sm font-semibold text-gray-500">Click to upload</span>
-            <span className="text-xs text-gray-400">JPG, PNG or PDF — max 5 MB</span>
+            <Upload className="w-5 h-5 text-stone-400" />
+            <span className="text-sm font-semibold text-stone-700">Upload a photo or PDF</span>
+            <span className="text-xs text-stone-400">JPG, PNG or PDF, up to 5 MB</span>
           </>
         )}
       </button>
@@ -439,79 +377,31 @@ function Step3({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <CustomSelect
-        label="ID Type" required
-        value={idType} onChange={handleIdTypeChange}
-        options={GOV_ID_OPTIONS} placeholder="Select ID type"
-        error={errors.government_id_type}
-      />
-
-      {idType && (
-        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-          needsBack ? 'bg-blue-50/60 border-blue-200' : 'bg-gray-50 border-gray-200'
-        }`}>
-          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-            needsBack ? 'bg-blue-100' : 'bg-gray-100'
-          }`}>
-            <svg className={`w-3.5 h-3.5 ${needsBack ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              {needsBack
-                ? <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 7.5h19.5M2.25 16.5h19.5" />
-                : <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12h19.5" />}
-            </svg>
-          </div>
-          <div>
-            <p className={`text-xs font-bold ${needsBack ? 'text-blue-700' : 'text-gray-600'}`}>
-              {needsBack ? 'Front & back required' : 'Front only'}
-            </p>
-            <p className={`text-[11px] mt-0.5 ${needsBack ? 'text-blue-500' : 'text-gray-400'}`}>
-              {needsBack
-                ? 'This ID type requires a photo of both sides.'
-                : 'This ID only requires a single photo.'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <IdUploadZone
-        label={needsBack ? 'Front of ID' : 'Upload ID'}
-        file={frontFile}
-        error={frontError || errors.government_id_image}
-        onChange={(f) => { setFrontFile(f); setFrontError(''); }}
-      />
-
-      {needsBack && (
-        <IdUploadZone
-          label="Back of ID"
-          file={backFile}
-          error={backError || errors.government_id_image_back}
-          onChange={(f) => { setBackFile(f); setBackError(''); }}
-        />
-      )}
-
-      {/* Notice */}
-      <div className="flex gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
-        <span className="text-amber-500 text-lg leading-none mt-0.5">ℹ</span>
-        <p className="text-xs text-amber-700 leading-relaxed">
-          After submitting, please wait for the administrator's approval. You will be notified via email once your account is reviewed.
-        </p>
+      <div>
+        <CustomSelect label="ID type" required value={idType} onChange={handleIdTypeChange} options={GOV_ID_OPTIONS} placeholder="Select ID type" error={errors.government_id_type} />
+        {idType && <p className="mt-1.5 text-[12.5px] text-stone-500">{needsBack ? 'This ID needs a photo of the front and the back.' : 'This ID needs a photo of the front only.'}</p>}
       </div>
 
-      <div className="flex gap-3 mt-2">
-        <button
-          type="button" onClick={onBack} disabled={loading}
-          className="min-h-[48px] flex-1 flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-600 font-bold rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-40"
-        >
-          Back
-        </button>
-        <button
-          type="submit" disabled={!data.government_id_type || loading}
-          className="min-h-[48px] flex-[2] flex items-center justify-center gap-2 bg-brand-red text-white font-bold rounded-xl hover:bg-brand-red-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Submitting…</>
-          ) : (
-            <><Check className="w-4 h-4" /> Complete Registration</>
-          )}
+      <div className={needsBack ? 'grid sm:grid-cols-2 gap-4' : ''}>
+        <IdUploadZone label={needsBack ? 'Front of ID' : 'Photo of your ID'} file={frontFile} error={frontError || errors.government_id_image}
+          onChange={(f) => { setFrontFile(f); setFrontError(''); }} />
+        {needsBack && (
+          <IdUploadZone label="Back of ID" file={backFile} error={backError || errors.government_id_image_back}
+            onChange={(f) => { setBackFile(f); setBackError(''); }} />
+        )}
+      </div>
+
+      <p className="flex items-start gap-2.5 rounded-xl bg-white border border-stone-200 px-4 py-3 text-[12.5px] leading-relaxed text-stone-600">
+        <Clock className="w-4 h-4 mt-px shrink-0 text-amber-600" />
+        An admin checks your ID after you submit. We email you once your account is reviewed.
+      </p>
+
+      <div className="flex gap-3 mt-1">
+        <button type="button" onClick={onBack} disabled={loading} className={`flex-1 ${SECONDARY}`}>Back</button>
+        <button type="submit" disabled={!data.government_id_type || loading} className={`flex-[2] ${PRIMARY}`}>
+          {loading
+            ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Submitting…</>
+            : <><Check className="w-4 h-4" /> Finish</>}
         </button>
       </div>
     </form>
@@ -597,111 +487,77 @@ export default function CompleteProfilePage() {
     }
   }
 
-  const stepTitles = [
-    { title: 'Personal Information',  sub: 'Tell us a bit about yourself.' },
-    { title: 'Your Address',          sub: 'Where should we deliver your orders?' },
-    { title: 'Government ID',         sub: 'Required for account verification.' },
-  ];
+  const signOut = () => { clearAuth(); navigate('/', { replace: true }); };
 
   return (
-    <div className="min-h-screen bg-brand-gray-soft flex flex-col">
-      {/* Top bar */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              onClick={clearAuth}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-red hover:bg-red-50 transition-colors"
-              title="Exit to homepage"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <Link to="/" onClick={clearAuth} className="flex items-center shrink-0">
-              <LovedItLogo variant="light" type="full" size="custom" imgClassName="h-8 sm:h-9 object-contain" />
-            </Link>
-          </div>
-          <span className="text-xs text-gray-400 font-medium">Step {step + 1} of {STEPS.length}</span>
-        </div>
-      </header>
+    <AuthShell
+      wide
+      portals={false}
+      eyebrow={`Step ${step + 1} of ${STEPS.length}`}
+      title={STEPS[step].title}
+      subtitle={STEPS[step].sub}
+      image={photo}
+      imageAlt="A rail of colourful clothes in a shop"
+      headline={user?.first_name ? `Almost done, ${user.first_name}.` : 'Almost done.'}
+      facts={STEPS.map((s, i) => ({ icon: i < step ? Check : s.icon, text: `${s.title}${i < step ? ' · done' : i === step ? ' · now' : ''}` }))}
+    >
+      <StepIndicator current={step} />
+
+      {serverError && <AuthNotice tone="red">{serverError}</AuthNotice>}
+
+      {step === 0 && (
+        <Step1
+          data={step1}
+          onChange={(d) => setStep1((p) => ({ ...p, ...d }))}
+          onNext={() => { setErrors({}); setStep(1); }}
+          errors={errors}
+          avatarFile={avatarFile}
+          avatarPreview={avatarPreview}
+          googleAvatarUrl={googleAvatarUrl}
+          onAvatarChange={handleAvatarChange}
+        />
+      )}
+      {step === 1 && (
+        <Step2
+          data={step2}
+          onChange={(d) => setStep2((p) => ({ ...p, ...d }))}
+          onNext={() => { setErrors({}); setStep(2); }}
+          onBack={() => setStep(0)}
+          errors={errors}
+        />
+      )}
+      {step === 2 && (
+        <Step3
+          data={step3}
+          onChange={(d) => setStep3((p) => ({ ...p, ...d }))}
+          onBack={() => setStep(1)}
+          onSubmit={(front, back) => handleSubmit(front, back)}
+          errors={errors}
+          loading={loading}
+        />
+      )}
+
+      <p className="mt-6 text-[13px] text-stone-500">
+        Not now? <button type="button" onClick={signOut} className="font-semibold text-brand-red hover:underline">Sign out</button> and finish later.
+      </p>
 
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center mx-auto mb-5">
-              <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-black text-brand-black mb-2">Application Submitted!</h2>
-            <p className="text-sm text-gray-500 leading-relaxed mb-6">
-              Thank you for completing your profile. Your account information is currently being reviewed and verified by our team.
-              You will be notified via email once your account has been approved.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 px-4" role="dialog" aria-modal="true" aria-labelledby="profile-done-title">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8">
+            <span className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center"><Clock className="w-6 h-6" /></span>
+            <h2 id="profile-done-title" className="mt-5 font-serif text-[24px] font-bold tracking-tight text-[#1E1B18]">Thanks, we&apos;re checking it</h2>
+            <p className="mt-2 text-sm text-stone-600 leading-relaxed">
+              An admin reviews your ID and details. We email you as soon as your account is approved.
             </p>
             <button
               onClick={() => { setShowSuccessModal(false); clearAuth(); navigate('/login', { replace: true }); }}
-              className="w-full py-3 rounded-xl bg-brand-red text-white text-sm font-bold hover:bg-brand-red-dark transition-colors"
+              className={`mt-6 w-full ${PRIMARY}`}
             >
-              Got it, go to login
+              Got it, go to sign in
             </button>
           </div>
         </div>
       )}
-
-      <main className="flex-1 flex items-start justify-center px-4 py-10">
-        <div className="w-full max-w-lg">
-          <StepIndicator current={step} />
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {/* Card header */}
-            <div className="px-6 pt-6 pb-5 border-b border-gray-100">
-              <h1 className="text-xl font-bold text-brand-black">{stepTitles[step].title}</h1>
-              <p className="text-sm text-gray-400 mt-0.5">{stepTitles[step].sub}</p>
-            </div>
-
-            <div className="px-6 py-6">
-              {serverError && (
-                <div className="mb-5 flex items-start gap-3 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-                  <X className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{serverError}</p>
-                </div>
-              )}
-
-              {step === 0 && (
-                <Step1
-                  data={step1}
-                  onChange={(d) => setStep1((p) => ({ ...p, ...d }))}
-                  onNext={() => { setErrors({}); setStep(1); }}
-                  errors={errors}
-                  avatarFile={avatarFile}
-                  avatarPreview={avatarPreview}
-                  googleAvatarUrl={googleAvatarUrl}
-                  onAvatarChange={handleAvatarChange}
-                />
-              )}
-              {step === 1 && (
-                <Step2
-                  data={step2}
-                  onChange={(d) => setStep2((p) => ({ ...p, ...d }))}
-                  onNext={() => { setErrors({}); setStep(2); }}
-                  onBack={() => setStep(0)}
-                  errors={errors}
-                />
-              )}
-              {step === 2 && (
-                <Step3
-                  data={step3}
-                  onChange={(d) => setStep3((p) => ({ ...p, ...d }))}
-                  onBack={() => setStep(1)}
-                  onSubmit={(front, back) => handleSubmit(front, back)}
-                  errors={errors}
-                  loading={loading}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+    </AuthShell>
   );
 }

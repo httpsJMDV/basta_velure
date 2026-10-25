@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import photo from '../../assets/auth/courier.jpg';
 import { Check, Mail, Network, ShieldCheck } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -38,8 +39,9 @@ type DocKey = 'sec_certificate' | 'bir_2303' | 'business_permit' | 'representati
 function Shell({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
     <ApplyLayout
-      icon={Network}
       kicker="Run a courier company"
+      image={photo}
+      imageAlt="Parcels stacked inside a delivery van"
       title="Bring your courier to Loved-IT"
       intro="Deliver for Loved-IT shops with your own hubs and riders. Confirm your email, then the admin team reviews your company documents."
       aside={aside}

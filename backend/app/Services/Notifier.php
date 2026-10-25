@@ -164,8 +164,11 @@ class Notifier
         $reason = $note && in_array($to, ['CANCELLED', 'DELIVERY_FAILED', 'RETURN_TO_SENDER', 'LOST', 'DAMAGED'], true) ? " Reason: {$note}" : '';
 
         if ($actorType !== 'buyer') {
-            $this->send(User::find($order->buyer_id), 'order.status', $label, "Order {$order->order_number}: {$label}.{$reason}",
-                "/settings/orders?order={$order->id}", $meta);
+            // Out for delivery names the rider: "Juan is bringing your parcel".
+            $rider = $to === 'OUT_FOR_DELIVERY' ? Parcel::deliveryRiderFirstName($order->id) : null;
+            $this->send(User::find($order->buyer_id), 'order.status', $rider ? "{$rider} is bringing your parcel" : $label,
+                $rider ? "Order {$order->order_number} is out for delivery. Keep your phone nearby." : "Order {$order->order_number}: {$label}.{$reason}",
+                "/settings/orders?order={$order->id}", $meta + ($rider ? ['rider_first_name' => $rider] : []));
         }
 
         $sellerId = $order->seller_id ?? $order->items()->value('seller_id');

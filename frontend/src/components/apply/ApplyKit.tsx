@@ -15,32 +15,35 @@ const QUIET = 'flex items-center justify-center w-full min-h-[40px] rounded-full
 // ─── Page frame ───────────────────────────────────────────────────────────────
 
 /**
- * An application page: the storefront header, a title band, then the form beside a sticky rail (what you need, what
- * you earn, who approves you). Without a rail (status screens) the content sits in a narrow centred column.
+ * An application page: the storefront header, a title band with the partner's photo, then the form beside a sticky
+ * rail (what you need, what you earn, who approves you). Without a rail (status screens) the content sits in a narrow
+ * centred column.
  */
-export function ApplyLayout({ icon: Icon, kicker, title, intro, aside, children }: {
-  icon: React.ElementType;
+export function ApplyLayout({ kicker, title, intro, image, imageAlt, imagePosition = 'center', aside, children }: {
   kicker: string;
   title: string;
   intro: string;
+  image: string;
+  imageAlt: string;
+  imagePosition?: string;
   aside?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F5]">
       <SiteHeader />
-      <div className="bg-white border-b border-stone-200">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-7 sm:py-9">
-          <Link to="/partner" className="inline-flex items-center gap-1 text-[12.5px] font-medium text-stone-500 hover:text-brand-red">
-            <ArrowLeft className="w-3.5 h-3.5" /> All ways to partner
-          </Link>
-          <div className="mt-4 flex items-start gap-4">
-            <span className="w-12 h-12 rounded-2xl bg-brand-red text-white flex items-center justify-center shrink-0"><Icon className="w-6 h-6" /></span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-red">{kicker}</p>
-              <h1 className="mt-1 text-[26px] sm:text-[32px] font-serif font-bold tracking-tight leading-tight text-[#1E1B18]">{title}</h1>
-              <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-stone-600">{intro}</p>
-            </div>
+      <div className="max-w-[1200px] w-full mx-auto px-4 sm:px-8 pt-6 sm:pt-8">
+        <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] rounded-3xl bg-white border border-stone-200 overflow-hidden">
+          <div className="p-6 sm:p-8 lg:p-10 flex flex-col justify-center">
+            <Link to="/partner" className="inline-flex w-fit items-center gap-1 text-[12.5px] font-medium text-stone-500 hover:text-brand-red">
+              <ArrowLeft className="w-3.5 h-3.5" /> All ways to partner
+            </Link>
+            <p className="mt-6 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand-red">{kicker}</p>
+            <h1 className="mt-2 text-[28px] sm:text-[36px] font-serif font-bold tracking-tight leading-[1.08] text-[#1E1B18]">{title}</h1>
+            <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed text-stone-600">{intro}</p>
+          </div>
+          <div className="relative h-44 sm:h-56 md:h-auto md:min-h-[260px] bg-stone-200 order-first md:order-none">
+            <img src={image} alt={imageAlt} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: imagePosition }} />
           </div>
         </div>
       </div>

@@ -91,6 +91,8 @@ class PublicShopController extends Controller
                 'follower_count'      => $followerCount,
                 'is_following'        => $isFollowing,
                 'rating_breakdown'    => $ratingBreakdown,
+                // Reviews of the shop itself (not its products): the average, the counts and the 3 latest.
+                'shop_reviews'        => ShopReviewController::summary($seller->id),
                 'categories'          => $categoryBreakdown,
                 // The store's own menu: visible store categories in the seller's order (A7)
                 'store_categories'    => SellerStoreCategoryController::tree($seller->id, onlyVisible: true),
@@ -240,13 +242,12 @@ class PublicShopController extends Controller
         return response()->json(['data' => $data]);
     }
 
-    private function resolveProfile(string $slugOrId): ?SellerProfile
+    public static function resolveProfile(string $slugOrId): ?SellerProfile
     {
         if (is_numeric($slugOrId)) {
             $id = (int) $slugOrId;
-            $profile = SellerProfile::where('user_id', $id)
-                ->orWhere('id', $id)
-                ->first();
+            // The seller's user id first: a profile id that happens to equal another seller's user id must not win.
+            $profile = SellerProfile::where('user_id', $id)->first() ?? SellerProfile::find($id);
             if ($profile) return $profile;
         }
 

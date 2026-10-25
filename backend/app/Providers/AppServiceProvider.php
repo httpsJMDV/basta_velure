@@ -11,7 +11,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The AI for product checks and the support assistant: Groq (free plan) or Claude, by AI_PROVIDER. Tests
+        // swap in a fake.
+        $this->app->singleton(\App\Services\Ai\AiModel::class, fn ($app) => config('ai.provider') === 'claude'
+            ? $app->make(\App\Services\Ai\ClaudeModel::class)
+            : $app->make(\App\Services\Ai\GroqModel::class));
     }
 
     /**

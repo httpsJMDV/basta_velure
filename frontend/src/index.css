@@ -93,6 +93,32 @@
     .animate-bell-ring { animation: none; }
   }
 
+  /* Loved-IT Assistant typing: three dots rise in a wave, and a caret blinks while a reply types itself out */
+  @keyframes typing-dot {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+  .typing-dot {
+    animation: typing-dot 1.2s ease-in-out infinite;
+  }
+  @keyframes typing-caret {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .typing-caret {
+    animation: typing-caret 0.9s steps(1) infinite;
+  }
+  @keyframes chat-card-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .chat-card-in {
+    animation: chat-card-in 0.28s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .typing-dot, .typing-caret, .chat-card-in { animation: none; }
+  }
+
   /* Toast countdown: the line under a toast empties as it times out, and holds while the pointer is on the toast */
   @keyframes toast-countdown {
     from { transform: scaleX(1); }

@@ -3,20 +3,46 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ApplyRiderRequest;
+use App\Services\RiderOnboarding;
 use Illuminate\Http\JsonResponse;
 
 class RiderRegistrationController extends Controller
 {
     /**
-     * Riders cannot register themselves (A13): an approved courier company adds each rider from its portal, and the
-     * rider activates the account from the emailed link. The old self-application endpoint answers 403.
+     * A signed-in buyer cannot turn their account into a rider account: riders sign in with an email of their own.
+     * They apply on the public form (POST /auth/register-rider) with that email instead.
      *
      * POST /api/v1/auth/apply-rider
      */
     public function register(): JsonResponse
     {
         return response()->json([
-            'message' => 'Riders are added by their courier company. Ask the courier you work for to add you; you will get an email to set your password.',
+            'message' => 'Riders use an account of their own. Sign out and apply on the Become a rider page with a different email.',
         ], 403);
+    }
+
+    /**
+     * The public "Become a rider" form. The application is Pending until the chosen hub (or its courier company)
+     * approves it; only then does the rider get the email to set a password.
+     *
+     * POST /api/v1/auth/register-rider
+     */
+    public function apply(ApplyRiderRequest $request, RiderOnboarding $onboarding): JsonResponse
+    {
+        $hub = $request->hub();
+        $again = $request->reapplying();
+        $rider = $onboarding->apply($hub, $request->validated(), $request->file('drivers_license_image'), $request->file('or_cr_image'), $again);
+
+        return response()->json([
+            'message' => "Application sent to {$hub->hub_name}. We will email {$rider->user->email} when they decide.",
+            'data'    => [
+                'email'      => $rider->user->email,
+                'hub'        => $hub->hub_name,
+                'courier'    => \App\Models\LogisticsCompany::summaryFor($rider->logistics_company_id)['name'] ?? null,
+                'reapplied'  => $again !== null,
+                'applied_at' => $rider->applied_at?->toIso8601String(),
+            ],
+        ], 201);
     }
 }

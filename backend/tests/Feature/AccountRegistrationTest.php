@@ -45,6 +45,14 @@ class AccountRegistrationTest extends TestCase
         ], $overrides);
     }
 
+    private function account(array $extra = []): User
+    {
+        return User::forceCreate([
+            'first_name' => 'Ana', 'last_name' => 'Reyes', 'email' => 'ana.' . Str::lower(Str::random(8)) . '@example.com',
+            'password' => Hash::make('Mamimili@2026'), 'role' => 'buyer', 'status' => 'active', ...$extra,
+        ]);
+    }
+
     private function codeFor(string $email): string
     {
         $code = null;
@@ -222,6 +230,23 @@ class AccountRegistrationTest extends TestCase
         $this->post('/api/v1/auth/register-seller', $this->sellerPayload([
             'government_id_image' => UploadedFile::fake()->create('size_5.1MB.jpg', 5222, 'image/jpeg'),
         ]), ['Accept' => 'application/json'])->assertStatus(422)->assertJsonValidationErrors('government_id_image');
+    }
+
+    public function test_a_school_id_is_no_longer_accepted_but_old_accounts_keep_theirs(): void
+    {
+        $message = 'Choose a government-issued ID. School IDs are not accepted.';
+        $this->post('/api/v1/auth/register-seller', $this->sellerPayload(['government_id_type' => 'school_id']), ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonPath('errors.government_id_type.0', $message);
+
+        $buyer = $this->account();
+        Sanctum::actingAs($buyer);
+        $this->post('/api/v1/auth/complete-profile', ['government_id_type' => 'school_id'], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonPath('errors.government_id_type.0', $message);
+
+        // An account that verified with a school ID before the change is still complete.
+        $old = $this->account(['date_of_birth' => '1999-01-01', 'sex' => 'female', 'government_id_type' => 'school_id']);
+        Sanctum::actingAs($old);
+        $this->post('/api/v1/auth/complete-profile', [], ['Accept' => 'application/json'])->assertOk();
     }
 
     public function test_a_visitor_applies_as_a_courier_company_with_its_business_details(): void

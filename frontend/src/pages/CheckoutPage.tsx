@@ -1,39 +1,45 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, CheckCircle2, AlertCircle, Check, UploadCloud, ShieldCheck, ShoppingBag, X, MapPin, Store, Banknote, Lock,
-  Loader2, Truck, Gift, Ticket, CreditCard, Wallet, Zap, Tag,
+  Loader2, Truck, Gift, Ticket, Zap, Tag, ChevronRight,
 } from 'lucide-react';
 import { pesoCompact as peso } from '../utils/pricing';
 import LovedItLogo from '../components/LovedItLogo';
+import { Dialog } from '../components/ui/Overlay';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import { getAddressesApi } from '../api/client';
 import { placeCheckoutOrderApi, quoteCheckoutApi } from '../api/commerce';
-import type { CheckoutInput, CheckoutQuote, QuoteStore, WalletVoucher } from '../api/commerce';
+import type { CheckoutInput, CheckoutQuote, QuoteStore, QuoteVoucher, WalletVoucher } from '../api/commerce';
 import type { Address, Order } from '../types';
 import { useShopPaymentInfo } from '../hooks/useShopDelivery';
 import { GcashPayee, ReferenceField } from '../components/payments/GcashKit';
 import { apiProblem } from '../utils/apiError';
 import gcashMark from '../assets/brand/gcash-mark.svg';
 
-type Method = 'cod' | 'gcash' | 'e_wallet' | 'card';
+type Method = 'cod' | 'gcash';
 type PayErrors = { reference?: string; receipt?: string };
+type VoucherSlot = { kind: 'store'; sellerId: number } | { kind: 'platform' } | { kind: 'shipping' };
 const NOTE_MAX = 200;
+const NO_MATCH = 'No voucher matches this code.';
 
 function newKey() {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+const addressLine = (a: Address) =>
+  [a.floor_unit, a.address || a.street_address, a.ward || a.barangay_name, a.district || a.city_name, a.province || a.province_name].filter(Boolean).join(', ');
+
 /**
  * Checkout (B8, B9). Everything on the page comes from the server's quote, so what the buyer sees is what Place
  * Order charges: prices now, flash lines, shop promotions, one store voucher per shop plus one platform and one
- * shipping voucher (A2), shipping per shop for its route and weight (A20). If anything changes before the order is
- * placed (a price, a voucher ending), nothing is charged and the new total is shown to confirm.
+ * shipping voucher (A2), shipping per shop for its route and weight (A20). A typed voucher code is checked with the
+ * server first and only kept when it applies; otherwise a dialog says why. Payment is cash on delivery or GCash to
+ * the shop. If anything changes before the order is placed, nothing is charged and the new total is shown to confirm.
  */
 export default function CheckoutPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { refresh: refreshCart } = useCart();
   const [params] = useSearchParams();
   const buyVariant = Number(params.get('buy') || 0);
@@ -41,9 +47,11 @@ export default function CheckoutPage() {
 
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState<number | null>(null);
+  const [pickAddress, setPickAddress] = useState(false);
   const [storeCodes, setStoreCodes] = useState<Record<number, string>>({});
   const [platformCode, setPlatformCode] = useState<string | null>(null);
   const [shippingCode, setShippingCode] = useState<string | null>(null);
+  const [voucherProblem, setVoucherProblem] = useState<{ code: string; message: string } | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [method, setMethod] = useState<Method>('cod');
   const [refs, setRefs] = useState<Record<number, string>>({});
@@ -97,6 +105,7 @@ export default function CheckoutPage() {
   }, [reprice]);
 
   const stores = quote?.stores ?? [];
+  const wallet = quote?.wallet ?? [];
   const shopInfo = useShopPaymentInfo(stores.map((s) => s.seller.id), method === 'gcash', user?.id);
   const gcashBlockers = stores.filter((s) => !s.seller.accepts_gcash);
   const address = addresses.find((a) => a.id === addressId);
@@ -104,10 +113,46 @@ export default function CheckoutPage() {
   const proofPreviews = useMemo(() => Object.fromEntries(Object.entries(proofs).map(([id, f]) => [id, URL.createObjectURL(f)])), [proofs]);
   useEffect(() => () => Object.values(proofPreviews).forEach((u) => URL.revokeObjectURL(u)), [proofPreviews]);
 
+  // A code that was kept but stopped applying (the address or a price changed) must be removed before placing.
+  const staleVouchers = [...stores.map((s) => s.store_voucher), quote?.platform_voucher, quote?.shipping_voucher]
+    .filter((v): v is QuoteVoucher => !!v && !v.applied);
+
   const noteError = (sellerId: number) => ((notes[sellerId] ?? '').length > NOTE_MAX ? `A note can be at most ${NOTE_MAX} characters.` : undefined);
   const blocking = (quote?.problems ?? []).filter((p) => p.type !== 'address' || !addressId);
-  const canPlace = !!quote?.can_place && !quoting && !submitting && !addressNeedsUpdate && stores.every((s) => !noteError(s.seller.id))
-    && (method !== 'gcash' || gcashBlockers.length === 0);
+  const canPlace = !!quote?.can_place && !quoting && !submitting && !addressNeedsUpdate && staleVouchers.length === 0
+    && stores.every((s) => !noteError(s.seller.id)) && (method !== 'gcash' || gcashBlockers.length === 0);
+
+  const setSlot = (slot: VoucherSlot, code: string | null) => {
+    if (slot.kind === 'store') setStoreCodes((c) => { const n = { ...c }; if (code) n[slot.sellerId] = code; else delete n[slot.sellerId]; return n; });
+    else if (slot.kind === 'platform') setPlatformCode(code);
+    else setShippingCode(code);
+  };
+
+  /** Checks a typed code with the server and keeps it only if it applies to this order. */
+  const tryVoucher = async (slot: VoucherSlot, raw: string): Promise<boolean> => {
+    const code = raw.trim().toUpperCase();
+    if (!code) return false;
+    const vouchers = {
+      store: slot.kind === 'store' ? { ...storeCodes, [slot.sellerId]: code } : storeCodes,
+      platform: slot.kind === 'platform' ? code : platformCode,
+      shipping: slot.kind === 'shipping' ? code : shippingCode,
+    };
+    try {
+      const q = await quoteCheckoutApi({ ...input, vouchers });
+      const result = slot.kind === 'store' ? q.stores.find((s) => s.seller.id === slot.sellerId)?.store_voucher
+        : slot.kind === 'platform' ? q.platform_voucher : q.shipping_voucher;
+      if (!result?.applied) {
+        setVoucherProblem({ code, message: result?.message ?? 'This voucher cannot be used on this order.' });
+        return false;
+      }
+      setQuote(q);
+      setSlot(slot, code);
+      return true;
+    } catch (e) {
+      setVoucherProblem({ code, message: apiProblem(e, 'The voucher could not be checked. Try again.').message });
+      return false;
+    }
+  };
 
   const setShopError = (sellerId: number, patch: PayErrors) => setPayErrors((p) => ({ ...p, [sellerId]: { ...p[sellerId], ...patch } }));
   const pickProof = (sellerId: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,10 +217,6 @@ export default function CheckoutPage() {
     try {
       const res = await placeCheckoutOrderApi<Order>(body, idempotency.current);
       void refreshCart();
-      if (res.payment && (method === 'e_wallet' || method === 'card')) {
-        navigate(`/pay/${res.payment.token}`, { replace: true });
-        return;
-      }
       setPlaced({ orders: res.orders.length ? res.orders : [res.data], method });
     } catch (err) {
       const res = (err as { response?: { status?: number; data?: { code?: string; message?: string; quote?: CheckoutQuote; errors?: Record<string, string[]> } } })?.response;
@@ -206,12 +247,14 @@ export default function CheckoutPage() {
   if (placed) return <Placed orders={placed.orders} method={placed.method} />;
 
   const empty = !quoting && quote && stores.length === 0;
+  const total = quote?.totals.total ?? 0;
+  const placeLabel = submitting ? 'Placing your order…' : `${changeNotice ? 'Confirm and place order' : 'Place order'} · ${peso(total)}`;
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col">
       <CheckoutBar step={2} />
 
-      <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 sm:px-8 py-8">
+      <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 sm:px-8 pt-6 pb-10">
         {empty ? (
           <div className="max-w-md mx-auto text-center py-16">
             <span className="mx-auto w-16 h-16 rounded-full bg-white border border-stone-200 flex items-center justify-center text-stone-400"><ShoppingBag className="w-7 h-7" /></span>
@@ -220,8 +263,8 @@ export default function CheckoutPage() {
             <Link to="/cart" className="mt-5 inline-flex h-11 px-6 rounded-full bg-brand-red text-white text-sm font-semibold items-center">Go to my cart</Link>
           </div>
         ) : (
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-8 items-start">
-            <div className="space-y-4">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+            <div className="space-y-4 min-w-0">
               {changeNotice && (
                 <div role="alert" className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-[13.5px] text-amber-900">
                   <AlertCircle className="w-5 h-5 shrink-0 text-amber-600" />
@@ -229,106 +272,63 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              <Section step={1} title="Delivery address" hint="Where should the rider bring your order?"
-                aside={<Link to="/settings/addresses" className="text-[13px] font-semibold text-brand-red hover:underline shrink-0">Manage</Link>}>
+              {/* Delivery address: the chosen one in a line, the rest behind Change */}
+              <section className="rounded-2xl bg-white border border-stone-200" aria-label="Delivery address">
                 {addresses.length === 0 ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-dashed border-stone-300">
-                    <span className="text-[13px] text-stone-600">Add a delivery address to see shipping and check out.</span>
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
+                    <span className="flex items-center gap-3 text-[13.5px] text-stone-600"><MapPin className="w-5 h-5 text-stone-400" /> Add a delivery address to see shipping and check out.</span>
                     <Link to="/settings/addresses" className="h-9 px-4 rounded-full bg-stone-900 text-white text-[13px] font-semibold flex items-center">Add address</Link>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="Saved addresses">
-                    {addresses.map((a) => {
-                      const needs = Boolean(a.address_needs_update || !a.barangay_code);
-                      const on = addressId === a.id;
-                      return (
-                        <button key={a.id} type="button" role="radio" aria-checked={on} onClick={() => setAddressId(a.id)}
-                          className={`relative text-left p-4 rounded-2xl border-[1.5px] transition-colors ${on ? (needs ? 'border-amber-500 bg-amber-50/40' : 'border-brand-red bg-rose-50/40') : 'border-stone-200 hover:border-stone-400'}`}>
-                          <span className="flex items-center gap-2 pr-6">
-                            <MapPin className={`w-4 h-4 shrink-0 ${on ? 'text-brand-red' : 'text-stone-400'}`} />
-                            <span className="text-[14px] font-semibold text-stone-900 truncate">{a.full_name || a.recipient_name}</span>
-                            {a.is_default && <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-red">Default</span>}
+                  <button type="button" onClick={() => setPickAddress(true)} className="group w-full flex items-start gap-3.5 p-4 sm:p-5 text-left">
+                    <MapPin className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-500">Deliver to</span>
+                      {address ? (
+                        <>
+                          <span className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[14px]">
+                            <span className="font-semibold text-stone-900">{address.full_name || address.recipient_name}</span>
+                            <span className="text-stone-500 tabular-nums">{address.phone || address.phone_number}</span>
+                            {address.is_default && <span className="text-[10.5px] font-semibold uppercase tracking-wide text-brand-red">Default</span>}
                           </span>
-                          <span className="block mt-1.5 text-[12px] text-stone-600 leading-relaxed">
-                            {[a.floor_unit, a.address || a.street_address, a.ward || a.barangay_name, a.district || a.city_name, a.province || a.province_name].filter(Boolean).join(', ')}
-                          </span>
-                          <span className="block mt-1 text-[12px] text-stone-400">{a.phone || a.phone_number}</span>
-                          {needs && <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700"><AlertCircle className="w-3 h-3" /> Needs an update</span>}
-                          <span className={`absolute top-4 right-4 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center ${on ? 'border-brand-red' : 'border-stone-300'}`}>
-                            {on && <span className="w-2 h-2 rounded-full bg-brand-red" />}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                          <span className="block mt-0.5 text-[13px] text-stone-600 leading-relaxed">{addressLine(address)}</span>
+                        </>
+                      ) : <span className="mt-1 block text-[13.5px] text-stone-600">Choose a delivery address</span>}
+                    </span>
+                    <span className="shrink-0 inline-flex items-center gap-0.5 text-[13px] font-semibold text-brand-red group-hover:underline">Change <ChevronRight className="w-4 h-4" /></span>
+                  </button>
                 )}
                 {addressNeedsUpdate && (
-                  <p className="mt-3 text-[13px] text-amber-800">This address needs its barangay, city and province picked again. Update it in your address book first.</p>
-                )}
-              </Section>
-
-              <Section step={2} title="Items and delivery" hint={stores.length > 1 ? `Ships as ${stores.length} parcels, one from each shop.` : 'Ships as one parcel.'}>
-                {quoting && !quote ? (
-                  <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-32 rounded-2xl bg-stone-100 animate-pulse" />)}</div>
-                ) : (
-                  <div className="space-y-4">
-                    {stores.map((s) => (
-                      <StoreBlock key={s.seller.id} store={s} wallet={(quote?.wallet ?? []).filter((v) => v.scope === 'store' && v.seller?.id === s.seller.id)}
-                        code={storeCodes[s.seller.id] ?? ''} onCode={(code) => setStoreCodes((c) => ({ ...c, [s.seller.id]: code }))}
-                        note={notes[s.seller.id] ?? ''} onNote={(n) => setNotes((x) => ({ ...x, [s.seller.id]: n }))} noteError={noteError(s.seller.id)} />
-                    ))}
-                  </div>
-                )}
-              </Section>
-
-              <Section step={3} title="Loved-IT vouchers" hint="One platform voucher and one shipping voucher per order. Loved-IT pays for these.">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <VoucherPicker label="Platform voucher" wallet={(quote?.wallet ?? []).filter((v) => v.scope === 'platform')}
-                    code={platformCode ?? ''} onCode={(c) => setPlatformCode(c || null)} result={quote?.platform_voucher ?? null} />
-                  <VoucherPicker label="Shipping voucher" wallet={(quote?.wallet ?? []).filter((v) => v.scope === 'shipping')}
-                    code={shippingCode ?? ''} onCode={(c) => setShippingCode(c || null)} result={quote?.shipping_voucher ?? null} />
-                </div>
-              </Section>
-
-              <Section step={4} title="Payment" hint="Choose how you want to pay.">
-                <div className="grid sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="Payment method">
-                  {([
-                    { key: 'cod', title: 'Cash on delivery', text: 'Pay the rider when your parcel arrives', badge: <span className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0"><Banknote className="w-5 h-5" /></span> },
-                    { key: 'e_wallet', title: 'E-wallet', text: 'Pay now on the secure payment page', badge: <span className="w-11 h-11 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0"><Wallet className="w-5 h-5" /></span> },
-                    { key: 'card', title: 'Credit or debit card', text: 'Pay now on the secure payment page', badge: <span className="w-11 h-11 rounded-xl bg-stone-900 text-white flex items-center justify-center shrink-0"><CreditCard className="w-5 h-5" /></span> },
-                    { key: 'gcash', title: 'GCash to the shop', text: gcashBlockers.length ? 'Not every shop in this order takes GCash' : 'Send to each shop, then upload the receipt', badge: <span className="w-11 h-11 rounded-xl bg-white ring-1 ring-stone-200 flex items-center justify-center shrink-0"><img src={gcashMark} alt="" className="w-8 h-8 object-contain" /></span> },
-                  ] as const).map((m) => {
-                    const on = method === m.key;
-                    const off = m.key === 'gcash' && gcashBlockers.length > 0;
-                    return (
-                      <button key={m.key} type="button" role="radio" aria-checked={on} disabled={off} onClick={() => setMethod(m.key)}
-                        className={`flex items-center gap-3 p-3.5 text-left rounded-2xl border-[1.5px] transition-colors disabled:opacity-55 disabled:cursor-not-allowed ${on ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
-                        {m.badge}
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-[14px] font-semibold text-stone-900">{m.title}</span>
-                          <span className="block text-[12px] text-stone-500">{m.text}</span>
-                        </span>
-                        <span className={`w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center shrink-0 ${on ? 'border-brand-red' : 'border-stone-300'}`}>
-                          {on && <span className="w-2 h-2 rounded-full bg-brand-red" />}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {(method === 'e_wallet' || method === 'card') && (
-                  <p className="mt-4 flex items-start gap-2.5 p-4 rounded-2xl bg-sky-50 border border-sky-100 text-[13px] text-sky-900">
-                    <Lock className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>After you place the order you go to the payment page. Pay within 1 hour, or the order is cancelled and its items and vouchers are released.</span>
+                  <p className="mx-4 sm:mx-5 mb-4 -mt-1 flex items-start gap-2 p-3 rounded-xl bg-amber-50 text-[12.5px] text-amber-900">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-px text-amber-600" />
+                    <span>This address needs its barangay, city and province picked again. <Link to="/settings/addresses" className="font-semibold underline">Update it</Link> or choose another.</span>
                   </p>
                 )}
-                {method === 'gcash' && (
-                  <div className="mt-5 space-y-3">
+              </section>
+
+              {/* One parcel per shop */}
+              {quoting && !quote ? (
+                <div className="space-y-4">{[1, 2].map((i) => <div key={i} className="h-44 rounded-2xl bg-white border border-stone-200 animate-pulse" />)}</div>
+              ) : stores.map((s, i) => (
+                <StoreBlock key={s.seller.id} store={s} index={i} count={stores.length}
+                  wallet={wallet.filter((v) => v.scope === 'store' && v.seller?.id === s.seller.id)}
+                  onPickVoucher={(code) => setSlot({ kind: 'store', sellerId: s.seller.id }, code || null)}
+                  onApplyVoucher={(code) => tryVoucher({ kind: 'store', sellerId: s.seller.id }, code)}
+                  note={notes[s.seller.id] ?? ''} onNote={(n) => setNotes((x) => ({ ...x, [s.seller.id]: n }))} noteError={noteError(s.seller.id)} />
+              ))}
+
+              {/* GCash: pay each shop, then attach the receipt */}
+              {method === 'gcash' && stores.length > 0 && (
+                <section className="rounded-2xl bg-white border border-stone-200 p-4 sm:p-5" aria-label="GCash payment">
+                  <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-900"><img src={gcashMark} alt="" className="w-5 h-5" /> Pay by GCash</h2>
+                  <p className="mt-0.5 text-[12.5px] text-stone-500">Send the amount to {stores.length > 1 ? 'each shop' : 'the shop'}, then enter the reference number and upload the receipt.</p>
+                  <div className="mt-4 space-y-3">
                     {stores.map((s, i) => {
                       const info = shopInfo[s.seller.id];
                       const err = payErrors[s.seller.id] ?? {};
                       const preview = proofPreviews[s.seller.id];
                       return (
-                        <section key={s.seller.id} ref={(el) => { shopRefs.current[s.seller.id] = el; }} className="rounded-2xl border border-stone-200 p-4 sm:p-5 space-y-4" aria-label={`GCash payment to ${s.seller.shop_name}`}>
+                        <section key={s.seller.id} ref={(el) => { shopRefs.current[s.seller.id] = el; }} className="rounded-xl border border-stone-200 p-4 space-y-4" aria-label={`GCash payment to ${s.seller.shop_name}`}>
                           <p className="flex items-center gap-2 text-[14px] font-semibold text-stone-900 min-w-0">
                             {stores.length > 1 && <span className="w-6 h-6 rounded-full bg-stone-900 text-white text-[12px] flex items-center justify-center shrink-0">{i + 1}</span>}
                             <span className="truncate">{s.seller.shop_name}</span>
@@ -359,53 +359,131 @@ export default function CheckoutPage() {
                       );
                     })}
                   </div>
-                )}
-              </Section>
+                </section>
+              )}
             </div>
 
-            <aside className="lg:sticky lg:top-24 rounded-3xl bg-white border border-stone-200 overflow-hidden">
-              <div className="px-6 pt-6 pb-2">
-                <h2 className="text-lg font-semibold text-stone-900">Summary</h2>
-                <p className="text-[13px] text-stone-500 tabular-nums">{quote?.totals.items ?? 0} items · {stores.length} parcel{stores.length === 1 ? '' : 's'}</p>
+            {/* Payment, Loved-IT vouchers and the total, always in view on a wide screen */}
+            <aside className="lg:sticky lg:top-24 rounded-2xl bg-white border border-stone-200 divide-y divide-stone-100">
+              <div className="p-5">
+                <h2 className="text-[13px] font-semibold text-stone-900">Payment method</h2>
+                <div className="mt-2.5 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
+                  {([
+                    { key: 'cod', title: 'Cash on delivery', text: 'Pay the rider', icon: <Banknote className="w-5 h-5 text-amber-600" /> },
+                    { key: 'gcash', title: 'GCash', text: gcashBlockers.length ? 'Not every shop takes it' : 'Send to the shop', icon: <img src={gcashMark} alt="" className="w-5 h-5 object-contain" /> },
+                  ] as const).map((m) => {
+                    const on = method === m.key;
+                    const off = m.key === 'gcash' && gcashBlockers.length > 0;
+                    return (
+                      <button key={m.key} type="button" role="radio" aria-checked={on} disabled={off} onClick={() => setMethod(m.key)}
+                        className={`relative p-3 text-left rounded-xl border-[1.5px] transition-colors disabled:opacity-55 disabled:cursor-not-allowed ${on ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
+                        {m.icon}
+                        <span className="mt-2 block text-[13px] font-semibold text-stone-900 leading-tight">{m.title}</span>
+                        <span className="block text-[11.5px] text-stone-500">{m.text}</span>
+                        {on && <span className="absolute top-2.5 right-2.5 w-4 h-4 rounded-full bg-brand-red text-white flex items-center justify-center"><Check className="w-2.5 h-2.5" strokeWidth={3} /></span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="px-6 pb-6">
-                <dl className="mt-3 space-y-2 text-[14px]">
+
+              <div className="p-5 space-y-3.5">
+                <div>
+                  <h2 className="text-[13px] font-semibold text-stone-900">Loved-IT vouchers</h2>
+                  <p className="text-[11.5px] text-stone-500">One of each per order, paid by Loved-IT.</p>
+                </div>
+                <VoucherField label="Platform voucher" wallet={wallet.filter((v) => v.scope === 'platform')} result={quote?.platform_voucher ?? null}
+                  onPick={(c) => setPlatformCode(c || null)} onApply={(c) => tryVoucher({ kind: 'platform' }, c)} />
+                <VoucherField label="Shipping voucher" wallet={wallet.filter((v) => v.scope === 'shipping')} result={quote?.shipping_voucher ?? null}
+                  onPick={(c) => setShippingCode(c || null)} onApply={(c) => tryVoucher({ kind: 'shipping' }, c)} />
+              </div>
+
+              <div className="p-5">
+                <div className="flex items-baseline justify-between">
+                  <h2 className="text-[13px] font-semibold text-stone-900">Summary</h2>
+                  <span className="text-[12px] text-stone-500 tabular-nums">{quote?.totals.items ?? 0} items · {stores.length} parcel{stores.length === 1 ? '' : 's'}</span>
+                </div>
+                <dl className="mt-3 space-y-1.5 text-[13.5px]">
                   <Row label="Merchandise" value={peso(quote?.totals.merchandise ?? 0)} />
                   {(quote?.totals.promo_discount ?? 0) > 0 && <Row label="Shop promotions" value={`−${peso(quote!.totals.promo_discount)}`} tone="good" />}
-                  {(quote?.totals.store_discount ?? 0) > 0 && <Row label="Store vouchers" value={`−${peso(quote!.totals.store_discount)}`} tone="good" />}
+                  {(quote?.totals.store_discount ?? 0) > 0 && <Row label="Shop vouchers" value={`−${peso(quote!.totals.store_discount)}`} tone="good" />}
                   {(quote?.totals.platform_discount ?? 0) > 0 && <Row label="Platform voucher" value={`−${peso(quote!.totals.platform_discount)}`} tone="good" />}
                   <Row label={`Shipping${stores.length > 1 ? ` (${stores.length} parcels)` : ''}`} value={addressId ? peso(quote?.totals.shipping ?? 0) : '—'} />
                   {(quote?.totals.shipping_discount ?? 0) > 0 && <Row label="Shipping voucher" value={`−${peso(quote!.totals.shipping_discount)}`} tone="good" />}
-                  <div className="flex justify-between items-baseline pt-3 border-t border-stone-200">
-                    <dt className="text-[15px] font-semibold text-stone-900">Total</dt>
-                    <dd className="text-[26px] font-bold tracking-tight text-brand-red tabular-nums">{quoting ? <Loader2 className="w-5 h-5 animate-spin inline" /> : peso(quote?.totals.total ?? 0)}</dd>
+                  <div className="flex justify-between items-baseline pt-3 mt-1 border-t border-stone-200">
+                    <dt className="text-[14px] font-semibold text-stone-900">Total</dt>
+                    <dd className="text-[24px] font-bold tracking-tight text-brand-red tabular-nums">{quoting ? <Loader2 className="w-5 h-5 animate-spin inline" /> : peso(total)}</dd>
                   </div>
                 </dl>
 
                 {blocking.length > 0 && !quoting && (
-                  <ul role="alert" className="mt-4 space-y-1.5 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-[12.5px] text-brand-red">
+                  <ul role="alert" className="mt-3 space-y-1.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-[12.5px] text-brand-red">
                     {blocking.map((p, i) => <li key={i} className="flex gap-2"><AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{p.message}</li>)}
                   </ul>
                 )}
+                {staleVouchers.length > 0 && !quoting && (
+                  <p role="alert" className="mt-3 flex gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-[12.5px] text-brand-red">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> Remove the voucher that no longer applies to place the order.
+                  </p>
+                )}
                 {errorMsg && (
-                  <div role="alert" className="mt-4 flex items-start gap-2 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-[13px] text-brand-red">
+                  <div role="alert" className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-[13px] text-brand-red">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{errorMsg}</span>
                   </div>
                 )}
 
                 <button type="button" onClick={place} disabled={!canPlace}
-                  className="mt-5 w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Placing your order…</>
-                    : <><Lock className="w-4 h-4" /> {changeNotice ? 'Confirm and place order' : 'Place order'} · {peso(quote?.totals.total ?? 0)}</>}
+                  className="mt-4 w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />} {placeLabel}
                 </button>
-                <p className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-stone-500 text-center">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" /> Not as described? Request a return within 7 days of delivery.
+                <p className="mt-3 flex items-start justify-center gap-1.5 text-[11.5px] text-stone-500 text-center">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-px" /> Not as described? Request a return within 7 days of delivery.
                 </p>
               </div>
             </aside>
           </div>
         )}
       </div>
+
+      <Dialog open={pickAddress} onClose={() => setPickAddress(false)} title="Delivery address" size="max-w-lg"
+        footer={<Link to="/settings/addresses" className="min-h-10 px-4 rounded-full border border-stone-300 text-[13px] font-semibold text-stone-800 hover:border-stone-900 flex items-center">Manage addresses</Link>}>
+        <div className="space-y-2" role="radiogroup" aria-label="Saved addresses">
+          {addresses.map((a) => {
+            const needs = Boolean(a.address_needs_update || !a.barangay_code);
+            const on = addressId === a.id;
+            return (
+              <button key={a.id} type="button" role="radio" aria-checked={on} onClick={() => { setAddressId(a.id); setPickAddress(false); }}
+                className={`w-full flex items-start gap-3 p-3.5 text-left rounded-xl border-[1.5px] transition-colors ${on ? (needs ? 'border-amber-500 bg-amber-50/40' : 'border-brand-red bg-rose-50/40') : 'border-stone-200 hover:border-stone-400'}`}>
+                <span className={`mt-0.5 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center shrink-0 ${on ? 'border-brand-red' : 'border-stone-300'}`}>
+                  {on && <span className="w-2 h-2 rounded-full bg-brand-red" />}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="flex flex-wrap items-baseline gap-x-2 text-[13.5px]">
+                    <span className="font-semibold text-stone-900">{a.full_name || a.recipient_name}</span>
+                    <span className="text-stone-500 tabular-nums">{a.phone || a.phone_number}</span>
+                    {a.is_default && <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-red">Default</span>}
+                  </span>
+                  <span className="block mt-0.5 text-[12.5px] text-stone-600 leading-relaxed">{addressLine(a)}</span>
+                  {needs && <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700"><AlertCircle className="w-3 h-3" /> Needs an update</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Dialog>
+
+      <Dialog open={!!voucherProblem} onClose={() => setVoucherProblem(null)} size="max-w-sm"
+        title={voucherProblem?.message === NO_MATCH ? 'No voucher found' : 'This voucher can’t be used'}
+        footer={<button type="button" onClick={() => setVoucherProblem(null)} className="min-h-10 px-6 rounded-full bg-stone-900 text-white text-[13px] font-semibold hover:bg-stone-800">OK</button>}>
+        <div className="flex items-start gap-3">
+          <span className="w-10 h-10 rounded-full bg-rose-50 text-brand-red flex items-center justify-center shrink-0"><Ticket className="w-5 h-5" /></span>
+          <p className="text-[14px] text-stone-600 leading-relaxed">
+            {voucherProblem?.message === NO_MATCH
+              ? <>There&apos;s no voucher with the code <span className="font-mono font-semibold text-stone-900">{voucherProblem.code}</span>. Check the code and try again.</>
+              : <><span className="font-mono font-semibold text-stone-900">{voucherProblem?.code}</span>: {voucherProblem?.message}</>}
+          </p>
+        </div>
+      </Dialog>
     </div>
   );
 }
@@ -418,105 +496,129 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: 'goo
   );
 }
 
-function StoreBlock({ store, wallet, code, onCode, note, onNote, noteError }: {
-  store: QuoteStore; wallet: WalletVoucher[]; code: string; onCode: (c: string) => void; note: string; onNote: (n: string) => void; noteError?: string;
+function StoreBlock({ store, index, count, wallet, onPickVoucher, onApplyVoucher, note, onNote, noteError }: {
+  store: QuoteStore; index: number; count: number; wallet: WalletVoucher[]; onPickVoucher: (c: string) => void; onApplyVoucher: (c: string) => Promise<boolean>;
+  note: string; onNote: (n: string) => void; noteError?: string;
 }) {
   const ship = store.shipping;
   return (
-    <section className="rounded-2xl border border-stone-200 overflow-hidden">
-      <header className="flex items-center justify-between gap-3 px-4 py-3 bg-stone-50/70 border-b border-stone-100">
+    <section className="rounded-2xl bg-white border border-stone-200 overflow-hidden" aria-label={store.seller.shop_name}>
+      <header className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-stone-100">
         <span className="flex items-center gap-2 min-w-0 text-[14px] font-semibold text-stone-900"><Store className="w-4 h-4 text-stone-400" /><span className="truncate">{store.seller.shop_name}</span></span>
-        <span className="text-[12px] text-stone-500 shrink-0 tabular-nums">{peso(store.total)}</span>
+        {count > 1 && <span className="text-[11.5px] text-stone-500 shrink-0">Parcel {index + 1} of {count}</span>}
       </header>
       <ul className="divide-y divide-stone-100">
         {store.lines.map((l) => (
-          <li key={l.key} className="flex items-center gap-3 px-4 py-3">
-            <span className="relative shrink-0">
-              {l.image_url ? <img src={l.image_url} alt="" className="w-12 h-12 rounded-xl object-cover bg-stone-100 ring-1 ring-stone-200" /> : <span className="w-12 h-12 rounded-xl bg-stone-100 block" />}
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-stone-700 text-white text-[10px] font-semibold flex items-center justify-center">{l.quantity}</span>
-            </span>
+          <li key={l.key} className="flex items-center gap-3 px-4 sm:px-5 py-3">
+            {l.image_url ? <img src={l.image_url} alt="" className="w-14 h-14 rounded-lg object-cover bg-stone-100 ring-1 ring-stone-200 shrink-0" /> : <span className="w-14 h-14 rounded-lg bg-stone-100 block shrink-0" />}
             <span className="flex-1 min-w-0">
-              <span className="block text-[13px] text-stone-900 truncate">{l.name}</span>
-              <span className="block text-[11.5px] text-stone-500">
+              <span className="block text-[13.5px] text-stone-900 truncate">{l.name}</span>
+              <span className="block text-[12px] text-stone-500">
                 {l.variant_label && <>{l.variant_label} · </>}
-                {l.quantity} × {peso(l.unit_price)}
+                <span className="tabular-nums">{l.quantity} × {peso(l.unit_price)}</span>
                 {l.price_source === 'flash' && <span className="ml-1 inline-flex items-center gap-0.5 font-semibold text-stone-800"><Zap className="w-3 h-3 text-amber-500 fill-amber-500" />Flash</span>}
                 {l.price_source === 'sale' && <span className="ml-1 font-semibold text-brand-red">Sale</span>}
               </span>
               {l.free_quantity > 0 && <span className="block text-[11.5px] font-semibold text-emerald-700"><Gift className="inline w-3 h-3 -mt-0.5" /> {l.free_quantity} free</span>}
               {l.status !== 'available' && l.message && <span className="block text-[11.5px] font-medium text-brand-red">{l.message}</span>}
             </span>
-            <span className="text-[13px] font-semibold text-stone-900 tabular-nums">{peso(l.subtotal - l.promo_share)}</span>
+            <span className="text-[13.5px] font-semibold text-stone-900 tabular-nums">{peso(l.subtotal - l.promo_share)}</span>
           </li>
         ))}
       </ul>
-      <div className="px-4 py-3 space-y-3 border-t border-stone-100">
-        {store.promotions.map((p) => (
-          <p key={p.id} className="flex justify-between text-[12.5px] text-emerald-700"><span className="inline-flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />{p.name}</span><span className="tabular-nums">−{peso(p.discount)}</span></p>
-        ))}
-        <VoucherPicker label="Shop voucher" compact wallet={wallet} code={code} onCode={onCode} result={store.store_voucher} />
-        <p className="flex items-start justify-between gap-3 text-[13px]">
-          <span className="flex items-start gap-2 text-stone-600">
-            <Truck className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
-            {ship.serviceable
-              ? <span>{ship.route ?? 'Standard delivery'} · {ship.chargeable_kg} kg charged{ship.weight_grams > 0 ? ` (${(ship.weight_grams / 1000).toLocaleString()} kg)` : ''}</span>
-              : <span className="text-brand-red font-medium">{ship.message}</span>}
-          </span>
-          {ship.serviceable && (ship.free_delivery
-            ? <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 shrink-0"><Gift className="w-3.5 h-3.5" /> Free</span>
-            : <span className="font-semibold text-stone-900 tabular-nums shrink-0">{peso(ship.fee)}</span>)}
-        </p>
+      {store.promotions.length > 0 && (
+        <div className="px-4 sm:px-5 py-2 border-t border-stone-100 space-y-1">
+          {store.promotions.map((p) => (
+            <p key={p.id} className="flex justify-between text-[12.5px] text-emerald-700"><span className="inline-flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />{p.name}</span><span className="tabular-nums">−{peso(p.discount)}</span></p>
+          ))}
+        </div>
+      )}
+      <div className="grid sm:grid-cols-2 gap-x-5 gap-y-3 px-4 sm:px-5 py-3.5 border-t border-stone-100 bg-stone-50/60">
+        <VoucherField label="Shop voucher" wallet={wallet} result={store.store_voucher} onPick={onPickVoucher} onApply={onApplyVoucher} />
         <div>
-          <label htmlFor={`note-${store.seller.id}`} className="block text-[12px] font-medium text-stone-600 mb-1">Note to the shop <span className="text-stone-400">(optional)</span></label>
+          <label htmlFor={`note-${store.seller.id}`} className="flex items-baseline justify-between text-[12.5px] font-semibold text-stone-800 mb-1.5">
+            <span>Note to the shop <span className="font-normal text-stone-400">(optional)</span></span>
+            <span className={`text-[11px] font-normal tabular-nums ${noteError ? 'text-brand-red' : 'text-stone-400'}`}>{note.length}/{NOTE_MAX}</span>
+          </label>
           <input id={`note-${store.seller.id}`} type="text" value={note} onChange={(e) => onNote(e.target.value)} placeholder="e.g. Paki-wrap po as gift"
             aria-invalid={!!noteError}
             className={`w-full h-10 px-3 text-[13px] bg-white border rounded-xl outline-none focus:ring-2 focus:ring-brand-red/10 ${noteError ? 'border-brand-red' : 'border-stone-300 focus:border-brand-red'}`} />
-          <p className={`mt-1 text-[11px] tabular-nums ${noteError ? 'text-brand-red font-medium' : 'text-stone-400'}`}>{noteError ?? `${note.length}/${NOTE_MAX}`}</p>
+          {noteError && <p className="mt-1 text-[11.5px] font-medium text-brand-red">{noteError}</p>}
         </div>
       </div>
+      <p className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3 border-t border-stone-100 text-[13px]">
+        <span className="flex items-start gap-2 text-stone-600 min-w-0">
+          <Truck className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+          {ship.serviceable
+            ? <span>{ship.route ?? 'Standard delivery'} · {ship.chargeable_kg} kg charged{ship.weight_grams > 0 ? ` (${(ship.weight_grams / 1000).toLocaleString()} kg)` : ''}</span>
+            : <span className="text-brand-red font-medium">{ship.message}</span>}
+        </span>
+        {ship.serviceable && (ship.free_delivery
+          ? <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 shrink-0"><Gift className="w-3.5 h-3.5" /> Free</span>
+          : <span className="font-semibold text-stone-900 tabular-nums shrink-0">{peso(ship.fee)}</span>)}
+      </p>
     </section>
   );
 }
 
 /**
- * Picks one voucher of a kind: from the wallet (with what each would take off this order) or by typing a code. A new
- * choice replaces the old one (A2). The server's verdict on the chosen code is shown under it.
+ * One voucher of a kind: a typed code (checked by the server before it is kept) or one from the buyer's wallet. An
+ * applied voucher shows what it takes off; one that stopped applying shows why, with a way to remove it.
  */
-function VoucherPicker({ label, wallet, code, onCode, result, compact }: {
-  label: string; wallet: WalletVoucher[]; code: string; onCode: (c: string) => void;
-  result: { code: string; applied: boolean; discount: number; message: string | null } | null; compact?: boolean;
+function VoucherField({ label, wallet, result, onPick, onApply }: {
+  label: string; wallet: WalletVoucher[]; result: QuoteVoucher | null; onPick: (c: string) => void; onApply: (c: string) => Promise<boolean>;
 }) {
   const [typed, setTyped] = useState('');
-  const active = code.toUpperCase();
+  const [checking, setChecking] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
+  const usable = wallet.filter((v) => v.applicable).length;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!typed.trim() || checking) return;
+    setChecking(true);
+    if (await onApply(typed)) setTyped('');
+    setChecking(false);
+  };
 
   return (
-    <div className={compact ? '' : 'rounded-2xl border border-stone-200 p-4'}>
-      <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-stone-800"><Ticket className="w-3.5 h-3.5 text-brand-red" /> {label}</p>
-      {wallet.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {wallet.map((v) => {
-            const on = active === v.code;
-            return (
-              <button key={v.id} type="button" onClick={() => onCode(on ? '' : v.code)} disabled={!v.applicable && !on} aria-pressed={on}
-                title={v.applicable ? `Saves ${peso(v.discount ?? 0)}` : v.message ?? undefined}
-                className={`px-2.5 py-1.5 rounded-xl border text-left text-[12px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${on ? 'border-brand-red bg-rose-50 text-brand-red' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'}`}>
-                <span className="block font-semibold">{v.label}</span>
-                <span className="block text-[10.5px] text-stone-500">{v.code} · min. {peso(v.min_spend)}{!v.applicable && v.message ? ` · ${v.message}` : ''}</span>
-              </button>
-            );
-          })}
+    <div>
+      <p className="flex items-baseline justify-between gap-2 mb-1.5">
+        <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-stone-800"><Ticket className="w-3.5 h-3.5 text-brand-red" /> {label}</span>
+        {wallet.length > 0 && !result && (
+          <button type="button" onClick={() => setShowWallet((s) => !s)} className="text-[11.5px] font-semibold text-brand-red hover:underline">
+            {showWallet ? 'Hide my vouchers' : `My vouchers (${usable})`}
+          </button>
+        )}
+      </p>
+      {result ? (
+        <div className={`flex items-center gap-2 h-10 px-3 rounded-xl border ${result.applied ? 'border-emerald-200 bg-emerald-50/70' : 'border-rose-200 bg-rose-50/70'}`}>
+          <span className={`font-mono text-[12px] font-semibold truncate ${result.applied ? 'text-emerald-800' : 'text-brand-red'}`}>{result.code}</span>
+          <span className={`flex-1 min-w-0 text-right text-[12px] truncate ${result.applied ? 'font-semibold text-emerald-700 tabular-nums' : 'text-brand-red'}`} title={result.message ?? undefined}>
+            {result.applied ? `−${peso(result.discount)}` : result.message}
+          </span>
+          <button type="button" onClick={() => onPick('')} className="w-6 h-6 -mr-1 rounded-md flex items-center justify-center text-stone-500 hover:text-stone-900 hover:bg-white" aria-label={`Remove ${result.code}`}><X className="w-3.5 h-3.5" /></button>
         </div>
+      ) : (
+        <form className="flex gap-1.5" onSubmit={submit}>
+          <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Enter a code" aria-label={`${label} code`} maxLength={40}
+            className="flex-1 min-w-0 h-10 px-3 text-[13px] uppercase placeholder:normal-case bg-white border border-stone-300 rounded-xl outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10" />
+          <button type="submit" disabled={!typed.trim() || checking} className="h-10 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-[12.5px] font-semibold flex items-center disabled:opacity-40">
+            {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+          </button>
+        </form>
       )}
-      <form className="mt-2 flex gap-1.5" onSubmit={(e) => { e.preventDefault(); if (typed.trim()) { onCode(typed.trim()); setTyped(''); } }}>
-        <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Enter a voucher code" aria-label={`${label} code`}
-          className="flex-1 min-w-0 h-9 px-3 text-[13px] uppercase border border-stone-300 rounded-xl outline-none focus:border-brand-red" />
-        <button type="submit" className="h-9 px-3 rounded-xl bg-stone-900 text-white text-[12px] font-semibold">Apply</button>
-      </form>
-      {result && (
-        <p role="status" className={`mt-1.5 flex items-center justify-between gap-2 text-[12px] ${result.applied ? 'text-emerald-700' : 'text-brand-red'}`}>
-          <span>{result.code}: {result.applied ? `−${peso(result.discount)}` : result.message}</span>
-          <button type="button" onClick={() => onCode('')} className="text-stone-500 hover:text-stone-900" aria-label={`Remove ${result.code}`}><X className="w-3.5 h-3.5" /></button>
-        </p>
+      {showWallet && !result && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {wallet.map((v) => (
+            <button key={v.id} type="button" onClick={() => { onPick(v.code); setShowWallet(false); }} disabled={!v.applicable}
+              title={v.applicable ? `Saves ${peso(v.discount ?? 0)}` : v.message ?? undefined}
+              className="px-2.5 py-1.5 rounded-lg border border-stone-300 bg-white text-left text-[12px] text-stone-700 hover:border-stone-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <span className="block font-semibold">{v.label}</span>
+              <span className="block text-[10.5px] text-stone-500">{v.code} · min. {peso(v.min_spend)}{!v.applicable && v.message ? ` · ${v.message}` : ''}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -551,6 +653,7 @@ function Placed({ orders, method }: { orders: Order[]; method: Method }) {
               ? 'The shop checks your GCash receipt first. Once it is confirmed, your order is packed and handed to the courier.'
               : `Prepare ${peso(total)} in cash for the rider${orders.length > 1 ? 's (each parcel is paid separately)' : ''}.`}
           </p>
+          <p className="mt-2 text-[12.5px] text-stone-500 text-left px-1">The shop will message you in Messages to confirm your delivery address.</p>
           <div className="mt-6 flex flex-col sm:flex-row gap-2">
             <Link to="/settings/orders" className="flex-1 h-11 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center transition-colors">Track my orders</Link>
             <Link to="/" className="flex-1 h-11 rounded-full border border-stone-300 text-sm font-semibold text-stone-800 hover:border-stone-900 flex items-center justify-center">Keep shopping</Link>
@@ -591,24 +694,5 @@ export function CheckoutBar({ step }: { step: 1 | 2 | 3 }) {
           : <span className="inline-flex items-center gap-1.5 text-[12px] text-stone-500"><Lock className="w-3.5 h-3.5" /> Secure checkout</span>}
       </div>
     </div>
-  );
-}
-
-/** A numbered section of the checkout. */
-function Section({ step, title, hint, aside, children }: { step: number; title: string; hint?: string; aside?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-6">
-      <header className="flex items-start justify-between gap-3 mb-5">
-        <div className="flex items-start gap-3">
-          <span className="w-7 h-7 rounded-full bg-stone-900 text-white text-[13px] font-semibold flex items-center justify-center shrink-0 mt-0.5">{step}</span>
-          <div>
-            <h2 className="text-[17px] font-semibold text-stone-900">{title}</h2>
-            {hint && <p className="text-[13px] text-stone-500 mt-0.5">{hint}</p>}
-          </div>
-        </div>
-        {aside}
-      </header>
-      {children}
-    </section>
   );
 }

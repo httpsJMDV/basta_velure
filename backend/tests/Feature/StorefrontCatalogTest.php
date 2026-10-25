@@ -164,6 +164,30 @@ class StorefrontCatalogTest extends TestCase
             ->assertJsonPath('data.original_price', null);
     }
 
+    public function test_a_sale_or_promotion_runs_at_most_90_days(): void
+    {
+        Sanctum::actingAs($this->seller);
+        $id = $this->postJson('/api/v1/seller/products', [
+            'name' => 'Linen Shirt', 'description' => '<p>Linen</p>', 'status' => 'draft',
+            'variants' => [['label' => 'M', 'price' => 900, 'stock' => 5]],
+        ])->assertCreated()->json('data.id');
+        $start = \Carbon\CarbonImmutable::now('Asia/Manila')->addHour();
+        $sale = fn (int $days) => $this->postJson('/api/v1/seller/sales', [
+            'product_id' => $id, 'discount_type' => 'percent', 'discount_percent' => 10,
+            'starts_at' => $start->format('Y-m-d H:i:s'), 'ends_at' => $start->addDays($days)->format('Y-m-d H:i:s'),
+        ]);
+
+        // A year-long sale (the year mistyped) is refused with the last allowed end date.
+        $sale(365)->assertStatus(422)->assertJsonPath('errors.ends_at.0',
+            'A sale can run for at most 90 days. Choose an end on or before ' . $start->addDays(90)->format('M j, Y g:i A') . '.');
+        $this->postJson('/api/v1/seller/promotions', [
+            'type' => 'bundle', 'name' => 'Buy 2 shirts', 'product_ids' => [$id], 'min_quantity' => 2, 'discount_percent' => 10,
+            'starts_at' => $start->format('Y-m-d H:i:s'), 'ends_at' => $start->addDays(91)->format('Y-m-d H:i:s'),
+        ])->assertStatus(422)->assertJsonValidationErrors('ends_at');
+
+        $sale(90)->assertCreated();
+    }
+
     public function test_shops_to_know_lists_the_most_ordered_shops_with_their_best_sellers(): void
     {
         $category = $this->category('storefront-test-shops');

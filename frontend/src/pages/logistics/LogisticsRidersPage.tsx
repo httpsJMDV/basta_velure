@@ -13,7 +13,8 @@ import {
   FilterPanel, SearchField, StatusTabs, ListCard, ListEmpty, ListError, Avatar, Pill, SkeletonRows, TH, TD, ROW, rowKeys,
   formatShortDate, relativeTime, type PillTone,
 } from '../../components/admin/listKit';
-import { getLogisticsHubsApi, openAuthorizedFile } from '../../api/client';
+import { getLogisticsHubsApi, getLogisticsMeApi, openAuthorizedFile } from '../../api/client';
+import RiderApplyLink from '../../components/logistics/RiderApplyLink';
 import {
   addCompanyRiderApi, approveCompanyRiderApi, getCompanyRiderApi, getCompanyRidersApi, reactivateCompanyRiderApi,
   rejectCompanyRiderApi, resendRiderActivationApi, suspendCompanyRiderApi,
@@ -28,14 +29,18 @@ const TONE: Record<RiderStatus, PillTone> = { ACTIVE: 'emerald', PENDING: 'amber
 const LABEL: Record<RiderStatus, string> = {
   ACTIVE: 'Active', PENDING: 'Waiting for verification', DISAPPROVED: 'Not approved', PENDING_ACTIVATION: 'Pending activation', SUSPENDED: 'Suspended',
 };
+/** An application from the public form reads "New application", not "Waiting for verification". */
+const statusLabel = (r: LogisticsRiderRow) => (r.applicant ? 'New application' : LABEL[r.status]);
 const VEHICLES = ['Motorcycle', 'Tricycle', 'Car', 'Van'].map((v) => ({ value: v, label: v }));
 const ACTION_LABEL: Record<string, string> = {
   'rider.added': 'Rider added', 'rider.activation_resent': 'Activation email resent', 'rider.approved': 'Approved',
   'rider.rejected': 'Rejected', 'rider.suspended': 'Suspended', 'rider.reactivated': 'Reactivated',
   'rider.vehicle_changed': 'Vehicle changed by rider', 'rider.license_changed': 'License changed by rider',
+  'rider.applied': 'Applied online', 'rider.reapplied': 'Applied again', 'rider.application_approved': 'Application approved',
+  'rider.application_rejected': 'Application rejected',
 };
 
-type Filter = '' | RiderStatus | 'ONLINE' | 'VERIFY';
+type Filter = '' | RiderStatus | 'ONLINE' | 'VERIFY' | 'APPLICATIONS';
 
 function Jobs({ n, max }: { n: number; max: number }) {
   return (
@@ -67,6 +72,9 @@ export default function LogisticsRidersPage() {
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [company, setCompany] = useState<{ id: number; name: string } | null>(null);
+
+  useEffect(() => { getLogisticsMeApi().then((c) => setCompany({ id: c.id, name: c.name })).catch(() => setCompany(null)); }, []);
 
   const load = useCallback(() => {
     setFailed(false);
@@ -82,8 +90,9 @@ export default function LogisticsRidersPage() {
     const q = search.trim().toLowerCase();
     return (riders ?? []).filter((r) => {
       if (filter === 'ONLINE' && !r.online) return false;
-      if (filter === 'VERIFY' && !(r.status === 'PENDING' || r.needs_reverification)) return false;
-      if (filter && !['ONLINE', 'VERIFY'].includes(filter) && r.status !== filter) return false;
+      if (filter === 'VERIFY' && !((r.status === 'PENDING' && !r.applicant) || r.needs_reverification)) return false;
+      if (filter === 'APPLICATIONS' && !r.applicant) return false;
+      if (filter && !['ONLINE', 'VERIFY', 'APPLICATIONS'].includes(filter) && r.status !== filter) return false;
       return !q || r.name.toLowerCase().includes(q) || (r.email ?? '').toLowerCase().includes(q)
         || r.plate_number.toLowerCase().includes(q) || (r.license_number ?? '').toLowerCase().includes(q);
     });
@@ -104,6 +113,15 @@ export default function LogisticsRidersPage() {
         <button type="button" className={HERO_BUTTON} onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add rider</button>
       </PageHero>
 
+      {company && (
+        <RiderApplyLink
+          query={`courier=${company.id}`}
+          title="Rider application link"
+          hint="Riders who apply through it choose one of your hubs. The application shows up under Applications here and in that hub's Riders page."
+          fileName={`rider-application-${company.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+        />
+      )}
+
       <FilterPanel>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <StatusTabs
@@ -114,6 +132,7 @@ export default function LogisticsRidersPage() {
               { value: '', label: 'All', count: summary?.total ?? null },
               { value: 'ONLINE', label: 'Online', count: summary?.online ?? null },
               { value: 'ACTIVE', label: 'Active', count: summary?.active ?? null },
+              { value: 'APPLICATIONS', label: 'Applications', count: summary?.applications ?? null },
               { value: 'PENDING_ACTIVATION', label: 'Pending activation', count: summary?.pending_activation ?? null },
               { value: 'VERIFY', label: 'Needs verification', count: summary?.pending_verification ?? null },
               { value: 'SUSPENDED', label: 'Suspended', count: summary?.suspended ?? null },
@@ -158,7 +177,7 @@ export default function LogisticsRidersPage() {
                     </td>
                     <td className={TD}>
                       <div className="flex flex-wrap gap-1">
-                        <Pill tone={TONE[r.status]}>{LABEL[r.status]}</Pill>
+                        <Pill tone={TONE[r.status]}>{statusLabel(r)}</Pill>
                         {r.needs_reverification && r.status === 'ACTIVE' && <Pill tone="amber">Re-verify documents</Pill>}
                       </div>
                     </td>
@@ -216,7 +235,7 @@ function RiderPanel({ id, onClose, onChanged, max }: { id: number | null; onClos
 
   return (
     <SidePanel open={id !== null} onClose={onClose} title={rider?.name ?? 'Rider'}
-      subtitle={rider ? <span className="inline-flex items-center gap-2"><Pill tone={TONE[rider.status]}>{LABEL[rider.status]}</Pill><Availability r={rider} /></span> : 'Loading…'}
+      subtitle={rider ? <span className="inline-flex items-center gap-2"><Pill tone={TONE[rider.status]}>{statusLabel(rider)}</Pill><Availability r={rider} /></span> : 'Loading…'}
       footer={rider && (
         <div className="flex flex-wrap gap-2 justify-end">
           {rider.status === 'PENDING_ACTIVATION' && (
@@ -234,7 +253,7 @@ function RiderPanel({ id, onClose, onChanged, max }: { id: number | null; onClos
               </button>
             </>
           )}
-          {(rider.status === 'ACTIVE' || rider.status === 'PENDING') && (
+          {(rider.status === 'ACTIVE' || (rider.status === 'PENDING' && !rider.applicant)) && (
             <button type="button" className={BUTTON.danger} disabled={busy} onClick={() => { setDialogError(undefined); setDialog('suspend'); }}>
               <span className="inline-flex items-center gap-1.5"><ShieldOff className="w-4 h-4" /> Suspend</span>
             </button>
@@ -254,6 +273,12 @@ function RiderPanel({ id, onClose, onChanged, max }: { id: number | null; onClos
           )}
           {rider.status === 'DISAPPROVED' && rider.rejection_reason && (
             <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-800"><span className="font-semibold">Not approved:</span> {rider.rejection_reason}</p>
+          )}
+          {rider.applicant && (
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+              Applied online {rider.applied_at ? relativeTime(rider.applied_at) : ''} to ride for {rider.hub_name ?? 'one of your hubs'}. Check the documents below.
+              Approving emails them a link to set their password; the hub can decide too.
+            </p>
           )}
           {rider.needs_reverification && rider.status === 'ACTIVE' && (
             <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">The rider changed their vehicle or license documents. Open them below, then approve or reject.</p>

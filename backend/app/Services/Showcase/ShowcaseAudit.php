@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\Validator;
  */
 class ShowcaseAudit
 {
-    private const ID_TYPES = 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id,school_id';
+    private const ID_TYPES = 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id';
     private const PSGC = ['required', 'string', 'regex:/^\d{9,10}$/'];
 
     /** @var array<int, array{account: string, check: string, problem: string}> */

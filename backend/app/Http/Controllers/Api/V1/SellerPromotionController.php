@@ -23,6 +23,9 @@ class SellerPromotionController extends Controller
 {
     private const TZ = 'Asia/Manila';
 
+    /** A store sale or promotion runs at most this long, so a mistyped year (2027 for 2026) cannot run for a year. */
+    public const MAX_RUN_DAYS = 90;
+
     /** GET /seller/promotions: every sale, flash sale, bundle and buy X get Y of the store with its status. */
     public function index(Request $request): JsonResponse
     {
@@ -126,6 +129,8 @@ class SellerPromotionController extends Controller
         }
         if ($end->lte($start)) {
             $errors['ends_at'] = 'The end must be after the start.';
+        } elseif ($end->gt($start->addDays(self::MAX_RUN_DAYS))) {
+            $errors['ends_at'] = self::tooLong($start);
         }
 
         if ($data['discount_type'] === 'fixed') {
@@ -273,6 +278,9 @@ class SellerPromotionController extends Controller
         if ($end->lte($start)) {
             throw ValidationException::withMessages(['ends_at' => 'The end must be after the start.']);
         }
+        if ($end->gt($start->addDays(self::MAX_RUN_DAYS))) {
+            throw ValidationException::withMessages(['ends_at' => self::tooLong($start)]);
+        }
         $ids = $type === 'bundle' ? $data['product_ids'] : [$data['buy_product_id'], $data['get_product_id']];
         if (Product::where('seller_id', $sellerId)->whereIn('id', array_unique($ids))->count() !== count(array_unique($ids))) {
             throw ValidationException::withMessages(['product_ids' => 'Choose products from your own store.']);
@@ -316,6 +324,12 @@ class SellerPromotionController extends Controller
         }
 
         return $product;
+    }
+
+    private static function tooLong(CarbonImmutable $start): string
+    {
+        return 'A sale can run for at most ' . self::MAX_RUN_DAYS . ' days. Choose an end on or before '
+            . $start->addDays(self::MAX_RUN_DAYS)->setTimezone(self::TZ)->format('M j, Y g:i A') . '.';
     }
 
     /** "2026-10-18 14:00" or an ISO string, read in Manila time. */
