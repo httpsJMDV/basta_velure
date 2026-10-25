@@ -14,7 +14,7 @@ Written from the code on branch `king/rider-seller-fixes`, October 20, 2026. The
 | **Seller** | A buyer who also runs a shop | Admin |
 | **Courier company** | Delivers parcels (like J&T or SPX). Runs hubs and riders. | Admin |
 | **Hub** | A sorting center that works under one courier company | That courier company (the admin can also decide, as a backup) |
-| **Rider** | Picks up parcels from shops and delivers them to buyers | Added by their courier company. There is no self sign-up. |
+| **Rider** | Picks up parcels from shops and delivers them to buyers | Applies online to a hub, which approves them (or their courier company does). The courier company can also add them directly. |
 | **Admin** | Runs Loved-IT: approvals, disputes, settings, reports | Created by the team |
 
 **Loved-IT does not run its own courier.** Every courier is a partner company. "Lakbay Express" is the default courier, used only for old orders and hubs that never had one.
@@ -26,7 +26,7 @@ Written from the code on branch `king/rider-seller-fixes`, October 20, 2026. The
 | Buyer becomes a seller? | Yes. It's the same account, and they can still shop. |
 | Buyer runs a hub or a courier company? | Yes, from their buyer account. |
 | Courier company member also runs a hub? | No. The app refuses it. |
-| Buyer or seller becomes a rider? | Not with the same account. The courier company adds the rider, which makes a new account with a different email. |
+| Buyer or seller becomes a rider? | Not with the same account. They apply on the Become a rider page (or the courier company adds them) with a different email, which makes a new account. |
 | Rider buys or sells? | Not with the rider account. They need a separate normal account. |
 
 ---
@@ -83,9 +83,14 @@ You can also sign up with **Google**. Google sign-ups must add their ID and addr
 
 ### Rider
 
-- **Riders can't sign up themselves.** The courier company adds each rider: name, birthday, email, mobile, driver's license number and expiry, vehicle type, plate number, and photos of the license and OR/CR.
-- The rider gets an email link to set their password. **It works once, for 24 hours.** The company can send a new one.
-- Setting the password makes the rider **Active**.
+- **Apply online** at `/register/rider` (linked from the footer, the Partner page and the rider sign-in page). The rider picks a hub and fills in: name, birthday, email, mobile, driver's license number and expiry, vehicle type, plate number, and photos of the license and OR/CR. No sign-in is needed, and the email must not belong to another account.
+- Each hub has its own link and QR code on its Riders page (`/register/rider?hub=…`, the hub is already picked), for Facebook posts and posters. The courier company has one for all its hubs (`?courier=…`).
+- The application is **Pending**. The rider can't sign in yet; signing in says it's still being reviewed.
+- **The hub approves or rejects it** on its Riders page. The courier company can also decide, on its own Riders page.
+  - **Approved:** the rider gets an email link to set their password.
+  - **Rejected:** the rider gets an email with the reason and can apply again with the same email.
+- **Or the courier company adds the rider directly** with the same details. The email link is sent right away.
+- The email link **works once, for 24 hours.** The company can send a new one. Setting the password makes the rider **Active**.
 
 ---
 
@@ -243,7 +248,10 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
   - with the **buyer** during delivery
   - with the **hub** during both
 
-  It closes when the parcel is done; old messages stay readable. Buyers can reply but **can't start** a chat with the rider. Riders find their messages on the **Account** page. Limits: 1000 characters per message, 20 messages a minute.
+  It closes when the parcel is done; old messages stay readable. The buyer can also start it with **Message rider** on Track Package while the parcel is out for delivery, and the "Out for delivery" notice names the rider ("Juan is bringing your parcel"). Riders find their messages on the **Account** page. Limits: 1000 characters per message, 20 messages a minute.
+- **Order confirmation:** after an order is placed, the shop's chat sends a card asking the buyer to confirm the delivery address.
+- **Courier ↔ hub chat:** each courier company has a private chat with each of its hubs (Messages in both portals). Loved-IT admins can't read it.
+- **Loved-IT Assistant (AI, off until a key is set):** answers the buyer's Loved-IT Support chat first. It can look up **only that buyer's** orders and explain the rules; it can't cancel, refund or change anything. "Talk to a person" hands the chat to the admins, and so does an admin's reply or any AI error.
 - **Notification bell:** every role has one. It updates live and shows a red count. Emails go out too. Sellers can choose which notifications they get by bell and by email.
 
 ---
@@ -252,7 +260,7 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
 
 ### Seller Center (`/seller`)
 
-- **Products:** drafts, publish, edit, duplicate, bulk activate, deactivate or delete, variants with price and stock, store categories (up to 3 per product). Published products go live right away.
+- **Products:** drafts, publish, edit, duplicate, bulk activate, deactivate or delete, variants with price and stock, store categories (up to 3 per product). Published products go live right away. With the **AI product check** on (off until a key is set), a published product waits in review while the AI (Groq's free plan by default) checks it: approved ones go live, unsure ones and ones it would reject go to the admin's Pending review list with the AI's reason, and if the AI can't be reached the admin decides.
 - **Promotions:** sales, flash sales, bundles, buy X get Y.
 - **Vouchers:** store vouchers.
 - **Orders:** tabs (New, To Ship, Shipping, Completed, Cancelled, Return/Refund), accept or reject payment, packing, waybill, cancel, answer returns, confirm returned parcels.
@@ -264,7 +272,7 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
 
 - **Dashboard** and **Reports**, with CSV and Excel exports.
 - **Hubs:** approve, reject, suspend or reactivate hubs that applied.
-- **Riders:** add, resend the activation link, verify, suspend with a reason (their jobs are released), reactivate.
+- **Riders:** add, approve or reject online applications, share the rider application link, resend the activation link, verify, suspend with a reason (their jobs are released), reactivate.
 - **Dispatch:** auto-assign, assign, bulk assign and reassign pickups. Includes the Unassigned list.
 - **Hub scanning:** Inbound, Sort, Outbound, with the camera.
 - **Parcels:** search, move a parcel forward with a reason (logged), mark Lost or Damaged, the Return to Sender queue.
@@ -275,7 +283,7 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
 ### Hub portal (`/hub`)
 
 - **Dashboard**, **Parcel Intake** (scan in), **Sorting**, **Dispatch** (assign to riders, show QR codes), **Deliveries** (out for delivery and failed: reschedule or return).
-- **Riders** (delivery areas), **Reports** (CSV, print), **Earnings**, **Messages**, **Settings**.
+- **Riders** (approve or reject applications, the apply link and QR code, delivery areas), **Reports** (CSV, print), **Earnings**, **Messages**, **Settings**.
 - The hub's name, address and coverage can't be edited there, because the courier approves them.
 
 ### Rider app (`/rider`), made for phones

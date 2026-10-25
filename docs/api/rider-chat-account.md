@@ -201,3 +201,15 @@ Additive migrations only:
 - `conversations`: `parcel_id` (FK `parcels`), `rider_id` (FK `users`, the rider's user), `sorting_center_id` (FK `sorting_centers`), `rider_unread`, `hub_unread`, a unique index `(parcel_id, rider_id, type)` and listing indexes. All nullable or defaulted, so existing conversations are untouched.
 - `riders`: `vehicle_updated_at` (nullable timestamp).
 - `messages` is unchanged.
+
+## The buyer starts the chat: `POST /api/v1/parcels/{tracking}/rider-chat`
+
+From Track package, the buyer can open the thread with the rider bringing their parcel (**Message rider**). Before this, only the rider could start it.
+
+- Allowed only while the parcel is `OUT_FOR_DELIVERY` and its assigned rider is `ACTIVE`; otherwise `409` "You can message the rider while your parcel is out for delivery." Anyone but the order's buyer, and an unknown tracking number, gets `404`.
+- Finds or creates the same `rider_buyer` thread the rider would open (unique on parcel, rider and type), so both sides always land in one thread. `201` when created, `200` when it already existed; the body is the conversation as `GET /conversations/{id}` returns it for the buyer.
+- Rate limited to 20 per minute. After that the thread follows the normal rules above (open during `ASSIGNED_TO_RIDER` and `OUT_FOR_DELIVERY`, read-only afterwards).
+
+## Out for delivery names the rider
+
+When an order enters `OUT_FOR_DELIVERY`, the buyer's in-app notification reads "Juan is bringing your parcel" and the email title "Juan is bringing your parcel today.", with the rider's first name only (`Parcel::deliveryRiderFirstName`). Without an assigned rider the old wording is kept.

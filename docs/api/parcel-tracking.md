@@ -38,12 +38,14 @@ Anyone else, and an unknown tracking number, gets the same `404` (it reveals not
   "events": [
     { "status": "OUT_FOR_DELIVERY", "title": "Out for delivery", "detail": "Your package is out for delivery.", "at": "...", "proof": false }
   ],
-  "proof": { "count": 2, "delivered_at": null, "received_by": null }
+  "proof": { "count": 2, "delivered_at": null, "received_by": null },
+  "can_message_rider": true
 } }
 ```
 
 - `events` come from the order's status history, **newest first**. The `DELIVERED` event has `proof: true` when delivery photos exist; the photos are fetched from `GET /parcels/{tracking}/delivery-proof` and `?photo=2` (`docs/api/rider-delivery-outcomes.md`).
 - `hub` is `null` when the parcel has no hub yet.
+- `can_message_rider` is true only for the buyer, while the parcel is `OUT_FOR_DELIVERY` with an active rider. The web app then shows **Message rider**, which calls `POST /parcels/{tracking}/rider-chat` (`docs/api/rider-chat-account.md`).
 - `courier.name` is the first name and the last initial only. The courier's phone, email and ids are never in this payload.
 
 ### Courier `state`
