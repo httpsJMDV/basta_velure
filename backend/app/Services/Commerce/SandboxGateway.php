@@ -59,6 +59,7 @@ class SandboxGateway
                     app(Notifier::class)->newOrder($o, paid: true);
                     app(MailNotifier::class)->sellerNewOrder($o);
                 }
+                app(OrderConfirmationMessenger::class)->ordersPlaced($open);
 
                 return ['session' => $s->fresh(), 'changed' => true, 'message' => 'Payment received. Your order is now To Ship.'];
             }

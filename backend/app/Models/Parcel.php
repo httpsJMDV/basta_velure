@@ -253,6 +253,17 @@ class Parcel extends Model
         return $this->belongsTo(Rider::class, 'assigned_rider_id');
     }
 
+    /** The first name of the rider bringing an order's parcel (riders are named by first name only), or null. */
+    public static function deliveryRiderFirstName(?int $orderId): ?string
+    {
+        if ($orderId === null) {
+            return null;
+        }
+        $name = trim((string) static::with('assignedRider.user:id,first_name')->where('order_id', $orderId)->first()?->assignedRider?->user?->first_name);
+
+        return $name !== '' ? $name : null;
+    }
+
     public function pickupRider(): BelongsTo
     {
         return $this->belongsTo(Rider::class, 'pickup_rider_id');

@@ -86,6 +86,8 @@ class ConversationUpdated implements ShouldBroadcastNow
                 ] : null,
                 'last_message_at' => $this->conversation->last_message_at?->toISOString() ?? $this->conversation->created_at->toISOString(),
                 'unread' => $this->unreadCount,
+                'support_mode' => app(\App\Services\SupportChat::class)->modeOf($this->conversation),
+                'assistant_available' => $this->conversation->type === 'buyer_admin' && \App\Services\SupportChat::enabled(),
                 'created_at' => $this->conversation->created_at->toISOString(),
             ],
             'unread_total' => $this->unreadCount,

@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Mail\NoticeMail;
 use App\Models\LogisticsCompany;
 use App\Models\Order;
+use App\Models\Parcel;
 use App\Models\PayoutRequest;
 use App\Models\Product;
 use App\Models\Rider;
@@ -112,20 +113,47 @@ class MailNotifier
         ]);
     }
 
-    /** The one-time link a rider added by their courier company uses to set a password (A13). */
-    public function riderActivation(User $user, string $companyName, string $link, int $hours): void
+    /**
+     * The one-time link a rider uses to set a password (A13): sent when their courier company adds them, or when the
+     * hub ($approvedHub) approves the application they made on the "Become a rider" form.
+     */
+    public function riderActivation(User $user, string $companyName, string $link, int $hours, ?string $approvedHub = null): void
     {
-        $this->sendNow($user->email, $user->first_name, 'Activate your Loved-IT rider account', 'rider_activation', [
-            'label' => 'Rider account',
-            'title' => 'Set your password to start delivering.',
+        $this->sendNow($user->email, $user->first_name, $approvedHub ? 'Your Loved-IT rider application is approved' : 'Activate your Loved-IT rider account', 'rider_activation', [
+            'tone' => $approvedHub ? 'success' : null,
+            'label' => $approvedHub ? 'Rider application' : 'Rider account',
+            'title' => $approvedHub ? 'You are approved. Set your password to start.' : 'Set your password to start delivering.',
             'paragraphs' => [
-                "{$companyName} added you as a rider on Loved-IT. Open the link below to set your password and activate your account.",
+                $approvedHub
+                    ? "{$approvedHub} ({$companyName}) approved your rider application. Open the link below to set your password and activate your account."
+                    : "{$companyName} added you as a rider on Loved-IT. Open the link below to set your password and activate your account.",
             ],
-            'details' => ['Company' => $companyName, 'Sign-in email' => $user->email],
+            'details' => array_filter(['Company' => $companyName, 'Hub' => $approvedHub, 'Sign-in email' => $user->email]),
             'actionUrl' => $link,
             'actionLabel' => 'Activate my account',
             'note' => "The link works once, for {$hours} hours. If it expires, ask {$companyName} to send a new one.",
-            'footer' => 'You received this email because a courier company added you as a rider on Loved-IT.',
+            'footer' => $approvedHub
+                ? 'You received this email because you applied to ride for a courier on Loved-IT.'
+                : 'You received this email because a courier company added you as a rider on Loved-IT.',
+        ]);
+    }
+
+    /** The hub or the courier did not approve an application made on the "Become a rider" form. */
+    public function riderApplicationRejected(Rider $rider, string $reason): void
+    {
+        $hub = $rider->sortingCenter?->hub_name ?? 'The hub';
+        $this->send($rider->user, 'Update on your Loved-IT rider application', 'rider_application_rejected', [
+            'tone' => 'danger',
+            'label' => 'Rider application',
+            'title' => 'Your application was not approved.',
+            'paragraphs' => [
+                "{$hub} reviewed your rider application and could not approve it.",
+                'You can fix what they pointed out and apply again with the same email.',
+            ],
+            'highlight' => ['title' => 'Reason', 'body' => $reason],
+            'actionUrl' => $this->url('/register/rider' . ($rider->sorting_center_id ? '?hub=' . $rider->sorting_center_id : '')),
+            'actionLabel' => 'Apply again',
+            'footer' => 'You received this email because you applied to be a Loved-IT rider.',
         ]);
     }
 
@@ -206,6 +234,7 @@ class MailNotifier
         ]);
     }
 
+    /** A visitor applied on the "Become a rider" form: the applicant and the hub that reviews it are told. */
     public function riderApplicationReceived(Rider $rider): void
     {
         $hubName = $rider->sortingCenter?->hub_name ?? 'the hub';
@@ -216,12 +245,10 @@ class MailNotifier
             'title' => 'Your rider application is in.',
             'paragraphs' => [
                 'Thank you for applying to deliver for ' . $hubName . '.',
-                'The hub reviews your OR/CR and driver\'s license and will email you its decision. You can keep shopping meanwhile.',
+                'The hub checks your driver\'s license and OR/CR, usually within 1 to 3 business days. If they approve you, we email you a link to set your password; you cannot sign in until then.',
             ],
             'details' => ['Hub' => $hubName, 'Vehicle' => $rider->vehicle_type . ' · ' . $rider->plate_number, 'Status' => 'Waiting for the hub'],
-            'actionUrl' => $this->url('/register/rider'),
-            'actionLabel' => 'View application status',
-            'footer' => 'You received this email because you applied to be a rider on Loved-IT.',
+            'footer' => 'You received this email because someone applied to be a Loved-IT rider with this address. If it was not you, you can ignore it.',
         ]);
 
         // The hub that must review it.
@@ -497,6 +524,7 @@ class MailNotifier
             'Order total' => $this->peso($order->total) . ($order->payment_method === 'cod' ? ' (cash on delivery)' : ''),
         ]);
         $buyerLink = ['actionUrl' => $this->url('/settings/orders'), 'actionLabel' => 'View your order'];
+        $rider = $to === OrderStatus::OUT_FOR_DELIVERY->value ? Parcel::deliveryRiderFirstName($order->id) : null;
         $buyerFooter = ['footer' => 'You received this email because you placed an order on Loved-IT.'];
 
         // An accepted return (DISPUTED -> RETURNED) is told by returnResolved(), not as a failed delivery.
@@ -509,9 +537,10 @@ class MailNotifier
                     : $shop . ' confirmed your order and will start preparing it.']],
             OrderStatus::PICKED_UP->value => ['tone' => 'info', 'label' => 'Order shipped', 'title' => 'Your order is on its way.',
                 'paragraphs' => ['A courier picked up your parcel from ' . $shop . '. It is heading to the sorting hub near you.']],
-            OrderStatus::OUT_FOR_DELIVERY->value => ['tone' => 'info', 'label' => 'Out for delivery', 'title' => 'Your parcel arrives today.',
+            OrderStatus::OUT_FOR_DELIVERY->value => ['tone' => 'info', 'label' => 'Out for delivery',
+                'title' => $rider ? $rider . ' is bringing your parcel today.' : 'Your parcel arrives today.',
                 'paragraphs' => array_values(array_filter([
-                    'A courier is bringing your parcel to you now. Keep your phone nearby.',
+                    ($rider ? $rider . ', your rider, is' : 'A courier is') . ' bringing your parcel to you now. Keep your phone nearby.',
                     $order->payment_method === 'cod' ? 'Please prepare ' . $this->peso($order->total) . ' in cash.' : null,
                 ]))],
             OrderStatus::DELIVERED->value => ['tone' => 'success', 'label' => 'Delivered', 'title' => 'Your parcel was delivered.',

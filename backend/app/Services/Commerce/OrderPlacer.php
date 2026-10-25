@@ -178,6 +178,10 @@ class OrderPlacer
                     app(Notifier::class)->newOrder($order);
                 }
             }
+            // Each shop asks the buyer in chat to confirm the delivery address (an e-wallet or card order once paid).
+            if (! $gateway) {
+                app(OrderConfirmationMessenger::class)->ordersPlaced($orders);
+            }
 
             return ['repeated' => false, 'orders' => $orders, 'checkout_group_id' => $groupId, 'session' => $session];
         });

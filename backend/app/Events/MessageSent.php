@@ -45,6 +45,11 @@ class MessageSent implements ShouldBroadcastNow
         $senderName = $sender
             ? ($riderSender ? $sender->first_name : $sender->first_name.' '.$sender->last_name)
             : 'User';
+        // The Loved-IT Assistant (Amaru task 8) has no sender account.
+        if ($this->message->sender_kind === 'ai') {
+            $senderRole = 'assistant';
+            $senderName = \App\Services\SupportChat::ASSISTANT_NAME;
+        }
 
         return [
             'id' => $this->message->id,

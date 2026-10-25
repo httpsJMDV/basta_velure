@@ -18,6 +18,7 @@ class Product extends Model
         'fda_lto_path', 'fda_cpr_path', 'net_weight_volume',
         'expiry_best_before', 'ingredients', 'storage_instructions', 'allergen_info',
         'variation_types', 'purchase_limit', 'publish_key', 'published_at', 'low_stock_alert', 'low_stock_threshold',
+        'ai_review_status', 'ai_review_verdict', 'ai_review_reason', 'ai_reviewed_at',
     ];
 
     /** Order statuses after which an order no longer holds a product or variant (A19). */
@@ -37,6 +38,7 @@ class Product extends Model
         'variation_types' => 'array',
         'purchase_limit' => 'integer',
         'published_at'   => 'datetime',
+        'ai_reviewed_at' => 'datetime',
     ];
 
     public function storeCategories(): \Illuminate\Database\Eloquent\Relations\BelongsToMany

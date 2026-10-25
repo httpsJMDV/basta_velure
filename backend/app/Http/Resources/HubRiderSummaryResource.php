@@ -26,6 +26,9 @@ class HubRiderSummaryResource extends JsonResource
             'plate_number'       => $this->plate_number,
             'status'             => $this->status,
             'submitted_at'       => $this->submitted_at?->toIso8601String(),
+            // Applied on the public form and waiting for a decision (approving emails the activation link)
+            'applicant'          => $this->isApplicant(),
+            'applied_at'         => $this->applied_at?->toIso8601String(),
             'active_areas_count' => $this->relationLoaded('areaAssignments')
                 ? $this->areaAssignments->where('is_active', true)->count()
                 : $this->areaAssignments()->where('is_active', true)->count(),

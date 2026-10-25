@@ -89,7 +89,8 @@ class LogisticsRiderController extends Controller
                 'online'             => $rows->where('online', true)->count(),
                 'active'             => $riders->where('status', Rider::STATUS_ACTIVE)->count(),
                 'pending_activation' => $riders->where('status', Rider::STATUS_PENDING_ACTIVATION)->count(),
-                'pending_verification' => $riders->filter(fn ($r) => $r->status === Rider::STATUS_PENDING || $r->needs_reverification)->count(),
+                'pending_verification' => $riders->filter(fn ($r) => ($r->status === Rider::STATUS_PENDING && ! $r->isApplicant()) || $r->needs_reverification)->count(),
+                'applications'       => $riders->filter(fn (Rider $r) => $r->isApplicant())->count(),
                 'suspended'          => $riders->where('status', Rider::STATUS_SUSPENDED)->count(),
                 'max_active_jobs'    => Rider::MAX_ACTIVE_JOBS,
             ],
@@ -159,6 +160,16 @@ class LogisticsRiderController extends Controller
         abort_unless($r->status === Rider::STATUS_PENDING || ($r->status === Rider::STATUS_ACTIVE && $r->needs_reverification), 409,
             'Only a rider waiting for verification can be approved.');
 
+        // An application from the public form: approving it emails the link to set a password.
+        if ($r->isApplicant()) {
+            $r = $this->onboarding->approveApplication($r, $request->user(), 'logistics');
+
+            return response()->json([
+                'message' => 'Application approved. We emailed ' . $r->user->email . ' a link to set a password; it works for 24 hours.',
+                'data'    => $this->row($r->fresh(['user', 'sortingCenter']), 0, 0),
+            ]);
+        }
+
         $old = ['status' => $r->status, 'needs_reverification' => $r->needs_reverification];
         $r->forceFill([
             'status' => Rider::STATUS_ACTIVE, 'needs_reverification' => false, 'rejection_reason' => null,
@@ -178,6 +189,12 @@ class LogisticsRiderController extends Controller
         $r = $this->riderOr404($request, $rider);
         abort_unless($r->status === Rider::STATUS_PENDING || ($r->status === Rider::STATUS_ACTIVE && $r->needs_reverification), 409,
             'Only a rider waiting for verification can be rejected.');
+
+        if ($r->isApplicant()) {
+            $this->onboarding->rejectApplication($r, $request->user(), $reason, 'logistics');
+
+            return response()->json(['message' => 'Application rejected. We emailed the applicant your reason; they can apply again.']);
+        }
 
         $old = ['status' => $r->status];
         $r->forceFill([
@@ -201,6 +218,7 @@ class LogisticsRiderController extends Controller
         $reason = $request->validate(['reason' => Validation::reason()], Validation::reasonMessages())['reason'];
         $r = $this->riderOr404($request, $rider);
         abort_if($r->status === Rider::STATUS_SUSPENDED, 409, 'This rider is already suspended.');
+        abort_if($r->isApplicant(), 409, 'This is an application, not a rider yet. Approve or reject it instead.');
         abort_unless(in_array($r->status, [Rider::STATUS_ACTIVE, Rider::STATUS_PENDING], true), 409, 'Only an active rider can be suspended.');
 
         $released = DB::transaction(function () use ($request, $r, $reason) {
@@ -284,6 +302,9 @@ class LogisticsRiderController extends Controller
             'activation_sent_at'    => $r->activation_sent_at?->toIso8601String(),
             'activation_expires_at' => $r->activation_expires_at?->toIso8601String(),
             'activated_at'          => $r->activated_at?->toIso8601String(),
+            // Applied on the public form and waiting for a decision
+            'applicant'             => $r->isApplicant(),
+            'applied_at'            => $r->applied_at?->toIso8601String(),
             'account_status'        => $u?->status,
             'created_at'            => $r->created_at?->toIso8601String(),
         ];

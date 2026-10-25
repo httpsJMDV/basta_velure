@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CheckProductWithAi;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\Ai\AiModel;
 use App\Services\Catalog\ProductEditor;
 use App\Services\Pricing\PriceBook;
 use App\Support\Validation;
@@ -17,7 +19,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * The seller's products (Seller workbook S4 to S6). A seller whose store is not approved yet can save drafts; only an
  * approved store publishes (A18). Publishing makes the product Active at once; a double-clicked Publish creates one
- * product (A37). A product or variant with unfinished orders cannot be deleted; other deletes are soft (A19).
+ * product (A37). With the AI product check on (Amaru task 7), a published product waits in review until the AI passes
+ * it (App\Jobs\CheckProductWithAi). A product or variant with unfinished orders cannot be deleted; other deletes are soft (A19).
  */
 class SellerProductController extends Controller
 {
@@ -66,9 +69,10 @@ class SellerProductController extends Controller
             throw ValidationException::withMessages($fda);
         }
         $data['publish_key'] = $key !== '' ? $key : null;
+        $check = $publish && $this->aiChecks();
 
         try {
-            $product = $this->editor->save(null, $data, $request, $user->id, $publish ? 'active' : 'draft');
+            $product = $this->editor->save(null, $data, $request, $user->id, $check ? 'pending_review' : ($publish ? 'active' : 'draft'));
         } catch (QueryException $e) {
             // Two identical submits at the same moment: the unique publish key lets only one in.
             if ($key !== '' && ($existing = Product::where('seller_id', $user->id)->where('publish_key', $key)->first())) {
@@ -76,9 +80,16 @@ class SellerProductController extends Controller
             }
             throw $e;
         }
+        if ($check) {
+            $product = $this->sendToAiCheck($product);
+        }
 
         return response()->json([
-            'message' => $publish ? 'Product published. Buyers can find it now.' : 'Draft saved.',
+            'message' => match ($product->status) {
+                'active'         => 'Product published. Buyers can find it now.',
+                'pending_review' => self::CHECKING,
+                default          => 'Draft saved.',
+            },
             'data'    => $this->formatProduct($product, PriceBook::for([$product->id])),
         ], 201);
     }
@@ -106,16 +117,22 @@ class SellerProductController extends Controller
             }
         }
 
+        // A product going live is checked; so is a live one whose name, description, category or photos change.
+        $check = $publish && $this->aiChecks() && ($product->status !== 'active' || $this->contentChanged($product, $data, $request));
         $status = match (true) {
+            $check                                 => 'pending_review',
             $publish                               => 'active',
             $request->input('status') === 'draft'  => 'draft',
             $request->input('status') === 'archived' => 'archived',
             default                                => $product->status,
         };
         $product = $this->editor->save($product, $data, $request, $request->user()->id, $status);
+        if ($check) {
+            $product = $this->sendToAiCheck($product);
+        }
 
         return response()->json([
-            'message' => 'Product saved.',
+            'message' => $check && $product->status === 'pending_review' ? 'Product saved. ' . self::CHECKING : 'Product saved.',
             'data'    => $this->formatProduct($product, PriceBook::for([$product->id])),
         ]);
     }
@@ -197,14 +214,23 @@ class SellerProductController extends Controller
             if ($problems = $this->editor->publishProblems($product)) {
                 throw ValidationException::withMessages($problems);
             }
-            $product->update(['status' => 'active', 'archived_by' => null, 'archive_reason' => null, 'published_at' => $product->published_at ?? now()]);
+            if ($product->status !== 'active' && $this->aiChecks()) {
+                $this->sendToAiCheck($product);
+            } else {
+                $product->update(['status' => 'active', 'archived_by' => null, 'archive_reason' => null, 'published_at' => $product->published_at ?? now()]);
+            }
         } else {
             $product->update(['status' => 'archived', 'archived_by' => 'seller', 'archive_reason' => null]);
         }
+        $product = $product->fresh(['variants', 'images', 'category', 'storeCategories']);
 
         return response()->json([
-            'message' => $target === 'active' ? 'Product is live.' : 'Product deactivated. Buyers no longer see it.',
-            'data'    => $this->formatProduct($product->fresh(['variants', 'images', 'category', 'storeCategories']), PriceBook::for([$product->id])),
+            'message' => match ($product->status) {
+                'active'         => 'Product is live.',
+                'pending_review' => self::CHECKING,
+                default          => 'Product deactivated. Buyers no longer see it.',
+            },
+            'data'    => $this->formatProduct($product, PriceBook::for([$product->id])),
         ]);
     }
 
@@ -237,6 +263,7 @@ class SellerProductController extends Controller
 
         $done = [];
         $skipped = [];
+        $check = $data['action'] === 'activate' && $this->aiChecks();
         $products = Product::with(['variants', 'images'])->where('seller_id', $request->user()->id)->whereIn('id', $data['ids'])->get();
         foreach ($products as $product) {
             $reason = match ($data['action']) {
@@ -250,7 +277,9 @@ class SellerProductController extends Controller
             }
             match ($data['action']) {
                 'delete'     => $product->delete(),
-                'activate'   => $product->update(['status' => 'active', 'archived_by' => null, 'published_at' => $product->published_at ?? now()]),
+                'activate'   => $check && $product->status !== 'active'
+                    ? $this->sendToAiCheck($product)
+                    : $product->update(['status' => 'active', 'archived_by' => null, 'published_at' => $product->published_at ?? now()]),
                 'deactivate' => $product->update(['status' => 'archived', 'archived_by' => 'seller']),
             };
             $done[] = ['id' => $product->id, 'name' => $product->name];
@@ -259,7 +288,7 @@ class SellerProductController extends Controller
             $skipped[] = ['id' => (int) $missing, 'name' => null, 'reason' => 'Not found in your store.'];
         }
 
-        $verb = ['delete' => 'deleted', 'activate' => 'activated', 'deactivate' => 'deactivated'][$data['action']];
+        $verb = ['delete' => 'deleted', 'activate' => $check ? 'sent for a listing check' : 'activated', 'deactivate' => 'deactivated'][$data['action']];
 
         return response()->json([
             'message' => count($done) . " product(s) {$verb}" . ($skipped ? ', ' . count($skipped) . ' skipped.' : '.'),
@@ -278,6 +307,44 @@ class SellerProductController extends Controller
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
+
+    private const CHECKING = 'It goes live as soon as it passes a quick listing check, usually within a minute.';
+
+    /** Whether publishing goes through the AI product check (Amaru task 7): it is switched on and a key is set. */
+    private function aiChecks(): bool
+    {
+        return (bool) config('ai.product_check.enabled') && app(AiModel::class)->available();
+    }
+
+    /** The product waits in review, hidden from buyers, while the AI checks it. */
+    private function sendToAiCheck(Product $product): Product
+    {
+        $product->update([
+            'status'            => 'pending_review',
+            'archived_by'       => null,
+            'archive_reason'    => null,
+            'rejection_reason'  => null,
+            'ai_review_status'  => 'checking',
+            'ai_review_verdict' => null,
+            'ai_review_reason'  => null,
+            'ai_reviewed_at'    => null,
+        ]);
+        CheckProductWithAi::dispatch($product->id);
+
+        return $product->fresh(['variants', 'images', 'category', 'storeCategories']);
+    }
+
+    /** Whether an edit changes what the AI looked at: the name, description, category or photos. */
+    private function contentChanged(Product $product, array $data, Request $request): bool
+    {
+        $categoryId = ! empty($data['category_slug']) ? Category::where('slug', $data['category_slug'])->value('id') : $product->category_id;
+
+        return trim((string) ($data['name'] ?? $product->name)) !== $product->name
+            || ($data['description'] ?? $product->description) !== $product->description
+            || (int) $categoryId !== (int) $product->category_id
+            || ! empty($data['delete_image_ids'])
+            || count($request->file('images', [])) > 0;
+    }
 
     private function wantsPublish(Request $request, ?Product $product = null): bool
     {
@@ -339,6 +406,8 @@ class SellerProductController extends Controller
             'rejection_reason'     => $product->rejection_reason,
             'archive_reason'       => $product->archive_reason,
             'archived_by'          => $product->archived_by,
+            // "checking" while the AI looks. Its reason stays with Loved-IT unless it rejected the product.
+            'ai_review_status'     => $product->ai_review_status,
             'created_at'           => $product->created_at,
             'published_at'         => $product->published_at?->toIso8601String(),
             'total_stock'          => $product->variants->sum('stock_quantity'),

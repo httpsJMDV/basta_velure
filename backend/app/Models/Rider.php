@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $reviewed_by
  * @property \Carbon\Carbon|null $reviewed_at
  * @property \Carbon\Carbon|null $submitted_at
+ * @property \Carbon\Carbon|null $applied_at
  * @property \Carbon\Carbon|null $created_at
  * @property \Carbon\Carbon|null $updated_at
  * @property \Carbon\Carbon|null $deleted_at
@@ -101,6 +102,7 @@ class Rider extends Model
         'reviewed_by',
         'reviewed_at',
         'submitted_at',
+        'applied_at',
         'logistics_company_id',
         'license_number',
         'license_expiry',
@@ -124,6 +126,7 @@ class Rider extends Model
             'vehicle_updated_at' => 'datetime',
             'last_located_at'    => 'datetime',
             'submitted_at' => 'datetime',
+            'applied_at' => 'datetime',
             'license_expiry' => 'date',
             'activation_sent_at' => 'datetime',
             'activation_expires_at' => 'datetime',
@@ -146,6 +149,15 @@ class Rider extends Model
     {
         return $this->logistics_company_id
             ?? LogisticsCompany::effectiveId($this->sortingCenter?->logistics_company_id);
+    }
+
+    /**
+     * Applied on the public form and not decided yet: Pending, with no password until the hub or the courier approves
+     * them and they set one from the activation email.
+     */
+    public function isApplicant(): bool
+    {
+        return $this->applied_at !== null && $this->activated_at === null && $this->status === self::STATUS_PENDING;
     }
 
     /** Online now: switched Online, Active, and heard from within the presence timeout. */

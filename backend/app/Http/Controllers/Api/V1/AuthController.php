@@ -145,7 +145,24 @@ class AuthController extends Controller
         $identifier = $request->identifier();
         $account = User::findByLoginIdentifier($identifier);
 
-        // A rider added by a courier company has no password until they open the activation link (A13).
+        // A rider added by a courier company has no password until they open the activation link (A13). A rider who
+        // applied on the public form has none until the hub approves the application.
+        $application = $account && $account->status === 'pending_activation'
+            ? \App\Models\Rider::with('sortingCenter')->where('user_id', $account->id)->whereNotNull('applied_at')->first()
+            : null;
+        if ($application?->isApplicant()) {
+            return response()->json([
+                'code'    => 'rider_application_pending',
+                'message' => 'Your rider application is still being reviewed by ' . ($application->sortingCenter?->hub_name ?? 'the hub') . '. We will email you a link to set your password once they approve it.',
+            ], 403);
+        }
+        if ($application?->status === \App\Models\Rider::STATUS_DISAPPROVED) {
+            return response()->json([
+                'code'    => 'rider_application_rejected',
+                // The reason is only in the email: anyone can type an email address here.
+                'message' => 'Your rider application was not approved. The email we sent you has the reason, and you can apply again on the Become a rider page.',
+            ], 403);
+        }
         if ($account && $account->status === 'pending_activation') {
             return response()->json([
                 'code'    => 'pending_activation',
@@ -245,13 +262,15 @@ class AuthController extends Controller
             'city_municipality'    => ['required', 'string', 'max:100'],
             'barangay'             => ['required', 'string', 'max:100'],
             'street_address'       => ['required', 'string', 'max:255'],
-            'government_id_type'   => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id,school_id'],
+            'government_id_type'   => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id'],
             'government_id_image'  => Validation::document(),
             'government_id_image_back' => Validation::document(BuyerRegisterRequest::requiresBack($request->input('government_id_type'))),
             'avatar'            => Validation::image(required: false),
             'google_avatar_url'  => ['nullable', 'url', 'max:500'],
         ], [
             'phone.regex' => PhMobile::MESSAGE,
+            // School IDs were dropped: every account is 18 or older, so a government-issued ID is expected.
+            'government_id_type.in' => 'Choose a government-issued ID. School IDs are not accepted.',
             ...Validation::uploadMessages('government_id_image', 'the front of your ID', document: true),
             ...Validation::uploadMessages('government_id_image_back', 'the back of your ID', document: true),
             ...Validation::uploadMessages('avatar', 'the profile photo'),

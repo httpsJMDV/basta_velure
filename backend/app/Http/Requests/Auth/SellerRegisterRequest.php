@@ -88,7 +88,7 @@ class SellerRegisterRequest extends FormRequest
             'address_city_code'     => $psgc,
             'address_barangay_code' => $psgc,
 
-            'government_id_type'       => ['nullable', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id,school_id'],
+            'government_id_type'       => ['nullable', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id'],
             'government_id_image'      => Validation::document(),
             'government_id_image_back' => Validation::document(required: false),
             'dti_certificate'          => Validation::document($type === 'sole_proprietorship'),
@@ -132,6 +132,7 @@ class SellerRegisterRequest extends FormRequest
         return [
             ...($this->isGuest() ? BuyerRegisterRequest::accountMessages() : []),
             ...Validation::shopNameMessages('Shop name'),
+            'government_id_type.in'       => 'Choose a government-issued ID. School IDs are not accepted.',
             'shop_category.required'      => 'Choose a shop category.',
             'shop_description.max'        => 'The shop description must be 500 characters or fewer.',
             'seller_type.required'        => 'Choose a seller type.',

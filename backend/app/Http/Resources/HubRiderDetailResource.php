@@ -54,6 +54,10 @@ class HubRiderDetailResource extends JsonResource
             'reviewer_name'       => $reviewerName,
             'reviewed_at'         => $this->reviewed_at?->toIso8601String(),
             'submitted_at'        => $this->submitted_at?->toIso8601String(),
+            'applicant'           => $this->isApplicant(),
+            'applied_at'          => $this->applied_at?->toIso8601String(),
+            'license_number'      => $this->license_number,
+            'license_expiry'      => $this->license_expiry?->toDateString(),
             'created_at'          => $this->created_at?->toIso8601String(),
             'documents'           => [
                 'or_cr_url'           => $this->or_cr_path ? url("/api/v1/hub/riders/{$this->id}/or-cr") : null,

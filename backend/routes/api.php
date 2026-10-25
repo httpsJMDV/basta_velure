@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\PublicCategoryController;
 use App\Http\Controllers\Api\V1\SiteFeedbackController;
 use App\Http\Controllers\Api\V1\PublicProductController;
 use App\Http\Controllers\Api\V1\PublicShopController;
+use App\Http\Controllers\Api\V1\ShopReviewController;
 use App\Http\Controllers\Api\V1\AdminPlatformSettingController;
 use App\Http\Controllers\Api\V1\AdminReportController;
 use App\Http\Controllers\Api\V1\SellerReportController;
@@ -87,6 +88,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/checkout/shops',              [\App\Http\Controllers\Api\V1\ShopPaymentController::class, 'shops']);
     Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);
     Route::get('/shops/{shop}/reviews',        [PublicShopController::class, 'reviews']);
+    Route::get('/shops/{shop}/shop-reviews',   [ShopReviewController::class, 'index']);
     Route::get('/stores/{shop}',               [PublicShopController::class, 'show']);
     // Public platform policies
     Route::get('/platform/policies',           [AdminPlatformSettingController::class, 'getPublicPlatformPolicies']);
@@ -101,6 +103,8 @@ Route::prefix('v1')->group(function () {
         // A visitor applies as a seller or a courier company in one form (account + application), then verifies the email
         Route::post('/auth/register-seller', [AuthController::class, 'applyAsSeller']);
         Route::post('/auth/register-courier', [\App\Http\Controllers\Api\V1\CourierCompanyApplicationController::class, 'store']);
+        // A visitor applies to ride for a hub; the hub or its courier approves, then the rider gets the activation link
+        Route::post('/auth/register-rider', [RiderRegistrationController::class, 'apply'])->middleware('throttle:upload');
         Route::post('/auth/verify-email', [AuthController::class, 'verifyEmail']);
         Route::post('/auth/resend-verification', [AuthController::class, 'resendVerification']);
         // A rider added by a courier company sets their password from the emailed link (works once, 24 hours)
@@ -128,6 +132,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\SettlementReceiptController::class, 'show'])->whereNumber('settlement');
         // Track package: timeline, route places and the courier's live position (buyer, seller, hub, rider, admin)
         Route::get('/parcels/{tracking}/tracking', [ParcelTrackingController::class, 'show']);
+        Route::post('/parcels/{tracking}/rider-chat', [ConversationController::class, 'startRiderChat'])->middleware('throttle:20,1');
 
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
@@ -218,6 +223,17 @@ Route::prefix('v1')->group(function () {
             Route::post('/payouts/hubs/{hub}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payHub'])->whereNumber('hub');
             Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'courier']);
             Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateCourier']);
+            // Settings: the company's contact details and logo (Amaru task 2)
+            Route::patch('/company', [\App\Http\Controllers\Api\V1\LogisticsCompanyProfileController::class, 'update']);
+            Route::post('/company/logo', [\App\Http\Controllers\Api\V1\LogisticsCompanyProfileController::class, 'logo'])->middleware('throttle:upload');
+            // Messages: one thread with each of the company's hubs (Amaru task 2)
+            $courierChat = \App\Http\Controllers\Api\V1\LogisticsChatController::class;
+            Route::get('/chat/hubs', [$courierChat, 'index']);
+            Route::get('/chat/unread', [$courierChat, 'unread']);
+            Route::post('/chat/hubs/{hub}/thread', [$courierChat, 'open'])->whereNumber('hub');
+            Route::get('/chat/threads/{conversation}/messages', [$courierChat, 'messages'])->whereNumber('conversation');
+            Route::post('/chat/threads/{conversation}/messages', [$courierChat, 'send'])->whereNumber('conversation');
+            Route::post('/chat/threads/{conversation}/read', [$courierChat, 'read'])->whereNumber('conversation');
         });
 
         // In-app notifications (the bell): every order and shipment status change, job offers, decisions
@@ -265,6 +281,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/buyer/reviews/pending', [BuyerReviewController::class, 'pending']);
         Route::post('/buyer/reviews', [BuyerReviewController::class, 'store'])->middleware('throttle:upload');
         Route::patch('/buyer/reviews/{review}', [BuyerReviewController::class, 'update']);
+        // Shop reviews: one per buyer per shop, after a completed order, edited at most twice a day
+        Route::get('/shops/{shop}/my-shop-review', [ShopReviewController::class, 'mine']);
+        Route::post('/shops/{shop}/my-shop-review', [ShopReviewController::class, 'store'])->middleware('throttle:20,1');
+        Route::patch('/shops/{shop}/my-shop-review', [ShopReviewController::class, 'update'])->middleware('throttle:20,1');
         Route::get('/buyer/orders', [BuyerOrderController::class, 'index']);
         Route::get('/buyer/orders/{order}', [BuyerOrderController::class, 'show']);
         Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn'])->middleware('throttle:upload');
@@ -281,6 +301,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
         Route::get('/conversations/{conversation}/messages', [ConversationController::class, 'messages']);
         Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'send']);
+        Route::post('/conversations/{conversation}/messages/{message}/confirm-address', [ConversationController::class, 'confirmAddress'])->middleware('throttle:20,1');
+        Route::post('/conversations/{conversation}/handoff', [ConversationController::class, 'handoff'])->middleware('throttle:10,1');
+        Route::post('/conversations/{conversation}/assistant', [ConversationController::class, 'resumeAssistant'])->middleware('throttle:10,1');
         Route::get('/conversations/{conversation}/attachable-products', [ConversationController::class, 'attachableProducts']);
         Route::get('/conversations/{conversation}/attachable-orders', [ConversationController::class, 'attachableOrders']);
         Route::patch('/conversations/{conversation}/status', [ConversationController::class, 'updateStatus']);
@@ -415,6 +438,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/reviews/summary', [AdminReviewController::class, 'summary']);
             Route::get('/reviews/shops', [AdminReviewController::class, 'shops']);
             Route::get('/reviews/shops/{seller}', [AdminReviewController::class, 'shop']);
+            Route::get('/reviews/shops/{seller}/shop-reviews', [ShopReviewController::class, 'adminIndex']);
             Route::get('/feedback', [SiteFeedbackController::class, 'index']);
             Route::patch('/feedback/{feedback}', [SiteFeedbackController::class, 'update']);
 
@@ -486,6 +510,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/seller/reviews', [$sellerReviews, 'index']);
             Route::post('/seller/reviews/{review}/reply', [$sellerReviews, 'reply'])->whereNumber('review');
             Route::patch('/seller/reviews/{review}/reply', [$sellerReviews, 'updateReply'])->whereNumber('review');
+            Route::get('/seller/shop-reviews', [ShopReviewController::class, 'sellerIndex']);
+            Route::post('/seller/shop-reviews/{review}/reply', [ShopReviewController::class, 'reply'])->whereNumber('review');
+            Route::patch('/seller/shop-reviews/{review}/reply', [ShopReviewController::class, 'updateReply'])->whereNumber('review');
 
             // Seller shop profile
             Route::get('/seller/shop-profile', [SellerShopProfileController::class, 'show']);
@@ -554,6 +581,12 @@ Route::prefix('v1')->group(function () {
         Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
             Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
             Route::get('/profile', [SortingCenterDashboardController::class, 'profile']);
+            // The hub's thread with its own courier company (Amaru task 2)
+            $hubCourierChat = \App\Http\Controllers\Api\V1\HubCourierChatController::class;
+            Route::get('/courier-chat', [$hubCourierChat, 'show']);
+            Route::get('/courier-chat/messages', [$hubCourierChat, 'messages']);
+            Route::post('/courier-chat/messages', [$hubCourierChat, 'send']);
+            Route::post('/courier-chat/read', [$hubCourierChat, 'read']);
             Route::get('/coverage-options',  [HubRiderController::class, 'coverageOptions']);
             Route::get('/gcash',  [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'hub']);
             Route::patch('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'updateHub']);

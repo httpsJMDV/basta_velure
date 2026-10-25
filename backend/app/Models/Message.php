@@ -10,6 +10,7 @@ class Message extends Model
     protected $fillable = [
         'conversation_id',
         'sender_id',
+        'sender_kind',
         'body',
         'attachment_type',
         'attachment_data',

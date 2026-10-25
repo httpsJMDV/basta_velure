@@ -20,6 +20,12 @@ class Conversation extends Model
         self::TYPE_RIDER_HUB,
     ];
 
+    // A courier company and one of its hubs. Private to the two of them, like the rider threads.
+    public const TYPE_COURIER_HUB = 'courier_hub';
+
+    /** Threads only their participants can read: never listed or opened through the admin's /conversations. */
+    public const PRIVATE_TYPES = [...self::RIDER_TYPES, self::TYPE_COURIER_HUB];
+
     protected $fillable = [
         'buyer_id',
         'seller_id',
@@ -31,24 +37,34 @@ class Conversation extends Model
         'parcel_id',
         'rider_id',
         'sorting_center_id',
+        'logistics_company_id',
         'last_message_at',
         'buyer_unread',
         'seller_unread',
         'admin_unread',
         'rider_unread',
         'hub_unread',
+        'courier_unread',
+        'support_mode',
+        'support_handoff_at',
     ];
 
     protected function casts(): array
     {
         return [
             'last_message_at' => 'datetime',
+            'support_handoff_at' => 'datetime',
         ];
     }
 
     public function isRiderThread(): bool
     {
         return in_array($this->type, self::RIDER_TYPES, true);
+    }
+
+    public function isCourierThread(): bool
+    {
+        return $this->type === self::TYPE_COURIER_HUB;
     }
 
     public function buyer(): BelongsTo    { return $this->belongsTo(User::class, 'buyer_id'); }
@@ -58,6 +74,7 @@ class Conversation extends Model
     public function parcel(): BelongsTo   { return $this->belongsTo(Parcel::class, 'parcel_id'); }
     public function rider(): BelongsTo    { return $this->belongsTo(User::class, 'rider_id'); }
     public function sortingCenter(): BelongsTo { return $this->belongsTo(SortingCenter::class, 'sorting_center_id'); }
+    public function logisticsCompany(): BelongsTo { return $this->belongsTo(LogisticsCompany::class, 'logistics_company_id'); }
     public function messages(): HasMany  { return $this->hasMany(Message::class); }
     public function latestMessage(): HasOne
     {

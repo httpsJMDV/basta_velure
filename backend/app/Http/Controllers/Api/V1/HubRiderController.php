@@ -9,6 +9,7 @@ use App\Mail\RiderApplicationMail;
 use App\Models\Rider;
 use App\Models\RiderAreaAssignment;
 use App\Models\SortingCenter;
+use App\Services\RiderOnboarding;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Support\Validation;
@@ -172,6 +173,20 @@ class HubRiderController extends Controller
             $initialArea = $validatedArea;
         }
 
+        // An application from the public "Become a rider" form has no password yet: approving it emails the rider the
+        // link to set one (they are Pending Activation until they do).
+        if ($rider->isApplicant()) {
+            $rider = app(RiderOnboarding::class)->approveApplication($rider, $request->user(), 'hub');
+            if ($initialArea) {
+                $this->createInitialArea($rider, $hub, $initialArea);
+            }
+
+            return response()->json([
+                'message' => 'Application approved. We emailed ' . $rider->user->email . ' a link to set a password; they can start once they do.',
+                'data'    => new HubRiderDetailResource($rider->fresh(['user.addresses', 'reviewer', 'areaAssignments'])),
+            ]);
+        }
+
         $hubManagerId = $request->user()->id;
 
         DB::transaction(function () use ($rider, $hub, $hubManagerId, $initialArea) {
@@ -183,13 +198,7 @@ class HubRiderController extends Controller
             ]);
 
             if ($initialArea) {
-                RiderAreaAssignment::create([
-                    'rider_id'           => $rider->id,
-                    'sorting_center_id'  => $hub->id,
-                    'area_label'         => trim($initialArea['area_label']),
-                    'coverage_barangays' => array_values(array_unique($initialArea['coverage_barangays'])),
-                    'is_active'          => true,
-                ]);
+                $this->createInitialArea($rider, $hub, $initialArea);
             }
         });
 
@@ -238,6 +247,15 @@ class HubRiderController extends Controller
         $hubManagerId = $request->user()->id;
         $reason = trim($validated['reason']);
 
+        if ($rider->isApplicant()) {
+            $rider = app(RiderOnboarding::class)->rejectApplication($rider, $request->user(), $reason, 'hub');
+
+            return response()->json([
+                'message' => 'Application rejected. We emailed the applicant your reason; they can apply again.',
+                'data'    => new HubRiderDetailResource($rider->fresh(['user.addresses', 'reviewer', 'areaAssignments'])),
+            ]);
+        }
+
         DB::transaction(function () use ($rider, $hubManagerId, $reason) {
             $rider->update([
                 'status'           => Rider::STATUS_DISAPPROVED,
@@ -261,6 +279,18 @@ class HubRiderController extends Controller
         return response()->json([
             'message' => 'Courier application disapproved successfully.',
             'data'    => new HubRiderDetailResource($rider->fresh(['user.addresses', 'reviewer', 'areaAssignments'])),
+        ]);
+    }
+
+    /** @param  array{area_label: string, coverage_barangays: array<int, string>}  $area */
+    private function createInitialArea(Rider $rider, SortingCenter $hub, array $area): void
+    {
+        RiderAreaAssignment::create([
+            'rider_id'           => $rider->id,
+            'sorting_center_id'  => $hub->id,
+            'area_label'         => trim($area['area_label']),
+            'coverage_barangays' => array_values(array_unique($area['coverage_barangays'])),
+            'is_active'          => true,
         ]);
     }
 
