@@ -252,7 +252,7 @@ function ReviewItem({ review: r, onSaved }: { review: SellerReviewRow; onSaved: 
   );
 }
 
-/** Reviews & Ratings: product reviews and reviews of the shop itself, each with the seller's one public reply. */
+/** Reviews & Ratings: product reviews (with stars) and comments about the shop itself (no stars), each with the seller's one public reply. */
 export default function SellerReviewsPage() {
   const pageRef = useMountAnim();
   const [params, setParams] = useSearchParams();
@@ -263,7 +263,7 @@ export default function SellerReviewsPage() {
       <div>
         <h1 className="text-2xl font-black text-gray-900">Reviews &amp; Ratings</h1>
         <div className="mt-3 flex gap-1 border-b border-gray-200" role="tablist" aria-label="Review kinds">
-          {([['products', 'Product reviews'], ['shop', 'Shop reviews']] as const).map(([key, label]) => (
+          {([['products', 'Product reviews'], ['shop', 'Shop comments']] as const).map(([key, label]) => (
             <button key={key} type="button" role="tab" aria-selected={tab === key}
               onClick={() => setParams(key === 'shop' ? { tab: 'shop' } : {}, { replace: true })}
               className={`px-4 py-2.5 -mb-px border-b-2 text-[13.5px] font-semibold transition-colors ${tab === key ? 'border-brand-red text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-900'}`}>
@@ -277,29 +277,28 @@ export default function SellerReviewsPage() {
   );
 }
 
-/** Reviews of the shop itself (shipping, packing, replies), from buyers with a completed order. */
+/** Comments about the shop itself (shipping, packing, replies), from buyers with a completed order. No stars. */
 function ShopReviews() {
   const { showToast } = useToast();
   const [page, setPage] = useState<ShopReviewPage | null>(null);
   const [error, setError] = useState('');
-  const [rating, setRating] = useState<number | null>(null);
   const [replied, setReplied] = useState<'' | '0' | '1'>('');
   const [pageNo, setPageNo] = useState(1);
 
   const load = useCallback(() => {
     setError('');
-    getSellerShopReviewsApi({ rating: rating ?? undefined, replied: replied || undefined, page: pageNo })
+    getSellerShopReviewsApi({ replied: replied || undefined, page: pageNo })
       .then(setPage)
-      .catch((e) => setError(apiErrorMessage(e, 'Shop reviews could not be loaded.')));
-  }, [rating, replied, pageNo]);
+      .catch((e) => setError(apiErrorMessage(e, 'Shop comments could not be loaded.')));
+  }, [replied, pageNo]);
   useEffect(load, [load]);
 
   const summary = page?.summary;
-  const filtered = rating !== null || replied !== '';
+  const filtered = replied !== '';
 
   return (
     <div className="space-y-5">
-      <p className="text-[13px] text-gray-500">Buyers with a completed order can review your shop once and edit it later. Your reply shows under the review on your shop page.</p>
+      <p className="text-[13px] text-gray-500">Buyers with a completed order can comment on your shop once and edit it later. Your reply shows under the comment on your shop page.</p>
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] items-start bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         {summary ? <ShopReviewSummaryBlock summary={summary} /> : <div className="h-28 rounded-xl bg-gray-50 animate-pulse" />}
@@ -321,14 +320,6 @@ function ShopReviews() {
               </button>
             ))}
           </div>
-          <div className="flex gap-1 ml-auto" role="group" aria-label="Stars">
-            {[5, 4, 3, 2, 1].map((s) => (
-              <button key={s} type="button" aria-pressed={rating === s} onClick={() => { setRating(rating === s ? null : s); setPageNo(1); }}
-                className={`px-2.5 py-1.5 rounded-lg text-[12.5px] font-semibold tabular-nums transition-colors ${rating === s ? 'bg-amber-100 text-amber-900' : 'text-gray-600 hover:bg-gray-100'}`}>
-                {s} ★
-              </button>
-            ))}
-          </div>
         </div>
 
         {error ? (
@@ -340,8 +331,8 @@ function ShopReviews() {
           <div className="p-5 space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-xl bg-gray-50 animate-pulse" />)}</div>
         ) : page.data.length === 0 ? (
           <div className="flex flex-col items-center text-center gap-2 py-16 px-6">
-            <p className="text-[14px] font-bold text-gray-800">{filtered ? 'No shop reviews match these filters' : 'No shop reviews yet'}</p>
-            <p className="text-[12.5px] text-gray-500 max-w-sm">{filtered ? 'Clear the filters to see every review.' : 'Buyers can review your shop once one of their orders is completed.'}</p>
+            <p className="text-[14px] font-bold text-gray-800">{filtered ? 'No comments match this filter' : 'No comments about your shop yet'}</p>
+            <p className="text-[12.5px] text-gray-500 max-w-sm">{filtered ? 'Choose All to see every comment.' : 'Buyers can comment on your shop once one of their orders is completed.'}</p>
           </div>
         ) : (
           <ul className="divide-y divide-gray-100">
@@ -356,7 +347,7 @@ function ShopReviews() {
 
         {page && page.meta.last_page > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-[12.5px] text-gray-600">
-            <span className="tabular-nums">Page {page.meta.current_page} of {page.meta.last_page} · {page.meta.total} reviews</span>
+            <span className="tabular-nums">Page {page.meta.current_page} of {page.meta.last_page} · {page.meta.total} comments</span>
             <div className="flex gap-1">
               <button type="button" disabled={pageNo <= 1} onClick={() => setPageNo((p) => p - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 disabled:opacity-30" aria-label="Previous page"><ChevronLeft className="w-4 h-4" /></button>
               <button type="button" disabled={pageNo >= page.meta.last_page} onClick={() => setPageNo((p) => p + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 disabled:opacity-30" aria-label="Next page"><ChevronRight className="w-4 h-4" /></button>
@@ -368,7 +359,7 @@ function ShopReviews() {
   );
 }
 
-/** The shop's one public reply to a shop review: write it, or edit it later. */
+/** The shop's one public reply to a comment: write it, or edit it later. */
 function ShopReplyEditor({ review: r, onSaved }: { review: ShopReviewRow; onSaved: (message: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(r.seller_reply?.body ?? '');

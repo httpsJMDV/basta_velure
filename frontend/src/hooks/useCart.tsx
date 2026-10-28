@@ -23,6 +23,8 @@ export interface CartItem {
   status?: CartLine['status'];
   message?: string | null;
   selected?: boolean;
+  /** Server cart only: the most this buyer can have of it now (stock, or what is left of the purchase limit). */
+  maxQuantity?: number;
 }
 
 interface CartContextValue {
@@ -73,7 +75,7 @@ function flatten(view: CartView): CartItem[] {
   return view.stores.flatMap((s) => s.lines.map((l) => ({
     variantId: l.variant_id, productId: l.product_id, name: l.name, variant: l.variant_label ?? '', price: l.unit_price,
     quantity: l.quantity, image: l.image_url ?? '', sellerId: s.seller.id, shopName: s.seller.shop_name,
-    lineId: l.id, status: l.status, message: l.message, selected: l.selected,
+    lineId: l.id, status: l.status, message: l.message, selected: l.selected, maxQuantity: l.max_quantity,
   })));
 }
 

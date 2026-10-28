@@ -47,6 +47,7 @@ import {
 import axios from 'axios';
 import { PageHeader, StatCard } from './hubKit';
 import RiderApplyLink from '../../components/logistics/RiderApplyLink';
+import { usePlaceNames } from '../../hooks/usePlaceNames';
 import { labelError, sentenceError, squish } from '../../utils/accountRules';
 
 const PRESET_AREA_LABELS = [
@@ -384,6 +385,11 @@ export default function HubRidersPage() {
 
   // Hub Coverage Options
   const [hubCoverage, setHubCoverage] = useState<HubCoverageOptions | null>(null);
+  // Coverage and delivery areas are stored as barangay codes; show their names.
+  const places = usePlaceNames([
+    ...(hubCoverage?.coverage_barangays ?? []),
+    ...(detailData?.area_assignments ?? []).flatMap((a) => a.coverage_barangays),
+  ]);
 
   // Fetch Hub Coverage Options once
   useEffect(() => {
@@ -1142,12 +1148,13 @@ export default function HubRidersPage() {
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-1 pt-1">
-                              {area.coverage_barangays.map((bgy) => (
+                              {places.sortByName(area.coverage_barangays).map((bgy) => (
                                 <span
                                   key={bgy}
-                                  className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-50 text-blue-800 border border-blue-100"
+                                  title={`PSGC ${bgy}`}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-800 border border-blue-100 ${places.known(bgy) ? '' : 'font-mono'}`}
                                 >
-                                  PSGC {bgy}
+                                  {places.place(bgy)}
                                 </span>
                               ))}
                             </div>
@@ -1283,20 +1290,22 @@ export default function HubRidersPage() {
                     Select Barangays within Hub Jurisdiction ({hubCoverage.coverage_barangays.length} available)
                   </label>
                   <div className="max-h-28 overflow-y-auto p-2 bg-white border border-gray-200 rounded-lg flex flex-wrap gap-1.5">
-                    {hubCoverage.coverage_barangays.map((bgy) => {
+                    {places.sortByName(hubCoverage.coverage_barangays).map((bgy) => {
                       const selected = approveSelectedBarangays.includes(bgy);
                       return (
                         <button
                           key={bgy}
                           type="button"
+                          title={`PSGC ${bgy}`}
+                          aria-pressed={selected}
                           onClick={() => toggleApproveBarangay(bgy)}
-                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-medium transition-all ${
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${places.known(bgy) ? '' : 'font-mono'} ${
                             selected
                               ? 'bg-brand-red text-white shadow-2xs'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          {bgy} {selected && '✓'}
+                          {places.place(bgy)} {selected && '✓'}
                         </button>
                       );
                     })}
@@ -1504,20 +1513,22 @@ export default function HubRidersPage() {
 
               {hubCoverage && hubCoverage.coverage_barangays.length > 0 ? (
                 <div className="max-h-48 overflow-y-auto p-2.5 bg-gray-50 border border-gray-200 rounded-xl flex flex-wrap gap-1.5">
-                  {hubCoverage.coverage_barangays.map((code) => {
+                  {places.sortByName(hubCoverage.coverage_barangays).map((code) => {
                     const isSelected = areaFormBarangays.includes(code);
                     return (
                       <button
                         key={code}
                         type="button"
+                        title={`PSGC ${code}`}
+                        aria-pressed={isSelected}
                         onClick={() => toggleBarangay(code)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${places.known(code) ? '' : 'font-mono'} ${
                           isSelected
                             ? 'bg-brand-red text-white shadow-2xs'
                             : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-100'
                         }`}
                       >
-                        {code} {isSelected && '✓'}
+                        {places.place(code)} {isSelected && '✓'}
                       </button>
                     );
                   })}

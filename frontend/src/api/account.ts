@@ -57,3 +57,18 @@ export const getRiderActivationApi = (token: string) =>
 
 export const activateRiderApi = (token: string, password: string, password_confirmation: string) =>
   http.post<{ message: string }>('/auth/rider-activation', { token, password, password_confirmation }).then((r) => r.data);
+
+export interface IdVerificationState {
+  /** none: no ID sent yet; pending: being checked; approved: can order; rejected: send a new one. */
+  status: 'none' | 'pending' | 'approved' | 'rejected';
+  reason: string | null;
+  id_type: string | null;
+  can_order: boolean;
+}
+
+/** A buyer's government ID check: orders open once an admin approves it. */
+export const getIdVerificationApi = () =>
+  http.get<{ data: IdVerificationState }>('/account/id-verification').then((r) => r.data.data);
+
+export const submitIdVerificationApi = (form: FormData) =>
+  http.post<{ message: string; data: IdVerificationState; user: User }>('/account/id-verification', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);

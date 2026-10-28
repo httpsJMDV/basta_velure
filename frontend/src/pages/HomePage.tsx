@@ -74,7 +74,8 @@ function CategoriesSection() {
         </Link>
       </div>
 
-      {/* A swipeable row on phones; every category in a grid from tablets up. */}
+      {/* A swipeable row on phones; every category in a grid from tablets up. "Others" stays out of this grid
+          (it is still in the Categories menu, search and the seller's picker). */}
       <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar sm:grid sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 sm:gap-x-4 sm:gap-y-6 sm:overflow-visible sm:pb-0">
         {categories === null
           ? Array.from({ length: 14 }, (_, i) => (
@@ -83,7 +84,7 @@ function CategoriesSection() {
               <div className="h-3 w-3/4 rounded bg-stone-100 animate-pulse" />
             </div>
           ))
-          : categories.map((cat) => (
+          : categories.filter((cat) => cat.slug !== 'others').map((cat) => (
             <Link key={cat.id} to={`/category/${cat.slug}`} className="group min-w-[124px] sm:min-w-0 flex flex-col gap-2.5 select-none">
               <span className="relative block aspect-square rounded-2xl overflow-hidden bg-stone-100 ring-1 ring-stone-200/80 transition-shadow duration-300 group-hover:shadow-lg group-hover:ring-brand-red/30">
                 <span className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.06]">
@@ -104,67 +105,66 @@ function CategoriesSection() {
   );
 }
 
-// ─── 3. Trending Now: the most bought, best rated and discounted products right now ─────────────────
-function TrendingCard({ product }: { product: Product }) {
+// ─── 3. Trending Now: the best sellers, ranked by units sold (the API's "trending" sort) ───────────
+// Two cards and a peek on phones, three on tablets, five on desktops; the row snaps card by card.
+const TRENDING_CARD = 'snap-start shrink-0 basis-[calc((100%-2rem)/2.3)] sm:basis-[calc((100%-2.5rem)/3)] lg:basis-[calc((100%-5rem)/5)]';
+
+function TrendingCard({ product, rank }: { product: Product; rank: number }) {
   const { add, added, soldOut } = useQuickAdd(product);
   const off = discountPercent(product.base_price, product.original_price);
-  const rating = product.avg_rating ?? 0;
 
   return (
-    <Link
-      to={`/products/${product.id}`}
-      className="w-[300px] sm:w-[360px] bg-white rounded-2xl sm:rounded-3xl border border-stone-200/90 p-4 shadow-xs hover:shadow-lg hover:border-brand-red/30 transition-all duration-300 relative shrink-0 flex items-center gap-4 group select-none"
-    >
-      {off > 0 && (
-        <span className="absolute top-3 left-3 bg-[#B91C1C] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-md shadow-2xs z-10">
-          {off}% OFF
-        </span>
-      )}
-      <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-xl overflow-hidden bg-stone-50 mt-2">
-        {product.thumbnail_url
-          ? <img src={product.thumbnail_url} alt={product.name} loading="lazy" draggable={false} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-          : <div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-gray-300" /></div>}
-      </div>
-      <div className="flex-1 flex flex-col min-w-0">
-        <h3 className="text-[13px] sm:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug group-hover:text-brand-red transition-colors">
-          {product.name}
-        </h3>
-        <div className="flex items-baseline gap-2 mt-2">
-          <span className="text-base sm:text-lg font-bold text-brand-red">{pesoCompact(product.base_price)}</span>
-          {off > 0 && <span className="text-xs text-gray-400 line-through">{pesoCompact(product.original_price!)}</span>}
-        </div>
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-100">
-          {product.review_count > 0 ? (
-            <span className="flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Star key={i} className={`w-3 h-3 ${i <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'fill-gray-200 text-gray-200'}`} />
-              ))}
-              <span className="text-[11px] text-gray-500 ml-1">({rating.toFixed(1)})</span>
-            </span>
-          ) : (
-            <span className="text-[11px] text-gray-400 truncate">{product.seller.shop_name}</span>
+    <li className={TRENDING_CARD}>
+      <Link to={`/products/${product.id}`} className="group block select-none">
+        <span className="relative block aspect-square rounded-2xl overflow-hidden bg-stone-100 ring-1 ring-stone-200/80">
+          {product.thumbnail_url
+            ? <img src={product.thumbnail_url} alt={product.name} loading="lazy" draggable={false} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]" />
+            : <span className="absolute inset-0 flex items-center justify-center text-stone-300"><Package className="w-8 h-8" /></span>}
+          {off > 0 && (
+            <span className="absolute top-2.5 left-2.5 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-brand-red tabular-nums shadow-2xs">−{off}%</span>
           )}
           <button
             type="button"
             onClick={add}
             disabled={soldOut}
             title={soldOut ? 'Sold out' : 'Add to cart'}
-            aria-label={`Add ${product.name} to cart`}
-            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-white flex items-center justify-center shadow-xs active:scale-90 transition-all ${
-              soldOut ? 'bg-gray-300 cursor-not-allowed' : added ? 'bg-emerald-500' : 'bg-brand-red hover:bg-[#801818]'
+            aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
+            className={`absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full flex items-center justify-center shadow-[0_4px_14px_-6px_rgba(28,25,23,0.5)] transition-colors active:scale-95 ${
+              soldOut ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : added ? 'bg-emerald-600 text-white' : 'bg-white text-stone-800 hover:bg-brand-red hover:text-white'
             }`}
           >
             {added ? <Check className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
           </button>
-        </div>
-      </div>
-    </Link>
+        </span>
+
+        <span className="mt-3 flex gap-2.5">
+          <span className={`w-7 shrink-0 font-serif text-[26px] font-bold leading-[0.9] tabular-nums ${rank <= 3 ? 'text-brand-red' : 'text-stone-300'}`} aria-label={`Number ${rank}`}>
+            {rank}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13.5px] font-semibold leading-snug text-[#1E1B18] line-clamp-2 min-h-[2.6em] group-hover:text-brand-red transition-colors">{product.name}</span>
+            <span className="mt-1.5 flex items-baseline gap-1.5">
+              <span className="text-[15px] font-bold text-stone-900 tabular-nums">{pesoCompact(product.base_price)}</span>
+              {off > 0 && <span className="text-[12px] text-stone-400 line-through tabular-nums">{pesoCompact(product.original_price!)}</span>}
+            </span>
+            <span className="mt-1 flex items-center gap-1.5 text-[12px] text-stone-500 min-w-0">
+              {product.units_sold > 0 && <span className="shrink-0 tabular-nums">{product.units_sold.toLocaleString()} sold</span>}
+              {product.review_count > 0 && product.avg_rating !== null && (
+                <span className="shrink-0 inline-flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{product.avg_rating.toFixed(1)}</span>
+              )}
+              {product.units_sold === 0 && product.review_count === 0 && <span className="truncate">{product.seller.shop_name}</span>}
+            </span>
+          </span>
+        </span>
+      </Link>
+    </li>
   );
 }
 
 function TrendingSection() {
   const [products, setProducts] = useState<Product[] | null>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: true, end: false });
+  const trackRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -174,51 +174,65 @@ function TrendingSection() {
     return () => { alive = false; };
   }, []);
 
-  const scroll = (direction: 'left' | 'right') => {
-    trackRef.current?.scrollBy({ left: direction === 'left' ? -380 : 380, behavior: 'smooth' });
+  // Which ends the row has reached, so the arrows switch off there.
+  const measure = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    setEdges({ start: el.scrollLeft <= 4, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4 });
+  }, []);
+
+  useEffect(() => {
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure, products]);
+
+  // One screenful at a time.
+  const scroll = (direction: -1 | 1) => {
+    const el = trackRef.current;
+    if (el) el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' });
   };
 
   if (products !== null && products.length === 0) return null;
 
   return (
-    <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-10 sm:pt-14">
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E1B18] tracking-tight">
-          Trending now
-        </h2>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/search?sort=best_selling"
-            className="text-xs sm:text-sm font-bold text-brand-red hover:underline flex items-center gap-1 group"
-          >
+    <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-10 sm:pt-14" aria-labelledby="trending-title">
+      <div className="flex items-end justify-between gap-4 mb-5">
+        <div>
+          <h2 id="trending-title" className="text-2xl sm:text-3xl font-serif font-bold text-[#1E1B18] tracking-tight">Trending now</h2>
+          <p className="mt-1 text-[13px] text-stone-500">The best sellers on Loved-IT right now, by units sold.</p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <Link to="/search?sort=best_selling" className="text-xs sm:text-sm font-bold text-brand-red hover:underline flex items-center gap-1 group">
             <span>View all</span>
             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </Link>
-          <div className="hidden sm:flex items-center gap-1.5 ml-2">
-            {(['left', 'right'] as const).map((dir) => (
-              <button
-                key={dir}
-                onClick={() => scroll(dir)}
-                title={dir === 'left' ? 'Scroll left' : 'Scroll right'}
-                className="w-8 h-8 rounded-full bg-white hover:bg-stone-50 border border-stone-200 text-gray-700 hover:text-brand-red flex items-center justify-center shadow-xs transition-all active:scale-95 cursor-pointer"
-              >
-                {dir === 'left' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </button>
-            ))}
+          <div className="hidden sm:flex items-center gap-1.5 ml-1">
+            {([-1, 1] as const).map((dir) => {
+              const off = dir === -1 ? edges.start : edges.end;
+              return (
+                <button key={dir} type="button" onClick={() => scroll(dir)} disabled={off}
+                  aria-label={dir === -1 ? 'Previous products' : 'Next products'}
+                  className="w-9 h-9 rounded-full border border-stone-300 bg-white text-stone-700 flex items-center justify-center transition-colors hover:border-stone-900 hover:text-stone-900 disabled:opacity-35 disabled:hover:border-stone-300 disabled:cursor-default">
+                  {dir === -1 ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div ref={trackRef} className="flex gap-5 overflow-x-auto pb-2 no-scrollbar scroll-smooth items-stretch">
-        {products === null ? (
-          Array.from({ length: 4 }, (_, i) => <div key={i} className="w-[300px] sm:w-[360px] h-[150px] shrink-0 rounded-3xl bg-stone-100 animate-pulse" />)
-        ) : (
-          // The list twice, so the marquee loops seamlessly (it slides by half its width); hovering pauses it.
-          <div className="flex gap-5 animate-marquee-slow shrink-0 pr-5">
-            {[...products, ...products].map((p, idx) => <TrendingCard key={`${p.id}-${idx}`} product={p} />)}
-          </div>
-        )}
-      </div>
+      <ul ref={trackRef} onScroll={measure} className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth pb-1">
+        {products === null
+          ? Array.from({ length: 5 }, (_, i) => (
+            <li key={i} className={TRENDING_CARD}>
+              <div className="aspect-square rounded-2xl bg-stone-100 animate-pulse" />
+              <div className="mt-3 h-3 w-4/5 rounded bg-stone-100 animate-pulse" />
+              <div className="mt-2 h-3 w-1/3 rounded bg-stone-100 animate-pulse" />
+            </li>
+          ))
+          : products.map((p, i) => <TrendingCard key={p.id} product={p} rank={i + 1} />)}
+      </ul>
     </section>
   );
 }
@@ -363,7 +377,7 @@ function FeaturedProductsSection() {
   const shownPct = total > 0 ? Math.min(100, Math.round((products.length / total) * 100)) : 0;
 
   return (
-    <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pb-16">
+    <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-10 sm:pt-14 pb-16">
       <div className="flex items-end justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E1B18] tracking-tight">

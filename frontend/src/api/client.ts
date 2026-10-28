@@ -96,6 +96,7 @@ import type {
   SellerReportSummary,
   SellerRevenueChartPoint,
   AdminCategoryParent,
+  AdminCategoryLeaf,
   AdminCategoryMetrics,
   CategoryPayload,
   SortingCenterRegistrationResponse,
@@ -631,6 +632,8 @@ export interface AdminProduct {
   rejection_reason: string | null;
   archive_reason: string | null;
   archived_by: 'admin' | 'seller' | null;
+  /** Why it waits for a person: filed under Others, or it mentions medicine, vitamins or supplements. */
+  hold_reason?: string | null;
   /** The AI listing check, when it ran: checking / approved / flagged / unavailable / rejected. */
   ai_review?: { status: string; verdict: 'approve' | 'send_to_admin' | 'reject' | null; reason: string | null; reviewed_at: string | null } | null;
   base_price: number;
@@ -920,6 +923,18 @@ export const updateAdminCategoryApi = (id: number, payload: Partial<CategoryPayl
 
 export const deleteAdminCategoryApi = (id: number) =>
   http.delete<{ message: string }>(`/admin/categories/${id}`).then((r) => r.data);
+
+/** The picture shoppers see for the category, in place of the built-in one. */
+export const uploadCategoryPhotoApi = (id: number, file: File) => {
+  const fd = new FormData();
+  fd.append('photo', file);
+  return http.post<{ message: string; data: AdminCategoryLeaf | AdminCategoryParent }>(`/admin/categories/${id}/photo`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
+export const removeCategoryPhotoApi = (id: number) =>
+  http.delete<{ message: string }>(`/admin/categories/${id}/photo`).then((r) => r.data);
 
 // ─── Logistics / Sorting Center Hub Dashboard ───────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, ShoppingBag, Star, X, Clock, Gift, Zap, ImagePlus, AlertCircle, CheckCircle2, ShieldAlert, KeyRound } from 'lucide-react';
+import { Store, ShoppingBag, Star, X, Clock, Gift, Zap, ImagePlus, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import type { Order } from '../../types';
 import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../../utils/orderStatus';
 import OrderStatusTimeline from './OrderStatusTimeline';
@@ -113,16 +113,6 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
           <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
             <Clock className="w-4 h-4 shrink-0" /> Pay by {when(order.payment_due_at)}, or the order is cancelled and its items released.
           </p>
-        )}
-        {order.delivery_otp && (
-          <div className="flex items-center gap-3 rounded-xl border-2 border-dashed border-brand-red/40 bg-red-50/40 px-3 py-2.5">
-            <KeyRound className="w-5 h-5 text-brand-red shrink-0" aria-hidden="true" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-semibold text-stone-700">Your delivery code</p>
-              <p className="text-[11.5px] text-stone-500">Give it to the rider at the door. Never share it before the parcel is in your hands.</p>
-            </div>
-            <span className="font-mono text-[22px] font-bold tracking-[0.25em] text-stone-900 tabular-nums" aria-label={`Delivery code ${order.delivery_otp.split('').join(' ')}`}>{order.delivery_otp}</span>
-          </div>
         )}
         {order.returning_to_seller ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">

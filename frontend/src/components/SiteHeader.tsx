@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Search, Menu, X, ShoppingCart, ChevronDown, ChevronRight, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Flame, Tag, Truck, Warehouse, Bike } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Search, Menu, X, ShoppingCart, ChevronDown, ChevronRight, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Truck, Warehouse, Bike } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
@@ -13,7 +13,20 @@ import CategoriesMenu, { NAV_PILL } from './storefront/CategoriesMenu';
 import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
 import NotificationBell from './notifications/NotificationBell';
 
-const SHORTCUTS = ['New Arrivals', 'Best Sellers', 'Sale', 'Track Order'];
+/** The white row under the red bar (and the phone menu). */
+const NAV_LINKS: { label: string; to: string; accent?: boolean }[] = [
+  { label: 'New Arrivals', to: '/search?sort=newest' },
+  { label: 'Best Sellers', to: '/search?sort=best_selling' },
+  { label: 'Sale', to: '/search?on_sale=true', accent: true },
+  { label: 'Track Order', to: '/settings/orders' },
+];
+
+/** The ways to work with Loved-IT, in the dark strip at the very top. */
+const PARTNER_LINKS = [
+  { label: 'Sell on Loved-IT', to: '/register/seller' },
+  { label: 'Become a rider', to: '/register/rider' },
+  { label: 'Partner with us', to: '/partner' },
+];
 
 type BusinessRow = { key: string; icon: React.ElementType; label: string; to: string; chip?: { text: string; tone: string } };
 
@@ -172,6 +185,7 @@ export default function SiteHeader() {
   const { count: totalCount, cartOpen, openCart, closeCart } = useCart();
   const { openChat, openChatWithSupport } = useChat();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const mobileCategories = useStorefrontCategories();
@@ -192,59 +206,39 @@ export default function SiteHeader() {
 
 
 
+  const here = location.pathname + location.search;
+  const quickCategories = (mobileCategories ?? []).filter((c) => c.slug !== 'others').slice(0, 4);
+
   return (
     <>
-      {/* ── Top Utility Bar ── */}
-      <div className="hidden sm:block text-xs bg-[#121212] border-b border-neutral-800 text-neutral-300">
+      {/* ── Top strip: help on the left, ways to work with Loved-IT on the right ── */}
+      <div className="hidden sm:block bg-[#1E1B18] text-stone-300 text-[12px]">
         <div className="flex items-center justify-between h-8 px-4 sm:px-8 lg:px-12 max-w-[1536px] mx-auto">
-          <div className="flex items-center gap-4">
-            <Link
-              to="/help/safety"
-              className="flex items-center gap-1.5 text-neutral-300 hover:text-white transition-colors group"
-              title="Trust & Safety Center"
-            >
-              <Headphones className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
-              <span className="group-hover:underline">Help &amp; Support</span>
+          <div className="flex items-center gap-5">
+            <Link to="/help/safety" className="inline-flex items-center gap-1.5 hover:text-white transition-colors">
+              <Headphones className="w-3.5 h-3.5 text-stone-400" aria-hidden="true" />
+              Help center
             </Link>
-            <span className="text-neutral-700">|</span>
-            <nav aria-label="Partner with us" className="flex items-center gap-3">
-              <Link to="/partner" className="font-semibold text-neutral-200 hover:text-white hover:underline transition-colors">
-                Partner with us
-              </Link>
-              <Link to="/register/hub" className="hover:text-white hover:underline transition-colors">Logistics partner</Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <button
-              onClick={handleSupportChat}
-              className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer group"
-              title="Open Live Chat"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-neutral-400 group-hover:text-brand-red transition-colors" />
-              <span className="group-hover:underline">Need help? Chat with us</span>
+            <button type="button" onClick={handleSupportChat} className="inline-flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer">
+              <MessageSquare className="w-3.5 h-3.5 text-stone-400" aria-hidden="true" />
+              Chat with us
             </button>
-            <span className="text-neutral-700">|</span>
-            <div className="flex items-center gap-1.5 text-neutral-400 font-medium select-none" title="Official Customer Care Hotline">
-              <Phone className="w-3.5 h-3.5 text-neutral-500" />
-              <span className="text-neutral-300">+63 2 8123 5678</span>
-            </div>
-            <span className="text-neutral-700">|</span>
-            {user ? (
-              <span className="font-semibold text-white">Hi, {user.first_name}</span>
-            ) : (
-              <div className="flex items-center gap-1.5 font-medium">
-                <Link to="/login" className="hover:text-white transition-colors">Sign In</Link>
-                <span className="text-neutral-700">/</span>
-                <Link to="/register" className="hover:text-white transition-colors">Register</Link>
-              </div>
-            )}
+            <span className="hidden md:inline-flex items-center gap-1.5 text-stone-400 tabular-nums select-none" title="Customer care hotline">
+              <Phone className="w-3.5 h-3.5" aria-hidden="true" />
+              +63 2 8123 5678
+            </span>
           </div>
+          <nav aria-label="Work with Loved-IT" className="flex items-center divide-x divide-white/10">
+            {PARTNER_LINKS.map((l) => (
+              <Link key={l.to} to={l.to} className="px-3 last:pr-0 hover:text-white transition-colors">{l.label}</Link>
+            ))}
+          </nav>
         </div>
       </div>
 
-      {/* ── Primary Navigation (Crimson Header) ── */}
-      <header className="sticky top-0 z-40 shadow-sm bg-brand-red">
-        <div className="flex items-center h-16 sm:h-[70px] gap-3 sm:gap-6 px-4 sm:px-8 lg:px-12 max-w-[1536px] mx-auto">
+      {/* ── The red bar: logo, categories, search, account and cart ── */}
+      <header className="sticky top-0 z-40 bg-brand-red shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+        <div className="flex items-center h-16 sm:h-[68px] gap-3 sm:gap-5 px-4 sm:px-8 lg:px-12 max-w-[1536px] mx-auto">
           <Link to="/" className="flex items-center shrink-0 py-1" title="Loved-IT">
             <LovedItLogo
               variant="dark"
@@ -256,27 +250,32 @@ export default function SiteHeader() {
 
           <CategoriesMenu />
 
-          {/* Large Pill Search Field */}
-          <form onSubmit={handleSearch} className="flex-1 max-w-2xl mx-auto relative">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for products, brands and more"
-              className="w-full h-10 sm:h-11 pl-5 pr-11 text-xs sm:text-sm rounded-full bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 shadow-xs"
-            />
-            <button
-              type="submit"
-              className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-red hover:bg-gray-100 transition-colors"
-              title="Search"
-            >
-              <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-            </button>
+          <form onSubmit={handleSearch} role="search" className="flex-1 min-w-0 max-w-[720px] mx-auto">
+            <div className="flex items-center h-10 sm:h-11 rounded-full bg-white pl-4 pr-1 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)] focus-within:ring-2 focus-within:ring-white/70 transition-shadow">
+              <Search className="hidden sm:block w-4 h-4 text-stone-400 shrink-0" aria-hidden="true" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search for products, brands and more"
+                aria-label="Search Loved-IT"
+                className="flex-1 min-w-0 h-full px-0 sm:px-3 bg-transparent text-[13px] sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                title="Search"
+                className="h-8 sm:h-9 px-3 sm:px-5 rounded-full bg-[#1E1B18] hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors shrink-0"
+              >
+                <Search className="w-4 h-4 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">Search</span>
+              </button>
+            </div>
           </form>
 
-          {/* Right utility items */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Account and cart */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {user && <NotificationBell variant="storefront" />}
+            <span className="hidden sm:block w-px h-7 mx-1 bg-white/20" aria-hidden="true" />
             {user ? (
               <div className="hidden sm:block">
                 <UserDropdown user={user} />
@@ -326,39 +325,36 @@ export default function SiteHeader() {
           </div>
         </div>
 
-        {/* ── Secondary Navigation (Clean White Row) ── */}
-        <div className="hidden sm:block bg-white border-b border-gray-100 shadow-2xs">
-          <div className="flex items-center justify-center gap-8 md:gap-14 px-4 sm:px-8 lg:px-12 mx-auto max-w-[1536px] h-10">
-            <Link
-              to="/search?sort=newest"
-              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
-            >
-              <Star className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
-              <span>New Arrivals</span>
-            </Link>
-            <Link
-              to="/search?sort=best_selling"
-              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
-            >
-              <Flame className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
-              <span>Best Sellers</span>
-            </Link>
-            <Link
-              to="/search?on_sale=true"
-              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
-            >
-              <Tag className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
-              <span>Sale</span>
-            </Link>
-            <Link
-              to="/settings/orders"
-              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-brand-red transition-colors group"
-            >
-              <Truck className="w-3.5 h-3.5 text-brand-red group-hover:scale-110 transition-transform" />
-              <span>Track Order</span>
-            </Link>
+        {/* ── The white row: shortcuts, then a few categories on wide screens ── */}
+        <nav aria-label="Shop" className="hidden sm:block bg-white border-b border-stone-200/80">
+          <div className="flex items-center h-11 gap-1 px-4 sm:px-8 lg:px-12 mx-auto max-w-[1536px] overflow-hidden whitespace-nowrap">
+            {NAV_LINKS.map((l) => {
+              const active = here === l.to;
+              return (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative h-full inline-flex items-center px-3 first:pl-0 text-[13px] font-medium transition-colors after:absolute after:left-3 first:after:left-0 after:right-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-red after:transition-opacity ${
+                    active ? 'after:opacity-100 text-stone-900' : 'after:opacity-0 hover:after:opacity-100'
+                  } ${l.accent ? 'text-brand-red' : active ? '' : 'text-stone-600 hover:text-stone-900'}`}
+                >
+                  {l.label}
+                </Link>
+              );
+            })}
+            {quickCategories.length > 0 && (
+              <>
+                <span className="hidden xl:block w-px h-4 mx-3 bg-stone-200" aria-hidden="true" />
+                {quickCategories.map((c) => (
+                  <Link key={c.id} to={`/category/${c.slug}`} className="hidden xl:inline-flex h-full items-center px-3 text-[13px] text-stone-500 hover:text-stone-900 transition-colors">
+                    {c.name}
+                  </Link>
+                ))}
+              </>
+            )}
           </div>
-        </div>
+        </nav>
 
         {/* Mobile menu */}
         {menuOpen && (
@@ -375,8 +371,8 @@ export default function SiteHeader() {
                 <Search className="w-4 h-4" />
               </button>
             </div>
-            {SHORTCUTS.map((s) => (
-              <button key={s} className="py-1 text-sm text-left text-white/90">{s}</button>
+            {NAV_LINKS.map((l) => (
+              <Link key={l.to} to={l.to} className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>{l.label}</Link>
             ))}
             {mobileCategories && mobileCategories.length > 0 && (
               <div className="flex flex-col gap-1 pt-3 border-t border-white/10">
@@ -389,9 +385,10 @@ export default function SiteHeader() {
               </div>
             )}
             <div className="flex flex-col gap-1 pt-3 border-t border-white/10">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Partner with us</p>
-              <Link to="/partner" className="py-1 text-sm font-semibold text-white" onClick={() => setMenuOpen(false)}>Partner with us</Link>
-              <Link to="/register/hub" className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>Logistics partner</Link>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Work with Loved-IT</p>
+              {PARTNER_LINKS.map((l) => (
+                <Link key={l.to} to={l.to} className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>{l.label}</Link>
+              ))}
             </div>
             <div className="flex flex-col gap-2 pt-3 border-t border-white/10">
               {user ? (

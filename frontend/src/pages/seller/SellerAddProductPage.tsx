@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
-import { CATEGORY_TREE, type CategoryNode } from '../../data/categories';
+import { CATEGORY_TREE, NOT_ALLOWED_NOTE, type CategoryNode } from '../../data/categories';
 import { getSellerShopProfileApi, getStorefrontCategoriesApi } from '../../api/client';
 import { downscaleImage } from '../../utils/imageDownscale';
 import {
@@ -1703,6 +1703,13 @@ export default function SellerAddProductPage() {
             />
           </FieldWrap>
         </div>
+
+        {form.parentCategoryId === 'others' && (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-amber-900">
+            Use Others only when no other category fits. The Loved-IT team checks products in Others before they go live, usually within 1 business day.
+          </p>
+        )}
+        <p className="text-[12px] leading-relaxed text-gray-500">{NOT_ALLOWED_NOTE}</p>
 
         <FieldWrap label="Store Categories" error={errors.storeCategoryIds}
           hint={approved ? 'Optional. Where this product appears on your shop page (up to 3).' : undefined}>

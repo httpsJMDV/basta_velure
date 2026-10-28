@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Check, ChevronRight, Clock, IdCard, MapPin, Upload, UserRound } from 'lucide-react';
 import { completeProfileApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import { GOV_ID_OPTIONS, ID_REQUIRES_BACK } from '../../data/governmentIds';
 import CustomSelect from '../../components/ui/CustomSelect';
 import PhoneInput from '../../components/ui/PhoneInput';
 import Input from '../../components/ui/Input';
@@ -19,17 +20,6 @@ const SEX_OPTIONS = [
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
 ];
 
-// Government-issued IDs only: every account is 18 or older, so a school ID is no longer accepted.
-const GOV_ID_OPTIONS = [
-  { value: 'national_id',     label: 'National ID (PhilSys)' },
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'passport',        label: 'Passport' },
-  { value: 'umid',            label: 'UMID' },
-  { value: 'sss_id',          label: 'SSS ID' },
-  { value: 'philhealth_id',   label: 'PhilHealth ID' },
-  { value: 'voters_id',       label: "Voter's ID" },
-  { value: 'postal_id',       label: 'Postal ID' },
-];
 
 interface PsgcItem { code: string; name: string; }
 
@@ -294,7 +284,6 @@ function Step2({
 
 // ─── ID types that require a back photo ─────────────────────────────────────
 
-const REQUIRES_BACK = new Set(['drivers_license', 'umid', 'sss_id', 'philhealth_id', 'voters_id', 'postal_id']);
 
 // ─── Reusable file upload zone ────────────────────────────────────────────────
 
@@ -357,12 +346,12 @@ function Step3({
   const [backError,  setBackError]  = useState('');
   const [idType, setIdType] = useState(data.government_id_type);
 
-  const needsBack = REQUIRES_BACK.has(idType);
+  const needsBack = ID_REQUIRES_BACK.has(idType);
 
   function handleIdTypeChange(v: string) {
     setIdType(v);
     onChange({ government_id_type: v });
-    if (!REQUIRES_BACK.has(v)) { setBackFile(null); setBackError(''); }
+    if (!ID_REQUIRES_BACK.has(v)) { setBackFile(null); setBackError(''); }
     setFrontError('');
   }
 
@@ -411,7 +400,9 @@ function Step3({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CompleteProfilePage() {
-  const { user, clearAuth } = useAuth();
+  const { user, clearAuth, setUser } = useAuth();
+  // The account as saved, applied when they leave this page (applying it now would close the page under the modal).
+  const savedUser = useRef<import('../../types').User | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const completedRef = useRef(false);
@@ -464,7 +455,7 @@ export default function CompleteProfilePage() {
       fd.append('government_id_image', idFile);
       if (idBackFile) fd.append('government_id_image_back', idBackFile);
 
-      await completeProfileApi(fd);
+      savedUser.current = await completeProfileApi(fd);
       completedRef.current = true;
       setShowSuccessModal(true);
     } catch (err: unknown) {
@@ -547,13 +538,13 @@ export default function CompleteProfilePage() {
             <span className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center"><Clock className="w-6 h-6" /></span>
             <h2 id="profile-done-title" className="mt-5 font-serif text-[24px] font-bold tracking-tight text-[#1E1B18]">Thanks, we&apos;re checking it</h2>
             <p className="mt-2 text-sm text-stone-600 leading-relaxed">
-              An admin reviews your ID and details. We email you as soon as your account is approved.
+              The Loved-IT team checks your ID, usually within 1 business day. You can browse and fill your cart meanwhile; checkout opens once it is approved, and we email you.
             </p>
             <button
-              onClick={() => { setShowSuccessModal(false); clearAuth(); navigate('/login', { replace: true }); }}
+              onClick={() => { setShowSuccessModal(false); if (savedUser.current) setUser(savedUser.current); navigate('/', { replace: true }); }}
               className={`mt-6 w-full ${PRIMARY}`}
             >
-              Got it, go to sign in
+              Start browsing
             </button>
           </div>
         </div>

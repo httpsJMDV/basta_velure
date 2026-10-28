@@ -21,6 +21,28 @@ const STATUS_BADGE: Record<UserStatus, 'approved' | 'rejected' | 'pending'> = {
   pending_activation: 'pending',
 };
 
+/** The account pill: only an admin's suspension reads "Suspended"; an unfinished sign-up is not one. */
+const STATUS_PILL: Record<UserStatus, { label: string; tone: 'emerald' | 'red' | 'amber' }> = {
+  active: { label: 'Active', tone: 'emerald' },
+  suspended: { label: 'Suspended', tone: 'red' },
+  unverified: { label: 'Unverified', tone: 'amber' },
+  pending_activation: { label: 'Not activated', tone: 'amber' },
+};
+
+/** A buyer's government ID check: orders open once it is approved (Buyer Applications). */
+const ID_PILL: Record<'approved' | 'pending' | 'rejected' | 'none', { label: string; tone: 'emerald' | 'amber' | 'red' | 'gray' }> = {
+  approved: { label: 'ID verified', tone: 'emerald' },
+  pending: { label: 'ID pending', tone: 'amber' },
+  rejected: { label: 'ID rejected', tone: 'red' },
+  none: { label: 'No ID yet', tone: 'gray' },
+};
+
+/** What the admin sees instead of Suspend / Reactivate for an account that has not finished signing up. */
+const NOT_FINISHED: Partial<Record<UserStatus, string>> = {
+  unverified: 'Waiting for the email code',
+  pending_activation: 'Waiting for the activation link',
+};
+
 const RIDER_STATUS_LABEL: Record<RiderStatus, string> = {
   PENDING: 'Waiting for verification',
   ACTIVE: 'Active',
@@ -414,7 +436,7 @@ function BuyerDetailsModal({
               >
                 Suspend Account
               </Button>
-            ) : (
+            ) : user.status === 'suspended' ? (
               <Button
                 variant="secondary"
                 className="!min-h-[38px] !px-5 text-sm"
@@ -423,6 +445,9 @@ function BuyerDetailsModal({
               >
                 Activate Account
               </Button>
+            ) : (
+              // Not suspended: they have not finished signing up (email code, or a rider's activation link).
+              <span className="text-[12.5px] text-gray-500">{NOT_FINISHED[user.status] ?? ''}</span>
             )}
           </div>
         </div>
@@ -598,15 +623,22 @@ export default function AdminUsersPage() {
     <RowAction tone="danger" loading={acting === user.id} onClick={() => setQuickConfirm({ user, action: 'suspend' })} label={`Suspend ${fullName(user)}`}>
       <ShieldOff className="w-3.5 h-3.5" aria-hidden="true" /> Suspend
     </RowAction>
-  ) : (
+  ) : user.status === 'suspended' ? (
     <RowAction tone="success" loading={acting === user.id} onClick={() => setQuickConfirm({ user, action: 'activate' })} label={`Reactivate ${fullName(user)}`}>
       <UserCheck className="w-3.5 h-3.5" aria-hidden="true" /> Reactivate
     </RowAction>
+  ) : (
+    // An account that has not finished signing up is not suspended: reactivating it would skip the email code.
+    <span className="text-[12px] text-gray-400">{NOT_FINISHED[user.status] ?? ''}</span>
   );
 
-  const accountPill = (status: UserStatus) => (
-    <Pill tone={status === 'active' ? 'emerald' : 'red'}>{status === 'active' ? 'Active' : 'Suspended'}</Pill>
-  );
+  const accountPill = (status: UserStatus) => <Pill tone={STATUS_PILL[status].tone}>{STATUS_PILL[status].label}</Pill>;
+  // On the Buyers page: whether the buyer can order yet (their ID check), next to the account status.
+  const idPill = (user: User) => {
+    if (pathRole !== 'buyer') return null;
+    const p = ID_PILL[(user.buyer_application_status as 'approved' | 'pending' | 'rejected' | null) ?? 'none'] ?? ID_PILL.none;
+    return <Pill tone={p.tone}>{p.label}</Pill>;
+  };
 
   const filtered = Boolean(searchParam || statusParam);
   const clearAll = () => { setSearchInput(''); const next = new URLSearchParams(searchParams); next.delete('search'); next.delete('status'); next.delete('page'); setSearchParams(next); };
@@ -694,6 +726,7 @@ export default function AdminUsersPage() {
                               {accountPill(user.status)}
                             </div>
                             <p className="text-[11px] text-gray-400 truncate mt-0.5">{user.email}</p>
+                            {pathRole === 'buyer' && <div className="mt-1.5">{idPill(user)}</div>}
                             {isSeller && user.seller_profile && (
                               <p className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-red-50 text-brand-red text-[11px] font-semibold max-w-full">
                                 <Store className="w-3 h-3 shrink-0" aria-hidden="true" /><span className="truncate">{user.seller_profile.shop_name}</span>
@@ -767,7 +800,7 @@ export default function AdminUsersPage() {
                               </td>
                             )}
                             <td className={`${TD} hidden lg:table-cell text-gray-600 tabular-nums`}>{user.phone || <span className="text-gray-300">—</span>}</td>
-                            <td className={TD}>{accountPill(user.status)}</td>
+                            <td className={TD}><div className="flex flex-wrap gap-1">{accountPill(user.status)}{idPill(user)}</div></td>
                             <td className={`${TD} text-gray-500 whitespace-nowrap`}>{formatShortDate(user.created_at)}</td>
                             <td className={`${TD} text-right`}>{actionFor(user)}</td>
                           </tr>

@@ -34,6 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setToken(null);
           setUser(null);
           setSuspended(true);
+        } else if (u.status === 'unverified' || u.status === 'pending_activation') {
+          // A sign-up that was never finished (email code, or a rider's activation link): the server refuses this
+          // token everywhere else, so sign out here and let them sign in again once it is finished.
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
         } else {
           setSuspended(false);
           setUser(u);

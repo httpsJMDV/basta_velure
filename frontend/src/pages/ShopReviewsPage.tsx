@@ -8,12 +8,12 @@ import { getMyShopReviewApi, getShopReviewListApi } from '../api/shopReviews';
 import type { MyShopReview, ShopReviewPage } from '../api/shopReviews';
 import { useAuth } from '../hooks/useAuth';
 
-/** Every review of one shop (the shop itself, not its products), newest first, with a star filter. */
+/** Every comment on one shop (the shop itself, not its products), newest first, filtered by quick tag. No stars. */
 export default function ShopReviewsPage() {
   const { slug = '' } = useParams<{ slug: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [rating, setRating] = useState<number | undefined>(undefined);
+  const [tag, setTag] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ShopReviewPage | null>(null);
   const [failed, setFailed] = useState(false);
@@ -21,10 +21,10 @@ export default function ShopReviewsPage() {
   const [writing, setWriting] = useState(false);
 
   const load = useCallback(() => {
-    getShopReviewListApi(slug, { rating, page, per_page: 10 })
+    getShopReviewListApi(slug, { tag, page, per_page: 10 })
       .then((res) => { setData(res); setFailed(false); })
       .catch(() => setFailed(true));
-  }, [slug, rating, page]);
+  }, [slug, tag, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -51,41 +51,29 @@ export default function ShopReviewsPage() {
         ) : (
           <div className="mt-5 grid lg:grid-cols-[320px_minmax(0,1fr)] gap-6 items-start">
             <aside className="lg:sticky lg:top-[126px] rounded-3xl bg-white border border-stone-200 p-6">
-              <p className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand-red">Shop reviews</p>
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand-red">Comments about the shop</p>
               <h1 className="mt-1.5 font-serif text-[26px] font-bold tracking-tight leading-tight text-[#1E1B18]">{shopName}</h1>
               <p className="mt-1 text-[12.5px] text-stone-500">What buyers say about the shop itself: shipping, packing and how the seller answers.</p>
-              {summary && <div className="mt-6"><ShopReviewSummaryBlock summary={summary} compact /></div>}
+              {summary && <div className="mt-6"><ShopReviewSummaryBlock summary={summary} activeTag={tag} onTag={(t) => { setTag(t); setPage(1); }} /></div>}
               <div className="mt-6">
                 {!user ? (
                   <button type="button" onClick={() => navigate(`/login?next=${encodeURIComponent(`/shop/${slug}/reviews`)}`)}
-                    className="w-full min-h-10 rounded-full border border-stone-300 bg-white text-[13px] font-semibold text-stone-800 hover:border-stone-900">Sign in to review</button>
+                    className="w-full min-h-10 rounded-full border border-stone-300 bg-white text-[13px] font-semibold text-stone-800 hover:border-stone-900">Sign in to comment</button>
                 ) : mine?.review || mine?.can_review ? (
                   <button type="button" onClick={() => setWriting(true)}
                     className={`w-full min-h-10 rounded-full text-[13px] font-semibold inline-flex items-center justify-center gap-1.5 ${mine.review ? 'border border-stone-300 bg-white text-stone-800 hover:border-stone-900' : 'bg-brand-red text-white hover:bg-brand-red-dark'}`}>
-                    <PenLine className="w-4 h-4" /> {mine.review ? 'Edit your review' : 'Review this shop'}
+                    <PenLine className="w-4 h-4" /> {mine.review ? 'Edit your comment' : 'Comment on this shop'}
                   </button>
                 ) : mine?.reason ? <p className="text-[12.5px] leading-snug text-stone-500">{mine.reason}</p> : null}
               </div>
             </aside>
 
             <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-7">
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by stars">
-                {[undefined, 5, 4, 3, 2, 1].map((s) => {
-                  const on = rating === s;
-                  const n = s === undefined ? summary?.count ?? 0 : summary?.rating_counts[s] ?? 0;
-                  return (
-                    <button key={s ?? 'all'} type="button" aria-pressed={on} onClick={() => { setRating(s); setPage(1); }}
-                      className={`px-3 py-1.5 rounded-full border text-[12.5px] font-medium transition-colors ${on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'}`}>
-                      {s === undefined ? 'All' : `${s} star${s === 1 ? '' : 's'}`} <span className={on ? 'text-white/70' : 'text-stone-400'}>{n}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-4 text-[12px] text-stone-500">Newest first</p>
+              <p className="text-[12px] text-stone-500">{tag ? <>Comments that mention <span className="font-semibold text-stone-800">{tag}</span>, newest first</> : 'Newest first'}</p>
               <div className="mt-4">
                 {data === null
                   ? <div className="space-y-4">{[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-xl bg-stone-100 animate-pulse" />)}</div>
-                  : <ShopReviewList reviews={data.data} shopName={shopName} emptyText={rating ? 'No reviews with this rating.' : 'No one has reviewed this shop yet.'} />}
+                  : <ShopReviewList reviews={data.data} shopName={shopName} emptyText={tag ? 'No comments mention this yet.' : 'No one has commented on this shop yet.'} />}
               </div>
               {data && data.meta.last_page > 1 && (
                 <div className="mt-8 flex items-center justify-center gap-3">

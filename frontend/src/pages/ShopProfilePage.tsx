@@ -44,7 +44,7 @@ const RESPONSE_TIME_MAP: Record<string, string> = {
 const responseTime = (val: string | null | undefined) =>
   !val ? null : RESPONSE_TIME_MAP[val] ?? val.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
-const EMPTY_SUMMARY: ShopReviewSummary = { average: null, count: 0, rating_counts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }, latest: [] };
+const EMPTY_SUMMARY: ShopReviewSummary = { count: 0, tag_counts: [], latest: [] };
 
 type Tab = 'products' | 'reviews' | 'about';
 
@@ -275,13 +275,8 @@ export default function ShopProfilePage() {
     : selectedCategory !== 'all' ? profile.categories?.find((c) => c.category_id === selectedCategory)?.category_name : null;
 
   const stats: { label: string; value: React.ReactNode; onClick?: () => void }[] = [
-    {
-      label: 'Shop rating',
-      value: shopSummary.average !== null
-        ? <span className="inline-flex items-center gap-1.5">{shopSummary.average.toFixed(1)} <Stars value={shopSummary.average} size="xs" /></span>
-        : 'No reviews yet',
-      onClick: () => setTab('reviews'),
-    },
+    // Comments about the shop have no stars; the product reviews keep theirs.
+    { label: 'Shop comments', value: shopSummary.count > 0 ? shopSummary.count.toLocaleString() : 'None yet', onClick: () => setTab('reviews') },
     { label: 'Product rating', value: profile.avg_rating != null ? `${profile.avg_rating.toFixed(1)} (${profile.total_reviews})` : 'No reviews yet', onClick: () => setTab('reviews') },
     { label: 'Followers', value: followerCount.toLocaleString() },
     { label: 'Products', value: profile.total_products.toLocaleString() },
@@ -436,18 +431,18 @@ export default function ShopProfilePage() {
 
         {tab === 'reviews' && (
           <div className="mt-6 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 items-start">
-            {/* Reviews of the shop itself */}
+            {/* Comments about the shop itself (no stars) */}
             <section className="rounded-3xl bg-white border border-stone-200 p-5 sm:p-7">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-serif text-[22px] font-bold tracking-tight text-[#1E1B18]">About the shop</h2>
+                  <h2 className="font-serif text-[22px] font-bold tracking-tight text-[#1E1B18]">Comments about the shop</h2>
                   <p className="text-[12.5px] text-stone-500">Shipping, packing and how the seller answers, from buyers with a completed order.</p>
                 </div>
                 <ReviewAction mine={mine} signedIn={!!user} onWrite={() => setWriting(true)} onSignIn={() => navigate(`/login?next=${encodeURIComponent(`/shop/${profile.shop_slug}?tab=reviews`)}`)} />
               </div>
               <div className="mt-6"><ShopReviewSummaryBlock summary={shopSummary} /></div>
               <div className="mt-6 pt-5 border-t border-stone-100">
-                <ShopReviewList reviews={shopSummary.latest} shopName={profile.shop_name} emptyText="No one has reviewed the shop yet. Buyers can review it once an order from it is completed." />
+                <ShopReviewList reviews={shopSummary.latest} shopName={profile.shop_name} emptyText="No one has commented on the shop yet. Buyers can comment once an order from it is completed." />
               </div>
               {shopSummary.count > shopSummary.latest.length && <div className="mt-5"><SeeAllShopReviews slug={profile.shop_slug} count={shopSummary.count} /></div>}
             </section>
@@ -595,13 +590,13 @@ function Pager({ page, last, onPage }: { page: number; last: number; onPage: (p:
   );
 }
 
-/** Write, edit, sign in, or why the buyer cannot review yet. */
+/** Write, edit, sign in, or why the buyer cannot comment yet. */
 function ReviewAction({ mine, signedIn, onWrite, onSignIn }: { mine: MyShopReview | null; signedIn: boolean; onWrite: () => void; onSignIn: () => void }) {
   const btn = 'min-h-10 px-4 rounded-full text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors';
-  if (!signedIn) return <button type="button" onClick={onSignIn} className={`${btn} border border-stone-300 bg-white text-stone-800 hover:border-stone-900`}>Sign in to review</button>;
+  if (!signedIn) return <button type="button" onClick={onSignIn} className={`${btn} border border-stone-300 bg-white text-stone-800 hover:border-stone-900`}>Sign in to comment</button>;
   if (!mine) return null;
-  if (mine.review) return <button type="button" onClick={onWrite} className={`${btn} border border-stone-300 bg-white text-stone-800 hover:border-stone-900`}><PenLine className="w-4 h-4" /> Edit your review</button>;
-  if (mine.can_review) return <button type="button" onClick={onWrite} className={`${btn} bg-brand-red text-white hover:bg-brand-red-dark`}><PenLine className="w-4 h-4" /> Review this shop</button>;
+  if (mine.review) return <button type="button" onClick={onWrite} className={`${btn} border border-stone-300 bg-white text-stone-800 hover:border-stone-900`}><PenLine className="w-4 h-4" /> Edit your comment</button>;
+  if (mine.can_review) return <button type="button" onClick={onWrite} className={`${btn} bg-brand-red text-white hover:bg-brand-red-dark`}><PenLine className="w-4 h-4" /> Comment on this shop</button>;
   return <p className="max-w-[220px] text-[12px] leading-snug text-stone-500 sm:text-right">{mine.reason}</p>;
 }
 

@@ -16,9 +16,23 @@ const TONE = {
   gray: 'text-gray-700 bg-gray-100 border-gray-400',
 };
 
+/**
+ * Why a product waits for a person: held by the listing rules (filed under Others, or it mentions medicine), then
+ * what the AI said, if it ran.
+ */
+function reviewNote(product: AdminProduct): { text: string; tone: 'amber' | 'red' | 'gray' } | null {
+  if (product.status !== 'pending_review') return null;
+  const ai = aiReviewText(product.ai_review);
+  if (product.hold_reason) {
+    const aiPassed = product.ai_review?.verdict === 'approve' ? ' The AI found nothing wrong.' : '';
+    return { text: `Held for a person: ${product.hold_reason}${ai ? ` ${ai.text}` : aiPassed}`, tone: ai?.tone === 'red' ? 'red' : 'amber' };
+  }
+  return ai;
+}
+
 /** One short line under a product in the list. */
 export function AiReviewLine({ product }: { product: AdminProduct }) {
-  const note = product.status === 'pending_review' ? aiReviewText(product.ai_review) : null;
+  const note = reviewNote(product);
   if (!note) return null;
   return (
     <p title={note.text} className={`mt-1 text-[11px] leading-snug line-clamp-2 ${note.tone === 'red' ? 'text-red-600' : note.tone === 'amber' ? 'text-amber-700' : 'text-gray-500'}`}>
@@ -29,7 +43,7 @@ export function AiReviewLine({ product }: { product: AdminProduct }) {
 
 /** The full note on the product's review page. */
 export function AiReviewBanner({ product }: { product: AdminProduct }) {
-  const note = product.status === 'pending_review' ? aiReviewText(product.ai_review) : null;
+  const note = reviewNote(product);
   if (!note) return null;
   return (
     <p className={`py-2.5 px-4 text-[13px] border-l-2 rounded-r-lg ${TONE[note.tone]}`}>

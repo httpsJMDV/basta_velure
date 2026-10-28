@@ -283,7 +283,7 @@ function ProductRow({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1 lg:hidden"><StatusBadge view={view} checking={p.ai_review_status === 'checking'} /></div>
+          <div className="flex items-center gap-2 mt-1 lg:hidden"><StatusBadge view={view} checking={p.ai_review_status === 'checking' && !p.held_for_review} /></div>
           {(view === 'rejected' && p.rejection_reason) || (view === 'removed' && p.archive_reason) ? (
             <p className={`mt-1.5 max-w-[300px] text-[11px] leading-snug ${view === 'rejected' ? 'text-red-600' : 'text-amber-700'}`}>
               <span className="font-semibold">{view === 'rejected' ? 'Rejected: ' : 'Removed by Loved-IT: '}</span>
@@ -313,7 +313,7 @@ function ProductRow({
           <span className="text-[12px] text-gray-500 tabular-nums">{p.units_sold.toLocaleString()}</span>
         </td>
 
-        <td className="px-3 py-3 text-center hidden lg:table-cell"><StatusBadge view={view} checking={p.ai_review_status === 'checking'} /></td>
+        <td className="px-3 py-3 text-center hidden lg:table-cell"><StatusBadge view={view} checking={p.ai_review_status === 'checking' && !p.held_for_review} /></td>
 
         <td className="px-3 py-3">
           <div className="flex items-center gap-0.5 justify-end">
@@ -546,7 +546,9 @@ export default function SellerProductsPage() {
         const res = await setSellerProductStatusApi(p.id, 'active');
         replace(res.data);
         showToast(res.data.status === 'pending_review'
-          ? `"${p.name}" is being checked. It goes live as soon as it passes.`
+          ? res.data.held_for_review
+            ? `"${p.name}" is waiting for the Loved-IT team. It usually goes live within 1 business day.`
+            : `"${p.name}" is being checked. It goes live as soon as it passes.`
           : p.status === 'draft' ? `"${p.name}" is live.` : `"${p.name}" is active again.`);
       } catch (e) {
         const problem = apiProblem(e, 'The product could not be published.');

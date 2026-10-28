@@ -146,12 +146,11 @@ export const CATEGORY_TREE: CategoryNode[] = [
       { id: 'skincare', label: 'Skincare' },
       { id: 'makeup', label: 'Makeup' },
       { id: 'personal-care', label: 'Personal Care' },
-      { id: 'supplements', label: 'Supplements' },
       { id: 'haircare', label: 'Hair Care' },
       { id: 'fragrances', label: 'Fragrances' },
       { id: 'bath-body', label: 'Bath & Body' },
       { id: 'oral-care', label: 'Oral Care' },
-      { id: 'medical-supplies', label: 'Medical Supplies' },
+      { id: 'medical-supplies', label: 'First Aid & Medical Supplies' },
       { id: 'nail-care', label: 'Nail Care' },
     ],
   },
@@ -235,7 +234,17 @@ export const CATEGORY_TREE: CategoryNode[] = [
       { id: 'pet-treats', label: 'Pet Treats' },
     ],
   },
+  {
+    // The catch-all, always last; an admin checks every listing in it before it goes live.
+    id: 'others',
+    label: 'Others',
+    children: [{ id: 'other-items', label: 'Other items' }],
+  },
 ];
+
+/** Not sold on Loved-IT in any category; shown beside the category picker. */
+export const NOT_ALLOWED_NOTE =
+  'Not allowed on Loved-IT: medicine of any kind (including over-the-counter like Biogesic), anything injected, and vitamins or food supplements. First-aid items such as band-aids and thermometers are fine.';
 
 /** Flat map of leaf id → LeafCategory for O(1) lookup */
 export const LEAF_MAP = new Map(

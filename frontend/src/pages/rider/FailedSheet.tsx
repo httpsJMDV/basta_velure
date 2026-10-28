@@ -64,7 +64,13 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
       if (e.key === 'Escape' && !busyRef.current) onClose();
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    // The page behind stays still while the sheet is open.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [onClose]);
 
   const selected = reasons.find((r) => r.code === reasonCode) ?? null;
@@ -108,14 +114,14 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" role="presentation">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4" role="presentation">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="failed-title"
-        className="w-full max-w-xl bg-white rounded-t-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto shadow-2xl"
+        className="w-full max-w-xl bg-white rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-gray-100">
           <div className="min-w-0">
             <h2 id="failed-title" ref={headingRef} tabIndex={-1} className="text-lg font-black text-gray-900 focus:outline-none">
               Delivery failed
@@ -135,99 +141,101 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
           </button>
         </div>
 
-        {loadingReasons ? (
-          <div className="space-y-2 animate-pulse" aria-label="Loading reasons">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-12 rounded-xl bg-gray-200/80" />
-            ))}
-          </div>
-        ) : reasonsError ? (
-          <div role="alert" className="text-center space-y-2 py-4">
-            <AlertCircle className="w-7 h-7 text-red-500 mx-auto" aria-hidden="true" />
-            <p className="text-sm text-gray-700">{reasonsError}</p>
-            <button
-              type="button"
-              onClick={() => void loadReasons()}
-              className="inline-flex items-center gap-1.5 min-h-11 px-5 rounded-xl bg-brand-red text-white text-xs font-bold"
-            >
-              <RefreshCw className="w-4 h-4" aria-hidden="true" />
-              Try again
-            </button>
-          </div>
-        ) : (
-          <>
-            <fieldset className="space-y-2" disabled={submitting}>
-              <legend className="text-sm font-bold text-gray-900 mb-1">
-                Why could it not be delivered? <span className="text-red-700">(required)</span>
-              </legend>
-              {reasons.map((r) => {
-                const checked = reasonCode === r.code;
-                return (
-                  <label
-                    key={r.code}
-                    className={`flex items-center gap-3 min-h-12 px-3 rounded-xl border cursor-pointer ${
-                      checked ? 'border-red-600 bg-red-50 ring-2 ring-red-100' : 'border-gray-200 bg-white hover:border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="failure-reason"
-                      value={r.code}
-                      checked={checked}
-                      onChange={() => setReasonCode(r.code)}
-                      className="w-5 h-5 accent-red-600 shrink-0"
-                    />
-                    <span className="text-sm font-semibold text-gray-900">{r.label}</span>
-                  </label>
-                );
-              })}
-            </fieldset>
-
-            <div className="space-y-1">
-              <label htmlFor="failed-note" className="block text-sm font-bold text-gray-900">
-                Note{' '}
-                {noteRequired ? (
-                  <span className="text-red-700">(required for this reason)</span>
-                ) : (
-                  <span className="font-normal text-gray-500">(optional)</span>
-                )}
-              </label>
-              <textarea
-                id="failed-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                onBlur={() => setNoteTouched(true)}
-                maxLength={NOTE_MAX}
-                rows={3}
-                disabled={submitting}
-                aria-required={noteRequired}
-                aria-invalid={showNoteError ? true : undefined}
-                aria-describedby="failed-note-help"
-                placeholder="What happened? For example: Gate locked and nobody answered the phone."
-                className={`w-full px-3 py-2.5 rounded-xl border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60 ${showNoteError ? 'border-red-500' : 'border-gray-300'}`}
-              />
-              <div id="failed-note-help" className="flex items-start justify-between gap-3 text-[11px]">
-                {showNoteError
-                  ? <p role="alert" className="font-semibold text-red-700">{showNoteError}</p>
-                  : <p className="text-gray-500">{noteRequired ? `At least ${NOTE_MIN} characters, in words.` : ''}</p>}
-                <p className="shrink-0 text-gray-500">{note.length}/{NOTE_MAX}</p>
-              </div>
-            </div>
-          </>
-        )}
-
-        {errors.length > 0 && (
-          <div role="alert" className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
-            <p className="font-bold">The failure was not recorded.</p>
-            <ul className="list-disc pl-5 text-xs space-y-0.5">
-              {errors.map((line) => (
-                <li key={line}>{line}</li>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {loadingReasons ? (
+            <div className="space-y-2 animate-pulse" aria-label="Loading reasons">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-12 rounded-xl bg-gray-200/80" />
               ))}
-            </ul>
-          </div>
-        )}
+            </div>
+          ) : reasonsError ? (
+            <div role="alert" className="text-center space-y-2 py-4">
+              <AlertCircle className="w-7 h-7 text-red-500 mx-auto" aria-hidden="true" />
+              <p className="text-sm text-gray-700">{reasonsError}</p>
+              <button
+                type="button"
+                onClick={() => void loadReasons()}
+                className="inline-flex items-center gap-1.5 min-h-11 px-5 rounded-xl bg-brand-red text-white text-xs font-bold"
+              >
+                <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                Try again
+              </button>
+            </div>
+          ) : (
+            <>
+              <fieldset className="space-y-2" disabled={submitting}>
+                <legend className="text-sm font-bold text-gray-900 mb-1">
+                  Why could it not be delivered? <span className="text-red-700">(required)</span>
+                </legend>
+                {reasons.map((r) => {
+                  const checked = reasonCode === r.code;
+                  return (
+                    <label
+                      key={r.code}
+                      className={`flex items-center gap-3 min-h-12 px-3 rounded-xl border cursor-pointer ${
+                        checked ? 'border-red-600 bg-red-50 ring-2 ring-red-100' : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="failure-reason"
+                        value={r.code}
+                        checked={checked}
+                        onChange={() => setReasonCode(r.code)}
+                        className="w-5 h-5 accent-red-600 shrink-0"
+                      />
+                      <span className="text-sm font-semibold text-gray-900">{r.label}</span>
+                    </label>
+                  );
+                })}
+              </fieldset>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+              <div className="space-y-1">
+                <label htmlFor="failed-note" className="block text-sm font-bold text-gray-900">
+                  Note{' '}
+                  {noteRequired ? (
+                    <span className="text-red-700">(required for this reason)</span>
+                  ) : (
+                    <span className="font-normal text-gray-500">(optional)</span>
+                  )}
+                </label>
+                <textarea
+                  id="failed-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  onBlur={() => setNoteTouched(true)}
+                  maxLength={NOTE_MAX}
+                  rows={3}
+                  disabled={submitting}
+                  aria-required={noteRequired}
+                  aria-invalid={showNoteError ? true : undefined}
+                  aria-describedby="failed-note-help"
+                  placeholder="What happened? For example: Gate locked and nobody answered the phone."
+                  className={`w-full px-3 py-2.5 rounded-xl border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60 ${showNoteError ? 'border-red-500' : 'border-gray-300'}`}
+                />
+                <div id="failed-note-help" className="flex items-start justify-between gap-3 text-[11px]">
+                  {showNoteError
+                    ? <p role="alert" className="font-semibold text-red-700">{showNoteError}</p>
+                    : <p className="text-gray-500">{noteRequired ? `At least ${NOTE_MIN} characters, in words.` : ''}</p>}
+                  <p className="shrink-0 text-gray-500">{note.length}/{NOTE_MAX}</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {errors.length > 0 && (
+            <div role="alert" className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
+              <p className="font-bold">The failure was not recorded.</p>
+              <ul className="list-disc pl-5 text-xs space-y-0.5">
+                {errors.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-5 py-3 border-t border-gray-100">
           <button
             type="button"
             onClick={onClose}

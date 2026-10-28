@@ -119,7 +119,10 @@ export default function CheckoutPage() {
 
   const noteError = (sellerId: number) => ((notes[sellerId] ?? '').length > NOTE_MAX ? `A note can be at most ${NOTE_MAX} characters.` : undefined);
   const blocking = (quote?.problems ?? []).filter((p) => p.type !== 'address' || !addressId);
-  const canPlace = !!quote?.can_place && !quoting && !submitting && !addressNeedsUpdate && staleVouchers.length === 0
+  // Orders open once the Loved-IT team approved the buyer's government ID (the server refuses them before).
+  const idStatus = user?.buyer_application_status ?? null;
+  const idBlocked = user?.role === 'buyer' && idStatus !== 'approved';
+  const canPlace = !idBlocked && !!quote?.can_place && !quoting && !submitting && !addressNeedsUpdate && staleVouchers.length === 0
     && stores.every((s) => !noteError(s.seller.id)) && (method !== 'gcash' || gcashBlockers.length === 0);
 
   const setSlot = (slot: VoucherSlot, code: string | null) => {
@@ -429,6 +432,26 @@ export default function CheckoutPage() {
                 {errorMsg && (
                   <div role="alert" className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-[13px] text-brand-red">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{errorMsg}</span>
+                  </div>
+                )}
+
+                {idBlocked && (
+                  <div role="status" className="mt-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-[13px] text-amber-900">
+                    <p className="font-semibold">
+                      {idStatus === 'pending' ? 'Your ID is being checked' : idStatus === 'rejected' ? 'Your ID was not approved' : 'Add a government ID to place orders'}
+                    </p>
+                    <p className="mt-0.5">
+                      {idStatus === 'pending'
+                        ? 'You can place this order once the Loved-IT team approves it, usually within 1 business day. Your cart stays here.'
+                        : idStatus === 'rejected'
+                          ? <>{user?.buyer_rejection_reason ? <>Reason: {user.buyer_rejection_reason}. </> : null}Send a new one to place orders.</>
+                          : 'The Loved-IT team checks it, usually within 1 business day. Your cart stays here.'}
+                    </p>
+                    {idStatus !== 'pending' && (
+                      <Link to="/settings/id" className="mt-2 inline-flex items-center gap-1 font-semibold text-brand-red hover:underline">
+                        {idStatus === 'rejected' ? 'Send a new ID' : 'Add your ID'} <ChevronRight className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
                   </div>
                 )}
 

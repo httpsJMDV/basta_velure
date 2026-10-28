@@ -11,6 +11,7 @@ import { getLogisticsHubsApi, getLogisticsHubApi, decideLogisticsHubApi, openAut
 import type { LogisticsHubRow, SortingCenterApplicationDetail, SortingCenterStatus } from '../../types';
 import type { LogisticsOutletContext } from './LogisticsLayout';
 import { HeroStats } from '../../components/logistics/CourierKit';
+import { usePlaceNames } from '../../hooks/usePlaceNames';
 
 type Tab = SortingCenterStatus | 'ALL';
 
@@ -36,6 +37,8 @@ function HubDrawer({ hubId, onClose, onDecided }: { hubId: number; onClose: () =
   const [reasonFor, setReasonFor] = useState<'reject' | 'suspend' | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // Coverage is stored as barangay codes; show their names.
+  const places = usePlaceNames(hub?.coverage_barangays);
 
   useEffect(() => {
     getLogisticsHubApi(hubId).then(setHub).catch((e) => setError(errorMessage(e, 'The hub could not be loaded.')));
@@ -101,7 +104,13 @@ function HubDrawer({ hubId, onClose, onDecided }: { hubId: number; onClose: () =
                   <div className="flex justify-between gap-3 px-3 py-2.5"><dt className="text-gray-500">Applied</dt><dd className="text-gray-900">{hub.created_at ? new Date(hub.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</dd></div>
                 </dl>
                 {hub.coverage_barangays.length > 0 && (
-                  <p className="mt-2 font-mono text-[11px] leading-relaxed text-gray-400 break-words">{hub.coverage_barangays.join(' · ')}</p>
+                  <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Barangays covered">
+                    {places.sortByName(hub.coverage_barangays).map((code) => (
+                      <li key={code} title={`PSGC ${code}`} className={`px-2 py-0.5 rounded-md border border-gray-200 bg-gray-50 text-[11.5px] ${places.known(code) ? 'text-gray-700' : 'font-mono text-gray-400'}`}>
+                        {places.place(code)}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </section>
 

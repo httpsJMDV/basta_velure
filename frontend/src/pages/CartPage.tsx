@@ -8,6 +8,8 @@ import Footer from '../components/Footer';
 import { useCart } from '../hooks/useCart';
 import { pesoCompact as peso } from '../utils/pricing';
 import type { CartLine, CartStore } from '../api/commerce';
+import { useRemoveConfirm } from '../components/cart/useRemoveConfirm';
+import { clampQuantity } from '../utils/quantity';
 
 /**
  * The cart (B6). Items are grouped by shop, because each shop ships its own parcel. Prices, stock and availability
@@ -23,6 +25,12 @@ export default function CartPage() {
   const selectable = stores.flatMap((s) => s.lines).filter((l) => l.status === 'available');
   const allSelected = selectable.length > 0 && selectable.every((l) => l.selected);
   const empty = signedIn ? stores.length === 0 : items.length === 0;
+  // Removing asks first (the line's Remove button).
+  const removal = useRemoveConfirm(removeItem);
+  const askRemove = async (variantId: number) => {
+    const line = stores.flatMap((st) => st.lines).find((l) => l.variant_id === variantId);
+    removal.ask({ variantId, name: line?.name ?? 'This item', image: line?.image_url, variant: line?.variant_label });
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F5]">
@@ -69,7 +77,7 @@ export default function CartPage() {
 
               {stores.map((store) => (
                 <StoreCard key={store.seller.id} store={store} onSelectStore={(on) => selectAll(on, store.seller.id)}
-                  onRemove={removeItem} onQty={updateQty} onSelect={setSelected} />
+                  onRemove={askRemove} onQty={updateQty} onSelect={setSelected} />
               ))}
 
               <Link to="/search" className="inline-block text-[13px] font-semibold text-stone-700 hover:text-brand-red">← Keep shopping</Link>
@@ -104,6 +112,7 @@ export default function CartPage() {
         )}
       </main>
 
+      {removal.dialog}
       <Footer />
     </div>
   );
@@ -162,16 +171,23 @@ function LineRow({ line, onRemove, onQty, onSelect }: {
 }) {
   const [qtyText, setQtyText] = useState(String(line.quantity));
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const blocked = line.status !== 'available' && line.status !== 'insufficient_stock' && line.status !== 'limit_exceeded';
   const flash = line.segments.some((s) => s.price_source === 'flash');
 
+  // A typed number above what can be bought becomes the max (stock, or what is left of the purchase limit).
   const commit = async (value: number | string) => {
+    const next = clampQuantity(value, line.max_quantity);
+    if (!next) { setQtyText(String(line.quantity)); setError('Enter a quantity of at least 1.'); return; }
+    setQtyText(String(next.qty));
+    setNotice(next.clamped ? `Only ${next.qty} available, so it is set to ${next.qty}.` : '');
+    if (next.qty === line.quantity) { setError(''); return; }
     setBusy(true);
-    const problem = await onQty(line.variant_id, value);
+    const problem = await onQty(line.variant_id, next.qty);
     setBusy(false);
     setError(problem ?? '');
-    if (problem) setQtyText(String(line.quantity));
+    if (problem) { setQtyText(String(line.quantity)); setNotice(''); }
   };
   const step = (delta: number) => {
     const next = line.quantity + delta;
@@ -222,7 +238,7 @@ function LineRow({ line, onRemove, onQty, onSelect }: {
                 </button>
                 <input
                   type="text" inputMode="numeric" value={qtyText} aria-label={`Quantity of ${line.name}`}
-                  onChange={(e) => { setQtyText(e.target.value); setError(''); }}
+                  onChange={(e) => { setQtyText(e.target.value.replace(/[^\d]/g, '').slice(0, 6)); setError(''); setNotice(''); }}
                   onBlur={() => { if (qtyText !== String(line.quantity)) void commit(qtyText); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                   className="w-10 text-center text-sm font-semibold tabular-nums outline-none bg-transparent"
@@ -239,6 +255,7 @@ function LineRow({ line, onRemove, onQty, onSelect }: {
           </button>
         </div>
         {error && <p role="alert" className="mt-1.5 text-[12px] font-medium text-brand-red">{error}</p>}
+        {!error && notice && <p role="status" className="mt-1.5 text-[12px] font-medium text-amber-800">{notice}</p>}
       </div>
     </li>
   );
@@ -247,6 +264,7 @@ function LineRow({ line, onRemove, onQty, onSelect }: {
 /** A guest's cart: kept in this browser until they log in. */
 function GuestCart() {
   const { items, removeItem, updateQty } = useCart();
+  const removal = useRemoveConfirm(removeItem);
   const navigate = useNavigate();
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
@@ -269,7 +287,7 @@ function GuestCart() {
                     <span className="w-8 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
                     <button type="button" onClick={() => updateQty(item.variantId, item.quantity + 1)} className="w-9 h-full flex items-center justify-center" aria-label="More"><Plus className="w-4 h-4" /></button>
                   </div>
-                  <button type="button" onClick={() => removeItem(item.variantId)} className="text-[13px] text-stone-500 hover:text-brand-red">Remove</button>
+                  <button type="button" onClick={() => removal.ask({ variantId: item.variantId, name: item.name, image: item.image, variant: item.variant })} className="text-[13px] text-stone-500 hover:text-brand-red">Remove</button>
                 </div>
               </div>
             </li>
@@ -282,6 +300,7 @@ function GuestCart() {
         <p className="mt-2 text-[13px] text-stone-500">Log in to see live prices and stock, and to check out. Your cart moves into your account.</p>
         <button type="button" onClick={() => navigate('/login')} className="mt-5 w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold">Log in to check out</button>
       </aside>
+      {removal.dialog}
     </div>
   );
 }

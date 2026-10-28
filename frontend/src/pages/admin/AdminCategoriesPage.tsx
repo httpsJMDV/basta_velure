@@ -1,1042 +1,733 @@
-import { useEffect, useState, useCallback, useMemo, type FormEvent } from 'react';
-import { createPortal } from 'react-dom';
-import {
-  Tag,
-  Plus,
-  Edit2,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  ShieldAlert,
-  Coins,
-  Package,
-  Layers,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  X,
-} from 'lucide-react';
-import Button from '../../components/ui/Button';
+import { useEffect, useState, useCallback, useMemo, useRef, type ChangeEvent, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import CustomSelect from '../../components/ui/CustomSelect';
+import { SidePanel, Dialog, BUTTON } from '../../components/ui/Overlay';
+import { useToast } from '../../components/ui/Toast';
+import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
+import { HeroStats } from '../../components/logistics/CourierKit';
+import CategoryArt from '../../components/storefront/CategoryArt';
+import {
+  IconTaxonomy, IconSubcategory, IconProducts, IconFda, IconCommission, IconHidden, IconEdit, IconDelete, IconAdd, IconLock,
+  IconSearch, IconOpenInStore, IconPhoto, IconRestore,
+} from '../../components/admin/categoryIcons';
 import {
   getAdminCategoriesApi,
   createAdminCategoryApi,
   updateAdminCategoryApi,
   deleteAdminCategoryApi,
+  uploadCategoryPhotoApi,
+  removeCategoryPhotoApi,
 } from '../../api/client';
-import type {
-  AdminCategoryParent,
-  AdminCategoryLeaf,
-  AdminCategoryMetrics,
-  CategoryPayload,
-} from '../../types';
-import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
+import { downscaleImage } from '../../utils/imageDownscale';
+import type { AdminCategoryParent, AdminCategoryLeaf, AdminCategoryMetrics, CategoryPayload } from '../../types';
 
-function slugify(text: string): string {
-  return text
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^\w-]+/g, '')
-    .replace(/--+/g, '-');
+/** "Others" and its "Other items": the catch-all stays open and last, and cannot be deleted or moved (it can be renamed). */
+const isLocked = (slug: string) => slug === 'others' || slug === 'other-items';
+
+type Filter = 'all' | 'fda' | 'override' | 'inactive';
+
+interface FormState {
+  id?: number;
+  isChild: boolean;
+  name: string;
+  slug: string;
+  parent_id?: number | null;
+  sort_order: number;
+  is_active: boolean;
+  requires_fda: boolean;
+  commission_rate: string;
+  /** The uploaded photo it has now (null: the built-in picture). */
+  photo_url: string | null;
+  /** A new photo picked in the panel, uploaded on Save. */
+  photoFile?: File;
+  photoPreview?: string;
+  /** Go back to the built-in picture on Save. */
+  removePhoto?: boolean;
 }
 
+type AnyCategory = AdminCategoryParent | AdminCategoryLeaf;
+
+/** Photos are shrunk in the browser first, so even big phone photos fit the 5 MB limit. */
+const PHOTO_MAX_EDGE = 1200;
+const PHOTO_TYPES = ['image/jpeg', 'image/png'];
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
+const errorMessage = (err: unknown, fallback: string) =>
+  (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+
+function slugify(text: string): string {
+  return text.toString().toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-');
+}
+
+const leafProducts = (p: AdminCategoryParent) => p.children.reduce((n, c) => n + (c.products_count ?? 0), 0) + (p.products_count ?? 0);
+const leafLive = (p: AdminCategoryParent) => p.children.reduce((n, c) => n + (c.active_products_count ?? 0), 0);
+
+/** The picture the storefront shows for the category: the uploaded photo, the built-in one, or its icon. */
+function Thumb({ slug, name, photoUrl, busy, className }: { slug: string; name: string; photoUrl?: string | null; busy?: boolean; className: string }) {
+  return (
+    <span className={`relative block overflow-hidden bg-stone-100 ring-1 ring-black/5 shrink-0 ${className}`}>
+      <CategoryArt category={{ id: 0, slug, name, product_count: 0, photo_url: photoUrl ?? null, image_url: null }} />
+      {busy && (
+        <span className="absolute inset-0 flex items-center justify-center bg-white/70" role="status" aria-label="Uploading the photo">
+          <span className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-900 animate-spin" />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** An on/off switch for whether shoppers and sellers see the category. */
+function Switch({ on, onChange, disabled, label }: { on: boolean; onChange: () => void; disabled?: boolean; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={onChange}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${on ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+    </button>
+  );
+}
+
+const ICON_BUTTON = 'w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors';
+
+/**
+ * Admin > Categories: the two-level tree shoppers browse and sellers list in. Parents on the left with their photo and
+ * size; the chosen parent on the right with its sub-categories as a ledger (photo, products, commission, FDA rule,
+ * on/off). Creating and editing open a side panel; deleting is refused while a category still has children or products.
+ * Any category's photo can be replaced (click it) and set back to the built-in picture.
+ */
 export default function AdminCategoriesPage() {
+  const { showToast } = useToast();
   const [parents, setParents] = useState<AdminCategoryParent[]>([]);
-  const [metrics, setMetrics] = useState<AdminCategoryMetrics>({
-    total_parents: 0,
-    total_leaves: 0,
-    total_products: 0,
-    fda_regulated_leaves: 0,
-  });
+  const [metrics, setMetrics] = useState<AdminCategoryMetrics>({ total_parents: 0, total_leaves: 0, total_products: 0, fda_regulated_leaves: 0 });
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'fda' | 'override' | 'inactive'>('all');
-  const [expandedParents, setExpandedParents] = useState<Record<number, boolean>>({});
+  const [failed, setFailed] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  // Toast notification state
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Modal State for Create / Edit
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<{
-    id?: number;
-    isChild: boolean;
-    name: string;
-    slug: string;
-    parent_id?: number | null;
-    sort_order: number;
-    is_active: boolean;
-    requires_fda: boolean;
-    commission_rate: string;
-  } | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ category: AdminCategoryParent | AdminCategoryLeaf; isParent: boolean; children: number; products: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Delete Alert / Guardrail Modal State
-  const [deleteTarget, setDeleteTarget] = useState<{
-    category: AdminCategoryParent | AdminCategoryLeaf;
-    isParent: boolean;
-    childCount?: number;
-    productCount?: number;
-  } | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
+  // One file picker for every "Change photo": for a category straight away, or for the open panel (saved with it).
+  const fileInput = useRef<HTMLInputElement>(null);
+  const photoTarget = useRef<AnyCategory | 'form' | null>(null);
+  const [photoBusyId, setPhotoBusyId] = useState<number | null>(null);
 
-  const pageRef = useMountAnim();
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
+    setFailed(false);
     try {
       const res = await getAdminCategoriesApi();
       setParents(res.data);
       setMetrics(res.metrics);
-
-      // Auto-expand all parents initially
-      const initialExpand: Record<number, boolean> = {};
-      res.data.forEach((p) => {
-        initialExpand[p.id] = true;
-      });
-      setExpandedParents(initialExpand);
     } catch {
-      setParents([]);
+      setFailed(true);
     } finally {
       setLoading(false);
     }
   }, []);
+  useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // The panel's preview is a local blob: freed when it is replaced or the panel closes.
+  const preview = form?.photoPreview;
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+  const baseRate = metrics.base_commission_rate ?? 5;
+  const q = search.trim().toLowerCase();
+  const leafMatches = useCallback((c: AdminCategoryLeaf, parent: AdminCategoryParent) =>
+    !q || c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q) || parent.name.toLowerCase().includes(q), [q]);
 
-  const [pageError, setPageError] = useState<string | null>(null);
-  const baseRate = metrics?.base_commission_rate ?? 5;
+  // The rail: parents whose name matches, or that hold a matching sub-category.
+  const railParents = useMemo(() => parents.filter((p) =>
+    !q || p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q) || p.children.some((c) => leafMatches(c, p))), [parents, q, leafMatches]);
 
-  const toggleExpand = (parentId: number) => {
-    setExpandedParents((prev) => ({
-      ...prev,
-      [parentId]: !prev[parentId],
-    }));
-  };
+  const selected = railParents.find((p) => p.id === selectedId) ?? railParents[0] ?? null;
 
-  const expandAll = () => {
-    const next: Record<number, boolean> = {};
-    parents.forEach((p) => {
-      next[p.id] = true;
-    });
-    setExpandedParents(next);
-  };
+  const counts = useMemo(() => {
+    const list = selected?.children ?? [];
+    return {
+      all: list.length,
+      fda: list.filter((c) => c.requires_fda).length,
+      override: list.filter((c) => c.commission_rate !== null).length,
+      inactive: list.filter((c) => !c.is_active).length,
+    };
+  }, [selected]);
 
-  const collapseAll = () => {
-    setExpandedParents({});
-  };
+  const rows = useMemo(() => (selected?.children ?? []).filter((c) => {
+    if (!leafMatches(c, selected!)) return false;
+    if (filter === 'fda') return c.requires_fda;
+    if (filter === 'override') return c.commission_rate !== null;
+    if (filter === 'inactive') return !c.is_active;
+    return true;
+  }), [selected, filter, leafMatches]);
 
-  // ─── Optimistic Active/Inactive Toggle ───────────────────────────────────────
-  const handleToggleActive = async (category: AdminCategoryParent | AdminCategoryLeaf, isParent: boolean) => {
-    const nextActive = !category.is_active;
+  // ─── Actions ────────────────────────────────────────────────────────────────
 
-    // Optimistic UI update
-    if (isParent) {
-      setParents((prev) =>
-        prev.map((p) => (p.id === category.id ? { ...p, is_active: nextActive } : p))
-      );
-    } else {
-      setParents((prev) =>
-        prev.map((p) => ({
-          ...p,
-          children: p.children.map((c) =>
-            c.id === category.id ? { ...c, is_active: nextActive } : c
-          ),
-        }))
-      );
-    }
-
+  const toggleActive = async (category: AdminCategoryParent | AdminCategoryLeaf) => {
+    const next = !category.is_active;
+    setParents((prev) => prev.map((p) => (p.id === category.id
+      ? { ...p, is_active: next }
+      : { ...p, children: p.children.map((c) => (c.id === category.id ? { ...c, is_active: next } : c)) })));
     try {
-      await updateAdminCategoryApi(category.id, { is_active: nextActive });
-      showToast(`${category.name} is now ${nextActive ? 'Active' : 'Inactive'}.`);
-    } catch (err: any) {
-      // Revert on failure
-      loadData();
-      setPageError(err.response?.data?.message || `${category.name} could not be updated. Try again.`);
+      await updateAdminCategoryApi(category.id, { is_active: next });
+      showToast(`${category.name} is ${next ? 'open again' : 'hidden from shoppers and sellers'}.`);
+    } catch (err: unknown) {
+      void load();
+      showToast(errorMessage(err, `${category.name} could not be updated.`), 'error');
     }
   };
 
-  // ─── Open Create Modal ──────────────────────────────────────────────────────
-  const handleOpenCreateModal = (preselectedParentId?: number) => {
-    setModalError(null);
-    setEditingCategory({
-      isChild: !!preselectedParentId,
-      name: '',
-      slug: '',
-      parent_id: preselectedParentId || (parents.length > 0 ? parents[0].id : null),
-      sort_order: 1,
-      is_active: true,
-      requires_fda: false,
-      commission_rate: '',
-    });
-    setIsModalOpen(true);
+  // ─── Photos ─────────────────────────────────────────────────────────────────
+
+  const setPhotoUrl = (id: number, photoUrl: string | null) =>
+    setParents((prev) => prev.map((p) => (p.id === id
+      ? { ...p, photo_url: photoUrl }
+      : { ...p, children: p.children.map((c) => (c.id === id ? { ...c, photo_url: photoUrl } : c)) })));
+
+  const pickPhoto = (target: AnyCategory | 'form') => {
+    photoTarget.current = target;
+    fileInput.current?.click();
   };
 
-  // ─── Open Edit Modal ────────────────────────────────────────────────────────
-  const handleOpenEditModal = (category: AdminCategoryParent | AdminCategoryLeaf, isChild: boolean) => {
-    setModalError(null);
-    setEditingCategory({
-      id: category.id,
-      isChild,
-      name: category.name,
-      slug: category.slug,
+  const onPhotoPicked = async (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    e.target.value = '';
+    const target = photoTarget.current;
+    if (!picked || !target) return;
+    if (!PHOTO_TYPES.includes(picked.type)) { showToast('Choose a JPG or PNG photo.', 'error'); return; }
+    const { file } = await downscaleImage(picked, PHOTO_MAX_EDGE, 0.85);
+    if (file.size > PHOTO_MAX_BYTES) { showToast('The photo must be 5 MB or smaller.', 'error'); return; }
+
+    if (target === 'form') {
+      setForm((f) => (f ? { ...f, photoFile: file, photoPreview: URL.createObjectURL(file), removePhoto: false } : f));
+      return;
+    }
+    setPhotoBusyId(target.id);
+    try {
+      const res = await uploadCategoryPhotoApi(target.id, file);
+      setPhotoUrl(target.id, res.data.photo_url);
+      showToast(`New photo for ${target.name}.`);
+    } catch (err: unknown) {
+      showToast(errorMessage(err, `The photo for ${target.name} was not saved. Try again.`), 'error');
+    } finally {
+      setPhotoBusyId(null);
+    }
+  };
+
+  const restoreDefaultPhoto = async (category: AnyCategory) => {
+    setPhotoBusyId(category.id);
+    try {
+      await removeCategoryPhotoApi(category.id);
+      setPhotoUrl(category.id, null);
+      showToast(`${category.name} uses its default picture again.`);
+    } catch (err: unknown) {
+      showToast(errorMessage(err, 'The photo could not be removed. Try again.'), 'error');
+    } finally {
+      setPhotoBusyId(null);
+    }
+  };
+
+  const openCreate = (parentId?: number) => {
+    setFormError(null);
+    setForm({
+      isChild: !!parentId, name: '', slug: '', parent_id: parentId ?? null, sort_order: 1,
+      is_active: true, requires_fda: false, commission_rate: '', photo_url: null,
+    });
+  };
+
+  const openEdit = (category: AdminCategoryParent | AdminCategoryLeaf, isChild: boolean) => {
+    setFormError(null);
+    setForm({
+      id: category.id, isChild, name: category.name, slug: category.slug,
       parent_id: isChild ? (category as AdminCategoryLeaf).parent_id : null,
-      sort_order: category.sort_order,
-      is_active: category.is_active,
+      sort_order: category.sort_order, is_active: category.is_active,
       requires_fda: isChild ? (category as AdminCategoryLeaf).requires_fda : false,
       commission_rate: category.commission_rate !== null && category.commission_rate !== undefined ? String(category.commission_rate) : '',
+      photo_url: category.photo_url ?? null,
     });
-    setIsModalOpen(true);
   };
 
-  // ─── Save Category (Create or Edit) ─────────────────────────────────────────
-  const handleSaveModal = async (e: FormEvent) => {
+  const save = async (e: FormEvent) => {
     e.preventDefault();
-    if (!editingCategory) return;
-
-    if (!editingCategory.name.trim()) {
-      setModalError('Category name is required.');
-      return;
-    }
-
-    const payload: CategoryPayload = {
-      name: editingCategory.name.trim(),
-      slug: editingCategory.slug ? slugify(editingCategory.slug) : slugify(editingCategory.name),
-      parent_id: editingCategory.isChild ? Number(editingCategory.parent_id) : null,
-      sort_order: Number(editingCategory.sort_order) || 0,
-      is_active: editingCategory.is_active,
-      requires_fda: editingCategory.isChild ? editingCategory.requires_fda : false,
-      commission_rate: editingCategory.commission_rate.trim() !== '' ? Number(editingCategory.commission_rate) : null,
-    };
-
-    const rate = editingCategory.commission_rate.trim();
+    if (!form) return;
+    if (!form.name.trim()) { setFormError('Enter the category name.'); return; }
+    const rate = form.commission_rate.trim();
     if (rate !== '' && (!/^\d+(\.\d{1,2})?$/.test(rate) || Number(rate) > 100)) {
-      setModalError('The commission rate must be a number from 0 to 100 with at most 2 decimals.');
+      setFormError('The commission rate must be a number from 0 to 100 with at most 2 decimals.');
       return;
     }
-
-    setIsSaving(true);
-    setModalError(null);
-
+    const payload: CategoryPayload = {
+      name: form.name.trim(),
+      slug: form.slug ? slugify(form.slug) : slugify(form.name),
+      parent_id: form.isChild ? Number(form.parent_id) : null,
+      sort_order: Number(form.sort_order) || 0,
+      is_active: form.is_active,
+      requires_fda: form.isChild ? form.requires_fda : false,
+      commission_rate: rate !== '' ? Number(rate) : null,
+    };
+    setSaving(true);
+    setFormError(null);
+    let id = form.id;
     try {
-      if (editingCategory.id) {
-        await updateAdminCategoryApi(editingCategory.id, payload);
-        showToast(`Category '${payload.name}' updated successfully.`);
-      } else {
-        await createAdminCategoryApi(payload);
-        showToast(`Category '${payload.name}' created successfully.`);
-      }
-      setIsModalOpen(false);
-      loadData();
-    } catch (err: any) {
-      setModalError(
-        err.response?.data?.message || 'The category was not saved. Try again.'
-      );
+      if (id) await updateAdminCategoryApi(id, payload);
+      else id = (await createAdminCategoryApi(payload)).data.id as number;
+    } catch (err: unknown) {
+      setFormError(errorMessage(err, 'The category was not saved. Try again.'));
+      setSaving(false);
+      return;
+    }
+    // The category is saved by now, so a photo that fails is reported without keeping the panel open.
+    try {
+      if (form.photoFile) await uploadCategoryPhotoApi(id, form.photoFile);
+      else if (form.removePhoto && form.photo_url) await removeCategoryPhotoApi(id);
+      showToast(form.id ? `${payload.name} saved.` : `${payload.name} created.`);
+    } catch (err: unknown) {
+      showToast(`${payload.name} was saved, but the photo was not: ${errorMessage(err, 'try uploading it again.')}`, 'error');
     } finally {
-      setIsSaving(false);
+      setSaving(false);
+      setForm(null);
+      void load();
     }
   };
 
-  // ─── Delete Guardrail & Execution ───────────────────────────────────────────
-  const handleInitiateDelete = (category: AdminCategoryParent | AdminCategoryLeaf, isParent: boolean) => {
-    setDeleteErrorMessage(null);
-    if (isParent) {
-      const parentNode = category as AdminCategoryParent;
-      const childCount = parentNode.children?.length || 0;
-      setDeleteTarget({
-        category,
-        isParent: true,
-        childCount,
-      });
-    } else {
-      const leafNode = category as AdminCategoryLeaf;
-      const productCount = leafNode.products_count || 0;
-      setDeleteTarget({
-        category,
-        isParent: false,
-        productCount,
-      });
-    }
+  const askDelete = (category: AdminCategoryParent | AdminCategoryLeaf, isParent: boolean) => {
+    setDeleteError(null);
+    setDeleteTarget({
+      category, isParent,
+      children: isParent ? (category as AdminCategoryParent).children.length : 0,
+      products: isParent ? 0 : (category as AdminCategoryLeaf).products_count ?? 0,
+    });
   };
 
-  const handleConfirmDelete = async () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
-
-    // Check frontend client guardrails before sending request
-    if (deleteTarget.isParent && (deleteTarget.childCount || 0) > 0) {
-      setDeleteErrorMessage(
-        `Cannot delete parent category '${deleteTarget.category.name}' because it contains ${deleteTarget.childCount} sub-category children. Please delete or reassign its sub-categories first.`
-      );
-      return;
-    }
-
-    if (!deleteTarget.isParent && (deleteTarget.productCount || 0) > 0) {
-      setDeleteErrorMessage(
-        `Cannot delete sub-category '${deleteTarget.category.name}' because ${deleteTarget.productCount} products are currently assigned to it. Please reassign or archive these products first.`
-      );
-      return;
-    }
-
-    setIsDeleting(true);
-    setDeleteErrorMessage(null);
-
+    setDeleting(true);
+    setDeleteError(null);
     try {
       await deleteAdminCategoryApi(deleteTarget.category.id);
-      showToast(`Category '${deleteTarget.category.name}' was safely deleted.`);
+      showToast(`${deleteTarget.category.name} deleted.`);
+      if (deleteTarget.isParent && selected?.id === deleteTarget.category.id) setSelectedId(null);
       setDeleteTarget(null);
-      loadData();
-    } catch (err: any) {
-      setDeleteErrorMessage(
-        err.response?.data?.message || 'Server rejected deletion request. Please check dependencies.'
-      );
+      void load();
+    } catch (err: unknown) {
+      setDeleteError(errorMessage(err, 'The category could not be deleted.'));
     } finally {
-      setIsDeleting(false);
+      setDeleting(false);
     }
   };
 
-  // ─── Filtered Data Processing ───────────────────────────────────────────────
-  const filteredParents = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
-    return parents
-      .map((parent) => {
-        // Filter children
-        const matchingChildren = parent.children.filter((child) => {
-          // Search filter
-          const matchesQuery =
-            !q ||
-            child.name.toLowerCase().includes(q) ||
-            child.slug.toLowerCase().includes(q) ||
-            parent.name.toLowerCase().includes(q);
-
-          if (!matchesQuery) return false;
-
-          // Mode filter
-          if (filterMode === 'fda') return child.requires_fda;
-          if (filterMode === 'override') return child.commission_rate !== null;
-          if (filterMode === 'inactive') return !child.is_active;
-
-          return true;
-        });
-
-        const parentMatchesSearch =
-          !q || parent.name.toLowerCase().includes(q) || parent.slug.toLowerCase().includes(q);
-
-        // Include parent if parent matches or any child matches
-        if (matchingChildren.length > 0 || (parentMatchesSearch && filterMode === 'all')) {
-          return {
-            ...parent,
-            children: matchingChildren,
-          };
-        }
-
-        return null;
-      })
-      .filter(Boolean) as AdminCategoryParent[];
-  }, [parents, searchQuery, filterMode]);
-
-  // Animated Velocity Metrics
-  const animatedParents = useCountUp(metrics.total_parents);
-  const animatedLeaves = useCountUp(metrics.total_leaves);
-  const animatedProducts = useCountUp(metrics.total_products);
-  const animatedFda = useCountUp(metrics.fda_regulated_leaves);
-
-  const parentSelectOptions = parents.map((p) => ({
-    value: String(p.id),
-    label: p.name,
-  }));
+  const blocked = deleteTarget ? (deleteTarget.isParent ? deleteTarget.children > 0 : deleteTarget.products > 0) : false;
+  const commissionOf = (c: AdminCategoryLeaf, p: AdminCategoryParent) =>
+    c.commission_rate !== null ? { rate: c.commission_rate, from: 'own' as const }
+      : p.commission_rate !== null ? { rate: p.commission_rate, from: 'parent' as const }
+        : { rate: baseRate, from: 'platform' as const };
 
   return (
-    <div ref={pageRef} className="pb-8 space-y-4 w-full">
-      {/* ── 1. Compact Executive Hero Command Bar ── */}
-      <div
-        className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 shrink-0 border border-white/10">
-            <Tag className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
-                Marketplace Categories &amp; Taxonomy
-              </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                <span className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-amber-400 animate-spin' : 'bg-emerald-400 animate-pulse'}`} />
-                {loading ? 'Syncing…' : 'Live Synced'}
-              </span>
-            </div>
-            <p className="text-[11px] text-neutral-400 mt-0.5">
-              Govern two-level product taxonomy, enforce FDA compliance gates, and configure custom category commission take-rates
-            </p>
-          </div>
-        </div>
+    <div className="w-full pb-8 space-y-4">
+      <input ref={fileInput} type="file" accept="image/jpeg,image/png" className="hidden" tabIndex={-1} aria-hidden="true" onChange={(e) => void onPhotoPicked(e)} />
+      <PageHero icon={IconTaxonomy} eyebrow="Catalog" title="Categories"
+        subtitle="The tree shoppers browse and sellers list in. Commission and FDA rules are set per category.">
+        <HeroStats items={[
+          { label: 'Parents', value: metrics.total_parents },
+          { label: 'Sub-categories', value: metrics.total_leaves },
+          { label: 'Products', value: metrics.total_products },
+          { label: 'FDA-gated', value: metrics.fda_regulated_leaves, tone: metrics.fda_regulated_leaves ? 'warn' : 'default' },
+        ]} />
+        <button type="button" className={HERO_BUTTON} onClick={() => openCreate()}><IconAdd className="w-4 h-4" /> New category</button>
+      </PageHero>
 
-        <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
-          <Button
-            variant="primary"
-            onClick={() => handleOpenCreateModal()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-brand-red hover:bg-[#8e2424] shadow-xs rounded-xl"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Create Category
-          </Button>
-        </div>
-      </div>
-
-      {toastMessage && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-semibold animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          {toastMessage}
-        </div>
-      )}
-      {pageError && (
-        <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-2 text-red-800 text-xs font-semibold">
-          <span>{pageError}</span>
-          <button type="button" onClick={() => setPageError(null)} className="underline shrink-0">Dismiss</button>
-        </div>
-      )}
-
-      {/* ── 2. Compact 4-Card Taxonomy Stat Row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-gray-100 text-gray-800 flex items-center justify-center font-bold shrink-0">
-              <Layers className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-gray-400">Level 1 Roots</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-              {animatedParents}
-            </p>
-            <p className="text-xs font-bold text-gray-800 mt-1">Parent Categories</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Active navigation groupings</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center font-bold shrink-0">
-              <Tag className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-brand-red bg-rose-50 px-1.5 py-0.5 rounded">Leaves</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-              {animatedLeaves}
-            </p>
-            <p className="text-xs font-bold text-gray-800 mt-1">Leaf Sub-Categories</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Product listing targets</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
-              <Package className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Catalog</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-              {animatedProducts.toLocaleString()}
-            </p>
-            <p className="text-xs font-bold text-gray-800 mt-1">Catalog Items Covered</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Live product mappings</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 border border-gray-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center font-bold shrink-0">
-              <ShieldAlert className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Compliance</span>
-          </div>
-          <div>
-            <p className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight leading-none">
-              {animatedFda}
-            </p>
-            <p className="text-xs font-bold text-gray-800 mt-1">FDA Regulated Categories</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">Mandatory LTO/CPR verification</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3. Filters, Search & Controls Bar ── */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search category name, slug, or parent..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red transition-all"
-            />
-          </div>
-
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
-            {[
-              { key: 'all', label: 'All Categories' },
-              { key: 'fda', label: '⚠️ FDA Regulated' },
-              { key: 'override', label: 'Custom Commission' },
-              { key: 'inactive', label: 'Inactive' },
-            ].map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilterMode(f.key as any)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                  filterMode === f.key
-                    ? 'bg-neutral-900 text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Expand/Collapse All Buttons */}
-          <div className="flex items-center gap-1.5 self-end md:self-auto shrink-0">
-            <button
-              onClick={expandAll}
-              className="text-xs font-bold text-gray-500 hover:text-gray-900 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200"
-            >
-              Expand All
-            </button>
-            <button
-              onClick={collapseAll}
-              className="text-xs font-bold text-gray-500 hover:text-gray-900 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200"
-            >
-              Collapse All
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 4. Hierarchical Category Tree / Accordions ── */}
-      {loading ? (
-        <div className="space-y-3 animate-pulse">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs h-28" />
-          ))}
-        </div>
-      ) : filteredParents.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-gray-200/80 shadow-xs space-y-2">
-          <Tag className="w-10 h-10 mx-auto text-gray-300" />
-          <h3 className="text-sm font-bold text-gray-900">No categories found</h3>
-          <p className="text-xs text-gray-400 max-w-sm mx-auto">
-            No category taxonomy records matched your search query or filter selection.
-          </p>
+      {failed ? (
+        <div role="alert" className="p-6 bg-white border border-gray-200/80 rounded-2xl text-center">
+          <p className="text-sm font-semibold text-gray-900">The categories could not be loaded.</p>
+          <button type="button" onClick={() => { setLoading(true); void load(); }} className="mt-3 text-[13px] font-semibold text-brand-red hover:underline">Try again</button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredParents.map((parent) => {
-            const isExpanded = !!expandedParents[parent.id];
-            const childCount = parent.children.length;
-
-            return (
-              <div
-                key={parent.id}
-                className="bg-white rounded-2xl border border-gray-200/80 shadow-xs overflow-hidden transition-all"
-              >
-                {/* ── Parent Header ── */}
-                <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50 hover:bg-gray-50 transition-colors border-b border-gray-100">
-                  <div
-                    onClick={() => toggleExpand(parent.id)}
-                    className="flex items-center gap-3 cursor-pointer flex-1 min-w-0 select-none"
-                  >
-                    <button
-                      type="button"
-                      className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-500 flex items-center justify-center shrink-0 hover:bg-gray-100"
-                    >
-                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </button>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-xs sm:text-sm font-bold text-gray-900 truncate">{parent.name}</h3>
-                        <span className="text-[10px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.2 rounded">
-                          slug: {parent.slug}
-                        </span>
-                        <span
-                          className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
-                            parent.is_active
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-gray-100 text-gray-500 border border-gray-200'
-                          }`}
-                        >
-                          {parent.is_active ? 'Active Parent' : 'Inactive'}
-                        </span>
-                        {parent.commission_rate !== null && (
-                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-brand-red bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded" title="Covers its sub-categories that have no rate of their own">
-                            <Coins className="w-2.5 h-2.5" /> {parent.commission_rate}% for this category
+        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] items-start">
+          {/* ── Parents ── */}
+          <aside className="lg:sticky lg:top-[84px] bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-3 border-b border-gray-100">
+              <label className="relative block">
+                <span className="sr-only">Search categories</span>
+                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or slug…"
+                  className="w-full h-9 pl-9 pr-3 rounded-xl bg-gray-50 border border-gray-200 text-[13px] outline-none focus:bg-white focus:border-gray-900 transition-colors" />
+              </label>
+            </div>
+            <div className="flex items-baseline justify-between px-4 pt-3 pb-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Parent categories</p>
+              <p className="text-[11px] text-gray-400 tabular-nums">{railParents.length}</p>
+            </div>
+            {loading ? (
+              <ul className="px-2 pb-2 space-y-1">{Array.from({ length: 8 }, (_, i) => <li key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />)}</ul>
+            ) : railParents.length === 0 ? (
+              <p className="px-4 pb-5 text-[13px] text-gray-500">Nothing matches “{search}”.</p>
+            ) : (
+              <ul className="flex lg:block gap-1.5 overflow-x-auto lg:overflow-visible px-2 pb-2 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto no-scrollbar">
+                {railParents.map((p) => {
+                  const on = selected?.id === p.id;
+                  return (
+                    <li key={p.id} className="shrink-0 w-[220px] lg:w-auto">
+                      <button type="button" onClick={() => { setSelectedId(p.id); setFilter('all'); }} aria-current={on ? 'true' : undefined}
+                        className={`w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors ${on ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}>
+                        <Thumb slug={p.slug} name={p.name} photoUrl={p.photo_url} busy={photoBusyId === p.id} className={`w-11 h-11 rounded-lg ${p.is_active ? '' : 'opacity-50 grayscale'}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className={`text-[13px] font-semibold truncate ${on ? 'text-white' : 'text-gray-900'}`}>{p.name}</span>
+                            {isLocked(p.slug) && <IconLock className={`w-3.5 h-3.5 shrink-0 ${on ? 'text-white/60' : 'text-gray-400'}`} />}
+                            {!p.is_active && <IconHidden className={`w-3.5 h-3.5 shrink-0 ${on ? 'text-white/60' : 'text-gray-400'}`} />}
                           </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        {childCount} Sub-Category {childCount === 1 ? 'Node' : 'Nodes'} · Sort Order: #{parent.sort_order}
-                      </p>
+                          <span className={`block text-[11.5px] tabular-nums ${on ? 'text-white/60' : 'text-gray-500'}`}>
+                            {p.children.length} sub · {leafProducts(p).toLocaleString()} products
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </aside>
+
+          {/* ── The chosen parent ── */}
+          {loading ? (
+            <div className="h-[420px] rounded-2xl bg-white border border-gray-200/80 animate-pulse" />
+          ) : !selected ? (
+            <div className="p-12 rounded-2xl bg-white border border-gray-200/80 text-center">
+              <IconTaxonomy className="w-8 h-8 mx-auto text-gray-300" />
+              <p className="mt-3 text-sm font-semibold text-gray-900">No categories match</p>
+              <p className="mt-1 text-[13px] text-gray-500">Clear the search to see every category.</p>
+            </div>
+          ) : (
+            <section className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden">
+              {/* Header */}
+              <div className="p-4 sm:p-5 flex flex-col sm:flex-row gap-4 sm:gap-5 border-b border-gray-100">
+                <div className="relative w-full sm:w-36 h-36 shrink-0">
+                  <Thumb slug={selected.slug} name={selected.name} photoUrl={selected.photo_url} busy={photoBusyId === selected.id}
+                    className={`w-full h-full rounded-xl ${selected.is_active ? '' : 'opacity-60 grayscale'}`} />
+                  <div className="absolute inset-x-2 bottom-2 flex gap-1">
+                    <button type="button" onClick={() => pickPhoto(selected)} disabled={photoBusyId !== null}
+                      className="flex-1 h-8 rounded-lg bg-black/60 hover:bg-black/75 backdrop-blur-sm text-white text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60">
+                      <IconPhoto className="w-3.5 h-3.5" /> Change photo
+                    </button>
+                    {selected.photo_url && (
+                      <button type="button" onClick={() => void restoreDefaultPhoto(selected)} disabled={photoBusyId !== null}
+                        title="Use the default picture" aria-label={`Use the default picture for ${selected.name}`}
+                        className="w-8 h-8 rounded-lg bg-black/60 hover:bg-black/75 backdrop-blur-sm text-white inline-flex items-center justify-center transition-colors disabled:opacity-60">
+                        <IconRestore className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Parent category · #{selected.sort_order}</p>
+                      <h2 className="mt-0.5 font-serif text-[24px] font-bold tracking-tight leading-tight text-[#1E1B18]">{selected.name}</h2>
+                      <p className="mt-0.5 font-mono text-[12px] text-gray-400">/{selected.slug}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {selected.is_active && (
+                        <Link to={`/category/${selected.slug}`} target="_blank" rel="noopener noreferrer" className={ICON_BUTTON} title="Open in the store" aria-label={`Open ${selected.name} in the store`}>
+                          <IconOpenInStore />
+                        </Link>
+                      )}
+                      <button type="button" onClick={() => openEdit(selected, false)} className={ICON_BUTTON} title="Edit" aria-label={`Edit ${selected.name}`}><IconEdit /></button>
+                      {!isLocked(selected.slug) && (
+                        <button type="button" onClick={() => askDelete(selected, true)} className={`${ICON_BUTTON} hover:!text-red-600 hover:!bg-red-50`} title="Delete" aria-label={`Delete ${selected.name}`}><IconDelete /></button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Actions on Parent Card */}
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                    <button
-                      onClick={() => handleToggleActive(parent, true)}
-                      className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors ${
-                        parent.is_active
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                          : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
-                      }`}
-                      title="Toggle active status across catalog"
-                    >
-                      {parent.is_active ? 'Active' : 'Inactive'}
-                    </button>
+                  <dl className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-100 rounded-xl overflow-hidden border border-gray-100 text-[12px]">
+                    {[
+                      { icon: IconSubcategory, label: 'Sub-categories', value: String(selected.children.length) },
+                      { icon: IconProducts, label: 'Products', value: `${leafProducts(selected).toLocaleString()}`, sub: `${leafLive(selected).toLocaleString()} live` },
+                      { icon: IconCommission, label: 'Commission', value: `${selected.commission_rate ?? baseRate}%`, sub: selected.commission_rate !== null ? 'Set for this category' : 'Platform rate' },
+                      { icon: IconFda, label: 'FDA-gated', value: String(selected.children.filter((c) => c.requires_fda).length), sub: 'sub-categories' },
+                    ].map(({ icon: Icon, label, value, sub }) => (
+                      <div key={label} className="bg-white px-3 py-2.5">
+                        <dt className="flex items-center gap-1.5 text-gray-500"><Icon className="w-3.5 h-3.5 text-gray-400" />{label}</dt>
+                        <dd className="mt-1 text-[16px] font-bold text-gray-900 tabular-nums leading-none">{value}</dd>
+                        {sub && <dd className="mt-1 text-[11px] text-gray-400 truncate">{sub}</dd>}
+                      </div>
+                    ))}
+                  </dl>
 
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleOpenCreateModal(parent.id)}
-                      className="py-1 px-2.5 text-[11px] flex items-center gap-1 font-bold"
-                    >
-                      <Plus className="w-3 h-3" /> Add Sub-Category
-                    </Button>
-
-                    <button
-                      onClick={() => handleOpenEditModal(parent, false)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-200/60 transition-colors"
-                      title="Edit parent category"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => handleInitiateDelete(parent, true)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                      title="Delete parent category"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    {isLocked(selected.slug) ? (
+                      <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-amber-50 text-amber-800 text-[12.5px] font-semibold"><IconLock className="w-3.5 h-3.5" /> Catch-all: always open, an admin checks every listing</span>
+                    ) : (
+                      <label className="inline-flex items-center gap-2.5 text-[13px] font-medium text-gray-700 cursor-pointer">
+                        <Switch on={selected.is_active} onChange={() => void toggleActive(selected)} label={`${selected.name} is open to shoppers and sellers`} />
+                        {selected.is_active ? 'Open to shoppers and sellers' : 'Hidden'}
+                      </label>
+                    )}
+                    <button type="button" onClick={() => openCreate(selected.id)}
+                      className="ml-auto inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-gray-900 hover:bg-black text-white text-[13px] font-semibold transition-colors">
+                      <IconAdd className="w-4 h-4" /> Add sub-category
                     </button>
                   </div>
                 </div>
+              </div>
 
-                {/* ── Leaf Sub-Categories Grid / Rows ── */}
-                {isExpanded && (
-                  <div className="divide-y divide-gray-100 bg-white">
-                    {childCount === 0 ? (
-                      <div className="p-4 text-center text-xs text-gray-400">
-                        No sub-categories assigned to this parent yet.{' '}
-                        <button
-                          onClick={() => handleOpenCreateModal(parent.id)}
-                          className="text-brand-red font-bold underline ml-1"
-                        >
-                          Create one now
-                        </button>
-                      </div>
-                    ) : (
-                      parent.children.map((child) => (
-                        <div
-                          key={child.id}
-                          className="p-3 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-gray-50/70 transition-colors group text-xs"
-                        >
-                          {/* Leaf Info */}
-                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                            <div className="w-1.5 h-1.5 rounded-full bg-gray-300 group-hover:bg-brand-red shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-gray-900">{child.name}</span>
-                                <span className="text-[10px] font-mono text-gray-400">slug: {child.slug}</span>
+              {/* Sub-category filters */}
+              <div className="flex flex-wrap items-center gap-1.5 px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/60" role="group" aria-label="Filter sub-categories">
+                {([['all', 'All', null], ['fda', 'FDA-gated', IconFda], ['override', 'Own commission', IconCommission], ['inactive', 'Hidden', IconHidden]] as const).map(([key, label, Icon]) => {
+                  const on = filter === key;
+                  return (
+                    <button key={key} type="button" aria-pressed={on} onClick={() => setFilter(key)}
+                      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[12.5px] font-semibold transition-colors ${on ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400'}`}>
+                      {Icon && <Icon className="w-3.5 h-3.5" />}{label}
+                      <span className={`tabular-nums ${on ? 'text-white/60' : 'text-gray-400'}`}>{counts[key]}</span>
+                    </button>
+                  );
+                })}
+              </div>
 
-                                {/* FDA Badge */}
-                                {child.requires_fda && (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 bg-[#FFC107]/20 border border-[#FFC107]/40 px-1.5 py-0.2 rounded">
-                                    <ShieldAlert className="w-2.5 h-2.5 text-amber-700" /> FDA Required
-                                  </span>
-                                )}
-
-                                {/* Commission Override Badge */}
-                                {child.commission_rate !== null ? (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-brand-red bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded">
-                                    <Coins className="w-2.5 h-2.5" /> {child.commission_rate}% Override
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] font-semibold text-gray-400 bg-gray-50 px-1.5 py-0.2 rounded border border-gray-100">
-                                    {parent.commission_rate !== null ? `${parent.commission_rate}% from ${parent.name}` : `Platform ${baseRate}%`}
-                                  </span>
-                                )}
-
-                                {/* Product Count */}
-                                <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.2 rounded">
-                                  {child.products_count ?? 0} {child.products_count === 1 ? 'product' : 'products'}
-                                  {child.products_count && child.active_products_count !== undefined && child.active_products_count !== child.products_count ? ` (${child.active_products_count} live)` : ''}
-                                </span>
-                              </div>
+              {/* Sub-categories */}
+              {rows.length === 0 ? (
+                <div className="px-5 py-12 text-center">
+                  <IconSubcategory className="w-7 h-7 mx-auto text-gray-300" />
+                  <p className="mt-2 text-[13px] font-semibold text-gray-800">{selected.children.length === 0 ? 'No sub-categories yet' : 'None match this filter'}</p>
+                  <p className="mt-0.5 text-[12.5px] text-gray-500">{selected.children.length === 0 ? 'Products are listed in sub-categories, so add at least one.' : 'Choose All to see every sub-category.'}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden md:grid grid-cols-[minmax(0,1.6fr)_96px_120px_120px_64px_92px] gap-3 px-5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-gray-400 border-b border-gray-100">
+                    <span>Sub-category</span><span className="text-right">Products</span><span>Commission</span><span>Rules</span><span>Open</span><span className="sr-only">Actions</span>
+                  </div>
+                  <ul className="divide-y divide-gray-100">
+                    {rows.map((c) => {
+                      const commission = commissionOf(c, selected);
+                      const locked = isLocked(c.slug);
+                      return (
+                        <li key={c.id} className="group grid grid-cols-[auto_minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.6fr)_96px_120px_120px_64px_92px] gap-x-3 gap-y-1.5 items-center px-4 sm:px-5 py-3 hover:bg-gray-50/70">
+                          <div className="contents md:flex md:items-center md:gap-3 md:min-w-0">
+                            <button type="button" onClick={() => pickPhoto(c)} disabled={photoBusyId !== null}
+                              title="Change photo" aria-label={`Change the photo of ${c.name}`}
+                              className="group/photo relative shrink-0 rounded-lg row-span-2 md:row-span-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+                              <Thumb slug={c.slug} name={c.name} photoUrl={c.photo_url} busy={photoBusyId === c.id} className={`w-11 h-11 rounded-lg ${c.is_active ? '' : 'opacity-50 grayscale'}`} />
+                              <span className="absolute inset-0 rounded-lg bg-black/50 text-white flex items-center justify-center opacity-0 group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100 transition-opacity">
+                                <IconPhoto className="w-4 h-4" />
+                              </span>
+                            </button>
+                            <div className="min-w-0">
+                              <p className={`flex items-center gap-1.5 text-[13.5px] font-semibold truncate ${c.is_active ? 'text-gray-900' : 'text-gray-500'}`}>
+                                <span className="truncate">{c.name}</span>
+                                {locked && <IconLock className="w-3.5 h-3.5 shrink-0 text-gray-400" />}
+                              </p>
+                              <p className="font-mono text-[11.5px] text-gray-400 truncate">/{c.slug}</p>
                             </div>
                           </div>
 
-                          {/* Leaf Actions */}
-                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                            {/* Optimistic Active Toggle */}
-                            <button
-                              onClick={() => handleToggleActive(child, false)}
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors ${
-                                child.is_active
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                                  : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
-                              }`}
-                            >
-                              {child.is_active ? 'Active' : 'Inactive'}
-                            </button>
+                          <p className="col-start-2 md:col-start-auto md:text-right text-[12.5px] tabular-nums text-gray-500 md:text-gray-900">
+                            <span className="font-semibold">{(c.products_count ?? 0).toLocaleString()}</span>
+                            {(c.products_count ?? 0) !== (c.active_products_count ?? 0) && <span className="text-gray-400"> · {c.active_products_count ?? 0} live</span>}
+                            <span className="md:hidden"> products</span>
+                          </p>
 
-                            <button
-                              onClick={() => handleOpenEditModal(child, true)}
-                              className="p-1 rounded text-gray-400 hover:text-gray-900 hover:bg-gray-100"
-                              title="Edit sub-category"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
+                          <p className="hidden md:block text-[12.5px] tabular-nums">
+                            <span className={`font-semibold ${commission.from === 'own' ? 'text-brand-red' : 'text-gray-900'}`}>{commission.rate}%</span>
+                            <span className="block text-[11px] text-gray-400">{commission.from === 'own' ? 'Own rate' : commission.from === 'parent' ? 'From parent' : 'Platform'}</span>
+                          </p>
 
-                            <button
-                              onClick={() => handleInitiateDelete(child, false)}
-                              className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
-                              title="Delete sub-category"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                          <div className="hidden md:flex flex-wrap gap-1">
+                            {c.requires_fda
+                              ? <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-amber-50 text-amber-800 text-[11.5px] font-semibold"><IconFda className="w-3.5 h-3.5" />LTO + CPR</span>
+                              : <span className="text-[12px] text-gray-300">—</span>}
                           </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+
+                          <div className="row-start-1 col-start-3 md:row-start-auto md:col-start-auto">
+                            {locked
+                              ? <span className="text-[11.5px] text-gray-400">Always</span>
+                              : <Switch on={c.is_active} onChange={() => void toggleActive(c)} label={`${c.name} is open`} />}
+                          </div>
+
+                          <div className="col-start-3 md:col-start-auto flex items-center justify-end gap-0.5">
+                            {c.is_active && (
+                              <Link to={`/category/${c.slug}`} target="_blank" rel="noopener noreferrer" className={`${ICON_BUTTON} hidden sm:flex`} title="Open in the store" aria-label={`Open ${c.name} in the store`}>
+                                <IconOpenInStore />
+                              </Link>
+                            )}
+                            <button type="button" onClick={() => openEdit(c, true)} className={ICON_BUTTON} title="Edit" aria-label={`Edit ${c.name}`}><IconEdit /></button>
+                            {!locked && (
+                              <button type="button" onClick={() => askDelete(c, false)} className={`${ICON_BUTTON} hover:!text-red-600 hover:!bg-red-50`} title="Delete" aria-label={`Delete ${c.name}`}><IconDelete /></button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </section>
+          )}
         </div>
       )}
 
-      {/* ── 5. Create / Edit Category Modal ── */}
-      {isModalOpen && editingCategory && createPortal(
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 border border-gray-200 shadow-xl space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto [scrollbar-width:none]">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-brand-red" />
-                <h3 className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider">
-                  {editingCategory.id
-                    ? `Edit ${editingCategory.isChild ? 'Sub-Category' : 'Parent Category'}`
-                    : 'Create New Category'}
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* ── Create / edit ── */}
+      <SidePanel open={form !== null} onClose={() => !saving && setForm(null)}
+        title={form?.id ? `Edit ${form.isChild ? 'sub-category' : 'category'}` : form?.isChild ? 'New sub-category' : 'New category'}
+        subtitle={form?.isChild ? `Under ${parents.find((p) => p.id === Number(form.parent_id))?.name ?? 'a parent category'}` : 'A top-level group in the store menu'}
+        footer={(
+          <div className="flex justify-end gap-2">
+            <button type="button" className={BUTTON.quiet} onClick={() => setForm(null)} disabled={saving}>Cancel</button>
+            <button type="submit" form="category-form" className={BUTTON.primary} disabled={saving}>{saving ? 'Saving…' : form?.id ? 'Save changes' : 'Create'}</button>
+          </div>
+        )}>
+        {form && (
+          <form id="category-form" onSubmit={save} className="space-y-5">
+            {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-800">{formError}</p>}
 
-            {modalError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold">
-                {modalError}
+            {!form.id && (
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100" role="radiogroup" aria-label="Level">
+                {([[false, 'Parent category', IconTaxonomy], [true, 'Sub-category', IconSubcategory]] as const).map(([child, label, Icon]) => (
+                  <button key={label} type="button" role="radio" aria-checked={form.isChild === child}
+                    onClick={() => setForm({ ...form, isChild: child, parent_id: child ? (form.parent_id ?? selected?.id ?? parents[0]?.id ?? null) : null })}
+                    className={`h-9 rounded-lg inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold transition-colors ${form.isChild === child ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'}`}>
+                    <Icon className="w-4 h-4" />{label}
+                  </button>
+                ))}
               </div>
             )}
 
-            <form onSubmit={handleSaveModal} className="space-y-3.5 text-xs">
-              {/* Level Selector (Only when creating new) */}
-              {!editingCategory.id && (
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
-                    Category Hierarchy Level
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setEditingCategory({ ...editingCategory, isChild: false, parent_id: null })}
-                      className={`py-1.5 rounded-lg font-bold transition-all text-center ${
-                        !editingCategory.isChild
-                          ? 'bg-white text-gray-900 shadow-xs'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      Parent Category (Root)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditingCategory({
-                          ...editingCategory,
-                          isChild: true,
-                          parent_id: parents.length > 0 ? parents[0].id : null,
-                        })
-                      }
-                      className={`py-1.5 rounded-lg font-bold transition-all text-center ${
-                        editingCategory.isChild
-                          ? 'bg-white text-gray-900 shadow-xs'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      Sub-Category (Child)
-                    </button>
-                  </div>
-                </div>
-              )}
+            {form.isChild && (
+              <CustomSelect label="Parent category" value={String(form.parent_id ?? '')} onChange={(v) => setForm({ ...form, parent_id: Number(v) })}
+                options={parents.map((p) => ({ value: String(p.id), label: p.name }))} placeholder="Choose a parent" />
+            )}
 
-              {/* Parent Category Selector (Shown only for Child Leaf) */}
-              {editingCategory.isChild && (
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
-                    Select Parent Category
-                  </label>
-                  <CustomSelect
-                    value={String(editingCategory.parent_id || '')}
-                    onChange={(val) => setEditingCategory({ ...editingCategory, parent_id: Number(val) })}
-                    options={parentSelectOptions}
-                    placeholder="Choose parent category..."
-                  />
-                </div>
-              )}
+            <div className="space-y-1">
+              <label htmlFor="cat-name" className="text-[12.5px] font-semibold text-gray-800">Name <span className="text-brand-red">*</span></label>
+              <input id="cat-name" type="text" required value={form.name} placeholder="e.g. Running Shoes"
+                onChange={(e) => setForm({ ...form, name: e.target.value, slug: form.id ? form.slug : slugify(e.target.value) })}
+                className="w-full h-10 px-3 rounded-xl border border-gray-300 text-[14px] outline-none focus:border-gray-900" />
+            </div>
 
-              {/* Name */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
-                  Category Name <span className="text-brand-red">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Consumer Electronics"
-                  value={editingCategory.name}
-                  onChange={(e) => {
-                    const newName = e.target.value;
-                    setEditingCategory({
-                      ...editingCategory,
-                      name: newName,
-                      slug: !editingCategory.id ? slugify(newName) : editingCategory.slug,
-                    });
-                  }}
-                  className="w-full px-3 py-2 text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red"
-                  required
-                />
-              </div>
-
-              {/* Slug */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
-                  Category Slug (Unique URL Identifier)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. consumer-electronics"
-                  value={editingCategory.slug}
-                  onChange={(e) =>
-                    setEditingCategory({ ...editingCategory, slug: slugify(e.target.value) })
-                  }
-                  className="w-full px-3 py-2 font-mono text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red"
-                />
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  Used in catalog navigation routes and product assignment payloads.
-                </p>
-              </div>
-
-              {/* Sort Order & Active Status Row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Sort Order</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={editingCategory.sort_order}
-                    onChange={(e) =>
-                      setEditingCategory({ ...editingCategory, sort_order: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-1.5 text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-brand-red"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Active Status</label>
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditingCategory({ ...editingCategory, is_active: !editingCategory.is_active })}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors w-full text-center ${
-                        editingCategory.is_active
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-gray-100 text-gray-500 border-gray-200'
-                      }`}
-                    >
-                      {editingCategory.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Rules: FDA (sub-categories) and the commission override (both levels) */}
-              {(
-                <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-100 space-y-2.5">
-                  <span className="text-xs font-bold text-gray-800 block">Rules</span>
-
-                  {/* FDA Compliance Toggle */}
-                  {editingCategory.isChild && <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <span className="font-bold text-gray-900 block">FDA Compliance Gate</span>
-                      <span className="text-[10px] text-gray-400">
-                        Requires merchant FDA LTO &amp; CPR upload before review submission
-                      </span>
+            {(() => {
+              const custom = !!form.photoFile || (!!form.photo_url && !form.removePhoto);
+              const shown = form.photoPreview ?? (form.removePhoto ? null : form.photo_url);
+              const note = form.photoFile ? 'New photo. It is saved when you press Save.'
+                : form.removePhoto ? 'The default picture comes back when you press Save.'
+                  : form.photo_url ? 'A photo you uploaded.'
+                    : 'The built-in picture. Upload a JPG or PNG (square works best) to use your own.';
+              return (
+                <div className="flex items-center gap-4 p-3 rounded-xl border border-gray-200">
+                  <Thumb slug={form.slug || slugify(form.name)} name={form.name} photoUrl={shown} className="w-20 h-20 rounded-xl" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-900">Photo</p>
+                    <p className="mt-0.5 text-[12px] leading-snug text-gray-500">{note}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <button type="button" onClick={() => pickPhoto('form')} disabled={saving}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-300 hover:border-gray-900 text-[12.5px] font-semibold text-gray-800 transition-colors disabled:opacity-50">
+                        <IconPhoto className="w-3.5 h-3.5" /> {custom ? 'Replace photo' : 'Upload photo'}
+                      </button>
+                      {custom && (
+                        <button type="button" disabled={saving}
+                          onClick={() => setForm({ ...form, photoFile: undefined, photoPreview: undefined, removePhoto: !!form.photo_url })}
+                          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12.5px] font-semibold text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-50">
+                          <IconRestore className="w-3.5 h-3.5" /> Use default
+                        </button>
+                      )}
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={editingCategory.requires_fda}
-                      onChange={(e) =>
-                        setEditingCategory({ ...editingCategory, requires_fda: e.target.checked })
-                      }
-                      className="w-4 h-4 rounded text-brand-red focus:ring-brand-red cursor-pointer"
-                    />
-                  </div>}
-
-                  {/* Commission override: the same value Platform Settings shows */}
-                  <div className={editingCategory.isChild ? 'pt-2 border-t border-gray-200/60' : ''}>
-                    <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
-                      Commission rate (optional)
-                    </label>
-                    <div className="relative">
-                      <input
-                        inputMode="decimal"
-                        placeholder={(() => {
-                          const parentRate = editingCategory.isChild ? parents.find((p) => p.id === Number(editingCategory.parent_id))?.commission_rate : null;
-                          return parentRate !== null && parentRate !== undefined ? `Empty: ${parentRate}% from the parent` : `Empty: platform rate ${baseRate}%`;
-                        })()}
-                        value={editingCategory.commission_rate}
-                        onChange={(e) =>
-                          setEditingCategory({ ...editingCategory, commission_rate: e.target.value })
-                        }
-                        className="w-full pl-3 pr-8 py-1.5 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-red"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
-                        %
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[10px] text-gray-400">
-                      {editingCategory.isChild
-                        ? 'Only for this sub-category. New orders use it; placed orders keep their commission.'
-                        : 'Covers every sub-category that has no rate of its own. Also editable in Platform Settings.'}
-                    </p>
                   </div>
                 </div>
-              )}
+              );
+            })()}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setIsModalOpen(false)}
-                  className="py-1.5 px-3 text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={isSaving}
-                  className="py-1.5 px-4 text-xs font-bold bg-brand-red hover:bg-[#8e2424]"
-                >
-                  {isSaving ? 'Saving...' : editingCategory.id ? 'Update Category' : 'Create Category'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* ── 6. Delete Guardrail / Blocking Alert Modal ── */}
-      {deleteTarget && createPortal(
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 border border-gray-200 shadow-xl space-y-3.5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
-              <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-bold shrink-0">
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider">
-                  Delete Category: {deleteTarget.category.name}
-                </h3>
-                <p className="text-[10px] text-gray-400 font-mono">slug: {deleteTarget.category.slug}</p>
+            <div className="space-y-1">
+              <label htmlFor="cat-slug" className="text-[12.5px] font-semibold text-gray-800">Web address</label>
+              <div className="flex items-center h-10 rounded-xl border border-gray-300 focus-within:border-gray-900 overflow-hidden">
+                <span className="pl-3 pr-1 text-[13px] text-gray-400 font-mono">/category/</span>
+                <input id="cat-slug" type="text" value={form.slug} disabled={!!form.id && isLocked(form.slug)}
+                  onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })}
+                  className="flex-1 min-w-0 h-full pr-3 font-mono text-[13px] outline-none disabled:bg-gray-50 disabled:text-gray-400" />
               </div>
             </div>
 
-            {deleteErrorMessage ? (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 space-y-1">
-                <span className="font-bold block">Deletion Blocked by System:</span>
-                <p className="leading-relaxed">{deleteErrorMessage}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label htmlFor="cat-order" className="text-[12.5px] font-semibold text-gray-800">Order in the menu</label>
+                <input id="cat-order" type="number" min={0} value={form.sort_order} disabled={!!form.id && isLocked(form.slug)}
+                  onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
+                  className="w-full h-10 px-3 rounded-xl border border-gray-300 text-[14px] tabular-nums outline-none focus:border-gray-900 disabled:bg-gray-50 disabled:text-gray-400" />
               </div>
-            ) : deleteTarget.isParent && (deleteTarget.childCount || 0) > 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
-                <span className="font-bold flex items-center gap-1">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-700" /> Cannot Delete Parent Category
-                </span>
-                <p className="leading-relaxed">
-                  This parent category currently holds <strong>{deleteTarget.childCount} sub-categories</strong>. You must delete or reassign its sub-categories before removing this parent node.
-                </p>
+              <div className="space-y-1">
+                <span className="text-[12.5px] font-semibold text-gray-800">Open</span>
+                <label className="flex items-center gap-2.5 h-10 text-[13px] text-gray-700">
+                  <Switch on={form.is_active} disabled={!!form.id && isLocked(form.slug)} onChange={() => setForm({ ...form, is_active: !form.is_active })} label="Open to shoppers and sellers" />
+                  {form.is_active ? 'Shoppers and sellers see it' : 'Hidden'}
+                </label>
               </div>
-            ) : !deleteTarget.isParent && (deleteTarget.productCount || 0) > 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
-                <span className="font-bold flex items-center gap-1">
-                  <Package className="w-3.5 h-3.5 text-amber-700" /> Cannot Delete Sub-Category
-                </span>
-                <p className="leading-relaxed">
-                  This sub-category currently has <strong>{deleteTarget.productCount} product listings</strong> attached. You must reassign or archive those products before deleting this category.
-                </p>
+            </div>
+
+            <fieldset className="rounded-xl border border-gray-200 divide-y divide-gray-100">
+              <legend className="px-1 text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Rules</legend>
+              {form.isChild && (
+                <label className="flex items-start gap-3 p-3.5 cursor-pointer">
+                  <IconFda className="w-5 h-5 mt-0.5 text-amber-600 shrink-0" />
+                  <span className="flex-1">
+                    <span className="block text-[13px] font-semibold text-gray-900">FDA documents required</span>
+                    <span className="block text-[12px] text-gray-500">Sellers upload their FDA License to Operate and the product's CPR before publishing here.</span>
+                  </span>
+                  <input type="checkbox" checked={form.requires_fda} onChange={(e) => setForm({ ...form, requires_fda: e.target.checked })} className="mt-1 w-4 h-4 accent-brand-red" />
+                </label>
+              )}
+              <div className="flex items-start gap-3 p-3.5">
+                <IconCommission className="w-5 h-5 mt-0.5 text-brand-red shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <label htmlFor="cat-rate" className="block text-[13px] font-semibold text-gray-900">Commission (optional)</label>
+                  <div className="relative w-36">
+                    <input id="cat-rate" inputMode="decimal" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })}
+                      placeholder={(() => {
+                        const parentRate = form.isChild ? parents.find((p) => p.id === Number(form.parent_id))?.commission_rate : null;
+                        return parentRate !== null && parentRate !== undefined ? `${parentRate}` : `${baseRate}`;
+                      })()}
+                      className="w-full h-10 pl-3 pr-8 rounded-xl border border-gray-300 text-[14px] tabular-nums outline-none focus:border-gray-900" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-gray-400">%</span>
+                  </div>
+                  <p className="text-[12px] text-gray-500">
+                    {form.isChild
+                      ? 'Empty uses the parent\'s rate, or the platform rate. New orders use it; placed orders keep theirs.'
+                      : `Covers every sub-category without a rate of its own. Empty uses the platform rate (${baseRate}%).`}
+                  </p>
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-gray-600 leading-relaxed">
-                Are you sure you want to delete <strong>'{deleteTarget.category.name}'</strong>? This category is free of dependencies and can be safely removed.
+            </fieldset>
+          </form>
+        )}
+      </SidePanel>
+
+      {/* ── Delete ── */}
+      <Dialog open={deleteTarget !== null} onClose={() => !deleting && setDeleteTarget(null)} title={deleteTarget ? `Delete ${deleteTarget.category.name}?` : ''}
+        footer={<>
+          <button type="button" className={BUTTON.quiet} onClick={() => setDeleteTarget(null)} disabled={deleting}>{blocked ? 'Close' : 'Cancel'}</button>
+          {!blocked && <button type="button" className={BUTTON.danger} onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</button>}
+        </>}>
+        {deleteTarget && (
+          <div className="space-y-3 text-[13px] leading-relaxed text-gray-700">
+            <div className="flex items-center gap-3">
+              <Thumb slug={deleteTarget.category.slug} name={deleteTarget.category.name} photoUrl={deleteTarget.category.photo_url} className="w-12 h-12 rounded-lg" />
+              <p className="font-mono text-[12px] text-gray-400">/{deleteTarget.category.slug}</p>
+            </div>
+            {deleteError ? (
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-red-800">{deleteError}</p>
+            ) : blocked ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-amber-900">
+                {deleteTarget.isParent
+                  ? <>It still has <strong>{deleteTarget.children} sub-categories</strong>. Delete or move them first.</>
+                  : <>It still has <strong>{deleteTarget.products} products</strong> (archived ones included). Move them to another category first, or hide this one instead.</>}
               </p>
+            ) : (
+              <p>Nothing is filed under it, so it can be removed. This cannot be undone.</p>
             )}
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-              <Button
-                variant="secondary"
-                onClick={() => setDeleteTarget(null)}
-                className="py-1.5 px-3 text-xs"
-              >
-                Cancel
-              </Button>
-              {!(
-                (deleteTarget.isParent && (deleteTarget.childCount || 0) > 0) ||
-                (!deleteTarget.isParent && (deleteTarget.productCount || 0) > 0)
-              ) && (
-                <Button
-                  variant="primary"
-                  onClick={handleConfirmDelete}
-                  disabled={isDeleting}
-                  className="py-1.5 px-4 text-xs font-bold bg-red-600 hover:bg-red-700"
-                >
-                  {isDeleting ? 'Deleting...' : 'Confirm Delete'}
-                </Button>
-              )}
-            </div>
           </div>
-        </div>,
-        document.body
-      )}
+        )}
+      </Dialog>
     </div>
   );
 }

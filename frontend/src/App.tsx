@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { CartProvider } from './hooks/useCart';
 import LoginPage from './pages/auth/LoginPage';
@@ -107,6 +107,7 @@ import {
   SettingsReviews,
   SettingsVouchers,
   SettingsWishlist,
+  SettingsIdVerification,
 } from './pages/SettingsPage';
 import type { ReactNode } from 'react';
 import type { Role } from './types';
@@ -215,6 +216,15 @@ function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }
   return <>{children}</>;
 }
 
+/** A shop's page needs a signed-in account (any role): a visitor signs in first and comes straight back to it. */
+function RequireSignIn({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  return <>{children}</>;
+}
+
 function SuspendedScreen() {
   const { clearAuth } = useAuth();
   return (
@@ -275,9 +285,10 @@ function AppRoutes() {
       <Route path="/search" element={<CatalogPage />} />
       <Route path="/category/:parentId" element={<CatalogPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
-      <Route path="/shop/:slug" element={<ShopProfilePage />} />
-      <Route path="/shop/:slug/reviews" element={<ShopReviewsPage />} />
-      <Route path="/store/:id" element={<ShopProfilePage />} />
+      {/* A shop's page, its comments and its product reviews: signed-in accounts only */}
+      <Route path="/shop/:slug" element={<RequireSignIn><ShopProfilePage /></RequireSignIn>} />
+      <Route path="/shop/:slug/reviews" element={<RequireSignIn><ShopReviewsPage /></RequireSignIn>} />
+      <Route path="/store/:id" element={<RequireSignIn><ShopProfilePage /></RequireSignIn>} />
 
       {/* Auth pages — redirect away if already logged in */}
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
@@ -320,6 +331,7 @@ function AppRoutes() {
         <Route index element={<SettingsAccount />} />
         <Route path="messages"      element={<BuyerMessagesPage />} />
         <Route path="addresses"     element={<SettingsAddresses />} />
+        <Route path="id"            element={<SettingsIdVerification />} />
         <Route path="orders"        element={<SettingsOrders />} />
         <Route path="returns"       element={<SettingsReturns />} />
         <Route path="cancellations" element={<SettingsCancellations />} />
