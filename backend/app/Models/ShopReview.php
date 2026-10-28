@@ -6,13 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A buyer's review of a shop (not of a product): stars, an optional comment and quick tags. One per buyer per shop;
- * the buyer edits it (at most twice a day) instead of posting another. The seller can reply once and edit the reply.
+ * A buyer's comment on a shop (not on a product): the comment and quick tags, no stars (product reviews keep theirs).
+ * One per buyer per shop; the buyer edits it (at most twice a day) instead of posting another. The seller can reply
+ * once and edit the reply. `rating` only holds the stars given before comments replaced them; it is not shown.
  *
  * @property int $id
  * @property int $seller_id
  * @property int $buyer_id
- * @property int $rating
+ * @property int|null $rating
  * @property string|null $comment
  * @property array<int, string>|null $tags
  * @property int $edit_count

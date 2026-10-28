@@ -42,6 +42,7 @@ class AddressStandardizationTest extends TestCase
             'role'          => 'buyer',
             'status'        => 'active',
             'date_of_birth' => '1992-02-02',
+            'buyer_application_status' => 'approved',
         ]);
 
         $this->seller = User::forceCreate([

@@ -892,6 +892,8 @@ class DemoDataService
             ->whereIn('buyer_id', collect($this->users)->only(['buyer1', 'buyer2'])->pluck('id'))
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
+            // A fixed order, so two runs compare equal (GROUP BY alone does not promise one).
+            ->orderBy('status')
             ->pluck('total', 'status')
             ->map(fn ($n) => (int) $n)
             ->all();

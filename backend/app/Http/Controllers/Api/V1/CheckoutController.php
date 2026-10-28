@@ -45,6 +45,10 @@ class CheckoutController extends Controller
     public function place(Request $request): JsonResponse
     {
         $user = $request->user();
+        // A buyer orders only once their government ID is approved (they can browse and fill a cart before).
+        if ($blocked = $user->orderBlockedByIdCheck()) {
+            return response()->json($blocked, 403);
+        }
         $request->validate($this->commonRules() + [
             'payment_method' => ['required', 'in:cod,gcash,e_wallet,card'],
             'notes'          => ['nullable'],

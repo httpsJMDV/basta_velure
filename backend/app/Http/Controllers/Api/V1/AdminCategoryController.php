@@ -7,9 +7,11 @@ use App\Models\AdminActivityLog;
 use App\Models\Category;
 use App\Models\PlatformSetting;
 use App\Models\Product;
+use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -91,6 +93,7 @@ class AdminCategoryController extends Controller
     {
         $data = $request->validate(['name' => 'sometimes|required|' . self::RULES['name']] + self::RULES, self::MESSAGES);
         $before = $category->only(['name', 'slug', 'parent_id', 'sort_order', 'is_active', 'requires_fda', 'commission_rate']);
+        $this->assertCatchAllKept($category, $data);
 
         if (array_key_exists('parent_id', $data)) {
             $parentId = $data['parent_id'] ? (int) $data['parent_id'] : null;
@@ -140,6 +143,12 @@ class AdminCategoryController extends Controller
     /** DELETE /admin/categories/{category}: only an empty one (no sub-categories, no products, archived included). */
     public function destroy(Request $request, Category $category): JsonResponse
     {
+        if ($category->isLockedCatchAll()) {
+            return response()->json([
+                'message' => "'{$category->name}' is the catch-all for products that fit no other category, so it cannot be deleted.",
+                'error_code' => 'CATEGORY_LOCKED',
+            ], 422);
+        }
         $children = $category->children()->count();
         if ($children > 0) {
             return response()->json([
@@ -157,10 +166,64 @@ class AdminCategoryController extends Controller
 
         $name = $category->name;
         $id = $category->id;
+        $photo = $category->image_path;
         $category->delete();
+        if ($photo) {
+            Storage::disk('public')->delete($photo);
+        }
         $this->changed($request, 'delete_category', "Deleted category '{$name}' (ID: {$id})", null, ['id' => $id, 'name' => $name]);
 
         return response()->json(['message' => "Category '{$name}' deleted."]);
+    }
+
+    /**
+     * "Others" and "Other items" may be renamed or given a commission rate, but they stay: open, under the same
+     * parent, with the same slug, and "Others" stays last.
+     */
+    private function assertCatchAllKept(Category $category, array $data): void
+    {
+        if (! $category->isLockedCatchAll()) {
+            return;
+        }
+        $problems = array_filter([
+            'is_active'  => array_key_exists('is_active', $data) && ! $data['is_active'] ? 'The catch-all category stays open for new listings.' : null,
+            'slug'       => ! empty($data['slug']) && $data['slug'] !== $category->slug ? 'The catch-all category keeps its slug.' : null,
+            'parent_id'  => array_key_exists('parent_id', $data) && (int) $data['parent_id'] !== (int) $category->parent_id ? 'The catch-all category cannot be moved.' : null,
+            'sort_order' => $category->parent_id === null && isset($data['sort_order']) && (int) $data['sort_order'] !== Category::OTHERS_SORT_ORDER ? 'Others is always listed last.' : null,
+        ]);
+        if ($problems) {
+            throw ValidationException::withMessages($problems);
+        }
+    }
+
+    /**
+     * POST /admin/categories/{category}/photo {photo}: the picture shoppers see for the category (landing page,
+     * Categories menu), in place of the built-in one. JPG or PNG, up to 5 MB.
+     */
+    public function uploadPhoto(Request $request, Category $category): JsonResponse
+    {
+        $request->validate(['photo' => Validation::image()], Validation::uploadMessages('photo', 'the photo'));
+
+        $old = $category->image_path;
+        $category->forceFill(['image_path' => $request->file('photo')->store('category-photos', 'public')])->save();
+        if ($old) {
+            Storage::disk('public')->delete($old);
+        }
+        $this->changed($request, 'update_category', "Changed the photo of category '{$category->name}' (ID: {$category->id})", $category, ['photo' => true]);
+
+        return response()->json(['message' => "New photo for {$category->name}.", 'data' => $category->fresh()]);
+    }
+
+    /** DELETE /admin/categories/{category}/photo: back to the built-in picture. */
+    public function removePhoto(Request $request, Category $category): JsonResponse
+    {
+        if ($category->image_path) {
+            Storage::disk('public')->delete($category->image_path);
+            $category->forceFill(['image_path' => null])->save();
+            $this->changed($request, 'update_category', "Removed the uploaded photo of category '{$category->name}' (ID: {$category->id})", $category, ['photo' => false]);
+        }
+
+        return response()->json(['message' => "{$category->name} uses its default picture again.", 'data' => $category->fresh()]);
     }
 
     /** The parent must be a parent category (two levels only), and not the category itself. */

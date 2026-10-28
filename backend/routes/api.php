@@ -82,14 +82,10 @@ Route::prefix('v1')->group(function () {
     Route::get('/products/{product}/related',  [PublicProductController::class, 'related']);
     Route::get('/categories',                  [PublicCategoryController::class, 'index']);
 
-    // Public shop profile & reviews (no auth required)
+    // The home page's "Shops to know" (public); a shop's own page needs a signed-in account (below)
     Route::get('/shops',                       [PublicShopController::class, 'featured']);
     // How each shop in a cart gets paid (GCash details only for signed-in buyers) and its free delivery minimum
     Route::get('/checkout/shops',              [\App\Http\Controllers\Api\V1\ShopPaymentController::class, 'shops']);
-    Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);
-    Route::get('/shops/{shop}/reviews',        [PublicShopController::class, 'reviews']);
-    Route::get('/shops/{shop}/shop-reviews',   [ShopReviewController::class, 'index']);
-    Route::get('/stores/{shop}',               [PublicShopController::class, 'show']);
     // Public platform policies
     Route::get('/platform/policies',           [AdminPlatformSettingController::class, 'getPublicPlatformPolicies']);
     // Public logistics hubs
@@ -119,7 +115,8 @@ Route::prefix('v1')->group(function () {
     });
 
     // Authenticated routes
-    Route::middleware('auth:sanctum')->group(function () {
+    // active_account: an unverified, suspended or not-yet-activated account cannot use a token it still holds
+    Route::middleware(['auth:sanctum', 'active_account'])->group(function () {
         // Broadcast authentication for Echo / WebSockets
         \Illuminate\Support\Facades\Broadcast::routes();
 
@@ -271,6 +268,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/buyer/vouchers', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'wallet']);
         Route::post('/buyer/vouchers/claim', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'claim']);
 
+        // A buyer's government ID: approved by an admin before they can place orders
+        Route::get('/account/id-verification', [\App\Http\Controllers\Api\V1\BuyerIdVerificationController::class, 'show']);
+        Route::post('/account/id-verification', [\App\Http\Controllers\Api\V1\BuyerIdVerificationController::class, 'submit'])->middleware('throttle:upload');
+
         // Buyer checkout & orders (B8, B9)
         Route::post('/checkout/quote', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'quote']);
         Route::post('/checkout/place-order', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'place'])->middleware('throttle:upload');
@@ -281,7 +282,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/buyer/reviews/pending', [BuyerReviewController::class, 'pending']);
         Route::post('/buyer/reviews', [BuyerReviewController::class, 'store'])->middleware('throttle:upload');
         Route::patch('/buyer/reviews/{review}', [BuyerReviewController::class, 'update']);
-        // Shop reviews: one per buyer per shop, after a completed order, edited at most twice a day
+        // A shop's page: only signed-in accounts see it (its profile, product reviews and the comments about it)
+        Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);
+        Route::get('/shops/{shop}/reviews',        [PublicShopController::class, 'reviews']);
+        Route::get('/shops/{shop}/shop-reviews',   [ShopReviewController::class, 'index']);
+        Route::get('/stores/{shop}',               [PublicShopController::class, 'show']);
+        // Shop comments: one per buyer per shop, after a completed order, edited at most twice a day
         Route::get('/shops/{shop}/my-shop-review', [ShopReviewController::class, 'mine']);
         Route::post('/shops/{shop}/my-shop-review', [ShopReviewController::class, 'store'])->middleware('throttle:20,1');
         Route::patch('/shops/{shop}/my-shop-review', [ShopReviewController::class, 'update'])->middleware('throttle:20,1');
@@ -425,6 +431,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/categories', [AdminCategoryController::class, 'store']);
             Route::put('/categories/{category}', [AdminCategoryController::class, 'update']);
             Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy']);
+            Route::post('/categories/{category}/photo', [AdminCategoryController::class, 'uploadPhoto'])->middleware('throttle:upload');
+            Route::delete('/categories/{category}/photo', [AdminCategoryController::class, 'removePhoto']);
 
             // Disputes
             Route::get('/disputes', [AdminDisputeController::class, 'index']);

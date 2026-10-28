@@ -74,6 +74,25 @@ class User extends Authenticatable
             : static::where('username', $identifier)->first();
     }
 
+    /**
+     * Buyers place orders only once the Loved-IT team approved their government ID (Admin > Buyer Applications); until
+     * then they can sign in, browse and fill a cart. Null when this account may order, else why not (for a 403).
+     *
+     * @return array{code: string, id_status: string, message: string}|null
+     */
+    public function orderBlockedByIdCheck(): ?array
+    {
+        return match ($this->buyer_application_status) {
+            'approved' => null,
+            'pending'  => ['code' => 'id_not_verified', 'id_status' => 'pending',
+                'message' => 'Your ID is still being checked. You can place orders once the Loved-IT team approves it, usually within 1 business day.'],
+            'rejected' => ['code' => 'id_not_verified', 'id_status' => 'rejected',
+                'message' => 'Your ID was not approved' . ($this->buyer_rejection_reason ? ': ' . rtrim($this->buyer_rejection_reason, '.') . '.' : '.') . ' Send a new one from your account to place orders.'],
+            default    => ['code' => 'id_not_verified', 'id_status' => 'none',
+                'message' => 'Add a government ID to your account before placing an order. The Loved-IT team checks it, usually within 1 business day.'],
+        };
+    }
+
     public function sellerProfile(): HasOne
     {
         return $this->hasOne(SellerProfile::class);

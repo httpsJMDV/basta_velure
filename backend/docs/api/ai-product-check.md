@@ -9,7 +9,7 @@ reads images, at most 3 per request), a check without photos uses `GROQ_MODEL` (
 
 | Verdict | What happens |
 |---|---|
-| `approve` | The product goes live (`status` active, `published_at` set). The seller gets a "Product is live" notice. |
+| `approve` | The product goes live (`status` active, `published_at` set). The seller gets a "Product is live" notice. A product **held for a person** (`hold_reason`, see below) goes to the admin instead (`ai_review_status` approved). |
 | `send_to_admin` | It stays in **Admin > Products > Pending review** with the AI's reason. Admins get a notice. |
 | `reject` | Same as `send_to_admin` while `AI_PRODUCT_AUTO_REJECT` is off (the default): the admin makes the final call. With it on, the product is rejected and the seller sees the reason. |
 | AI unreachable, refused, or cut off | Sent to the admin instead of being published (`ai_review_status` unavailable). |
@@ -35,6 +35,20 @@ running. If it is not, the product simply waits in Pending review and an admin c
 
 - `GET /admin/products` and `GET /admin/products/{id}` return them as `ai_review: {status, verdict, reason, reviewed_at}`.
 - `GET /seller/products` returns `ai_review_status` only.
+
+## Listings held for a person (with or without the AI)
+
+Loved-IT sells no medicine of any kind (prescription or over the counter, anything injected) and no vitamins or food
+supplements; first-aid items and medical devices are fine. The AI prompt rejects all of those. Separately, and even
+with the AI off, `App\Services\Catalog\ListingScreen` holds a listing for an admin when it is filed under **Others**
+(the catch-all category) or its name or description mentions medicine (a word list plus doses like "500mg"). A word
+alone cannot tell "Vitamin C serum" from a pill, so a match never refuses the listing: an admin decides.
+
+- `products.hold_reason` (why it waits) is set when it is published, cleared when an admin approves it or when it later
+  goes live without a hold. It is recomputed on the same edits that trigger the AI check.
+- `GET /admin/products(/{id})` returns `hold_reason`; `GET /seller/products` returns only `held_for_review` (bool), and
+  the seller's message is "The Loved-IT team checks it before it goes live, usually within 1 business day."
+- Admins get a `product.flagged` notice with the reason.
 
 ## Setup
 

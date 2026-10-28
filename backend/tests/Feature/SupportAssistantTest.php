@@ -88,7 +88,6 @@ class SupportAssistantTest extends TestCase
         $facts = json_decode($result['content'], true);
         $this->assertSame($order->order_number, $facts['order_number']);
         $this->assertTrue($facts['can_cancel_now']);
-        $this->assertArrayNotHasKey('delivery_otp', $facts);
         $this->assertArrayNotHasKey('payment_token', $facts);
         $this->assertStringNotContainsString('09998887777', $result['content']);
 

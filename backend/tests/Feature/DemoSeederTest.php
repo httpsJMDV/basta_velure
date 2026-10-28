@@ -535,6 +535,8 @@ class DemoSeederTest extends TestCase
 
     public function test_with_no_categories_the_standard_taxonomy_is_added_and_a_reset_leaves_it(): void
     {
+        // Sub-categories first: a parent with children cannot be deleted (the migrations add "Others" with one).
+        Category::whereNotNull('parent_id')->delete();
         Category::query()->delete();
         $this->assertTrue($this->demo->ensureCategories());
         $this->assertGreaterThan(50, Category::count());
