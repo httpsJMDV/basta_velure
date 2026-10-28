@@ -1,0 +1,5 @@
+package shop.lovedit.loved_it
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

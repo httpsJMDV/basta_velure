@@ -75,20 +75,20 @@ Never push straight to `main`. Every part goes in through its pull request.
 
 ### A1. Install the tools (Windows 11)
 
-- [ ] **Git** (you already have it).
-- [ ] **Android Studio**, latest stable, from developer.android.com/studio. In the installer keep *Android SDK*, *Android SDK Platform* and *Android Virtual Device* ticked.
-- [ ] In Android Studio, open **Settings → Languages & Frameworks → Android SDK → SDK Tools** and tick:
+- [x] **Git** (you already have it).
+- [x] **Android Studio**, latest stable, from developer.android.com/studio. In the installer keep *Android SDK*, *Android SDK Platform* and *Android Virtual Device* ticked.
+- [x] In Android Studio, open **Settings → Languages & Frameworks → Android SDK → SDK Tools** and tick:
   - Android SDK Build-Tools
   - Android SDK Command-line Tools (latest)
   - Android SDK Platform-Tools
   - Android Emulator
   - Google USB Driver (for testing on a real phone over USB on Windows)
 - [ ] **Flutter SDK**, stable channel, from docs.flutter.dev (Get started → Windows → Android). Unzip it to `C:\dev\flutter`. Don't put it in `Program Files` or any folder with spaces. Then add `C:\dev\flutter\bin` to your **Path** (Start → "Edit the system environment variables" → Environment Variables → Path → New).
-- [ ] **Flutter plugin** in Android Studio (Settings → Plugins → search "Flutter"; it installs Dart too). If you prefer **VS Code**, install its *Flutter* extension instead. Either works.
-- [ ] Turn on **virtualization** so the emulator is fast:
+- [x] **Flutter plugin** in Android Studio (Settings → Plugins → search "Flutter"; it installs Dart too). If you prefer **VS Code**, install its *Flutter* extension instead. Either works.
+- [x] Turn on **virtualization** so the emulator is fast:
   - In the BIOS, enable Intel VT-x or AMD-V (SVM). Task Manager → Performance → CPU shows "Virtualization: Enabled" when it's on.
   - In Windows "Turn Windows features on or off", tick **Windows Hypervisor Platform**, then restart.
-- [ ] Open a new terminal and run:
+- [x] Open a new terminal and run:
   ```
   flutter doctor
   flutter doctor --android-licenses     (press y for each one)
@@ -97,22 +97,22 @@ Never push straight to `main`. Every part goes in through its pull request.
 
 ### A2. Make the emulator and connect a real phone
 
-- [ ] Android Studio → **Device Manager → Create Virtual Device**:
+- [x] Android Studio → **Device Manager → Create Virtual Device**:
   - Phone: **Pixel 8** (or Pixel 7).
   - System image: the newest stable Android with **Google Play** in the name, x86_64. Google sign-in needs the Google Play image.
   - RAM: 2048 to 4096 MB.
-- [ ] Make a second, **small-screen** phone too (5-inch class), to check that nothing gets cut off.
+- [x] Make a second, **small-screen** phone too (5-inch class), to check that nothing gets cut off.
 - [ ] Real phone: Settings → About phone → tap **Build number** 7 times → Developer options → turn on **USB debugging**. Plug it in and allow the PC. `flutter devices` must list it.
 - [ ] Sign into the emulator's Play Store with a Google account. Google sign-in needs it.
 
 ### A3. Create the project
 
-- [ ] In the repo root (`basta_velure`):
+- [x] In the repo root (`basta_velure`):
   ```
   flutter create --org shop.lovedit --project-name loved_it --platforms android mobile
   ```
   The app id becomes `shop.lovedit.loved_it`.
-- [ ] Folders inside `mobile/lib/`:
+- [x] Folders inside `mobile/lib/`:
   ```
   main.dart
   core/        api/  session/  validation/  widgets/  theme/  realtime/  media/
@@ -122,8 +122,8 @@ Never push straight to `main`. Every part goes in through its pull request.
     rider/     Part C (King)
     logistics/ Part D (Liam)
   ```
-- [ ] Add to `mobile/.gitignore`: `android/key.properties`, `*.jks`, `*.keystore`, `dart_defines/*.json` (keep `dart_defines/example.json` in git).
-- [ ] Packages (`flutter pub add <name>`). Read each package's page on pub.dev for its Android setup steps:
+- [x] Add to `mobile/.gitignore`: `android/key.properties`, `*.jks`, `*.keystore`, `dart_defines/*.json` (keep `dart_defines/example.json` in git).
+- [x] Packages (`flutter pub add <name>`). Read each package's page on pub.dev for its Android setup steps:
 
 | Package | For |
 |---|---|
@@ -147,7 +147,7 @@ Never push straight to `main`. Every part goes in through its pull request.
 ### A4. Connect the app to the backend
 
 - [ ] Run the backend on your own PC first. Follow `SETUP.md`, then start `php artisan serve`, `php artisan reverb:start` and `php artisan queue:work --tries=3` in `backend`.
-- [ ] Never write the server address in the code. Pass it when you run the app. Put this in `mobile/dart_defines/dev.json`:
+- [x] Never write the server address in the code. Pass it when you run the app. Put this in `mobile/dart_defines/dev.json`:
   ```json
   {
     "API_URL": "http://10.0.2.2:8000/api/v1",
@@ -166,9 +166,9 @@ Never push straight to `main`. Every part goes in through its pull request.
 | Real phone on the same Wi-Fi | Start the backend with `php artisan serve --host=0.0.0.0 --port=8000`, then use `http://<your PC's IPv4 from ipconfig>:8000/api/v1`. Allow PHP through Windows Firewall when it asks. |
 | The live site | `https://api.loved-it.shop/api/v1`, Reverb `ws.loved-it.shop` port `443`, scheme `https`. Only while JM's PC is running the site. **It's real data: use test accounts only.** |
 
-- [ ] Android blocks plain `http://` by default. Allow it **only in debug builds**: in `android/app/src/debug/AndroidManifest.xml`, add `android:usesCleartextTraffic="true"` to `<application>`. The release build stays HTTPS-only.
+- [x] Android blocks plain `http://` by default. Allow it **only in debug builds**: in `android/app/src/debug/AndroidManifest.xml`, add `android:usesCleartextTraffic="true"` to `<application>`. The release build stays HTTPS-only.
 - [ ] Photo addresses come from `APP_URL` in `backend/.env` (now `https://api.loved-it.shop`), so photos only load while the tunnel is running. If they don't show, that's why.
-- [ ] Every request sends `Accept: application/json`, and once signed in, `Authorization: Bearer <token>`.
+- [x] Every request sends `Accept: application/json`, and once signed in, `Authorization: Bearer <token>`.
 
 ### A5. The shared base: API client and sign-in session
 
@@ -310,7 +310,7 @@ Never push straight to `main`. Every part goes in through its pull request.
   - Channels: `private-App.Models.User.{userId}` (notifications), `private-user.{userId}.conversations` (chat list), `private-conversation.{id}` (one chat: `MessageSent`, `MessageRead`).
   - If the connection drops, the screens still work by refreshing. The website also checks the unread count every 30 seconds.
 
-- [ ] **Tests** for the validation kit (`mobile/test/validation_test.dart`): for every rule, at least one value that passes and one that fails, using the examples in the table at the end of this file.
+- [x] **Tests** for the validation kit (`mobile/test/validation_test.dart`): for every rule, at least one value that passes and one that fails, using the examples in the table at the end of this file.
 
 **Security (A7):**
 - Re-encoding the photo also **removes its hidden location data (EXIF GPS)**, so a buyer's ID or receipt doesn't reveal where they live. Keep that on.
@@ -318,7 +318,7 @@ Never push straight to `main`. Every part goes in through its pull request.
 
 ### A8. Commit and push Part A
 
-- [ ] Check it first, in `mobile/`:
+- [x] Check it first, in `mobile/`:
   ```
   dart format .
   flutter analyze          (no errors and no warnings)
