@@ -43,6 +43,8 @@ import {
   RailCard, Checklist, WaitingBadge, DocChip, CardGrid, TileShell,
 } from '../../components/admin/listKit';
 
+import { usePlaceNames } from '../../hooks/usePlaceNames';
+
 const PER_PAGE_OPTIONS = [20, 30, 50, 100];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -305,6 +307,8 @@ function ReviewModal({ appId, onClose, onApproved, onRejected }: ReviewModalProp
   const { showToast } = useToast();
   const [detail, setDetail] = useState<SortingCenterApplicationDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  // Coverage is stored as barangay codes; show their names.
+  const places = usePlaceNames(detail?.coverage_barangays);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Dialogs
@@ -549,12 +553,13 @@ function ReviewModal({ appId, onClose, onApproved, onRejected }: ReviewModalProp
 
                     {detail.coverage_barangays && detail.coverage_barangays.length > 0 ? (
                       <div className="max-h-36 overflow-y-auto p-2 rounded-lg border border-gray-200 bg-white flex flex-wrap gap-1.5">
-                        {detail.coverage_barangays.map((code) => (
+                        {places.sortByName(detail.coverage_barangays).map((code) => (
                           <span
                             key={code}
-                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-gray-100 text-gray-700 border border-gray-200"
+                            title={`PSGC ${code}`}
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 border border-gray-200 ${places.known(code) ? 'text-gray-700' : 'font-mono text-gray-400'}`}
                           >
-                            {code}
+                            {places.place(code)}
                           </span>
                         ))}
                       </div>

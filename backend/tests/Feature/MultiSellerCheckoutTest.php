@@ -36,6 +36,7 @@ class MultiSellerCheckoutTest extends TestCase
             'password'   => Hash::make('Secret123!'),
             'role'       => 'buyer',
             'status'     => 'active',
+            'buyer_application_status' => 'approved',
         ]);
 
         $this->sellerA = User::forceCreate([

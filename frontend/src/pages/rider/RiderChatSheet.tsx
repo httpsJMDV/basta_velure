@@ -89,13 +89,13 @@ export default function RiderChatSheet({ target, onClose, onActivity }: RiderCha
 
   // In a portal, so no card around the Message button can clip or offset the sheet.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" role="presentation">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4" role="presentation">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="rider-chat-title"
-        className="w-full max-w-xl h-[85vh] max-h-[92vh] bg-white rounded-t-3xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-xl h-[85vh] max-h-[92vh] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
       >
         <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b border-gray-200">
           <div className="min-w-0">

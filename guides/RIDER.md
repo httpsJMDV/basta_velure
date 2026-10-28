@@ -51,10 +51,8 @@ Each stop card shows the address, the buyer's phone, and the **COD amount** if i
 
 **Delivered:**
 1. Take a **proof photo** of the parcel handed over. A second photo is optional.
-2. Ask the buyer for their **6-digit delivery code** and enter it.
-   - **5 wrong codes lock code entry for 15 minutes.**
-3. For COD, enter the cash you collected. It must be **exactly** the COD amount.
-4. Submit. You earn **₱50**.
+2. For COD, enter the cash you collected. It must be **exactly** the COD amount.
+3. Submit. You earn **₱50**.
 
 **Delivery failed:**
 1. Pick a reason: recipient unavailable, wrong address, refused, couldn't contact, address not accessible, or other (other needs a note).

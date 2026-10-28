@@ -200,10 +200,6 @@ class RiderDeliveryOutcomeTest extends TestCase
             }
             unset($payload['cod_collected']);
         }
-        // The buyer reads the delivery code out at the door (A32).
-        if (! array_key_exists('otp', $payload) && ($otp = Parcel::where('tracking_number', strtoupper($tracking))->first()?->delivery_otp)) {
-            $payload['otp'] = $otp;
-        }
         if ($withPhoto && ! array_key_exists('proof_photo', $payload)) {
             $payload['proof_photo'] = $this->photo();
         }

@@ -3,7 +3,7 @@ import {
   AirVent, WashingMachine, CookingPot, Sofa, Lamp, BedDouble, UtensilsCrossed, Archive, Hammer, Drill, Wrench,
   Lightbulb, ShowerHead, Shirt, Footprints, ShoppingBag, Gem, Watch, Glasses, Sparkles, Palette, HeartPulse, Pill,
   Dumbbell, Tent, Bike, Car, Cog, HardHat, SprayCan, Baby, Milk, Puzzle, Trophy, BookOpen, PenTool, PawPrint, Bone,
-  Scissors, Store,
+  Scissors, Store, Boxes,
   Tablet, Monitor, Keyboard, Camera, Coffee, Package, CakeSlice, Egg, Tv, Microwave, Wind, Droplets, Bath, Blinds, Sprout, PaintRoller, Plug, Shovel, Construction, Moon, Waves, Backpack, Luggage, Umbrella, Smile, Stethoscope, Volleyball, Fish, Radio, CircleDot, Heart, ShieldCheck, Dices, Guitar, Brush, Gamepad2, GraduationCap, Sun, Cat, Home, Bird,
   type LucideIcon,
 } from 'lucide-react';
@@ -11,7 +11,8 @@ import type { StorefrontCategory } from '../../types';
 
 /**
  * One photo per category: public-domain photos from Openverse, cropped square (see assets/categories/photos/CREDITS.md).
- * A category without its own photo falls back to its best-selling product's photo, then to an icon.
+ * A photo the admin uploaded comes first. A category without any photo falls back to its best-selling product's
+ * photo, then to an icon.
  */
 const PHOTOS = import.meta.glob('../../assets/categories/photos/*.jpg', { eager: true, import: 'default' }) as Record<string, string>;
 const photoFor = (slug: string): string | undefined => PHOTOS[`../../assets/categories/photos/${slug}.jpg`];
@@ -49,15 +50,16 @@ const ICONS: Record<string, LucideIcon> = {
   'baby-toys': Puzzle, 'baby-bath-skincare': Bath, nursery: BedDouble, 'kids-shoes': Footprints, maternity: Heart, 'baby-safety': ShieldCheck,
   'board-games-puzzles': Dices, 'musical-instruments': Guitar, 'arts-crafts': Brush, 'video-games': Gamepad2, 'educational-toys': GraduationCap, 'outdoor-play': Sun,
   'cat-litter': Cat, 'pet-toys': Bone, 'pet-beds': Home, aquarium: Fish, 'bird-supplies': Bird, 'pet-carriers': Package, 'pet-treats': Cookie,
+  others: Boxes, 'other-items': Boxes,
 };
 
-/** The picture for a category: its own photo, its best-selling product's photo, or an icon. */
+/** The picture for a category: the admin's photo, its own photo, its best-selling product's photo, or an icon. */
 export default function CategoryArt({ category, variant = 'tile' }: {
   category: StorefrontCategory;
   /** tile: rounded square (landing page); circle: round thumbnail (Categories menu, chips) */
   variant?: 'tile' | 'circle';
 }) {
-  const src = photoFor(category.slug) ?? category.image_url;
+  const src = category.photo_url ?? photoFor(category.slug) ?? category.image_url;
   const Icon = ICONS[category.slug] ?? Store;
   const shape = variant === 'circle' ? 'rounded-full' : 'rounded-2xl';
 

@@ -180,4 +180,6 @@ GET    /api/v1/admin/categories            # Returns full tree with product and 
 POST   /api/v1/admin/categories            # Create new parent or leaf category
 PUT    /api/v1/admin/categories/{id}       # Update category attributes, FDA flag, or override rate
 DELETE /api/v1/admin/categories/{id}       # Safe delete (blocked if products or leaves are attached)
+POST   /api/v1/admin/categories/{id}/photo # Upload the category photo (field `photo`, JPG or PNG up to 5 MB); replaces the old one
+DELETE /api/v1/admin/categories/{id}/photo # Back to the built-in picture
 ```

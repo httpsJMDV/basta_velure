@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
  * GET /categories: the active category tree for the storefront (the landing page and the header's Categories menu).
  * Each category carries how many products buyers can see in it and a cover photo: the primary photo of its
  * best-selling visible product (for a parent, across its subcategories). A category nobody sells in yet has no
- * cover. Cached for five minutes.
+ * cover. A photo the admin uploaded (photo_url) is shown before both. Cached for five minutes.
  */
 class PublicCategoryController extends Controller
 {
@@ -25,7 +25,7 @@ class PublicCategoryController extends Controller
     /** @return array<int, array<string, mixed>> */
     private function tree(): array
     {
-        $categories = Category::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['id', 'parent_id', 'name', 'slug', 'requires_fda']);
+        $categories = Category::where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['id', 'parent_id', 'name', 'slug', 'requires_fda', 'image_path']);
 
         // Visible products, best sellers first, each with its primary photo.
         $products = Product::query()
@@ -48,6 +48,8 @@ class PublicCategoryController extends Controller
                 // The seller's product form asks for FDA documents in these.
                 'requires_fda'  => (bool) $category->requires_fda,
                 'product_count' => $mine->count(),
+                // The admin's uploaded photo wins over the built-in picture and the best seller's photo.
+                'photo_url'     => $category->photo_url,
                 'image_url'     => $cover ? asset('storage/' . $cover->images->first()->path) : null,
             ];
         };

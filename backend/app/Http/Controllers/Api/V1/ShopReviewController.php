@@ -17,24 +17,27 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Shop reviews (Amaru task 6): what buyers say about a shop itself, apart from its product reviews.
+ * Shop comments (Amaru task 6, "shop reviews" in the URLs and tables): what buyers say about a shop itself (shipping,
+ * packing, how the seller answers), apart from its product reviews. They are comments, not ratings: there are no
+ * stars (product reviews keep theirs).
  *
- * - Only a buyer with at least one completed order from the shop can review it.
- * - One review per buyer per shop: the buyer edits it instead of posting another, at most twice a day (Manila days).
- * - Stars 1 to 5 (required), a comment of up to 500 characters and the quick tags in ShopReview::TAGS (optional).
- * - The seller can post one reply per review and edit it. Nobody hides or deletes a review: it is honest feedback.
+ * - Only a buyer with at least one completed order from the shop can comment on it.
+ * - One comment per buyer per shop: the buyer edits it instead of posting another, at most twice a day (Manila days).
+ * - A comment of 2 to 500 characters (required) and the quick tags in ShopReview::TAGS (optional).
+ * - The seller can post one reply per comment and edit it. Nobody hides or deletes a comment: it is honest feedback.
+ * - Viewing them needs a signed-in account, like the rest of the shop's page.
  */
 class ShopReviewController extends Controller
 {
-    // ── Public ───────────────────────────────────────────────────────────────
+    // ── Signed-in visitors of the shop's page ───────────────────────────────
 
-    /** GET /shops/{shop}/shop-reviews?rating=&page=: every review of the shop, newest first, with the summary. */
+    /** GET /shops/{shop}/shop-reviews?tag=&page=: every comment on the shop, newest first, with the summary. */
     public function index(Request $request, string $shop): JsonResponse
     {
         $profile = $this->profile($shop);
         $page = ShopReview::with('buyer:id,first_name,last_name,avatar_path')
             ->where('seller_id', $profile->user_id)
-            ->when(in_array((int) $request->query('rating'), [1, 2, 3, 4, 5], true), fn ($q) => $q->where('rating', (int) $request->query('rating')))
+            ->when(in_array($request->query('tag'), ShopReview::TAGS, true), fn ($q) => $q->whereJsonContains('tags', $request->query('tag')))
             ->latest()->orderByDesc('id')
             ->paginate(min(30, max(5, (int) $request->query('per_page', 10))));
 
@@ -47,21 +50,21 @@ class ShopReviewController extends Controller
     }
 
     /**
-     * The average, the count per star and (for the shop page) the latest reviews.
+     * How many comments, how often each quick tag was picked (most picked first) and (for the shop page) the latest.
      *
-     * @return array{average: float|null, count: int, rating_counts: array<int, int>, latest: array<int, array<string, mixed>>}
+     * @return array{count: int, tag_counts: array<int, array{tag: string, count: int}>, latest: array<int, array<string, mixed>>}
      */
     public static function summary(int $sellerId, int $latest = 3): array
     {
-        $counts = ShopReview::where('seller_id', $sellerId)->select('rating', DB::raw('count(*) as n'))->groupBy('rating')->pluck('n', 'rating');
-        $total = (int) $counts->sum();
-        $sum = $counts->reduce(fn ($carry, $n, $stars) => $carry + $n * $stars, 0);
+        $tags = ShopReview::where('seller_id', $sellerId)->whereNotNull('tags')->pluck('tags')->flatten()->countBy();
 
         return [
-            'average'       => $total > 0 ? round($sum / $total, 1) : null,
-            'count'         => $total,
-            'rating_counts' => collect([5, 4, 3, 2, 1])->mapWithKeys(fn ($s) => [$s => (int) ($counts[$s] ?? 0)])->all(),
-            'latest'        => $latest > 0
+            'count'      => ShopReview::where('seller_id', $sellerId)->count(),
+            'tag_counts' => collect(ShopReview::TAGS)
+                ->map(fn ($t) => ['tag' => $t, 'count' => (int) ($tags[$t] ?? 0)])
+                ->filter(fn ($t) => $t['count'] > 0)
+                ->sortByDesc('count')->values()->all(),
+            'latest'     => $latest > 0
                 ? ShopReview::with('buyer:id,first_name,last_name,avatar_path')->where('seller_id', $sellerId)->latest()->orderByDesc('id')
                     ->limit($latest)->get()->map(fn (ShopReview $r) => self::row($r))->all()
                 : [],
@@ -70,7 +73,7 @@ class ShopReviewController extends Controller
 
     // ── The signed-in buyer ──────────────────────────────────────────────────
 
-    /** GET /shops/{shop}/my-shop-review: whether the buyer can review the shop, and their review if they have one. */
+    /** GET /shops/{shop}/my-shop-review: whether the buyer can comment on the shop, and their comment if they have one. */
     public function mine(Request $request, string $shop): JsonResponse
     {
         $profile = $this->profile($shop);
@@ -86,7 +89,7 @@ class ShopReviewController extends Controller
         ]]);
     }
 
-    /** POST /shops/{shop}/my-shop-review {rating, comment?, tags?} */
+    /** POST /shops/{shop}/my-shop-review {comment, tags?} */
     public function store(Request $request, string $shop): JsonResponse
     {
         $profile = $this->profile($shop);
@@ -98,19 +101,19 @@ class ShopReviewController extends Controller
 
         $review = DB::transaction(function () use ($profile, $buyer, $data) {
             abort_if(ShopReview::where('seller_id', $profile->user_id)->where('buyer_id', $buyer->id)->lockForUpdate()->exists(), 409,
-                'You already reviewed this shop. Edit your review instead.');
+                'You already commented on this shop. Edit your comment instead.');
 
             return ShopReview::create(['seller_id' => $profile->user_id, 'buyer_id' => $buyer->id] + $data);
         });
 
-        app(Notifier::class)->toSeller($profile->user_id, 'new_review', 'shop_review.new', "New {$review->rating}-star shop review",
-            ($buyer->first_name ?: 'A buyer') . ' reviewed your shop' . ($review->comment ? ': "' . \Illuminate\Support\Str::limit($review->comment, 80) . '"' : '.'),
-            '/seller/reviews?tab=shop', ['shop_review_id' => $review->id, 'rating' => $review->rating]);
+        app(Notifier::class)->toSeller($profile->user_id, 'new_review', 'shop_review.new', 'New comment on your shop',
+            ($buyer->first_name ?: 'A buyer') . ' commented on your shop: "' . \Illuminate\Support\Str::limit((string) $review->comment, 80) . '"',
+            '/seller/reviews?tab=shop', ['shop_review_id' => $review->id]);
 
-        return response()->json(['message' => 'Thanks! Your shop review is posted.', 'data' => self::row($review->load('buyer'))], 201);
+        return response()->json(['message' => 'Thanks! Your comment is posted.', 'data' => self::row($review->load('buyer'))], 201);
     }
 
-    /** PATCH /shops/{shop}/my-shop-review {rating, comment?, tags?}: at most 2 edits a day. */
+    /** PATCH /shops/{shop}/my-shop-review {comment, tags?}: at most 2 edits a day. */
     public function update(Request $request, string $shop): JsonResponse
     {
         $profile = $this->profile($shop);
@@ -118,8 +121,8 @@ class ShopReviewController extends Controller
 
         $review = DB::transaction(function () use ($profile, $request, $data) {
             $review = ShopReview::where('seller_id', $profile->user_id)->where('buyer_id', $request->user()->id)->lockForUpdate()->first();
-            abort_if(! $review, 404, 'You have not reviewed this shop yet.');
-            abort_if($review->editsLeftToday() === 0, 429, 'You can edit your shop review twice a day. Try again tomorrow.');
+            abort_if(! $review, 404, 'You have not commented on this shop yet.');
+            abort_if($review->editsLeftToday() === 0, 429, 'You can edit your comment twice a day. Try again tomorrow.');
 
             $today = now('Asia/Manila')->toDateString();
             $sameDay = $review->edit_day?->toDateString() === $today;
@@ -134,7 +137,7 @@ class ShopReviewController extends Controller
         });
 
         return response()->json([
-            'message' => 'Your shop review is updated.',
+            'message' => 'Your comment is updated.',
             'data' => self::row($review->load('buyer')),
             'edits_left_today' => $review->editsLeftToday(),
         ]);
@@ -142,12 +145,11 @@ class ShopReviewController extends Controller
 
     // ── The seller ───────────────────────────────────────────────────────────
 
-    /** GET /seller/shop-reviews?rating=&replied=0|1&page= */
+    /** GET /seller/shop-reviews?replied=0|1&page= */
     public function sellerIndex(Request $request): JsonResponse
     {
         $sellerId = $request->user()->id;
         $page = ShopReview::with('buyer:id,first_name,last_name,avatar_path')->where('seller_id', $sellerId)
-            ->when(in_array((int) $request->query('rating'), [1, 2, 3, 4, 5], true), fn ($q) => $q->where('rating', (int) $request->query('rating')))
             ->when($request->query('replied') === '0', fn ($q) => $q->whereNull('seller_reply'))
             ->when($request->query('replied') === '1', fn ($q) => $q->whereNotNull('seller_reply'))
             ->latest()->orderByDesc('id')
@@ -167,10 +169,10 @@ class ShopReviewController extends Controller
     public function reply(Request $request, int $review): JsonResponse
     {
         $r = ShopReview::where('seller_id', $request->user()->id)->findOrFail($review);
-        abort_if($r->seller_reply !== null, 409, 'You already replied to this review. Edit your reply instead.');
+        abort_if($r->seller_reply !== null, 409, 'You already replied to this comment. Edit your reply instead.');
         $r->forceFill(['seller_reply' => $this->replyBody($request), 'seller_replied_at' => now()])->save();
 
-        return response()->json(['message' => 'Reply posted. Buyers see it under the review.', 'data' => self::row($r->load('buyer'))], 201);
+        return response()->json(['message' => 'Reply posted. Buyers see it under the comment.', 'data' => self::row($r->load('buyer'))], 201);
     }
 
     /** PATCH /seller/shop-reviews/{review}/reply {body} */
@@ -185,11 +187,10 @@ class ShopReviewController extends Controller
 
     // ── The admin (read-only) ────────────────────────────────────────────────
 
-    /** GET /admin/reviews/shops/{seller}/shop-reviews?rating=&page= */
+    /** GET /admin/reviews/shops/{seller}/shop-reviews?page= */
     public function adminIndex(Request $request, User $seller): JsonResponse
     {
         $page = ShopReview::with('buyer:id,first_name,last_name,email,avatar_path')->where('seller_id', $seller->id)
-            ->when(in_array((int) $request->query('rating'), [1, 2, 3, 4, 5], true), fn ($q) => $q->where('rating', (int) $request->query('rating')))
             ->latest()->orderByDesc('id')
             ->paginate(20);
 
@@ -214,45 +215,41 @@ class ShopReviewController extends Controller
         return $profile;
     }
 
-    /** Why this buyer cannot review the shop, or null when they can. */
+    /** Why this buyer cannot comment on the shop, or null when they can. */
     private function cannotReview(User $buyer, SellerProfile $profile): ?string
     {
         if ((int) $buyer->id === (int) $profile->user_id) {
-            return 'You cannot review your own shop.';
+            return 'You cannot comment on your own shop.';
         }
         $completed = Order::where('buyer_id', $buyer->id)
             ->where('status', OrderStatus::COMPLETED->value)
             ->whereHas('items', fn ($q) => $q->where('seller_id', $profile->user_id))
             ->exists();
 
-        return $completed ? null : 'You can review this shop after one of your orders from it is completed.';
+        return $completed ? null : 'You can comment on this shop after one of your orders from it is completed.';
     }
 
-    /** @return array{rating: int, comment: ?string, tags: array<int, string>} */
+    /** A comment (required) and optional quick tags; no stars. @return array{comment: string, tags: array<int, string>} */
     private function validated(Request $request): array
     {
         $request->merge(['comment' => is_string($request->input('comment')) ? trim(strip_tags($request->input('comment'))) : $request->input('comment')]);
         $data = $request->validate([
-            'rating'  => ['required', 'integer', 'between:1,5'],
-            'comment' => ['nullable', 'string', 'max:' . ShopReview::COMMENT_MAX],
+            'comment' => ['required', 'string', 'min:2', 'max:' . ShopReview::COMMENT_MAX, 'regex:' . Validation::TWO_LETTERS_REGEX],
             'tags'    => ['nullable', 'array', 'max:' . count(ShopReview::TAGS)],
             'tags.*'  => ['string', 'distinct', Rule::in(ShopReview::TAGS)],
         ], [
-            'rating.required' => 'Choose from 1 to 5 stars.',
-            'rating.between'  => 'Choose from 1 to 5 stars.',
-            'rating.integer'  => 'Choose from 1 to 5 stars.',
-            'comment.max'     => 'A comment can be at most ' . ShopReview::COMMENT_MAX . ' characters.',
-            'tags.*.in'       => 'Choose tags from the list.',
-            'tags.*.distinct' => 'Each tag can be picked once.',
+            'comment.required' => 'Write your comment about the shop.',
+            'comment.min'      => 'Write your comment about the shop.',
+            'comment.max'      => 'A comment can be at most ' . ShopReview::COMMENT_MAX . ' characters.',
+            'comment.regex'    => 'Write your comment in words.',
+            'tags.*.in'        => 'Choose tags from the list.',
+            'tags.*.distinct'  => 'Each tag can be picked once.',
         ]);
-        if (($data['comment'] ?? '') !== '' && ! preg_match(Validation::TWO_LETTERS_REGEX, $data['comment'])) {
-            throw ValidationException::withMessages(['comment' => 'Write your comment in words, or leave it empty.']);
-        }
 
         // Tags keep the list's order, whatever order they were picked in.
         $tags = array_values(array_intersect(ShopReview::TAGS, $data['tags'] ?? []));
 
-        return ['rating' => (int) $data['rating'], 'comment' => ($data['comment'] ?? '') !== '' ? $data['comment'] : null, 'tags' => $tags];
+        return ['comment' => $data['comment'], 'tags' => $tags];
     }
 
     private function replyBody(Request $request): string
@@ -272,7 +269,6 @@ class ShopReviewController extends Controller
     {
         return [
             'id'         => $r->id,
-            'rating'     => $r->rating,
             'comment'    => $r->comment,
             'tags'       => $r->tags ?? [],
             'edited'     => $r->edit_count > 0,

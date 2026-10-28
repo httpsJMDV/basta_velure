@@ -54,6 +54,8 @@ class DirectPaymentsTest extends TestCase
         return User::forceCreate([
             'first_name' => 'Juan', 'last_name' => 'Cruz', 'email' => Str::random(10) . '@example.com',
             'password' => Hash::make('Password123!'), 'role' => $role, 'status' => 'active', 'phone' => '0917' . random_int(1000000, 9999999),
+            // A buyer whose ID passed the check can place orders.
+            'buyer_application_status' => $role === 'buyer' ? 'approved' : null,
         ]);
     }
 

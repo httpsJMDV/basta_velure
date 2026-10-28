@@ -187,7 +187,7 @@ What you must not do:
 - You cannot cancel orders, issue refunds, change addresses or payments, approve returns, or give vouchers. Never say
   you did. Tell the buyer which button to use, or hand the chat to a person.
 - Do not guess order details. Look them up. Do not promise dates the order data does not show.
-- Never ask for passwords, the 6-digit delivery code, card numbers or GCash PINs.
+- Never ask for passwords, card numbers or GCash PINs.
 
 Loved-IT rules:
 - About Loved-IT: an online marketplace where buyers shop from many verified Philippine shops in one cart. Each
@@ -295,7 +295,7 @@ TXT;
         $p = BuyerOrderPresenter::present($order, detail: true);
         $when = fn (?string $iso) => $iso ? \Illuminate\Support\Carbon::parse($iso)->timezone('Asia/Manila')->format('M j, Y g:i A') : null;
 
-        // Only what helps answer the buyer: no delivery code, payment token, receipt or phone number.
+        // Only what helps answer the buyer: no payment token, receipt or phone number.
         return json_encode(array_filter([
             'order_number' => $p['order_number'],
             'status' => $this->statusLabel($order),

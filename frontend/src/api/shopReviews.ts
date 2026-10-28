@@ -1,9 +1,9 @@
-// Shop reviews (Amaru task 6): reviews of a shop itself, apart from its product reviews.
+// Shop comments (Amaru task 6, "shop reviews" in the URLs): what buyers say about a shop itself, without stars, apart
+// from its product reviews (which keep their stars).
 import { http } from './client';
 
 export interface ShopReviewRow {
   id: number;
-  rating: number;
   comment: string | null;
   tags: string[];
   edited: boolean;
@@ -17,9 +17,9 @@ export interface ShopReviewRow {
 }
 
 export interface ShopReviewSummary {
-  average: number | null;
   count: number;
-  rating_counts: Record<number, number>;
+  /** How often each quick tag was picked, most picked first (tags nobody picked are left out). */
+  tag_counts: { tag: string; count: number }[];
   latest: ShopReviewRow[];
 }
 
@@ -39,12 +39,11 @@ export interface MyShopReview {
 }
 
 export interface ShopReviewInput {
-  rating: number;
-  comment?: string;
+  comment: string;
   tags?: string[];
 }
 
-export const getShopReviewListApi = (shop: string | number, params: { rating?: number; page?: number; per_page?: number } = {}) =>
+export const getShopReviewListApi = (shop: string | number, params: { tag?: string; page?: number; per_page?: number } = {}) =>
   http.get<ShopReviewPage>(`/shops/${encodeURIComponent(String(shop))}/shop-reviews`, { params }).then((r) => r.data);
 
 export const getMyShopReviewApi = (shop: string | number) =>
@@ -56,11 +55,11 @@ export const createShopReviewApi = (shop: string | number, body: ShopReviewInput
 export const updateShopReviewApi = (shop: string | number, body: ShopReviewInput) =>
   http.patch<{ data: ShopReviewRow; message: string; edits_left_today: number }>(`/shops/${encodeURIComponent(String(shop))}/my-shop-review`, body).then((r) => r.data);
 
-export const getSellerShopReviewsApi = (params: { rating?: number; replied?: '0' | '1'; page?: number } = {}) =>
+export const getSellerShopReviewsApi = (params: { replied?: '0' | '1'; page?: number } = {}) =>
   http.get<ShopReviewPage>('/seller/shop-reviews', { params }).then((r) => r.data);
 
 export const replyShopReviewApi = (id: number, body: string, edit = false) =>
   (edit ? http.patch : http.post)<{ data: ShopReviewRow; message: string }>(`/seller/shop-reviews/${id}/reply`, { body }).then((r) => r.data);
 
-export const getAdminShopReviewsApi = (sellerId: number, params: { rating?: number; page?: number } = {}) =>
+export const getAdminShopReviewsApi = (sellerId: number, params: { page?: number } = {}) =>
   http.get<ShopReviewPage>(`/admin/reviews/shops/${sellerId}/shop-reviews`, { params }).then((r) => r.data);

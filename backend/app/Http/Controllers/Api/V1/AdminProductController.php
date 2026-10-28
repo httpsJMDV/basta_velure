@@ -76,7 +76,7 @@ class AdminProductController extends Controller
         abort_if($product->status !== 'pending_review', 422, 'Product is not pending review.');
 
         // A product held for the AI check has not been published yet.
-        $product->update(['status' => 'active', 'rejection_reason' => null, 'published_at' => $product->published_at ?? now()]);
+        $product->update(['status' => 'active', 'rejection_reason' => null, 'hold_reason' => null, 'published_at' => $product->published_at ?? now()]);
         app(\App\Services\MailNotifier::class)->productApproved($product->loadMissing('seller'));
         app(\App\Services\Notifier::class)->listingDecision($product, 'Product approved', "{$product->name} is live. Buyers can find and order it now.");
 
@@ -166,6 +166,9 @@ class AdminProductController extends Controller
             'rejection_reason'     => $product->rejection_reason,
             'archive_reason'       => $product->archive_reason,
             'archived_by'          => $product->archived_by,
+            // Why it waits for a person even when the AI check is off or passed it: filed under Others, or it
+            // mentions medicine, vitamins or supplements (ListingScreen).
+            'hold_reason'          => $product->hold_reason,
             // The AI product check (Amaru task 7): checking / approved / flagged / unavailable / rejected, the verdict
             // it gave (approve, send_to_admin, reject) and its reason.
             'ai_review'            => $product->ai_review_status ? [

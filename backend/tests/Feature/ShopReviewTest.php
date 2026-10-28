@@ -15,8 +15,9 @@ use Tests\Support\BuildsCommerce;
 use Tests\TestCase;
 
 /**
- * Shop reviews (Amaru task 6): who can review a shop, one review per buyer per shop, two edits a day, the fields,
- * the seller's single reply, and where the reviews show.
+ * Shop comments (Amaru task 6, "shop reviews" in the URLs): who can comment on a shop, one comment per buyer per shop,
+ * two edits a day, the fields (a comment and quick tags, no stars), the seller's single reply, and where they show.
+ * A shop's page, comments included, needs a signed-in account.
  */
 class ShopReviewTest extends TestCase
 {
@@ -61,52 +62,53 @@ class ShopReviewTest extends TestCase
         return "/api/v1/shops/{$this->slug}/{$suffix}";
     }
 
-    public function test_only_a_buyer_with_a_completed_order_from_the_shop_can_review_it(): void
+    public function test_only_a_buyer_with_a_completed_order_from_the_shop_can_comment(): void
     {
         $buyer = $this->buyer();
         Sanctum::actingAs($buyer);
 
         $this->getJson($this->url())->assertOk()->assertJsonPath('data.can_review', false)
             ->assertJsonPath('data.tags', ShopReview::TAGS);
-        $this->postJson($this->url(), ['rating' => 5])->assertForbidden()
-            ->assertJsonPath('message', 'You can review this shop after one of your orders from it is completed.');
+        $this->postJson($this->url(), ['comment' => 'Maayos ang tindahan.'])->assertForbidden()
+            ->assertJsonPath('message', 'You can comment on this shop after one of your orders from it is completed.');
 
         // A delivered order that is not completed yet does not count.
         $this->orderFrom($buyer, OrderStatus::DELIVERED->value);
-        $this->postJson($this->url(), ['rating' => 5])->assertForbidden();
+        $this->postJson($this->url(), ['comment' => 'Maayos ang tindahan.'])->assertForbidden();
 
         $this->orderFrom($buyer);
         $this->getJson($this->url())->assertJsonPath('data.can_review', true)->assertJsonPath('data.review', null);
-        $this->postJson($this->url(), ['rating' => 4, 'comment' => 'Mabilis mag-reply at maayos ang balot.', 'tags' => ['Good packaging', 'Fast shipping']])
+        $this->postJson($this->url(), ['comment' => 'Mabilis mag-reply at maayos ang balot.', 'tags' => ['Good packaging', 'Fast shipping']])
             ->assertCreated()
-            ->assertJsonPath('data.rating', 4)
+            ->assertJsonMissingPath('data.rating')
             ->assertJsonPath('data.tags', ['Fast shipping', 'Good packaging']);
+        $this->assertNull(ShopReview::where('buyer_id', $buyer->id)->value('rating'));
 
-        // The seller cannot review their own shop.
+        // The seller cannot comment on their own shop.
         Sanctum::actingAs($this->seller);
-        $this->postJson($this->url(), ['rating' => 5])->assertForbidden()->assertJsonPath('message', 'You cannot review your own shop.');
+        $this->postJson($this->url(), ['comment' => 'Best shop ever'])->assertForbidden()->assertJsonPath('message', 'You cannot comment on your own shop.');
     }
 
-    public function test_one_review_per_buyer_per_shop_edited_at_most_twice_a_day(): void
+    public function test_one_comment_per_buyer_per_shop_edited_at_most_twice_a_day(): void
     {
         $buyer = $this->buyer();
         $this->orderFrom($buyer);
         Sanctum::actingAs($buyer);
         \Illuminate\Support\Carbon::setTestNow('2026-10-24 09:00:00');
 
-        $this->postJson($this->url(), ['rating' => 3])->assertCreated();
-        $this->postJson($this->url(), ['rating' => 5])->assertStatus(409);
+        $this->postJson($this->url(), ['comment' => 'Okay naman.'])->assertCreated();
+        $this->postJson($this->url(), ['comment' => 'Second try'])->assertStatus(409);
         $this->assertSame(1, ShopReview::where('buyer_id', $buyer->id)->count());
 
-        $this->patchJson($this->url(), ['rating' => 4])->assertOk()->assertJsonPath('edits_left_today', 1)->assertJsonPath('data.edited', true);
-        $this->patchJson($this->url(), ['rating' => 5])->assertOk()->assertJsonPath('edits_left_today', 0);
-        $this->patchJson($this->url(), ['rating' => 1])->assertStatus(429)
-            ->assertJsonPath('message', 'You can edit your shop review twice a day. Try again tomorrow.');
-        $this->assertSame(5, ShopReview::where('buyer_id', $buyer->id)->value('rating'));
+        $this->patchJson($this->url(), ['comment' => 'Mabait ang seller.'])->assertOk()->assertJsonPath('edits_left_today', 1)->assertJsonPath('data.edited', true);
+        $this->patchJson($this->url(), ['comment' => 'Mabait at mabilis.'])->assertOk()->assertJsonPath('edits_left_today', 0);
+        $this->patchJson($this->url(), ['comment' => 'Isa pa'])->assertStatus(429)
+            ->assertJsonPath('message', 'You can edit your comment twice a day. Try again tomorrow.');
+        $this->assertSame('Mabait at mabilis.', ShopReview::where('buyer_id', $buyer->id)->value('comment'));
 
         // A new Manila day gives two more edits (16:00 UTC is midnight in Manila).
         \Illuminate\Support\Carbon::setTestNow('2026-10-24 16:30:00');
-        $this->patchJson($this->url(), ['rating' => 2])->assertOk()->assertJsonPath('edits_left_today', 1);
+        $this->patchJson($this->url(), ['comment' => 'Bagong araw.'])->assertOk()->assertJsonPath('edits_left_today', 1);
     }
 
     public function test_fields_are_checked_on_the_server(): void
@@ -115,16 +117,16 @@ class ShopReviewTest extends TestCase
         $this->orderFrom($buyer);
         Sanctum::actingAs($buyer);
 
-        $this->postJson($this->url(), [])->assertStatus(422)->assertJsonPath('errors.rating.0', 'Choose from 1 to 5 stars.');
-        $this->postJson($this->url(), ['rating' => 6])->assertStatus(422)->assertJsonValidationErrors('rating');
-        $this->postJson($this->url(), ['rating' => 5, 'comment' => str_repeat('a', 501)])->assertStatus(422)
+        $this->postJson($this->url(), [])->assertStatus(422)->assertJsonPath('errors.comment.0', 'Write your comment about the shop.');
+        $this->postJson($this->url(), ['comment' => str_repeat('a', 501)])->assertStatus(422)
             ->assertJsonPath('errors.comment.0', 'A comment can be at most 500 characters.');
-        $this->postJson($this->url(), ['rating' => 5, 'comment' => '!!!!'])->assertStatus(422)->assertJsonValidationErrors('comment');
-        $this->postJson($this->url(), ['rating' => 5, 'tags' => ['Cheap']])->assertStatus(422)->assertJsonValidationErrors('tags.0');
-        $this->postJson($this->url(), ['rating' => 5, 'tags' => ['Fast shipping', 'Fast shipping']])->assertStatus(422);
+        $this->postJson($this->url(), ['comment' => '!!!!'])->assertStatus(422)->assertJsonValidationErrors('comment');
+        $this->postJson($this->url(), ['comment' => 'Good shop', 'tags' => ['Cheap']])->assertStatus(422)->assertJsonValidationErrors('tags.0');
+        $this->postJson($this->url(), ['comment' => 'Good shop', 'tags' => ['Fast shipping', 'Fast shipping']])->assertStatus(422);
 
-        // Stars alone are enough; a comment's HTML is stripped.
+        // Stars are no longer asked for (one sent anyway is ignored), and a comment's HTML is stripped.
         $this->postJson($this->url(), ['rating' => 5, 'comment' => '<b>Salamat po</b>'])->assertCreated()->assertJsonPath('data.comment', 'Salamat po');
+        $this->assertNull(ShopReview::where('buyer_id', $buyer->id)->value('rating'));
     }
 
     public function test_the_seller_replies_once_and_can_edit_the_reply(): void
@@ -132,7 +134,7 @@ class ShopReviewTest extends TestCase
         $buyer = $this->buyer();
         $this->orderFrom($buyer);
         Sanctum::actingAs($buyer);
-        $id = $this->postJson($this->url(), ['rating' => 2, 'comment' => 'Matagal bago naipadala.'])->json('data.id');
+        $id = $this->postJson($this->url(), ['comment' => 'Matagal bago naipadala.'])->json('data.id');
         $this->assertSame(1, $this->seller->notifications()->where('data->kind', 'shop_review.new')->count());
 
         Sanctum::actingAs($this->seller);
@@ -147,24 +149,32 @@ class ShopReviewTest extends TestCase
         $this->postJson("/api/v1/seller/shop-reviews/{$id}/reply", ['body' => 'Hello there'])->assertNotFound();
     }
 
-    public function test_the_shop_page_shows_the_average_and_three_latest_and_the_list_filters_by_stars(): void
+    public function test_the_shop_page_shows_the_count_the_tags_and_three_latest_to_signed_in_accounts_only(): void
     {
-        foreach ([5, 4, 5, 2] as $i => $stars) {
+        $tagSets = [['Fast shipping'], ['Fast shipping', 'Good packaging'], [], ['Fast shipping']];
+        foreach ($tagSets as $i => $tags) {
             $buyer = $this->buyer();
             $this->orderFrom($buyer);
-            ShopReview::create(['seller_id' => $this->seller->id, 'buyer_id' => $buyer->id, 'rating' => $stars])
+            ShopReview::create(['seller_id' => $this->seller->id, 'buyer_id' => $buyer->id, 'comment' => "Comment number {$i}", 'tags' => $tags])
                 ->forceFill(['created_at' => now()->subDays(4 - $i)])->save();
         }
 
-        $this->getJson("/api/v1/shops/{$this->slug}")->assertOk()
-            ->assertJsonPath('data.shop_reviews.average', 4)
-            ->assertJsonPath('data.shop_reviews.count', 4)
-            ->assertJsonPath('data.shop_reviews.rating_counts.5', 2)
-            ->assertJsonCount(3, 'data.shop_reviews.latest')
-            ->assertJsonPath('data.shop_reviews.latest.0.rating', 2);
+        // Signed out: the shop's page and its comments are closed.
+        $this->getJson("/api/v1/shops/{$this->slug}")->assertUnauthorized();
+        $this->getJson($this->url('shop-reviews'))->assertUnauthorized();
+        $this->getJson($this->url('reviews'))->assertUnauthorized();
 
-        $this->getJson($this->url('shop-reviews'))->assertOk()->assertJsonPath('meta.total', 4)->assertJsonPath('data.0.rating', 2);
-        $this->getJson($this->url('shop-reviews') . '?rating=5')->assertOk()->assertJsonPath('meta.total', 2);
+        Sanctum::actingAs($this->buyer());
+        $this->getJson("/api/v1/shops/{$this->slug}")->assertOk()
+            ->assertJsonPath('data.shop_reviews.count', 4)
+            ->assertJsonPath('data.shop_reviews.tag_counts.0', ['tag' => 'Fast shipping', 'count' => 3])
+            ->assertJsonPath('data.shop_reviews.tag_counts.1', ['tag' => 'Good packaging', 'count' => 1])
+            ->assertJsonMissingPath('data.shop_reviews.average')
+            ->assertJsonCount(3, 'data.shop_reviews.latest')
+            ->assertJsonPath('data.shop_reviews.latest.0.comment', 'Comment number 3');
+
+        $this->getJson($this->url('shop-reviews'))->assertOk()->assertJsonPath('meta.total', 4)->assertJsonPath('data.0.comment', 'Comment number 3');
+        $this->getJson($this->url('shop-reviews') . '?tag=Good%20packaging')->assertOk()->assertJsonPath('meta.total', 1);
 
         $admin = User::forceCreate(['first_name' => 'Ad', 'last_name' => 'Min', 'email' => 'admin.' . Str::random(6) . '@example.com', 'password' => 'x', 'role' => 'admin', 'status' => 'active']);
         Sanctum::actingAs($admin);

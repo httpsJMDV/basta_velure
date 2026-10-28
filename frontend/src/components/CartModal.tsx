@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, Trash2, Plus, Minus, Store, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, ShoppingBag, Trash2, Store, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import type { CartItem } from '../hooks/useCart';
+import { useRemoveConfirm } from './cart/useRemoveConfirm';
+import QuantityInput from './cart/QuantityInput';
 import { pesoCompact as peso } from '../utils/pricing';
 
 interface CartModalProps {
@@ -18,6 +20,8 @@ interface CartModalProps {
 export default function CartModal({ open, onClose }: CartModalProps) {
   const navigate = useNavigate();
   const { items, view, signedIn, removeItem, updateQty } = useCart();
+  const removal = useRemoveConfirm(removeItem);
+  const askRemove = (item: CartItem) => removal.ask({ variantId: item.variantId, name: item.name, image: item.image, variant: item.variant });
 
   const groups = useMemo(() => {
     const map = new Map<string, { shop: string; list: CartItem[] }>();
@@ -36,6 +40,7 @@ export default function CartModal({ open, onClose }: CartModalProps) {
   const go = (to: string) => { onClose(); navigate(to); };
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <>
@@ -85,23 +90,16 @@ export default function CartModal({ open, onClose }: CartModalProps) {
                               <div className="flex-1 min-w-0 flex flex-col">
                                 <div className="flex items-start gap-2">
                                   <Link to={`/products/${item.productId}`} onClick={onClose} className="flex-1 text-[13px] leading-snug text-stone-900 line-clamp-2 hover:text-brand-red">{item.name}</Link>
-                                  <button type="button" onClick={() => removeItem(item.variantId)} className="w-7 h-7 -mt-1 -mr-1 rounded-full flex items-center justify-center text-stone-400 hover:text-brand-red hover:bg-rose-50 shrink-0" aria-label={`Remove ${item.name}`}>
+                                  <button type="button" onClick={() => askRemove(item)} className="w-7 h-7 -mt-1 -mr-1 rounded-full flex items-center justify-center text-stone-400 hover:text-brand-red hover:bg-rose-50 shrink-0" aria-label={`Remove ${item.name}`}>
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                                 {item.variant && <span className="mt-0.5 text-[11px] text-stone-500 truncate">{item.variant}</span>}
                                 {blocked && item.message && <span className="mt-0.5 text-[11px] font-medium text-amber-800">{item.message}</span>}
-                                <div className="mt-auto pt-2 flex items-center justify-between gap-2">
-                                  <div className="flex items-center h-8 rounded-full border border-stone-300 bg-white">
-                                    <button type="button" onClick={() => item.quantity > 1 ? updateQty(item.variantId, item.quantity - 1) : removeItem(item.variantId)} className="w-8 h-full flex items-center justify-center text-stone-600 hover:text-stone-900" aria-label="Fewer">
-                                      <Minus className="w-3.5 h-3.5" />
-                                    </button>
-                                    <span className="w-7 text-center text-[13px] font-semibold tabular-nums">{item.quantity}</span>
-                                    <button type="button" onClick={() => updateQty(item.variantId, item.quantity + 1)} className="w-8 h-full flex items-center justify-center text-stone-600 hover:text-stone-900" aria-label="More">
-                                      <Plus className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                  <span className="text-[14px] font-bold text-stone-900 tabular-nums">{peso(item.price * item.quantity)}</span>
+                                <div className="mt-auto pt-2 flex items-start justify-between gap-2">
+                                  <QuantityInput value={item.quantity} max={item.maxQuantity} label={item.name}
+                                    onCommit={(qty) => updateQty(item.variantId, qty)} onRemove={() => askRemove(item)} />
+                                  <span className="pt-1 text-[14px] font-bold text-stone-900 tabular-nums">{peso(item.price * item.quantity)}</span>
                                 </div>
                               </div>
                             </li>
@@ -128,7 +126,7 @@ export default function CartModal({ open, onClose }: CartModalProps) {
                     View full cart
                   </button>
                   <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-stone-500">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Cash on delivery, GCash, e-wallet or card · 7-day returns
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Cash on delivery or GCash · 7-day returns
                   </p>
                 </div>
               </>
@@ -137,5 +135,7 @@ export default function CartModal({ open, onClose }: CartModalProps) {
         </>
       )}
     </AnimatePresence>
+    {removal.dialog}
+    </>
   );
 }

@@ -519,7 +519,7 @@ export default function AdminBuyerApplicationsPage() {
 
   return (
     <div className="pb-8 space-y-3">
-      <PageHero icon={UserCheck} eyebrow="Applications" title="Buyer Applications" subtitle="Check each buyer's government ID before they can shop" />
+      <PageHero icon={UserCheck} eyebrow="Applications" title="Buyer Applications" subtitle="Check each buyer's government ID. They can browse and fill a cart now, and place orders once you approve it" />
 
       <div className="grid items-start gap-3 lg:grid-cols-[250px_minmax(0,1fr)]">
         {/* ── Rail ── */}

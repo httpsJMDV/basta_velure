@@ -721,9 +721,6 @@ export interface RiderDeliveryParcel {
   attempt?: number;
   max_attempts?: number;
   previous_failure?: string | null;
-  /** The buyer has a 6-digit delivery code to give (A32); locked for 15 minutes after 5 wrong tries. */
-  otp_required?: boolean;
-  otp_locked_until?: string | null;
   weight_kg?: number | null;
   item_count: number;
   item_summary: string;
@@ -1140,8 +1137,6 @@ export interface Order {
   refunded_at?: string | null;
   can_cancel?: boolean;
   can_return?: boolean;
-  /** A32: the 6-digit code to give the rider, while the parcel is out for delivery. */
-  delivery_otp?: string | null;
   delivery_attempt?: { failed: number; max: number } | null;
   returning_to_seller?: boolean;
   return_unavailable_reason?: string | null;
@@ -1893,6 +1888,8 @@ export interface StorefrontCategory {
   slug: string;
   name: string;
   product_count: number;
+  /** A photo the admin uploaded: shown before the built-in picture and the best seller's photo. */
+  photo_url?: string | null;
   image_url: string | null;
   requires_fda?: boolean;
   children?: StorefrontCategory[];
@@ -2037,6 +2034,8 @@ export interface SellerProduct {
   archived_by: 'admin' | 'seller' | null;
   /** "checking" while the AI listing check runs after publishing. */
   ai_review_status?: string | null;
+  /** Waiting for the Loved-IT team (filed under Others, or it mentions medicine). */
+  held_for_review?: boolean;
   created_at: string;
   variants: SellerProductVariant[];
   total_stock: number;
@@ -2444,6 +2443,8 @@ export interface AdminCategoryLeaf {
   is_active: boolean;
   requires_fda: boolean;
   commission_rate: number | null;
+  /** The admin's uploaded photo; null means the built-in picture. */
+  photo_url: string | null;
   /** Every product in it, archived ones included (they block deleting it). */
   products_count?: number;
   active_products_count?: number;
@@ -2461,6 +2462,7 @@ export interface AdminCategoryParent {
   requires_fda: boolean;
   /** A parent's rate covers its sub-categories that have none of their own. */
   commission_rate: number | null;
+  photo_url: string | null;
   products_count?: number;
   children: AdminCategoryLeaf[];
   created_at?: string;

@@ -146,12 +146,13 @@ class CategorySeeder extends Seeder
                     ['id' => 'skincare', 'name' => 'Skincare'],
                     ['id' => 'makeup', 'name' => 'Makeup'],
                     ['id' => 'personal-care', 'name' => 'Personal Care'],
-                    ['id' => 'supplements', 'name' => 'Supplements'],
+                    // Loved-IT sells no medicine or vitamins: kept for old listings, closed to new ones.
+                    ['id' => 'supplements', 'name' => 'Supplements', 'is_active' => false],
                     ['id' => 'haircare', 'name' => 'Hair Care'],
                     ['id' => 'fragrances', 'name' => 'Fragrances'],
                     ['id' => 'bath-body', 'name' => 'Bath & Body'],
                     ['id' => 'oral-care', 'name' => 'Oral Care'],
-                    ['id' => 'medical-supplies', 'name' => 'Medical Supplies'],
+                    ['id' => 'medical-supplies', 'name' => 'First Aid & Medical Supplies'],
                     ['id' => 'nail-care', 'name' => 'Nail Care'],
                 ],
             ],
@@ -235,6 +236,15 @@ class CategorySeeder extends Seeder
                     ['id' => 'pet-treats', 'name' => 'Pet Treats'],
                 ],
             ],
+            [
+                // The catch-all, always last; an admin checks every listing in it before it goes live.
+                'id' => Category::OTHERS_SLUG,
+                'name' => 'Others',
+                'sort_order' => Category::OTHERS_SORT_ORDER,
+                'children' => [
+                    ['id' => Category::OTHER_ITEMS_SLUG, 'name' => 'Other items'],
+                ],
+            ],
         ];
 
         DB::transaction(function () use ($taxonomy) {
@@ -244,7 +254,7 @@ class CategorySeeder extends Seeder
                     [
                         'name'            => $parentData['name'],
                         'parent_id'       => null,
-                        'sort_order'      => $pIdx + 1,
+                        'sort_order'      => $parentData['sort_order'] ?? $pIdx + 1,
                         'is_active'       => true,
                         'requires_fda'    => false,
                         'commission_rate' => null,
@@ -258,7 +268,7 @@ class CategorySeeder extends Seeder
                             'name'            => $childData['name'],
                             'parent_id'       => $parent->id,
                             'sort_order'      => $cIdx + 1,
-                            'is_active'       => true,
+                            'is_active'       => $childData['is_active'] ?? true,
                             'requires_fda'    => $childData['requires_fda'] ?? false,
                             'commission_rate' => $childData['commission_rate'] ?? null,
                         ]

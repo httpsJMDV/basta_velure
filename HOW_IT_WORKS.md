@@ -10,7 +10,7 @@ Written from the code on branch `king/rider-seller-fixes`, October 20, 2026. The
 
 | Role | What they do | Who approves them |
 |---|---|---|
-| **Buyer** | Shops, pays, tracks orders, returns items, writes reviews | Nobody. They verify their email with a code. |
+| **Buyer** | Shops, pays, tracks orders, returns items, writes reviews | Signing in: their email code (or Google). **Placing orders: the admin approves their government ID** (Buyer Applications). |
 | **Seller** | A buyer who also runs a shop | Admin |
 | **Courier company** | Delivers parcels (like J&T or SPX). Runs hubs and riders. | Admin |
 | **Hub** | A sorting center that works under one courier company | That courier company (the admin can also decide, as a backup) |
@@ -44,8 +44,10 @@ You can also sign up with **Google**. Google sign-ups must add their ID and addr
 ### Signing in
 
 - Use your **email or username**, plus your password.
-- Unverified accounts are refused and asked for the code.
+- Unverified accounts are refused and asked for the code. **"Continue with Google" too**: an account made with the sign-up form that never entered its code is sent to the code page, not signed in.
 - Suspended accounts are refused with a message.
+- **An account that is unverified, suspended or (rider) not activated cannot use the site even with a sign-in it already had**: every signed-in request is refused, and the app signs it out (a suspended one sees the suspended screen).
+- The admin's Users page shows **Unverified** (not Suspended) for an account still waiting for its email code, and offers no Reactivate for it, since that would skip the code.
 - Each role lands on its own home page: admin → `/admin`, seller → `/seller`, hub → `/hub/dashboard`, rider → `/rider/dashboard`, buyer → home.
 
 ### Changing account details
@@ -53,7 +55,7 @@ You can also sign up with **Google**. Google sign-ups must add their ID and addr
 - **Password:** enter the current one first. The new one must be different. Other devices are signed out.
 - **Email:** a code is sent to the **new** email. The old email keeps working until the code is entered.
 - **Mobile number:** a code is sent to your email (Loved-IT sends no SMS).
-- **ID verification:** add a government ID, birthday, sex and address. It's optional for email sign-ups and required for Google sign-ups. The admin reviews it.
+- **ID verification (Settings → ID verification):** a government ID, front (and back for IDs that have one). **Every buyer needs it approved before their first order**: before that they can sign in, browse and fill a cart, and checkout shows why ordering is closed. Google sign-ups send it with their birthday, sex and address on the profile page. A rejected ID shows the admin's reason and can be sent again. The admin's Buyers page shows each buyer's ID status (verified, pending, rejected, none).
 
 ---
 
@@ -186,8 +188,7 @@ The seller's address and the buyer's address both need a barangay, or the order 
 
 To mark a parcel **Delivered**, the rider must:
 1. Take a **proof photo**. A second photo is optional.
-2. Enter the buyer's **6-digit delivery code**, which the buyer sees on their order. **5 wrong codes lock code entry for 15 minutes.**
-3. For COD, enter the cash collected. It must be **exactly** the order's COD amount.
+2. For COD, enter the cash collected. It must be **exactly** the order's COD amount.
 
 ### When a delivery fails
 
@@ -238,6 +239,16 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
 - 1 to 5 stars, up to 500 characters, up to 5 photos. It can be **edited once** within the 30 days.
 - The seller can post **one reply** per review and edit it. Nobody can delete or hide a buyer's review. The admin's Reviews page is read-only.
 
+### Comments about a shop (no stars)
+
+- Separate from product reviews: what the buyer thinks of the **shop itself** (shipping, packing, how the seller answers). **No stars**, just a written comment (2 to 500 characters) and optional quick tags (Fast shipping, Good packaging, Responsive seller, Item as described).
+- A buyer can comment once a shop order of theirs is **Completed**: one comment per shop, edited at most twice a day. The seller can reply once and edit the reply.
+- The shop page shows how many comments there are and the tags buyers pick most; the full list can be filtered by tag.
+
+### Who can see a shop's page
+
+- Only **signed-in** accounts. A visitor who opens a shop link is asked to sign in first, then lands back on the shop. The home page's "Shops to know" stays visible to everyone.
+
 ---
 
 ## 9. Chat and notifications
@@ -260,7 +271,7 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
 
 ### Seller Center (`/seller`)
 
-- **Products:** drafts, publish, edit, duplicate, bulk activate, deactivate or delete, variants with price and stock, store categories (up to 3 per product). Published products go live right away. With the **AI product check** on (off until a key is set), a published product waits in review while the AI (Groq's free plan by default) checks it: approved ones go live, unsure ones and ones it would reject go to the admin's Pending review list with the AI's reason, and if the AI can't be reached the admin decides.
+- **Products:** drafts, publish, edit, duplicate, bulk activate, deactivate or delete, variants with price and stock, store categories (up to 3 per product). Published products go live right away, except ones in **Others** or ones that mention medicine, which wait for an admin (see the product rules). With the **AI product check** on (off until a key is set), a published product waits in review while the AI (Groq's free plan by default) checks it: approved ones go live, unsure ones and ones it would reject go to the admin's Pending review list with the AI's reason, and if the AI can't be reached the admin decides.
 - **Promotions:** sales, flash sales, bundles, buy X get Y.
 - **Vouchers:** store vouchers.
 - **Orders:** tabs (New, To Ship, Shipping, Completed, Cancelled, Return/Refund), accept or reject payment, packing, waybill, cancel, answer returns, confirm returned parcels.
@@ -301,7 +312,7 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
 
 - **Dashboard** and **Reports** (last 30 days by default, any date range).
 - **Approvals:** sellers, buyer IDs, courier companies, hubs (as a backup).
-- **Orders**, **Products** (archive or reactivate; approve or reject listings waiting for review), **Categories** (with commission rates).
+- **Orders**, **Products** (archive or reactivate; approve or reject listings waiting for review), **Categories** (with commission rates; the admin can change any category's photo, which shoppers then see on the landing page and in the Categories menu, or go back to the built-in one).
 - **Payments:** payouts to shops, monthly commission, courier ↔ shop settlements that went wrong.
 - **Disputes** (escalated returns), **Vouchers** (platform and shipping), **Reviews** (read-only), **Messages**, **Activity log**, **Site feedback**.
 - **Users:** sellers, buyers, riders. Suspend or reactivate.
@@ -417,6 +428,9 @@ These only run while `php artisan schedule:work` is running.
 | SKU | Letters, numbers, `.` `_` `-` |
 | Purchase limit | 1 to 99,999 per buyer (optional). It counts every earlier order that wasn't cancelled. |
 | Food and similar categories | Need an **FDA License to Operate** and the product's **CPR/CPN** to be published |
+| Not allowed on Loved-IT | **Medicine of any kind** (prescription or over-the-counter, like Biogesic or Neozep), **anything injected**, and **vitamins or food supplements**. First-aid items and medical devices (band-aids, gauze, thermometers, BP monitors) are fine, under Health & Beauty → First Aid & Medical Supplies. The Supplements sub-category is closed to new listings. |
+| Others | The catch-all (Others → Other items) for products no other category fits. Always listed last; the admin can rename it but not delete, close or move it. Every listing in it waits for an admin before it goes live. |
+| Medicine words | A listing whose name or description mentions medicine, vitamins or supplements (for example "paracetamol", "vitamin", "glutathione", "500mg"), in any category, waits for an admin before it goes live. The admin sees why; the seller only sees "waiting for the Loved-IT team". |
 | Removing a variant | Refused while it has unfinished orders |
 
 ### Vouchers
@@ -453,7 +467,7 @@ These only run while `php artisan schedule:work` is running.
 
 | Action | Rule |
 |---|---|
-| Delivered | Proof photo, the buyer's 6-digit code (locked 15 minutes after 5 wrong tries), and for COD the exact cash amount |
+| Delivered | Proof photo, and for COD the exact cash amount |
 | Failed | A reason from the list. "Other" needs a note. |
 | Accept a job | Must be Online, the offer still open, fewer than 3 jobs |
 | Tracking number | `LIT-YYMMDD-XXXXXX`. Typing it without dashes is fine. |

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChangeEvent } from 'react';
 import axios from 'axios';
-import { Camera, CheckCircle2, KeyRound, RefreshCw, RotateCcw, Wallet, X } from 'lucide-react';
+import { Camera, CheckCircle2, RefreshCw, RotateCcw, Wallet, X } from 'lucide-react';
 import { markRiderDeliveredApi } from '../../api/client';
 import { downscaleImage, formatBytes } from '../../utils/imageDownscale';
 import { nameError, squish } from '../../utils/accountRules';
@@ -184,13 +184,9 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
   const [photo2, setPhoto2] = useState<File | null>(null);
   const [processingCount, setProcessingCount] = useState(0);
   const [receivedBy, setReceivedBy] = useState('');
-  const [otp, setOtp] = useState('');
   const [codAmount, setCodAmount] = useState('');
   // A field's problem is shown once the rider leaves it, not on every keystroke.
   const [touched, setTouched] = useState<{ receivedBy?: boolean; cod?: boolean }>({});
-  const [lockedUntil, setLockedUntil] = useState<string | null>(parcel.otp_locked_until ?? null);
-  const [now, setNow] = useState(() => Date.now());
-  const otpRequired = parcel.otp_required === true;
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -207,22 +203,18 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
       if (e.key === 'Escape' && !busyRef.current) onClose();
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    // The page behind stays still while the sheet is open.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [onClose]);
-
-  // Count the code lock down, and lift it when it ends.
-  useEffect(() => {
-    if (!lockedUntil) return;
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
-  }, [lockedUntil]);
-  const lockLeft = lockedUntil ? Math.max(0, Math.ceil((new Date(lockedUntil).getTime() - now) / 1000)) : 0;
-  const locked = lockLeft > 0;
 
   const processing = processingCount > 0;
   const trackProcessing = (busy: boolean) => setProcessingCount((n) => Math.max(0, n + (busy ? 1 : -1)));
 
-  const otpOk = !otpRequired || /^\d{6}$/.test(otp);
   // Checked as the rider types, the same way the server checks them.
   const receivedByError = nameError(receivedBy, 'The name of who received it', false);
   const codTyped = codAmount.trim();
@@ -234,7 +226,7 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
         ? `That is not the order's COD amount. Collect exactly ${formatPeso(parcel.cod_amount ?? 0)}.`
         : undefined;
   const codOk = !isCod || (codTyped !== '' && !codError);
-  const canSubmit = photo !== null && !processing && otpOk && codOk && !receivedByError && !locked && !submitting;
+  const canSubmit = photo !== null && !processing && codOk && !receivedByError && !submitting;
   const showReceivedByError = touched.receivedBy ? receivedByError : undefined;
   const showCodError = touched.cod ? codError : undefined;
 
@@ -250,7 +242,6 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
     form.append('proof_photo', photo);
     if (photo2) form.append('proof_photo_2', photo2);
     if (squish(receivedBy) !== '') form.append('received_by', squish(receivedBy));
-    if (otpRequired) form.append('otp', otp);
     if (isCod) form.append('cod_amount', codTyped);
 
     try {
@@ -262,13 +253,6 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
         const message = err.response.data?.message as string | undefined;
         if (status === 404 || status === 409) {
           onConflict(message || 'This stop can no longer be updated.');
-          return;
-        }
-        if (status === 423) {
-          // Five wrong codes: entry is locked for 15 minutes, even for the right code.
-          setLockedUntil((err.response.data?.locked_until as string | undefined) ?? new Date(Date.now() + 15 * 60 * 1000).toISOString());
-          setOtp('');
-          setErrors([message || 'Too many wrong codes. Code entry is locked for 15 minutes.']);
           return;
         }
         if (status === 422) {
@@ -288,14 +272,14 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" role="presentation">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4" role="presentation">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="delivered-title"
-        className="w-full max-w-xl bg-white rounded-t-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto shadow-2xl"
+        className="w-full max-w-xl bg-white rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-gray-100">
           <div className="min-w-0">
             <h2 id="delivered-title" ref={headingRef} tabIndex={-1} className="text-lg font-black text-gray-900 focus:outline-none">
               Confirm delivery
@@ -315,136 +299,106 @@ export default function DeliveredSheet({ parcel, onClose, onSuccess, onConflict 
           </button>
         </div>
 
-        <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl p-3">
-          In order: a photo of the parcel at the door, the buyer's delivery code{isCod ? ', and the cash you collected' : ''}. The buyer, the seller and your company can see the photos.
-        </p>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl p-3">
+            A photo of the parcel at the door{isCod ? ', then the cash you collected' : ''}. The buyer, the seller and your company can see the photos.
+          </p>
 
-        <PhotoSlot
-          id="delivered-photo"
-          step={1}
-          title="Parcel handed over"
-          hint="The parcel with the recipient, or at their door."
-          file={photo}
-          disabled={submitting}
-          onChange={(f) => {
-            setPhoto(f);
-            setErrors([]);
-          }}
-          onProcessing={trackProcessing}
-        />
-
-        <PhotoSlot
-          id="delivered-photo-2"
-          step={2}
-          title="Delivery address"
-          hint="The house, gate or building so the location is clear."
-          file={photo2}
-          disabled={submitting}
-          optional
-          onChange={(f) => {
-            setPhoto2(f);
-            setErrors([]);
-          }}
-          onProcessing={trackProcessing}
-        />
-
-        {/* Received by */}
-        <div className="space-y-1">
-          <label htmlFor="delivered-received-by" className="block text-sm font-bold text-gray-900">
-            Received by <span className="font-normal text-gray-500">(optional)</span>
-          </label>
-          <input
-            id="delivered-received-by"
-            type="text"
-            value={receivedBy}
-            onChange={(e) => setReceivedBy(e.target.value)}
-            onBlur={() => setTouched((t) => ({ ...t, receivedBy: true }))}
-            maxLength={50}
+          <PhotoSlot
+            id="delivered-photo"
+            step={1}
+            title="Parcel handed over"
+            hint="The parcel with the recipient, or at their door."
+            file={photo}
             disabled={submitting}
-            placeholder="Name of the person who received it"
-            autoComplete="off"
-            aria-invalid={showReceivedByError ? true : undefined}
-            aria-describedby={showReceivedByError ? 'delivered-received-by-error' : undefined}
-            className={`w-full min-h-12 px-3 rounded-xl border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60 ${showReceivedByError ? 'border-red-500' : 'border-gray-300'}`}
+            onChange={(f) => {
+              setPhoto(f);
+              setErrors([]);
+            }}
+            onProcessing={trackProcessing}
           />
-          {showReceivedByError && (
-            <p id="delivered-received-by-error" role="alert" className="text-xs font-semibold text-red-700">{showReceivedByError}</p>
+
+          <PhotoSlot
+            id="delivered-photo-2"
+            step={2}
+            title="Delivery address"
+            hint="The house, gate or building so the location is clear."
+            file={photo2}
+            disabled={submitting}
+            optional
+            onChange={(f) => {
+              setPhoto2(f);
+              setErrors([]);
+            }}
+            onProcessing={trackProcessing}
+          />
+
+          {/* Received by */}
+          <div className="space-y-1">
+            <label htmlFor="delivered-received-by" className="block text-sm font-bold text-gray-900">
+              Received by <span className="font-normal text-gray-500">(optional)</span>
+            </label>
+            <input
+              id="delivered-received-by"
+              type="text"
+              value={receivedBy}
+              onChange={(e) => setReceivedBy(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, receivedBy: true }))}
+              maxLength={50}
+              disabled={submitting}
+              placeholder="Name of the person who received it"
+              autoComplete="off"
+              aria-invalid={showReceivedByError ? true : undefined}
+              aria-describedby={showReceivedByError ? 'delivered-received-by-error' : undefined}
+              className={`w-full min-h-12 px-3 rounded-xl border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60 ${showReceivedByError ? 'border-red-500' : 'border-gray-300'}`}
+            />
+            {showReceivedByError && (
+              <p id="delivered-received-by-error" role="alert" className="text-xs font-semibold text-red-700">{showReceivedByError}</p>
+            )}
+          </div>
+
+          {/* COD: the exact amount (R6) */}
+          {isCod && parcel.cod_amount !== null && (
+            <section aria-label="Cash collected" className="space-y-2 rounded-2xl bg-amber-50 border border-amber-300 p-3">
+              <label htmlFor="delivered-cod" className="flex items-center gap-2 text-sm font-bold text-amber-950">
+                <Wallet className="w-4 h-4" aria-hidden="true" /> Cash collected: collect exactly {formatPeso(parcel.cod_amount)}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-900">₱</span>
+                <input
+                  id="delivered-cod"
+                  inputMode="decimal"
+                  value={codAmount}
+                  onChange={(e) => setCodAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                  onBlur={() => setTouched((t) => ({ ...t, cod: true }))}
+                  disabled={submitting}
+                  placeholder={parcel.cod_amount.toFixed(2)}
+                  aria-invalid={showCodError ? true : undefined}
+                  aria-describedby="delivered-cod-hint"
+                  className={`w-full min-h-12 pl-7 pr-3 rounded-xl border bg-white text-base font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500/40 disabled:opacity-60 ${showCodError ? 'border-red-500' : 'border-amber-300'}`}
+                />
+              </div>
+              {showCodError ? (
+                <p id="delivered-cod-hint" role="alert" className="text-xs font-semibold text-red-700">{showCodError}</p>
+              ) : (
+                <p id="delivered-cod-hint" className="text-xs text-amber-900">Type what you counted. It must match the order to the centavo.</p>
+              )}
+            </section>
+          )}
+
+          {errors.length > 0 && (
+            <div role="alert" className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
+              <p className="font-bold">The delivery was not recorded.</p>
+              <ul className="list-disc pl-5 text-xs space-y-0.5">
+                {errors.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 
-        {/* The buyer's delivery code (A32) */}
-        {otpRequired && (
-          <section aria-label="Delivery code" className="space-y-2">
-            <div className="flex items-start gap-2.5">
-              <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-black flex items-center justify-center shrink-0" aria-hidden="true">3</span>
-              <div className="min-w-0">
-                <label htmlFor="delivered-otp" className="text-sm font-bold text-gray-900">Delivery code <span className="text-red-700">(required)</span></label>
-                <p className="text-xs text-gray-500">Ask the buyer for the 6-digit code on their order page.</p>
-              </div>
-            </div>
-            <div className="relative">
-              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
-              <input
-                id="delivered-otp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                disabled={submitting || locked}
-                placeholder="••••••"
-                className="w-full min-h-12 pl-9 pr-3 rounded-xl border border-gray-300 bg-white text-lg font-black tracking-[0.4em] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-red/40 disabled:opacity-60"
-              />
-            </div>
-            {locked && (
-              <p role="status" className="text-xs font-bold text-red-800 bg-red-50 border border-red-200 rounded-xl p-2.5">
-                Locked after 5 wrong codes. Try again in {Math.floor(lockLeft / 60)}:{String(lockLeft % 60).padStart(2, '0')}.
-              </p>
-            )}
-          </section>
-        )}
-
-        {/* COD: the exact amount (R6) */}
-        {isCod && parcel.cod_amount !== null && (
-          <section aria-label="Cash collected" className="space-y-2 rounded-2xl bg-amber-50 border border-amber-300 p-3">
-            <label htmlFor="delivered-cod" className="flex items-center gap-2 text-sm font-bold text-amber-950">
-              <Wallet className="w-4 h-4" aria-hidden="true" /> Cash collected: collect exactly {formatPeso(parcel.cod_amount)}
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-900">₱</span>
-              <input
-                id="delivered-cod"
-                inputMode="decimal"
-                value={codAmount}
-                onChange={(e) => setCodAmount(e.target.value.replace(/[^\d.]/g, ''))}
-                onBlur={() => setTouched((t) => ({ ...t, cod: true }))}
-                disabled={submitting}
-                placeholder={parcel.cod_amount.toFixed(2)}
-                aria-invalid={showCodError ? true : undefined}
-                aria-describedby="delivered-cod-hint"
-                className={`w-full min-h-12 pl-7 pr-3 rounded-xl border bg-white text-base font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500/40 disabled:opacity-60 ${showCodError ? 'border-red-500' : 'border-amber-300'}`}
-              />
-            </div>
-            {showCodError ? (
-              <p id="delivered-cod-hint" role="alert" className="text-xs font-semibold text-red-700">{showCodError}</p>
-            ) : (
-              <p id="delivered-cod-hint" className="text-xs text-amber-900">Type what you counted. It must match the order to the centavo.</p>
-            )}
-          </section>
-        )}
-
-        {errors.length > 0 && (
-          <div role="alert" className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
-            <p className="font-bold">The delivery was not recorded.</p>
-            <ul className="list-disc pl-5 text-xs space-y-0.5">
-              {errors.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-5 py-3 border-t border-gray-100">
           <button
             type="button"
             onClick={onClose}

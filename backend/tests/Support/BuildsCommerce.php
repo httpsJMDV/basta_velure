@@ -31,6 +31,8 @@ trait BuildsCommerce
         return User::forceCreate([
             'first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'email' => 'buyer.' . Str::lower(Str::random(10)) . '@example.com',
             'password' => Hash::make('Mamimili@2026'), 'role' => 'buyer', 'status' => 'active',
+            // A shopper whose government ID passed the check, so they can place orders.
+            'buyer_application_status' => 'approved',
         ]);
     }
 

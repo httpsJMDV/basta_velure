@@ -125,9 +125,6 @@ class Parcel extends Model
         'shipping_zone',
         'dispatch_state',
         'dispatch_attempts',
-        'delivery_otp',
-        'delivery_otp_attempts',
-        'delivery_otp_locked_until',
         'cod_collected_amount',
         'rts_rider_id',
         'rts_at',
@@ -138,9 +135,6 @@ class Parcel extends Model
         'exception_photo_path',
         'exception_at',
     ];
-
-    /** The delivery OTP is shown only to the buyer; never in rider, hub or list payloads. */
-    protected $hidden = ['delivery_otp'];
 
     protected function casts(): array
     {
@@ -162,9 +156,6 @@ class Parcel extends Model
             'cod_amount'              => 'decimal:2',
             'weight_kg'               => 'decimal:3',
             'dispatch_attempts'       => 'integer',
-            'delivery_otp'            => 'encrypted',
-            'delivery_otp_attempts'   => 'integer',
-            'delivery_otp_locked_until' => 'datetime',
             'cod_collected_amount'    => 'decimal:2',
             'rts_at'                  => 'datetime',
             'rts_assigned_at'         => 'datetime',

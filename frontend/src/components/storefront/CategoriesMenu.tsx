@@ -42,7 +42,7 @@ export default function CategoriesMenu() {
         onClick={show}
         aria-expanded={open}
         aria-haspopup="true"
-        className={`${NAV_PILL} flex items-center gap-1.5 text-sm font-semibold text-white ${open ? 'before:opacity-100 before:scale-100' : ''}`}
+        className={`${NAV_PILL} flex items-center gap-1.5 text-sm font-semibold text-white bg-white/10 ring-1 ring-inset ring-white/20 ${open ? 'before:opacity-100 before:scale-100' : ''}`}
       >
         <LayoutGrid className="w-4 h-4" aria-hidden="true" />
         <span>Categories</span>

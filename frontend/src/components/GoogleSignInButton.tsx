@@ -33,7 +33,12 @@ export default function GoogleSignInButton({ label = 'Continue with Google' }: G
           redirectByRole(u.role);
         }
       } catch (err: unknown) {
-        const data = (err as { response?: { data?: { message?: string; pending_approval?: boolean } } })?.response?.data;
+        const data = (err as { response?: { data?: { message?: string; pending_approval?: boolean; code?: string; email?: string } } })?.response?.data;
+        // An account made with the sign-up form that never entered its email code: finish that first (A9).
+        if (data?.code === 'email_unverified' && data.email) {
+          navigate(`/verify-email?email=${encodeURIComponent(data.email)}`, { state: { message: data.message } });
+          return;
+        }
         if (data?.pending_approval) {
           setError('Your account is pending admin approval. You will be notified by email once approved.');
         } else {

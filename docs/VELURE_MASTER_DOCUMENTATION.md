@@ -517,6 +517,8 @@ The Seller Studio features a clean, high-contrast white/pearl-gray command bar (
 | `POST` | `/api/v1/admin/categories` | Creates new parent category or leaf sub-category |
 | `PUT` | `/api/v1/admin/categories/{category}` | Updates category name, slug, FDA flag, or commission rate |
 | `DELETE`| `/api/v1/admin/categories/{category}` | Safely deletes category with dependency checks |
+| `POST` | `/api/v1/admin/categories/{category}/photo` | Uploads the category photo shoppers see (`photo`, JPG or PNG, 5 MB) |
+| `DELETE` | `/api/v1/admin/categories/{category}/photo` | Removes the uploaded photo (back to the built-in picture) |
 | `GET` | `/api/v1/admin/products` | Catalog listings submitted for administrative review |
 | `POST` | `/api/v1/admin/products/{product}/approve` | Approves product for live marketplace listing |
 | `POST` | `/api/v1/admin/products/{product}/reject` | Rejects product with compliance feedback |

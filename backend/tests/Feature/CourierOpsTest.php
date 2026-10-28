@@ -31,7 +31,7 @@ use Tests\TestCase;
 
 /**
  * The Logistics and Rider modules (L1, L4 to L9; R3 to R9): Online and Offline, 60-second pickup offers to the nearest
- * rider, manual and bulk assignment with the 3-job limit, scanning at the company's hubs, the delivery code and the
+ * rider, manual and bulk assignment with the 3-job limit, scanning at the company's hubs, the proof photo and the
  * exact COD amount, failed attempts and Return to Sender, overrides, Lost and Damaged, parcel search, COD
  * remittance, exports and the fixed rider pay.
  */
@@ -154,7 +154,7 @@ class CourierOpsTest extends TestCase
     private function deliver(User $riderUser, Parcel $p, array $fields = [])
     {
         return $this->as($riderUser)->post("/api/v1/rider/deliveries/{$p->tracking_number}/delivered", $fields + [
-            'proof_photo' => $this->photo(), 'otp' => $p->fresh()->delivery_otp, 'cod_amount' => (string) $p->cod_amount,
+            'proof_photo' => $this->photo(), 'cod_amount' => (string) $p->cod_amount,
         ], ['Accept' => 'application/json']);
     }
 
@@ -357,38 +357,27 @@ class CourierOpsTest extends TestCase
         $zones = collect($this->as($this->ops)->getJson('/api/v1/logistics/hub-ops/zones')->json('data.zones'));
         $this->assertSame(['NCR'], $zones->filter(fn ($z) => in_array($parcel->tracking_number, array_column($z['parcels'], 'tracking_number'), true))->pluck('zone')->values()->all());
 
-        // Outbound to the rider; Out for Delivery shows the buyer a 6-digit code.
+        // Outbound to the rider, then Out for Delivery. No delivery code anywhere: the buyer has none to give.
         $this->as($this->ops)->postJson('/api/v1/logistics/hub-ops/outbound', ['tracking_number' => $parcel->tracking_number, 'rider_id' => $rider->id])->assertOk();
         $this->as($user)->postJson('/api/v1/rider/deliveries/start', ['tracking_numbers' => [$parcel->tracking_number]])->assertOk();
-        $code = $this->as($this->customer)->getJson("/api/v1/buyer/orders/{$parcel->order_id}")->json('data.delivery_otp');
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $code);
-        // Never in the rider's list: only that a code is needed.
+        $order = $this->as($this->customer)->getJson("/api/v1/buyer/orders/{$parcel->order_id}")->assertOk();
+        $this->assertStringNotContainsString('delivery_otp', $order->getContent());
         $list = $this->as($user)->getJson('/api/v1/rider/deliveries?view=out_for_delivery')->assertOk();
-        $this->assertStringNotContainsString('delivery_otp', $list->getContent());
-        $this->assertTrue($list->json('data.0.parcels.0.otp_required'));
+        $this->assertStringNotContainsString('otp_', $list->getContent());
     }
 
-    public function test_the_delivery_code_locks_after_5_wrong_tries_and_the_cod_must_be_exact(): void
+    public function test_delivered_needs_the_photo_and_the_exact_cod(): void
     {
         [$user, $rider] = $this->rider('Pedro', [$this->qc[3]]);
         $parcel = $this->outForDelivery($this->ready(), $user, $rider);
-        $right = $parcel->delivery_otp;
-        $wrong = $right === '000000' ? '111111' : '000000';
 
-        $this->deliver($user, $parcel, ['otp' => '12345'])->assertStatus(422)->assertJsonValidationErrors(['otp']);
-        foreach (range(1, 4) as $i) {
-            $this->deliver($user, $parcel, ['otp' => $wrong])->assertStatus(422)->assertJsonFragment(['message' => 'Wrong delivery code. ' . (5 - $i) . ' tries left.']);
-        }
-        $this->deliver($user, $parcel, ['otp' => $wrong])->assertStatus(423);
-        $this->deliver($user, $parcel, ['otp' => $right])->assertStatus(423); // locked: even the right code
-        $this->assertSame(Parcel::STATUS_OUT_FOR_DELIVERY, $parcel->fresh()->status);
-
-        $this->travel(15)->minutes();
-        $this->travel(1)->seconds();
+        $this->as($user)->post("/api/v1/rider/deliveries/{$parcel->tracking_number}/delivered", ['cod_amount' => '500.00'], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors(['proof_photo']);
         foreach (['499.99', '500.01'] as $amount) {
-            $this->deliver($user, $parcel, ['otp' => $right, 'cod_amount' => $amount])->assertStatus(422)->assertJsonValidationErrors(['cod_amount']);
+            $this->deliver($user, $parcel, ['cod_amount' => $amount])->assertStatus(422)->assertJsonValidationErrors(['cod_amount']);
         }
-        $this->deliver($user, $parcel, ['otp' => $right, 'cod_amount' => '500.00'])->assertOk()->assertJsonPath('pay', '50.00');
+        $this->assertSame(Parcel::STATUS_OUT_FOR_DELIVERY, $parcel->fresh()->status);
+        $this->deliver($user, $parcel, ['cod_amount' => '500.00'])->assertOk()->assertJsonPath('pay', '50.00');
 
         $this->assertSame(Parcel::STATUS_DELIVERED, $parcel->fresh()->status);
         $this->as($user)->getJson('/api/v1/rider/cod')->assertOk()->assertJsonPath('data.balance.outstanding', '500.00');

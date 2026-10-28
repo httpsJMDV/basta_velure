@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Log;
  * Runs the AI product check (Amaru task 7) on a product the seller just published. Until it finishes the product waits
  * in review (status pending_review, ai_review_status checking), so buyers never see an unchecked listing.
  *
- * - approve: the product goes live.
+ * - approve: the product goes live, unless it is held for a person (hold_reason: filed under Others, or it mentions
+ *   medicine), in which case it goes to the admin with the AI's opinion.
  * - send_to_admin: it stays in the admin's Products > Pending review list with the AI's reason.
  * - reject: also sent to the admin while AI_PRODUCT_AUTO_REJECT is off (the admin makes the final call); with it on,
  *   the product is rejected and the seller sees the reason.
@@ -57,7 +58,10 @@ class CheckProductWithAi implements ShouldQueue
         }
 
         match ($result['verdict']) {
-            ProductChecker::APPROVE => $this->approve($product, $result['reason']),
+            // Held for a person (Others, or it mentions medicine): passing the AI is not enough to go live.
+            ProductChecker::APPROVE => $product->hold_reason
+                ? $this->toAdmin($product, 'approved', ProductChecker::APPROVE, $result['reason'])
+                : $this->approve($product, $result['reason']),
             ProductChecker::REJECT  => config('ai.product_check.auto_reject')
                 ? $this->reject($product, $result['reason'])
                 : $this->toAdmin($product, 'flagged', ProductChecker::REJECT, $result['reason']),
@@ -119,7 +123,7 @@ class CheckProductWithAi implements ShouldQueue
 
         $notifier = app(Notifier::class);
         $notifier->toAdmins('product.flagged', 'Product waiting for review',
-            "{$product->name}: " . ($status === 'unavailable' ? 'the AI check could not run.' : $reason),
+            "{$product->name}: " . ($status === 'approved' ? $product->hold_reason : ($status === 'unavailable' ? 'the AI check could not run.' : $reason)),
             '/admin/products?status=pending_review', ['product_id' => $product->id]);
         // The seller is told it is being looked at, not what the AI suspected.
         $notifier->listingDecision($product, 'Product in review', "{$product->name} is waiting for a quick check by the Loved-IT team. We'll let you know when it's live.");

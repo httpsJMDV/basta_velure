@@ -360,15 +360,6 @@ class OrderStateMachine
             app(RiderEarningsRecorder::class)->recordForReceivedOrder($order);
         }
 
-        //    OUT_FOR_DELIVERY: a fresh 6-digit delivery code for the buyer to give the rider (A32). Each new attempt
-        //    gets a new code; wrong entries and the lock start over.
-        if ($toStatus === OrderStatus::OUT_FOR_DELIVERY->value) {
-            $parcel = Parcel::where('order_id', $order->id)->first();
-            $parcel?->forceFill([
-                'delivery_otp' => (string) random_int(100000, 999999), 'delivery_otp_attempts' => 0, 'delivery_otp_locked_until' => null,
-            ])->save();
-        }
-
         //    DELIVERED: record the delivery time only. Funds stay in escrow (pending_release).
         if ($toStatus === OrderStatus::DELIVERED->value) {
             OrderItem::where('order_id', $order->id)->update(['delivered_at' => now()]);

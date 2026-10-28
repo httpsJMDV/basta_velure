@@ -64,8 +64,8 @@ class GoogleAuthController extends Controller
                 'email_verified_at'        => now(),
                 'buyer_application_status' => null,
             ]);
-            $user->role = 'buyer';
-            $user->save();
+            // email_verified_at is not mass-assignable, so create() above drops it: Google confirmed the address.
+            $user->forceFill(['role' => 'buyer', 'email_verified_at' => now()])->save();
 
             Mail::to($user->email)->queue(new WelcomeMail($user));
 
@@ -83,6 +83,23 @@ class GoogleAuthController extends Controller
             return response()->json(['message' => 'Your account has been suspended.'], 403);
         }
 
+        // An account made with the sign-up form whose email code was never entered: signing in with Google does not
+        // skip that step (it used to hand out a token, so the account could shop unverified).
+        if ($user->status === 'unverified') {
+            return response()->json([
+                'code'    => 'email_unverified',
+                'email'   => $user->email,
+                'message' => 'This email has a Loved-IT account that is not verified yet. Enter the 6-digit code we sent you, or request a new one.',
+            ], 403);
+        }
+        // A rider sets a password from the activation email; Google sign-in does not stand in for it.
+        if ($user->status === 'pending_activation') {
+            return response()->json([
+                'code'    => 'pending_activation',
+                'message' => 'This rider account is not activated yet. Open the activation link we emailed you first.',
+            ], 403);
+        }
+
         // Returning Google user whose profile is still incomplete — let them finish it
         $profileIncomplete = empty($user->date_of_birth) || empty($user->sex) || empty($user->government_id_type);
         if ($profileIncomplete) {
@@ -96,19 +113,8 @@ class GoogleAuthController extends Controller
             ], 200);
         }
 
-        // Block login if buyer application is not yet approved
-        if (in_array($user->buyer_application_status, ['pending', null], true)) {
-            return response()->json([
-                'pending_approval' => true,
-                'message'          => 'Your account is pending admin approval.',
-            ], 403);
-        }
-
-        if ($user->buyer_application_status === 'rejected') {
-            return response()->json([
-                'message' => 'Your account application was rejected. Please contact support.',
-            ], 403);
-        }
+        // A buyer whose ID is waiting or was not approved still signs in: they browse and fill a cart, and checkout
+        // waits for the approved ID (User::orderBlockedByIdCheck), the same as for buyers who used the sign-up form.
 
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('auth_token')->plainTextToken;

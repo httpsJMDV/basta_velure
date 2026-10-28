@@ -182,17 +182,12 @@ class RiderDeliveryController extends Controller
         return response()->json(['data' => DeliveryFailureReason::options()]);
     }
 
-    /** Wrong delivery codes before entry locks, and for how long (A32). */
-    public const OTP_MAX_TRIES = 5;
-    public const OTP_LOCK_MINUTES = 15;
-
     /**
      * POST /api/v1/rider/deliveries/{tracking}/delivered   (multipart)
      *
-     * Mark one stop delivered (R6, A32), in order: a proof photo (a second one is optional), the buyer's 6-digit
-     * delivery code, and for COD the cash collected, which must be exactly the order's COD amount. Five wrong codes
-     * lock code entry for 15 minutes; during the lock even the right code is refused. The photos go to the private
-     * disk. Escrow handling at DELIVERED is the state machine's, untouched.
+     * Mark one stop delivered (R6): a proof photo (a second one is optional) and, for COD, the cash collected, which
+     * must be exactly the order's COD amount. The photos go to the private disk. Escrow handling at DELIVERED is the
+     * state machine's, untouched.
      */
     public function delivered(Request $request, string $tracking): JsonResponse
     {
@@ -200,7 +195,6 @@ class RiderDeliveryController extends Controller
             'proof_photo'   => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'proof_photo_2' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'received_by'   => Validation::personName(required: false),
-            'otp'           => ['nullable', 'string', 'max:20'],
             // Centavos at most: "500.004" must not be rounded into a match with ₱500.00.
             'cod_amount'    => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:10000000'],
         ], [
@@ -232,36 +226,6 @@ class RiderDeliveryController extends Controller
                 }
                 if (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::DELIVERED, 'rider')) {
                     return $this->cannotUpdate();
-                }
-
-                // The delivery code (A32). A parcel sent out before codes existed has none and skips this step.
-                if ($parcel->delivery_otp !== null) {
-                    if ($parcel->delivery_otp_locked_until && $parcel->delivery_otp_locked_until->isFuture()) {
-                        $mins = (int) ceil(now()->diffInSeconds($parcel->delivery_otp_locked_until) / 60);
-
-                        return response()->json([
-                            'message' => "Too many wrong codes. Code entry is locked for {$mins} more minute(s).",
-                            'errors'  => ['otp' => ["Code entry is locked for {$mins} more minute(s)."]],
-                            'locked_until' => $parcel->delivery_otp_locked_until->toIso8601String(),
-                        ], 423);
-                    }
-                    $otp = trim((string) $request->input('otp', ''));
-                    if (! preg_match('/^\d{6}$/', $otp)) {
-                        throw ValidationException::withMessages(['otp' => ['Enter the 6-digit delivery code the buyer sees on their order.']]);
-                    }
-                    if (! hash_equals((string) $parcel->delivery_otp, $otp)) {
-                        $tries = (int) $parcel->delivery_otp_attempts + 1;
-                        $locked = $tries >= self::OTP_MAX_TRIES;
-                        // Saved even though the request is refused: the response below commits the transaction.
-                        Parcel::whereKey($parcel->id)->update($locked
-                            ? ['delivery_otp_attempts' => 0, 'delivery_otp_locked_until' => now()->addMinutes(self::OTP_LOCK_MINUTES)]
-                            : ['delivery_otp_attempts' => $tries]);
-                        $message = $locked
-                            ? 'Wrong code ' . self::OTP_MAX_TRIES . ' times. Code entry is locked for ' . self::OTP_LOCK_MINUTES . ' minutes.'
-                            : 'Wrong delivery code. ' . (self::OTP_MAX_TRIES - $tries) . ' tries left.';
-
-                        return response()->json(['message' => $message, 'errors' => ['otp' => [$message]]], $locked ? 423 : 422);
-                    }
                 }
 
                 // COD: the cash collected must be exactly the order's COD amount (R6).
@@ -308,7 +272,6 @@ class RiderDeliveryController extends Controller
                     'received_by'         => $receivedBy !== '' ? $receivedBy : null,
                     'cod_collected_at'    => $isCod ? $now : null,
                     'cod_collected_amount' => $collected,
-                    'delivery_otp_attempts' => 0,
                 ]);
 
                 DeliveryLog::create([
@@ -492,8 +455,6 @@ class RiderDeliveryController extends Controller
             'attempt'             => (int) $parcel->delivery_attempts + 1,
             'max_attempts'        => ReturnToSender::maxAttempts(),
             'previous_failure'    => $parcel->failure_reason ? (DeliveryFailureReason::tryFrom($parcel->failure_reason)?->label() ?? $parcel->failure_reason) : null,
-            'otp_required'        => $parcel->delivery_otp !== null,
-            'otp_locked_until'    => $parcel->delivery_otp_locked_until?->isFuture() ? $parcel->delivery_otp_locked_until->toIso8601String() : null,
             'weight_kg'           => $parcel->weight_kg !== null ? (float) $parcel->weight_kg : null,
             'item_count'          => (int) $items->sum('quantity'),
             'item_summary'        => $this->itemSummary($items),

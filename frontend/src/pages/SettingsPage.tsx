@@ -35,8 +35,12 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store,
   ChevronRight, Camera, Pencil, Check, X, Home, Briefcase, Plus,
-  Trash2, Search, ShoppingCart, Ticket, MessageSquare, AlertTriangle,
+  Trash2, Search, ShoppingCart, Ticket, MessageSquare, AlertTriangle, IdCard, Clock, CheckCircle2,
 } from 'lucide-react';
+import FileUploadZone from '../components/ui/FileUploadZone';
+import { getIdVerificationApi, submitIdVerificationApi } from '../api/account';
+import type { IdVerificationState } from '../api/account';
+import { GOV_ID_OPTIONS, ID_REQUIRES_BACK } from '../data/governmentIds';
 
 interface PsgcItem { code: string; name: string; }
 
@@ -48,6 +52,7 @@ const NAV_GROUPS = [
     items: [
       { icon: User, label: 'Profile', to: '/settings' },
       { icon: MapPin, label: 'Addresses', to: '/settings/addresses' },
+      { icon: IdCard, label: 'ID verification', to: '/settings/id' },
     ],
   },
   {
@@ -1302,7 +1307,125 @@ export function SettingsLayout() {
   );
 }
 
+// ─── ID verification ──────────────────────────────────────────────────────────
+
+const ID_STATE: Record<IdVerificationState['status'], { icon: React.ElementType; tone: string; title: string; text: string }> = {
+  none: {
+    icon: IdCard, tone: 'border-stone-200 bg-white text-stone-700',
+    title: 'Add a government ID to start ordering',
+    text: 'You can browse and fill your cart now. Checkout opens once the Loved-IT team approves your ID, usually within 1 business day.',
+  },
+  pending: {
+    icon: Clock, tone: 'border-amber-200 bg-amber-50 text-amber-900',
+    title: 'Your ID is being checked',
+    text: 'Usually within 1 business day. Keep browsing and filling your cart; checkout opens as soon as it is approved, and we email you.',
+  },
+  approved: {
+    icon: CheckCircle2, tone: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    title: 'Your ID is approved',
+    text: 'You can place orders.',
+  },
+  rejected: {
+    icon: AlertTriangle, tone: 'border-red-200 bg-red-50 text-red-900',
+    title: 'Your ID was not approved',
+    text: 'Send a new photo below. Make sure every word on it can be read and the name and birthday match your account.',
+  },
+};
+
+/** The buyer's government ID: where it stands, and the form to send one (or a new one after a rejection). */
+function IdVerificationPanel() {
+  const { setUser } = useAuth();
+  const { showToast } = useToast();
+  const [state, setState] = useState<IdVerificationState | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [idType, setIdType] = useState('');
+  const [front, setFront] = useState<File | null>(null);
+  const [back, setBack] = useState<File | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getIdVerificationApi().then(setState).catch(() => setFailed(true));
+  }, []);
+
+  const needsBack = ID_REQUIRES_BACK.has(idType);
+
+  const submit = async () => {
+    const problems: Record<string, string> = {};
+    if (!idType) problems.government_id_type = 'Choose the type of ID.';
+    const frontErr = fileError(front, 'the front of your ID', { pdf: true });
+    if (frontErr) problems.government_id_image = frontErr;
+    if (needsBack) {
+      const backErr = fileError(back, 'the back of your ID', { pdf: true });
+      if (backErr) problems.government_id_image_back = backErr;
+    }
+    setErrors(problems);
+    if (Object.keys(problems).length) return;
+
+    const fd = new FormData();
+    fd.append('government_id_type', idType);
+    fd.append('government_id_image', front as File);
+    if (needsBack && back) fd.append('government_id_image_back', back);
+    setSaving(true);
+    try {
+      const res = await submitIdVerificationApi(fd);
+      setState(res.data);
+      setUser(res.user);
+      setFront(null); setBack(null); setIdType('');
+      showToast(res.message);
+    } catch (e) {
+      const p = apiProblem(e, 'Your ID could not be sent. Please try again.');
+      setErrors(p.fields);
+      if (!Object.keys(p.fields).length) showToast(p.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const s = state ? ID_STATE[state.status] : null;
+  const canSend = state?.status === 'none' || state?.status === 'rejected';
+
+  return (
+    <PanelShell title="ID verification" subtitle="A government-issued ID, so the Loved-IT team knows it is really you. Needed before your first order.">
+      {failed ? <p className="text-[13px] text-red-700">Your ID status could not be loaded. Refresh to try again.</p> : !state || !s ? <PanelSpinner /> : (
+        <div className="space-y-5">
+          <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 ${s.tone}`}>
+            <s.icon className="w-5 h-5 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold">{s.title}</p>
+              {state.status === 'rejected' && state.reason && <p className="mt-0.5 text-[13px]"><span className="font-semibold">Reason:</span> {state.reason}</p>}
+              <p className="mt-0.5 text-[13px] opacity-90">{s.text}</p>
+            </div>
+          </div>
+
+          {canSend && (
+            <div className="rounded-2xl border border-stone-200 bg-white p-5 space-y-4">
+              <CustomSelect label="ID type" required value={idType} placeholder="Select ID type" options={GOV_ID_OPTIONS} error={errors.government_id_type}
+                onChange={(v) => { setIdType(v); if (!ID_REQUIRES_BACK.has(v)) setBack(null); setErrors((x) => ({ ...x, government_id_type: '' })); }} />
+              <div className={`grid gap-4 ${needsBack ? 'sm:grid-cols-2' : ''}`}>
+                <FileUploadZone label="Front of the ID" required file={front} error={errors.government_id_image}
+                  onChange={(f) => { setFront(f); setErrors((x) => ({ ...x, government_id_image: '' })); }} onClear={() => setFront(null)} />
+                {needsBack && (
+                  <FileUploadZone label="Back of the ID" required file={back} error={errors.government_id_image_back}
+                    onChange={(f) => { setBack(f); setErrors((x) => ({ ...x, government_id_image_back: '' })); }} onClear={() => setBack(null)} />
+                )}
+              </div>
+              <p className="text-[12px] text-stone-500">JPG, PNG or PDF, up to 5 MB. Only the Loved-IT team sees it.</p>
+              <button type="button" onClick={() => void submit()} disabled={saving}
+                className="h-11 px-6 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[14px] font-semibold disabled:opacity-50 transition-colors">
+                {saving ? 'Sending…' : state.status === 'rejected' ? 'Send a new ID' : 'Send my ID'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </PanelShell>
+  );
+}
+
 // ─── Sub-page exports ─────────────────────────────────────────────────────────
+
+export function SettingsIdVerification() { return <IdVerificationPanel />; }
 
 export function SettingsAccount()       { return <AccountPanel />; }
 export function SettingsAddresses()     { return <AddressBookPanel />; }

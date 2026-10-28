@@ -25,7 +25,7 @@ const RETURN_STEPS = [
 const SCAMS = [
   { title: 'Paying outside checkout', text: 'A seller who asks you to pay a different GCash number, or to finish the deal on Messenger, Viber or Telegram, is taking you out of checkout. Payments made outside checkout are not covered by returns.' },
   { title: 'Fees before cash on delivery', text: 'A cash-on-delivery order never needs a reservation fee or a courier deposit. You pay the rider when the parcel is in your hands.' },
-  { title: 'Asking for your delivery code early', text: 'Your 6-digit delivery code is how the rider proves you received the parcel. Give it only when you are holding the parcel.' },
+  { title: 'Asking for your password or sign-in code', text: 'Loved-IT staff, sellers and riders never need your password or the code we email you. Anyone asking for them is trying to take over your account.' },
   { title: 'Prices too good to be true', text: 'Branded gadgets or cosmetics far below their usual price are a warning sign. Check the shop\'s reviews and how long it has been on Loved-IT first.' },
 ];
 
@@ -108,7 +108,7 @@ export default function SafetyHelpPage() {
           <Section id="delivery" n={3} title="Delivery">
             <ul className="grid md:grid-cols-2 gap-x-10 gap-y-5">
               <Fact title="Track every step">Track package shows each scan, from the shop to the hub to your door, with the rider's live location while they carry it.</Fact>
-              <Fact title="Your 6-digit delivery code">Your order shows a code. The rider needs it, plus a photo, to mark the parcel delivered. Five wrong tries lock the code for 15 minutes.</Fact>
+              <Fact title="Proof of delivery">The rider takes a photo of the parcel with you or at your door before marking it delivered, and you can see that photo on your order.</Fact>
               <Fact title="Message your rider">While your parcel is out for delivery, Track package has a Message rider button for gate codes or directions.</Fact>
               <Fact title="If no one is home">A parcel gets up to 3 delivery tries. After that, or if you refuse it, it goes back to the shop and a prepaid order is refunded.</Fact>
             </ul>

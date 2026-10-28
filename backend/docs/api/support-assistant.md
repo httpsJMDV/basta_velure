@@ -14,7 +14,7 @@ button to use, or hands the chat to a person.
 ## Privacy
 
 The tools only read orders where `orders.buyer_id` is the buyer of this conversation. Another buyer's order number
-gets "No order with that number on this buyer's account." The tool results leave out the delivery code, payment
+gets "No order with that number on this buyer's account." The tool results leave out the payment
 token, receipt image and phone number.
 
 ## Who answers

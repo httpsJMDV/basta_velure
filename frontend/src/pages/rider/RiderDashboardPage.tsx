@@ -22,6 +22,7 @@ import { IconChip, KpiSkeleton, KpiTile, PageHero, SectionCard, StateCard, type 
 import { BTN_PRIMARY } from './riderStyles';
 import { AvailabilityToggle, JobOffers } from '../../components/rider/RiderWork';
 import { useLiveRefresh } from '../../hooks/useLiveNotices';
+import { usePlaceNames } from '../../hooks/usePlaceNames';
 
 interface Workload {
   pickupsAccepted: number;
@@ -47,6 +48,8 @@ interface TodoRow {
 
 export default function RiderDashboardPage() {
   const { riderData, loading, error, refreshRider, chat } = useOutletContext<RiderOutletContext>();
+  // The delivery areas store barangay codes; show their names.
+  const places = usePlaceNames(riderData?.active_areas.flatMap((a) => a.coverage_barangays));
 
   const [work, setWork] = useState<Workload | null>(null);
   const [workLoading, setWorkLoading] = useState(true);
@@ -255,9 +258,9 @@ export default function RiderDashboardPage() {
                   {area.barangays_count} {area.barangays_count === 1 ? 'barangay' : 'barangays'}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {area.coverage_barangays.map((code) => (
-                    <span key={code} className="px-2 py-0.5 rounded-md text-[11px] font-mono bg-white text-gray-700 border border-gray-200">
-                      {code}
+                  {places.sortByName(area.coverage_barangays).map((code) => (
+                    <span key={code} title={`PSGC ${code}`} className={`px-2 py-0.5 rounded-md text-[11px] bg-white text-gray-700 border border-gray-200 ${places.known(code) ? '' : 'font-mono text-gray-400'}`}>
+                      {places.place(code)}
                     </span>
                   ))}
                 </div>

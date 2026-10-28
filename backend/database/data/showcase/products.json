@@ -512,35 +512,6 @@
         },
         {
             "source": "dummyjson",
-            "source_id": "36",
-            "name": "Protein Powder",
-            "brand": null,
-            "category": "supplements",
-            "group": "grocery",
-            "description": "Nutrient-packed protein powder, ideal for supplementing your diet with essential proteins.\n\nWarranty: 1 week warranty\nReturns: No return policy",
-            "price": 1159,
-            "original_price": 1259,
-            "stock": 80,
-            "variants": [
-                "Standard"
-            ],
-            "dimensions": {
-                "l": 22.4,
-                "w": 9,
-                "h": 12.5
-            },
-            "images": [
-                "https://cdn.dummyjson.com/product-images/groceries/protein-powder/1.webp"
-            ],
-            "food": {
-                "net": null,
-                "ingredients": null,
-                "allergens": null
-            },
-            "credit": null
-        },
-        {
-            "source": "dummyjson",
             "source_id": "38",
             "name": "Premium Rice",
             "brand": null,
