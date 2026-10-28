@@ -42,20 +42,17 @@ The single source of failure reasons. Only `OTHER` requires a note.
 ---
 
 ## 2. Mark Delivered (`POST /api/v1/rider/deliveries/{tracking}/delivered`)
-`multipart/form-data`. The steps are checked in order (Rider R6, A32): the photo, the buyer's delivery code, then the cash.
+`multipart/form-data`. The steps are checked in order (Rider R6): the photo, then the cash.
 
 | Field | Rules |
 |---|---|
 | `proof_photo` | **Required.** The parcel at the door or with the recipient. An image file: `jpg`, `jpeg`, `png` or `webp`, judged by its real content type, max **8 MB** (8192 KB). |
 | `proof_photo_2` | Optional. The house, gate or building. Same rules; when sent it must be a **different file** from `proof_photo` (`422` on `proof_photo_2`). |
-| `otp` | **Required when the parcel has a delivery code** (every parcel sent out through Out for Delivery has one). Exactly 6 digits; anything else is a `422` on `otp` and does not count as a try. |
 | `cod_amount` | **Required for a COD parcel**: the cash the rider counted, a number with at most 2 decimals. It must equal the parcel's COD amount **to the centavo** (`499.99`, `500.01` and `500.004` are refused on a `500.00` order). Ignored for prepaid parcels. |
 | `received_by` | Optional. A person's name, the shared name rule: 2 to 50 characters, letters, spaces, hyphens, apostrophes and periods (`12345` or `...` is a `422`). |
 
-### The delivery code (A32)
-- A fresh 6-digit code is made each time the parcel goes Out for Delivery. Only the buyer sees it (`delivery_otp` on their order, while it is out for delivery); it is never in a rider, hub or courier payload.
-- A wrong code is a `422` with the tries left (`Wrong delivery code. 4 tries left.`). The **5th** wrong code locks code entry for **15 minutes** (`423`, with `locked_until`); during the lock even the right code is refused with `423`. The tries are saved even though the request is refused.
-- A parcel sent out before codes existed has none, and the step is skipped.
+### No delivery code
+There is no 6-digit delivery code any more (removed Oct 28, 2026; workbook case A32 no longer applies). The proof photo, and for COD the exact cash, are the proof of delivery. An `otp` field sent by an old app is ignored.
 
 ### What happens
 - Everything that can refuse the request runs before the photos are stored, so a refused delivery keeps nothing.

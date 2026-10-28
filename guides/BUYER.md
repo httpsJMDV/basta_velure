@@ -80,10 +80,9 @@ Go to **Orders** (`/settings/orders`). The tabs are:
 
 ## 7. Receive your order
 
-1. When the rider arrives, open the order and find the **Delivery code** (6 digits).
-2. Tell the rider the code. They can't finish the delivery without it.
-3. Pay the cash if it's COD.
-4. Check the item, then tap **Order Received**.
+1. When the rider arrives, take the parcel. The rider takes a photo as proof of delivery.
+2. Pay the cash if it's COD.
+3. Check the item, then tap **Order Received**.
    - If you don't tap it, the order completes by itself **7 days** after delivery.
 
 ## 8. Cancel an order
