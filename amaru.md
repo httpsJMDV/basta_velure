@@ -477,7 +477,7 @@ The buyer app should feel like **loved-it.shop on a phone**. Open the website on
 ### B14. Finish the buyer app
 
 - [x] Empty states, error and Try again screens, and no-internet handling on every screen.
-- [ ] (Only the Pixel 8 emulator so far.) Check every screen on the small phone. Nothing is cut off, and every button is at least 48 px tall.
+- [ ] (Partly: sign in, Home, the product grid and Account checked on a 360 x 640 dp screen, the Pixel 8 with `adb shell wm size 720x1280` and `wm density 320`, nothing cut off. The `Small_Phone` AVD exits with code 1 on start, so recreate it in Device Manager.) Check every screen on the small phone. Nothing is cut off, and every button is at least 48 px tall.
 - [x] App name "Loved-IT" and the app icon (from the website's logo).
 - [ ] Go through `guides/BUYER.md` start to finish on the phone. (Reading screens were checked on the emulator against `velure`; placing an order, cart changes and returns were left out there so the data stays as it is, and are covered by `test/buyer_test.dart`.)
 
