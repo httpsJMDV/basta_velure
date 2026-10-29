@@ -19,27 +19,11 @@ class GoogleAuthController extends Controller
     {
         $request->validate(['credential' => ['required', 'string']]);
 
-        // Verify the access token with Google and fetch the user's profile
-        // withoutVerifying() is safe here: we're only reading public profile data,
-        // and the token itself was already validated by Google's OAuth flow on the client.
-        // On production, remove withoutVerifying() and ensure the server has a valid CA bundle.
-        $client = app()->environment('local')
-            ? Http::withoutVerifying()
-            : Http::withOptions([]);
-
-        try {
-            $googleUser = $client->get('https://www.googleapis.com/oauth2/v3/userinfo', [
-                'access_token' => $request->credential,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Could not reach Google. Please try again.'], 502);
+        $payload = $this->verifiedProfile((string) $request->credential);
+        if ($payload instanceof JsonResponse) {
+            return $payload;
         }
 
-        if (! $googleUser->successful() || empty($googleUser->json('email'))) {
-            return response()->json(['message' => 'Invalid Google token.'], 401);
-        }
-
-        $payload      = $googleUser->json();
         $email        = $payload['email'];
         $firstName    = $payload['given_name'] ?? 'User';
         $lastName     = $payload['family_name'] ?? '';
@@ -136,5 +120,59 @@ class GoogleAuthController extends Controller
             'data'  => new UserResource($user->load(['sellerProfile', 'addresses'])),
             'token' => $token,
         ], 200);
+    }
+
+    /**
+     * The Google profile behind the credential, or the response to send back. Google's tokeninfo says which OAuth
+     * client the token was issued to, and only Loved-IT's own client IDs (`services.google.client_ids`) are accepted,
+     * so a token that another app got from the same Google user can't sign in here.
+     *
+     * The mobile app sends an ID token (a JWT whose `aud` is the website's client ID it asked for); the website's
+     * Google button sends an access token (`aud`/`azp` is the website's client ID) whose profile comes from userinfo.
+     *
+     * @return array<string, mixed>|JsonResponse
+     */
+    private function verifiedProfile(string $credential): array|JsonResponse
+    {
+        $allowed = config('services.google.client_ids', []);
+        if ($allowed === []) {
+            report(new \RuntimeException('GOOGLE_CLIENT_IDS is not set, so Google sign-in is refused.'));
+
+            return response()->json(['message' => 'Google sign-in is not available right now. Sign in with your email.'], 503);
+        }
+
+        // Local development often lacks a CA bundle; everywhere else the certificate is checked.
+        $client = app()->environment('local') ? Http::withoutVerifying() : Http::withOptions([]);
+        $isIdToken = substr_count($credential, '.') === 2;
+
+        try {
+            $info = $client->timeout(10)->get('https://oauth2.googleapis.com/tokeninfo', [
+                ($isIdToken ? 'id_token' : 'access_token') => $credential,
+            ]);
+            $profile = $info->successful() && ! $isIdToken
+                ? $client->timeout(10)->get('https://www.googleapis.com/oauth2/v3/userinfo', ['access_token' => $credential])
+                : null;
+        } catch (\Exception) {
+            return response()->json(['message' => 'Could not reach Google. Please try again.'], 502);
+        }
+
+        $invalid = response()->json(['message' => 'Invalid Google token.'], 401);
+        if (! $info->successful()) {
+            return $invalid;
+        }
+
+        $issuedTo = array_filter([$info->json('aud'), $info->json('azp')], 'is_string');
+        if (array_intersect($issuedTo, $allowed) === []) {
+            return $invalid;
+        }
+
+        if ($isIdToken) {
+            $fromGoogle = in_array($info->json('iss'), ['accounts.google.com', 'https://accounts.google.com'], true);
+            $verifiedEmail = filter_var($info->json('email_verified'), FILTER_VALIDATE_BOOLEAN);
+
+            return $fromGoogle && $verifiedEmail && ! empty($info->json('email')) ? $info->json() : $invalid;
+        }
+
+        return $profile?->successful() && ! empty($profile->json('email')) ? $profile->json() : $invalid;
     }
 }
