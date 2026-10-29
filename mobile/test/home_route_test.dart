@@ -156,5 +156,19 @@ void main() {
       );
       expect(redirectFor(shopping, '/rider'), '/buyer');
     });
+
+    test('a Google sign-up finishes its profile before anything else', () {
+      final fresh = SignedIn(
+        AppUser.fromJson(userJson(dateOfBirth: null)),
+        AppHome.buyer,
+      );
+      expect(redirectFor(fresh, '/buyer'), '/buyer/complete-profile');
+      expect(redirectFor(fresh, '/buyer/cart'), '/buyer/complete-profile');
+      expect(redirectFor(fresh, '/buyer/complete-profile'), isNull);
+
+      final finished = SignedIn(AppUser.fromJson(userJson()), AppHome.buyer);
+      expect(redirectFor(finished, '/buyer/complete-profile'), isNull);
+      expect(redirectFor(finished, '/buyer/cart'), isNull);
+    });
   });
 }

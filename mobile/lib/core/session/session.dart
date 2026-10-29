@@ -123,6 +123,40 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  /// `POST /auth/register`. The account starts unverified, so the code screen opens next. Throws [ApiFailure].
+  Future<void> register(Map<String, dynamic> fields) async {
+    try {
+      final response = await _api.post<Map<String, dynamic>>(
+        '/auth/register',
+        data: fields,
+      );
+      final email =
+          response.data?['email'] as String? ?? fields['email'] as String;
+      state = NeedsEmailCode(
+        email,
+        message:
+            response.data?['message'] as String? ??
+            'We sent a 6-digit code to $email. Enter it to finish signing up.',
+      );
+    } on DioException catch (error) {
+      throw ApiFailure.fromDio(error);
+    }
+  }
+
+  /// `POST /auth/google` with the Google ID token. A new Google account signs in at once and finishes its profile
+  /// before shopping (the router sends it to Complete profile). Throws [ApiFailure].
+  Future<void> signInWithGoogle(String credential) async {
+    try {
+      final response = await _api.post<Map<String, dynamic>>(
+        '/auth/google',
+        data: {'credential': credential},
+      );
+      await _acceptToken(response.data);
+    } on DioException catch (error) {
+      throw ApiFailure.fromDio(error);
+    }
+  }
+
   /// `POST /auth/verify-email`: the 6-digit code signs the person in.
   Future<void> verifyEmail({
     required String email,

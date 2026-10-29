@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/session/home_route.dart';
 import 'core/session/session.dart';
 import 'features/auth/auth_routes.dart';
+import 'features/buyer/buyer_paths.dart';
 import 'features/buyer/buyer_routes.dart';
 import 'features/logistics/logistics_routes.dart';
 import 'features/rider/rider_routes.dart';
@@ -41,6 +43,10 @@ String? redirectFor(SessionState session, String location) {
     NeedsEmailCode() => only(AuthPaths.verifyEmail),
     AccountBlocked() => only(AuthPaths.blocked),
     SignedOut() => AuthPaths.signedOut.any(at) ? null : AuthPaths.signIn,
+    // A Google sign-up finishes its profile before anything else opens.
+    SignedIn(:final user, :final home)
+        when home == AppHome.buyer && user.needsProfile =>
+      only(BuyerPaths.completeProfile),
     SignedIn(:final home) => at(home.path) ? null : home.path,
   };
 }

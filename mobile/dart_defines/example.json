@@ -4,5 +4,6 @@
   "WS_PORT": "8080",
   "WS_SCHEME": "http",
   "REVERB_KEY": "<REVERB_APP_KEY from backend/.env>",
-  "WEB_URL": "http://10.0.2.2:5173"
+  "WEB_URL": "http://10.0.2.2:5173",
+  "GOOGLE_SERVER_CLIENT_ID": "<VITE_GOOGLE_CLIENT_ID from frontend/.env>"
 }

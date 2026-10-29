@@ -42,6 +42,10 @@ flutter:
   assets:
     # The website's logo (frontend/src/assets/branding/loved-it-logo-full-on-light.png).
     - assets/branding/loved-it-logo.png
+    # The website's category photos (frontend/src/assets/categories/photos), 400 x 400; sources in CREDITS.md.
+    - assets/categories/
+    # The website's hero banner pictures (frontend/src/assets/hero).
+    - assets/hero/
 
   # Inter, the website's font, bundled so text looks the same with no internet (SIL OFL, assets/fonts/OFL.txt).
   fonts:

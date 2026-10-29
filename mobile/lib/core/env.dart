@@ -26,6 +26,18 @@ abstract final class Env {
     defaultValue: 'https://loved-it.shop',
   );
 
+  /// The website's Google OAuth client ID (`VITE_GOOGLE_CLIENT_ID`), public. Google signs the app's ID token for
+  /// it, and the server accepts only tokens made for Loved-IT's client IDs.
+  static const googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
+
+  /// The map tiles for Track package: OpenStreetMap, the same free map as the website (`VITE_MAP_TILE_URL`).
+  static const mapTileUrl = String.fromEnvironment(
+    'MAP_TILE_URL',
+    defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  );
+
   /// Private channels sign in at `/api/broadcasting/auth`, the same endpoint the website's Echo uses.
   static String get broadcastAuthUrl =>
       '${apiUrl.replaceFirst(RegExp(r'/v1/?$'), '')}/broadcasting/auth';

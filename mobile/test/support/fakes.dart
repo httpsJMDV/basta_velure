@@ -71,6 +71,7 @@ Map<String, dynamic> userJson({
   Map<String, dynamic>? sortingCenter,
   Map<String, dynamic>? logisticsCompany,
   Map<String, dynamic>? sellerProfile,
+  String? dateOfBirth = '1995-04-09',
 }) => {
   'id': id,
   'first_name': firstName,
@@ -78,6 +79,8 @@ Map<String, dynamic> userJson({
   'last_name': 'Santos',
   'email': 'ana@example.com',
   'phone_local': '09171234567',
+  // A form sign-up has a birthday; a new Google sign-up has none until Complete profile.
+  'date_of_birth': dateOfBirth,
   'role': role,
   'status': status,
   'seller_profile': ?sellerProfile,

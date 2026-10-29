@@ -8,8 +8,10 @@ import 'support/fakes.dart';
 /// The sign-in screen end to end through the router: messages under the fields, the server's messages, and the
 /// home each account lands on.
 void main() {
+  late ProviderContainer container;
+
   Future<void> openApp(WidgetTester tester, FakeApi api) async {
-    final container = containerWith(api, MemoryTokenStore());
+    container = containerWith(api, MemoryTokenStore());
     addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -18,6 +20,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  /// Closes the app before the test ends, so the buyer home's live counters (checked every 30 seconds) stop.
+  Future<void> closeApp(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
   }
 
   Future<void> signIn(
@@ -104,8 +112,10 @@ void main() {
       }),
     );
     await signIn(tester, 'buyer1', 'buyer123');
-    expect(find.text('Hi, Ana'), findsOneWidget);
-    expect(find.textContaining('Part B'), findsOneWidget);
+    expect(find.text('Search Loved-IT'), findsOneWidget);
+    expect(find.text('Cart'), findsOneWidget);
+    expect(find.text('Account'), findsOneWidget);
+    await closeApp(tester);
   });
 
   testWidgets('a rider who also shops lands on Rider and can switch', (
@@ -125,7 +135,8 @@ void main() {
 
     await tester.tap(find.text('Switch to Shop'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Part B'), findsOneWidget);
+    expect(find.text('Search Loved-IT'), findsOneWidget);
+    await closeApp(tester);
   });
 
   testWidgets('an admin is sent to the website', (tester) async {

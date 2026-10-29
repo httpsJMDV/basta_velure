@@ -10,6 +10,8 @@ class AppUser {
     required this.status,
     this.middleName,
     this.phoneLocal,
+    this.dateOfBirth,
+    this.sex,
     this.avatarUrl,
     this.governmentIdType,
     this.sellerApplicationStatus,
@@ -26,6 +28,12 @@ class AppUser {
 
   /// `09XXXXXXXXX`, the way forms show the number (stored as `+639…` on the server).
   final String? phoneLocal;
+
+  /// `YYYY-MM-DD`, or null for a Google sign-up that has not finished its profile.
+  final String? dateOfBirth;
+
+  /// `male`, `female` or `prefer_not_to_say`.
+  final String? sex;
   final String? avatarUrl;
 
   /// `buyer`, `seller`, `rider` or `admin`. Sellers, hub owners and courier staff are buyers whose application was
@@ -47,6 +55,11 @@ class AppUser {
   ].where((part) => part != null && part.trim().isNotEmpty).join(' ');
 
   bool get isAdmin => role == 'admin';
+
+  /// A Google sign-up starts without a birthday or mobile number and finishes them on Complete profile (the
+  /// website's `isProfileIncomplete`). Accounts made with the sign-up form already have both.
+  bool get needsProfile =>
+      role == 'buyer' && (dateOfBirth == null || phoneLocal == null);
   bool get isSeller =>
       role == 'seller' || sellerApplicationStatus == 'approved';
 
@@ -65,6 +78,8 @@ class AppUser {
       lastName: json['last_name'] as String? ?? '',
       email: json['email'] as String? ?? '',
       phoneLocal: json['phone_local'] as String?,
+      dateOfBirth: json['date_of_birth'] as String?,
+      sex: json['sex'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       role: json['role'] as String? ?? 'buyer',
       status: json['status'] as String? ?? 'active',

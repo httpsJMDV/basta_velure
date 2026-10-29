@@ -1,9 +1,11 @@
 import 'package:go_router/go_router.dart';
 
 import 'account_blocked_screen.dart';
+import 'forgot_password_screen.dart';
 import 'launch_screen.dart';
 import 'offline_screen.dart';
 import 'sign_in_screen.dart';
+import 'sign_up_screen.dart';
 import 'verify_email_screen.dart';
 import 'web_only_screen.dart';
 
@@ -14,9 +16,11 @@ abstract final class AuthPaths {
   static const verifyEmail = '/verify-email';
   static const blocked = '/account-blocked';
   static const webOnly = '/web-only';
+  static const signUp = '/sign-up';
+  static const forgotPassword = '/forgot-password';
 
-  /// The screens a signed-out person may open. Task B1 adds sign up and forgot password here.
-  static const signedOut = [signIn];
+  /// The screens a signed-out person may open.
+  static const signedOut = [signIn, signUp, forgotPassword];
 }
 
 final authRoutes = <RouteBase>[
@@ -32,4 +36,9 @@ final authRoutes = <RouteBase>[
     builder: (_, _) => const AccountBlockedScreen(),
   ),
   GoRoute(path: AuthPaths.webOnly, builder: (_, _) => const WebOnlyScreen()),
+  GoRoute(path: AuthPaths.signUp, builder: (_, _) => const SignUpScreen()),
+  GoRoute(
+    path: AuthPaths.forgotPassword,
+    builder: (_, _) => const ForgotPasswordScreen(),
+  ),
 ];
