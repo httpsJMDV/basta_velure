@@ -99,7 +99,11 @@ class BuyerIdCheckTest extends TestCase
     {
         $buyer = $this->shopper('pending');
         $buyer->forceFill(['date_of_birth' => '1999-02-02', 'sex' => 'male', 'government_id_type' => 'umid'])->save();
-        Http::fake(['https://www.googleapis.com/*' => Http::response(['email' => $buyer->email, 'given_name' => 'Juan', 'family_name' => 'Dela Cruz'])]);
+        config(['services.google.client_ids' => ['loved-it-web']]);
+        Http::fake([
+            'https://oauth2.googleapis.com/*' => Http::response(['aud' => 'loved-it-web', 'azp' => 'loved-it-web']),
+            'https://www.googleapis.com/*' => Http::response(['email' => $buyer->email, 'given_name' => 'Juan', 'family_name' => 'Dela Cruz']),
+        ]);
 
         $this->postJson('/api/v1/auth/google', ['credential' => 'google-access-token'])->assertOk()->assertJsonStructure(['token']);
     }

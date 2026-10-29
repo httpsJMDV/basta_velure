@@ -54,9 +54,13 @@ class AccountStatusGateTest extends TestCase
     public function test_continue_with_google_does_not_skip_the_email_code(): void
     {
         $user = $this->account('unverified');
-        Http::fake(['https://www.googleapis.com/*' => Http::response([
-            'email' => $user->email, 'given_name' => 'Lennon', 'family_name' => 'Cruz', 'email_verified' => true,
-        ])]);
+        config(['services.google.client_ids' => ['loved-it-web']]);
+        Http::fake([
+            'https://oauth2.googleapis.com/*' => Http::response(['aud' => 'loved-it-web', 'azp' => 'loved-it-web']),
+            'https://www.googleapis.com/*' => Http::response([
+                'email' => $user->email, 'given_name' => 'Lennon', 'family_name' => 'Cruz', 'email_verified' => true,
+            ]),
+        ]);
 
         $this->postJson('/api/v1/auth/google', ['credential' => 'google-access-token'])
             ->assertForbidden()

@@ -1,0 +1,205 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/api/api_failure.dart';
+import '../../core/session/session.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/validation/rules.dart';
+import '../../core/widgets/widgets.dart';
+import 'auth_layout.dart';
+import 'auth_routes.dart';
+import 'google_sign_in.dart';
+
+/// `POST /auth/login` with an email or a username. Every account signs in here; the account decides which home
+/// opens next (task A6).
+class SignInScreen extends ConsumerStatefulWidget {
+  const SignInScreen({super.key});
+
+  @override
+  ConsumerState<SignInScreen> createState() => _SignInScreenState();
+}
+
+class _SignInScreenState extends ConsumerState<SignInScreen> {
+  final _form = GlobalKey<FormState>();
+  final _identifier = TextEditingController();
+  final _password = TextEditingController();
+  ApiFailure? _failure;
+  bool _googleBusy = false;
+
+  @override
+  void dispose() {
+    _identifier.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  /// Continue with Google (B1): Google's account picker, then `POST /auth/google` with its ID token.
+  Future<void> _google() async {
+    setState(() {
+      _googleBusy = true;
+      _failure = null;
+    });
+    try {
+      final token = await googleIdToken();
+      if (token == null) return;
+      await ref.read(sessionProvider.notifier).signInWithGoogle(token);
+    } on GoogleSignInProblem catch (problem) {
+      if (mounted) {
+        setState(
+          () => _failure = ApiFailure(FailureKind.forbidden, problem.message),
+        );
+      }
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _failure = failure);
+    } finally {
+      if (mounted) setState(() => _googleBusy = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    if (!_form.currentState!.validate()) return;
+    setState(() => _failure = null);
+    try {
+      await ref
+          .read(sessionProvider.notifier)
+          .signIn(identifier: _identifier.text, password: _password.text);
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _failure = failure);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(sessionProvider);
+    final notice = session is SignedOut ? session.notice : null;
+    final failure = _failure;
+    // Field problems show under their fields; everything else (wrong password, suspended, no internet) on top.
+    final banner = failure != null && failure.kind != FailureKind.validation
+        ? failure.message
+        : null;
+
+    return AutofillGroup(
+      child: AuthLayout(
+        title: 'Welcome back',
+        subtitle: 'Sign in with your email or username.',
+        footer: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'New to Loved-IT?',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            TextButton(
+              onPressed: () => context.go(AuthPaths.signUp),
+              child: const Text('Create an account'),
+            ),
+          ],
+        ),
+        children: [
+          if (banner != null) ...[
+            MessageBanner(message: banner),
+            const SizedBox(height: AppSpace.lg),
+          ] else if (notice != null) ...[
+            MessageBanner(message: notice, tone: StatusTone.amber),
+            const SizedBox(height: AppSpace.lg),
+          ],
+          Form(
+            key: _form,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppTextField(
+                  label: 'Email or username',
+                  controller: _identifier,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [
+                    AutofillHints.email,
+                    AutofillHints.username,
+                  ],
+                  inputFormatters: [Only.noSpaces],
+                  maxLength: 255,
+                  validator: (value) =>
+                      Rules.required(value, 'Email or username'),
+                  serverError:
+                      failure?.errorFor('identifier') ??
+                      failure?.errorFor('email'),
+                ),
+                const SizedBox(height: AppSpace.lg),
+                AppTextField(
+                  label: 'Password',
+                  controller: _password,
+                  obscure: true,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.password],
+                  // Never trimmed or checked for strength here: the password typed at sign-up is what counts.
+                  validator: (value) =>
+                      (value ?? '').isEmpty ? 'Password is required.' : null,
+                  serverError: failure?.errorFor('password'),
+                  onSubmitted: (_) => _submit(),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.brandRed,
+                    ),
+                    onPressed: () => context.go(AuthPaths.forgotPassword),
+                    child: const Text('Forgot password?'),
+                  ),
+                ),
+                const SizedBox(height: AppSpace.sm),
+                SubmitButton(
+                  label: 'Sign in',
+                  busyLabel: 'Signing in…',
+                  onPressed: _submit,
+                ),
+                const SizedBox(height: AppSpace.lg),
+                const _OrDivider(),
+                const SizedBox(height: AppSpace.lg),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                  onPressed: _googleBusy ? null : _google,
+                  icon: const Text(
+                    'G',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.stone700,
+                    ),
+                  ),
+                  label: Text(
+                    _googleBusy ? 'Opening Google…' : 'Continue with Google',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(child: Divider()),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpace.md),
+          child: Text('or', style: TextStyle(color: AppColors.stone500)),
+        ),
+        Expanded(child: Divider()),
+      ],
+    );
+  }
+}
