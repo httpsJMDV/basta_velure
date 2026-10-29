@@ -5,7 +5,7 @@ lists are in `amaru.md` (Parts A, B, E), `king.md` (Part C) and `liam.md` (Part 
 
 ## Run it
 
-1. Start the backend (`SETUP.md`): `php artisan serve`, `php artisan reverb:start`, `php artisan queue:work --tries=3`.
+1. Point `DB_DATABASE` in `backend/.env` at `velure` (the real Loved-IT data), then start the backend (`SETUP.md`): `php artisan serve`, `php artisan reverb:start`, `php artisan queue:work --tries=3`.
 2. Copy `dart_defines/example.json` to `dart_defines/dev.json` and put `REVERB_APP_KEY` from `backend/.env` in it.
    `dev.json` is ignored by git. On a real phone, use your PC's Wi-Fi address instead of `10.0.2.2` and start the
    backend with `php artisan serve --host=0.0.0.0 --port=8000`.
@@ -17,7 +17,7 @@ Before every commit: `dart format .`, `flutter analyze` (no issues) and `flutter
 
 | Path | What |
 |---|---|
-| `lib/core/env.dart` | `API_URL`, `WS_*`, `REVERB_KEY`, `WEB_URL` from the dart defines |
+| `lib/core/env.dart` | `API_URL`, `WS_*`, `REVERB_KEY`, `WEB_URL` from the dart defines, and `Env.mediaUrl()` for every photo link |
 | `lib/core/api/` | `dioProvider` (token, timeouts) and `ApiFailure` (every error turned into a message) |
 | `lib/core/session/` | The signed-in user (`currentUserProvider`), sign in and out, which home opens (`home_route.dart`) |
 | `lib/core/validation/rules.dart` | `Rules` (the server's checks and messages) and `Only` (what a field lets people type) |

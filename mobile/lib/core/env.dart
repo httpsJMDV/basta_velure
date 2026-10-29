@@ -29,4 +29,20 @@ abstract final class Env {
   /// Private channels sign in at `/api/broadcasting/auth`, the same endpoint the website's Echo uses.
   static String get broadcastAuthUrl =>
       '${apiUrl.replaceFirst(RegExp(r'/v1/?$'), '')}/broadcasting/auth';
+
+  /// Photo links are built from the backend's APP_URL, which is `http://localhost:8000` on a dev PC. On the
+  /// emulator or a phone, localhost is the device itself, so such links are moved to the API's host.
+  static String mediaUrl(String url) => mediaUrlFor(url, apiUrl);
+
+  static String mediaUrlFor(String url, String api) {
+    final photo = Uri.tryParse(url);
+    if (photo == null ||
+        !const {'localhost', '127.0.0.1'}.contains(photo.host)) {
+      return url;
+    }
+    final server = Uri.parse(api);
+    return photo
+        .replace(scheme: server.scheme, host: server.host, port: server.port)
+        .toString();
+  }
 }

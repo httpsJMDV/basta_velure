@@ -147,6 +147,7 @@ Never push straight to `main`. Every part goes in through its pull request.
 ### A4. Connect the app to the backend
 
 - [ ] Run the backend on your own PC first. Follow `SETUP.md`, then start `php artisan serve`, `php artisan reverb:start` and `php artisan queue:work --tries=3` in `backend`.
+- [x] The app never connects to MySQL itself: it only calls the API, and the API reads the database named by `DB_DATABASE` in `backend/.env`. Use **`velure`**, the Loved-IT database with the real users, shops, products and categories (not `velure_app`, a copy with only the demo accounts, and never `velure_test`). After changing `.env`, run `php artisan config:clear`. The app needs no migration or seeding to connect, so the data stays as it is.
 - [x] Never write the server address in the code. Pass it when you run the app. Put this in `mobile/dart_defines/dev.json`:
   ```json
   {
@@ -167,7 +168,7 @@ Never push straight to `main`. Every part goes in through its pull request.
 | The live site | `https://api.loved-it.shop/api/v1`, Reverb `ws.loved-it.shop` port `443`, scheme `https`. Only while JM's PC is running the site. **It's real data: use test accounts only.** |
 
 - [x] Android blocks plain `http://` by default. Allow it **only in debug builds**: in `android/app/src/debug/AndroidManifest.xml`, add `android:usesCleartextTraffic="true"` to `<application>`. The release build stays HTTPS-only.
-- [ ] Photo addresses come from `APP_URL` in `backend/.env` (now `https://api.loved-it.shop`), so photos only load while the tunnel is running. If they don't show, that's why.
+- [x] Photo addresses come from `APP_URL` in `backend/.env`. On your PC that is `http://localhost:8000`, so the API sends links like `http://127.0.0.1:8000/storage/...`, and on the emulator or a phone `localhost` is the device itself. Always show photos through **`Env.mediaUrl(url)`** (`lib/core/env.dart`): it moves `localhost` and `127.0.0.1` links to the host in `API_URL` and leaves every other link alone. On the live site (`APP_URL=https://api.loved-it.shop`) photos only load while the tunnel is running.
 - [x] Every request sends `Accept: application/json`, and once signed in, `Authorization: Bearer <token>`.
 
 ### A5. The shared base: API client and sign-in session
@@ -414,6 +415,7 @@ The buyer app should feel like **loved-it.shop on a phone**. Open the website on
 - [ ] `GET/POST /addresses`, `PATCH /addresses/{id}`, `DELETE /addresses/{id}` (ask first), `PATCH /addresses/{id}/default`. 10 addresses at most.
 - [ ] Region → province → city/municipality → barangay pickers from the same free PSGC list the website uses: `https://psgc.gitlab.io/api/regions/`, then `/regions/{code}/provinces/`, `/provinces/{code}/cities-municipalities/` (NCR has no provinces: use `/regions/{NCR code}/cities-municipalities/`), and `/cities-municipalities/{code}/barangays/`.
 - [ ] Send the names **and** the codes: `full_name`, `phone`, `address` (street), `floor_unit`, `region`, `region_code`, `province`, `province_code`, `district` (city), `city_code`, `ward` (barangay), `barangay_code`, `label` (`home` or `office`), `is_default`.
+- [ ] The server always requires `province` and `province_code`, NCR included. For NCR (`130000000`), skip the province picker and send `province: "Metro Manila"`, `province_code: "130000000"`, like the website's address form (`SettingsPage.tsx`).
 
 **Inputs:** the places come from pickers only, never typed. Full name is 2 to 100 characters. Mobile follows the mobile rule. Street is up to 255 characters, floor/unit up to 100. Always show **names, never the codes**.
 
