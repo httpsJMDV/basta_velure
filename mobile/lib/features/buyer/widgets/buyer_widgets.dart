@@ -463,21 +463,29 @@ class BlockCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(
+    // A Material (not a coloured box) so a list row inside still shows its tap ripple.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
         AppSpace.lg,
         0,
         AppSpace.lg,
         AppSpace.md,
       ),
-      padding: padding ?? const EdgeInsets.all(AppSpace.lg),
-      decoration: BoxDecoration(
+      child: Material(
         color: AppColors.white,
-        borderRadius: AppRadius.cardAll,
-        border: Border.all(color: AppColors.stone200),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.cardAll,
+          side: const BorderSide(color: AppColors.stone200),
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: padding ?? const EdgeInsets.all(AppSpace.lg),
+            child: child,
+          ),
+        ),
       ),
-      child: child,
     );
   }
 }
