@@ -19,8 +19,11 @@ abstract final class AuthPaths {
   static const signUp = '/sign-up';
   static const forgotPassword = '/forgot-password';
 
+  /// The public "Become a rider" form (Part C, `RiderPaths.apply`; its route is in `rider_routes.dart`).
+  static const becomeRider = '/become-rider';
+
   /// The screens a signed-out person may open.
-  static const signedOut = [signIn, signUp, forgotPassword];
+  static const signedOut = [signIn, signUp, forgotPassword, becomeRider];
 }
 
 final authRoutes = <RouteBase>[
