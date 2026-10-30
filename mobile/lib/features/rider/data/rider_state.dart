@@ -41,9 +41,8 @@ class RiderStatusController extends AsyncNotifier<RiderWorkState> {
   /// `POST /rider/availability`. Returns the server's message; throws [ApiFailure] (expired license, suspended).
   Future<String> setOnline(bool online) async {
     final (message, next) = await ref.read(riderApiProvider).setOnline(online);
+    // The offers list watches this state: it starts checking when Online and empties when Offline.
     state = AsyncData(next);
-    // Going Offline cancels open offers on the server; going Online should show new ones at once.
-    unawaited(ref.read(riderOffersProvider.notifier).refresh());
     return message;
   }
 }

@@ -364,13 +364,20 @@ class StopCard extends StatelessWidget {
             children: [
               StopBadge(number: number),
               const SizedBox(width: AppSpace.sm),
+              // Scaled down rather than overflowing on a narrow phone or with large text.
               if (stop.attempt != null)
-                StatusChip(
-                  label:
-                      'Attempt ${stop.attempt}${stop.maxAttempts != null ? ' of ${stop.maxAttempts}' : ''}',
-                  tone: (stop.attempt ?? 1) > 1
-                      ? StatusTone.amber
-                      : StatusTone.gray,
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: StatusChip(
+                      label:
+                          'Attempt ${stop.attempt}${stop.maxAttempts != null ? ' of ${stop.maxAttempts}' : ''}',
+                      tone: (stop.attempt ?? 1) > 1
+                          ? StatusTone.amber
+                          : StatusTone.gray,
+                    ),
+                  ),
                 ),
               const Spacer(),
               RiderMessageButton(

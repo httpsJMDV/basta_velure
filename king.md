@@ -3,8 +3,9 @@
 Updated October 30, 2026. Tick each box when it's done and checked on the emulator **and** a real Android phone. Check the location tasks outside.
 
 > **Status, Oct 30:** the whole rider app (C1 to C8) is **built** on `king/mobile-part-c`, in
-> `mobile/lib/features/rider/`, and passes `flutter analyze` (no issues) and `flutter test` (116 tests, 22 of them
-> new in `test/rider_test.dart`). The boxes below stay unticked until each screen is checked on the emulator and a
+> `mobile/lib/features/rider/`, and passes `flutter analyze` (no issues), `flutter test` (124 tests: the rider rules
+> and API in `test/rider_test.dart`, and every rider tab driven through the router against a fake server in
+> `test/rider_screens_test.dart`, including a 360 x 640 small-phone check) and `flutter build apk --debug`. The boxes below stay unticked until each screen is checked on the emulator and a
 > real phone against the backend, which needs A1, A2 and A4 done on this PC first (no emulator, backend `.env` or
 > `vendor` yet). Notes from the build:
 > - `POST /auth/apply-rider` (signed-in) now answers **403** and points to the public form, so the app only has the

@@ -57,15 +57,18 @@ class RiderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // A Material (not a coloured box), so list rows inside still show their tap ripple.
+    return SizedBox(
       width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
+      child: Material(
         color: muted ? AppColors.gray100 : AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        child: Padding(padding: padding, child: child),
       ),
-      child: child,
     );
   }
 }
