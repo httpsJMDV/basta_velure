@@ -179,12 +179,15 @@ class StatusChip extends StatelessWidget {
             Icon(icon, size: 14, color: tone.foreground),
             const SizedBox(width: AppSpace.xs),
           ],
-          Text(
-            label,
-            style: TextStyle(
-              color: tone.foreground,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          // A long label wraps instead of overflowing on a small phone or with large text.
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: tone.foreground,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -224,7 +227,7 @@ Future<bool> confirmAction(
           style: FilledButton.styleFrom(
             backgroundColor: destructive
                 ? StatusTone.rose.foreground
-                : AppColors.brandRed,
+                : Theme.of(context).colorScheme.primary,
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(confirmLabel),

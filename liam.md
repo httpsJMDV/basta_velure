@@ -1,6 +1,45 @@
 # Liam: Loved-IT logistics app (Flutter, Part D)
 
-Updated October 28, 2026. Tick each box when it's done and checked on the emulator **and** a real Android phone.
+Updated October 30, 2026. Tick each box when it's done and checked on the emulator **and** a real Android phone.
+
+> **Status, Oct 31:** the whole logistics app (D1 to D8) is **built** and merged into `main` from `liam/mobile-part-d`,
+> at Liam's request and before a teammate tried it, so a teammate should still try it. It's in
+> `mobile/lib/features/logistics/`, and passes `flutter analyze` (no issues) and `flutter test` (172 tests in all: the
+> logistics rules and API shapes in `test/logistics_test.dart`, and hub and courier screens driven through the router
+> against a fake server in `test/logistics_screens_test.dart`, including a tablet and a small phone with large text).
+> `flutter build apk --debug` passes too. Each screen was also rendered with the real fonts against fake data and
+> checked by eye at phone, small-phone and tablet size. The boxes below stay unticked until each screen is checked on a
+> real phone against the backend, which is still to do: the backend is skipped for now, and no emulator can run on this
+> laptop (a standard Windows account can't turn on Windows Hypervisor Platform, and it has 7.4 GB of RAM). Notes:
+> - **Tried on a real phone with a fake server (Redmi Note 10, Android 12):** the app installs and opens, and sign-in,
+>   its error messages and sign-out work. Hub Home, Sorting, Dispatch, More, Parcel intake, Deliveries, Riders and rider
+>   details, the Disapprove reason check and Messages all work, and so does typing a tracking number in Scan, in Receive
+>   and Sort: Received, Sorted, already received and not this hub's parcel. **Not tried on a phone yet:** the courier
+>   team's screens, the real camera, torch, vibration and damage photo, and anything against the real backend.
+> - **Still to fix:** the hub's bottom bar (`hub/hub_shell.dart`) can't be pressed with a screen reader. `_BarItem` and
+>   `_ScanButton` need `onTap:` on their `Semantics`, and the `Scan` label needs `ExcludeSemantics`.
+> - **Not explained:** one time, tapping Scan after reopening the app showed a rider chat instead of Scan. It didn't
+>   happen again, and test scripts were also tapping that phone, so they may have caused it. Watch for it.
+> - **First build on a new PC:** it may stop with `Failed to find target with hash string 'android-37'` right after
+>   Gradle installs the platform. Run it again and it passes. Let Gradle install `android-37.0` itself: the copy
+>   `sdkmanager` installed was not recognised. On a laptop with little RAM, lower Gradle's 8 GB in
+>   `~/.gradle/gradle.properties` (`org.gradle.jvmargs=-Xmx3g ...`), not in the project.
+> - Scanning **receives straight away** with `POST /hub/parcels/{tracking}/receive`, like the website's scanner with
+>   auto-receive on: the answer has everything the row needs, so a `GET` first would only slow a long session. The
+>   `GET /hub/parcels/{tracking}` lookup opens when you tap a parcel in Parcel intake.
+> - **No QR codes on the phone.** The website's hub Dispatch page draws a handover QR per parcel, but the app has no QR
+>   package. Riders scan the waybill's barcode on the parcel, or type the number. A QR needs a new package (for
+>   example `qr_flutter`); ask before adding it.
+> - **On the website only:** Return to sender (`/logistics/returns`) isn't in D7, so More links to it, with zones and
+>   rates, settlements and pay, reports and exports, and settings. Hub reports, earnings and settings link there too.
+> - **Added to the shared base (tell Amaru):** `Rules.reason` and `Rules.areaLabel`; `Fmt.dayTime` and `Fmt.waited`;
+>   `AppColors.gray200` and the `hero*` colours; `Psgc.barangayNames`, because hub coverage and rider areas are stored as
+>   codes. `StatusChip` now wraps a long label instead of overflowing, and `confirmAction` uses the theme's main colour
+>   (still brand red everywhere except the hub's screens).
+> - **Added to Part C's widgets (tell King):** `ParcelScanner.session` for many scans in a row, with an amber flash, and
+>   `RiderTabs.selectedColor`. The rider screens behave as before; their tests still pass.
+> - **A form must not be a `ListView`:** a field scrolled out of a lazy list is unmounted and `validate()` skips it, so
+>   blank fields pass and `_birthday!` can crash. Add rider and the area sheet use `SingleChildScrollView`.
 
 The whole plan is in `amaru.md`: Amaru builds the setup and shared base (Part A) and the buyer app (Part B), King builds the rider app (Part C, `king.md`), and you build the **logistics** app (Part D) here. It's one app: after sign-in, a hub or courier account opens the logistics screens.
 
@@ -8,16 +47,16 @@ The whole plan is in `amaru.md`: Amaru builds the setup and shared base (Part A)
 
 ## Before you start
 
-- [ ] **Part A is merged into `main`.** Amaru tells you. You need its shared base.
-- [ ] On your own PC, do tasks **A1, A2 and A4 in `amaru.md`**: install Android Studio, Flutter and the emulator, and run the backend.
-- [ ] Make your branch from the updated `main`:
+- [x] **Part A is merged into `main`.** Amaru tells you. You need its shared base. (Parts A and B are in `main`, PR #47; Part C too, `a2b57c0`.)
+- [ ] On your own PC, do tasks **A1, A2 and A4 in `amaru.md`**: install Android Studio, Flutter and the emulator, and run the backend. (Done on this PC: Flutter 3.47.9 at `C:\dev\flutter`, Android Studio at `C:\dev\android-studio`, the Android SDK with its licenses accepted. Still to do: the real phone, and the backend's `.env`, `composer install` and the `velure` database. No emulator here: see the status above.)
+- [x] Make your branch from the updated `main`:
   ```
   git checkout main
   git pull
   git checkout -b liam/mobile-part-d
   ```
-- [ ] Read `guides/HUB.md`, `guides/COURIER.md`, `docs/api/logistics-*.md`, `docs/api/courier-*.md` and `docs/api/hub-awaiting-pickup.md`.
-- [ ] Also follow these parts of `amaru.md`: **Ground rules**, **Validation rules for the app** and the **Security checklist**.
+- [x] Read `guides/HUB.md`, `guides/COURIER.md`, `docs/api/logistics-*.md`, `docs/api/courier-*.md` and `docs/api/hub-awaiting-pickup.md`.
+- [x] Also follow these parts of `amaru.md`: **Ground rules**, **Validation rules for the app** and the **Security checklist**.
 
 **Use Part A's shared base, don't copy it:** the API client and error handling (`core/api/`), the session (`core/session/`), the rules and input formatters (`Rules`, `Only` in `core/validation/`), `AppTextField` and the other widgets, the photo picker (`core/media/`), live updates (`core/realtime/`) and the theme. If something you need is missing, add it to `core/` and tell Amaru.
 

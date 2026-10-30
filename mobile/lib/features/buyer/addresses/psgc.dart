@@ -58,6 +58,8 @@ class Psgc {
     ),
   );
   final _cache = <String, List<PsgcPlace>>{};
+  final _names = <String, String>{};
+  final _cities = <String, String?>{};
 
   Future<List<PsgcPlace>> provinces(String regionCode) =>
       _list('/regions/$regionCode/provinces/');
@@ -72,6 +74,55 @@ class Psgc {
 
   Future<List<PsgcPlace>> barangays(String cityCode) =>
       _list('/cities-municipalities/$cityCode/barangays/');
+
+  /// Names for barangay codes ("137403017" → "Rosario, Pasig"), for what the server stores only as codes (hub coverage,
+  /// rider areas). A few at a time, like the website's `usePlaceNames`. A code it can't name is left out: show the code.
+  Future<Map<String, String>> barangayNames(Iterable<String> codes) async {
+    final queue = codes.where((code) => !_names.containsKey(code)).toList();
+    Future<void> worker() async {
+      while (queue.isNotEmpty) {
+        final code = queue.removeLast();
+        final name = await _barangayName(code);
+        if (name != null) _names[code] = name;
+      }
+    }
+
+    await Future.wait(List.generate(6, (_) => worker()));
+    return {
+      for (final code in codes)
+        if (_names.containsKey(code)) code: _names[code]!,
+    };
+  }
+
+  Future<String?> _barangayName(String code) async {
+    final barangay = await _object('/barangays/$code/');
+    final name = asString(barangay?['name']);
+    if (name == null) return null;
+    final cityCode =
+        asString(barangay?['cityCode']) ??
+        asString(barangay?['municipalityCode']);
+    final city = cityCode == null ? null : await _cityName(cityCode);
+    return city == null ? name : '$name, $city';
+  }
+
+  Future<String?> _cityName(String code) async {
+    if (_cities.containsKey(code)) return _cities[code];
+    final name = asString(
+      (await _object('/cities-municipalities/$code/'))?['name'],
+    );
+    // "City of Pasig" reads as "Pasig"; a municipality keeps its name.
+    return _cities[code] = name
+        ?.replaceFirst(RegExp(r'^City of\s+', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'\s+City$', caseSensitive: false), '');
+  }
+
+  Future<Json?> _object(String path) async {
+    try {
+      return asJson((await _dio.get<Object?>(path)).data);
+    } on DioException {
+      return null;
+    }
+  }
 
   Future<List<PsgcPlace>> _list(String path) async {
     final cached = _cache[path];

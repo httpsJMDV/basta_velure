@@ -15,13 +15,38 @@ import '../../../core/widgets/widgets.dart';
 /// What a scan turned out to be: null when it was ticked off, or the reason it wasn't ("Already ticked off").
 typedef ScanHandler = Future<String?> Function(String trackingNumber);
 
+/// How one scan of a long session went (Part D): each has its own colour on the frame.
+enum ScanTone { good, warn, bad }
+
+/// Handles one scan of a long session. The screen shows the result itself, in its list.
+typedef SessionScanHandler = Future<ScanTone> Function(String trackingNumber);
+
 /// The camera in a framed box with a torch button and "Type it instead" (C4, C5). It reads waybill barcodes
 /// (Code 128) and the hub's handover QR codes. A good scan flashes green and buzzes once; a bad one shows the reason
 /// in red. Only Loved-IT tracking numbers (`LIT-YYMMDD-XXXXXX`) are passed on.
 class ParcelScanner extends StatefulWidget {
-  const ParcelScanner({super.key, required this.onScan, this.enabled = true});
+  const ParcelScanner({
+    super.key,
+    required ScanHandler this.onScan,
+    this.enabled = true,
+  }) : onSessionScan = null,
+       cameraReason =
+           'Scan the barcode on each waybill, or the QR code the hub shows you.';
 
-  final ScanHandler onScan;
+  /// For a counter that scans many parcels in a row: every code goes to [onSessionScan], which decides whether it is
+  /// a tracking number and lists the result, so this shows no message of its own.
+  const ParcelScanner.session({
+    super.key,
+    required SessionScanHandler this.onSessionScan,
+    required this.cameraReason,
+    this.enabled = true,
+  }) : onScan = null;
+
+  final ScanHandler? onScan;
+  final SessionScanHandler? onSessionScan;
+
+  /// Why the camera is needed, said before asking for it.
+  final String cameraReason;
 
   /// False while the screen is sending: scans are ignored.
   final bool enabled;
@@ -30,7 +55,7 @@ class ParcelScanner extends StatefulWidget {
   State<ParcelScanner> createState() => _ParcelScannerState();
 }
 
-enum _Flash { none, good, bad }
+enum _Flash { none, good, warn, bad }
 
 class _ParcelScannerState extends State<ParcelScanner> {
   final _controller = MobileScannerController(
@@ -73,8 +98,7 @@ class _ParcelScannerState extends State<ParcelScanner> {
       context,
       Permission.camera,
       title: 'Use the camera?',
-      reason:
-          'Scan the barcode on each waybill, or the QR code the hub shows you.',
+      reason: widget.cameraReason,
     );
     if (allowed && mounted) await _startCamera();
   }
@@ -116,13 +140,24 @@ class _ParcelScannerState extends State<ParcelScanner> {
 
   Future<void> _handle(String code) async {
     if (!widget.enabled || _checking) return;
+    final session = widget.onSessionScan;
+    if (session != null) {
+      setState(() => _checking = true);
+      try {
+        final tone = await session(code);
+        if (mounted) _showSessionResult(tone);
+      } finally {
+        if (mounted) setState(() => _checking = false);
+      }
+      return;
+    }
     if (Rules.trackingNumber(code) != null) {
       _bad('That code is not a Loved-IT tracking number.');
       return;
     }
     setState(() => _checking = true);
     try {
-      final problem = await widget.onScan(code);
+      final problem = await widget.onScan!(code);
       if (!mounted) return;
       if (problem == null) {
         HapticFeedback.mediumImpact();
@@ -141,22 +176,42 @@ class _ParcelScannerState extends State<ParcelScanner> {
   }
 
   void _show(_Flash flash, String message) {
-    _flashTimer?.cancel();
     setState(() {
-      _flash = flash;
       _message = message;
       _messageIsBad = flash == _Flash.bad;
     });
+    _flashFrame(flash);
+  }
+
+  void _flashFrame(_Flash flash) {
+    _flashTimer?.cancel();
+    setState(() => _flash = flash);
     _flashTimer = Timer(const Duration(milliseconds: 600), () {
       if (mounted) setState(() => _flash = _Flash.none);
     });
+  }
+
+  void _showSessionResult(ScanTone tone) {
+    switch (tone) {
+      case ScanTone.good:
+        HapticFeedback.mediumImpact();
+        _flashFrame(_Flash.good);
+      case ScanTone.warn:
+        HapticFeedback.vibrate();
+        _flashFrame(_Flash.warn);
+      case ScanTone.bad:
+        HapticFeedback.heavyImpact();
+        _flashFrame(_Flash.bad);
+    }
   }
 
   Future<void> _typeInstead() async {
     final code = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => const _TypeSheet(),
+      builder: (context) => _TypeSheet(
+        submitLabel: widget.onSessionScan == null ? 'Tick it off' : 'Scan it',
+      ),
     );
     if (code != null && mounted) await _handle(code);
   }
@@ -164,9 +219,11 @@ class _ParcelScannerState extends State<ParcelScanner> {
   @override
   Widget build(BuildContext context) {
     final good = StatusTone.emerald.foreground;
+    final warn = StatusTone.amber.foreground;
     final bad = StatusTone.rose.foreground;
     final frameColor = switch (_flash) {
       _Flash.good => good,
+      _Flash.warn => warn,
       _Flash.bad => bad,
       _Flash.none => AppColors.white,
     };
@@ -187,6 +244,15 @@ class _ParcelScannerState extends State<ParcelScanner> {
                 else
                   Center(
                     child: FilledButton.icon(
+                      // On the hub's screens the main colour is the same dark gray as this box.
+                      style:
+                          Theme.of(context).colorScheme.primary ==
+                              AppColors.gray900
+                          ? FilledButton.styleFrom(
+                              backgroundColor: AppColors.white,
+                              foregroundColor: AppColors.gray900,
+                            )
+                          : null,
                       onPressed: _askAndStart,
                       icon: const Icon(LucideIcons.scanLine),
                       label: const Text('Start camera'),
@@ -204,6 +270,7 @@ class _ParcelScannerState extends State<ParcelScanner> {
                         border: Border.all(color: frameColor, width: 3),
                         color: switch (_flash) {
                           _Flash.good => good.withValues(alpha: 0.25),
+                          _Flash.warn => warn.withValues(alpha: 0.25),
                           _Flash.bad => bad.withValues(alpha: 0.2),
                           _Flash.none => Colors.transparent,
                         },
@@ -289,7 +356,9 @@ class _ParcelScannerState extends State<ParcelScanner> {
 }
 
 class _TypeSheet extends StatefulWidget {
-  const _TypeSheet();
+  const _TypeSheet({required this.submitLabel});
+
+  final String submitLabel;
 
   @override
   State<_TypeSheet> createState() => _TypeSheetState();
@@ -348,7 +417,7 @@ class _TypeSheetState extends State<_TypeSheet> {
                 minimumSize: const Size.fromHeight(52),
               ),
               onPressed: _submit,
-              child: const Text('Tick it off'),
+              child: Text(widget.submitLabel),
             ),
           ],
         ),
