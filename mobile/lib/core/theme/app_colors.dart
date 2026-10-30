@@ -25,8 +25,14 @@ abstract final class AppColors {
   // Cool gray: the hub portal's main buttons (gray-900) and the rider screens' backgrounds
   static const gray50 = Color(0xFFF9FAFB);
   static const gray100 = Color(0xFFF3F4F6);
+  static const gray200 = Color(0xFFE5E7EB);
   static const gray600 = Color(0xFF4B5563);
   static const gray900 = Color(0xFF111827);
+
+  // Figures on the courier portal's dark header (tailwind amber-300, emerald-300, red-300)
+  static const heroAmber = Color(0xFFFCD34D);
+  static const heroEmerald = Color(0xFF6EE7B7);
+  static const heroRed = Color(0xFFFCA5A5);
 }
 
 /// The status colours, used the same way on every screen: amber = waiting or cash to collect, emerald = done or

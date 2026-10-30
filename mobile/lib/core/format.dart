@@ -18,6 +18,19 @@ abstract final class Fmt {
   static String dateTime(DateTime? value) =>
       value == null ? '—' : _dateTime.format(manila(value));
 
+  /// "Oct 28, 3:15 PM"
+  static String dayTime(DateTime? value) =>
+      value == null ? '—' : DateFormat('MMM d, h:mm a').format(manila(value));
+
+  /// How long something has waited: "12m", "3h", "2d".
+  static String waited(DateTime? since, {DateTime? now}) {
+    if (since == null) return '—';
+    final minutes = (now ?? DateTime.now()).difference(since).inMinutes;
+    if (minutes < 60) return '${minutes < 0 ? 0 : minutes}m';
+    if (minutes < 1440) return '${minutes ~/ 60}h';
+    return '${minutes ~/ 1440}d';
+  }
+
   /// "3:15 PM" today, "Oct 27" before, for chat lists and notifications.
   static String shortWhen(DateTime? value, {DateTime? now}) {
     if (value == null) return '';

@@ -383,6 +383,7 @@ class RiderTabs<T> extends StatelessWidget {
     required this.labelOf,
     required this.onSelected,
     this.countOf,
+    this.selectedColor = AppColors.brandRed,
   });
 
   final List<T> values;
@@ -390,6 +391,9 @@ class RiderTabs<T> extends StatelessWidget {
   final String Function(T value) labelOf;
   final int? Function(T value)? countOf;
   final ValueChanged<T> onSelected;
+
+  /// Brand red by default; the hub screens use [AppColors.gray900].
+  final Color selectedColor;
 
   @override
   Widget build(BuildContext context) {
@@ -408,7 +412,7 @@ class RiderTabs<T> extends StatelessWidget {
               showCheckmark: false,
               selected: value == selected,
               onSelected: (_) => onSelected(value),
-              selectedColor: AppColors.brandRed,
+              selectedColor: selectedColor,
               labelStyle: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,

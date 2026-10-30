@@ -30,6 +30,9 @@ Before every commit: `dart format .`, `flutter analyze` (no issues) and `flutter
 | `lib/features/buyer/`, `rider/`, `logistics/` | Each part's screens, with its routes in `*_routes.dart` |
 | `lib/features/buyer/data/` | Part B: `BuyerApi` (every buyer endpoint), the models, `cartProvider` and the unread counts |
 | `lib/features/buyer/buyer_shell.dart` | The bottom bar (Home, Categories, Messages, Cart, Account); `buyer_paths.dart` has every buyer address |
+| `lib/features/logistics/data/` | Part D: `HubApi` and `CourierApi` (every hub and courier endpoint), the models, and the unread counts |
+| `lib/features/logistics/hub/`, `courier/`, `chat/` | The hub staff's screens, the courier team's, and the chat they share; `logistics_paths.dart` has every address |
+| `lib/features/logistics/widgets/` | `LoadView`, `ParcelRowCard`, `ListDetailLayout` (a tablet's side by side), `HubThemed`, `showReasonSheet`, `showRiderPicker`, `PrivateDocumentTile`, the scan results |
 
 ## Adding screens
 

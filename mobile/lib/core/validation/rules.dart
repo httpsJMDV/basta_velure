@@ -366,6 +366,40 @@ abstract final class Rules {
     }
     return null;
   }
+
+  // Logistics (liam.md, Part D) ----------------------------------------------
+
+  /// A reason for a reject, suspend, override, Lost or Damaged: 10 to 300 characters (`Validation::reason`).
+  static String? reason(String? value) {
+    final s = (value ?? '').trim();
+    if (s.isEmpty) return 'Please give a reason (10 to 300 characters).';
+    if (s.length < 10) return 'The reason must be at least 10 characters.';
+    if (s.length > 300) return 'The reason must be 300 characters or fewer.';
+    return null;
+  }
+
+  static final _label = RegExp(
+    r"^[\p{L}\p{N}][\p{L}\p{M}\p{N} .,'&()/#\-]*$",
+    unicode: true,
+  );
+  static final _twoLetters = RegExp(
+    r'\p{L}.*\p{L}',
+    unicode: true,
+    dotAll: true,
+  );
+
+  /// The name of a rider's delivery area: 3 to 60 characters with at least two letters (`Validation::label`).
+  static String? areaLabel(String? value) {
+    final s = squish(value);
+    if (s.isEmpty) return 'Area name is required.';
+    if (s.length < 3 || s.length > 60) {
+      return 'Area name must be 3 to 60 characters, like "Zone 2 - Poblacion".';
+    }
+    if (!_label.hasMatch(s) || !_twoLetters.hasMatch(s)) {
+      return "Area name needs at least two letters and may use letters, numbers, spaces and . , ' & ( ) / # - only.";
+    }
+    return null;
+  }
 }
 
 /// One line of the live password checklist.
