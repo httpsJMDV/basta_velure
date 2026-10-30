@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api/api_failure.dart';
 import '../../core/session/session.dart';
@@ -85,16 +86,28 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       child: AuthLayout(
         title: 'Welcome back',
         subtitle: 'Sign in with your email or username.',
-        footer: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        footer: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'New to Loved-IT?',
-              style: Theme.of(context).textTheme.bodyMedium,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'New to Loved-IT?',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                TextButton(
+                  onPressed: () => context.go(AuthPaths.signUp),
+                  child: const Text('Create an account'),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => context.go(AuthPaths.signUp),
-              child: const Text('Create an account'),
+            // Part C: riders apply on their own form, with an email of their own.
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: AppColors.stone700),
+              onPressed: () => context.go(AuthPaths.becomeRider),
+              icon: const Icon(LucideIcons.bike, size: 18),
+              label: const Text('Want to deliver? Become a rider'),
             ),
           ],
         ),

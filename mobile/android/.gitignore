@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Kotlin compiler caches (made by every Gradle build)
+.kotlin/

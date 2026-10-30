@@ -4,6 +4,14 @@
     <!-- Take photo (ID, GCash receipt, review and return photos, proof photos). Asked for only when tapped. -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <!-- Riders only (king.md, C6): the live location while they collect or carry parcels, asked for with a reason
+         first. The foreground service keeps it going in Maps or with the screen off, with a visible notification,
+         and stops when the rider has nothing to carry. No background-location permission is used. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
 
     <!-- allowBackup off: the sign-in token kept with the Android Keystore must never be copied into a backup. -->
     <application

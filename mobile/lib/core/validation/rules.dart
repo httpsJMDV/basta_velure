@@ -284,6 +284,88 @@ abstract final class Rules {
     }
     return null;
   }
+
+  // Rider (king.md, Part C) -------------------------------------------------
+
+  /// An LTO driver's license number, `A00-00-000000`, sent without spaces and in capitals.
+  static String normalizeLicenseNumber(String value) =>
+      value.replaceAll(_manyspaces, '').toUpperCase();
+
+  static String? licenseNumber(String? value) {
+    final v = normalizeLicenseNumber(value ?? '');
+    if (v.isEmpty) return "Driver's license number is required.";
+    return RegExp(r'^[A-Z]\d{2}-\d{2}-\d{6}$').hasMatch(v)
+        ? null
+        : 'Enter the license number in the LTO format A00-00-000000 (1 letter and 11 digits).';
+  }
+
+  /// A license expiry picked from the date picker: today or later in the Philippines.
+  static String? licenseExpiry(DateTime? value, {DateTime? now}) {
+    if (value == null) return 'License expiry date is required.';
+    final day = DateTime(value.year, value.month, value.day);
+    return day.isBefore(manilaToday(now))
+        ? 'The license has expired. Enter a license that is still valid.'
+        : null;
+  }
+
+  /// A plate number: 2 to 10 letters and digits once spaces and dashes are taken out, in capitals.
+  static String normalizePlateNumber(String value) =>
+      value.replaceAll(_spacesAndDashes, '').toUpperCase();
+
+  static String? plateNumber(String? value) {
+    final v = normalizePlateNumber(value ?? '');
+    if (v.isEmpty) return 'Plate number is required.';
+    return RegExp(r'^[A-Z0-9]{2,10}$').hasMatch(v)
+        ? null
+        : 'Enter the plate number with letters and numbers only, for example 123ABC or NBC1234.';
+  }
+
+  static const vehicleTypes = ['Motorcycle', 'Tricycle', 'Car', 'Van'];
+
+  static String? vehicleType(String? value) =>
+      vehicleTypes.contains(value) ? null : 'Choose the vehicle type.';
+
+  /// The cash a rider collected: exactly the order's COD amount, to the centavo.
+  static String? codCollected(String? value, num expected) {
+    final s = (value ?? '').trim();
+    if (s.isEmpty) return 'Enter the cash you collected.';
+    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(s)) {
+      return 'Enter the cash you collected in pesos and centavos, like 500 or 500.00.';
+    }
+    final cents = (double.parse(s) * 100).round();
+    if (cents != (expected * 100).round()) {
+      return "The cash must be exactly ₱${expected.toStringAsFixed(2)}, the order's COD amount.";
+    }
+    return null;
+  }
+
+  /// A cash remittance: above ₱0, at most 2 decimals, and no more than the rider holds.
+  static String? remittanceAmount(String? value, {num? max}) {
+    final s = (value ?? '').trim();
+    if (s.isEmpty) return 'Enter the amount you are handing over.';
+    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(s)) {
+      return 'The amount can have at most 2 decimal places.';
+    }
+    final amount = double.parse(s);
+    if (amount <= 0) return 'Enter an amount above ₱0.';
+    if (max != null && (amount * 100).round() > (max * 100).round()) {
+      return 'That is more than the ₱${max.toStringAsFixed(2)} you can hand over.';
+    }
+    return null;
+  }
+
+  /// An optional transfer reference, as the receipt shows it: 4 to 40 letters and numbers.
+  static String? paymentReference(String? value) {
+    final s = squish(value);
+    if (s.isEmpty) return null;
+    if (s.length < 4 ||
+        s.length > 40 ||
+        !RegExp(r'^[A-Za-z0-9][A-Za-z0-9 #/\-]*$').hasMatch(s) ||
+        !RegExp(r'\d').hasMatch(s)) {
+      return 'Enter the reference as the receipt shows it: 4 to 40 letters and numbers, like 1234 567 890123.';
+    }
+    return null;
+  }
 }
 
 /// One line of the live password checklist.
@@ -307,6 +389,21 @@ abstract final class Only {
     RegExp(r'[A-Za-z0-9\-]'),
   );
   static TextInputFormatter max(int n) => LengthLimitingTextInputFormatter(n);
+
+  /// Plate numbers: letters and digits only.
+  static final plateChars = FilteringTextInputFormatter.allow(
+    RegExp(r'[A-Za-z0-9]'),
+  );
+
+  /// License numbers: letters, digits and dashes.
+  static final licenseChars = FilteringTextInputFormatter.allow(
+    RegExp(r'[A-Za-z0-9\-]'),
+  );
+
+  /// Transfer references: letters, digits, spaces, `#`, `/` and `-`.
+  static final referenceChars = FilteringTextInputFormatter.allow(
+    RegExp(r'[A-Za-z0-9 #/\-]'),
+  );
 
   /// Pesos: digits and one dot, at most 2 decimals ("500", "500.5", "500.50").
   static final pesos = TextInputFormatter.withFunction(

@@ -1,6 +1,25 @@
 # King: Loved-IT rider app (Flutter, Part C)
 
-Updated October 28, 2026. Tick each box when it's done and checked on the emulator **and** a real Android phone. Check the location tasks outside.
+Updated October 30, 2026. Tick each box when it's done and checked on the emulator **and** a real Android phone. Check the location tasks outside.
+
+> **Status, Oct 30:** the whole rider app (C1 to C8) is **built** on `king/mobile-part-c`, in
+> `mobile/lib/features/rider/`, and passes `flutter analyze` (no issues), `flutter test` (124 tests: the rider rules
+> and API in `test/rider_test.dart`, and every rider tab driven through the router against a fake server in
+> `test/rider_screens_test.dart`, including a 360 x 640 small-phone check) and `flutter build apk --debug`. The boxes below stay unticked until each screen is checked on the emulator and a
+> real phone against the backend, which needs A1, A2 and A4 done on this PC first (no emulator, backend `.env` or
+> `vendor` yet). Notes from the build:
+> - `POST /auth/apply-rider` (signed-in) now answers **403** and points to the public form, so the app only has the
+>   public **Become a rider** form (`/become-rider`, linked under Sign in). A rider uses an email of their own.
+> - Location is shared whenever the server says the rider has a parcel to collect or carry (`/rider/location/status`),
+>   **also while Offline**, because going Offline keeps the jobs already accepted. With no parcels nothing is sent and
+>   the foreground service stops. Pickups and Deliveries lock behind "Turn on your location" while it's needed and
+>   off, like the website's `RiderLocationGate`.
+> - The offer **sound**: Flutter can only play a click on Android, so the offer vibrates three times and clicks. A
+>   real alert sound needs a new package (for example `audioplayers`); ask before adding it.
+> - Added to the shared base (tell Amaru): rider rules in `core/validation/rules.dart` (`licenseNumber`,
+>   `licenseExpiry`, `plateNumber`, `vehicleType`, `codCollected`, `remittanceAmount`, `paymentReference`) with
+>   `Only.plateChars`, `Only.licenseChars`, `Only.referenceChars`; `AuthPaths.becomeRider`; location permissions in
+>   `AndroidManifest.xml`.
 
 The whole plan is in `amaru.md`: Amaru builds the setup and shared base (Part A) and the buyer app (Part B), Liam builds the logistics app (Part D, `liam.md`), and you build the **rider** app (Part C) here. It's one app: after sign-in, a rider account opens the rider screens.
 
@@ -8,15 +27,15 @@ The whole plan is in `amaru.md`: Amaru builds the setup and shared base (Part A)
 
 ## Before you start
 
-- [ ] **Part A is merged into `main`.** Amaru tells you. You need its shared base.
-- [ ] On your own PC, do tasks **A1, A2 and A4 in `amaru.md`**: install Android Studio, Flutter and the emulator, and run the backend.
-- [ ] Make your branch from the updated `main`:
+- [x] **Part A is merged into `main`.** Amaru tells you. You need its shared base. (Parts A and B are in `main`, PR #47.)
+- [ ] On your own PC, do tasks **A1, A2 and A4 in `amaru.md`**: install Android Studio, Flutter and the emulator, and run the backend. (Flutter is upgraded to 3.47.9 stable, which the project needs. Still to do: accept the Android licenses with `flutter doctor --android-licenses`, create the emulator, and set up the backend's `.env`, `composer install` and the `velure` database.)
+- [x] Make your branch from the updated `main`:
   ```
   git checkout main
   git pull
   git checkout -b king/mobile-part-c
   ```
-- [ ] Read `guides/RIDER.md`, `docs/api/rider-*.md` and section 6 of `HOW_IT_WORKS.md`.
+- [x] Read `guides/RIDER.md`, `docs/api/rider-*.md` and section 6 of `HOW_IT_WORKS.md`.
 - [ ] Also follow these parts of `amaru.md`: **Ground rules**, **Validation rules for the app** and the **Security checklist**.
 
 **Use Part A's shared base, don't copy it:** the API client and error handling (`core/api/`), the session (`core/session/`), the rules and input formatters (`Rules`, `Only` in `core/validation/`), `AppTextField` and the other widgets, the photo picker (`core/media/`), live updates (`core/realtime/`) and the theme. If something you need is missing, add it to `core/` and tell Amaru.
