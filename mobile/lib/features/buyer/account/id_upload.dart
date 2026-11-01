@@ -61,6 +61,7 @@ class IdUpload extends StatelessWidget {
       children: [
         DropdownButtonFormField<GovernmentId>(
           initialValue: type,
+          isExpanded: true,
           decoration: InputDecoration(
             labelText: 'Government ID',
             errorText:

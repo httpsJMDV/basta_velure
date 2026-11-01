@@ -173,7 +173,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final address = _address;
     if (quote == null || address == null) return;
     if (_payment == 'gcash') {
-      final formOk = _gcashForm.currentState?.validate() ?? false;
+      final formOk = _gcashForm.currentState?.validateAndReveal() ?? false;
       final missing = quote.stores.where(
         (store) => !_receipts.containsKey(store.seller.id),
       );
@@ -252,43 +252,47 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ? const SkeletonList(count: 4)
           : Form(
               key: _gcashForm,
-              child: ListView(
+              // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.only(
                   top: AppSpace.md,
                   bottom: AppSpace.xl,
                 ),
-                children: [
-                  if (idCheck.hasValue && !canOrder)
-                    _IdNotice(status: idCheck.value!),
-                  _AddressCard(address: _address, onTap: _pickAddress),
-                  if (_placeFailure != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpace.lg,
-                        0,
-                        AppSpace.lg,
-                        AppSpace.md,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (idCheck.hasValue && !canOrder)
+                      _IdNotice(status: idCheck.value!),
+                    _AddressCard(address: _address, onTap: _pickAddress),
+                    if (_placeFailure != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpace.lg,
+                          0,
+                          AppSpace.lg,
+                          AppSpace.md,
+                        ),
+                        child: MessageBanner(message: _placeFailure!.message),
                       ),
-                      child: MessageBanner(message: _placeFailure!.message),
-                    ),
-                  for (final problem in quote.problems)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpace.lg,
-                        0,
-                        AppSpace.lg,
-                        AppSpace.md,
+                    for (final problem in quote.problems)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpace.lg,
+                          0,
+                          AppSpace.lg,
+                          AppSpace.md,
+                        ),
+                        child: MessageBanner(
+                          message: problem.message,
+                          tone: StatusTone.amber,
+                        ),
                       ),
-                      child: MessageBanner(
-                        message: problem.message,
-                        tone: StatusTone.amber,
-                      ),
-                    ),
-                  for (final store in quote.stores) _storeBlock(quote, store),
-                  _platformVouchers(quote),
-                  _paymentBlock(quote),
-                  _totals(quote),
-                ],
+                    for (final store in quote.stores) _storeBlock(quote, store),
+                    _platformVouchers(quote),
+                    _paymentBlock(quote),
+                    _totals(quote),
+                  ],
+                ),
               ),
             ),
       bottomNavigationBar: quote == null

@@ -848,6 +848,26 @@ void main() {
   }
 
   group('hub', () {
+    testWidgets('The hub bar can be pressed with a screen reader', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await openApp(tester, hubServer());
+      for (final label in ['Home', 'Sorting', 'Dispatch', 'More']) {
+        expect(
+          tester.getSemantics(find.bySemanticsLabel(label)),
+          isSemantics(label: label, isButton: true, hasTapAction: true),
+        );
+      }
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Scan parcels')),
+        isSemantics(isButton: true, hasTapAction: true),
+      );
+      expect(find.bySemanticsLabel('Scan'), findsNothing);
+      await closeApp(tester);
+      semantics.dispose();
+    });
+
     testWidgets('Home: 4 numbers, alerts, and the hub bar with Scan', (
       tester,
     ) async {

@@ -11,6 +11,9 @@ void main() {
   late ProviderContainer container;
 
   Future<void> openApp(WidgetTester tester, FakeApi api) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
     container = containerWith(api, MemoryTokenStore());
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -115,6 +118,51 @@ void main() {
     expect(find.text('Search Loved-IT'), findsOneWidget);
     expect(find.text('Cart'), findsOneWidget);
     expect(find.text('Account'), findsOneWidget);
+    await closeApp(tester);
+  });
+
+  testWidgets('a courier team member lands on the courier screens', (
+    tester,
+  ) async {
+    await openApp(
+      tester,
+      FakeApi({
+        'POST /auth/login': (_) => jsonBody(200, {
+          'token': 't',
+          'data': userJson(
+            logisticsCompany: {
+              'id': 1,
+              'name': 'Demo Courier Co.',
+              'status': 'APPROVED',
+              'role': 'owner',
+            },
+          ),
+        }),
+      }),
+    );
+    await signIn(tester, 'courier1', 'courier123');
+    // The courier bar, not the hub's Sorting and Dispatch.
+    expect(find.text('Hubs'), findsOneWidget);
+    expect(find.text('Parcels'), findsOneWidget);
+    expect(find.text('Sorting'), findsNothing);
+    await closeApp(tester);
+  });
+
+  testWidgets('hub staff land on the hub screens', (tester) async {
+    await openApp(
+      tester,
+      FakeApi({
+        'POST /auth/login': (_) => jsonBody(200, {
+          'token': 't',
+          'data': userJson(
+            sortingCenter: {'id': 1, 'name': 'Hub', 'status': 'APPROVED'},
+          ),
+        }),
+      }),
+    );
+    await signIn(tester, 'hub1', 'hub123');
+    expect(find.text('Sorting'), findsOneWidget);
+    expect(find.text('Hubs'), findsNothing);
     await closeApp(tester);
   });
 

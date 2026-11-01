@@ -414,6 +414,10 @@ class _CategoryGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categories = ref.watch(categoriesProvider);
+    // Nothing to show: no heading over an empty gap.
+    if (categories.value?.every((category) => category.isOthers) ?? false) {
+      return const SizedBox.shrink();
+    }
     return Column(
       children: [
         SectionHeader(

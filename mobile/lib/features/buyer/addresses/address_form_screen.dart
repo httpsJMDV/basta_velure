@@ -144,7 +144,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       _showPlaceErrors = true;
       _failure = null;
     });
-    final fieldsOk = _form.currentState!.validate();
+    final fieldsOk = _form.currentState!.validateAndReveal();
     if (!fieldsOk ||
         _region == null ||
         _province == null ||
@@ -195,129 +195,134 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       ),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
-              const SizedBox(height: AppSpace.lg),
-            ],
-            if (widget.address?.needsUpdate ?? false) ...[
-              const MessageBanner(
-                message: 'Pick the region, city and barangay again so the courier can find this address.',
-                tone: StatusTone.amber,
-              ),
-              const SizedBox(height: AppSpace.lg),
-            ],
-            AppTextField(
-              label: 'Full name',
-              controller: _name,
-              keyboardType: TextInputType.name,
-              textCapitalization: TextCapitalization.words,
-              maxLength: 100,
-              validator: Rules.addressFullName,
-              serverError: _failure?.errorFor('full_name'),
-            ),
-            const SizedBox(height: AppSpace.md),
-            AppTextField(
-              label: 'Mobile number',
-              controller: _phone,
-              hint: '09XXXXXXXXX',
-              keyboardType: TextInputType.phone,
-              inputFormatters: [Only.mobileChars, Only.max(13)],
-              validator: Rules.mobile,
-              serverError: _failure?.errorFor('phone'),
-            ),
-            const SizedBox(height: AppSpace.lg),
-            _PlaceField(
-              label: 'Region',
-              value: _region?.name,
-              error: _showPlaceErrors && _region == null
-                  ? 'Choose the region.'
-                  : null,
-              onTap: _pickRegion,
-            ),
-            if (!_isNcr)
-              _PlaceField(
-                label: 'Province',
-                value: _province?.name,
-                enabled: _region != null,
-                error: _showPlaceErrors && _region != null && _province == null
-                    ? 'Choose the province.'
-                    : null,
-                onTap: _pickProvince,
-              ),
-            _PlaceField(
-              label: 'City or municipality',
-              value: _city?.name,
-              enabled: _province != null,
-              error: _showPlaceErrors && _province != null && _city == null
-                  ? 'Choose the city or municipality.'
-                  : null,
-              onTap: _pickCity,
-            ),
-            _PlaceField(
-              label: 'Barangay',
-              value: _barangay?.name,
-              enabled: _city != null,
-              error:
-                  placeError ??
-                  (_showPlaceErrors && _city != null && _barangay == null
-                      ? 'Choose the barangay.'
-                      : null),
-              onTap: _pickBarangay,
-            ),
-            const SizedBox(height: AppSpace.sm),
-            AppTextField(
-              label: 'Street, house or building',
-              controller: _street,
-              maxLength: 255,
-              textCapitalization: TextCapitalization.words,
-              validator: (value) => (value ?? '').trim().isEmpty
-                  ? 'Enter the street, house or building.'
-                  : Rules.maxLength(value, 'Street', 255),
-              serverError: _failure?.errorFor('address'),
-            ),
-            const SizedBox(height: AppSpace.md),
-            AppTextField(
-              label: 'Floor or unit (optional)',
-              controller: _floor,
-              maxLength: 100,
-              validator: (value) =>
-                  Rules.maxLength(value, 'Floor or unit', 100),
-              serverError: _failure?.errorFor('floor_unit'),
-            ),
-            const SizedBox(height: AppSpace.lg),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'home',
-                  label: Text('Home'),
-                  icon: Icon(LucideIcons.house, size: 16),
-                ),
-                ButtonSegment(
-                  value: 'office',
-                  label: Text('Office'),
-                  icon: Icon(LucideIcons.building2, size: 16),
-                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+                MessageBanner(message: _failure!.message),
+                const SizedBox(height: AppSpace.lg),
               ],
-              selected: {_label},
-              onSelectionChanged: (picked) =>
-                  setState(() => _label = picked.first),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Use as my default address'),
-              value: _isDefault,
-              onChanged: (on) => setState(() => _isDefault = on),
-            ),
-            const SizedBox(height: AppSpace.lg),
-            SubmitButton(
-              label: 'Save address',
-              busyLabel: 'Saving…',
-              onPressed: _save,
-            ),
-          ],
+              if (widget.address?.needsUpdate ?? false) ...[
+                const MessageBanner(
+                  message: 'Pick the region, city and barangay again so the courier can find this address.',
+                  tone: StatusTone.amber,
+                ),
+                const SizedBox(height: AppSpace.lg),
+              ],
+              AppTextField(
+                label: 'Full name',
+                controller: _name,
+                keyboardType: TextInputType.name,
+                textCapitalization: TextCapitalization.words,
+                maxLength: 100,
+                validator: Rules.addressFullName,
+                serverError: _failure?.errorFor('full_name'),
+              ),
+              const SizedBox(height: AppSpace.md),
+              AppTextField(
+                label: 'Mobile number',
+                controller: _phone,
+                hint: '09XXXXXXXXX',
+                keyboardType: TextInputType.phone,
+                inputFormatters: [Only.mobileChars, Only.max(13)],
+                validator: Rules.mobile,
+                serverError: _failure?.errorFor('phone'),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              _PlaceField(
+                label: 'Region',
+                value: _region?.name,
+                error: _showPlaceErrors && _region == null
+                    ? 'Choose the region.'
+                    : null,
+                onTap: _pickRegion,
+              ),
+              if (!_isNcr)
+                _PlaceField(
+                  label: 'Province',
+                  value: _province?.name,
+                  enabled: _region != null,
+                  error:
+                      _showPlaceErrors && _region != null && _province == null
+                      ? 'Choose the province.'
+                      : null,
+                  onTap: _pickProvince,
+                ),
+              _PlaceField(
+                label: 'City or municipality',
+                value: _city?.name,
+                enabled: _province != null,
+                error: _showPlaceErrors && _province != null && _city == null
+                    ? 'Choose the city or municipality.'
+                    : null,
+                onTap: _pickCity,
+              ),
+              _PlaceField(
+                label: 'Barangay',
+                value: _barangay?.name,
+                enabled: _city != null,
+                error:
+                    placeError ??
+                    (_showPlaceErrors && _city != null && _barangay == null
+                        ? 'Choose the barangay.'
+                        : null),
+                onTap: _pickBarangay,
+              ),
+              const SizedBox(height: AppSpace.sm),
+              AppTextField(
+                label: 'Street, house or building',
+                controller: _street,
+                maxLength: 255,
+                textCapitalization: TextCapitalization.words,
+                validator: (value) => (value ?? '').trim().isEmpty
+                    ? 'Enter the street, house or building.'
+                    : Rules.maxLength(value, 'Street', 255),
+                serverError: _failure?.errorFor('address'),
+              ),
+              const SizedBox(height: AppSpace.md),
+              AppTextField(
+                label: 'Floor or unit (optional)',
+                controller: _floor,
+                maxLength: 100,
+                validator: (value) =>
+                    Rules.maxLength(value, 'Floor or unit', 100),
+                serverError: _failure?.errorFor('floor_unit'),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'home',
+                    label: Text('Home'),
+                    icon: Icon(LucideIcons.house, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: 'office',
+                    label: Text('Office'),
+                    icon: Icon(LucideIcons.building2, size: 16),
+                  ),
+                ],
+                selected: {_label},
+                onSelectionChanged: (picked) =>
+                    setState(() => _label = picked.first),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Use as my default address'),
+                value: _isDefault,
+                onChanged: (on) => setState(() => _isDefault = on),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              SubmitButton(
+                label: 'Save address',
+                busyLabel: 'Saving…',
+                onPressed: _save,
+              ),
+            ],
+          ),
         ),
       ),
     );

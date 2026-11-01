@@ -98,7 +98,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _save() async {
     setState(() => _failure = null);
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validateAndReveal()) return;
     try {
       final message = await _send(ref, '/auth/profile', {
         'first_name': Rules.squish(_first.text),
@@ -125,81 +125,88 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: AppBar(title: const Text('Profile')),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 44,
-                    backgroundColor: AppColors.brandRedTint,
-                    child: avatar == null
-                        ? const Icon(
-                            LucideIcons.user,
-                            size: 36,
-                            color: AppColors.brandRed,
-                          )
-                        : ClipOval(
-                            child: NetImage(avatar, width: 88, height: 88),
-                          ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _uploading ? null : _changePhoto,
-                    icon: const Icon(LucideIcons.camera, size: 18),
-                    label: Text(_uploading ? 'Uploading…' : 'Change photo'),
-                  ),
-                ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 44,
+                      backgroundColor: AppColors.brandRedTint,
+                      child: avatar == null
+                          ? const Icon(
+                              LucideIcons.user,
+                              size: 36,
+                              color: AppColors.brandRed,
+                            )
+                          : ClipOval(
+                              child: NetImage(avatar, width: 88, height: 88),
+                            ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _uploading ? null : _changePhoto,
+                      icon: const Icon(LucideIcons.camera, size: 18),
+                      label: Text(_uploading ? 'Uploading…' : 'Change photo'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
-              const SizedBox(height: AppSpace.md),
-            ],
-            _NameField(
-              controller: _first,
-              label: 'First name',
-              failure: _failure,
-              field: 'first_name',
-            ),
-            _NameField(
-              controller: _middle,
-              label: 'Middle name (optional)',
-              failure: _failure,
-              field: 'middle_name',
-              required: false,
-            ),
-            _NameField(
-              controller: _last,
-              label: 'Last name',
-              failure: _failure,
-              field: 'last_name',
-            ),
-            DateOfBirthField(
-              initialValue: _birthday,
-              serverError: _failure?.errorFor('date_of_birth'),
-              onChanged: (value) => _birthday = value,
-            ),
-            const SizedBox(height: AppSpace.md),
-            DropdownButtonFormField<String>(
-              initialValue: _sex,
-              decoration: const InputDecoration(labelText: 'Sex'),
-              items: [
-                for (final entry in _sexes.entries)
-                  DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+                MessageBanner(message: _failure!.message),
+                const SizedBox(height: AppSpace.md),
               ],
-              onChanged: (value) => setState(() => _sex = value),
-            ),
-            const SizedBox(height: AppSpace.md),
-            InfoRow('Email', user.email),
-            InfoRow('Mobile number', user.phoneLocal ?? '—'),
-            const SizedBox(height: AppSpace.xl),
-            SubmitButton(
-              label: 'Save profile',
-              busyLabel: 'Saving…',
-              onPressed: _save,
-            ),
-          ],
+              _NameField(
+                controller: _first,
+                label: 'First name',
+                failure: _failure,
+                field: 'first_name',
+              ),
+              _NameField(
+                controller: _middle,
+                label: 'Middle name (optional)',
+                failure: _failure,
+                field: 'middle_name',
+                required: false,
+              ),
+              _NameField(
+                controller: _last,
+                label: 'Last name',
+                failure: _failure,
+                field: 'last_name',
+              ),
+              DateOfBirthField(
+                initialValue: _birthday,
+                serverError: _failure?.errorFor('date_of_birth'),
+                onChanged: (value) => _birthday = value,
+              ),
+              const SizedBox(height: AppSpace.md),
+              DropdownButtonFormField<String>(
+                initialValue: _sex,
+                decoration: const InputDecoration(labelText: 'Sex'),
+                items: [
+                  for (final entry in _sexes.entries)
+                    DropdownMenuItem(
+                      value: entry.key,
+                      child: Text(entry.value),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _sex = value),
+              ),
+              const SizedBox(height: AppSpace.md),
+              InfoRow('Email', user.email),
+              InfoRow('Mobile number', user.phoneLocal ?? '—'),
+              const SizedBox(height: AppSpace.xl),
+              SubmitButton(
+                label: 'Save profile',
+                busyLabel: 'Saving…',
+                onPressed: _save,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -270,7 +277,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
 
   Future<void> _save() async {
     setState(() => _failure = null);
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validateAndReveal()) return;
     try {
       final message = await _send(ref, '/auth/change-password', {
         'current_password': _current.text,
@@ -291,59 +298,64 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       appBar: AppBar(title: const Text('Change password')),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+                MessageBanner(message: _failure!.message),
+                const SizedBox(height: AppSpace.md),
+              ],
+              AppTextField(
+                label: 'Current password',
+                controller: _current,
+                obscure: true,
+                autofillHints: const [AutofillHints.password],
+                validator: (value) => (value ?? '').isEmpty
+                    ? 'Enter your current password.'
+                    : null,
+                serverError: _failure?.errorFor('current_password'),
+              ),
               const SizedBox(height: AppSpace.md),
+              AppTextField(
+                label: 'New password',
+                controller: _password,
+                obscure: true,
+                autofillHints: const [AutofillHints.newPassword],
+                onChanged: (_) => setState(() {}),
+                validator: (value) {
+                  final rule = Rules.password(value);
+                  if (rule != null) return rule;
+                  return value == _current.text
+                      ? 'Choose a password different from your current one.'
+                      : null;
+                },
+                serverError: _failure?.errorFor('password'),
+              ),
+              PasswordChecklist(password: _password.text),
+              const SizedBox(height: AppSpace.md),
+              AppTextField(
+                label: 'Confirm new password',
+                controller: _confirm,
+                obscure: true,
+                validator: (value) =>
+                    Rules.passwordConfirmation(_password.text, value),
+              ),
+              const SizedBox(height: AppSpace.md),
+              const Text(
+                'Your other phones and browsers will be signed out.',
+                style: TextStyle(fontSize: 13, color: AppColors.stone500),
+              ),
+              const SizedBox(height: AppSpace.xl),
+              SubmitButton(
+                label: 'Change password',
+                busyLabel: 'Saving…',
+                onPressed: _save,
+              ),
             ],
-            AppTextField(
-              label: 'Current password',
-              controller: _current,
-              obscure: true,
-              autofillHints: const [AutofillHints.password],
-              validator: (value) =>
-                  (value ?? '').isEmpty ? 'Enter your current password.' : null,
-              serverError: _failure?.errorFor('current_password'),
-            ),
-            const SizedBox(height: AppSpace.md),
-            AppTextField(
-              label: 'New password',
-              controller: _password,
-              obscure: true,
-              autofillHints: const [AutofillHints.newPassword],
-              onChanged: (_) => setState(() {}),
-              validator: (value) {
-                final rule = Rules.password(value);
-                if (rule != null) return rule;
-                return value == _current.text
-                    ? 'Choose a password different from your current one.'
-                    : null;
-              },
-              serverError: _failure?.errorFor('password'),
-            ),
-            PasswordChecklist(password: _password.text),
-            const SizedBox(height: AppSpace.md),
-            AppTextField(
-              label: 'Confirm new password',
-              controller: _confirm,
-              obscure: true,
-              validator: (value) =>
-                  Rules.passwordConfirmation(_password.text, value),
-            ),
-            const SizedBox(height: AppSpace.md),
-            const Text(
-              'Your other phones and browsers will be signed out.',
-              style: TextStyle(fontSize: 13, color: AppColors.stone500),
-            ),
-            const SizedBox(height: AppSpace.xl),
-            SubmitButton(
-              label: 'Change password',
-              busyLabel: 'Saving…',
-              onPressed: _save,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -429,7 +441,7 @@ class _CodeChangeScreenState extends ConsumerState<_CodeChangeScreen> {
 
   Future<void> _request() async {
     setState(() => _failure = null);
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validateAndReveal()) return;
     try {
       final message = await _send(ref, widget.requestPath, {
         widget.field: widget.normalize(_value.text),
@@ -442,7 +454,7 @@ class _CodeChangeScreenState extends ConsumerState<_CodeChangeScreen> {
 
   Future<void> _confirm() async {
     setState(() => _failure = null);
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validateAndReveal()) return;
     try {
       final message = await _send(ref, widget.confirmPath, {
         'code': _code.text.trim(),
@@ -463,56 +475,60 @@ class _CodeChangeScreenState extends ConsumerState<_CodeChangeScreen> {
       appBar: AppBar(title: Text(widget.title)),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
-              const SizedBox(height: AppSpace.md),
-            ],
-            AppTextField(
-              label: widget.fieldLabel,
-              controller: _value,
-              enabled: !waiting,
-              keyboardType: widget.keyboardType,
-              inputFormatters: widget.formatters,
-              validator: widget.validator,
-              serverError: _failure?.errorFor(widget.field),
-            ),
-            if (waiting) ...[
-              const SizedBox(height: AppSpace.md),
-              MessageBanner(
-                message: _sentMessage!,
-                tone: StatusTone.blue,
-                icon: LucideIcons.mail,
-              ),
-              const SizedBox(height: AppSpace.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+                MessageBanner(message: _failure!.message),
+                const SizedBox(height: AppSpace.md),
+              ],
               AppTextField(
-                label: '6-digit code',
-                controller: _code,
-                keyboardType: TextInputType.number,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                inputFormatters: [Only.digits, Only.max(6)],
-                validator: Rules.emailCode,
-                serverError: _failure?.errorFor('code'),
+                label: widget.fieldLabel,
+                controller: _value,
+                enabled: !waiting,
+                keyboardType: widget.keyboardType,
+                inputFormatters: widget.formatters,
+                validator: widget.validator,
+                serverError: _failure?.errorFor(widget.field),
               ),
-              TextButton(
-                onPressed: () => setState(() {
-                  _sentMessage = null;
-                  _code.clear();
-                }),
-                child: Text(
-                  'Use a different ${widget.field == 'email' ? 'email' : 'number'}',
+              if (waiting) ...[
+                const SizedBox(height: AppSpace.md),
+                MessageBanner(
+                  message: _sentMessage!,
+                  tone: StatusTone.blue,
+                  icon: LucideIcons.mail,
                 ),
+                const SizedBox(height: AppSpace.md),
+                AppTextField(
+                  label: '6-digit code',
+                  controller: _code,
+                  keyboardType: TextInputType.number,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  inputFormatters: [Only.digits, Only.max(6)],
+                  validator: Rules.emailCode,
+                  serverError: _failure?.errorFor('code'),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _sentMessage = null;
+                    _code.clear();
+                  }),
+                  child: Text(
+                    'Use a different ${widget.field == 'email' ? 'email' : 'number'}',
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpace.xl),
+              SubmitButton(
+                label: waiting ? 'Confirm' : 'Send code',
+                busyLabel: waiting ? 'Checking…' : 'Sending…',
+                onPressed: waiting ? _confirm : _request,
               ),
             ],
-            const SizedBox(height: AppSpace.xl),
-            SubmitButton(
-              label: waiting ? 'Confirm' : 'Send code',
-              busyLabel: waiting ? 'Checking…' : 'Sending…',
-              onPressed: waiting ? _confirm : _request,
-            ),
-          ],
+          ),
         ),
       ),
     );
