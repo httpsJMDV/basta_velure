@@ -16,10 +16,13 @@ Updated October 30, 2026. Tick each box when it's done and checked on the emulat
 >   details, the Disapprove reason check and Messages all work, and so does typing a tracking number in Scan, in Receive
 >   and Sort: Received, Sorted, already received and not this hub's parcel. **Not tried on a phone yet:** the courier
 >   team's screens, the real camera, torch, vibration and damage photo, and anything against the real backend.
-> - **Still to fix:** the hub's bottom bar (`hub/hub_shell.dart`) can't be pressed with a screen reader. `_BarItem` and
->   `_ScanButton` need `onTap:` on their `Semantics`, and the `Scan` label needs `ExcludeSemantics`.
+> - **Fixed Nov 1 (JM):** the hub's bottom bar now works with a screen reader. A courier account used to land on the hub
+>   screens right after signing in (`router.dart` read the user before it had caught up, so it fell back to the hub); it
+>   now lands on the courier screens. Found by running hub and courier against a real backend on the Pixel 8 emulator.
 > - **Not explained:** one time, tapping Scan after reopening the app showed a rider chat instead of Scan. It didn't
->   happen again, and test scripts were also tapping that phone, so they may have caused it. Watch for it.
+>   happen again, and test scripts were also tapping that phone, so they may have caused it. On Nov 1 Scan opened
+>   correctly 3 times out of 3 after reopening the app on the emulator, and the button has only the one path to Scan.
+>   Tell JM if you see it again.
 > - **First build on a new PC:** it may stop with `Failed to find target with hash string 'android-37'` right after
 >   Gradle installs the platform. Run it again and it passes. Let Gradle install `android-37.0` itself: the copy
 >   `sdkmanager` installed was not recognised. On a laptop with little RAM, lower Gradle's 8 GB in

@@ -13,6 +13,9 @@ lists are in `amaru.md` (Parts A, B, E), `king.md` (Part C) and `liam.md` (Part 
 
 Before every commit: `dart format .`, `flutter analyze` (no issues) and `flutter test` (all pass).
 
+Installing the Android SDK by hand: use command-line tools **22** (`cmdline-tools;22.0`), not 23. Version 23 stops
+Flutter from installing the NDK, and Gradle (AGP 9.1) can't find the `android-37.0` it installs.
+
 ## Where things are
 
 | Path | What |

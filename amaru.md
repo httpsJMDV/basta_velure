@@ -7,6 +7,13 @@ Updated October 29, 2026. Tick each box when it's done and checked on the emulat
 > local backend and the `velure` database, plus `flutter analyze` and `flutter test`. Not yet done: a real phone
 > (A2, B14), signing the emulator into a Google account and the Google Cloud Android client (B1, B2, E), merging
 > Parts A and B after a teammate tries them, and the web bug check at the end of this file.
+>
+> **Status, Nov 1 (JM):** Parts A to D are in `main`. Part E's release setup is done on `jm/mobile-part-e` with a **new
+> release key** made on JM's PC, which replaces Amaru's (see Part E). Every read call and the main actions (cart, COD
+> checkout, cancel, confirm received, rider Online, hub receive, chat) were run for buyer, rider, hub and courier
+> against a real backend on a fresh demo database, which found and fixed a courier sign-in bug. Sign-in, sign-up, email
+> code, forgot password and Complete profile were redesigned to match the website's auth pages. Still needed: the
+> Google Cloud Android clients, Google sign-in on a phone, and going through the guides on real phones.
 
 | Who | Part | File | What |
 |---|---|---|---|
@@ -374,7 +381,9 @@ The buyer app should feel like **loved-it.shop on a phone**. Open the website on
   keytool -list -v -keystore "%USERPROFILE%\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
   ```
   Each teammate's PC has its own debug key, so add each SHA-1 (and the release key's later). Amaru's debug SHA-1:
-  `04:1E:1E:F1:21:FD:DD:D8:3F:B7:B3:72:5D:32:2F:09:4C:6B:B4:08`. Release SHA-1: `7F:0B:36:B7:D8:77:A5:5D:42:DB:2A:0F:91:B2:F8:68:F7:20:65:DF`.
+  `04:1E:1E:F1:21:FD:DD:D8:3F:B7:B3:72:5D:32:2F:09:4C:6B:B4:08`. JM's debug SHA-1:
+  `6D:12:90:DA:00:1C:64:27:F2:17:0A:2E:CB:E0:86:33:E3:2D:B4:A3`. Release SHA-1 (JM's key, Part E):
+  `D9:F1:EE:6D:74:BC:54:12:8D:3D:73:17:94:FC:A0:C0:5B:B3:91:4A`.
 - [x] **Forgot password** `POST /auth/forgot-password` `{email}`. The reset link in the email opens the website, which is fine.
 
 **Inputs:** names, email, mobile, date of birth (a date picker only, latest date allowed = 18 years ago), password with a live checklist, a password confirmation that must match, the terms checkbox, and a 6-digit code (digits only).
@@ -559,8 +568,8 @@ This is for all three of you: King and Liam follow it too, along with the securi
 Start once Parts B, C and D are merged: `git checkout main`, `git pull`, `git checkout -b amaru/mobile-part-e`.
 
 - [x] Fix the Google sign-in check on the server first (the last item of the security checklist).
-- [x] Make the release keystore once (`keytool -genkey ...`, see "Build and release an Android app" on docs.flutter.dev). Keep it and its passwords somewhere safe and outside git. Losing it means the app can't be updated.
-- [ ] Add the release key's SHA-1 to the Google Cloud Android client (task B1). Release SHA-1: `7F:0B:36:B7:D8:77:A5:5D:42:DB:2A:0F:91:B2:F8:68:F7:20:65:DF`.
+- [x] Make the release keystore once (`keytool -genkey ...`, see "Build and release an Android app" on docs.flutter.dev). Keep it and its passwords somewhere safe and outside git. Losing it means the app can't be updated. **The key in use is JM's, made Nov 1** (`%USERPROFILE%\.loved-it\loved-it-release.jks`, password in `mobile/android/key.properties`, both on JM's PC only). It replaces Amaru's earlier key, so an APK signed with the old key must be uninstalled before installing a new one. Only build the release from JM's PC, or get a copy of both files from JM.
+- [ ] Add the release key's SHA-1 to the Google Cloud Android client (task B1). Release SHA-1: `D9:F1:EE:6D:74:BC:54:12:8D:3D:73:17:94:FC:A0:C0:5B:B3:91:4A`.
 - [x] `flutter build apk --release --obfuscate --split-debug-info=build/symbols` with `dart_defines/prod.json` (the `https://api.loved-it.shop` addresses).
 - [ ] Install the APK on 2 or 3 different phones and go through the buyer, rider and hub guides once more.
 - [ ] Commit and push Part E (the release settings and the Google fix, **never the keystore or `key.properties`**). The Google fix and the signing setup are already on `amaru/mobile-part-b`, because the app's Google button sends ID tokens; Part E only adds what changes after Parts C and D:
