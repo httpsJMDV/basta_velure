@@ -62,6 +62,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     return AuthLayout(
       title: 'Forgot password',
       subtitle: 'We will email you a link to set a new password.',
+      onBack: () => context.go(AuthPaths.signIn),
       footer: Center(
         child: TextButton(
           onPressed: () => context.go(AuthPaths.signIn),
@@ -93,6 +94,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 AppTextField(
                   label: 'Email',
                   controller: _email,
+                  prefixIcon: LucideIcons.mail,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
                   inputFormatters: [Only.noSpaces],

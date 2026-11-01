@@ -8,6 +8,10 @@ abstract final class AppColors {
   static const brandRedLight = Color(0xFFE8002A);
   static const brandRedTint = Color(0xFFFDECEE);
 
+  // The website's warm page colour and its heading ink (sign-in and sign-up pages).
+  static const cream = Color(0xFFFAF8F5);
+  static const ink = Color(0xFF1E1B18);
+
   static const white = Color(0xFFFFFFFF);
 
   // Warm stone: the storefront's backgrounds and text (tailwind stone)
