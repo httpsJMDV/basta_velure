@@ -162,7 +162,9 @@ class _CommentSheetState extends ConsumerState<_CommentSheet> {
         AppSpace.lg,
         0,
         AppSpace.lg,
-        MediaQuery.viewInsetsOf(context).bottom + AppSpace.lg,
+        MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom +
+            AppSpace.lg,
       ),
       child: Form(
         key: _form,

@@ -104,7 +104,6 @@ class PoliciesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final policies = ref.watch(_policiesProvider);
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Policies')),
       body: policies.when(
         loading: () => const SkeletonList(count: 3),

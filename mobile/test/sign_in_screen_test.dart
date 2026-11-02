@@ -116,8 +116,8 @@ void main() {
     );
     await signIn(tester, 'buyer1', 'buyer123');
     expect(find.text('Search Loved-IT'), findsOneWidget);
-    expect(find.text('Cart'), findsOneWidget);
-    expect(find.text('Account'), findsOneWidget);
+    expect(find.byTooltip('Cart'), findsOneWidget);
+    expect(find.byTooltip('Account'), findsOneWidget);
     await closeApp(tester);
   });
 

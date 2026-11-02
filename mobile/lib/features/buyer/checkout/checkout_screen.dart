@@ -15,6 +15,7 @@ import '../data/account.dart';
 import '../data/buyer_api.dart';
 import '../data/cart.dart';
 import '../data/checkout.dart';
+import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 import 'voucher_picker.dart';
 
@@ -244,7 +245,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final quote = _quote;
 
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Checkout')),
       body: _loadFailure != null
           ? ErrorRetry(failure: _loadFailure!, onRetry: _start)
@@ -300,13 +300,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           : Container(
               decoration: const BoxDecoration(
                 color: AppColors.white,
-                boxShadow: AppShadow.soft,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x141E1B18),
+                    blurRadius: 24,
+                    offset: Offset(0, -6),
+                  ),
+                ],
               ),
               padding: const EdgeInsets.fromLTRB(
                 AppSpace.lg,
-                AppSpace.sm,
+                AppSpace.md,
                 AppSpace.lg,
-                AppSpace.sm,
+                AppSpace.md,
               ),
               child: SafeArea(
                 top: false,
@@ -330,13 +337,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 color: AppColors.stone500,
                               ),
                             ),
-                            PesoText(
-                              quote.total,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.brandRed,
-                              ),
+                            CountingNumber(
+                              value: quote.total.toDouble(),
+                              format: formatPeso,
+                              style: BuyerText.price.copyWith(fontSize: 21),
                             ),
                           ],
                         ),
@@ -374,22 +378,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(
-                LucideIcons.store,
-                size: 18,
-                color: AppColors.stone700,
-              ),
-              const SizedBox(width: AppSpace.sm),
-              Expanded(
-                child: Text(
-                  store.seller.shopName,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
+          BlockTitle(store.seller.shopName),
           const SizedBox(height: AppSpace.md),
           for (final line in store.lines)
             Padding(
@@ -397,7 +386,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  NetImage(line.imageUrl, width: 56, height: 56, radius: 8),
+                  NetImage(
+                    line.imageUrl,
+                    width: 64,
+                    height: 64,
+                    radius: BuyerRadius.field,
+                  ),
                   const SizedBox(width: AppSpace.md),
                   Expanded(
                     child: Column(
@@ -604,46 +598,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Widget _paymentBlock(CheckoutQuote quote) {
     return BlockCard(
-      padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
-      child: RadioGroup<String>(
-        groupValue: _payment,
-        onChanged: (method) {
-          if (method != null) _choosePayment(method);
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpace.lg,
-                AppSpace.sm,
-                AppSpace.lg,
-                0,
-              ),
-              child: Text(
-                'Payment',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            const RadioListTile<String>(
-              value: 'cod',
-              title: Text('Cash on delivery'),
-              subtitle: Text(
-                'Pay the rider the exact amount when your order arrives.',
-              ),
-            ),
-            RadioListTile<String>(
-              value: 'gcash',
-              enabled: quote.gcashPossible,
-              title: const Text('GCash'),
-              subtitle: Text(
-                quote.gcashPossible
-                    ? 'Pay each shop in the GCash app, then enter the reference and add the receipt.'
-                    : 'Not available: a shop in this order has no GCash.',
-              ),
-            ),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BlockTitle('Payment'),
+          const SizedBox(height: AppSpace.md),
+          _PayOption(
+            icon: LucideIcons.banknote,
+            title: 'Cash on delivery',
+            subtitle: 'Pay the rider the exact amount when your order arrives.',
+            selected: _payment == 'cod',
+            onTap: () => _choosePayment('cod'),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          _PayOption(
+            icon: LucideIcons.smartphone,
+            title: 'GCash',
+            subtitle: quote.gcashPossible
+                ? 'Pay each shop in the GCash app, then enter the reference and add the receipt.'
+                : 'Not available: a shop in this order has no GCash.',
+            selected: _payment == 'gcash',
+            onTap: quote.gcashPossible ? () => _choosePayment('gcash') : null,
+          ),
+        ],
       ),
     );
   }
@@ -751,18 +728,138 @@ class _AddressCard extends StatelessWidget {
     final address = this.address;
     return BlockCard(
       padding: EdgeInsets.zero,
-      child: ListTile(
+      child: MenuRow(
+        icon: LucideIcons.mapPin,
+        iconColor: AppColors.brandRed,
+        iconBackground: AppColors.brandRedTint,
+        title: address == null
+            ? 'Add a delivery address'
+            : '${address.fullName} · ${address.phone}',
+        subtitle: address?.oneLine,
         onTap: onTap,
-        minTileHeight: 64,
-        leading: const Icon(LucideIcons.mapPin, color: AppColors.brandRed),
-        title: Text(
-          address == null
-              ? 'Add a delivery address'
-              : '${address.fullName} · ${address.phone}',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+/// A way to pay, as a card that lights up when chosen. Read out as a radio choice.
+class _PayOption extends StatelessWidget {
+  const _PayOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Semantics(
+      inMutuallyExclusiveGroup: true,
+      checked: selected,
+      enabled: enabled,
+      button: true,
+      label: '$title. $subtitle',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: PressScale(
+        scale: 0.985,
+        haptic: true,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: Motion.medium,
+          curve: Motion.glide,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFFFF7F7) : AppColors.white,
+            borderRadius: BorderRadius.circular(BuyerRadius.button),
+            border: Border.all(
+              color: selected ? AppColors.brandRed : AppColors.stone200,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Opacity(
+            opacity: enabled ? 1 : 0.55,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedContainer(
+                  duration: Motion.medium,
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AppColors.brandRedTint
+                        : AppColors.stone100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: selected ? AppColors.brandRed : AppColors.stone600,
+                  ),
+                ),
+                const SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.stone900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          height: 1.35,
+                          color: AppColors.stone500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                AnimatedContainer(
+                  duration: Motion.medium,
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: selected ? AppColors.brandRed : Colors.transparent,
+                    border: Border.all(
+                      color: selected ? AppColors.brandRed : AppColors.stone300,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: AnimatedScale(
+                    scale: selected ? 1 : 0,
+                    duration: Motion.medium,
+                    curve: Curves.easeOutBack,
+                    child: const Icon(
+                      LucideIcons.check,
+                      size: 14,
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        subtitle: address == null ? null : Text(address.oneLine),
-        trailing: const Icon(LucideIcons.chevronRight, size: 18),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -13,6 +14,7 @@ import '../data/buyer_api.dart';
 import '../data/catalog.dart';
 import '../product/product_screen.dart' show VoucherTile;
 import '../product/reviews_sheet.dart';
+import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 
 final _shopProvider = FutureProvider.autoDispose.family<ShopProfile, String>(
@@ -29,7 +31,6 @@ class ShopScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final shop = ref.watch(_shopProvider(shopKey));
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: Text(shop.value?.shopName ?? 'Shop')),
       body: shop.when(
         loading: () => const SkeletonList(count: 4),
@@ -40,6 +41,13 @@ class ShopScreen extends ConsumerWidget {
         data: (profile) => PagedList<ProductSummary>(
           gridColumns: 2,
           gridAspectRatio: productGridAspectRatio,
+          spacing: AppSpace.lg,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.lg,
+            0,
+            AppSpace.lg,
+            AppSpace.lg,
+          ),
           onRefresh: () async => ref.invalidate(_shopProvider(shopKey)),
           load: (page) => ref
               .read(buyerApiProvider)
@@ -87,9 +95,11 @@ class _ShopHeader extends ConsumerStatefulWidget {
 class _ShopHeaderState extends ConsumerState<_ShopHeader> {
   late ShopProfile _profile = widget.profile;
   bool _busy = false;
+  bool _aboutOpen = false;
 
   Future<void> _toggleFollow() async {
     if (_busy) return;
+    HapticFeedback.selectionClick();
     setState(() => _busy = true);
     try {
       final following = await ref
@@ -131,16 +141,30 @@ class _ShopHeaderState extends ConsumerState<_ShopHeader> {
       profile.city,
       profile.province,
     ].whereType<String>().join(', ');
-    return Container(
-      color: AppColors.white,
-      margin: const EdgeInsets.only(bottom: AppSpace.md),
+    final hasAbout =
+        profile.responseTime != null ||
+        profile.businessHours != null ||
+        profile.shippingPolicy != null ||
+        profile.returnPolicy != null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (profile.bannerUrl != null)
-            AspectRatio(aspectRatio: 3, child: NetImage(profile.bannerUrl)),
-          Padding(
-            padding: const EdgeInsets.all(AppSpace.lg),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.lg,
+                AppSpace.xs,
+                AppSpace.lg,
+                AppSpace.lg,
+              ),
+              child: AspectRatio(
+                aspectRatio: 2.6,
+                child: NetImage(profile.bannerUrl, radius: BuyerRadius.card),
+              ),
+            ),
+          BlockCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -156,26 +180,20 @@ class _ShopHeaderState extends ConsumerState<_ShopHeader> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(profile.shopName, style: BuyerText.section),
+                          const SizedBox(height: 2),
                           Text(
-                            profile.shopName,
-                            style: Theme.of(context).textTheme.titleMedium,
+                            [
+                              if (place.isNotEmpty) place,
+                              if (profile.joinedAt != null)
+                                'Joined ${Fmt.date(profile.joinedAt)}',
+                            ].join('\n'),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              height: 1.4,
+                              color: AppColors.stone500,
+                            ),
                           ),
-                          if (place.isNotEmpty)
-                            Text(
-                              place,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.stone500,
-                              ),
-                            ),
-                          if (profile.joinedAt != null)
-                            Text(
-                              'Joined ${Fmt.date(profile.joinedAt)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.stone500,
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -192,63 +210,121 @@ class _ShopHeaderState extends ConsumerState<_ShopHeader> {
                   const SizedBox(height: AppSpace.md),
                   Text(
                     profile.description!,
-                    style: const TextStyle(height: 1.45),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: AppColors.stone700,
+                    ),
                   ),
                 ],
-                const SizedBox(height: AppSpace.md),
+                const SizedBox(height: AppSpace.lg),
                 Row(
                   children: [
                     _Figure('${profile.totalProducts}', 'Products'),
+                    const _FigureDivider(),
                     _Figure('${profile.followerCount}', 'Followers'),
+                    const _FigureDivider(),
                     _Figure(
                       profile.avgRating?.toStringAsFixed(1) ?? '—',
                       'Rating',
                     ),
+                    const _FigureDivider(),
                     _Figure('${profile.commentCount}', 'Comments'),
                   ],
                 ),
-                const SizedBox(height: AppSpace.md),
+                const SizedBox(height: AppSpace.lg),
                 Row(
                   children: [
                     Expanded(
-                      child: profile.isFollowing
-                          ? OutlinedButton.icon(
-                              onPressed: _busy ? null : _toggleFollow,
-                              icon: const Icon(LucideIcons.check, size: 16),
-                              label: const Text('Following'),
-                            )
-                          : FilledButton.icon(
-                              onPressed: _busy ? null : _toggleFollow,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.brandRed,
+                      child: AnimatedSwitcher(
+                        duration: Motion.medium,
+                        child: profile.isFollowing
+                            ? OutlinedButton.icon(
+                                key: const ValueKey('following'),
+                                onPressed: _busy ? null : _toggleFollow,
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(46),
+                                ),
+                                icon: const Icon(LucideIcons.check, size: 16),
+                                label: const Text('Following'),
+                              )
+                            : FilledButton.icon(
+                                key: const ValueKey('follow'),
+                                onPressed: _busy ? null : _toggleFollow,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.brandRed,
+                                  minimumSize: const Size.fromHeight(46),
+                                ),
+                                icon: const Icon(LucideIcons.plus, size: 16),
+                                label: const Text('Follow'),
                               ),
-                              icon: const Icon(LucideIcons.plus, size: 16),
-                              label: const Text('Follow'),
-                            ),
+                      ),
                     ),
-                    const SizedBox(width: AppSpace.md),
+                    const SizedBox(width: AppSpace.sm),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _chat,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(46),
+                        ),
                         icon: const Icon(LucideIcons.messageCircle, size: 16),
                         label: const Text('Chat'),
                       ),
                     ),
                   ],
                 ),
-                if (profile.responseTime != null ||
-                    profile.businessHours != null ||
-                    profile.shippingPolicy != null ||
-                    profile.returnPolicy != null) ...[
-                  const SizedBox(height: AppSpace.md),
-                  if (profile.responseTime != null)
-                    InfoRow('Replies', profile.responseTime!),
-                  if (profile.businessHours != null)
-                    InfoRow('Hours', profile.businessHours!),
-                  if (profile.shippingPolicy != null)
-                    InfoRow('Shipping', profile.shippingPolicy!),
-                  if (profile.returnPolicy != null)
-                    InfoRow('Returns', profile.returnPolicy!),
+                if (hasAbout) ...[
+                  const SizedBox(height: AppSpace.sm),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(BuyerRadius.field),
+                    onTap: () => setState(() => _aboutOpen = !_aboutOpen),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'About this shop',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          AnimatedRotation(
+                            turns: _aboutOpen ? 0.5 : 0,
+                            duration: Motion.medium,
+                            curve: Motion.glide,
+                            child: const Icon(
+                              LucideIcons.chevronDown,
+                              size: 18,
+                              color: AppColors.stone500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  AnimatedSize(
+                    duration: Motion.medium,
+                    curve: Motion.glide,
+                    alignment: Alignment.topCenter,
+                    child: !_aboutOpen
+                        ? const SizedBox(width: double.infinity)
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (profile.responseTime != null)
+                                _AboutLine('Replies', profile.responseTime!),
+                              if (profile.businessHours != null)
+                                _AboutLine('Hours', profile.businessHours!),
+                              if (profile.shippingPolicy != null)
+                                _AboutLine('Shipping', profile.shippingPolicy!),
+                              if (profile.returnPolicy != null)
+                                _AboutLine('Returns', profile.returnPolicy!),
+                            ],
+                          ),
+                  ),
                 ],
               ],
             ),
@@ -272,11 +348,16 @@ class _Figure extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: AppColors.stone900,
+            ),
           ),
+          const SizedBox(height: 1),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppColors.stone500),
+            style: const TextStyle(fontSize: 11.5, color: AppColors.stone500),
           ),
         ],
       ),
@@ -363,16 +444,14 @@ class _ShopFeedback extends ConsumerWidget {
       padding: EdgeInsets.zero,
       child: Column(
         children: [
-          ListTile(
-            minTileHeight: 56,
-            leading: const Icon(LucideIcons.star, color: Color(0xFFF59E0B)),
-            title: const Text('Product reviews'),
-            subtitle: Text(
-              profile.totalReviews == 0
-                  ? 'No reviews yet'
-                  : '${profile.avgRating?.toStringAsFixed(1) ?? '—'} average from ${profile.totalReviews}',
-            ),
-            trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          MenuRow(
+            icon: Icons.star_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            iconBackground: const Color(0xFFFFF8EC),
+            title: 'Product reviews',
+            subtitle: profile.totalReviews == 0
+                ? 'No reviews yet'
+                : '${profile.avgRating?.toStringAsFixed(1) ?? '—'} average from ${profile.totalReviews}',
             onTap: () => showReviewsSheet(
               context,
               title: 'Product reviews',
@@ -381,24 +460,61 @@ class _ShopFeedback extends ConsumerWidget {
                   .shopReviews(profile.shopKey, page: page),
             ),
           ),
-          const Divider(height: 1),
-          ListTile(
-            minTileHeight: 56,
-            leading: const Icon(
-              LucideIcons.messageSquare,
-              color: AppColors.stone600,
-            ),
-            title: const Text('Comments about the shop'),
-            subtitle: Text(
-              profile.commentCount == 0
-                  ? 'No comments yet'
-                  : '${profile.commentCount} comments',
-            ),
-            trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          const MenuDivider(),
+          MenuRow(
+            icon: LucideIcons.messageSquare,
+            title: 'Comments about the shop',
+            subtitle: profile.commentCount == 0
+                ? 'No comments yet'
+                : '${profile.commentCount} comments',
             onTap: () => context.push(BuyerPaths.shopComments(profile.shopKey)),
           ),
         ],
       ),
     );
   }
+}
+
+class _AboutLine extends StatelessWidget {
+  const _AboutLine(this.label, this.text);
+
+  final String label;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.stone500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AppColors.stone800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FigureDivider extends StatelessWidget {
+  const _FigureDivider();
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 26, color: const Color(0xFFEFEBE6));
 }

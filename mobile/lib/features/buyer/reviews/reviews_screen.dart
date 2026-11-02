@@ -44,7 +44,6 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: AppColors.stone50,
         appBar: AppBar(
           title: const Text('Reviews'),
           bottom: const TabBar(

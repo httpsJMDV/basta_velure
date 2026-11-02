@@ -358,22 +358,19 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
         message: 'No hub is taking riders right now. Try again later.',
       );
     }
-    return DropdownButtonFormField<int>(
-      initialValue: _hubId,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Hub you want to ride for'),
-      items: [
+    return AppSelectField<int>(
+      label: 'Hub you want to ride for',
+      sheetTitle: 'Choose a hub',
+      value: _hubId,
+      options: [
         for (final hub in hubs)
-          DropdownMenuItem(
-            value: hub.id,
-            child: Text(
-              [
-                hub.name,
-                if (hub.place.isNotEmpty) hub.place,
-                ?hub.courier,
-              ].join(' · '),
-              overflow: TextOverflow.ellipsis,
-            ),
+          AppOption(
+            hub.id,
+            hub.name,
+            subtitle: [
+              if (hub.place.isNotEmpty) hub.place,
+              ?hub.courier,
+            ].join(' · '),
           ),
       ],
       onChanged: (id) => setState(() {

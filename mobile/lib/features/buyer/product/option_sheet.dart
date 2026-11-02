@@ -123,7 +123,9 @@ class _OptionSheetState extends State<_OptionSheet> {
         AppSpace.lg,
         0,
         AppSpace.lg,
-        MediaQuery.viewInsetsOf(context).bottom + AppSpace.lg,
+        MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom +
+            AppSpace.lg,
       ),
       child: SingleChildScrollView(
         child: Column(

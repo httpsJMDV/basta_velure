@@ -228,20 +228,15 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
             onChanged: (value) => _birthday = value,
           ),
           const SizedBox(height: AppSpace.md),
-          DropdownButtonFormField<String>(
-            initialValue: _sex,
-            decoration: InputDecoration(
-              labelText: 'Sex',
-              errorText:
-                  _failure?.errorFor('sex') ?? required(_sex, 'Choose one.'),
-            ),
-            items: const [
-              DropdownMenuItem(value: 'male', child: Text('Male')),
-              DropdownMenuItem(value: 'female', child: Text('Female')),
-              DropdownMenuItem(
-                value: 'prefer_not_to_say',
-                child: Text('Prefer not to say'),
-              ),
+          AppSelectField<String>(
+            label: 'Sex',
+            value: _sex,
+            errorText:
+                _failure?.errorFor('sex') ?? required(_sex, 'Choose one.'),
+            options: const [
+              AppOption('male', 'Male'),
+              AppOption('female', 'Female'),
+              AppOption('prefer_not_to_say', 'Prefer not to say'),
             ],
             onChanged: (value) => setState(() => _sex = value),
           ),

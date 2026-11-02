@@ -10,6 +10,7 @@ import '../../../core/widgets/widgets.dart';
 import '../buyer_paths.dart';
 import '../data/buyer_api.dart';
 import '../data/orders.dart';
+import '../widgets/buyer_theme.dart';
 
 /// My orders (B9), in the website's tabs with how many are in each.
 class OrdersScreen extends ConsumerStatefulWidget {
@@ -41,21 +42,31 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(
         title: const Text('My orders'),
-        bottom: TabBar(
-          controller: _tabs,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          tabs: [
-            for (final tab in OrderTab.values)
-              Tab(
-                text: (_counts[tab.key] ?? 0) > 0
-                    ? '${tab.label} (${_counts[tab.key]})'
-                    : tab.label,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.sm),
+            child: SizedBox(
+              height: 44,
+              child: TabBar(
+                controller: _tabs,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+                indicatorPadding: const EdgeInsets.symmetric(vertical: 3),
+                tabs: [
+                  for (final tab in OrderTab.values)
+                    Tab(
+                      text: (_counts[tab.key] ?? 0) > 0
+                          ? '${tab.label} (${_counts[tab.key]})'
+                          : tab.label,
+                    ),
+                ],
               ),
-          ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(
@@ -103,95 +114,99 @@ class OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = order.items.firstOrNull;
     final more = order.items.length - 1;
-    return Material(
-      color: AppColors.white,
-      borderRadius: AppRadius.cardAll,
-      child: InkWell(
-        borderRadius: AppRadius.cardAll,
-        onTap: () => context.push(BuyerPaths.order(order.id)),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpace.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    LucideIcons.store,
-                    size: 16,
-                    color: AppColors.stone600,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      order.shopName ?? 'Shop',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  StatusChip(
-                    label: order.status.label,
-                    tone: order.status.tone,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpace.md),
-              if (first != null)
-                Row(
-                  children: [
-                    NetImage(first.imageUrl, width: 60, height: 60, radius: 8),
-                    const SizedBox(width: AppSpace.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            first.productName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            [
-                              if (first.variantLabel != null)
-                                first.variantLabel!,
-                              '×${first.quantity}',
-                              if (more > 0) '+$more more',
-                            ].join(' · '),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.stone500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: AppSpace.md),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${order.orderNumber} · ${Fmt.date(order.createdAt)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.stone500,
-                      ),
-                    ),
-                  ),
-                  const Text('Total ', style: TextStyle(fontSize: 13)),
-                  PesoText(
-                    order.total,
+    return PressScale(
+      scale: 0.985,
+      onTap: () => context.push(BuyerPaths.order(order.id)),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BuyerRadius.cardAll,
+          boxShadow: BuyerShadow.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    order.shopName ?? 'Shop',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.brandRed,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                StatusChip(label: order.status.label, tone: order.status.tone),
+              ],
+            ),
+            const SizedBox(height: AppSpace.md),
+            if (first != null)
+              Row(
+                children: [
+                  NetImage(
+                    first.imageUrl,
+                    width: 68,
+                    height: 68,
+                    radius: BuyerRadius.field,
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          first.productName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13.5, height: 1.3),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          [
+                            if (first.variantLabel != null) first.variantLabel!,
+                            '×${first.quantity}',
+                            if (more > 0) '+$more more',
+                          ].join(' · '),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpace.md),
+              child: Divider(height: 1),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${order.orderNumber} · ${Fmt.date(order.createdAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                PesoText(
+                  order.total,
+                  style: BuyerText.price.copyWith(fontSize: 15.5),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

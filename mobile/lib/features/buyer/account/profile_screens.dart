@@ -184,15 +184,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 onChanged: (value) => _birthday = value,
               ),
               const SizedBox(height: AppSpace.md),
-              DropdownButtonFormField<String>(
-                initialValue: _sex,
-                decoration: const InputDecoration(labelText: 'Sex'),
-                items: [
+              AppSelectField<String>(
+                label: 'Sex',
+                value: _sex,
+                options: [
                   for (final entry in _sexes.entries)
-                    DropdownMenuItem(
-                      value: entry.key,
-                      child: Text(entry.value),
-                    ),
+                    AppOption(entry.key, entry.value),
                 ],
                 onChanged: (value) => setState(() => _sex = value),
               ),

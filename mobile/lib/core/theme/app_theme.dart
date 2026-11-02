@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/motion.dart';
 import 'app_colors.dart';
 
 /// Spacing on a 4 px grid.
@@ -79,6 +80,9 @@ ThemeData buildAppTheme() {
       );
 
   return base.copyWith(
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {TargetPlatform.android: SoftPageTransitions()},
+    ),
     scaffoldBackgroundColor: AppColors.stone50,
     textTheme: text.copyWith(
       headlineSmall: text.headlineSmall?.copyWith(

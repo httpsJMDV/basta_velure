@@ -14,6 +14,7 @@ import '../../../core/widgets/widgets.dart';
 import '../buyer_paths.dart';
 import '../data/buyer_api.dart';
 import '../data/orders.dart';
+import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 
 final orderProvider = FutureProvider.autoDispose.family<Order, int>(
@@ -31,7 +32,6 @@ class OrderDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final order = ref.watch(orderProvider(orderId));
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Order details')),
       body: order.when(
         loading: () => const SkeletonList(count: 4),
@@ -74,6 +74,21 @@ class _StatusCard extends StatelessWidget {
 
   final Order order;
 
+  /// How far along the order is, for the progress bar. Null once it has left the usual path.
+  int? get _step => switch (order.status) {
+    OrderStatus.placed || OrderStatus.confirmed => 0,
+    OrderStatus.preparing ||
+    OrderStatus.readyForPickup ||
+    OrderStatus.pickedUp => 1,
+    OrderStatus.atSortingCenter ||
+    OrderStatus.sorted ||
+    OrderStatus.assignedToRider ||
+    OrderStatus.outForDelivery ||
+    OrderStatus.deliveryFailed => 2,
+    OrderStatus.delivered || OrderStatus.completed => 3,
+    _ => null,
+  };
+
   String? get _note => switch (order.status) {
     OrderStatus.placed when order.paymentMethod == 'gcash' =>
       'The shop is checking your GCash payment.',
@@ -103,18 +118,41 @@ class _StatusCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              StatusChip(label: order.status.label, tone: order.status.tone),
-              const Spacer(),
-              Text(
-                Fmt.date(order.createdAt),
-                style: const TextStyle(fontSize: 12, color: AppColors.stone500),
+              Expanded(
+                child: Text(
+                  order.status.label,
+                  style: BuyerText.screenTitle.copyWith(fontSize: 21),
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  Fmt.date(order.createdAt),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.stone500,
+                  ),
+                ),
               ),
             ],
           ),
+          if (_step != null) ...[
+            const SizedBox(height: AppSpace.md),
+            _OrderProgress(step: _step!),
+          ],
           if (_note != null) ...[
             const SizedBox(height: AppSpace.md),
-            Text(_note!, style: const TextStyle(height: 1.45)),
+            Text(
+              _note!,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.45,
+                color: AppColors.stone700,
+              ),
+            ),
           ],
           if (order.rejectionReason != null) ...[
             const SizedBox(height: AppSpace.md),
@@ -166,16 +204,25 @@ class _TrackingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlockCard(
       padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 64,
-        leading: const Icon(LucideIcons.truck, color: AppColors.brandRed),
-        title: Text(order.trackingNumber!),
-        subtitle: Text(order.courierName ?? 'Courier'),
-        trailing: const Text(
-          'Track',
-          style: TextStyle(
-            color: AppColors.brandRed,
-            fontWeight: FontWeight.w600,
+      child: MenuRow(
+        icon: LucideIcons.truck,
+        iconColor: AppColors.brandRed,
+        iconBackground: AppColors.brandRedTint,
+        title: order.trackingNumber!,
+        subtitle: order.courierName ?? 'Courier',
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.ink,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+          ),
+          child: const Text(
+            'Track',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: AppColors.white,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         onTap: () => context.push(BuyerPaths.track(order.trackingNumber!)),
@@ -217,12 +264,7 @@ class _ReturnCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Return request',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
+              const Expanded(child: BlockTitle('Return request')),
               StatusChip(label: request.statusLabel, tone: StatusTone.amber),
             ],
           ),
@@ -292,11 +334,8 @@ class _ProofCardState extends ConsumerState<_ProofCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Proof of delivery',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: AppSpace.sm),
+          const BlockTitle('Proof of delivery'),
+          const SizedBox(height: AppSpace.md),
           Row(
             children: [
               for (final photo in _photos)
@@ -328,7 +367,9 @@ class _ProofCardState extends ConsumerState<_ProofCard> {
                             );
                           }
                           return ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(
+                              BuyerRadius.field,
+                            ),
                             child: Image.memory(
                               Uint8List.fromList(snapshot.data!),
                               fit: BoxFit.cover,
@@ -361,32 +402,19 @@ class _AddressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlockCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(LucideIcons.mapPin, size: 20, color: AppColors.brandRed),
-          const SizedBox(width: AppSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  [
-                    order.shippingName,
-                    order.shippingPhone,
-                  ].whereType<String>().join(' · '),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                if (order.shippingAddress != null &&
-                    order.shippingAddress!.isNotEmpty)
-                  Text(
-                    order.shippingAddress!,
-                    style: const TextStyle(color: AppColors.stone600),
-                  ),
-              ],
-            ),
-          ),
-        ],
+      padding: EdgeInsets.zero,
+      child: MenuRow(
+        icon: LucideIcons.mapPin,
+        title: [
+          order.shippingName,
+          order.shippingPhone,
+        ].whereType<String>().join(' · '),
+        subtitle:
+            order.shippingAddress != null && order.shippingAddress!.isNotEmpty
+            ? order.shippingAddress
+            : null,
+        trailing: const SizedBox.shrink(),
+        onTap: null,
       ),
     );
   }
@@ -403,10 +431,7 @@ class _ItemsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            order.shopName ?? 'Shop',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          BlockTitle(order.shopName ?? 'Shop'),
           const SizedBox(height: AppSpace.md),
           for (final item in order.items)
             InkWell(
@@ -418,7 +443,12 @@ class _ItemsCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    NetImage(item.imageUrl, width: 56, height: 56, radius: 8),
+                    NetImage(
+                      item.imageUrl,
+                      width: 64,
+                      height: 64,
+                      radius: BuyerRadius.field,
+                    ),
                     const SizedBox(width: AppSpace.md),
                     Expanded(
                       child: Column(
@@ -588,13 +618,20 @@ class _Actions extends ConsumerWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        boxShadow: AppShadow.soft,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x141E1B18),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+        ],
       ),
       padding: const EdgeInsets.fromLTRB(
         AppSpace.lg,
-        AppSpace.sm,
+        AppSpace.md,
         AppSpace.lg,
-        AppSpace.sm,
+        AppSpace.md,
       ),
       child: SafeArea(
         top: false,
@@ -665,7 +702,9 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
         AppSpace.lg,
         0,
         AppSpace.lg,
-        MediaQuery.viewInsetsOf(context).bottom + AppSpace.lg,
+        MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom +
+            AppSpace.lg,
       ),
       child: Form(
         key: _form,
@@ -716,4 +755,67 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
       ),
     );
   }
+}
+
+/// Four segments that fill as the order moves along, with the step names under them.
+class _OrderProgress extends StatelessWidget {
+  const _OrderProgress({required this.step});
+
+  static const _steps = ['Placed', 'Packed', 'On the way', 'Delivered'];
+
+  final int step;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Step ${step + 1} of ${_steps.length}: ${_steps[step]}',
+      excludeSemantics: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < _steps.length; i++) ...[
+            if (i > 0) const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: i <= step ? 1 : 0),
+                    duration: Duration(milliseconds: 380 + 120 * i),
+                    curve: Motion.settle,
+                    builder: (context, fill, _) => ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      child: LinearProgressIndicator(
+                        value: fill,
+                        minHeight: 5,
+                        color: _color(step),
+                        backgroundColor: AppColors.stone100,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _steps[i],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: i == step ? FontWeight.w600 : FontWeight.w400,
+                      color: i <= step
+                          ? AppColors.stone800
+                          : AppColors.stone400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Green once delivered, brand red on the way there.
+  static Color _color(int step) =>
+      step == 3 ? StatusTone.emerald.foreground : AppColors.brandRed;
 }

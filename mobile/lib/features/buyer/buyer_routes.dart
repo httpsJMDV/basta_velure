@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'account/account_screen.dart';
@@ -30,12 +31,23 @@ import 'reviews/reviews_screen.dart';
 import 'reviews/write_review_screen.dart';
 import 'shop/shop_comments_screen.dart';
 import 'shop/shop_screen.dart';
+import 'widgets/buyer_theme.dart';
+import 'widgets/buyer_widgets.dart' show ProductHero;
 
-/// Part B (Amaru): every buyer screen lives under `/buyer`. The five tabs share the bottom bar; everything else
-/// opens over it.
+/// A buyer screen outside the tabs, in the buyer app's look.
+GoRoute _screen(String path, Widget Function(GoRouterState state) build) =>
+    GoRoute(
+      path: path,
+      builder: (_, state) => BuyerThemed(child: build(state)),
+    );
+
+/// Part B (Amaru): every buyer screen lives under `/buyer`. The five tabs share the dock; everything else opens over
+/// it.
 final buyerRoutes = <RouteBase>[
-  StatefulShellRoute.indexedStack(
+  StatefulShellRoute(
     builder: (_, _, shell) => BuyerShell(shell: shell),
+    navigatorContainerBuilder: (_, shell, children) =>
+        BuyerBranches(index: shell.currentIndex, children: children),
     branches: [
       StatefulShellBranch(
         routes: [
@@ -73,112 +85,91 @@ final buyerRoutes = <RouteBase>[
       ),
     ],
   ),
-  GoRoute(
-    path: BuyerPaths.search,
-    builder: (_, state) {
-      final query = state.uri.queryParameters;
-      return SearchScreen(
-        initialQuery: query['q'],
-        categoryId: query['category'],
-        parentCategoryId: query['parent'],
-        title: query['title'],
-        initialSort: query['sort'],
-        onSale: query['on_sale'] == '1',
-      );
-    },
+  _screen(BuyerPaths.search, (state) {
+    final query = state.uri.queryParameters;
+    return SearchScreen(
+      initialQuery: query['q'],
+      categoryId: query['category'],
+      parentCategoryId: query['parent'],
+      title: query['title'],
+      initialSort: query['sort'],
+      onSale: query['on_sale'] == '1',
+    );
+  }),
+  _screen(
+    '/buyer/product/:id',
+    (state) => ProductScreen(
+      productId: int.parse(state.pathParameters['id']!),
+      hero: state.extra is ProductHero ? state.extra! as ProductHero : null,
+    ),
   ),
-  GoRoute(
-    path: '/buyer/product/:id',
-    builder: (_, state) =>
-        ProductScreen(productId: int.parse(state.pathParameters['id']!)),
+  _screen(
+    '/buyer/shop/:shop',
+    (state) => ShopScreen(shopKey: state.pathParameters['shop']!),
   ),
-  GoRoute(
-    path: '/buyer/shop/:shop',
-    builder: (_, state) => ShopScreen(shopKey: state.pathParameters['shop']!),
+  _screen(
+    '/buyer/shop/:shop/comments',
+    (state) => ShopCommentsScreen(shopKey: state.pathParameters['shop']!),
   ),
-  GoRoute(
-    path: '/buyer/shop/:shop/comments',
-    builder: (_, state) =>
-        ShopCommentsScreen(shopKey: state.pathParameters['shop']!),
-  ),
-  GoRoute(
-    path: BuyerPaths.checkout,
-    builder: (_, state) => CheckoutScreen(
+  _screen(
+    BuyerPaths.checkout,
+    (state) => CheckoutScreen(
       request: state.extra is CheckoutRequest
           ? state.extra! as CheckoutRequest
           : const CheckoutRequest.cart(),
     ),
   ),
-  GoRoute(
-    path: BuyerPaths.addresses,
-    builder: (_, state) =>
+  _screen(
+    BuyerPaths.addresses,
+    (state) =>
         AddressesScreen(picking: state.uri.queryParameters['pick'] == '1'),
   ),
-  GoRoute(
-    path: BuyerPaths.newAddress,
-    builder: (_, _) => const AddressFormScreen(),
-  ),
-  GoRoute(
-    path: BuyerPaths.editAddress,
-    builder: (_, state) => AddressFormScreen(
+  _screen(BuyerPaths.newAddress, (_) => const AddressFormScreen()),
+  _screen(
+    BuyerPaths.editAddress,
+    (state) => AddressFormScreen(
       address: state.extra is Address ? state.extra! as Address : null,
     ),
   ),
-  GoRoute(
-    path: BuyerPaths.orders,
-    builder: (_, state) =>
-        OrdersScreen(initialTab: state.uri.queryParameters['tab']),
+  _screen(
+    BuyerPaths.orders,
+    (state) => OrdersScreen(initialTab: state.uri.queryParameters['tab']),
   ),
-  GoRoute(
-    path: '/buyer/orders/:id',
-    builder: (_, state) =>
+  _screen(
+    '/buyer/orders/:id',
+    (state) =>
         OrderDetailScreen(orderId: int.parse(state.pathParameters['id']!)),
   ),
-  GoRoute(
-    path: '/buyer/orders/:id/return',
-    builder: (_, state) =>
+  _screen(
+    '/buyer/orders/:id/return',
+    (state) =>
         ReturnRequestScreen(orderId: int.parse(state.pathParameters['id']!)),
   ),
-  GoRoute(
-    path: '/buyer/track/:tracking',
-    builder: (_, state) =>
+  _screen(
+    '/buyer/track/:tracking',
+    (state) =>
         TrackingScreen(trackingNumber: state.pathParameters['tracking']!),
   ),
-  GoRoute(path: BuyerPaths.reviews, builder: (_, _) => const ReviewsScreen()),
-  GoRoute(
-    path: BuyerPaths.writeReview,
-    builder: (_, state) => WriteReviewScreen(target: state.extra),
+  _screen(BuyerPaths.reviews, (_) => const ReviewsScreen()),
+  _screen(
+    BuyerPaths.writeReview,
+    (state) => WriteReviewScreen(target: state.extra),
   ),
-  GoRoute(
-    path: '/buyer/chat/:id',
-    builder: (_, state) =>
+  _screen(
+    '/buyer/chat/:id',
+    (state) =>
         ChatScreen(conversationId: int.parse(state.pathParameters['id']!)),
   ),
-  GoRoute(
-    path: BuyerPaths.notifications,
-    builder: (_, _) => const NotificationsScreen(),
-  ),
-  GoRoute(
-    path: BuyerPaths.completeProfile,
-    builder: (_, _) => const CompleteProfileScreen(),
-  ),
-  GoRoute(
-    path: BuyerPaths.idVerification,
-    builder: (_, _) => const IdVerificationScreen(),
-  ),
-  GoRoute(path: BuyerPaths.profile, builder: (_, _) => const ProfileScreen()),
-  GoRoute(
-    path: BuyerPaths.password,
-    builder: (_, _) => const ChangePasswordScreen(),
-  ),
-  GoRoute(path: BuyerPaths.email, builder: (_, _) => const ChangeEmailScreen()),
-  GoRoute(path: BuyerPaths.phone, builder: (_, _) => const ChangePhoneScreen()),
-  GoRoute(path: BuyerPaths.wishlist, builder: (_, _) => const WishlistScreen()),
-  GoRoute(
-    path: BuyerPaths.following,
-    builder: (_, _) => const FollowingScreen(),
-  ),
-  GoRoute(path: BuyerPaths.vouchers, builder: (_, _) => const VouchersScreen()),
-  GoRoute(path: BuyerPaths.feedback, builder: (_, _) => const FeedbackScreen()),
-  GoRoute(path: BuyerPaths.policies, builder: (_, _) => const PoliciesScreen()),
+  _screen(BuyerPaths.notifications, (_) => const NotificationsScreen()),
+  _screen(BuyerPaths.completeProfile, (_) => const CompleteProfileScreen()),
+  _screen(BuyerPaths.idVerification, (_) => const IdVerificationScreen()),
+  _screen(BuyerPaths.profile, (_) => const ProfileScreen()),
+  _screen(BuyerPaths.password, (_) => const ChangePasswordScreen()),
+  _screen(BuyerPaths.email, (_) => const ChangeEmailScreen()),
+  _screen(BuyerPaths.phone, (_) => const ChangePhoneScreen()),
+  _screen(BuyerPaths.wishlist, (_) => const WishlistScreen()),
+  _screen(BuyerPaths.following, (_) => const FollowingScreen()),
+  _screen(BuyerPaths.vouchers, (_) => const VouchersScreen()),
+  _screen(BuyerPaths.feedback, (_) => const FeedbackScreen()),
+  _screen(BuyerPaths.policies, (_) => const PoliciesScreen()),
 ];

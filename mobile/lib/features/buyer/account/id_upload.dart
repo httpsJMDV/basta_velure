@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/media/photo_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/widgets.dart';
 import '../data/account.dart';
 import '../widgets/buyer_widgets.dart';
 
@@ -59,18 +60,14 @@ class IdUpload extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        DropdownButtonFormField<GovernmentId>(
-          initialValue: type,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: 'Government ID',
-            errorText:
-                typeError ??
-                (showErrors && type == null ? 'Choose your ID type.' : null),
-          ),
-          items: [
-            for (final id in GovernmentId.values)
-              DropdownMenuItem(value: id, child: Text(id.label)),
+        AppSelectField<GovernmentId>(
+          label: 'Government ID',
+          value: type,
+          errorText:
+              typeError ??
+              (showErrors && type == null ? 'Choose your ID type.' : null),
+          options: [
+            for (final id in GovernmentId.values) AppOption(id, id.label),
           ],
           onChanged: onType,
         ),

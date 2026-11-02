@@ -10,6 +10,7 @@ import '../../../core/validation/rules.dart';
 import '../../../core/widgets/widgets.dart';
 import '../data/buyer_api.dart';
 import '../data/catalog.dart';
+import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 
 /// The filters the product list can send (B3). Price limits are text exactly as typed, so "500.50" stays "500.50".
@@ -134,41 +135,85 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (next != null && mounted) setState(() => _filters = next);
   }
 
+  Future<void> _openSort() async {
+    final next = await showAppSelect<String>(
+      context,
+      title: 'Sort by',
+      selected: _filters.sort,
+      options: [
+        for (final entry in _sorts.entries) AppOption(entry.key, entry.value),
+      ],
+    );
+    if (next == null || !mounted) return;
+    setState(
+      () => _filters = ProductFilters(
+        sort: next,
+        minPrice: _filters.minPrice,
+        maxPrice: _filters.maxPrice,
+        minRating: _filters.minRating,
+        onSale: _filters.onSale,
+        newArrivals: _filters.newArrivals,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final api = ref.watch(buyerApiProvider);
     final showResults = _query != null || _browsing;
 
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(
         titleSpacing: 0,
-        title: TextField(
-          controller: _box,
-          autofocus: !_browsing && _query == null,
-          textInputAction: TextInputAction.search,
-          inputFormatters: [Only.max(100)],
-          onChanged: _typed,
-          onSubmitted: _submit,
-          decoration: InputDecoration(
-            hintText: widget.title == null
-                ? 'Search Loved-IT'
-                : 'Search in ${widget.title}',
-            isDense: true,
-            prefixIcon: const Icon(LucideIcons.search, size: 18),
-            suffixIcon: _box.text.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: 'Clear',
-                    icon: const Icon(LucideIcons.x, size: 18),
-                    onPressed: () {
-                      _box.clear();
-                      _submit('');
-                    },
-                  ),
+        toolbarHeight: 68,
+        title: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BuyerRadius.buttonAll,
+            boxShadow: BuyerShadow.card,
+          ),
+          alignment: Alignment.center,
+          child: TextField(
+            controller: _box,
+            autofocus: !_browsing && _query == null,
+            textInputAction: TextInputAction.search,
+            inputFormatters: [Only.max(100)],
+            onChanged: _typed,
+            onSubmitted: _submit,
+            style: const TextStyle(fontSize: 14.5),
+            decoration: InputDecoration(
+              hintText: widget.title == null
+                  ? 'Search Loved-IT'
+                  : 'Search in ${widget.title}',
+              isDense: true,
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              prefixIcon: const Icon(
+                LucideIcons.search,
+                size: 18,
+                color: AppColors.stone600,
+              ),
+              suffixIcon: AnimatedSwitcher(
+                duration: Motion.fast,
+                child: _box.text.isEmpty
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        tooltip: 'Clear',
+                        icon: const Icon(LucideIcons.x, size: 18),
+                        onPressed: () {
+                          _box.clear();
+                          _submit('');
+                        },
+                      ),
+              ),
+            ),
           ),
         ),
-        actions: const [SizedBox(width: AppSpace.md)],
+        actions: const [SizedBox(width: AppSpace.lg)],
       ),
       body: !showResults
           ? const EmptyState(
@@ -180,6 +225,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               key: ValueKey(Object.hash(_query, _filters)),
               gridColumns: 2,
               gridAspectRatio: productGridAspectRatio,
+              spacing: AppSpace.lg,
               load: (page) => api.products(
                 page: page,
                 q: _query,
@@ -209,16 +255,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   child: _SortBar(
                     title: widget.title,
                     filters: _filters,
-                    onSort: (sort) => setState(
-                      () => _filters = ProductFilters(
-                        sort: sort,
-                        minPrice: _filters.minPrice,
-                        maxPrice: _filters.maxPrice,
-                        minRating: _filters.minRating,
-                        onSale: _filters.onSale,
-                        newArrivals: _filters.newArrivals,
-                      ),
-                    ),
+                    onSort: _openSort,
                     onFilters: _openFilters,
                   ),
                 ),
@@ -238,7 +275,7 @@ class _SortBar extends StatelessWidget {
 
   final String? title;
   final ProductFilters filters;
-  final ValueChanged<String> onSort;
+  final VoidCallback onSort;
   final VoidCallback onFilters;
 
   @override
@@ -246,7 +283,7 @@ class _SortBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpace.lg,
-        AppSpace.md,
+        AppSpace.xs,
         AppSpace.lg,
         0,
       ),
@@ -255,42 +292,29 @@ class _SortBar extends StatelessWidget {
         children: [
           if (title != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: AppSpace.sm),
-              child: Text(
-                title!,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              padding: const EdgeInsets.only(bottom: AppSpace.md),
+              child: Text(title!, style: BuyerText.screenTitle),
             ),
           Row(
             children: [
-              Expanded(
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: filters.sort,
-                    isExpanded: true,
-                    icon: const Icon(LucideIcons.chevronDown, size: 18),
-                    items: [
-                      for (final entry in _sorts.entries)
-                        DropdownMenuItem(
-                          value: entry.key,
-                          child: Text(entry.value),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) onSort(value);
-                    },
-                  ),
+              _BarChip(
+                icon: LucideIcons.arrowDownUp,
+                label: _sorts[filters.sort] ?? 'Sort',
+                onTap: onSort,
+                trailing: const Icon(
+                  LucideIcons.chevronDown,
+                  size: 16,
+                  color: AppColors.stone500,
                 ),
               ),
               const SizedBox(width: AppSpace.sm),
-              OutlinedButton.icon(
-                onPressed: onFilters,
-                icon: const Icon(LucideIcons.slidersHorizontal, size: 16),
-                label: Text(
-                  filters.activeCount == 0
-                      ? 'Filters'
-                      : 'Filters (${filters.activeCount})',
-                ),
+              _BarChip(
+                icon: LucideIcons.slidersHorizontal,
+                label: filters.activeCount == 0
+                    ? 'Filters'
+                    : 'Filters (${filters.activeCount})',
+                onTap: onFilters,
+                active: filters.activeCount > 0,
               ),
             ],
           ),
@@ -350,7 +374,9 @@ class _FilterSheetState extends State<_FilterSheet> {
         AppSpace.lg,
         0,
         AppSpace.lg,
-        MediaQuery.viewInsetsOf(context).bottom + AppSpace.lg,
+        MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom +
+            AppSpace.lg,
       ),
       child: Form(
         key: _form,
@@ -452,6 +478,73 @@ class _FilterSheetState extends State<_FilterSheet> {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A rounded button in the sort bar.
+class _BarChip extends StatelessWidget {
+  const _BarChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailing,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? AppColors.white : AppColors.stone800;
+    return Flexible(
+      child: Semantics(
+        button: true,
+        label: label,
+        onTap: onTap,
+        excludeSemantics: true,
+        child: PressScale(
+          scale: 0.97,
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: Motion.medium,
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: active ? AppColors.ink : AppColors.white,
+              borderRadius: BorderRadius.circular(BuyerRadius.field),
+              boxShadow: BuyerShadow.card,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 15, color: color),
+                const SizedBox(width: AppSpace.sm),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: color,
+                    ),
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: AppSpace.xs),
+                  trailing!,
+                ],
+              ],
+            ),
           ),
         ),
       ),

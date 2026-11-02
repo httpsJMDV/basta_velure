@@ -1,7 +1,9 @@
 /// The shared widgets in one import: `import 'package:loved_it/core/widgets/widgets.dart';`
 library;
 
+export 'app_select.dart';
 export 'app_text_field.dart';
+export 'motion.dart';
 export 'peso_text.dart';
 export 'skeleton.dart';
 export 'states.dart';

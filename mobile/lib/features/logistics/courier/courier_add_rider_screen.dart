@@ -222,16 +222,12 @@ class _CourierAddRiderScreenState extends ConsumerState<CourierAddRiderScreen> {
               ),
               if (_hubs.isNotEmpty) ...[
                 const SizedBox(height: AppSpace.lg),
-                DropdownButtonFormField<int>(
-                  initialValue: _hubId,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: 'Hub they start from (optional)',
-                    errorText: failure?.errorFor('sorting_center_id'),
-                  ),
-                  items: [
-                    for (final hub in _hubs)
-                      DropdownMenuItem(value: hub.id, child: Text(hub.name)),
+                AppSelectField<int>(
+                  label: 'Hub they start from (optional)',
+                  value: _hubId,
+                  errorText: failure?.errorFor('sorting_center_id'),
+                  options: [
+                    for (final hub in _hubs) AppOption(hub.id, hub.name),
                   ],
                   onChanged: (id) => setState(() => _hubId = id),
                 ),
