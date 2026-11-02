@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:loved_it/app.dart';
 import 'package:loved_it/core/widgets/widgets.dart';
 import 'package:loved_it/features/auth/auth_layout.dart';
+import 'package:loved_it/features/auth/auth_routes.dart';
 import 'package:loved_it/features/auth/google_button.dart';
+import 'package:loved_it/router.dart';
 
 import 'support/fakes.dart';
 
@@ -29,6 +31,9 @@ void main() {
         child: const LovedItApp(),
       ),
     );
+    await tester.pumpAndSettle();
+    // A guest opens on the shop; these are all about signing in.
+    container.read(routerProvider).go(AuthPaths.signIn);
     await tester.pumpAndSettle();
   }
 
@@ -191,7 +196,7 @@ void main() {
         find.textContaining('You must accept the Terms of Use'),
         findsOneWidget,
       );
-      expect(api.requests, isEmpty);
+      expect(api.requests.where((r) => r.method == 'POST'), isEmpty);
     });
 
     testWidgets("the server's message opens the step that has the field", (
@@ -238,7 +243,7 @@ void main() {
       await press(tester, find.byType(Checkbox));
       await press(tester, find.widgetWithText(FilledButton, 'Create account'));
 
-      final sent = api.requests.single;
+      final sent = api.requests.singleWhere((r) => r.method == 'POST');
       expect(sent.path, '/auth/register');
       expect((sent.data as Map)['email'], 'ana@example.com');
       expect((sent.data as Map)['accept_terms'], isTrue);

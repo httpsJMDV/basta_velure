@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loved_it/app.dart';
+import 'package:loved_it/features/auth/auth_routes.dart';
+import 'package:loved_it/router.dart';
 
 import 'support/fakes.dart';
 
@@ -22,6 +24,9 @@ void main() {
         child: const LovedItApp(),
       ),
     );
+    await tester.pumpAndSettle();
+    // A guest opens on the shop; these are all about signing in.
+    container.read(routerProvider).go(AuthPaths.signIn);
     await tester.pumpAndSettle();
   }
 

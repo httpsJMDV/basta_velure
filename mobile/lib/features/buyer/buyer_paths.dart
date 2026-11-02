@@ -29,6 +29,29 @@ abstract final class BuyerPaths {
   static const policies = '/buyer/account/policies';
 
   static String product(int id) => '/buyer/product/$id';
+
+  /// The dock's tabs, in order.
+  static const tabs = [home, categories, messages, cart, account];
+
+  /// Whether [next] is a screen of the shop, and not somewhere else a crafted link could send someone.
+  static bool isShopScreen(String next) {
+    final uri = Uri.tryParse(next);
+    return uri != null &&
+        !uri.hasScheme &&
+        !uri.hasAuthority &&
+        (uri.path == home || uri.path.startsWith('$home/'));
+  }
+
+  /// What a guest may open without an account, like the website: the shop window, never a person's own things. A shop's
+  /// own page isn't here because the server only shows it to signed-in accounts.
+  static bool openToGuests(String location) {
+    bool at(String path) => location == path || location.startsWith('$path/');
+    return location == home ||
+        at(categories) ||
+        at(search) ||
+        at('/buyer/product');
+  }
+
   static String shop(String shopKey) =>
       '/buyer/shop/${Uri.encodeComponent(shopKey)}';
   static String shopComments(String shopKey) =>

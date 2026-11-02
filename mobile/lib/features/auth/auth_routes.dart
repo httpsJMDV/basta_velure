@@ -22,8 +22,12 @@ abstract final class AuthPaths {
   /// The public "Become a rider" form (Part C, `RiderPaths.apply`; its route is in `rider_routes.dart`).
   static const becomeRider = '/become-rider';
 
-  /// The screens a signed-out person may open.
+  /// The screens a signed-out person may open, besides what the shop shows guests.
   static const signedOut = [signIn, signUp, forgotPassword, becomeRider];
+
+  /// Sign-in that returns to [next] afterwards.
+  static String signInThen(String next) =>
+      '$signIn?next=${Uri.encodeComponent(next)}';
 }
 
 final authRoutes = <RouteBase>[

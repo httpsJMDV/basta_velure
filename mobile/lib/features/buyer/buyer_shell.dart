@@ -7,10 +7,13 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/session/session.dart';
 import '../../core/widgets/motion.dart';
+import 'buyer_paths.dart';
 import 'data/badges.dart';
 import 'data/cart.dart';
 import 'widgets/buyer_theme.dart';
+import 'widgets/guest.dart';
 
 /// The buyer app's frame (B0): a dock floating over the page, each tab keeping its own place when you switch. On the
 /// browsing tabs the dock slides away while scrolling down and comes back on the way up.
@@ -41,6 +44,11 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
   }
 
   void _select(int index) {
+    // Home and Categories are open to everyone. The other tabs are a person's own, so a guest signs in first.
+    if (index > 1 && ref.read(currentUserProvider) == null) {
+      showSignInOver(context, next: BuyerPaths.tabs[index]);
+      return;
+    }
     final shell = widget.shell;
     if (index != shell.currentIndex) HapticFeedback.selectionClick();
     setState(() => _dockHidden = false);

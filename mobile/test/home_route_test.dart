@@ -3,6 +3,7 @@ import 'package:loved_it/core/api/api_failure.dart';
 import 'package:loved_it/core/session/app_user.dart';
 import 'package:loved_it/core/session/home_route.dart';
 import 'package:loved_it/core/session/session.dart';
+import 'package:loved_it/features/buyer/buyer_paths.dart';
 import 'package:loved_it/router.dart';
 
 import 'support/fakes.dart';
@@ -115,9 +116,41 @@ void main() {
   });
 
   group('redirectFor', () {
-    test('signed out: only the sign-in screens', () {
-      expect(redirectFor(const SignedOut(), '/buyer'), '/sign-in');
+    test('signed out: the shop window and the sign-in screens', () {
+      expect(redirectFor(const SignedOut(), '/buyer'), isNull);
       expect(redirectFor(const SignedOut(), '/sign-in'), isNull);
+      expect(
+        redirectFor(const SignedOut(), '/buyer/cart'),
+        '/sign-in?next=%2Fbuyer%2Fcart',
+      );
+    });
+
+    test(
+      'after signing in, a dock tab opens; nothing leaves the home it opened',
+      () {
+        final buyer = SignedIn(user(), AppHome.buyer);
+        expect(
+          redirectFor(buyer, '/sign-in', next: '/buyer/cart'),
+          '/buyer/cart',
+        );
+        expect(redirectFor(buyer, '/sign-in'), '/buyer');
+        expect(
+          redirectFor(buyer, '/sign-in', next: 'https://evil.test'),
+          '/buyer',
+        );
+        final rider = SignedIn(
+          user(rider: {'id': 1, 'status': 'ACTIVE'}),
+          AppHome.rider,
+        );
+        expect(redirectFor(rider, '/sign-in', next: '/buyer/cart'), '/rider');
+      },
+    );
+
+    test('only a screen of the shop can be returned to', () {
+      expect(BuyerPaths.isShopScreen('/buyer/product/1'), isTrue);
+      expect(BuyerPaths.isShopScreen('/rider/home'), isFalse);
+      expect(BuyerPaths.isShopScreen('https://evil.test/buyer/x'), isFalse);
+      expect(BuyerPaths.isShopScreen('//evil.test/buyer/x'), isFalse);
     });
 
     test('checking the token, unreachable, email code and blocked each have one screen', () {
