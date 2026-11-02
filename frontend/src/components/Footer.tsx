@@ -1,10 +1,36 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MessageSquare, LifeBuoy, ShieldCheck, Truck, Banknote, ArrowUpRight } from 'lucide-react';
 import LovedItLogo from './LovedItLogo';
+import AndroidIcon from './ui/AndroidIcon';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
 import gcashLogo from '../assets/brand/gcash-logo.svg';
+import appHome from '../assets/app/home.webp';
+import appTracking from '../assets/app/tracking.webp';
+
+/** The way to the app, above the links. Two real screens rise from the bottom edge on wider screens. */
+function AppBand() {
+  return (
+    <section aria-label="The Loved-IT app" className="relative mb-12 overflow-hidden rounded-3xl bg-white/[0.06] ring-1 ring-inset ring-white/10">
+      <div className="px-6 py-8 sm:px-10 sm:py-10 sm:pr-[320px] lg:pr-[420px]">
+        <p className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-amber-300">The Loved-IT app</p>
+        <h2 className="mt-2 font-serif text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.1]">Take the marketplace with you.</h2>
+        <p className="mt-2.5 max-w-xl text-[14px] leading-relaxed text-white/60">
+          Shop, pay, follow your parcel and message shops from your Android phone. It is free, and it works with the account you already have.
+        </p>
+        <Link to="/download" className="inline-flex items-center gap-2.5 mt-5 h-11 px-5 rounded-full bg-white hover:bg-stone-200 text-[#1E1B18] text-[13.5px] font-semibold transition-colors">
+          <AndroidIcon className="w-[18px] h-[18px] text-[#3DDC84]" />
+          Download for Android
+        </Link>
+      </div>
+      <div aria-hidden="true" className="absolute bottom-0 hidden sm:block right-6 lg:right-14 w-[270px] lg:w-[340px] h-full">
+        <img src={appTracking} alt="" loading="lazy" className="absolute right-0 w-[130px] lg:w-[160px] top-[56px] rounded-t-[22px] border-[5px] border-b-0 border-[#2A2623] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)]" />
+        <img src={appHome} alt="" loading="lazy" className="absolute left-0 w-[140px] lg:w-[175px] top-[28px] rounded-t-[24px] border-[5px] border-b-0 border-[#2A2623] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)]" />
+      </div>
+    </section>
+  );
+}
 
 /** The standard "Your Privacy Choices" toggle (a check and a cross on a pill), as sites show beside that link. */
 function PrivacyChoicesIcon() {
@@ -23,6 +49,7 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
     title: 'Company info',
     links: [
       { label: 'About Loved-IT', to: '/about' },
+      { label: 'Download the app', to: '/download' },
       { label: 'Partner with us', to: '/partner' },
       { label: 'Help and safety center', to: '/help/safety' },
     ],
@@ -62,6 +89,7 @@ export const Footer: React.FC = () => {
   const { user } = useAuth();
   const { openChatWithSupport } = useChat();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const chat = () => {
     if (user) void openChatWithSupport();
@@ -71,6 +99,7 @@ export const Footer: React.FC = () => {
   return (
     <footer className="mt-auto bg-brand-black text-white">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12 pt-12 pb-8">
+        {pathname !== '/download' && <AppBand />}
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.25fr)_repeat(4,minmax(0,1fr))]">
           {/* Who we are, and the fastest way to a person */}
           <div className="max-w-sm">

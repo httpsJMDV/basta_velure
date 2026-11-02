@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Menu, X, ShoppingCart, ChevronDown, ChevronRight, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Truck, Warehouse, Bike } from 'lucide-react';
+import { Search, Menu, X, ShoppingCart, ChevronDown, ChevronRight, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Truck, Warehouse, Bike, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
@@ -252,22 +252,22 @@ export default function SiteHeader() {
 
           <form onSubmit={handleSearch} role="search" className="flex-1 min-w-0 max-w-[720px] mx-auto">
             <div className="flex items-center h-10 sm:h-11 rounded-full bg-white pl-4 pr-1 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)] focus-within:ring-2 focus-within:ring-white/70 transition-shadow">
-              <Search className="hidden sm:block w-4 h-4 text-stone-400 shrink-0" aria-hidden="true" />
+              <Search className="hidden lg:block w-4 h-4 text-stone-400 shrink-0" aria-hidden="true" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search for products, brands and more"
                 aria-label="Search Loved-IT"
-                className="flex-1 min-w-0 h-full px-0 sm:px-3 bg-transparent text-[13px] sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none"
+                className="flex-1 min-w-0 h-full px-0 lg:px-3 bg-transparent text-[13px] sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none"
               />
               <button
                 type="submit"
                 title="Search"
-                className="h-8 sm:h-9 px-3 sm:px-5 rounded-full bg-[#1E1B18] hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors shrink-0"
+                className="h-8 sm:h-9 px-3 lg:px-5 rounded-full bg-[#1E1B18] hover:bg-brand-red-dark text-white text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors shrink-0"
               >
-                <Search className="w-4 h-4 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">Search</span>
+                <Search className="w-4 h-4 lg:hidden" aria-hidden="true" />
+                <span className="hidden lg:inline">Search</span>
               </button>
             </div>
           </form>
@@ -288,7 +288,7 @@ export default function SiteHeader() {
                 <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
                   <User className="w-4 h-4 text-white" />
                 </div>
-                <div className="text-left text-xs leading-tight">
+                <div className="hidden text-left text-xs leading-tight lg:block">
                   <span className="block font-bold">My Account</span>
                   <span className="block text-[10.5px] text-white/70">Sign In / Register</span>
                 </div>
@@ -309,7 +309,7 @@ export default function SiteHeader() {
                   </span>
                 )}
               </div>
-              <div className="hidden sm:block text-left text-xs leading-tight">
+              <div className="hidden lg:block text-left text-xs leading-tight">
                 <span className="block font-bold">My Cart</span>
                 <span className="block text-[10.5px] text-amber-300 font-semibold">{totalCount} item{totalCount === 1 ? '' : 's'}</span>
               </div>
@@ -353,6 +353,16 @@ export default function SiteHeader() {
                 ))}
               </>
             )}
+            <Link
+              to="/download"
+              aria-current={location.pathname === '/download' ? 'page' : undefined}
+              className="group ml-auto inline-flex items-center h-full shrink-0 outline-none"
+            >
+              <span className="inline-flex items-center gap-1.5 h-[30px] px-3.5 rounded-full bg-[#1E1B18] group-hover:bg-brand-red group-focus-visible:ring-2 group-focus-visible:ring-brand-red group-focus-visible:ring-offset-2 text-white text-[12.5px] font-semibold transition-colors">
+                <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                Download the app
+              </span>
+            </Link>
           </div>
         </nav>
 
@@ -371,6 +381,14 @@ export default function SiteHeader() {
                 <Search className="w-4 h-4" />
               </button>
             </div>
+            <Link to="/download" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white text-stone-900">
+              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand-red text-white shrink-0"><Download className="w-4 h-4" aria-hidden="true" /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold">Download the app</span>
+                <span className="block text-[12px] text-stone-500">Free, for Android phones</span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-stone-400" aria-hidden="true" />
+            </Link>
             {NAV_LINKS.map((l) => (
               <Link key={l.to} to={l.to} className="py-1 text-sm text-white/90" onClick={() => setMenuOpen(false)}>{l.label}</Link>
             ))}

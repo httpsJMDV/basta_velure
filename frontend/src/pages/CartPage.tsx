@@ -104,7 +104,7 @@ export default function CartPage() {
                   className="mt-5 w-full h-12 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   {summary?.selected_lines ? <>Check out {summary.selected_units} item{summary.selected_units === 1 ? '' : 's'} <ArrowRight className="w-4 h-4" /></> : 'Select items to check out'}
                 </button>
-                <p className="mt-3 text-center text-[12px] text-stone-500">Cash on delivery, GCash, e-wallet or card</p>
+                <p className="mt-3 text-center text-[12px] text-stone-500">Cash on delivery or GCash</p>
               </div>
               <Assurances />
             </aside>

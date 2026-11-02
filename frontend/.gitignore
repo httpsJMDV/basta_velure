@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# The app download, made by setup/publish-apk.ps1
+public/download/
