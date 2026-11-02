@@ -2054,6 +2054,16 @@ void main() {
       await openApp(tester, withCourierInsights(courierServer()));
       final list = find.byType(Scrollable).first;
       expect(find.text('63'), findsOneWidget);
+      // The bar really has a height, and all four parts of it show.
+      final bar = find.byKey(const ValueKey('parcels-now-bar'));
+      final parts = find.descendant(
+        of: bar,
+        matching: find.byType(DecoratedBox),
+      );
+      expect(parts, findsNWidgets(4));
+      for (final part in parts.evaluate()) {
+        expect((part.renderObject! as RenderBox).size.height, 8);
+      }
       expect(find.text('6/10'), findsOneWidget);
       expect(find.text('1 suspended'), findsOneWidget);
 
