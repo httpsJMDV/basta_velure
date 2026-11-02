@@ -5,6 +5,7 @@ namespace App\Services\Commerce;
 use App\Models\CartItem;
 use App\Models\ProductVariant;
 use App\Models\User;
+use App\Support\OrderLimits;
 use App\Support\Validation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -261,6 +262,9 @@ class CartService
 
     private function assertWithinLimits(User $user, ProductVariant $variant, int $quantity, ?int $lineId, string $field = 'quantity'): void
     {
+        if ($heavy = OrderLimits::tooHeavyMessage((float) ($variant->product->weight_kg ?? 0), $quantity)) {
+            $this->fail($field, $heavy);
+        }
         if ($quantity > $variant->stock_quantity) {
             $this->fail($field, $variant->stock_quantity === 1 ? 'Only 1 is available.' : "Only {$variant->stock_quantity} are available.");
         }

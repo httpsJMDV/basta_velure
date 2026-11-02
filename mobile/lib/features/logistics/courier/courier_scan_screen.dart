@@ -13,6 +13,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../widgets/logistics_widgets.dart';
 import '../widgets/scan_results.dart';
+import 'courier_kit.dart';
 import 'courier_parcels_screen.dart';
 
 enum _Station {
@@ -169,22 +170,23 @@ class _CourierScanScreenState extends ConsumerState<CourierScanScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SegmentedButton<_Station>(
-          showSelectedIcon: false,
-          style: SegmentedButton.styleFrom(
-            selectedBackgroundColor: AppColors.brandRed,
-            selectedForegroundColor: AppColors.white,
-          ),
-          segments: [
-            for (final station in _Station.values)
-              ButtonSegment(value: station, label: Text(station.label)),
-          ],
-          selected: {_station},
-          onSelectionChanged: (next) => setState(() => _station = next.first),
+        RiderSegments<_Station>(
+          padding: EdgeInsets.zero,
+          values: _Station.values,
+          selected: _station,
+          labelOf: (station) => station.label,
+          onSelected: (station) => setState(() => _station = station),
         ),
-        const SizedBox(height: AppSpace.xs),
-        Text(_station.hint, style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: AppSpace.md),
+        _ScanCount(
+          value: _board == null ? null : _waiting.length,
+          station: _station,
+          good: _rows.where((row) => row.tone == ScanTone.good).length,
+          problems: _rows.where((row) => row.tone != ScanTone.good).length,
+        ),
         const SizedBox(height: AppSpace.sm),
+        HubHint(text: _station.hint),
+        const SizedBox(height: AppSpace.md),
         if (_station == _Station.inbound && _hubs.length > 1) ...[
           AppSelectField<int?>(
             label: 'Receiving at',
@@ -286,6 +288,74 @@ class _CourierScanScreenState extends ConsumerState<CourierScanScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// What is waiting at this station, and how this sitting of scans is going.
+class _ScanCount extends StatelessWidget {
+  const _ScanCount({
+    required this.value,
+    required this.station,
+    required this.good,
+    required this.problems,
+  });
+
+  final int? value;
+  final _Station station;
+  final int good;
+  final int problems;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: RiderCard(
+        padding: const EdgeInsets.all(AppSpace.md),
+        child: Row(
+          children: [
+            RiderIconTile(
+              icon: switch (station) {
+                _Station.inbound => LucideIcons.arrowDownToLine,
+                _Station.sort => LucideIcons.shuffle,
+                _Station.outbound => LucideIcons.arrowUpFromLine,
+              },
+              color: AppColors.white,
+              background: AppColors.gray900,
+            ),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value == null ? '—' : '$value', style: HubText.figure),
+                  Text(switch (station) {
+                    _Station.inbound => 'on the way in',
+                    _Station.sort => 'to sort',
+                    _Station.outbound => 'ready to go out',
+                  }, style: HubText.small),
+                ],
+              ),
+            ),
+            if (good + problems > 0) ...[
+              const SizedBox(width: AppSpace.sm),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('$good done', style: HubText.small),
+                  if (problems > 0)
+                    Text(
+                      '$problems with a problem',
+                      style: HubText.small.copyWith(
+                        color: StatusTone.rose.foreground,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

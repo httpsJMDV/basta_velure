@@ -164,11 +164,69 @@ class ProductSeller {
 }
 
 /// `GET /products/{id}`.
+/// A seller writes a description as rich text on the website. The app shows it
+/// as plain text, so the tags must not show.
+String plainTextFromHtml(String html) {
+  if (!html.contains('<') && !html.contains('&')) return html.trim();
+  const entities = {
+    '&nbsp;': ' ',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&apos;': "'",
+  };
+  var text = html
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<li\b[^>]*>', caseSensitive: false), '\n• ')
+      .replaceAll(
+        RegExp(r'</(p|div|h[1-6]|blockquote|ul|ol)>', caseSensitive: false),
+        '\n',
+      )
+      .replaceAll(RegExp(r'<[^>]*>'), '');
+  entities.forEach((entity, value) => text = text.replaceAll(entity, value));
+  // Last, so "&amp;lt;" stays the words the seller typed.
+  text = text.replaceAll('&amp;', '&');
+  return text
+      .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+      .trim();
+}
+
+/// What one parcel can carry of a heavy item.
+class BulkyInfo {
+  const BulkyInfo({
+    required this.weightKg,
+    required this.maxPerOrder,
+    required this.maxParcelKg,
+  });
+
+  final double weightKg;
+  final int maxPerOrder;
+  final double maxParcelKg;
+
+  factory BulkyInfo.fromJson(Json json) => BulkyInfo(
+    weightKg: asDouble(json['weight_kg']).toDouble(),
+    maxPerOrder: asInt(json['max_per_order']),
+    maxParcelKg: asDouble(json['max_parcel_kg']).toDouble(),
+  );
+
+  static String _kg(double kg) =>
+      kg == kg.roundToDouble() ? kg.toStringAsFixed(0) : '$kg';
+
+  String get title => 'Heavy item: ${_kg(weightKg)} kg each';
+
+  String get message => maxPerOrder < 1
+      ? 'This is too heavy for a rider to deliver. One parcel can weigh at most ${_kg(maxParcelKg)} kg.'
+      : 'The delivery fee goes by weight, and one parcel can weigh at most ${_kg(maxParcelKg)} kg, so you can buy at most $maxPerOrder in one order.';
+}
+
 class ProductDetail {
   const ProductDetail({
     required this.id,
     required this.name,
     required this.description,
+    this.bulky,
     required this.images,
     required this.price,
     required this.priceMin,
@@ -199,6 +257,7 @@ class ProductDetail {
   final String name;
   final String description;
   final List<String> images;
+  final BulkyInfo? bulky;
   final num price;
   final num? originalPrice;
   final num priceMin;
@@ -274,8 +333,12 @@ class ProductDetail {
     return ProductDetail(
       id: asInt(json['id']),
       name: asString(json['name']) ?? 'Product',
-      description:
-          asString(json['description']) ?? asString(specs['description']) ?? '',
+      description: plainTextFromHtml(
+        asString(json['description']) ?? asString(specs['description']) ?? '',
+      ),
+      bulky: specs['bulky'] == null
+          ? null
+          : BulkyInfo.fromJson(asJson(specs['bulky'])),
       images: images.isEmpty && thumbnail != null ? [thumbnail] : images,
       price: price,
       originalPrice: asDoubleOrNull(json['original_price']),

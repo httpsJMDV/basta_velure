@@ -76,10 +76,14 @@ class RiderMessageButton extends ConsumerWidget {
           ),
       ],
       child: Container(
-        constraints: const BoxConstraints(minHeight: kMinTap),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        constraints: const BoxConstraints(minHeight: 52),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F2EE),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Badge(
               isLabelVisible: total > 0,
@@ -87,17 +91,19 @@ class RiderMessageButton extends ConsumerWidget {
               label: Text('$total'),
               child: const Icon(
                 LucideIcons.messageCircle,
-                size: 18,
-                color: AppColors.brandRed,
+                size: 20,
+                color: AppColors.ink,
               ),
             ),
-            const SizedBox(width: AppSpace.sm),
+            const SizedBox(height: 3),
             const Text(
               'Message',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: AppColors.brandRed,
+                color: AppColors.ink,
                 fontWeight: FontWeight.w600,
-                fontSize: 15,
+                fontSize: 12.5,
               ),
             ),
           ],
@@ -115,7 +121,6 @@ class RiderChatsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final api = ref.read(riderApiProvider);
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Messages')),
       body: PagedList<RiderThread>(
         load: api.threads,
@@ -157,7 +162,7 @@ class RiderChatsScreen extends ConsumerWidget {
                     ? FontWeight.w800
                     : FontWeight.w600,
                 fontSize: 16,
-                color: AppColors.gray900,
+                color: AppColors.ink,
               ),
             ),
             subtitle: Text(
@@ -340,7 +345,6 @@ class _RiderChatScreenState extends ConsumerState<RiderChatScreen> {
     final thread = _thread;
 
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,7 +358,7 @@ class _RiderChatScreenState extends ConsumerState<RiderChatScreen> {
                 ].join(' · '),
                 style: const TextStyle(
                   fontSize: 13,
-                  color: AppColors.gray600,
+                  color: AppColors.stone600,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -430,7 +434,7 @@ class _Bubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: mine ? AppColors.brandRed : AppColors.white,
           borderRadius: BorderRadius.circular(16),
-          border: mine ? null : Border.all(color: const Color(0xFFE5E7EB)),
+          border: mine ? null : Border.all(color: AppColors.stone200),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,7 +445,7 @@ class _Bubble extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.gray600,
+                  color: AppColors.stone600,
                 ),
               ),
             // Plain text only: never read as markup or a link.
@@ -449,7 +453,7 @@ class _Bubble extends StatelessWidget {
               message.body,
               style: TextStyle(
                 fontSize: 16,
-                color: mine ? AppColors.white : AppColors.gray900,
+                color: mine ? AppColors.white : AppColors.ink,
               ),
             ),
             Text(
@@ -458,7 +462,7 @@ class _Bubble extends StatelessWidget {
                 fontSize: 11,
                 color: mine
                     ? AppColors.white.withValues(alpha: 0.8)
-                    : AppColors.gray600,
+                    : AppColors.stone600,
               ),
             ),
           ],

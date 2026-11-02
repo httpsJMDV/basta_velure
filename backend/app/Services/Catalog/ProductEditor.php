@@ -2,11 +2,14 @@
 
 namespace App\Services\Catalog;
 
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\StoreCategory;
+use App\Models\User;
+use App\Support\OrderLimits;
 use App\Support\Validation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -67,7 +70,8 @@ class ProductEditor
             'variants.*.price'     => $publish ? Validation::price() : ['nullable', 'numeric', 'decimal:0,2', 'min:1', 'max:1000000'],
             'variants.*.stock'     => $publish ? Validation::stock() : Validation::stock(required: false),
             'variants.*.sku'       => ['nullable', 'string', 'max:100', 'regex:' . Validation::SKU_REGEX],
-            'weight_kg'            => [$required, 'numeric', 'gt:0', 'max:1000'],
+            'weight_kg'            => [$required, 'numeric', 'gt:0', 'max:' . OrderLimits::maxParcelKg()],
+            'high_value_agreed'    => ['nullable', 'boolean'],
             'dimension_l_cm'       => ['nullable', 'numeric', 'gt:0', 'max:1000'],
             'dimension_w_cm'       => ['nullable', 'numeric', 'gt:0', 'max:1000'],
             'dimension_h_cm'       => ['nullable', 'numeric', 'gt:0', 'max:1000'],
@@ -95,7 +99,7 @@ class ProductEditor
         return [
             ...Validation::displayNameMessages('name', 'Product name', 5, 120),
             'sku.regex'              => 'An SKU may use letters, numbers, dots, dashes and underscores only.',
-            'weight_kg.max'          => 'The weight must be 1,000 kg or less.',
+            'weight_kg.max'          => 'The weight must be ' . OrderLimits::kg(OrderLimits::maxParcelKg()) . ' or less, because a rider has to carry it.',
             'dimension_l_cm.max'     => 'Each dimension must be 1,000 cm or less.',
             'dimension_w_cm.max'     => 'Each dimension must be 1,000 cm or less.',
             'dimension_h_cm.max'     => 'Each dimension must be 1,000 cm or less.',
@@ -140,6 +144,36 @@ class ProductEditor
     public static function visibleText(mixed $html): string
     {
         return trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags((string) $html), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+    }
+
+    /**
+     * A seller accepts the high-value agreement when a price first reaches the high-value amount, so a slip of the
+     * finger or a fake listing is stopped, and the seller's word is on record. It asks once for each new top price.
+     *
+     * @param  array<int, mixed>  $prices
+     * @return float|null the price agreed to, for recordHighValue(), or null when nothing needed agreeing
+     */
+    public function highValueAgreement(array $prices, ?Product $existing, bool $agreed): ?float
+    {
+        $top = $prices === [] ? 0.0 : (float) max(array_map('floatval', $prices));
+        $before = $existing ? (float) $existing->variants()->max('price') : 0.0;
+        if ($top < OrderLimits::highValueMin() || $top <= $before) {
+            return null;
+        }
+        if (! $agreed) {
+            throw ValidationException::withMessages([
+                'high_value_agreed' => 'A price of ' . OrderLimits::peso(OrderLimits::highValueMin()) . ' or more needs your agreement. Tick the box to confirm it.',
+            ]);
+        }
+
+        return $top;
+    }
+
+    public function recordHighValue(?float $price, Product $product, User $seller): void
+    {
+        if ($price !== null) {
+            AuditLog::record($seller, 'product.high_value_agreed', $product, null, ['price' => $price], 'The seller accepted the high-value listing agreement.');
+        }
     }
 
     /**

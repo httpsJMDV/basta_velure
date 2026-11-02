@@ -52,7 +52,7 @@ Future<T?> showAppSelect<T>(
             child: Text(
               title,
               style: const TextStyle(
-                fontFamily: 'serif',
+                fontFamily: 'NotoSerif',
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.2,

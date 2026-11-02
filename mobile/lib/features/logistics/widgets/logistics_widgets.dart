@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/validation/rules.dart';
 import '../../../core/web_links.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../buyer/widgets/buyer_theme.dart';
 import '../../rider/widgets/rider_widgets.dart';
 
 /// The two looks of the logistics screens (liam.md): the hub's light pages with dark gray main buttons, and the
@@ -19,8 +20,9 @@ abstract final class LogisticsLook {
   static const courierAction = AppColors.brandRed;
 }
 
-/// The hub portal's colours for everything inside: dark gray where the rest of the app uses brand red, so on the hub's
-/// screens red only ever means a problem. Dialogs and sheets opened from inside keep it.
+/// The hub portal's colours for everything inside: the rest of the app's soft shapes and serif titles, with dark gray
+/// where it uses brand red, so on the hub's screens red only ever means a problem. Dialogs and sheets opened from inside
+/// keep it.
 class HubThemed extends StatelessWidget {
   const HubThemed({super.key, required this.child});
 
@@ -28,9 +30,18 @@ class HubThemed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context);
+    final base = BuyerThemed.theme(Theme.of(context));
     return Theme(
       data: base.copyWith(
+        scaffoldBackgroundColor: AppColors.gray50,
+        canvasColor: AppColors.gray50,
+        appBarTheme: base.appBarTheme.copyWith(
+          backgroundColor: AppColors.gray50,
+          foregroundColor: AppColors.gray900,
+          titleTextStyle: base.appBarTheme.titleTextStyle?.copyWith(
+            color: AppColors.gray900,
+          ),
+        ),
         colorScheme: base.colorScheme.copyWith(
           primary: AppColors.gray900,
           primaryContainer: AppColors.gray100,
@@ -43,12 +54,68 @@ class HubThemed extends StatelessWidget {
         ),
         progressIndicatorTheme: const ProgressIndicatorThemeData(
           color: AppColors.gray900,
+          refreshBackgroundColor: AppColors.white,
         ),
         inputDecorationTheme: base.inputDecorationTheme.copyWith(
+          fillColor: AppColors.white,
           focusedBorder: OutlineInputBorder(
-            borderRadius: AppRadius.cardAll,
+            borderRadius: BorderRadius.circular(BuyerRadius.field),
             borderSide: const BorderSide(color: AppColors.gray900, width: 1.5),
           ),
+        ),
+        checkboxTheme: base.checkboxTheme.copyWith(
+          fillColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? AppColors.gray900
+                : Colors.transparent,
+          ),
+        ),
+        radioTheme: RadioThemeData(
+          fillColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? AppColors.gray900
+                : AppColors.stone300,
+          ),
+        ),
+        switchTheme: base.switchTheme.copyWith(
+          trackColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? AppColors.gray900
+                : AppColors.stone300,
+          ),
+        ),
+        snackBarTheme: base.snackBarTheme.copyWith(
+          backgroundColor: AppColors.gray900,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// The courier portal's look for everything inside: the rest of the app's soft shapes and serif titles on a light gray
+/// page, with brand red staying on the actions. Dialogs and sheets opened from inside keep it.
+class CourierThemed extends StatelessWidget {
+  const CourierThemed({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = BuyerThemed.theme(Theme.of(context));
+    return Theme(
+      data: base.copyWith(
+        scaffoldBackgroundColor: AppColors.gray50,
+        canvasColor: AppColors.gray50,
+        appBarTheme: base.appBarTheme.copyWith(
+          backgroundColor: AppColors.gray50,
+          foregroundColor: AppColors.gray900,
+          titleTextStyle: base.appBarTheme.titleTextStyle?.copyWith(
+            color: AppColors.gray900,
+          ),
+        ),
+        inputDecorationTheme: base.inputDecorationTheme.copyWith(
+          fillColor: AppColors.white,
         ),
       ),
       child: child,
@@ -455,11 +522,17 @@ class StatGrid extends StatelessWidget {
 
 /// One figure on the courier's dark header, in a soft see-through box (the website's `HeroStats`).
 class HeroFigure {
-  const HeroFigure(this.label, this.value, {this.color = AppColors.white});
+  const HeroFigure(
+    this.label,
+    this.value, {
+    this.color = AppColors.white,
+    this.icon,
+  });
 
   final String label;
   final int value;
   final Color color;
+  final IconData? icon;
 }
 
 /// The courier portal's dark header: the company's logo tile, its name, and the numbers in see-through boxes.
@@ -472,6 +545,7 @@ class CourierHero extends StatelessWidget {
     this.subtitle,
     this.logoText,
     this.onFigureTap,
+    this.middle,
   });
 
   final String eyebrow;
@@ -481,14 +555,20 @@ class CourierHero extends StatelessWidget {
   final List<HeroFigure> figures;
   final ValueChanged<int>? onFigureTap;
 
+  /// Between the name and the figures, on the dark.
+  final Widget? middle;
+
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: AppColors.gray900,
+      decoration: const BoxDecoration(
+        color: AppColors.gray900,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
       padding: EdgeInsets.fromLTRB(
         AppSpace.lg,
-        MediaQuery.paddingOf(context).top + AppSpace.lg,
+        MediaQuery.paddingOf(context).top + AppSpace.md,
         AppSpace.lg,
         AppSpace.lg,
       ),
@@ -504,7 +584,7 @@ class CourierHero extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: StatusTone.amber.background,
-                    borderRadius: AppRadius.cardAll,
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
                     logoText!,
@@ -534,9 +614,9 @@ class CourierHero extends StatelessWidget {
                     ),
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                      style: BuyerText.section.copyWith(
+                        fontSize: 21,
+                        height: 1.2,
                         color: AppColors.white,
                       ),
                     ),
@@ -553,6 +633,7 @@ class CourierHero extends StatelessWidget {
               ),
             ],
           ),
+          if (middle != null) ...[const SizedBox(height: AppSpace.lg), middle!],
           const SizedBox(height: AppSpace.md),
           _HeroFigures(figures: figures, onTap: onFigureTap),
         ],
@@ -598,37 +679,52 @@ class _HeroFigures extends StatelessWidget {
     return Material(
       color: AppColors.white.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.cardAll,
-        side: BorderSide(color: AppColors.white.withValues(alpha: 0.12)),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.white.withValues(alpha: 0.1)),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap == null ? null : () => onTap!(index),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.md,
-            vertical: AppSpace.sm,
-          ),
-          child: Column(
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                figure.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.white.withValues(alpha: 0.7),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${figure.value}',
+                      style: TextStyle(
+                        fontSize: 26,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                        color: figure.color,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      figure.label,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                '${figure.value}',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: figure.color,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              if (figure.icon != null) ...[
+                const SizedBox(width: AppSpace.xs),
+                Icon(
+                  figure.icon,
+                  size: 17,
+                  color: AppColors.white.withValues(alpha: 0.5),
                 ),
-              ),
+              ],
             ],
           ),
         ),

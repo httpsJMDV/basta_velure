@@ -68,6 +68,7 @@ class SellerProductController extends Controller
 
         $data = $request->validate($this->editor->rules($publish), $this->editor->messages());
         $this->editor->checkVariants($data['variants'] ?? [], null, $user->id);
+        $agreedPrice = $this->editor->highValueAgreement(array_column($data['variants'] ?? [], 'price'), null, $request->boolean('high_value_agreed'));
         $this->editor->checkStoreCategories($data['store_category_ids'] ?? [], $user->id);
         if ($publish && count($request->file('images', [])) < 1) {
             throw ValidationException::withMessages(['images' => 'Add at least one product image to publish.']);
@@ -89,6 +90,7 @@ class SellerProductController extends Controller
             }
             throw $e;
         }
+        $this->editor->recordHighValue($agreedPrice, $product, $user);
         $product = $this->review($product, $check, $hold);
 
         return response()->json([
@@ -112,6 +114,7 @@ class SellerProductController extends Controller
         $data = $request->validate($this->editor->rules($publish, $product), $this->editor->messages());
         $this->editor->checkVariants($data['variants'] ?? $product->variants->map(fn ($v) => ['id' => $v->id, 'label' => $v->label, 'sku' => $v->sku])->all(), $product, $request->user()->id);
         $this->editor->checkStoreCategories($data['store_category_ids'] ?? [], $request->user()->id);
+        $agreedPrice = $this->editor->highValueAgreement(array_column($data['variants'] ?? [], 'price'), $product, $request->boolean('high_value_agreed'));
 
         if ($publish) {
             $remaining = $product->images->count() - count(array_intersect($product->images->pluck('id')->all(), array_map('intval', $data['delete_image_ids'] ?? [])));
@@ -140,6 +143,7 @@ class SellerProductController extends Controller
             default                                => $product->status,
         };
         $product = $this->editor->save($product, $data, $request, $request->user()->id, $status);
+        $this->editor->recordHighValue($agreedPrice, $product, $request->user());
         $product = $this->review($product, $check, $hold);
 
         return response()->json([
@@ -198,6 +202,7 @@ class SellerProductController extends Controller
             'price.min'     => 'The price must be at least ₱1.00.',
             'price.max'     => 'The price must be ₱1,000,000.00 or less.',
         ]);
+        $agreedPrice = $this->editor->highValueAgreement([$data['price']], $product, $request->boolean('high_value_agreed'));
 
         $variants = $product->variants;
         $target = ! empty($data['variant_id']) ? $variants->firstWhere('id', (int) $data['variant_id']) : ($variants->count() === 1 ? $variants->first() : null);
@@ -208,6 +213,7 @@ class SellerProductController extends Controller
             $target->update(['price' => $data['price'], 'original_price' => null]);
             $product->forceFill(['base_price' => $product->variants()->min('price')])->save();
         });
+        $this->editor->recordHighValue($agreedPrice, $product, $request->user());
 
         return response()->json(['data' => $this->formatProduct($product->fresh(['variants', 'images', 'category', 'storeCategories']), PriceBook::for([$product->id]))]);
     }
@@ -402,7 +408,7 @@ class SellerProductController extends Controller
         $categoryId = ! empty($data['category_slug']) ? Category::where('slug', $data['category_slug'])->value('id') : $product->category_id;
 
         return trim((string) ($data['name'] ?? $product->name)) !== $product->name
-            || ($data['description'] ?? $product->description) !== $product->description
+            || \App\Support\SafeHtml::clean($data['description'] ?? $product->description) !== $product->description
             || (int) $categoryId !== (int) $product->category_id
             || ! empty($data['delete_image_ids'])
             || count($request->file('images', [])) > 0;

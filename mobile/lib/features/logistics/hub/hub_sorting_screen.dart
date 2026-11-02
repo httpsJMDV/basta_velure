@@ -14,6 +14,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'hub_kit.dart';
 
 /// How the sorting and dispatch lists are ordered (`waiting` or `count` on the server).
 enum HubListOrder {
@@ -35,7 +36,7 @@ class HubSortingScreen extends ConsumerStatefulWidget {
 }
 
 class _HubSortingScreenState extends ConsumerState<HubSortingScreen> {
-  final _view = GlobalKey<LoadViewState<List<SortingGroup>>>();
+  final _view = GlobalKey<LoadViewState<_SortingData>>();
   HubListOrder _order = HubListOrder.waiting;
   String? _search;
   SortingGroup? _selected;
@@ -63,7 +64,6 @@ class _HubSortingScreenState extends ConsumerState<HubSortingScreen> {
   Widget build(BuildContext context) {
     final api = ref.read(hubApiProvider);
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(
         title: const Text('Sorting'),
         actions: [
@@ -108,36 +108,222 @@ class _HubSortingScreenState extends ConsumerState<HubSortingScreen> {
               },
             ),
             Expanded(
-              child: LoadView<List<SortingGroup>>(
+              child: LoadView<_SortingData>(
                 key: _view,
-                load: () =>
+                load: () async {
+                  final results = await Future.wait<Object>([
                     api.sortingGroups(search: _search, sort: _order.name),
+                    // Sorting still works if this one fails: the section just stays away.
+                    api.transfers().catchError(
+                      (Object _) => const HubTransfers(),
+                    ),
+                  ]);
+                  return _SortingData(
+                    groups: results[0] as List<SortingGroup>,
+                    transfers: results[1] as HubTransfers,
+                  );
+                },
                 refreshEvery: const Duration(seconds: 30),
-                builder: (context, groups) => groups.isEmpty
-                    ? _empty(
-                        icon: LucideIcons.layers,
-                        title: _search == null
-                            ? 'Nothing to sort'
-                            : 'No barangay matches',
-                        message: 'Parcels show here after you receive them.',
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(AppSpace.lg),
-                        itemCount: groups.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpace.sm),
-                        itemBuilder: (context, index) => _GroupCard(
-                          group: groups[index],
-                          selected:
-                              groups[index].barangayCode ==
-                              _selected?.barangayCode,
-                          onTap: () => _open(groups[index]),
+                builder: (context, data) {
+                  final groups = data.groups;
+                  final transfers = data.transfers;
+                  if (groups.isEmpty &&
+                      transfers.groups.isEmpty &&
+                      transfers.onTheWayHere == 0) {
+                    return _empty(
+                      icon: LucideIcons.layers,
+                      title: _search == null
+                          ? 'Nothing to sort'
+                          : 'No barangay matches',
+                      message: 'Parcels show here after you receive them.',
+                    );
+                  }
+                  final parcels = groups.fold<int>(
+                    0,
+                    (sum, group) => sum + group.parcelCount,
+                  );
+                  final noRider = groups
+                      .where((group) => group.ridersCovering == 0)
+                      .length;
+                  DateTime? oldest;
+                  for (final group in groups) {
+                    final at = group.oldestAt;
+                    if (at != null && (oldest == null || at.isBefore(oldest))) {
+                      oldest = at;
+                    }
+                  }
+                  return ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpace.lg,
+                      AppSpace.md,
+                      AppSpace.lg,
+                      AppSpace.lg + dockInset(context),
+                    ),
+                    children: [
+                      if (groups.isNotEmpty) ...[
+                        HubSummaryStrip(
+                          items: [
+                            HubSummaryItem(value: '$parcels', label: 'To sort'),
+                            HubSummaryItem(
+                              value: '${groups.length}',
+                              label: groups.length == 1
+                                  ? 'Barangay'
+                                  : 'Barangays',
+                            ),
+                            HubSummaryItem(
+                              value: Fmt.waited(oldest),
+                              label: 'Longest wait',
+                            ),
+                            HubSummaryItem(
+                              value: '$noRider',
+                              label: 'No rider',
+                              color: noRider > 0
+                                  ? StatusTone.rose.foreground
+                                  : AppColors.gray900,
+                            ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: AppSpace.md),
+                      ],
+                      if (transfers.onTheWayHere > 0) ...[
+                        AlertRow(
+                          icon: LucideIcons.truck,
+                          tone: StatusTone.blue,
+                          title: 'On the way from other hubs',
+                          onTap: () => context.push(LogisticsPaths.hubIntake),
+                          detail:
+                              '${transfers.onTheWayHere} parcel${transfers.onTheWayHere == 1 ? '' : 's'}. Scan them in under Parcel intake when they arrive.',
+                        ),
+                        const SizedBox(height: AppSpace.md),
+                      ],
+                      if (transfers.groups.isNotEmpty) ...[
+                        const HubSection(
+                          title: 'For other hubs',
+                          note: 'Another hub of your courier delivers to these barangays.',
+                        ),
+                        for (final group in transfers.groups) ...[
+                          _TransferCard(group: group, onSent: _reload),
+                          const SizedBox(height: AppSpace.sm),
+                        ],
+                        const SizedBox(height: AppSpace.md),
+                      ],
+                      if (groups.isNotEmpty && transfers.groups.isNotEmpty)
+                        const HubSection(title: 'To sort here'),
+                      for (final group in groups) ...[
+                        _GroupCard(
+                          group: group,
+                          selected:
+                              group.barangayCode == _selected?.barangayCode,
+                          onTap: () => _open(group),
+                        ),
+                        const SizedBox(height: AppSpace.sm),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SortingData {
+  const _SortingData({required this.groups, required this.transfers});
+
+  final List<SortingGroup> groups;
+  final HubTransfers transfers;
+}
+
+/// Parcels whose barangay another hub covers: this hub sends them on, and that hub sorts them.
+class _TransferCard extends ConsumerStatefulWidget {
+  const _TransferCard({required this.group, required this.onSent});
+
+  final HubTransferGroup group;
+  final Future<void> Function() onSent;
+
+  @override
+  ConsumerState<_TransferCard> createState() => _TransferCardState();
+}
+
+class _TransferCardState extends ConsumerState<_TransferCard> {
+  bool _sending = false;
+
+  Future<void> _send() async {
+    final group = widget.group;
+    final confirmed = await confirmAction(
+      context,
+      title: 'Send to ${group.hubName}?',
+      message:
+          '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'} will leave this hub. '
+          '${group.hubName} scans them in when they arrive.',
+      confirmLabel: 'Send',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      final message = await ref
+          .read(hubApiProvider)
+          .sendTransfer(group.trackingNumbers);
+      if (!mounted) return;
+      showRiderMessage(context, message);
+      await widget.onSent();
+    } on ApiFailure catch (failure) {
+      if (mounted) showRiderMessage(context, failure.message, error: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final group = widget.group;
+    return RiderCard(
+      padding: const EdgeInsets.all(AppSpace.md),
+      child: Row(
+        children: [
+          const RiderIconTile(
+            icon: LucideIcons.truck,
+            color: AppColors.gray900,
+            background: AppColors.gray100,
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  group.hubName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    height: 1.25,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.gray900,
+                  ),
+                ),
+                Text(
+                  [
+                    if (group.city.isNotEmpty) group.city,
+                    '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'}',
+                    'Waiting ${Fmt.waited(group.oldestAt)}',
+                  ].join(' · '),
+                  style: HubText.small,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: LogisticsLook.hubAction,
+              minimumSize: const Size(72, 44),
+            ),
+            onPressed: _sending ? null : _send,
+            child: Text(_sending ? 'Sending…' : 'Send'),
+          ),
+        ],
       ),
     );
   }
@@ -169,50 +355,33 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RiderCard(
-      padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 72,
-        selected: selected,
-        selectedTileColor: AppColors.gray100,
-        onTap: onTap,
-        title: Text(
-          group.barangayName,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.gray900,
+    final riders = group.ridersCovering;
+    return HubWorkCard(
+      count: group.parcelCount,
+      title: group.barangayName,
+      subtitle: group.city,
+      selected: selected,
+      onTap: onTap,
+      chips: [
+        HubMetaChip(
+          icon: LucideIcons.clock,
+          label: 'Waiting ${Fmt.waited(group.oldestAt)}',
+          tone: waitedLong(group.oldestAt) ? StatusTone.amber : null,
+        ),
+        HubMetaChip(
+          icon: LucideIcons.bike,
+          label: riders == 0
+              ? 'No rider covers it'
+              : '$riders rider${riders == 1 ? '' : 's'} cover it',
+          tone: riders == 0 ? StatusTone.rose : null,
+        ),
+        if (!group.inCoverage)
+          const HubMetaChip(
+            icon: LucideIcons.mapPinOff,
+            label: 'Outside your coverage',
+            tone: StatusTone.amber,
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              [
-                if (group.city.isNotEmpty) group.city,
-                'Waiting ${Fmt.waited(group.oldestAt)}',
-                '${group.ridersCovering} rider${group.ridersCovering == 1 ? '' : 's'} cover it',
-              ].join(' · '),
-            ),
-            if (!group.inCoverage)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpace.xs),
-                child: StatusChip(
-                  label: 'Outside your coverage',
-                  tone: StatusTone.amber,
-                ),
-              ),
-          ],
-        ),
-        trailing: Text(
-          '${group.parcelCount}',
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: AppColors.gray900,
-          ),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -226,7 +395,6 @@ class HubSortingGroupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: Text(group.barangayName)),
       body: _SortingGroupBody(
         group: group,
@@ -324,10 +492,48 @@ class _SortingGroupBodyState extends ConsumerState<_SortingGroupBody> {
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.all(AppSpace.lg),
-            itemCount: parcels.length,
+            itemCount: parcels.length + 1,
             separatorBuilder: (_, _) => const SizedBox(height: AppSpace.sm),
             itemBuilder: (context, index) {
-              final parcel = parcels[index];
+              if (index == 0) {
+                final group = widget.group;
+                final riders = group.ridersCovering;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpace.xs),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      HubSummaryStrip(
+                        items: [
+                          HubSummaryItem(
+                            value: '${_picked.length} of ${parcels.length}',
+                            label: 'Chosen',
+                          ),
+                          HubSummaryItem(
+                            value: Fmt.waited(group.oldestAt),
+                            label: 'Longest wait',
+                          ),
+                          HubSummaryItem(
+                            value: '$riders',
+                            label: riders == 1
+                                ? 'Rider covers it'
+                                : 'Riders cover it',
+                            color: riders == 0
+                                ? StatusTone.rose.foreground
+                                : AppColors.gray900,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpace.md),
+                      HubHint(
+                        text:
+                            'Sorted parcels move to Dispatch, ready for a rider going to ${group.barangayName}.',
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final parcel = parcels[index - 1];
               return ParcelRowCard(
                 trackingNumber: parcel.trackingNumber,
                 lines: [

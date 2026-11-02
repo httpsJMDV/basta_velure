@@ -19,6 +19,7 @@ import { useShopPaymentInfo } from '../hooks/useShopDelivery';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import ProductCard from '../components/ui/ProductCard';
+import { safeHtml } from '../utils/safeHtml';
 import type { ProductDetail, ProductReview, ProductReviewsResponse, Product } from '../types';
 
 // ── Small pieces ──────────────────────────────────────────────────────────────
@@ -461,6 +462,15 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
         {qtyError && <p role="alert" className="mt-2 text-[12px] font-medium text-brand-red">{qtyError}</p>}
       </div>
 
+      {product.specs.bulky && (
+        <p className="mt-4 px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 text-[12.5px] leading-relaxed text-stone-700">
+          <span className="font-semibold text-stone-900">Heavy item: {product.specs.bulky.weight_kg} kg each.</span>{' '}
+          {product.specs.bulky.max_per_order < 1
+            ? `This is too heavy for a rider to deliver. One parcel can weigh at most ${product.specs.bulky.max_parcel_kg} kg.`
+            : `The delivery fee goes by weight, and one parcel can weigh at most ${product.specs.bulky.max_parcel_kg} kg, so you can buy at most ${product.specs.bulky.max_per_order} in one order.`}
+        </p>
+      )}
+
       {/* Actions */}
       <div className="pt-5 flex gap-2.5">
         <button type="button" onClick={() => act('cart')} disabled={blocked}
@@ -670,7 +680,7 @@ function Details({ product }: { product: ProductDetail }) {
           <SectionTitle id="overview">About this item</SectionTitle>
           {specs.description ? (
             isHtml
-              ? <div className="prose prose-stone prose-sm max-w-none text-stone-700 leading-relaxed [&_img]:rounded-xl [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5" dangerouslySetInnerHTML={{ __html: specs.description }} />
+              ? <div className="prose prose-stone prose-sm max-w-none text-stone-700 leading-relaxed [&_img]:rounded-xl [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5" dangerouslySetInnerHTML={{ __html: safeHtml(specs.description) }} />
               : <p className="text-[15px] text-stone-700 leading-relaxed whitespace-pre-line max-w-3xl">{specs.description}</p>
           ) : <p className="text-sm text-stone-500">The seller has not added a description.</p>}
         </section>

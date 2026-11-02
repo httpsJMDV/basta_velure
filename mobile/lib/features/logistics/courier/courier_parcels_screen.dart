@@ -15,6 +15,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'courier_kit.dart';
 
 enum _ParcelTab {
   all('All parcels'),
@@ -42,8 +43,26 @@ class _CourierParcelsScreenState extends ConsumerState<CourierParcelsScreen> {
   late _ParcelTab _tab = widget.problems ? _ParcelTab.problems : _ParcelTab.all;
   String? _search;
   int? _selected;
+  CourierDashboard? _now;
 
-  Future<void> _refresh() async => _list.currentState?.refresh();
+  @override
+  void initState() {
+    super.initState();
+    _loadNow();
+  }
+
+  Future<void> _refresh() async {
+    _loadNow();
+    await _list.currentState?.refresh();
+  }
+
+  /// Where the network's parcels are right now, above the list. The list doesn't need it, so a failure stays quiet.
+  Future<void> _loadNow() async {
+    try {
+      final now = await ref.read(courierApiProvider).dashboard();
+      if (mounted) setState(() => _now = now);
+    } catch (_) {}
+  }
 
   Future<void> _open(ParcelRow parcel) async {
     if (ListDetailLayout.isWide(context)) {
@@ -97,6 +116,49 @@ class _CourierParcelsScreenState extends ConsumerState<CourierParcelsScreen> {
                   problems: _tab == _ParcelTab.problems,
                 ),
                 spacing: AppSpace.sm,
+                padding: EdgeInsets.fromLTRB(
+                  AppSpace.lg,
+                  AppSpace.sm,
+                  AppSpace.lg,
+                  AppSpace.lg + dockInset(context),
+                ),
+                header: [
+                  if (_now != null)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpace.lg,
+                        AppSpace.sm,
+                        AppSpace.lg,
+                        0,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: HubSummaryStrip(
+                          items: [
+                            HubSummaryItem(
+                              value: '${_now!.awaitingPickup}',
+                              label: 'Awaiting',
+                            ),
+                            HubSummaryItem(
+                              value: '${_now!.atHubs}',
+                              label: 'At hubs',
+                            ),
+                            HubSummaryItem(
+                              value: '${_now!.outForDelivery}',
+                              label: 'Out now',
+                              color: kDeliveredGreen,
+                            ),
+                            HubSummaryItem(
+                              value: '${_now!.failed}',
+                              label: 'Failed',
+                              color: _now!.failed > 0
+                                  ? StatusTone.rose.foreground
+                                  : AppColors.gray900,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
                 empty: EmptyState(
                   icon: LucideIcons.package,
                   title: _search != null
@@ -108,25 +170,118 @@ class _CourierParcelsScreenState extends ConsumerState<CourierParcelsScreen> {
                       ? 'Nothing failed or returned.'
                       : 'Parcels appear once buyers choose your courier.',
                 ),
-                itemBuilder: (context, parcel) => ParcelRowCard(
-                  trackingNumber: parcel.trackingNumber,
-                  status: StatusWords.parcel(parcel.status),
-                  lines: [
-                    [?parcel.barangay, ?parcel.hubName].join(' · '),
-                    [
-                      if (parcel.codAmount != null)
-                        'COD ${formatPeso(parcel.codAmount)}'
-                      else
-                        'Prepaid',
-                      if (parcel.attempts > 0)
-                        '${parcel.attempts} attempt${parcel.attempts == 1 ? '' : 's'}',
-                    ].join(' · '),
-                  ],
+                itemBuilder: (context, parcel) => _ParcelRow(
+                  parcel: parcel,
+                  selected: parcel.id == _selected,
                   onTap: () => _open(parcel),
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ParcelRow extends StatelessWidget {
+  const _ParcelRow({
+    required this.parcel,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  final ParcelRow parcel;
+  final VoidCallback onTap;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = StatusWords.parcel(parcel.status);
+    final where = [?parcel.barangay, ?parcel.hubName].join(' · ');
+    return RiderCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: kMotion,
+          color: selected ? AppColors.gray100 : Colors.transparent,
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RiderIconTile(
+                icon: courierParcelIcon(parcel.status),
+                size: 44,
+                color: status.$2.foreground,
+                background: status.$2.background,
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // The chip drops under the number when it doesn't fit beside it.
+                    Wrap(
+                      spacing: AppSpace.sm,
+                      runSpacing: AppSpace.xs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(parcel.trackingNumber, style: RiderText.mono),
+                        ToneChip(status),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                    if (where.isNotEmpty) Text(where, style: HubText.small),
+                    Text(
+                      [
+                        if (parcel.codAmount != null)
+                          'COD ${formatPeso(parcel.codAmount)}'
+                        else
+                          'Prepaid',
+                        if (parcel.attempts > 0)
+                          '${parcel.attempts} attempt${parcel.attempts == 1 ? '' : 's'}',
+                      ].join(' · '),
+                      style: HubText.small.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.gray900,
+                      ),
+                    ),
+                    if (parcel.orderNumber != null ||
+                        parcel.updatedAt != null) ...[
+                      const SizedBox(height: AppSpace.sm),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (parcel.orderNumber != null)
+                            HubMetaChip(
+                              icon: LucideIcons.receipt,
+                              label: parcel.orderNumber!,
+                            ),
+                          if (parcel.updatedAt != null)
+                            HubMetaChip(
+                              icon: LucideIcons.clock,
+                              label:
+                                  'Updated ${Fmt.waited(parcel.updatedAt)} ago',
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpace.xs),
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(
+                  LucideIcons.chevronRight,
+                  size: 18,
+                  color: AppColors.gray600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -314,77 +469,172 @@ class _ParcelBodyState extends ConsumerState<_ParcelBody> {
   }
 
   Widget _details(ParcelDetail parcel) {
+    final status = StatusWords.parcel(parcel.status);
+    final tries = parcel.maxAttempts == 0
+        ? 0.0
+        : parcel.attempts / parcel.maxAttempts;
+    final hasActions =
+        parcel.canReschedule ||
+        parcel.overrideTargets.isNotEmpty ||
+        parcel.canMarkException;
     return ListView(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.lg,
+        AppSpace.lg,
+        AppSpace.lg + (hasActions ? 0 : dockInset(context)),
+      ),
       children: [
         RiderCard(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TrackingNumberText(parcel.trackingNumber),
-              StatusChip(
-                label: parcel.statusLabel,
-                tone: StatusWords.parcel(parcel.status).$2,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RiderIconTile(
+                    icon: courierParcelIcon(parcel.status),
+                    size: 46,
+                    color: status.$2.foreground,
+                    background: status.$2.background,
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TrackingNumberText(parcel.trackingNumber),
+                        const SizedBox(height: AppSpace.xs),
+                        StatusChip(label: parcel.statusLabel, tone: status.$2),
+                        if (parcel.orderNumber != null) ...[
+                          const SizedBox(height: AppSpace.xs),
+                          Text(
+                            'Order ${parcel.orderNumber}',
+                            style: RiderText.label,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpace.xs),
-              if (parcel.orderNumber != null)
-                Text('Order ${parcel.orderNumber}', style: RiderText.label),
               const Divider(height: AppSpace.xl),
-              FactRow(
-                'From',
-                [?parcel.shopName, ?parcel.shopAddress].join(', '),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('Delivery attempts', style: HubText.small),
+                  ),
+                  Text(
+                    '${parcel.attempts} of ${parcel.maxAttempts}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.gray900,
+                    ),
+                  ),
+                ],
               ),
-              FactRow(
-                'To',
-                [?parcel.recipientName, ?parcel.recipientAddress].join(', '),
+              const SizedBox(height: 6),
+              CourierMeter(
+                value: tries,
+                color: StatusTone.amber.foreground,
+                label:
+                    '${parcel.attempts} of ${parcel.maxAttempts} delivery attempts',
               ),
-              FactRow(
-                'Payment',
-                parcel.isCod
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpace.md),
+        RiderCard(
+          child: CourierRoute(
+            fromLabel: 'From',
+            fromTitle: parcel.shopName ?? '—',
+            fromDetail: parcel.shopAddress,
+            toLabel: 'To',
+            toTitle: parcel.recipientName ?? '—',
+            toDetail: parcel.recipientAddress,
+          ),
+        ),
+        const SizedBox(height: AppSpace.lg),
+        const HubSection(title: 'Order and payment'),
+        RiderCard(
+          child: Column(
+            children: [
+              HubFact(
+                icon: parcel.isCod ? LucideIcons.coins : LucideIcons.creditCard,
+                label: 'Payment',
+                value: parcel.isCod
                     ? 'COD ${formatPeso(parcel.codAmount ?? parcel.orderTotal)}'
                     : 'Prepaid ${formatPeso(parcel.orderTotal)}',
               ),
+              if (parcel.buyer != null)
+                HubFact(
+                  icon: LucideIcons.user,
+                  label: 'Buyer',
+                  value: parcel.buyer,
+                ),
               if (parcel.refundStatus != null)
-                FactRow('Refund', parcel.refundStatus),
-              FactRow(
-                'Zone and weight',
-                [
+                HubFact(
+                  icon: LucideIcons.undo2,
+                  label: 'Refund',
+                  value: parcel.refundStatus,
+                ),
+              HubFact(
+                icon: LucideIcons.map,
+                label: 'Zone and weight',
+                value: [
                   parcel.zone ?? 'No zone',
                   if (parcel.weightKg != null) '${parcel.weightKg} kg',
                 ].join(' · '),
               ),
-              FactRow('Hub', parcel.hub ?? 'Not at a hub yet'),
-              FactRow(
-                'Riders',
-                [
-                  if (parcel.pickupRider != null)
-                    'Pickup: ${parcel.pickupRider}',
-                  if (parcel.deliveryRider != null)
-                    'Delivery: ${parcel.deliveryRider}',
-                  if (parcel.returnRider != null)
-                    'Return: ${parcel.returnRider}',
-                ].join(' · '),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpace.lg),
+        const HubSection(title: 'Who has it'),
+        RiderCard(
+          child: Column(
+            children: [
+              HubFact(
+                icon: LucideIcons.warehouse,
+                label: 'Hub',
+                value: parcel.hub ?? 'Not at a hub yet',
               ),
-              FactRow(
-                'Delivery attempts',
-                '${parcel.attempts} of ${parcel.maxAttempts}',
-              ),
+              if (parcel.pickupRider != null)
+                HubFact(
+                  icon: LucideIcons.packageOpen,
+                  label: 'Pickup rider',
+                  value: parcel.pickupRider,
+                ),
+              if (parcel.deliveryRider != null)
+                HubFact(
+                  icon: LucideIcons.truck,
+                  label: 'Delivery rider',
+                  value: parcel.deliveryRider,
+                ),
+              if (parcel.returnRider != null)
+                HubFact(
+                  icon: LucideIcons.undo2,
+                  label: 'Return rider',
+                  value: parcel.returnRider,
+                ),
             ],
           ),
         ),
         if (parcel.failures.isNotEmpty) ...[
           const SizedBox(height: AppSpace.lg),
-          const RiderSectionTitle('Failed attempts'),
-          for (final failure in parcel.failures) ...[
-            MessageBanner(
-              message: [
-                'Attempt ${failure.attempt}: ${failure.reason ?? 'Failed'}',
-                ?failure.note,
-                Fmt.dayTime(failure.at),
-              ].join(' · '),
+          const HubSection(title: 'Failed attempts'),
+          RiderCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (index, failure) in parcel.failures.indexed) ...[
+                  if (index > 0) const Divider(height: AppSpace.xl),
+                  _FailureRow(failure: failure),
+                ],
+              ],
             ),
-            const SizedBox(height: AppSpace.xs),
-          ],
+          ),
         ],
         if (parcel.exceptionType != null) ...[
           const SizedBox(height: AppSpace.lg),
@@ -405,33 +655,89 @@ class _ParcelBodyState extends ConsumerState<_ParcelBody> {
           ],
         ],
         const SizedBox(height: AppSpace.lg),
-        const RiderSectionTitle('Timeline'),
+        const HubSection(title: 'Timeline', note: 'Newest first.'),
         RiderCard(
+          child: parcel.timeline.isEmpty
+              ? const Text('Nothing yet.', style: RiderText.body)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (index, entry) in parcel.timeline.indexed)
+                      CourierTimelineRow(
+                        title: _sentence(entry.text),
+                        detail: [
+                          Fmt.dayTime(entry.at),
+                          if (entry.actor != null) _sentence(entry.actor!),
+                        ].join(' · '),
+                        strong: index == 0,
+                        last: index == parcel.timeline.length - 1,
+                      ),
+                  ],
+                ),
+        ),
+        const SizedBox(height: AppSpace.lg),
+        const HubSection(
+          title: 'Audit trail',
+          note: 'Every manual change. It can\'t be edited or deleted.',
+        ),
+        AuditCard(entries: parcel.audit, emptyText: 'No manual changes.'),
+      ],
+    );
+  }
+
+  static String _sentence(String text) =>
+      text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);
+}
+
+/// One failed try: its number, why, and when.
+class _FailureRow extends StatelessWidget {
+  const _FailureRow({required this.failure});
+
+  final ParcelFailure failure;
+
+  @override
+  Widget build(BuildContext context) {
+    final rose = StatusTone.rose;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: rose.background,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '${failure.attempt}',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: rose.foreground,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpace.md),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (parcel.timeline.isEmpty)
-                const Text('Nothing yet.', style: RiderText.body),
-              for (final entry in parcel.timeline)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(entry.text, style: RiderText.body),
-                      Text(
-                        [Fmt.dayTime(entry.at), ?entry.actor].join(' · '),
-                        style: RiderText.label,
-                      ),
-                    ],
-                  ),
+              Text(
+                failure.reason ?? 'Failed',
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.3,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.gray900,
                 ),
+              ),
+              if (failure.note != null)
+                Text(failure.note!, style: RiderText.body),
+              Text(Fmt.dayTime(failure.at), style: HubText.small),
             ],
           ),
         ),
-        const SizedBox(height: AppSpace.lg),
-        const RiderSectionTitle('Audit trail'),
-        AuditCard(entries: parcel.audit, emptyText: 'No manual changes.'),
       ],
     );
   }
@@ -466,35 +772,23 @@ class AuditCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RiderCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (entries.isEmpty) Text(emptyText, style: RiderText.body),
-          for (final entry in entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpace.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    actionLabel(entry.action),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.gray900,
-                    ),
+      child: entries.isEmpty
+          ? Text(emptyText, style: RiderText.body)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (index, entry) in entries.indexed)
+                  CourierTimelineRow(
+                    title: actionLabel(entry.action),
+                    body: entry.reason,
+                    detail: [
+                      entry.by ?? 'System',
+                      Fmt.dayTime(entry.at),
+                    ].join(' · '),
+                    last: index == entries.length - 1,
                   ),
-                  if (entry.reason != null)
-                    Text(entry.reason!, style: RiderText.body),
-                  Text(
-                    [entry.by ?? 'System', Fmt.dayTime(entry.at)].join(' · '),
-                    style: RiderText.label,
-                  ),
-                ],
-              ),
+              ],
             ),
-        ],
-      ),
     );
   }
 }

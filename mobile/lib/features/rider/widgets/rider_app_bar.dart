@@ -31,7 +31,6 @@ class RiderAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final chats = ref.watch(riderChatUnreadProvider).value?.total ?? 0;
     final notices = ref.watch(unreadNotificationsProvider).value ?? 0;
     return AppBar(
-      backgroundColor: AppColors.white,
       bottom: bottom,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -40,10 +39,14 @@ class RiderAppBar extends ConsumerWidget implements PreferredSizeWidget {
           if (subtitle != null)
             Text(
               subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
+                fontFamily: 'Inter',
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppColors.gray600,
+                letterSpacing: 0,
+                color: AppColors.stone600,
               ),
             ),
         ],
@@ -89,7 +92,7 @@ class _BadgedIcon extends StatelessWidget {
         isLabelVisible: count > 0,
         backgroundColor: AppColors.brandRed,
         label: Text(count > 99 ? '99+' : '$count'),
-        child: Icon(icon, color: AppColors.gray900),
+        child: Icon(icon, color: AppColors.ink),
       ),
     );
   }

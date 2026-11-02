@@ -171,6 +171,7 @@ class HubSortingController extends Controller
                 if (
                     $candidate
                     && $candidate->status === Parcel::STATUS_AT_SORTING_CENTER
+                    && ! $candidate->awaitingTransfer()
                     && trim((string) $candidate->destination_barangay_code) !== ''
                 ) {
                     $referenceCode = (string) $candidate->destination_barangay_code;
@@ -190,6 +191,8 @@ class HubSortingController extends Controller
                 } elseif (trim((string) $parcel->destination_barangay_code) === '') {
                     // Same rule as the groups endpoint, which never lists parcels without a code.
                     $errors[$key] = ['This parcel has no destination barangay code, so it cannot be sorted.'];
+                } elseif ($parcel->awaitingTransfer()) {
+                    $errors[$key] = ['This parcel goes on to another hub. Send it there instead of sorting it.'];
                 } elseif ((string) $parcel->destination_barangay_code !== $referenceCode) {
                     $errors[$key] = ['This parcel is bound for a different barangay than the rest of the batch.'];
                 } elseif (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::SORTED, 'hub')) {
@@ -247,7 +250,7 @@ class HubSortingController extends Controller
     protected function waitingParcels(SortingCenter $hub)
     {
         return Parcel::where('sorting_center_id', $hub->id)
-            ->where('status', Parcel::STATUS_AT_SORTING_CENTER)
+            ->waitingToSort()
             ->whereNotNull('destination_barangay_code')
             ->where('destination_barangay_code', '!=', '');
     }

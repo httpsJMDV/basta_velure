@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Courier\HubRouter;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -93,6 +94,8 @@ class Parcel extends Model
         'order_id',
         'seller_id',
         'sorting_center_id',
+        'destination_hub_id',
+        'transit_since',
         'assigned_rider_id',
         'pickup_rider_id',
         'status',
@@ -140,6 +143,7 @@ class Parcel extends Model
     {
         return [
             'scanned_in_at'           => 'datetime',
+            'transit_since'           => 'datetime',
             'sorted_at'               => 'datetime',
             'assigned_at'             => 'datetime',
             'out_for_delivery_at'     => 'datetime',
@@ -222,6 +226,57 @@ class Parcel extends Model
     public function seller(): BelongsTo
     {
         return $this->belongsTo(User::class, 'seller_id');
+    }
+
+    /** The hubs on this parcel's way to the buyer. */
+    public function hubStops(): HasMany
+    {
+        return $this->hasMany(ParcelHubStop::class)->orderBy('position');
+    }
+
+    public function destinationHub(): BelongsTo
+    {
+        return $this->belongsTo(SortingCenter::class, 'destination_hub_id');
+    }
+
+    /** On its way to another hub, or still has to be sent to it: this hub must not sort it for delivery. */
+    public function awaitingTransfer(): bool
+    {
+        return $this->transit_since !== null
+            || ($this->destination_hub_id !== null && $this->destination_hub_id !== $this->sorting_center_id);
+    }
+
+    /** At this hub and ready to sort for delivery. */
+    public function scopeWaitingToSort($query)
+    {
+        $query->where('status', self::STATUS_AT_SORTING_CENTER);
+        if (HubRouter::ready()) {
+            $query->whereNull('transit_since')->where(fn ($q) => $q
+                ->whereNull('destination_hub_id')
+                ->orWhereColumn('destination_hub_id', 'sorting_center_id'));
+        }
+
+        return $query;
+    }
+
+    /** At this hub and has to go on to another hub. Only call this once HubRouter::ready(). */
+    public function scopeWaitingToSend($query)
+    {
+        return $query->where('status', self::STATUS_AT_SORTING_CENTER)
+            ->whereNull('transit_since')
+            ->whereNotNull('destination_hub_id')
+            ->whereColumn('destination_hub_id', '!=', 'sorting_center_id');
+    }
+
+    /** A rider is bringing it here, or the hub before this one sent it. */
+    public function scopeExpectedAtHub($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('status', self::STATUS_PICKED_UP);
+            if (HubRouter::ready()) {
+                $q->orWhereNotNull('transit_since');
+            }
+        });
     }
 
     public function sortingCenter(): BelongsTo

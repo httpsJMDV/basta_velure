@@ -27,6 +27,15 @@ class RiderApi {
     }
   }
 
+  /// A parcel's whole way, hub by hub.
+  Future<List<JourneyNode>> journey(String trackingNumber) async => asJsonList(
+    asJson(
+      (await _get(
+        '/parcels/${Uri.encodeComponent(trackingNumber)}/tracking',
+      ))['data'],
+    )['journey'],
+  ).map(JourneyNode.fromJson).toList();
+
   Future<Json> _get(String path, {Map<String, dynamic>? query}) => _run(
     () async =>
         asJson((await _dio.get<Object?>(path, queryParameters: query)).data),

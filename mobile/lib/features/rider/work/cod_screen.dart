@@ -97,7 +97,6 @@ class _CodScreenState extends ConsumerState<CodScreen> {
   Widget build(BuildContext context) {
     final cod = _cod;
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Cash on delivery')),
       body: cod == null
           ? (_loadFailure != null
@@ -238,30 +237,39 @@ class _Balance extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = StatusTone.amber;
     return Container(
       padding: const EdgeInsets.all(AppSpace.xl),
       decoration: BoxDecoration(
-        color: tone.background,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: tone.border),
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Cash you hold', style: RiderText.label),
+          const Text(
+            'Cash you hold',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFD6D3D1),
+            ),
+          ),
+          const SizedBox(height: 2),
           Text(
             formatPeso(cod.outstanding),
             style: const TextStyle(
-              fontSize: 32,
+              fontSize: 36,
+              height: 1.15,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF78350F),
+              letterSpacing: -0.5,
+              color: AppColors.white,
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(height: AppSpace.sm),
+          const SizedBox(height: AppSpace.md),
           Text(
             'Collected ${formatPeso(cod.collected)} · Confirmed ${formatPeso(cod.confirmed)} · Pending ${formatPeso(cod.pending)}',
-            style: const TextStyle(fontSize: 14, color: Color(0xFF78350F)),
+            style: const TextStyle(fontSize: 14, color: Color(0xFFD6D3D1)),
           ),
         ],
       ),

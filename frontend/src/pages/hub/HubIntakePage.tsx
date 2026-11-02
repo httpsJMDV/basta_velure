@@ -158,7 +158,7 @@ export default function HubIntakePage() {
         pushFeed({
           kind: 'success',
           tracking: parcel.tracking_number,
-          message: 'Received',
+          message: parcel.next_hub ? `Received. Send it on to ${parcel.next_hub} from Sorting` : 'Received',
           barangay: parcel.destination_barangay.name ?? undefined,
         });
         setSessionCount((n) => n + 1);
@@ -350,9 +350,9 @@ export default function HubIntakePage() {
                   <div className="flex items-start gap-2">
                     <User className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                     <div>
-                      <dt className="font-bold">Dropped off by</dt>
+                      <dt className="font-bold">{lookup.coming_from ? 'Sent from' : 'Dropped off by'}</dt>
                       <dd>
-                        {lookup.pickup_rider
+                        {lookup.coming_from ? lookup.coming_from : lookup.pickup_rider
                           ? `${lookup.pickup_rider.name}${lookup.pickup_rider.plate_number ? ` (${lookup.pickup_rider.plate_number})` : ''}`
                           : 'Unknown rider'}
                       </dd>
@@ -361,7 +361,8 @@ export default function HubIntakePage() {
                 </dl>
                 <p className="text-xs text-blue-900">
                   Status: <span className="font-bold">{lookup.status.replace(/_/g, ' ')}</span>
-                  {lookup.scanned_in_at && ` - already scanned in at ${formatDateTime(lookup.scanned_in_at)}`}
+                  {lookup.scanned_in_at && !lookup.coming_from && ` - already scanned in at ${formatDateTime(lookup.scanned_in_at)}`}
+                  {lookup.next_hub && ` - goes on to ${lookup.next_hub}`}
                 </p>
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                   <button
@@ -375,11 +376,11 @@ export default function HubIntakePage() {
                   <button
                     type="button"
                     onClick={() => handleScan(lookup.tracking_number)}
-                    disabled={busy || lookup.scanned_in_at !== null}
+                    disabled={busy || (lookup.scanned_in_at !== null && !lookup.coming_from)}
                     className="min-h-12 inline-flex items-center justify-center gap-2 px-6 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-sm font-bold disabled:opacity-50"
                   >
                     {busy && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
-                    {lookup.scanned_in_at ? (
+                    {lookup.scanned_in_at && !lookup.coming_from ? (
                       <>
                         <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                         <span>Received at {formatDateTime(lookup.scanned_in_at)}</span>
@@ -537,7 +538,7 @@ function ParcelList({ state, timeLabel, timeOf, emptyTitle, emptyText, onRetry, 
             </div>
             <div className="space-y-0.5 sm:text-right">
               <p>
-                {parcel.pickup_rider
+                {parcel.coming_from ? `From ${parcel.coming_from}` : parcel.pickup_rider
                   ? `${parcel.pickup_rider.name}${parcel.pickup_rider.plate_number ? ` (${parcel.pickup_rider.plate_number})` : ''}`
                   : 'Unknown rider'}
               </p>

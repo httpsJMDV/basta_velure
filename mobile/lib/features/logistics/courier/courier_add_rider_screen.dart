@@ -11,6 +11,7 @@ import '../../rider/account/account_forms.dart';
 import '../../rider/widgets/rider_widgets.dart';
 import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
+import 'courier_kit.dart';
 
 /// Add a rider (D7). The rider gets an email link to set their password; it works once, for 24 hours.
 class CourierAddRiderScreen extends ConsumerStatefulWidget {
@@ -142,10 +143,15 @@ class _CourierAddRiderScreenState extends ConsumerState<CourierAddRiderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const HubHint(
+                text: 'Once added, we email the rider a link to set a password. They can go Online after that.',
+              ),
+              const SizedBox(height: AppSpace.lg),
               if (banner != null) ...[
                 MessageBanner(message: banner),
                 const SizedBox(height: AppSpace.lg),
               ],
+              const HubSection(title: 'About the rider'),
               AppTextField(
                 label: 'First name',
                 controller: _first,
@@ -201,6 +207,7 @@ class _CourierAddRiderScreenState extends ConsumerState<CourierAddRiderScreen> {
                 serverError: failure?.errorFor('phone'),
               ),
               const SizedBox(height: AppSpace.xl),
+              const HubSection(title: 'License and vehicle'),
               LicenseNumberField(
                 controller: _license,
                 serverError: failure?.errorFor('license_number'),
@@ -232,7 +239,11 @@ class _CourierAddRiderScreenState extends ConsumerState<CourierAddRiderScreen> {
                   onChanged: (id) => setState(() => _hubId = id),
                 ),
               ],
-              const SizedBox(height: AppSpace.lg),
+              const SizedBox(height: AppSpace.xl),
+              const HubSection(
+                title: 'Documents',
+                note: 'Clear photos, so your team can check them.',
+              ),
               DocumentPhotoField(
                 label: "Driver's license",
                 photo: _licensePhoto,

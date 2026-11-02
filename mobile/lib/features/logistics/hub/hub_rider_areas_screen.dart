@@ -12,6 +12,7 @@ import '../../rider/widgets/rider_widgets.dart';
 import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../widgets/logistics_widgets.dart';
+import 'hub_kit.dart';
 
 /// A rider's delivery areas (D6): named groups of barangays from the hub's coverage. The server stores codes, so names
 /// come from the same public PSGC list the website uses; a code shows only when the list can't be reached.
@@ -112,7 +113,6 @@ class _HubRiderAreasScreenState extends ConsumerState<HubRiderAreasScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,16 +151,52 @@ class _HubRiderAreasScreenState extends ConsumerState<HubRiderAreasScreen> {
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.all(AppSpace.lg),
-                      itemCount: data.areas.length,
+                      itemCount: data.areas.length + 1,
                       separatorBuilder: (_, _) =>
                           const SizedBox(height: AppSpace.sm),
-                      itemBuilder: (context, index) => _AreaCard(
-                        area: data.areas[index],
-                        nameOf: _name,
-                        onEdit: () => _edit(data, area: data.areas[index]),
-                        onDeactivate: () => _deactivate(data.areas[index]),
-                        onReactivate: () => _reactivate(data.areas[index]),
-                      ),
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          final active = data.areas.where((a) => a.isActive);
+                          final covered = {
+                            for (final area in active) ...area.barangays,
+                          };
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpace.xs),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                HubSummaryStrip(
+                                  items: [
+                                    HubSummaryItem(
+                                      value: '${active.length}',
+                                      label: active.length == 1
+                                          ? 'Active area'
+                                          : 'Active areas',
+                                    ),
+                                    HubSummaryItem(
+                                      value:
+                                          '${covered.length} of ${data.coverage.length}',
+                                      label: 'Barangays covered',
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpace.md),
+                                const HubHint(
+                                  text: 'A rider only gets parcels for barangays in their active areas.',
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        final area = data.areas[index - 1];
+                        return _AreaCard(
+                          area: area,
+                          nameOf: _name,
+                          onEdit: () => _edit(data, area: area),
+                          onDeactivate: () => _deactivate(area),
+                          onReactivate: () => _reactivate(area),
+                        );
+                      },
                     ),
             ),
             BottomActions(
@@ -204,19 +240,24 @@ class _AreaCard extends StatelessWidget {
           Row(
             children: [
               Expanded(child: Text(area.label, style: RiderText.name)),
+              const SizedBox(width: AppSpace.sm),
               StatusChip(
                 label: area.isActive ? 'Active' : 'Inactive',
                 tone: area.isActive ? StatusTone.emerald : StatusTone.gray,
               ),
             ],
           ),
+          Text(
+            '${area.barangays.length} barangay${area.barangays.length == 1 ? '' : 's'}',
+            style: HubText.small,
+          ),
           const SizedBox(height: AppSpace.sm),
           Wrap(
-            spacing: AppSpace.xs,
-            runSpacing: AppSpace.xs,
+            spacing: 6,
+            runSpacing: 6,
             children: [
               for (final code in area.barangays)
-                StatusChip(label: nameOf(code), tone: StatusTone.blue),
+                HubMetaChip(icon: LucideIcons.mapPin, label: nameOf(code)),
             ],
           ),
           const SizedBox(height: AppSpace.sm),

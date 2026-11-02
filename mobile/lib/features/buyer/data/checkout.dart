@@ -179,6 +179,9 @@ class CheckoutQuote {
     required this.total,
     this.platformVoucher,
     this.shippingVoucher,
+    this.codMax = 0,
+    this.codAvailable = true,
+    this.agreementRequired = false,
   });
 
   final List<QuoteStore> stores;
@@ -195,12 +198,22 @@ class CheckoutQuote {
   final num shippingDiscount;
   final num total;
 
+  /// The most cash a rider collects for one shop's order.
+  final num codMax;
+
+  /// False when a shop's order is above [codMax], so a rider never carries that much.
+  final bool codAvailable;
+
+  /// A big purchase is agreed to first. The server refuses the order without it.
+  final bool agreementRequired;
+
   /// GCash works only when every shop in the checkout has a GCash account.
   bool get gcashPossible =>
       stores.isNotEmpty && stores.every((store) => store.seller.acceptsGcash);
 
   factory CheckoutQuote.fromJson(Json json) {
     final totals = asJson(json['totals']);
+    final limits = asJson(json['limits']);
     return CheckoutQuote(
       stores: asJsonList(json['stores']).map(QuoteStore.fromJson).toList(),
       platformVoucher: QuoteVoucher.fromJson(json['platform_voucher']),
@@ -217,6 +230,10 @@ class CheckoutQuote {
       shipping: asDouble(totals['shipping']),
       shippingDiscount: asDouble(totals['shipping_discount']),
       total: asDouble(totals['total']),
+      codMax: asDouble(limits['cod_max']),
+      codAvailable:
+          limits['cod_available'] == null || asBool(limits['cod_available']),
+      agreementRequired: asBool(limits['agreement_required']),
     );
   }
 }

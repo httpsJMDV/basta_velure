@@ -5,11 +5,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 
-/// The buyer app's type, on top of Inter: the phone's serif for what a person reads first, like the website's
-/// headings.
+/// The buyer app's type, on top of Inter: a bundled serif for what a person reads first, like the website's headings.
+/// Bundled because some phones (Infinix) replace the system serif with their own thin font.
 abstract final class BuyerText {
   static const screenTitle = TextStyle(
-    fontFamily: 'serif',
+    fontFamily: 'NotoSerif',
     fontSize: 22,
     height: 1.15,
     fontWeight: FontWeight.w700,
@@ -18,7 +18,7 @@ abstract final class BuyerText {
   );
 
   static const section = TextStyle(
-    fontFamily: 'serif',
+    fontFamily: 'NotoSerif',
     fontSize: 20,
     height: 1.2,
     fontWeight: FontWeight.w700,

@@ -12,6 +12,7 @@ import '../../rider/widgets/parcel_scanner.dart';
 import '../../rider/widgets/rider_widgets.dart';
 import '../data/logistics_api.dart';
 import '../widgets/scan_results.dart';
+import 'hub_kit.dart';
 
 /// What a scan does at the hub.
 enum HubScanMode {
@@ -145,7 +146,6 @@ class _HubScanScreenState extends ConsumerState<HubScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Scan parcels')),
       body: ScanSessionLayout(
         scanner: _scannerColumn(),
@@ -162,27 +162,29 @@ class _HubScanScreenState extends ConsumerState<HubScanScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SegmentedButton<HubScanMode>(
-          showSelectedIcon: false,
-          style: SegmentedButton.styleFrom(
-            selectedBackgroundColor: AppColors.gray900,
-            selectedForegroundColor: AppColors.white,
-          ),
-          segments: [
-            for (final mode in HubScanMode.values)
-              ButtonSegment(value: mode, label: Text(mode.label)),
-          ],
-          selected: {_mode},
-          onSelectionChanged: (next) => setState(() => _mode = next.first),
+        RiderSegments<HubScanMode>(
+          padding: EdgeInsets.zero,
+          values: HubScanMode.values,
+          selected: _mode,
+          labelOf: (mode) => mode.label,
+          onSelected: (mode) => setState(() => _mode = mode),
         ),
-        const SizedBox(height: AppSpace.sm),
+        const SizedBox(height: AppSpace.md),
         _Count(
           value: _mode == HubScanMode.receive ? _receivedToday : _sortedNow,
           label: _mode == HubScanMode.receive
               ? 'received today'
               : 'sorted just now',
+          good: _rows.where((row) => row.tone == ScanTone.good).length,
+          problems: _rows.where((row) => row.tone != ScanTone.good).length,
         ),
         const SizedBox(height: AppSpace.sm),
+        HubHint(
+          text: _mode == HubScanMode.receive
+              ? 'Each scan marks a parcel as here at the hub.'
+              : 'Each scan sorts a parcel for its barangay, and it moves to Dispatch.',
+        ),
+        const SizedBox(height: AppSpace.md),
         ParcelScanner.session(
           onSessionScan: _scan,
           cameraReason:
@@ -193,31 +195,61 @@ class _HubScanScreenState extends ConsumerState<HubScanScreen> {
   }
 }
 
+/// The count that matters most at a scanner, and how this sitting of scans is going.
 class _Count extends StatelessWidget {
-  const _Count({required this.value, required this.label});
+  const _Count({
+    required this.value,
+    required this.label,
+    required this.good,
+    required this.problems,
+  });
 
   final int? value;
   final String label;
+  final int good;
+  final int problems;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       liveRegion: true,
-      child: Row(
-        children: [
-          const Icon(LucideIcons.packageCheck, size: 18),
-          const SizedBox(width: AppSpace.sm),
-          Text(
-            value == null ? '—' : '$value',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              fontFeatures: [FontFeature.tabularFigures()],
+      child: RiderCard(
+        padding: const EdgeInsets.all(AppSpace.md),
+        child: Row(
+          children: [
+            const RiderIconTile(
+              icon: LucideIcons.packageCheck,
+              color: AppColors.white,
+              background: AppColors.gray900,
             ),
-          ),
-          const SizedBox(width: AppSpace.xs),
-          Expanded(child: Text(label, style: RiderText.body)),
-        ],
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value == null ? '—' : '$value', style: HubText.figure),
+                  Text(label, style: HubText.small),
+                ],
+              ),
+            ),
+            if (good + problems > 0) ...[
+              const SizedBox(width: AppSpace.sm),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('$good done', style: HubText.small),
+                  if (problems > 0)
+                    Text(
+                      '$problems with a problem',
+                      style: HubText.small.copyWith(
+                        color: StatusTone.rose.foreground,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

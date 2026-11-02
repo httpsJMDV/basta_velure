@@ -13,6 +13,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'courier_kit.dart';
 
 enum _HubTab {
   pending('Applications', 'PENDING'),
@@ -89,8 +90,43 @@ class _CourierHubsScreenState extends ConsumerState<CourierHubsScreen> {
                       ? hubs
                       : hubs.where((h) => h.status == _tab.status).toList();
                   return ListView(
-                    padding: const EdgeInsets.only(bottom: AppSpace.lg),
+                    padding: EdgeInsets.only(
+                      bottom: AppSpace.lg + dockInset(context),
+                    ),
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpace.lg,
+                          AppSpace.md,
+                          AppSpace.lg,
+                          0,
+                        ),
+                        child: HubSummaryStrip(
+                          items: [
+                            HubSummaryItem(
+                              value: '${count(_HubTab.approved)}',
+                              label: 'Active',
+                            ),
+                            HubSummaryItem(
+                              value: '${count(_HubTab.pending)}',
+                              label: 'To review',
+                              color: count(_HubTab.pending) > 0
+                                  ? StatusTone.amber.foreground
+                                  : AppColors.gray900,
+                            ),
+                            HubSummaryItem(
+                              value:
+                                  '${hubs.fold<int>(0, (sum, hub) => sum + hub.activeRiders)}',
+                              label: 'Active riders',
+                            ),
+                            HubSummaryItem(
+                              value:
+                                  '${hubs.fold<int>(0, (sum, hub) => sum + hub.activeParcels)}',
+                              label: 'Active parcels',
+                            ),
+                          ],
+                        ),
+                      ),
                       RiderTabs<_HubTab>(
                         values: _HubTab.values,
                         selected: _tab,
@@ -150,31 +186,95 @@ class _HubRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = StatusWords.hub(hub.status);
+    final working = hub.status == 'APPROVED';
     return RiderCard(
       padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 72,
-        selected: selected,
-        selectedTileColor: AppColors.gray100,
+      child: InkWell(
         onTap: onTap,
-        title: Text(
-          hub.name,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.gray900,
+        child: AnimatedContainer(
+          duration: kMotion,
+          color: selected ? AppColors.gray100 : Colors.transparent,
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RiderIconTile(
+                icon: LucideIcons.warehouse,
+                size: 46,
+                color: status.$2.foreground,
+                background: status.$2.background,
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hub.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.25,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.gray900,
+                      ),
+                    ),
+                    if (hub.place.isNotEmpty)
+                      Text(hub.place, style: HubText.small),
+                    if (!working && hub.rejectionReason != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          hub.rejectionReason!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: HubText.small,
+                        ),
+                      ),
+                    const SizedBox(height: AppSpace.sm),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ToneChip(status),
+                        if (working) ...[
+                          HubMetaChip(
+                            icon: LucideIcons.bike,
+                            label:
+                                '${hub.activeRiders} rider${hub.activeRiders == 1 ? '' : 's'}',
+                          ),
+                          HubMetaChip(
+                            icon: LucideIcons.package,
+                            label:
+                                '${hub.activeParcels} active parcel${hub.activeParcels == 1 ? '' : 's'}',
+                          ),
+                        ] else if (hub.applicantName != null)
+                          HubMetaChip(
+                            icon: LucideIcons.user,
+                            label: hub.applicantName!,
+                          ),
+                        HubMetaChip(
+                          icon: LucideIcons.mapPin,
+                          label:
+                              '${hub.coverageCount} barangay${hub.coverageCount == 1 ? '' : 's'}',
+                        ),
+                        if (hub.status == 'PENDING' && hub.submittedAt != null)
+                          HubMetaChip(
+                            icon: LucideIcons.clock,
+                            label: 'Applied ${Fmt.waited(hub.submittedAt)} ago',
+                            tone: waitedLong(hub.submittedAt)
+                                ? StatusTone.amber
+                                : null,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        subtitle: Text(
-          [
-            if (hub.place.isNotEmpty) hub.place,
-            if (hub.status == 'APPROVED')
-              '${hub.activeRiders} rider${hub.activeRiders == 1 ? '' : 's'} · ${hub.activeParcels} active parcel${hub.activeParcels == 1 ? '' : 's'}'
-            else
-              ?hub.applicantName,
-          ].join(' · '),
-        ),
-        trailing: ToneChip(StatusWords.hub(hub.status)),
       ),
     );
   }
@@ -210,8 +310,28 @@ class _HubBody extends ConsumerStatefulWidget {
 class _HubBodyState extends ConsumerState<_HubBody> {
   final _view = GlobalKey<LoadViewState<NetworkHubDetail>>();
   Map<String, String> _names = const {};
+  CourierHubReport? _report;
+  CourierPayee? _pay;
 
   CourierApi get _api => ref.read(courierApiProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExtras();
+  }
+
+  /// How the hub has been doing and what it is owed. The hub's own page doesn't need either, so a failure stays quiet.
+  Future<void> _loadExtras() async {
+    try {
+      final report = await _api.reports();
+      if (mounted) setState(() => _report = report.hub(widget.hubId));
+    } catch (_) {}
+    try {
+      final payouts = await _api.payouts();
+      if (mounted) setState(() => _pay = payouts.hub(widget.hubId));
+    } catch (_) {}
+  }
 
   Future<NetworkHubDetail> _load() async {
     final hub = await _api.hub(widget.hubId);
@@ -284,26 +404,52 @@ class _HubBodyState extends ConsumerState<_HubBody> {
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(AppSpace.lg),
+              padding: EdgeInsets.fromLTRB(
+                AppSpace.lg,
+                AppSpace.lg,
+                AppSpace.lg,
+                AppSpace.lg +
+                    (const [
+                          'PENDING',
+                          'APPROVED',
+                          'SUSPENDED',
+                        ].contains(hub.status)
+                        ? 0
+                        : dockInset(context)),
+              ),
               children: [
                 RiderCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      CourierCardHeader(
+                        icon: LucideIcons.warehouse,
+                        title: hub.name,
+                        subtitle: hub.address,
+                        below: ToneChip(StatusWords.hub(hub.status)),
+                      ),
+                      const SizedBox(height: AppSpace.md),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
                         children: [
-                          Expanded(
-                            child: Text(hub.name, style: RiderText.name),
+                          HubMetaChip(
+                            icon: LucideIcons.mapPin,
+                            label:
+                                '${hub.coverage.length} barangay${hub.coverage.length == 1 ? '' : 's'}',
                           ),
-                          ToneChip(StatusWords.hub(hub.status)),
+                          HubMetaChip(
+                            icon: LucideIcons.fileText,
+                            label:
+                                '${[hub.hasPermit, hub.hasId, hub.hasIdBack].where((on) => on).length} of 3 documents',
+                          ),
+                          if (hub.submittedAt != null)
+                            HubMetaChip(
+                              icon: LucideIcons.clock,
+                              label: 'Applied ${Fmt.date(hub.submittedAt)}',
+                            ),
                         ],
                       ),
-                      const Divider(height: AppSpace.xl),
-                      FactRow('Address', hub.address),
-                      FactRow('Owner', hub.applicantName),
-                      FactRow('Owner\'s email', hub.applicantEmail),
-                      FactRow('Owner\'s mobile', hub.applicantPhone),
-                      FactRow('Applied', Fmt.date(hub.submittedAt)),
                     ],
                   ),
                 ),
@@ -312,8 +458,54 @@ class _HubBodyState extends ConsumerState<_HubBody> {
                   const SizedBox(height: AppSpace.md),
                   MessageBanner(message: 'Reason: ${hub.rejectionReason}'),
                 ],
+                if (_report != null) ...[
+                  const SizedBox(height: AppSpace.lg),
+                  const HubSection(
+                    title: 'Last 30 days',
+                    note: 'What this hub did for your network.',
+                  ),
+                  _HubReportCard(report: _report!),
+                ],
+                if (_pay != null) ...[
+                  const SizedBox(height: AppSpace.lg),
+                  const HubSection(title: 'What you owe this hub'),
+                  CourierPay(
+                    amount: formatPeso(_pay!.unpaid),
+                    count: _pay!.unpaidCount,
+                    lastPaid: _pay!.lastPaidAt == null
+                        ? 'Not yet'
+                        : Fmt.date(_pay!.lastPaidAt),
+                    gcash: [?_pay!.gcashName, ?_pay!.gcashNumber].join(' · '),
+                  ),
+                ],
                 const SizedBox(height: AppSpace.lg),
-                const RiderSectionTitle('Documents'),
+                const HubSection(title: 'Owner'),
+                RiderCard(
+                  child: Column(
+                    children: [
+                      HubFact(
+                        icon: LucideIcons.user,
+                        label: 'Name',
+                        value: hub.applicantName,
+                      ),
+                      HubFact(
+                        icon: LucideIcons.mail,
+                        label: 'Email',
+                        value: hub.applicantEmail,
+                      ),
+                      HubFact(
+                        icon: LucideIcons.phone,
+                        label: 'Mobile',
+                        value: hub.applicantPhone,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpace.lg),
+                const HubSection(
+                  title: 'Documents',
+                  note: 'Private. Shown here only, never saved to this phone.',
+                ),
                 if (!hub.hasPermit && !hub.hasId && !hub.hasIdBack)
                   const RiderCard(
                     child: Text('No documents on file.', style: RiderText.body),
@@ -339,7 +531,10 @@ class _HubBodyState extends ConsumerState<_HubBody> {
                     ],
                   ),
                 const SizedBox(height: AppSpace.lg),
-                RiderSectionTitle('Barangays covered (${hub.coverage.length})'),
+                HubSection(
+                  title: 'Barangays covered (${hub.coverage.length})',
+                  note: 'Where this hub delivers.',
+                ),
                 RiderCard(
                   child: hub.coverage.isEmpty
                       ? const Text('None yet.', style: RiderText.body)
@@ -397,4 +592,72 @@ class _HubBodyState extends ConsumerState<_HubBody> {
       ),
     );
   }
+}
+
+class _HubReportCard extends StatelessWidget {
+  const _HubReportCard({required this.report});
+
+  final CourierHubReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    return RiderCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _row([
+            HubSummaryItem(
+              value: courierRate(report.successRate),
+              label: 'Delivery success',
+            ),
+            HubSummaryItem(
+              value: courierRate(report.onTimeRate),
+              label: 'On time',
+            ),
+          ]),
+          const SizedBox(height: AppSpace.sm),
+          CourierMeter(value: report.successRate ?? 0, color: kDeliveredGreen),
+          const Divider(height: AppSpace.xl),
+          _row([
+            HubSummaryItem(value: '${report.received}', label: 'Received'),
+            HubSummaryItem(value: '${report.sorted}', label: 'Sorted'),
+            HubSummaryItem(value: '${report.dispatched}', label: 'Sent out'),
+          ]),
+          const SizedBox(height: AppSpace.md),
+          _row([
+            HubSummaryItem(value: '${report.delivered}', label: 'Delivered'),
+            HubSummaryItem(
+              value: '${report.failedAttempts}',
+              label: 'Failed tries',
+              color: report.failedAttempts > 0
+                  ? StatusTone.rose.foreground
+                  : AppColors.gray900,
+            ),
+            HubSummaryItem(value: '${report.returned}', label: 'Returned'),
+          ]),
+          const Divider(height: AppSpace.xl),
+          _row([
+            HubSummaryItem(
+              value: courierHours(report.avgDwellHours),
+              label: 'Average time at the hub',
+            ),
+            HubSummaryItem(
+              value: courierHours(report.avgDeliveryHours),
+              label: 'Average time to deliver',
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  static Widget _row(List<HubSummaryItem> items) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var i = 0; i < items.length; i++) ...[
+        if (i > 0) const SizedBox(width: AppSpace.md),
+        Expanded(child: items[i]),
+      ],
+    ],
+  );
 }

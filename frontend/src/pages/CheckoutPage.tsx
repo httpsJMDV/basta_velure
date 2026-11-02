@@ -54,6 +54,7 @@ export default function CheckoutPage() {
   const [voucherProblem, setVoucherProblem] = useState<{ code: string; message: string } | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [method, setMethod] = useState<Method>('cod');
+  const [agreed, setAgreed] = useState(false);
   const [refs, setRefs] = useState<Record<number, string>>({});
   const [proofs, setProofs] = useState<Record<number, File>>({});
   const [payErrors, setPayErrors] = useState<Record<number, PayErrors>>({});
@@ -122,8 +123,19 @@ export default function CheckoutPage() {
   // Orders open once the Loved-IT team approved the buyer's government ID (the server refuses them before).
   const idStatus = user?.buyer_application_status ?? null;
   const idBlocked = user?.role === 'buyer' && idStatus !== 'approved';
+  // A rider should not carry too much cash, and a big purchase is agreed to first. The server checks both as well.
+  const codOff = quote?.limits ? !quote.limits.cod_available : false;
+  const needsAgreement = !!quote?.limits?.agreement_required;
   const canPlace = !idBlocked && !!quote?.can_place && !quoting && !submitting && !addressNeedsUpdate && staleVouchers.length === 0
-    && stores.every((s) => !noteError(s.seller.id)) && (method !== 'gcash' || gcashBlockers.length === 0);
+    && stores.every((s) => !noteError(s.seller.id)) && (method !== 'gcash' || gcashBlockers.length === 0)
+    && !(method === 'cod' && codOff) && (!needsAgreement || agreed);
+
+  useEffect(() => {
+    if (codOff && method === 'cod' && gcashBlockers.length === 0) setMethod('gcash');
+  }, [codOff, method, gcashBlockers.length]);
+  // An agreement is to one amount, so a new total asks again.
+  const agreedTotal = quote?.totals.total;
+  useEffect(() => setAgreed(false), [agreedTotal]);
 
   const setSlot = (slot: VoucherSlot, code: string | null) => {
     if (slot.kind === 'store') setStoreCodes((c) => { const n = { ...c }; if (code) n[slot.sellerId] = code; else delete n[slot.sellerId]; return n; });
@@ -193,7 +205,7 @@ export default function CheckoutPage() {
     }
 
     const fields: Record<string, unknown> = {
-      ...input, payment_method: method, expected_total: quote.totals.total,
+      ...input, payment_method: method, expected_total: quote.totals.total, high_value_agreed: agreed,
       notes: Object.fromEntries(Object.entries(notes).filter(([, n]) => n.trim() !== '')),
     };
     let body: Record<string, unknown> | FormData = fields;
@@ -208,6 +220,7 @@ export default function CheckoutPage() {
       Object.entries(notes).forEach(([sid, n]) => n.trim() && fd.append(`notes[${sid}]`, n.trim()));
       fd.append('payment_method', 'gcash');
       fd.append('expected_total', String(quote.totals.total));
+      if (agreed) fd.append('high_value_agreed', '1');
       for (const s of stores) {
         fd.append(`gcash[${s.seller.id}][reference]`, refs[s.seller.id] ?? '');
         const proof = proofs[s.seller.id];
@@ -372,11 +385,11 @@ export default function CheckoutPage() {
                 <h2 className="text-[13px] font-semibold text-stone-900">Payment method</h2>
                 <div className="mt-2.5 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
                   {([
-                    { key: 'cod', title: 'Cash on delivery', text: 'Pay the rider', icon: <Banknote className="w-5 h-5 text-amber-600" /> },
+                    { key: 'cod', title: 'Cash on delivery', text: codOff && quote?.limits ? `Up to ${peso(quote.limits.cod_max)} per shop` : 'Pay the rider', icon: <Banknote className="w-5 h-5 text-amber-600" /> },
                     { key: 'gcash', title: 'GCash', text: gcashBlockers.length ? 'Not every shop takes it' : 'Send to the shop', icon: <img src={gcashMark} alt="" className="w-5 h-5 object-contain" /> },
                   ] as const).map((m) => {
                     const on = method === m.key;
-                    const off = m.key === 'gcash' && gcashBlockers.length > 0;
+                    const off = m.key === 'gcash' ? gcashBlockers.length > 0 : codOff;
                     return (
                       <button key={m.key} type="button" role="radio" aria-checked={on} disabled={off} onClick={() => setMethod(m.key)}
                         className={`relative p-3 text-left rounded-xl border-[1.5px] transition-colors disabled:opacity-55 disabled:cursor-not-allowed ${on ? 'border-brand-red bg-rose-50/40' : 'border-stone-200 hover:border-stone-400'}`}>
@@ -388,6 +401,11 @@ export default function CheckoutPage() {
                     );
                   })}
                 </div>
+                {codOff && gcashBlockers.length > 0 && (
+                  <p role="alert" className="mt-2.5 text-[12px] leading-snug font-medium text-brand-red">
+                    This is too much for cash on delivery, and not every shop here takes GCash. Split it into smaller orders.
+                  </p>
+                )}
               </div>
 
               <div className="p-5 space-y-3.5">
@@ -453,6 +471,16 @@ export default function CheckoutPage() {
                       </Link>
                     )}
                   </div>
+                )}
+
+                {needsAgreement && (
+                  <label className="mt-4 flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 cursor-pointer">
+                    <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0 accent-brand-red" />
+                    <span className="text-[12.5px] leading-relaxed text-stone-700">
+                      <span className="block font-semibold text-stone-900">This is a big purchase</span>
+                      I checked the items, the shop and the total of {peso(quote?.totals.total ?? 0)}. I can ask for a return within 7 days of delivery. My agreement is saved with this order.
+                    </span>
+                  </label>
                 )}
 
                 <button type="button" onClick={place} disabled={!canPlace}

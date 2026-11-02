@@ -9,13 +9,16 @@ import '../../../core/api/api_failure.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../buyer/widgets/buyer_theme.dart';
 import '../chat/rider_chat.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
 import '../data/rider_state.dart';
 import '../location/location_bar.dart';
 import '../location/location_beacon.dart';
+import '../map/route_map.dart';
 import '../rider_paths.dart';
+import '../widgets/parcel_journey.dart';
 import '../widgets/rider_app_bar.dart';
 import '../widgets/rider_widgets.dart';
 import 'delivered_sheet.dart';
@@ -131,12 +134,11 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
   Widget build(BuildContext context) {
     final list = _list;
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: const RiderAppBar(title: 'Deliveries'),
       body: LocationGate(
         child: Column(
           children: [
-            RiderTabs<DeliveryView>(
+            RiderSegments<DeliveryView>(
               values: const [
                 DeliveryView.assigned,
                 DeliveryView.outForDelivery,
@@ -164,6 +166,7 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
                     foregroundColor: StatusTone.rose.foreground,
+                    backgroundColor: StatusTone.rose.background,
                     side: BorderSide(color: StatusTone.rose.border),
                   ),
                   onPressed: () async {
@@ -222,13 +225,43 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Collect at', style: RiderText.label),
-                      Text(hub.name ?? 'Your hub', style: RiderText.name),
-                      InfoRow(
-                        icon: LucideIcons.warehouse,
-                        text: hub.fullAddress,
-                        action: MapsButton(address: hub.fullAddress),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const RiderIconTile(
+                            icon: LucideIcons.warehouse,
+                            color: AppColors.brandRed,
+                            background: AppColors.brandRedTint,
+                          ),
+                          const SizedBox(width: AppSpace.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Collect at',
+                                  style: RiderText.label,
+                                ),
+                                Text(
+                                  hub.name ?? 'Your hub',
+                                  style: RiderText.name,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  hub.fullAddress,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    height: 1.35,
+                                    color: AppColors.stone600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: AppSpace.md),
+                      RiderMapsPill(address: hub.fullAddress),
                     ],
                   ),
                 ),
@@ -279,21 +312,22 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
             ],
           ),
         ),
-        Material(
-          color: AppColors.white,
-          elevation: 8,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpace.lg),
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(56),
-                ),
-                onPressed: () => _collect(list),
-                icon: const Icon(LucideIcons.scanLine),
-                label: Text('Scan at the hub (${list.assignedCount})'),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.lg,
+              AppSpace.xs,
+              AppSpace.lg,
+              AppSpace.md,
+            ),
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
               ),
+              onPressed: () => _collect(list),
+              icon: const Icon(LucideIcons.scanLine),
+              label: Text('Scan at the hub (${list.assignedCount})'),
             ),
           ),
         ),
@@ -303,10 +337,31 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
 
   Widget _route(DeliveryList list) {
     var number = 0;
+    final stops = [for (final group in list.groups) ...group.stops];
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpace.lg),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.lg,
+        AppSpace.lg,
+        AppSpace.lg + dockInset(context),
+      ),
       children: [
+        RouteMapCard(
+          stops: [
+            for (final (index, stop) in stops.indexed)
+              RouteStop(
+                number: index + 1,
+                title: stop.recipientName,
+                place: stop.address,
+                phone: stop.recipientPhone,
+                codAmount: stop.codAmount,
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpace.md),
+        RouteSummary(stops: stops),
+        const SizedBox(height: AppSpace.md),
         for (final group in list.groups) ...[
           RiderSectionTitle(
             '${group.barangayName}, ${group.city}',
@@ -335,6 +390,86 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
       child: SizedBox(height: constraints.maxHeight, child: child),
     ),
   );
+}
+
+/// What the whole route adds up to, so a rider knows the cash and the load before leaving.
+class RouteSummary extends StatelessWidget {
+  const RouteSummary({super.key, required this.stops});
+
+  final List<DeliveryStop> stops;
+
+  @override
+  Widget build(BuildContext context) {
+    final cash = stops.fold<double>(0, (sum, s) => sum + (s.codAmount ?? 0));
+    final kg = stops.fold<double>(0, (sum, s) => sum + (s.weightKg ?? 0));
+    return RiderCard(
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _SummaryFigure(
+                value: '${stops.length}',
+                label: stops.length == 1 ? 'Stop' : 'Stops',
+              ),
+            ),
+            const VerticalDivider(
+              width: AppSpace.lg,
+              color: AppColors.stone200,
+            ),
+            Expanded(
+              flex: 2,
+              child: _SummaryFigure(
+                value: formatPeso(cash),
+                label: 'Cash to collect',
+              ),
+            ),
+            if (kg > 0) ...[
+              const VerticalDivider(
+                width: AppSpace.lg,
+                color: AppColors.stone200,
+              ),
+              Expanded(
+                child: _SummaryFigure(
+                  value: '${kg.toStringAsFixed(kg < 10 ? 1 : 0)} kg',
+                  label: 'Load',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryFigure extends StatelessWidget {
+  const _SummaryFigure({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: RiderText.label),
+      ],
+    );
+  }
 }
 
 /// One stop, like the website's: the stop number, the attempt, the recipient, the cash to collect, how to reach
@@ -379,20 +514,26 @@ class StopCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              const Spacer(),
-              RiderMessageButton(
-                trackingNumber: stop.trackingNumber,
-                counterparts: const [Counterpart.buyer, Counterpart.hub],
-              ),
             ],
           ),
           const SizedBox(height: AppSpace.md),
           Text(
             stop.recipientName,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 22,
+              height: 1.2,
               fontWeight: FontWeight.w800,
-              color: AppColors.gray900,
+              letterSpacing: -0.3,
+              color: AppColors.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            address,
+            style: const TextStyle(
+              fontSize: 15.5,
+              height: 1.4,
+              color: AppColors.stone600,
             ),
           ),
           if (stop.previousFailure != null) ...[
@@ -418,28 +559,43 @@ class StopCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpace.md),
           ],
+          Row(
+            children: [
+              Expanded(child: RiderCallPill(phone: stop.recipientPhone)),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(child: RiderMapsPill(address: address)),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: RiderMessageButton(
+                  trackingNumber: stop.trackingNumber,
+                  counterparts: const [Counterpart.buyer, Counterpart.hub],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
           InfoRow(
             icon: LucideIcons.phone,
             text: stop.recipientPhone.isEmpty
                 ? 'No phone number'
                 : stop.recipientPhone,
-            action: CallButton(phone: stop.recipientPhone),
           ),
-          const SizedBox(height: AppSpace.xs),
-          InfoRow(
-            icon: LucideIcons.mapPin,
-            text: address,
-            action: MapsButton(address: address),
-          ),
-          const SizedBox(height: AppSpace.xs),
+          const SizedBox(height: 6),
           InfoRow(
             icon: LucideIcons.package,
             text:
                 '${stop.itemCount} item${stop.itemCount == 1 ? '' : 's'}${stop.itemSummary.isEmpty ? '' : ': ${stop.itemSummary}'}',
           ),
-          const SizedBox(height: AppSpace.xs),
+          const SizedBox(height: 2),
           TrackingNumberText(stop.trackingNumber),
-          const SizedBox(height: AppSpace.md),
+          if (stop.hubPath.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.sm),
+            HubPathStrip(
+              path: stop.hubPath,
+              trackingNumber: stop.trackingNumber,
+            ),
+          ],
+          const SizedBox(height: AppSpace.sm),
           OutcomeButtons(onDelivered: onDelivered, onFailed: onFailed),
         ],
       ),

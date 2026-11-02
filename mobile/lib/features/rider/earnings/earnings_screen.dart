@@ -29,11 +29,10 @@ class _EarningsScreenState extends State<EarningsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: const RiderAppBar(title: 'Earnings'),
       body: Column(
         children: [
-          RiderTabs<bool>(
+          RiderSegments<bool>(
             values: const [false, true],
             selected: _history,
             labelOf: (history) => history ? 'History' : 'Earnings',
@@ -122,14 +121,19 @@ class _EarningsTabState extends ConsumerState<_EarningsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              RiderTabs<EarningsPeriod>(
+              RiderSegments<EarningsPeriod>(
                 values: EarningsPeriod.values,
                 selected: _period,
                 labelOf: (p) => p.label,
                 onSelected: _select,
               ),
               Padding(
-                padding: const EdgeInsets.all(AppSpace.lg),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.lg,
+                  AppSpace.md,
+                  AppSpace.lg,
+                  AppSpace.md,
+                ),
                 child: _SummaryCard(
                   summary: _summary,
                   failure: _failure,
@@ -143,19 +147,43 @@ class _EarningsTabState extends ConsumerState<_EarningsTab> {
                   AppSpace.lg,
                   AppSpace.lg,
                 ),
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                  onPressed: () async {
-                    await context.push(RiderPaths.cod);
-                    if (mounted) await _loadCod();
-                  },
-                  icon: const Icon(LucideIcons.banknote, size: 20),
-                  label: Text(
-                    _codHeld == null
-                        ? 'Cash on delivery'
-                        : 'Cash on delivery: ${formatPeso(_codHeld)} to hand over',
+                child: RiderCard(
+                  padding: EdgeInsets.zero,
+                  child: InkWell(
+                    onTap: () async {
+                      await context.push(RiderPaths.cod);
+                      if (mounted) await _loadCod();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpace.md),
+                      child: Row(
+                        children: [
+                          RiderIconTile(
+                            icon: LucideIcons.banknote,
+                            color: StatusTone.amber.foreground,
+                            background: StatusTone.amber.background,
+                          ),
+                          const SizedBox(width: AppSpace.md),
+                          Expanded(
+                            child: Text(
+                              _codHeld == null
+                                  ? 'Cash on delivery'
+                                  : 'Cash on delivery: ${formatPeso(_codHeld)} to hand over',
+                              style: const TextStyle(
+                                fontSize: 15.5,
+                                height: 1.3,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            LucideIcons.chevronRight,
+                            color: AppColors.stone500,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -175,9 +203,14 @@ class _EarningsTabState extends ConsumerState<_EarningsTab> {
       itemBuilder: (context, job) => RiderCard(
         child: Row(
           children: [
-            Icon(
-              job.isPickup ? LucideIcons.packageOpen : LucideIcons.packageCheck,
-              color: job.isPickup ? AppColors.gray600 : kDeliveredGreen,
+            RiderIconTile(
+              icon: job.isPickup
+                  ? LucideIcons.packageOpen
+                  : LucideIcons.packageCheck,
+              color: job.isPickup ? AppColors.ink : kDeliveredGreen,
+              background: job.isPickup
+                  ? const Color(0xFFF5F2EE)
+                  : const Color(0xFFECFDF5),
             ),
             const SizedBox(width: AppSpace.md),
             Expanded(
@@ -210,6 +243,8 @@ class _EarningsTabState extends ConsumerState<_EarningsTab> {
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                    fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
                 Text(
@@ -260,13 +295,13 @@ class _SummaryCard extends StatelessWidget {
                 ],
               ),
             )
-          : const Skeleton(child: SkeletonBox(height: 150, radius: 16));
+          : const Skeleton(child: SkeletonBox(height: 180, radius: 24));
     }
     return Container(
       padding: const EdgeInsets.all(AppSpace.xl),
       decoration: BoxDecoration(
-        color: AppColors.gray900,
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,15 +321,18 @@ class _SummaryCard extends StatelessWidget {
             formatPeso(s.totalEarned),
             style: const TextStyle(
               color: AppColors.white,
-              fontSize: 36,
+              fontSize: 38,
+              height: 1.15,
+              letterSpacing: -0.5,
               fontWeight: FontWeight.w800,
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
           Text(
             '${s.count} paid job${s.count == 1 ? '' : 's'} · before: ${formatPeso(s.previousTotal)}',
-            style: const TextStyle(color: AppColors.white, fontSize: 15),
+            style: const TextStyle(color: Color(0xFFE7E5E4), fontSize: 15),
           ),
-          const Divider(color: Color(0xFF374151), height: AppSpace.xl),
+          const Divider(color: Color(0x29FFFFFF), height: AppSpace.xl),
           Row(
             children: [
               Expanded(
@@ -370,6 +408,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
     return Column(
       children: [
         RiderTabs<HistoryFilter>(
+          selectedColor: AppColors.ink,
           values: HistoryFilter.values,
           selected: _filter,
           labelOf: (f) => f.label,

@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active_account'          => \App\Http\Middleware\EnsureActiveAccount::class,
         ]);
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
         // The public site reaches PHP through a Cloudflare Tunnel (cloudflared on this machine), so every
         // request comes from 127.0.0.1. Trust it so $request->ip() is the visitor's address from
@@ -41,4 +42,22 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // A list where the code expects a word (?search[]=a) is a malformed request, not a server fault. The exception is
+        // still written to the log, so it can be fixed properly, but the person gets a refusal and not a 500.
+        $exceptions->render(function (\ErrorException|\TypeError $e, Request $request) {
+            $message = $e->getMessage();
+            if ($request->is('api/*') && (str_contains($message, 'Array to string conversion') || str_contains($message, 'array given'))) {
+                return response()->json(['message' => 'The request has a value in the wrong format.'], 422);
+            }
+        });
+
+        // The framework's own text names the model class or the route, which tells an attacker how the code is laid
+        // out. A message written on purpose, like abort(404, 'This shop is closed.'), still reaches the person.
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e, Request $request) {
+            $generated = $e->getPrevious() !== null || str_starts_with($e->getMessage(), 'The route ');
+            if ($request->is('api/*') && $generated) {
+                return response()->json(['message' => 'Not found.'], 404);
+            }
+        });
     })->create();

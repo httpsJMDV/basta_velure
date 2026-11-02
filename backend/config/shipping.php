@@ -18,6 +18,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Bulky items
+    |--------------------------------------------------------------------------
+    |
+    | A rider carries each shop's parcel on their own vehicle, so one parcel can
+    | weigh at most max_parcel_kg. It is one limit for every vehicle: the system
+    | does not yet send heavier parcels to bigger vehicles. A product at or above
+    | heavy_item_kg tells the buyer about the limit on its page.
+    |
+    */
+
+    'max_parcel_kg' => max(1, (float) env('SHIPPING_MAX_PARCEL_KG', 50)),
+    'heavy_item_kg' => max(1, (float) env('SHIPPING_HEAVY_ITEM_KG', 10)),
+
+    /*
+    |--------------------------------------------------------------------------
     | Who gets the delivery fee
     |--------------------------------------------------------------------------
     |

@@ -64,7 +64,7 @@ class AccountScreen extends ConsumerWidget {
                                   ? user!.firstName[0].toUpperCase()
                                   : '?',
                               style: const TextStyle(
-                                fontFamily: 'serif',
+                                fontFamily: 'NotoSerif',
                                 fontSize: 26,
                                 color: AppColors.brandRed,
                                 fontWeight: FontWeight.w700,

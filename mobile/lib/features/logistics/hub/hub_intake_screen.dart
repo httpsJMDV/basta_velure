@@ -15,6 +15,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'hub_kit.dart';
 
 enum _IntakeTab {
   expected('Expected'),
@@ -60,7 +61,6 @@ class _HubIntakeScreenState extends ConsumerState<HubIntakeScreen> {
   Widget build(BuildContext context) {
     final api = ref.read(hubApiProvider);
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Parcel intake')),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.gray900,
@@ -82,6 +82,19 @@ class _HubIntakeScreenState extends ConsumerState<HubIntakeScreen> {
               setState(() => _tab = tab);
               unawaited(_list.currentState?.refresh());
             },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.lg,
+              AppSpace.md,
+              AppSpace.lg,
+              0,
+            ),
+            child: HubHint(
+              text: _tab == _IntakeTab.expected
+                  ? 'Collected from shops or sent by other hubs, and not here yet. Scan each one as it arrives.'
+                  : 'Scanned in today. Next, they go to Sorting.',
+            ),
           ),
           Expanded(
             child: PagedList<IntakeParcel>(
@@ -105,7 +118,12 @@ class _HubIntakeScreenState extends ConsumerState<HubIntakeScreen> {
                 status: StatusWords.parcel(parcel.status),
                 lines: [
                   [?parcel.barangayName, ?parcel.shopName].join(' · '),
-                  if (parcel.riderName != null) 'Rider: ${parcel.riderName}',
+                  if (parcel.orderNumber != null) 'Order ${parcel.orderNumber}',
+                  if (parcel.comingFrom != null)
+                    'From ${parcel.comingFrom}'
+                  else if (parcel.riderName != null)
+                    'Rider: ${parcel.riderName}',
+                  if (parcel.nextHub != null) 'Goes on to ${parcel.nextHub}',
                   if (_tab == _IntakeTab.received)
                     'Received ${Fmt.dayTime(parcel.scannedInAt)}'
                   else if (parcel.pickedUpAt != null)
@@ -155,9 +173,14 @@ class _ParcelSheetState extends ConsumerState<_ParcelSheet> {
 
   Future<void> _receive() async {
     try {
-      await _api.receive(widget.trackingNumber);
+      final received = await _api.receive(widget.trackingNumber);
       if (!mounted) return;
-      showRiderMessage(context, 'Parcel received.');
+      showRiderMessage(
+        context,
+        received.nextHub == null
+            ? 'Parcel received.'
+            : 'Parcel received. Send it on to ${received.nextHub} from Sorting.',
+      );
       Navigator.of(context).pop(true);
     } on ApiFailure catch (failure) {
       if (!mounted) return;
@@ -205,9 +228,11 @@ class _ParcelSheetState extends ConsumerState<_ParcelSheet> {
               'Pickup rider',
               [?parcel.riderName, ?parcel.riderPlate].join(' · '),
             ),
-            if (parcel.scannedInAt != null)
+            FactRow('Sent from', parcel.comingFrom),
+            FactRow('Goes on to', parcel.nextHub),
+            if (parcel.scannedInAt != null && parcel.comingFrom == null)
               FactRow('Received', Fmt.dateTime(parcel.scannedInAt)),
-            if (parcel.status == 'PICKED_UP') ...[
+            if (parcel.status == 'PICKED_UP' || parcel.comingFrom != null) ...[
               const SizedBox(height: AppSpace.md),
               SubmitButton(
                 label: 'Receive parcel',

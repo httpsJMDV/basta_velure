@@ -130,7 +130,7 @@ class _FailedSheetState extends ConsumerState<FailedSheet> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: AppColors.gray900,
+                color: AppColors.ink,
               ),
             ),
             const SizedBox(height: AppSpace.sm),
@@ -161,7 +161,7 @@ class _FailedSheetState extends ConsumerState<FailedSheet> {
                           r.label,
                           style: const TextStyle(
                             fontSize: 16,
-                            color: AppColors.gray900,
+                            color: AppColors.ink,
                           ),
                         ),
                       ),

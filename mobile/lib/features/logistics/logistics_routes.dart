@@ -31,6 +31,9 @@ import 'widgets/logistics_widgets.dart';
 /// Hub staff's screens wear the hub portal's colours.
 Widget _hub(Widget screen) => HubThemed(child: screen);
 
+/// The same for the courier team's screens.
+Widget _courier(Widget screen) => CourierThemed(child: screen);
+
 /// Part D (Liam): every hub and courier-team screen lives under `/logistics`. A courier team member opens the courier
 /// screens and hub staff the hub screens (a courier member can't also run a hub, so an account is only ever one).
 final logisticsRoutes = <RouteBase>[
@@ -187,7 +190,7 @@ final logisticsRoutes = <RouteBase>[
     },
   ),
   StatefulShellRoute.indexedStack(
-    builder: (_, _, shell) => CourierShell(shell: shell),
+    builder: (_, _, shell) => _courier(CourierShell(shell: shell)),
     branches: [
       StatefulShellBranch(
         routes: [
@@ -236,55 +239,60 @@ final logisticsRoutes = <RouteBase>[
   ),
   GoRoute(
     path: '${LogisticsPaths.courierHubs}/:id',
-    builder: (_, state) =>
-        CourierHubScreen(hubId: int.parse(state.pathParameters['id']!)),
+    builder: (_, state) => _courier(
+      CourierHubScreen(hubId: int.parse(state.pathParameters['id']!)),
+    ),
   ),
   GoRoute(
     path: '${LogisticsPaths.courierParcels}/:id',
-    builder: (_, state) =>
-        CourierParcelScreen(parcelId: int.parse(state.pathParameters['id']!)),
+    builder: (_, state) => _courier(
+      CourierParcelScreen(parcelId: int.parse(state.pathParameters['id']!)),
+    ),
   ),
   GoRoute(
     path: LogisticsPaths.courierAddRider,
-    builder: (_, _) => const CourierAddRiderScreen(),
+    builder: (_, _) => _courier(const CourierAddRiderScreen()),
   ),
   GoRoute(
     path: '${LogisticsPaths.courierRiders}/:id',
-    builder: (_, state) =>
-        CourierRiderScreen(riderId: int.parse(state.pathParameters['id']!)),
+    builder: (_, state) => _courier(
+      CourierRiderScreen(riderId: int.parse(state.pathParameters['id']!)),
+    ),
   ),
   GoRoute(
     path: LogisticsPaths.courierDispatch,
-    builder: (_, _) => const CourierDispatchScreen(),
+    builder: (_, _) => _courier(const CourierDispatchScreen()),
   ),
   GoRoute(
     path: LogisticsPaths.courierScan,
-    builder: (_, _) => const CourierScanScreen(),
+    builder: (_, _) => _courier(const CourierScanScreen()),
   ),
   GoRoute(
     path: LogisticsPaths.courierCod,
-    builder: (_, _) => const CourierCodScreen(),
+    builder: (_, _) => _courier(const CourierCodScreen()),
   ),
   GoRoute(
     path: LogisticsPaths.courierChats,
-    builder: (_, _) => const CourierChatsScreen(),
+    builder: (_, _) => _courier(const CourierChatsScreen()),
   ),
   GoRoute(
     path: '${LogisticsPaths.courierChats}/:id',
     builder: (_, state) {
       final id = int.parse(state.pathParameters['id']!);
-      return LogisticsChatScreen(
-        title: state.extra is String ? state.extra! as String : 'Hub',
-        onRead: (ref) => ref.read(courierUnreadProvider.notifier).refresh(),
-        connection: (ref) {
-          final api = ref.read(courierApiProvider);
-          return ChatConnection(
-            myRole: 'courier',
-            fetch: ({afterId}) => api.threadMessages(id, afterId: afterId),
-            send: (body) => api.sendToHub(id, body),
-            markRead: () => api.markThreadRead(id),
-          );
-        },
+      return _courier(
+        LogisticsChatScreen(
+          title: state.extra is String ? state.extra! as String : 'Hub',
+          onRead: (ref) => ref.read(courierUnreadProvider.notifier).refresh(),
+          connection: (ref) {
+            final api = ref.read(courierApiProvider);
+            return ChatConnection(
+              myRole: 'courier',
+              fetch: ({afterId}) => api.threadMessages(id, afterId: afterId),
+              send: (body) => api.sendToHub(id, body),
+              markRead: () => api.markThreadRead(id),
+            );
+          },
+        ),
       );
     },
   ),

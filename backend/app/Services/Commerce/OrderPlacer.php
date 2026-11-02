@@ -3,6 +3,8 @@
 namespace App\Services\Commerce;
 
 use App\Enums\OrderStatus;
+use App\Models\AuditLog;
+use App\Support\OrderLimits;
 use App\Models\CartItem;
 use App\Models\FlashSale;
 use App\Models\Order;
@@ -42,7 +44,7 @@ class OrderPlacer
     public function __construct(private readonly CheckoutCalculator $calculator) {}
 
     /**
-     * @param  array{items: array, destination: array, snapshot: array, codes: array, payment_method: string, notes: array<int|string, ?string>|string|null, source: string, expected_total: ?float}  $input
+     * @param  array{items: array, destination: array, snapshot: array, codes: array, payment_method: string, notes: array<int|string, ?string>|string|null, source: string, high_value_agreed?: bool, expected_total: ?float}  $input
      * @param  array<int, array{reference: string, proof_path: string}>  $gcash  per seller id
      * @return array{repeated: bool, orders: Collection<int, Order>, checkout_group_id: string, session: ?PaymentSession}
      */
@@ -68,6 +70,12 @@ class OrderPlacer
                 throw ValidationException::withMessages(['items' => array_column($quote['problems'], 'message')]);
             }
             $this->refuseChangedVouchers($quote, $input['codes']);
+            if ($input['payment_method'] === 'cod' && ! $quote['limits']['cod_available']) {
+                throw ValidationException::withMessages(['payment_method' => 'Cash on delivery is for orders up to ' . OrderLimits::peso(OrderLimits::codMax()) . ' per shop, since a rider should not carry more than that. Pay the shop by GCash instead.']);
+            }
+            if ($quote['limits']['agreement_required'] && empty($input['high_value_agreed'])) {
+                throw ValidationException::withMessages(['high_value_agreed' => 'This is a big purchase. Read and accept the agreement to place the order.']);
+            }
             if ($input['expected_total'] !== null && abs($quote['totals']['total'] - (float) $input['expected_total']) > 0.004) {
                 $this->conflict('price_changed', 'Prices changed since you opened checkout. The total is now ₱' . number_format($quote['totals']['total'], 2) . '. Check the new total and place the order again.', $quote);
             }
@@ -154,6 +162,13 @@ class OrderPlacer
             $this->takeStock($stock, $quote);
             $this->countFlash($flash, $quote);
             $this->recordVouchers($buyer, $groupId, $usages);
+            if ($quote['limits']['agreement_required']) {
+                foreach ($orders as $order) {
+                    AuditLog::record($buyer, 'order.high_value_agreed', $order, null, [
+                        'order_total' => $order->total, 'checkout_total' => $quote['totals']['total'], 'payment_method' => $input['payment_method'],
+                    ], 'The buyer accepted the big purchase agreement at checkout.');
+                }
+            }
 
             $session = null;
             if ($gateway) {

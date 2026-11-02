@@ -13,6 +13,7 @@ import '../../rider/widgets/rider_widgets.dart';
 import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../widgets/logistics_widgets.dart';
+import 'hub_kit.dart';
 
 enum _Tab {
   out('Out for delivery'),
@@ -40,7 +41,6 @@ class _HubDeliveriesScreenState extends ConsumerState<HubDeliveriesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Deliveries')),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -73,12 +73,11 @@ class _OutListState extends ConsumerState<_OutList> {
   String? _search;
   int? _riderId;
 
-  static String _elapsed(int? minutes) {
-    if (minutes == null) return '';
-    return minutes < 60
-        ? '$minutes min on the road'
-        : '${minutes ~/ 60} h ${minutes % 60} min on the road';
-  }
+  static String _duration(int minutes) =>
+      minutes < 60 ? '$minutes min' : '${minutes ~/ 60} h ${minutes % 60} min';
+
+  static String _elapsed(int? minutes) =>
+      minutes == null ? '' : '${_duration(minutes)} on the road';
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +99,42 @@ class _OutListState extends ConsumerState<_OutList> {
             builder: (context, data) => ListView(
               padding: const EdgeInsets.only(bottom: AppSpace.lg),
               children: [
+                if (data.parcels.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.lg,
+                      AppSpace.md,
+                      AppSpace.lg,
+                      0,
+                    ),
+                    child: HubSummaryStrip(
+                      items: [
+                        HubSummaryItem(
+                          value:
+                              '${data.parcels.length}${data.truncated ? '+' : ''}',
+                          label: 'On the road',
+                        ),
+                        HubSummaryItem(
+                          value: '${data.riders.length}',
+                          label: data.riders.length == 1
+                              ? 'Rider out'
+                              : 'Riders out',
+                        ),
+                        HubSummaryItem(
+                          value: _duration(
+                            data.parcels.fold<int>(
+                              0,
+                              (most, parcel) =>
+                                  (parcel.elapsedMinutes ?? 0) > most
+                                  ? parcel.elapsedMinutes!
+                                  : most,
+                            ),
+                          ),
+                          label: 'Longest out',
+                        ),
+                      ],
+                    ),
+                  ),
                 if (data.riders.isNotEmpty)
                   RiderTabs<int?>(
                     values: [null, ...data.riders.map((r) => r.riderId)],
@@ -144,6 +179,8 @@ class _OutListState extends ConsumerState<_OutList> {
                           if (parcel.city.isNotEmpty) parcel.city,
                         ].join(', '),
                         [?parcel.riderName, ?parcel.riderPlate].join(' · '),
+                        if (parcel.recipientName != null)
+                          'To ${parcel.recipientName}',
                         _elapsed(parcel.elapsedMinutes),
                       ],
                     ),
@@ -178,6 +215,7 @@ class _FailedListState extends ConsumerState<_FailedList> {
   String? _search;
   String? _reason;
   List<FailureOption> _reasons = const [];
+  int? _total;
 
   Future<void> _refresh() async => _list.currentState?.refresh();
 
@@ -269,12 +307,27 @@ class _FailedListState extends ConsumerState<_FailedList> {
               _refresh();
             },
           ),
+        if (_total != null && _total! > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.lg,
+              AppSpace.md,
+              AppSpace.lg,
+              0,
+            ),
+            child: HubHint(
+              icon: LucideIcons.triangleAlert,
+              text:
+                  '$_total parcel${_total == 1 ? '' : 's'} need${_total == 1 ? 's' : ''} a decision: try again with a rider, or send back to the shop.',
+            ),
+          ),
         Expanded(
           child: PagedList<FailedDelivery>(
             key: _list,
             load: (page) =>
                 api.failedDeliveries(page, search: _search, reason: _reason),
             onLoaded: (page) {
+              if (_total != page.total) setState(() => _total = page.total);
               final reasons = (page.meta['reasons'] as List? ?? const [])
                   .whereType<Map>()
                   .map(
@@ -323,44 +376,97 @@ class _FailedCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Text(parcel.trackingNumber, style: RiderText.mono),
-              ),
+              Text(parcel.trackingNumber, style: RiderText.mono),
               StatusChip(
                 label: 'Attempt ${parcel.attempts} of ${parcel.maxAttempts}',
                 tone: StatusTone.rose,
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.xs),
-          Text(
-            [
+          const SizedBox(height: AppSpace.sm),
+          // How many tries are used and left, at a glance.
+          ExcludeSemantics(
+            child: Row(
+              children: [
+                for (var i = 0; i < parcel.maxAttempts; i++) ...[
+                  if (i > 0) const SizedBox(width: 4),
+                  Expanded(
+                    child: Container(
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: i < parcel.attempts ? rose : AppColors.gray200,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpace.md),
+            decoration: BoxDecoration(
+              color: StatusTone.rose.background,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  parcel.reason ?? 'Delivery failed',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: rose,
+                  ),
+                ),
+                if (parcel.note != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    parcel.note!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.35,
+                      color: AppColors.gray900,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          HubFact(
+            icon: LucideIcons.mapPin,
+            label: 'Going to',
+            value: [
               parcel.barangayName,
               if (parcel.city.isNotEmpty) parcel.city,
             ].join(', '),
-            style: RiderText.body,
           ),
+          if (parcel.recipientName != null)
+            HubFact(
+              icon: LucideIcons.userRound,
+              label: 'Recipient',
+              value: parcel.recipientName,
+            ),
           if (parcel.riderName != null)
-            Text(
-              'Rider: ${parcel.riderName}',
-              style: const TextStyle(fontSize: 14, color: AppColors.gray600),
+            HubFact(
+              icon: LucideIcons.bike,
+              label: 'Rider',
+              value: parcel.riderName,
             ),
-          const SizedBox(height: AppSpace.sm),
-          Text(
-            parcel.reason ?? 'Delivery failed',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: rose,
-            ),
-          ),
-          if (parcel.note != null) Text(parcel.note!, style: RiderText.body),
           if (parcel.failedAt != null)
-            Text(
-              Fmt.dateTime(parcel.failedAt),
-              style: const TextStyle(fontSize: 13, color: AppColors.gray600),
+            HubFact(
+              icon: LucideIcons.clock,
+              label: 'Failed',
+              value: Fmt.dateTime(parcel.failedAt),
             ),
           if (!parcel.canReschedule)
             const Padding(

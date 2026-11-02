@@ -88,120 +88,140 @@ class _OfferOverlayState extends ConsumerState<OfferOverlay> {
 
     return Positioned.fill(
       child: Material(
-        color: AppColors.gray900.withValues(alpha: 0.6),
+        color: AppColors.ink.withValues(alpha: 0.66),
         child: SafeArea(
           child: Align(
             alignment: Alignment.bottomCenter,
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(AppSpace.md),
-              child: Container(
-                padding: const EdgeInsets.all(AppSpace.xl),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'New pickup job',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.gray900,
-                            ),
-                          ),
-                        ),
-                        _CountdownRing(fraction: fraction, seconds: seconds),
-                      ],
-                    ),
-                    if (widget.more > 0)
-                      Text(
-                        '${widget.more} more waiting',
-                        style: RiderText.label,
-                      ),
-                    const SizedBox(height: AppSpace.lg),
-                    _Line(
-                      icon: LucideIcons.store,
-                      label: 'Pick up from',
-                      value: offer.shopName,
-                      detail: offer.pickupAddress,
-                    ),
-                    const SizedBox(height: AppSpace.md),
-                    _Line(
-                      icon: LucideIcons.mapPin,
-                      label: 'Deliver to area',
-                      value: offer.dropoffArea.isEmpty
-                          ? '—'
-                          : offer.dropoffArea,
-                    ),
-                    const SizedBox(height: AppSpace.md),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _Stat(
-                            label: 'This job pays',
-                            value: formatPeso(offer.pay),
-                          ),
-                        ),
-                        if (offer.weightKg != null)
-                          Expanded(
-                            child: _Stat(
-                              label: 'Weight',
-                              value: '${offer.weightKg!.toStringAsFixed(1)} kg',
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (offer.codAmount != null) ...[
-                      const SizedBox(height: AppSpace.md),
-                      CodBlock(amount: offer.codAmount!, prefix: 'Buyer pays'),
-                    ],
-                    if (_error != null) ...[
-                      const SizedBox(height: AppSpace.md),
-                      MessageBanner(message: _error!),
-                    ],
-                    const SizedBox(height: AppSpace.xl),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(56),
-                            ),
-                            onPressed: _busy ? null : () => _answer(false),
-                            child: const Text('Decline'),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpace.md),
-                        Expanded(
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(56),
-                              textStyle: const TextStyle(
-                                fontSize: 17,
+              child: FadeSlideIn(
+                offset: 24,
+                duration: Motion.medium,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpace.xl),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'New pickup job',
+                              style: TextStyle(
+                                fontFamily: 'NotoSerif',
+                                fontSize: 24,
+                                height: 1.15,
                                 fontWeight: FontWeight.w700,
+                                color: AppColors.ink,
                               ),
                             ),
-                            onPressed: _busy ? null : () => _answer(true),
-                            child: _busy
-                                ? const SizedBox.square(
-                                    dimension: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.4,
-                                      color: AppColors.white,
-                                    ),
-                                  )
-                                : const Text('Accept'),
                           ),
+                          _CountdownRing(fraction: fraction, seconds: seconds),
+                        ],
+                      ),
+                      if (widget.more > 0)
+                        Text(
+                          '${widget.more} more waiting',
+                          style: RiderText.label,
+                        ),
+                      const SizedBox(height: AppSpace.lg),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpace.lg),
+                        decoration: BoxDecoration(
+                          color: AppColors.ink,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: _Stat(
+                                label: 'This job pays',
+                                value: formatPeso(offer.pay),
+                              ),
+                            ),
+                            if (offer.weightKg != null)
+                              Expanded(
+                                flex: 2,
+                                child: _Stat(
+                                  label: 'Weight',
+                                  value:
+                                      '${offer.weightKg!.toStringAsFixed(1)} kg',
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpace.lg),
+                      _Line(
+                        icon: LucideIcons.store,
+                        label: 'Pick up from',
+                        value: offer.shopName,
+                        detail: offer.pickupAddress,
+                        connected: true,
+                      ),
+                      _Line(
+                        icon: LucideIcons.mapPin,
+                        label: 'Deliver to area',
+                        value: offer.dropoffArea.isEmpty
+                            ? '—'
+                            : offer.dropoffArea,
+                      ),
+                      if (offer.codAmount != null) ...[
+                        const SizedBox(height: AppSpace.md),
+                        CodBlock(
+                          amount: offer.codAmount!,
+                          prefix: 'Buyer pays',
                         ),
                       ],
-                    ),
-                  ],
+                      if (_error != null) ...[
+                        const SizedBox(height: AppSpace.md),
+                        MessageBanner(message: _error!),
+                      ],
+                      const SizedBox(height: AppSpace.lg),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(56),
+                              ),
+                              onPressed: _busy ? null : () => _answer(false),
+                              child: const Text('Decline'),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpace.md),
+                          Expanded(
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(56),
+                                textStyle: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              onPressed: _busy ? null : () => _answer(true),
+                              child: _busy
+                                  ? const SizedBox.square(
+                                      dimension: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.4,
+                                        color: AppColors.white,
+                                      ),
+                                    )
+                                  : const Text('Accept'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -265,7 +285,7 @@ class _RingPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke
-        ..color = AppColors.gray100,
+        ..color = AppColors.stone100,
     );
     canvas.drawArc(
       ring,
@@ -291,6 +311,7 @@ class _Line extends StatelessWidget {
     required this.label,
     required this.value,
     this.detail,
+    this.connected = false,
   });
 
   final IconData icon;
@@ -298,25 +319,57 @@ class _Line extends StatelessWidget {
   final String value;
   final String? detail;
 
+  /// Draws the line down to the next stop of the route.
+  final bool connected;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 22, color: AppColors.brandRed),
-        const SizedBox(width: AppSpace.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
             children: [
-              Text(label, style: RiderText.label),
-              Text(value, style: RiderText.name),
-              if (detail != null && detail!.isNotEmpty)
-                Text(detail!, style: RiderText.body),
+              RiderIconTile(
+                icon: icon,
+                color: AppColors.brandRed,
+                background: AppColors.brandRedTint,
+                size: 36,
+              ),
+              if (connected)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    color: AppColors.stone200,
+                  ),
+                ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: connected ? AppSpace.md : 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: RiderText.label),
+                  Text(value, style: RiderText.name),
+                  if (detail != null && detail!.isNotEmpty)
+                    Text(
+                      detail!,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.35,
+                        color: AppColors.stone600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -332,13 +385,26 @@ class _Stat extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: RiderText.label),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFFD6D3D1),
+          ),
+        ),
+        const SizedBox(height: 2),
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontSize: 22,
+            fontSize: 24,
+            height: 1.15,
             fontWeight: FontWeight.w800,
-            color: AppColors.gray900,
+            letterSpacing: -0.3,
+            color: AppColors.white,
+            fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
       ],

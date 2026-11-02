@@ -138,6 +138,17 @@ class RiderEarningsTest extends TestCase
 
     // ─── earnings creation ────────────────────────────────────────────────────
 
+    public function test_the_guide_in_the_app_is_told_the_pay_and_limits_in_force(): void
+    {
+        [$user] = $this->makeRider();
+        config(['shipping.rider_pay.pickup' => '35.00', 'shipping.rider_pay.delivery' => '65.00']);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/rider/earnings/summary')->assertOk()
+            ->assertJsonPath('data.rates.pickup', '35.00')
+            ->assertJsonPath('data.rates.delivery', '65.00')
+            ->assertJsonPath('data.rates.max_delivery_attempts', (int) config('logistics.max_delivery_attempts'));
+    }
+
     public function test_delivered_creates_one_rider_row_at_the_fixed_pay_and_one_hub_row_of_15_percent(): void
     {
         [, $rider] = $this->makeRider();

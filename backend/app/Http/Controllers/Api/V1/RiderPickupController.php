@@ -165,6 +165,8 @@ class RiderPickupController extends Controller
                     'parcel_count'       => $sellerParcels->count(),
                     'parcel_ids'         => $sellerParcels->pluck('id')->all(),
                     'tracking_numbers'   => $sellerParcels->pluck('tracking_number')->all(),
+                    // Where these parcels go after the rider's hub.
+                    'hub_routes'         => app(\App\Services\Courier\HubRouter::class)->groupedPaths($sellerParcels, $rider->sortingCenter),
                     'ready_since'        => $earliestReady ? Carbon::parse($earliestReady)->toIso8601String() : null,
                     'pickup_accepted_at' => $acceptedAt ? Carbon::parse($acceptedAt)->toIso8601String() : null,
                     'matched_area_label' => $barangayMap[$code] ?? $snapshot['barangay'] ?? 'Assigned Area',
@@ -573,6 +575,8 @@ class RiderPickupController extends Controller
                 'shop_name'        => $snapshot['shop_name'] ?? ('Seller #' . $sellerId),
                 'parcel_count'     => $sellerParcels->count(),
                 'tracking_numbers' => $sellerParcels->pluck('tracking_number')->all(),
+                // Where these parcels go after the rider's hub.
+                'hub_routes'         => app(\App\Services\Courier\HubRouter::class)->groupedPaths($sellerParcels, $rider->sortingCenter),
                 'picked_up_at'     => $pickedUpAt ? Carbon::parse($pickedUpAt)->toIso8601String() : null,
                 'hub'              => $hub,
             ];

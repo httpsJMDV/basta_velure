@@ -71,7 +71,6 @@ class _ReturnsScreenState extends ConsumerState<ReturnsScreen> {
   Widget build(BuildContext context) {
     final jobs = _jobs;
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Returns to the seller')),
       body: RefreshIndicator(
         onRefresh: _load,

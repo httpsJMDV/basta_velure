@@ -49,7 +49,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // A stolen token must not work forever: people sign in again after 30 days.
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 60 * 24 * 30),
 
     /*
     |--------------------------------------------------------------------------

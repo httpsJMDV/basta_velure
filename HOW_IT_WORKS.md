@@ -184,6 +184,16 @@ The seller's address and the buyer's address both need a barangay, or the order 
 - The hub assigns sorted parcels to a rider who covers the buyer's barangay.
 - The rider collects them by scanning the QR code shown on the hub's screen.
 
+### Hub to hub (long trips)
+
+- A parcel goes first to the hub of the rider who collected it. When that hub scans it in, the app checks whether it covers the buyer's barangay.
+- If it does not and **another hub of the same courier** does, the parcel goes on there. It shows under **For other hubs** on the Sorting page, not in the barangay groups, and it cannot be sorted at the first hub.
+- The first hub presses **Send**. The courier's own truck carries it, not a rider, so riders get no job or pay for this leg. The next hub sees it under Expected, scans it in, and sorts it as usual.
+- If no hub of that courier covers the barangay, the first hub keeps the parcel, as before.
+- Every hand-over is a line on the timeline, naming the next hub. The order stays **At Sorting Center** on the way, so orders and payments do not change. The hub that delivers earns the hub's share, the same as a parcel with one hub.
+- Riders see the way as **Hub route** on each parcel, with a timeline from the shop through each hub to the barangay.
+- One transfer only for now: first hub to delivering hub, with no stops between. A return to the seller does not go back through the hubs.
+
 ### Delivering to the buyer
 
 To mark a parcel **Delivered**, the rider must:
@@ -473,6 +483,20 @@ These only run while `php artisan schedule:work` is running.
 | Tracking number | `LIT-YYMMDD-XXXXXX`. Typing it without dashes is fine. |
 | Rider area name (hub) | 3 to 60 characters, at least 2 letters |
 | Disapproval reason (hub) | 10 to 500 characters, in words |
+
+### Limits on one order
+
+Set in `backend/.env`. The server enforces all of them; the website and app only show them.
+
+| Limit | Default | What happens |
+|---|---|---|
+| One shop's parcel | 50 kg | The cart refuses more of a heavy item, and checkout adds up all of a shop's items. A seller cannot list a single item above it. A product of 10 kg or more explains the limit on its page. It is one limit for every vehicle. |
+| One checkout | 50 different items, 200 pieces, ₱1,000,000 | The order cannot be placed until it is smaller. |
+| Cash on delivery | ₱50,000 per shop's order | Cash is turned off for that order, and the buyer pays by GCash. Orders placed earlier are not changed. |
+| Big purchase agreement | ₱50,000 checkout total | The buyer ticks an agreement before placing the order. |
+| High-value listing agreement | A price of ₱50,000 | The seller ticks an agreement when a price first reaches it. |
+
+Each agreement is saved in the audit log with who agreed and when.
 
 ---
 

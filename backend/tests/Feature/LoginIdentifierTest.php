@@ -207,17 +207,20 @@ class LoginIdentifierTest extends TestCase
         $this->makeUser('buyer', 'throttled.user');
         RateLimiter::clear(md5('127.0.0.1'));
 
-        // 10 attempts per minute per address, mixing the three ways to identify yourself.
+        // 5 attempts per minute for one account from one address, however its name is typed.
         for ($i = 0; $i < 2; $i++) {
             $this->login(['identifier' => 'throttled.user', 'password' => 'Wrong1!pass'])->assertStatus(401);
             $this->login(['identifier' => 'THROTTLED.USER', 'password' => 'Wrong1!pass'])->assertStatus(401);
-            $this->login(['email' => 'throttled@example.com', 'password' => 'Wrong1!pass'])->assertStatus(401);
-            $this->login(['identifier' => 'nobody', 'password' => 'Wrong1!pass'])->assertStatus(401);
         }
-        $this->login(['identifier' => 'throttled.user', 'password' => 'Wrong1!pass'])->assertStatus(401);
         $this->login(['identifier' => 'throttled.user', 'password' => self::PASSWORD])->assertOk();
-
         $this->login(['identifier' => 'throttled.user', 'password' => self::PASSWORD])->assertStatus(429);
+
+        // 10 attempts per minute from one address, whichever accounts and ways of signing in it tries.
+        $this->login(['email' => 'throttled@example.com', 'password' => 'Wrong1!pass'])->assertStatus(401);
+        foreach (['nobody', 'nobody2', 'nobody3'] as $name) {
+            $this->login(['identifier' => $name, 'password' => 'Wrong1!pass'])->assertStatus(401);
+        }
+        $this->login(['identifier' => 'nobody4', 'password' => 'Wrong1!pass'])->assertStatus(429);
         $this->login(['email' => 'throttled@example.com', 'password' => 'x'])->assertStatus(429);
     }
 

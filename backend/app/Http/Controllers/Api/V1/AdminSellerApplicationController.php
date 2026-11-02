@@ -21,7 +21,7 @@ class AdminSellerApplicationController extends Controller
         $status  = $request->query('status', 'pending');
         $search  = $request->query('search');
         $sort    = $request->query('sort', 'newest');
-        $perPage = min((int) $request->query('per_page', 30), 100);
+        $perPage = min(max((int) $request->query('per_page', 30), 1), 100);
 
         // An applicant who has not confirmed their email yet is still "Unverified": not in the review queue.
         $query = SellerProfile::with('user')

@@ -63,3 +63,8 @@ flutter:
           weight: 600
         - asset: assets/fonts/Inter-Bold.ttf
           weight: 700
+    # A bundled serif for headings: some phones (Infinix) replace the system serif with a thin font of their own.
+    - family: NotoSerif
+      fonts:
+        - asset: assets/fonts/NotoSerif-Bold.ttf
+          weight: 700

@@ -4,15 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/theme/app_colors.dart';
+import '../buyer/buyer_shell.dart';
 import 'data/rider_models.dart';
 import 'data/rider_state.dart';
 import 'home/offer_overlay.dart';
 import 'location/location_bar.dart';
 import 'location/location_beacon.dart';
 
-/// The rider app's frame: the same five places as the website's menu at the bottom, the "Sharing your location" bar
-/// on top while it is on, and a new job offer over everything the moment it arrives.
+/// The rider app's frame: the same five places as the website's menu in the shop's floating dock, the "Sharing your
+/// location" bar on top while it is on, and a new job offer over everything the moment it arrives.
 class RiderShell extends ConsumerWidget {
   const RiderShell({super.key, required this.shell});
 
@@ -28,53 +28,48 @@ class RiderShell extends ConsumerWidget {
     // Watching it here keeps location sharing alive on every tab.
     final beacon = ref.watch(locationBeaconProvider);
     final barShown =
-        beacon == BeaconState.sharing || beacon == BeaconState.starting;
+        beacon == BeaconState.weakSignal ||
+        beacon == BeaconState.sharing ||
+        beacon == BeaconState.starting;
     final offers = ref.watch(riderOffersProvider);
 
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: AppColors.gray50,
+          extendBody: true,
           body: Column(
             children: [
               const LocationBar(),
               // The bar already sits under the status bar, so the screen below it doesn't pad for it again.
+              // Its own context, from inside the Scaffold: that one knows how much of the bottom the dock covers.
               Expanded(
-                child: MediaQuery.removePadding(
-                  context: context,
-                  removeTop: barShown,
-                  child: shell,
+                child: Builder(
+                  builder: (inside) => MediaQuery.removePadding(
+                    context: inside,
+                    removeTop: barShown,
+                    child: shell,
+                  ),
                 ),
               ),
             ],
           ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: shell.currentIndex,
-            onDestinationSelected: (index) => shell.goBranch(
-              index,
-              initialLocation: index == shell.currentIndex,
-            ),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(LucideIcons.house),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(LucideIcons.packageOpen),
-                label: 'Pickups',
-              ),
-              NavigationDestination(
-                icon: Icon(LucideIcons.truck),
-                label: 'Deliveries',
-              ),
-              NavigationDestination(
-                icon: Icon(LucideIcons.wallet),
-                label: 'Earnings',
-              ),
-              NavigationDestination(
-                icon: Icon(LucideIcons.user),
-                label: 'Account',
-              ),
+          bottomNavigationBar: BuyerDock(
+            index: shell.currentIndex,
+            onSelected: (index) {
+              if (index != shell.currentIndex) {
+                HapticFeedback.selectionClick();
+              }
+              shell.goBranch(
+                index,
+                initialLocation: index == shell.currentIndex,
+              );
+            },
+            items: const [
+              DockItem(icon: LucideIcons.house, label: 'Home'),
+              DockItem(icon: LucideIcons.packageOpen, label: 'Pickups'),
+              DockItem(icon: LucideIcons.truck, label: 'Deliveries'),
+              DockItem(icon: LucideIcons.wallet, label: 'Earnings'),
+              DockItem(icon: LucideIcons.userRound, label: 'Account'),
             ],
           ),
         ),

@@ -12,6 +12,8 @@ abstract final class RiderPaths {
 
   static const handover = '/rider/pickups/handover';
   static const collect = '/rider/deliveries/collect';
+  static const routeMap = '/rider/route-map';
+  static const guide = '/rider/guide';
   static const returns = '/rider/returns';
   static const cod = '/rider/cod';
   static const chats = '/rider/chats';

@@ -21,12 +21,6 @@ import cartShot from '../assets/app/cart.webp';
 import ordersShot from '../assets/app/orders.webp';
 import shopShot from '../assets/app/shop.webp';
 import accountShot from '../assets/app/account.webp';
-import riderShot from '../assets/app/rider.webp';
-import hubShot from '../assets/app/hub.webp';
-import courierShot from '../assets/app/courier.webp';
-import riderPhoto from '../assets/auth/rider.jpg';
-import hubPhoto from '../assets/auth/hub.jpg';
-import courierPhoto from '../assets/auth/courier.jpg';
 import webCartShot from '../assets/app/web-cart.webp';
 
 /** Written by setup/publish-apk.ps1 next to the APK, so a new version needs no website build. */
@@ -43,12 +37,12 @@ const APK_FALLBACK = '/download/loved-it.apk';
 const MIN_ANDROID = 'Android 7.0 or newer';
 
 // Every line below is something the app does today. Check it against mobile/lib before changing the wording: no push
-// notifications, no seller screens, and Google sign-in only once its Android clients exist.
+// notifications, and no seller screens. This page speaks to shoppers only, like a listing on an app store.
 const FIGURES = [
   { value: '₱0', label: 'to download and use' },
   { value: '2', label: 'ways to pay: cash or GCash' },
   { value: '7 days', label: 'to ask for a return' },
-  { value: '4', label: 'roles: shopper, rider, hub, courier' },
+  { value: '1', label: 'account for the app and the website' },
 ];
 
 const JOURNEY: { kicker: string; title: string; text: string; points: string[]; shot: string; alt: string }[] = [
@@ -108,63 +102,6 @@ const SAME_EVERYWHERE = [
   { title: 'The same shops and prices', text: 'The app shows the same shops, products, prices and vouchers as the website, because both read from the same place.' },
 ];
 
-const ROLES: { id: string; tab: string; title: string; text: string; points: string[]; photo: string; photoAlt: string; shot: string; shotAlt: string; cta: string; to: string }[] = [
-  {
-    id: 'riders',
-    tab: 'Riders',
-    title: 'Your whole shift, on one screen.',
-    text: 'Go online when you are ready to work. Your jobs, your earnings and the cash you are holding are all in one place.',
-    points: [
-      'Pickups and deliveries in the barangays you cover',
-      'Scan the waybill to confirm each parcel',
-      'A photo at the door, taken with the camera, proves each delivery',
-      'Earnings by day, week and month, job by job',
-    ],
-    photo: riderPhoto,
-    photoAlt: 'A rider on a scooter',
-    shot: riderShot,
-    shotAlt: 'A delivery job in the rider app, with the cash to collect and the Delivered button',
-    cta: 'Become a rider',
-    to: '/register/rider',
-  },
-  {
-    id: 'hubs',
-    tab: 'Hubs',
-    title: 'Run the sorting floor from your pocket.',
-    text: 'See what is expected, what came in and what is waiting. The scanner is in the middle of the bar, because that is the job.',
-    points: [
-      'Scan parcels in, sort them by barangay and send them out',
-      'See which parcels have waited longest and which riders can take them',
-      'Reschedule a failed delivery or send it back to the shop',
-      'Review rider applications and set their delivery areas',
-    ],
-    photo: hubPhoto,
-    photoAlt: 'A warehouse aisle',
-    shot: hubShot,
-    shotAlt: 'The hub overview page with parcel counts',
-    cta: 'Run a logistics hub',
-    to: '/register/hub',
-  },
-  {
-    id: 'couriers',
-    tab: 'Couriers',
-    title: 'See your whole network at a glance.',
-    text: 'Hubs, riders and parcels on one screen, with whatever needs you at the top. Zones, rates and settlements stay on the website.',
-    points: [
-      'Dispatch pickups that have no rider yet',
-      'Find any parcel by tracking number, order or buyer',
-      'Add riders and check their papers',
-      'Follow cash on delivery collections and remittances',
-    ],
-    photo: courierPhoto,
-    photoAlt: 'A delivery van being loaded',
-    shot: courierShot,
-    shotAlt: 'The courier overview page with parcel counts',
-    cta: 'Register a courier company',
-    to: '/register/courier',
-  },
-];
-
 const GALLERY = [
   { shot: categoriesShot, label: 'Every category', alt: 'The categories page' },
   { shot: searchShot, label: 'Search and sort', alt: 'A product list with sorting and filters' },
@@ -188,8 +125,8 @@ const INSTALL_NOTES = [
 ];
 
 const PERMISSIONS: { icon: LucideIcon; name: string; why: string }[] = [
-  { icon: Camera, name: 'Camera', why: 'Only when you use it: a photo for a return or an ID, proof of delivery, or scanning a parcel.' },
-  { icon: MapPin, name: 'Location', why: 'Riders only, and only while they work, so the buyer, the shop and the hub can follow the parcel. Shoppers are never asked.' },
+  { icon: Camera, name: 'Camera', why: 'Only when you use it, like taking a photo of an item for a return or of your ID.' },
+  { icon: MapPin, name: 'Location', why: 'Not needed to shop. You type your own delivery address, and the app never asks where you are.' },
   { icon: ImageIcon, name: 'Photos', why: 'You choose which pictures to share. The app cannot look through the rest of your gallery.' },
   { icon: Globe, name: 'Internet', why: 'Everything comes live from Loved-IT, so the app needs a connection to work.' },
 ];
@@ -200,7 +137,8 @@ const FAQS: { q: string; a: string }[] = [
   { q: 'Which phones does it work on?', a: `Phones on ${MIN_ANDROID}, with enough free space for the download. The size is under App details.` },
   { q: 'Is there an iPhone version?', a: 'Not yet. On an iPhone, you can shop on this website in your browser, with the same account, cart and orders.' },
   { q: 'Do I need a new account?', a: 'No. Sign in with the email or username and password you use on the website. If you are new, you can create an account in the app.' },
-  { q: 'Can I run my shop from the app?', a: 'The Seller Center stays on the website, where a bigger screen helps. You can still shop from the app with the same account.' },
+  { q: 'Can I order something very heavy?', a: 'Each shop’s parcel can weigh up to 50 kg, because riders carry parcels on their own vehicles. The cart tells you if an order is over, and how many you can buy in one go.' },
+  { q: 'Do I have to pay by cash for a big order?', a: 'Cash on delivery is for orders up to ₱50,000, since a rider should not carry more than that. Above it, pay the shop by GCash.' },
   { q: 'Will it notify me on my phone?', a: 'Not with pop-ups yet. Order updates are waiting under the bell inside the app, and your messages are under the Messages tab.' },
   { q: 'How do I know when there is a new version?', a: 'This page always has the latest one, with its version and date under App details. Install it over the old one and you stay signed in.' },
   { q: 'Does it work without internet?', a: 'No. Prices, stock and orders are live, so the app needs a connection. If you lose it, the app tells you and lets you try again.' },
@@ -345,52 +283,6 @@ function Journey() {
   );
 }
 
-/** Riders, hubs and couriers: one panel at a time, with a real photo of the work and a real screen of the app. */
-function Roles() {
-  const [openId, setOpenId] = useState(ROLES[0].id);
-  const role = ROLES.find((r) => r.id === openId) ?? ROLES[0];
-  return (
-    <>
-      <div role="tablist" aria-label="Who else uses the app" className="inline-flex gap-1 p-1 rounded-full bg-white/10">
-        {ROLES.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            role="tab"
-            id={`role-tab-${r.id}`}
-            aria-selected={r.id === openId}
-            aria-controls="role-panel"
-            onClick={() => setOpenId(r.id)}
-            className={`h-11 px-5 rounded-full text-[13.5px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white ${r.id === openId ? 'bg-white text-[#1E1B18]' : 'text-white/70 hover:text-white'}`}
-          >
-            {r.tab}
-          </button>
-        ))}
-      </div>
-      <div id="role-panel" role="tabpanel" aria-labelledby={`role-tab-${role.id}`} className="grid gap-10 mt-9 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16 items-center">
-        <motion.div key={role.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }} className="relative pb-10 pr-14 sm:pr-24">
-          <div className="aspect-[4/3] overflow-hidden rounded-3xl bg-white/5">
-            <img src={role.photo} alt={role.photoAlt} loading="lazy" className="object-cover w-full h-full" />
-          </div>
-          <Phone src={role.shot} alt={role.shotAlt} className="absolute right-0 bottom-0 w-[150px] sm:w-[200px]" />
-        </motion.div>
-        <motion.div key={`${role.id}-text`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <h3 className="font-serif text-[28px] sm:text-[36px] font-bold tracking-tight leading-[1.1]">{role.title}</h3>
-          <p className="mt-4 text-[15.5px] leading-relaxed text-white/70">{role.text}</p>
-          <ul className="mt-6 divide-y divide-white/10 border-y border-white/10">
-            {role.points.map((point) => (
-              <li key={point} className="py-3 text-[14.5px] leading-snug text-white/90">{point}</li>
-            ))}
-          </ul>
-          <Link to={role.to} className="inline-flex items-center gap-2 mt-7 min-h-[46px] px-6 rounded-full bg-white hover:bg-stone-200 text-[#1E1B18] text-sm font-semibold transition-colors">
-            {role.cta} <ArrowRight className="w-4 h-4" aria-hidden="true" />
-          </Link>
-        </motion.div>
-      </div>
-    </>
-  );
-}
-
 const DATE = new Intl.DateTimeFormat('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
 
 export default function DownloadPage() {
@@ -450,7 +342,7 @@ export default function DownloadPage() {
                   The whole marketplace, in your hand.
                 </h1>
                 <p className="mt-5 max-w-xl text-[16px] sm:text-[17px] leading-relaxed text-stone-600">
-                  Shop from sellers we have checked, pay in cash or by GCash, and follow your parcel from the shop to your door. Riders, hubs and couriers run their day from the same app.
+                  Shop from sellers we have checked, pay in cash or by GCash, and follow your parcel from the shop to your door.
                 </p>
                 {onIPhone ? (
                   <div className="max-w-md p-5 mt-8 bg-white border rounded-2xl border-stone-200">
@@ -509,7 +401,7 @@ export default function DownloadPage() {
           {/* One order, from first look to the front door */}
           <section className="max-w-[1200px] mx-auto px-4 sm:px-8 pt-16 sm:pt-24">
             <Reveal className="max-w-2xl">
-              <p className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-brand-red">For shoppers</p>
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-brand-red">One order, start to finish</p>
               <h2 className="mt-3 font-serif text-[34px] sm:text-[46px] font-bold tracking-tight leading-[1.06] text-[#1E1B18]">From first look to your front door.</h2>
               <p className="mt-4 text-[16px] leading-relaxed text-stone-600">Here is one order, the whole way through. These are real screens from the app.</p>
             </Reveal>
@@ -558,22 +450,6 @@ export default function DownloadPage() {
                   </figcaption>
                 </figure>
               </Reveal>
-            </div>
-          </section>
-
-          {/* The people who carry the parcels use it too */}
-          <section className="bg-[#1E1B18] text-[#FAF8F5]">
-            <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-16 sm:py-24">
-              <Reveal className="max-w-2xl">
-                <p className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-amber-300">For the people behind the parcels</p>
-                <h2 className="mt-3 font-serif text-[34px] sm:text-[46px] font-bold tracking-tight leading-[1.06]">One app. It opens to your job.</h2>
-                <p className="mt-4 mb-9 text-[16px] leading-relaxed text-white/70">Sign in, and the app shows the screens for your work. Nothing to set up, and nothing that isn’t yours.</p>
-              </Reveal>
-              <Roles />
-              <p className="pt-6 mt-12 text-[14px] leading-relaxed border-t border-white/10 text-white/60">
-                Selling on Loved-IT? The Seller Center stays on the website, where a bigger screen helps.{' '}
-                <Link to="/register/seller" className="font-semibold text-white underline underline-offset-4 decoration-white/30 hover:decoration-white">Open a shop</Link>
-              </p>
             </div>
           </section>
 
