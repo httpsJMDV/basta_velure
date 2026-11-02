@@ -7,17 +7,18 @@ import '../../../core/api/api_client.dart';
 import '../../../core/api/api_failure.dart';
 import '../../../core/media/photo_picker.dart';
 import '../../../core/session/session.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/validation/rules.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../auth/account_actions.dart';
+import '../../auth/auth_layout.dart';
 import '../addresses/psgc.dart';
 import '../data/account.dart';
 import 'id_upload.dart';
 
-/// Complete profile (B2) for a Google sign-up: birthday, sex, mobile number, an address and a government ID. The
-/// app opens nothing else until it is done, like the website's `/complete-profile`.
+/// Complete profile (B2) for a Google sign-up, in the website's three steps: birthday, sex and mobile number, then an
+/// address, then a government ID. The app opens nothing else until it is done, like the website's
+/// `/complete-profile`.
 class CompleteProfileScreen extends ConsumerStatefulWidget {
   const CompleteProfileScreen({super.key});
 
@@ -27,7 +28,34 @@ class CompleteProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
-  final _form = GlobalKey<FormState>();
+  static const _steps = ['About you', 'Address', 'Valid ID'];
+  static const _hints = [
+    'Your mobile number and birthday.',
+    'Where should we deliver your orders?',
+    'A government-issued ID, so we know it is really you.',
+  ];
+
+  /// Which step shows each field the server can complain about.
+  static const _stepOfField = {
+    'date_of_birth': 0,
+    'sex': 0,
+    'phone': 0,
+    'province': 1,
+    'city_municipality': 1,
+    'barangay': 1,
+    'street_address': 1,
+    'government_id_type': 2,
+    'government_id_image': 2,
+    'government_id_image_back': 2,
+  };
+
+  final _forms = [
+    GlobalKey<FormState>(),
+    GlobalKey<FormState>(),
+    GlobalKey<FormState>(),
+  ];
+  final _scroll = ScrollController();
+  int _step = 0;
   final _phone = TextEditingController();
   final _street = TextEditingController();
   DateTime? _birthday;
@@ -44,6 +72,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
 
   @override
   void dispose() {
+    _scroll.dispose();
     _phone.dispose();
     _street.dispose();
     super.dispose();
@@ -95,23 +124,30 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
     if (picked != null && mounted) setState(() => onPicked(picked));
   }
 
-  Future<void> _submit() async {
+  void _goTo(int step) {
     setState(() {
-      _showErrors = true;
-      _failure = null;
+      _step = step;
+      _showErrors = false;
     });
-    final fieldsOk = _form.currentState!.validate();
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  Future<void> _continue() async {
+    FocusScope.of(context).unfocus();
+    final fieldsOk = _forms[_step].currentState!.validateAndReveal();
     final needsBack = _idType?.hasBack ?? false;
-    if (!fieldsOk ||
-        _sex == null ||
-        _province == null ||
-        _city == null ||
-        _barangay == null ||
-        _idType == null ||
-        _front == null ||
-        (needsBack && _back == null)) {
+    final picksOk = switch (_step) {
+      0 => _sex != null,
+      1 => _province != null && _city != null && _barangay != null,
+      _ => _idType != null && _front != null && (!needsBack || _back != null),
+    };
+    if (!fieldsOk || !picksOk) {
+      setState(() => _showErrors = true);
       return;
     }
+    if (_step < _steps.length - 1) return _goTo(_step + 1);
+
+    setState(() => _failure = null);
     try {
       final form = FormData.fromMap({
         'phone': Rules.normalizeMobile(_phone.text) ?? _phone.text.trim(),
@@ -131,183 +167,185 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
       // The router opens the shop once the profile has a birthday and a mobile number.
       await ref.read(sessionProvider.notifier).refreshUser();
     } on DioException catch (error) {
-      if (mounted) setState(() => _failure = ApiFailure.fromDio(error));
+      if (!mounted) return;
+      final failure = ApiFailure.fromDio(error);
+      setState(() => _failure = failure);
+      // Open the first step the server found a problem in, so its message is seen.
+      final wrong = failure.fieldErrors.keys
+          .map((field) => _stepOfField[field])
+          .whereType<int>();
+      if (wrong.isNotEmpty) _goTo(wrong.reduce((a, b) => a < b ? a : b));
     }
+  }
+
+  /// One step's fields. The steps stay mounted while hidden, so what was typed or picked is kept.
+  Widget _page(int step, List<Widget> children) {
+    return Visibility(
+      visible: _step == step,
+      maintainState: true,
+      child: Form(
+        key: _forms[step],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final isNcr = _region?.code == ncrCode;
+    final name = user?.firstName ?? '';
+    final last = _step == _steps.length - 1;
     String? required(Object? value, String message) =>
         _showErrors && value == null ? message : null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Finish your profile'),
-        automaticallyImplyLeading: false,
+    return AuthLayout(
+      title: name.isEmpty ? 'Almost done' : 'Almost done, $name',
+      subtitle: _hints[_step],
+      photo: AuthPhoto.rack,
+      controller: _scroll,
+      onBack: _step > 0 ? () => _goTo(_step - 1) : null,
+      bottomBar: SubmitButton(
+        label: last ? 'Finish' : 'Continue',
+        busyLabel: 'Saving…',
+        icon: last ? LucideIcons.check : null,
+        onPressed: _continue,
       ),
-      body: Form(
-        key: _form,
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            Text(
-              'Hi, ${user?.firstName ?? 'there'}!',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppSpace.xs),
-            const Text(
-              'A few details before your first order. Loved-IT checks every buyer\'s ID to keep shops and riders safe.',
-              style: TextStyle(color: AppColors.stone600),
-            ),
-            const SizedBox(height: AppSpace.lg),
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
-              const SizedBox(height: AppSpace.md),
+      footer: const Align(alignment: Alignment.center, child: SignOutButton()),
+      children: [
+        AuthStepBar(steps: _steps, current: _step),
+        const SizedBox(height: AppSpace.xl),
+        if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+          MessageBanner(message: _failure!.message),
+          const SizedBox(height: AppSpace.md),
+        ],
+        _page(0, [
+          DateOfBirthField(
+            serverError: _failure?.errorFor('date_of_birth'),
+            onChanged: (value) => _birthday = value,
+          ),
+          const SizedBox(height: AppSpace.md),
+          AppSelectField<String>(
+            label: 'Sex',
+            value: _sex,
+            errorText:
+                _failure?.errorFor('sex') ?? required(_sex, 'Choose one.'),
+            options: const [
+              AppOption('male', 'Male'),
+              AppOption('female', 'Female'),
+              AppOption('prefer_not_to_say', 'Prefer not to say'),
             ],
-            DateOfBirthField(
-              serverError: _failure?.errorFor('date_of_birth'),
-              onChanged: (value) => _birthday = value,
-            ),
-            const SizedBox(height: AppSpace.md),
-            DropdownButtonFormField<String>(
-              initialValue: _sex,
-              decoration: InputDecoration(
-                labelText: 'Sex',
-                errorText:
-                    _failure?.errorFor('sex') ?? required(_sex, 'Choose one.'),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'male', child: Text('Male')),
-                DropdownMenuItem(value: 'female', child: Text('Female')),
-                DropdownMenuItem(
-                  value: 'prefer_not_to_say',
-                  child: Text('Prefer not to say'),
-                ),
-              ],
-              onChanged: (value) => setState(() => _sex = value),
-            ),
-            const SizedBox(height: AppSpace.md),
-            AppTextField(
-              label: 'Mobile number',
-              controller: _phone,
-              hint: '09XXXXXXXXX',
-              keyboardType: TextInputType.phone,
-              inputFormatters: [Only.mobileChars, Only.max(13)],
-              validator: Rules.mobile,
-              serverError: _failure?.errorFor('phone'),
-            ),
-            const SizedBox(height: AppSpace.xl),
-            Text('Address', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: AppSpace.sm),
+            onChanged: (value) => setState(() => _sex = value),
+          ),
+          const SizedBox(height: AppSpace.md),
+          AppTextField(
+            label: 'Mobile number',
+            controller: _phone,
+            prefixIcon: LucideIcons.smartphone,
+            hint: '09XXXXXXXXX',
+            keyboardType: TextInputType.phone,
+            inputFormatters: [Only.mobileChars, Only.max(13)],
+            validator: Rules.mobile,
+            serverError: _failure?.errorFor('phone'),
+          ),
+        ]),
+        _page(1, [
+          _Picker(
+            label: 'Region',
+            value: _region?.name,
+            error: required(_region, 'Choose the region.'),
+            onTap: () => _pick('Region', () async => phRegions, (region) {
+              _region = region;
+              _province = region.code == ncrCode
+                  ? const PsgcPlace(ncrCode, ncrProvinceName)
+                  : null;
+              _city = null;
+              _barangay = null;
+            }),
+          ),
+          if (!isNcr)
             _Picker(
-              label: 'Region',
-              value: _region?.name,
-              error: required(_region, 'Choose the region.'),
-              onTap: () => _pick('Region', () async => phRegions, (region) {
-                _region = region;
-                _province = region.code == ncrCode
-                    ? const PsgcPlace(ncrCode, ncrProvinceName)
-                    : null;
-                _city = null;
-                _barangay = null;
-              }),
-            ),
-            if (!isNcr)
-              _Picker(
-                label: 'Province',
-                value: _province?.name,
-                error: _region == null
-                    ? null
-                    : required(_province, 'Choose the province.'),
-                onTap: _region == null
-                    ? null
-                    : () => _pick(
-                        'Province',
-                        () => ref.read(psgcProvider).provinces(_region!.code),
-                        (province) {
-                          _province = province;
-                          _city = null;
-                          _barangay = null;
-                        },
-                      ),
-              ),
-            _Picker(
-              label: 'City or municipality',
-              value: _city?.name,
-              error: _province == null
+              label: 'Province',
+              value: _province?.name,
+              error: _region == null
                   ? null
-                  : required(_city, 'Choose the city or municipality.'),
-              onTap: _province == null
+                  : required(_province, 'Choose the province.'),
+              onTap: _region == null
                   ? null
                   : () => _pick(
-                      'City or municipality',
-                      () => ref
-                          .read(psgcProvider)
-                          .cities(
-                            regionCode: _region!.code,
-                            provinceCode: _province!.code,
-                          ),
-                      (city) {
-                        _city = city;
+                      'Province',
+                      () => ref.read(psgcProvider).provinces(_region!.code),
+                      (province) {
+                        _province = province;
+                        _city = null;
                         _barangay = null;
                       },
                     ),
             ),
-            _Picker(
-              label: 'Barangay',
-              value: _barangay?.name,
-              error: _city == null
-                  ? null
-                  : required(_barangay, 'Choose the barangay.'),
-              onTap: _city == null
-                  ? null
-                  : () => _pick(
-                      'Barangay',
-                      () => ref.read(psgcProvider).barangays(_city!.code),
-                      (b) => _barangay = b,
-                    ),
-            ),
-            AppTextField(
-              label: 'Street, house or building',
-              controller: _street,
-              maxLength: 255,
-              validator: (value) => (value ?? '').trim().isEmpty
-                  ? 'Enter the street, house or building.'
-                  : null,
-              serverError: _failure?.errorFor('street_address'),
-            ),
-            const SizedBox(height: AppSpace.xl),
-            Text(
-              'Government ID',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: AppSpace.sm),
-            IdUpload(
-              type: _idType,
-              front: _front,
-              back: _back,
-              showErrors: _showErrors,
-              typeError: _failure?.errorFor('government_id_type'),
-              frontError: _failure?.errorFor('government_id_image'),
-              backError: _failure?.errorFor('government_id_image_back'),
-              onType: (type) => setState(() => _idType = type),
-              onFront: (photo) => setState(() => _front = photo),
-              onBack: (photo) => setState(() => _back = photo),
-            ),
-            const SizedBox(height: AppSpace.xl),
-            SubmitButton(
-              label: 'Finish',
-              busyLabel: 'Saving…',
-              icon: LucideIcons.check,
-              onPressed: _submit,
-            ),
-            const SizedBox(height: AppSpace.md),
-            const Align(alignment: Alignment.center, child: SignOutButton()),
-          ],
-        ),
-      ),
+          _Picker(
+            label: 'City or municipality',
+            value: _city?.name,
+            error: _province == null
+                ? null
+                : required(_city, 'Choose the city or municipality.'),
+            onTap: _province == null
+                ? null
+                : () => _pick(
+                    'City or municipality',
+                    () => ref
+                        .read(psgcProvider)
+                        .cities(
+                          regionCode: _region!.code,
+                          provinceCode: _province!.code,
+                        ),
+                    (city) {
+                      _city = city;
+                      _barangay = null;
+                    },
+                  ),
+          ),
+          _Picker(
+            label: 'Barangay',
+            value: _barangay?.name,
+            error: _city == null
+                ? null
+                : required(_barangay, 'Choose the barangay.'),
+            onTap: _city == null
+                ? null
+                : () => _pick(
+                    'Barangay',
+                    () => ref.read(psgcProvider).barangays(_city!.code),
+                    (b) => _barangay = b,
+                  ),
+          ),
+          AppTextField(
+            label: 'Street, house or building',
+            controller: _street,
+            maxLength: 255,
+            validator: (value) => (value ?? '').trim().isEmpty
+                ? 'Enter the street, house or building.'
+                : null,
+            serverError: _failure?.errorFor('street_address'),
+          ),
+        ]),
+        _page(2, [
+          IdUpload(
+            type: _idType,
+            front: _front,
+            back: _back,
+            showErrors: _showErrors,
+            typeError: _failure?.errorFor('government_id_type'),
+            frontError: _failure?.errorFor('government_id_image'),
+            backError: _failure?.errorFor('government_id_image_back'),
+            onType: (type) => setState(() => _idType = type),
+            onFront: (photo) => setState(() => _front = photo),
+            onBack: (photo) => setState(() => _back = photo),
+          ),
+        ]),
+      ],
     );
   }
 }

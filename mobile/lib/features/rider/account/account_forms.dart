@@ -149,7 +149,7 @@ class _VehicleScreenState extends ConsumerState<VehicleScreen> {
 
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
-    final ok = _form.currentState!.validate();
+    final ok = _form.currentState!.validateAndReveal();
     setState(() {
       _failure = null;
       _orCrError = _orCr == null ? 'Add a photo of the new OR/CR.' : null;
@@ -351,7 +351,7 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     setState(() => _failure = null);
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validateAndReveal()) return;
     try {
       final message = await ref
           .read(riderApiProvider)
@@ -446,7 +446,7 @@ class _GcashScreenState extends ConsumerState<GcashScreen> {
         destructive: true,
       );
       if (!confirmed) return;
-    } else if (!_form.currentState!.validate()) {
+    } else if (!_form.currentState!.validateAndReveal()) {
       return;
     }
     try {
@@ -537,26 +537,30 @@ class _FormPage extends StatelessWidget {
       appBar: AppBar(title: Text(title)),
       body: Form(
         key: formKey,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            if (banner != null) ...[
-              MessageBanner(message: banner),
-              const SizedBox(height: AppSpace.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (banner != null) ...[
+                MessageBanner(message: banner),
+                const SizedBox(height: AppSpace.lg),
+              ],
+              ...children,
+              const SizedBox(height: AppSpace.xl),
+              if (progress != null) ...[
+                UploadProgress(sent: progress!.$1, total: progress!.$2),
+                const SizedBox(height: AppSpace.sm),
+              ],
+              SubmitButton(
+                label: submitLabel,
+                busyLabel: 'Saving…',
+                onPressed: onSubmit,
+              ),
+              ?extra,
             ],
-            ...children,
-            const SizedBox(height: AppSpace.xl),
-            if (progress != null) ...[
-              UploadProgress(sent: progress!.$1, total: progress!.$2),
-              const SizedBox(height: AppSpace.sm),
-            ],
-            SubmitButton(
-              label: submitLabel,
-              busyLabel: 'Saving…',
-              onPressed: onSubmit,
-            ),
-            ?extra,
-          ],
+          ),
         ),
       ),
     );

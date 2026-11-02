@@ -102,3 +102,18 @@ class PasswordChecklist extends StatelessWidget {
     );
   }
 }
+
+/// Checks a form and scrolls back to the first wrong field, so its message isn't missed after tapping a button at
+/// the bottom of a long form.
+extension CheckAndReveal on FormState {
+  bool validateAndReveal() {
+    final wrong = validateGranularly();
+    if (wrong.isEmpty) return true;
+    Scrollable.ensureVisible(
+      wrong.first.context,
+      alignment: 0.2,
+      duration: const Duration(milliseconds: 200),
+    );
+    return false;
+  }
+}

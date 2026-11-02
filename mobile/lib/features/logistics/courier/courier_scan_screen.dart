@@ -186,17 +186,12 @@ class _CourierScanScreenState extends ConsumerState<CourierScanScreen> {
         Text(_station.hint, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: AppSpace.sm),
         if (_station == _Station.inbound && _hubs.length > 1) ...[
-          DropdownButtonFormField<int?>(
-            initialValue: _hubId,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Receiving at'),
-            items: [
-              const DropdownMenuItem(
-                value: null,
-                child: Text("The parcel's own hub"),
-              ),
-              for (final hub in _hubs)
-                DropdownMenuItem(value: hub.id, child: Text(hub.name)),
+          AppSelectField<int?>(
+            label: 'Receiving at',
+            value: _hubId,
+            options: [
+              const AppOption(null, "The parcel's own hub"),
+              for (final hub in _hubs) AppOption(hub.id, hub.name),
             ],
             onChanged: (id) {
               setState(() => _hubId = id);

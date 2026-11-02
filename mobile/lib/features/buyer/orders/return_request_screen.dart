@@ -63,7 +63,9 @@ class _ReturnRequestScreenState extends ConsumerState<ReturnRequestScreen> {
       _showErrors = true;
       _failure = null;
     });
-    if (!_form.currentState!.validate() || _reason == null || _photos.isEmpty) {
+    if (!_form.currentState!.validateAndReveal() ||
+        _reason == null ||
+        _photos.isEmpty) {
       return;
     }
     final confirmed = await confirmAction(
@@ -111,137 +113,142 @@ class _ReturnRequestScreenState extends ConsumerState<ReturnRequestScreen> {
       appBar: AppBar(title: const Text('Return or refund')),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
-              const SizedBox(height: AppSpace.lg),
-            ],
-            const Text(
-              'What went wrong?',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            RadioGroup<String>(
-              groupValue: _reason,
-              onChanged: (value) => setState(() => _reason = value),
-              child: Column(
-                children: [
-                  for (final reason in OrderReasons.returns)
-                    RadioListTile<String>(
-                      contentPadding: EdgeInsets.zero,
-                      value: reason,
-                      title: Text(reason),
-                    ),
-                ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+                MessageBanner(message: _failure!.message),
+                const SizedBox(height: AppSpace.lg),
+              ],
+              const Text(
+                'What went wrong?',
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
-            ),
-            if (_showErrors && _reason == null)
-              Text(
-                'Choose a reason for the return.',
-                style: TextStyle(
-                  color: StatusTone.rose.foreground,
-                  fontSize: 12,
+              RadioGroup<String>(
+                groupValue: _reason,
+                onChanged: (value) => setState(() => _reason = value),
+                child: Column(
+                  children: [
+                    for (final reason in OrderReasons.returns)
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: reason,
+                        title: Text(reason),
+                      ),
+                  ],
                 ),
               ),
-            const SizedBox(height: AppSpace.md),
-            AppTextField(
-              label: 'Describe the problem',
-              controller: _description,
-              minLines: 3,
-              maxLines: 6,
-              maxLength: 500,
-              showCounter: true,
-              textCapitalization: TextCapitalization.sentences,
-              validator: (value) =>
-                  Rules.words(value, 'The description', min: 10, max: 500),
-              serverError: _failure?.errorFor('description'),
-            ),
-            const SizedBox(height: AppSpace.lg),
-            Text(
-              'Photos (${_photos.length} of $maxPhotos)',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: AppSpace.sm),
-            Wrap(
-              spacing: AppSpace.sm,
-              runSpacing: AppSpace.sm,
-              children: [
-                for (var i = 0; i < _photos.length; i++)
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.memory(
-                          Uint8List.fromList(_photos[i].bytes),
-                          width: 88,
-                          height: 88,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: IconButton.filledTonal(
-                          tooltip: 'Remove photo',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => setState(() => _photos.removeAt(i)),
-                          icon: const Icon(LucideIcons.x, size: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                if (_photos.length < maxPhotos)
-                  InkWell(
-                    onTap: _addPhoto,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: 88,
-                      height: 88,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.stone300),
-                      ),
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(LucideIcons.camera, color: AppColors.stone500),
-                          SizedBox(height: 4),
-                          Text(
-                            'Add photo',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.stone500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            if (photoError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpace.sm),
-                child: Text(
-                  photoError,
+              if (_showErrors && _reason == null)
+                Text(
+                  'Choose a reason for the return.',
                   style: TextStyle(
                     color: StatusTone.rose.foreground,
                     fontSize: 12,
                   ),
                 ),
-              ),
-            const SizedBox(height: AppSpace.xl),
-            if (_sending) ...[
-              UploadProgress(sent: _sent, total: _total),
               const SizedBox(height: AppSpace.md),
+              AppTextField(
+                label: 'Describe the problem',
+                controller: _description,
+                minLines: 3,
+                maxLines: 6,
+                maxLength: 500,
+                showCounter: true,
+                textCapitalization: TextCapitalization.sentences,
+                validator: (value) =>
+                    Rules.words(value, 'The description', min: 10, max: 500),
+                serverError: _failure?.errorFor('description'),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              Text(
+                'Photos (${_photos.length} of $maxPhotos)',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: AppSpace.sm),
+              Wrap(
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.sm,
+                children: [
+                  for (var i = 0; i < _photos.length; i++)
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.memory(
+                            Uint8List.fromList(_photos[i].bytes),
+                            width: 88,
+                            height: 88,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: IconButton.filledTonal(
+                            tooltip: 'Remove photo',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () =>
+                                setState(() => _photos.removeAt(i)),
+                            icon: const Icon(LucideIcons.x, size: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (_photos.length < maxPhotos)
+                    InkWell(
+                      onTap: _addPhoto,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.stone300),
+                        ),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(LucideIcons.camera, color: AppColors.stone500),
+                            SizedBox(height: 4),
+                            Text(
+                              'Add photo',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.stone500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (photoError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpace.sm),
+                  child: Text(
+                    photoError,
+                    style: TextStyle(
+                      color: StatusTone.rose.foreground,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: AppSpace.xl),
+              if (_sending) ...[
+                UploadProgress(sent: _sent, total: _total),
+                const SizedBox(height: AppSpace.md),
+              ],
+              SubmitButton(
+                label: 'Send request',
+                busyLabel: 'Sending…',
+                onPressed: _submit,
+              ),
             ],
-            SubmitButton(
-              label: 'Send request',
-              busyLabel: 'Sending…',
-              onPressed: _submit,
-            ),
-          ],
+          ),
         ),
       ),
     );

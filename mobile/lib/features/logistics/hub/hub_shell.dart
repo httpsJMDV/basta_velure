@@ -87,6 +87,7 @@ class _BarItem extends StatelessWidget {
         selected: selected,
         label: label,
         excludeSemantics: true,
+        onTap: onTap,
         child: InkWell(
           onTap: onTap,
           child: Padding(
@@ -119,6 +120,7 @@ class _ScanButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    void openScan() => context.push(LogisticsPaths.hubScan);
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpace.xs),
@@ -129,12 +131,13 @@ class _ScanButton extends StatelessWidget {
               button: true,
               label: 'Scan parcels',
               excludeSemantics: true,
+              onTap: openScan,
               child: Material(
                 color: AppColors.gray900,
                 shape: const CircleBorder(),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
-                  onTap: () => context.push(LogisticsPaths.hubScan),
+                  onTap: openScan,
                   child: const SizedBox.square(
                     dimension: 56,
                     child: Icon(
@@ -146,12 +149,15 @@ class _ScanButton extends StatelessWidget {
                 ),
               ),
             ),
-            const Text(
-              'Scan',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.gray900,
+            // The round button above already says "Scan parcels".
+            const ExcludeSemantics(
+              child: Text(
+                'Scan',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.gray900,
+                ),
               ),
             ),
           ],

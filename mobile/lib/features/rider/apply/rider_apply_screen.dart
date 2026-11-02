@@ -154,6 +154,7 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
       return AuthLayout(
         title: 'Application sent',
         subtitle: _sent,
+        photo: AuthPhoto.rider,
         children: [
           const MessageBanner(
             tone: StatusTone.blue,
@@ -183,6 +184,8 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
     return AuthLayout(
       title: 'Become a rider',
       subtitle: 'Deliver Loved-IT parcels for a hub near you. Use an email that is not on another Loved-IT account.',
+      photo: AuthPhoto.rider,
+      onBack: () => context.go(AuthPaths.signIn),
       footer: TextButton(
         onPressed: () => context.go(AuthPaths.signIn),
         child: const Text('Already a rider? Sign in'),
@@ -355,22 +358,19 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
         message: 'No hub is taking riders right now. Try again later.',
       );
     }
-    return DropdownButtonFormField<int>(
-      initialValue: _hubId,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Hub you want to ride for'),
-      items: [
+    return AppSelectField<int>(
+      label: 'Hub you want to ride for',
+      sheetTitle: 'Choose a hub',
+      value: _hubId,
+      options: [
         for (final hub in hubs)
-          DropdownMenuItem(
-            value: hub.id,
-            child: Text(
-              [
-                hub.name,
-                if (hub.place.isNotEmpty) hub.place,
-                ?hub.courier,
-              ].join(' · '),
-              overflow: TextOverflow.ellipsis,
-            ),
+          AppOption(
+            hub.id,
+            hub.name,
+            subtitle: [
+              if (hub.place.isNotEmpty) hub.place,
+              ?hub.courier,
+            ].join(' · '),
           ),
       ],
       onChanged: (id) => setState(() {

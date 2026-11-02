@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/api_failure.dart';
 import '../api/json.dart';
 import '../theme/app_theme.dart';
+import 'motion.dart';
 import 'skeleton.dart';
 import 'states.dart';
 
@@ -57,6 +58,9 @@ class PagedListState<T> extends State<PagedList<T>> {
   ApiFailure? _firstPageFailure;
   ApiFailure? _nextPageFailure;
 
+  /// How many items have already played their entrance, so scrolling back doesn't replay it.
+  int _shown = 0;
+
   /// Bumped on every refresh, so a slow page from before the refresh is thrown away.
   int _generation = 0;
 
@@ -71,6 +75,7 @@ class PagedListState<T> extends State<PagedList<T>> {
     _generation++;
     setState(() {
       _items.clear();
+      _shown = 0;
       _page = 0;
       _hasMore = true;
       _loading = false;
@@ -152,6 +157,18 @@ class PagedListState<T> extends State<PagedList<T>> {
     );
   }
 
+  Widget _entrance(BuildContext context, int index) {
+    final child = widget.itemBuilder(context, _items[index]);
+    if (index < _shown) return child;
+    // Only what appears now gets the entrance, one after another across the row.
+    _shown = index + 1;
+    final across = widget.gridColumns ?? 1;
+    return FadeSlideIn(
+      delay: Duration(milliseconds: 40 * (index % (across * 3))),
+      child: child,
+    );
+  }
+
   Widget _itemsSliver() {
     final columns = widget.gridColumns;
     if (columns != null) {
@@ -163,15 +180,13 @@ class PagedListState<T> extends State<PagedList<T>> {
           childAspectRatio: widget.gridAspectRatio,
         ),
         itemCount: _items.length,
-        itemBuilder: (context, index) =>
-            widget.itemBuilder(context, _items[index]),
+        itemBuilder: _entrance,
       );
     }
     return SliverList.separated(
       itemCount: _items.length,
       separatorBuilder: (_, _) => SizedBox(height: widget.spacing),
-      itemBuilder: (context, index) =>
-          widget.itemBuilder(context, _items[index]),
+      itemBuilder: _entrance,
     );
   }
 
@@ -219,6 +234,7 @@ class PagedListState<T> extends State<PagedList<T>> {
         ),
       );
     }
-    return const SizedBox(height: AppSpace.xl);
+    // Clears anything floating over the end of the list, like the buyer app's dock.
+    return SizedBox(height: AppSpace.xl + MediaQuery.paddingOf(context).bottom);
   }
 }

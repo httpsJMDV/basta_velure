@@ -85,7 +85,6 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
   Widget build(BuildContext context) {
     final tracking = _tracking;
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Track package')),
       body: tracking == null
           ? (_failure != null
@@ -305,8 +304,8 @@ class _Timeline extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Updates', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: AppSpace.md),
+          const BlockTitle('Updates'),
+          const SizedBox(height: AppSpace.lg),
           if (events.isEmpty)
             const Text(
               'No updates yet.',
@@ -320,19 +319,33 @@ class _Timeline extends StatelessWidget {
                   Column(
                     children: [
                       Container(
-                        width: 12,
-                        height: 12,
-                        margin: const EdgeInsets.only(top: 4),
+                        width: 20,
+                        height: 20,
+                        alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: i == 0
-                              ? AppColors.brandRed
-                              : AppColors.stone300,
+                              ? AppColors.brandRedTint
+                              : Colors.transparent,
                           shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          width: i == 0 ? 10 : 8,
+                          height: i == 0 ? 10 : 8,
+                          decoration: BoxDecoration(
+                            color: i == 0
+                                ? AppColors.brandRed
+                                : AppColors.stone300,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
                       if (i < events.length - 1)
                         Expanded(
-                          child: Container(width: 2, color: AppColors.stone200),
+                          child: Container(
+                            width: 1.5,
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            color: AppColors.stone200,
+                          ),
                         ),
                     ],
                   ),
@@ -346,7 +359,10 @@ class _Timeline extends StatelessWidget {
                           Text(
                             events[i].title,
                             style: TextStyle(
-                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              fontWeight: i == 0
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
                               color: i == 0
                                   ? AppColors.stone900
                                   : AppColors.stone600,

@@ -2,11 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/session/app_user.dart';
 import 'core/session/home_route.dart';
 import 'core/session/session.dart';
 import 'features/auth/auth_routes.dart';
 import 'features/buyer/buyer_paths.dart';
 import 'features/buyer/buyer_routes.dart';
+import 'features/logistics/logistics_paths.dart';
 import 'features/logistics/logistics_routes.dart';
 import 'features/rider/rider_routes.dart';
 
@@ -47,6 +49,17 @@ String? redirectFor(SessionState session, String location) {
     SignedIn(:final user, :final home)
         when home == AppHome.buyer && user.needsProfile =>
       only(BuyerPaths.completeProfile),
-    SignedIn(:final home) => at(home.path) ? null : home.path,
+    SignedIn(:final user, :final home)
+        when !at(home.path) || location == LogisticsPaths.root =>
+      _landing(user, home),
+    SignedIn() => null,
   };
 }
+
+/// Where a home opens. Logistics splits by who signed in: a courier team member, or hub staff. Decided here from the
+/// session itself, because this redirect runs before providers that depend on the session have caught up.
+String _landing(AppUser user, AppHome home) => home == AppHome.logistics
+    ? (user.logisticsCompany?.isApproved ?? false
+          ? LogisticsPaths.courierHome
+          : LogisticsPaths.hubHome)
+    : home.path;

@@ -70,11 +70,21 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       appBar: AppBar(title: const Text('Messages')),
       body: PagedList<Conversation>(
         key: _list,
-        spacing: 0,
-        padding: EdgeInsets.zero,
+        spacing: AppSpace.xs,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
         onRefresh: () => ref.read(unreadMessagesProvider.notifier).refresh(),
-        load: (_) async =>
-            ApiPage.single(await ref.read(buyerApiProvider).conversations()),
+        load: (_) async {
+          final chats = await ref.read(buyerApiProvider).conversations();
+          // Opening Support creates its chat. Until it has a message, the card
+          // above already opens it, so a second row would only repeat it.
+          return ApiPage.single([
+            for (final chat in chats)
+              if (!chat.isSupport ||
+                  chat.lastMessage != null ||
+                  chat.unread > 0)
+                chat,
+          ]);
+        },
         itemBuilder: (_, conversation) => _ConversationTile(
           conversation: conversation,
           onTap: () => _open(conversation.id),
@@ -86,24 +96,21 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
         ),
         header: [
           SliverToBoxAdapter(
-            child: ListTile(
-              minTileHeight: 72,
-              onTap: _openSupport,
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.brandRedTint,
-                child: Icon(LucideIcons.headset, color: AppColors.brandRed),
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppSpace.xs),
+              child: BlockCard(
+                padding: EdgeInsets.zero,
+                child: MenuRow(
+                  icon: LucideIcons.headset,
+                  iconColor: AppColors.brandRed,
+                  iconBackground: AppColors.brandRedTint,
+                  title: 'Loved-IT Support',
+                  subtitle: 'Questions about orders, payments and returns',
+                  onTap: _openSupport,
+                ),
               ),
-              title: const Text(
-                'Loved-IT Support',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: const Text(
-                'Questions about orders, payments and returns',
-              ),
-              trailing: const Icon(LucideIcons.chevronRight, size: 18),
             ),
           ),
-          const SliverToBoxAdapter(child: Divider(height: 1)),
         ],
       ),
     );
@@ -119,69 +126,127 @@ class _ConversationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unread = conversation.unread > 0;
-    return ListTile(
-      minTileHeight: 72,
-      onTap: onTap,
-      leading: conversation.isRider
-          ? const CircleAvatar(
-              backgroundColor: AppColors.stone100,
-              child: Icon(LucideIcons.bike, color: AppColors.stone700),
-            )
-          : conversation.isSupport
-          ? const CircleAvatar(
-              backgroundColor: AppColors.brandRedTint,
-              child: Icon(LucideIcons.headset, color: AppColors.brandRed),
-            )
-          : ShopAvatar(
-              name: conversation.title,
-              url: conversation.avatarUrl,
-              size: 40,
-            ),
-      title: Text(
-        conversation.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        conversation.lastMessage ?? conversation.subtitle ?? '',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: unread ? AppColors.stone900 : AppColors.stone500,
-        ),
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            Fmt.shortWhen(conversation.lastMessageAt),
-            style: const TextStyle(fontSize: 12, color: AppColors.stone500),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.sm,
+            vertical: 10,
           ),
-          const SizedBox(height: 4),
-          if (unread)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.brandRed,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Text(
-                '${conversation.unread}',
-                style: const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+          child: Row(
+            children: [
+              if (conversation.isRider)
+                const _RoundIcon(
+                  icon: LucideIcons.bike,
+                  color: AppColors.stone700,
+                  background: AppColors.stone100,
+                )
+              else if (conversation.isSupport)
+                const _RoundIcon(
+                  icon: LucideIcons.headset,
+                  color: AppColors.brandRed,
+                  background: AppColors.brandRedTint,
+                )
+              else
+                ShopAvatar(
+                  name: conversation.title,
+                  url: conversation.avatarUrl,
+                  size: 50,
+                ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      conversation.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
+                        color: AppColors.stone900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      conversation.lastMessage ?? conversation.subtitle ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: unread ? AppColors.stone900 : AppColors.stone500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            )
-          else if (!conversation.canSend)
-            const StatusChip(label: 'Closed', tone: StatusTone.gray),
-        ],
+              const SizedBox(width: AppSpace.sm),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    Fmt.shortWhen(conversation.lastMessageAt),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
+                      color: unread ? AppColors.brandRed : AppColors.stone500,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  if (unread)
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 20),
+                      height: 20,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.brandRed,
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                      ),
+                      child: Text(
+                        '${conversation.unread}',
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  else if (!conversation.canSend)
+                    const StatusChip(label: 'Closed', tone: StatusTone.gray),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _RoundIcon extends StatelessWidget {
+  const _RoundIcon({
+    required this.icon,
+    required this.color,
+    required this.background,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+      child: Icon(icon, size: 22, color: color),
     );
   }
 }

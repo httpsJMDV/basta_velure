@@ -32,7 +32,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
 
   Future<void> _send() async {
     setState(() => _failure = null);
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validateAndReveal()) return;
     try {
       final message = await ref
           .read(buyerApiProvider)
@@ -51,37 +51,41 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       appBar: AppBar(title: const Text('Send feedback')),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            const Text(
-              'Tell us what works and what doesn’t. The Loved-IT team reads every message.',
-              style: TextStyle(color: AppColors.stone600),
-            ),
-            const SizedBox(height: AppSpace.lg),
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
-              const SizedBox(height: AppSpace.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Tell us what works and what doesn’t. The Loved-IT team reads every message.',
+                style: TextStyle(color: AppColors.stone600),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+                MessageBanner(message: _failure!.message),
+                const SizedBox(height: AppSpace.md),
+              ],
+              AppTextField(
+                label: 'Your feedback',
+                controller: _message,
+                minLines: 4,
+                maxLines: 8,
+                maxLength: 1000,
+                showCounter: true,
+                textCapitalization: TextCapitalization.sentences,
+                validator: (value) =>
+                    Rules.words(value, 'Your feedback', min: 3, max: 1000),
+                serverError: _failure?.errorFor('message'),
+              ),
+              const SizedBox(height: AppSpace.xl),
+              SubmitButton(
+                label: 'Send',
+                busyLabel: 'Sending…',
+                onPressed: _send,
+              ),
             ],
-            AppTextField(
-              label: 'Your feedback',
-              controller: _message,
-              minLines: 4,
-              maxLines: 8,
-              maxLength: 1000,
-              showCounter: true,
-              textCapitalization: TextCapitalization.sentences,
-              validator: (value) =>
-                  Rules.words(value, 'Your feedback', min: 3, max: 1000),
-              serverError: _failure?.errorFor('message'),
-            ),
-            const SizedBox(height: AppSpace.xl),
-            SubmitButton(
-              label: 'Send',
-              busyLabel: 'Sending…',
-              onPressed: _send,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -100,7 +104,6 @@ class PoliciesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final policies = ref.watch(_policiesProvider);
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Policies')),
       body: policies.when(
         loading: () => const SkeletonList(count: 3),

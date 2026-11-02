@@ -64,7 +64,6 @@ class AddressesScreen extends ConsumerWidget {
     final addresses = ref.watch(addressesProvider);
     final count = addresses.value?.length ?? 0;
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: Text(picking ? 'Deliver to' : 'My addresses')),
       body: addresses.when(
         loading: () => const SkeletonList(count: 3),

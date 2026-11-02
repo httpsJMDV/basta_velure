@@ -67,7 +67,6 @@ class _VouchersScreenState extends ConsumerState<VouchersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('My vouchers')),
       body: FutureBuilder<(List<Voucher>, List<Voucher>)>(
         future: _data,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -15,23 +16,26 @@ import '../data/buyer_api.dart';
 import '../data/cart.dart';
 import '../data/catalog.dart';
 import '../data/checkout.dart';
+import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 import '../widgets/photo_viewer.dart';
 import 'option_sheet.dart';
 import 'reviews_sheet.dart';
 
-/// The product page (B4): swipeable photos, the price block with any sale or flash sale, options, the shop card,
-/// details, reviews and related products. Add to cart and Buy now stay at the bottom.
+/// The product page (B4): swipeable photos under a soft sheet, the price block with any sale or flash sale, options,
+/// the shop card, details, reviews and related products. Add to cart and Buy now stay at the bottom. The photo comes
+/// flying in from the card that was tapped, and shows straight away while the rest of the page loads.
 class ProductScreen extends ConsumerWidget {
-  const ProductScreen({super.key, required this.productId});
+  const ProductScreen({super.key, required this.productId, this.hero});
 
   final int productId;
+  final ProductHero? hero;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final product = ref.watch(productProvider(productId));
     return product.when(
-      loading: () => Scaffold(appBar: AppBar(), body: const _ProductSkeleton()),
+      loading: () => Scaffold(body: _ProductSkeleton(hero: hero)),
       error: (error, _) => Scaffold(
         appBar: AppBar(),
         body: ErrorRetry(
@@ -39,15 +43,16 @@ class ProductScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(productProvider(productId)),
         ),
       ),
-      data: (product) => _ProductView(product: product),
+      data: (product) => _ProductView(product: product, hero: hero),
     );
   }
 }
 
 class _ProductView extends ConsumerStatefulWidget {
-  const _ProductView({required this.product});
+  const _ProductView({required this.product, this.hero});
 
   final ProductDetail product;
+  final ProductHero? hero;
 
   @override
   ConsumerState<_ProductView> createState() => _ProductViewState();
@@ -61,6 +66,7 @@ class _ProductViewState extends ConsumerState<_ProductView> {
 
   Future<void> _toggleWishlist() async {
     if (_togglingWishlist) return;
+    HapticFeedback.lightImpact();
     setState(() {
       _togglingWishlist = true;
       _wishlisted = !_wishlisted;
@@ -96,15 +102,22 @@ class _ProductViewState extends ConsumerState<_ProductView> {
           .read(cartProvider.notifier)
           .add(choice.option.variantId, choice.quantity);
       if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      // The router, not this page's context: the message can outlast the page.
+      final router = GoRouter.of(context);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
             content: Text(message),
             behavior: SnackBarBehavior.floating,
+            // A message with a button stays until tapped unless told otherwise,
+            // and this one would sit over the cart's Check out button.
+            persist: false,
+            duration: const Duration(seconds: 3),
             action: SnackBarAction(
               label: 'View cart',
-              onPressed: () => context.go(BuyerPaths.cart),
+              onPressed: () => router.go(BuyerPaths.cart),
             ),
           ),
         );
@@ -131,48 +144,103 @@ class _ProductViewState extends ConsumerState<_ProductView> {
   @override
   Widget build(BuildContext context) {
     final blocked = product.soldOut || product.onVacation;
+    final width = MediaQuery.sizeOf(context).width;
+    final cartLines = ref.watch(cartProvider).value?.lines ?? 0;
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       body: RefreshIndicator(
+        edgeOffset: MediaQuery.paddingOf(context).top,
         onRefresh: () async => ref.invalidate(productProvider(product.id)),
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
               pinned: true,
-              expandedHeight: MediaQuery.sizeOf(context).width,
-              backgroundColor: AppColors.white,
+              stretch: true,
+              expandedHeight: width,
+              toolbarHeight: 60,
+              leadingWidth: 62,
+              automaticallyImplyLeading: false,
+              backgroundColor: AppColors.cream,
+              leading: Padding(
+                padding: const EdgeInsets.only(left: AppSpace.lg),
+                child: Center(
+                  child: FloatingRoundButton(
+                    tooltip: 'Back',
+                    onPressed: () => context.pop(),
+                    child: const Icon(
+                      LucideIcons.arrowLeft,
+                      size: 20,
+                      color: AppColors.stone900,
+                    ),
+                  ),
+                ),
+              ),
               actions: [
-                IconButton(
+                FloatingRoundButton(
                   tooltip: _wishlisted
                       ? 'Remove from wishlist'
                       : 'Add to wishlist',
                   onPressed: _toggleWishlist,
-                  icon: Icon(
-                    LucideIcons.heart,
-                    color: _wishlisted ? AppColors.brandRed : null,
-                    fill: _wishlisted ? 1 : 0,
+                  child: PopOnChange(
+                    value: _wishlisted,
+                    child: AnimatedSwitcher(
+                      duration: Motion.fast,
+                      child: Icon(
+                        _wishlisted
+                            ? Icons.favorite_rounded
+                            : LucideIcons.heart,
+                        key: ValueKey(_wishlisted),
+                        size: 20,
+                        color: _wishlisted
+                            ? AppColors.brandRed
+                            : AppColors.stone900,
+                      ),
+                    ),
                   ),
                 ),
-                IconButton(
+                const SizedBox(width: AppSpace.sm),
+                FloatingRoundButton(
                   tooltip: 'Cart',
                   onPressed: () => context.go(BuyerPaths.cart),
-                  icon: const Icon(LucideIcons.shoppingCart),
+                  child: Badge(
+                    isLabelVisible: cartLines > 0,
+                    backgroundColor: AppColors.brandRed,
+                    offset: const Offset(7, -6),
+                    label: PopOnChange(
+                      value: cartLines,
+                      child: Text(cartLines > 99 ? '99+' : '$cartLines'),
+                    ),
+                    child: const Icon(
+                      LucideIcons.shoppingBag,
+                      size: 20,
+                      color: AppColors.stone900,
+                    ),
+                  ),
                 ),
+                const SizedBox(width: AppSpace.lg),
               ],
               flexibleSpace: FlexibleSpaceBar(
-                background: _Gallery(images: product.images),
+                stretchModes: const [StretchMode.zoomBackground],
+                background: _Gallery(images: product.images, hero: widget.hero),
               ),
             ),
-            SliverToBoxAdapter(child: _PriceBlock(product: product)),
+            SliverToBoxAdapter(
+              child: FadeSlideIn(child: _PriceBlock(product: product)),
+            ),
             SliverToBoxAdapter(child: _Vouchers(productId: product.id)),
             SliverToBoxAdapter(
-              child: _OptionsRow(
-                product: product,
-                onTap: () => _choose(OptionAction.addToCart),
+              child: FadeSlideIn(
+                delay: const Duration(milliseconds: 60),
+                child: _OptionsRow(
+                  product: product,
+                  onTap: () => _choose(OptionAction.addToCart),
+                ),
               ),
             ),
             SliverToBoxAdapter(
-              child: _ShopCard(seller: product.seller, onChat: _chat),
+              child: FadeSlideIn(
+                delay: const Duration(milliseconds: 120),
+                child: _ShopCard(seller: product.seller, onChat: _chat),
+              ),
             ),
             SliverToBoxAdapter(child: _Details(product: product)),
             SliverToBoxAdapter(child: _ReviewsBlock(product: product)),
@@ -193,9 +261,10 @@ class _ProductViewState extends ConsumerState<_ProductView> {
 }
 
 class _Gallery extends StatefulWidget {
-  const _Gallery({required this.images});
+  const _Gallery({required this.images, this.hero});
 
   final List<String> images;
+  final ProductHero? hero;
 
   @override
   State<_Gallery> createState() => _GalleryState();
@@ -207,31 +276,71 @@ class _GalleryState extends State<_Gallery> {
   @override
   Widget build(BuildContext context) {
     final images = widget.images;
-    if (images.isEmpty) return const NetImage(null);
+    final hero = widget.hero;
     return Stack(
       fit: StackFit.expand,
       children: [
-        PageView.builder(
-          itemCount: images.length,
-          onPageChanged: (index) => setState(() => _current = index),
-          itemBuilder: (context, index) => GestureDetector(
-            onTap: () => showPhotoViewer(context, images, initial: index),
-            child: NetImage(images[index]),
+        if (images.isEmpty)
+          const NetImage(null)
+        else
+          PageView.builder(
+            itemCount: images.length,
+            onPageChanged: (index) => setState(() => _current = index),
+            itemBuilder: (context, index) {
+              final photo = GestureDetector(
+                onTap: () => showPhotoViewer(context, images, initial: index),
+                child: NetImage(images[index]),
+              );
+              return index == 0 && hero != null
+                  ? Hero(tag: hero.tag, child: photo)
+                  : photo;
+            },
+          ),
+        // The page's sheet starts here, over the bottom of the photo.
+        const Align(
+          alignment: Alignment.bottomCenter,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.cream,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+            ),
+            child: SizedBox(height: 26, width: double.infinity),
           ),
         ),
         if (images.length > 1)
           Positioned(
-            right: AppSpace.md,
-            bottom: AppSpace.md,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.stone900.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Text(
-                '${_current + 1}/${images.length}',
-                style: const TextStyle(color: AppColors.white, fontSize: 12),
+            left: 0,
+            right: 0,
+            bottom: 38,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.ink.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < images.length && i < 8; i++)
+                      AnimatedContainer(
+                        duration: Motion.medium,
+                        curve: Motion.glide,
+                        margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                        width: i == _current ? 16 : 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: i == _current
+                              ? AppColors.white
+                              : AppColors.white.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -252,107 +361,108 @@ class _PriceBlock extends StatelessWidget {
     final ranged = product.priceMax > product.priceMin;
     final sold = Fmt.sold(product.unitsSold);
 
-    return Container(
-      color: AppColors.white,
-      margin: const EdgeInsets.only(bottom: AppSpace.md),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        0,
+        AppSpace.lg,
+        AppSpace.lg,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (flash != null && flash.endsAt != null)
+          if (flash != null && flash.endsAt != null) ...[
             _FlashBanner(endsAt: flash.endsAt!, remaining: flash.remaining),
-          Padding(
-            padding: const EdgeInsets.all(AppSpace.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.end,
-                  spacing: AppSpace.sm,
-                  children: [
-                    Text(
-                      ranged
-                          ? '${formatPeso(product.priceMin)} – ${formatPeso(product.priceMax)}'
-                          : formatPeso(flash?.price ?? product.price),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.brandRed,
-                      ),
-                    ),
-                    if (discount > 0 && !ranged) ...[
-                      PesoText(product.originalPrice, struck: true),
-                      Text(
-                        '-$discount%',
-                        style: const TextStyle(
-                          color: AppColors.brandRed,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: AppSpace.sm),
-                Text(
-                  product.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppSpace.sm),
-                Row(
-                  children: [
-                    if (product.avgRating != null &&
-                        product.reviewCount > 0) ...[
-                      Stars(rating: product.avgRating!),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${product.avgRating!.toStringAsFixed(1)} (${product.reviewCount})',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.stone600,
-                        ),
-                      ),
-                    ] else
-                      const Text(
-                        'No reviews yet',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.stone500,
-                        ),
-                      ),
-                    if (sold != null) ...[
-                      const Text(
-                        '  ·  ',
-                        style: TextStyle(color: AppColors.stone400),
-                      ),
-                      Text(
-                        sold,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.stone600,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                if (product.upcomingFlashStartsAt != null && flash == null) ...[
-                  const SizedBox(height: AppSpace.md),
-                  MessageBanner(
-                    message:
-                        'Flash sale starts ${Fmt.dateTime(product.upcomingFlashStartsAt)}.',
-                    tone: StatusTone.amber,
-                    icon: LucideIcons.zap,
-                  ),
-                ],
-                if (product.onVacation) ...[
-                  const SizedBox(height: AppSpace.md),
-                  const MessageBanner(
-                    message: 'This shop is on vacation. You can order again when it is back.',
-                    tone: StatusTone.amber,
-                    icon: LucideIcons.store,
-                  ),
-                ],
-              ],
-            ),
+            const SizedBox(height: AppSpace.md),
+          ],
+          Text(
+            product.name,
+            style: BuyerText.screenTitle.copyWith(fontSize: 23, height: 1.2),
           ),
+          const SizedBox(height: AppSpace.sm),
+          Row(
+            children: [
+              if (product.avgRating != null && product.reviewCount > 0) ...[
+                Stars(rating: product.avgRating!),
+                const SizedBox(width: 6),
+                Text(
+                  '${product.avgRating!.toStringAsFixed(1)} (${product.reviewCount})',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.stone600,
+                  ),
+                ),
+              ] else
+                const Text(
+                  'No reviews yet',
+                  style: TextStyle(fontSize: 13, color: AppColors.stone500),
+                ),
+              if (sold != null) ...[
+                const Text(
+                  '  ·  ',
+                  style: TextStyle(color: AppColors.stone400),
+                ),
+                Text(
+                  sold,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.stone600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpace.sm,
+            children: [
+              Text(
+                ranged
+                    ? '${formatPeso(product.priceMin)} – ${formatPeso(product.priceMax)}'
+                    : formatPeso(flash?.price ?? product.price),
+                style: BuyerText.price.copyWith(fontSize: 28),
+              ),
+              if (discount > 0 && !ranged) ...[
+                PesoText(product.originalPrice, struck: true),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.brandRedTint,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    '-$discount%',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.brandRed,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (product.upcomingFlashStartsAt != null && flash == null) ...[
+            const SizedBox(height: AppSpace.md),
+            MessageBanner(
+              message:
+                  'Flash sale starts ${Fmt.dateTime(product.upcomingFlashStartsAt)}.',
+              tone: StatusTone.amber,
+              icon: LucideIcons.zap,
+            ),
+          ],
+          if (product.onVacation) ...[
+            const SizedBox(height: AppSpace.md),
+            const MessageBanner(
+              message: 'This shop is on vacation. You can order again when it is back.',
+              tone: StatusTone.amber,
+              icon: LucideIcons.store,
+            ),
+          ],
         ],
       ),
     );
@@ -377,6 +487,12 @@ class _FlashBannerState extends State<_FlashBanner> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _tick;
+  }
+
+  @override
   void dispose() {
     _tick.cancel();
     super.dispose();
@@ -385,18 +501,22 @@ class _FlashBannerState extends State<_FlashBanner> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.brandRed,
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpace.lg,
+        horizontal: AppSpace.md,
         vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.brandRed,
+        borderRadius: BorderRadius.circular(BuyerRadius.field),
       ),
       child: Row(
         children: [
-          const Icon(LucideIcons.zap, color: AppColors.white, size: 18),
+          const Icon(LucideIcons.zap, color: AppColors.white, size: 16),
           const SizedBox(width: AppSpace.sm),
           const Text(
             'Flash sale',
             style: TextStyle(
+              fontSize: 13.5,
               color: AppColors.white,
               fontWeight: FontWeight.w700,
             ),
@@ -405,6 +525,7 @@ class _FlashBannerState extends State<_FlashBanner> {
           Text(
             'Ends in ${Fmt.countdown(widget.endsAt)}',
             style: const TextStyle(
+              fontSize: 13.5,
               color: AppColors.white,
               fontWeight: FontWeight.w600,
               fontFeatures: [FontFeature.tabularFigures()],
@@ -507,11 +628,11 @@ class VoucherTile extends StatelessWidget {
     final saved = voucher.claimed;
     return Container(
       margin: const EdgeInsets.only(top: AppSpace.sm),
-      padding: const EdgeInsets.all(AppSpace.md),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       decoration: BoxDecoration(
-        color: StatusTone.amber.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: StatusTone.amber.border),
+        color: const Color(0xFFFFF8EC),
+        borderRadius: BorderRadius.circular(BuyerRadius.field),
+        border: Border.all(color: const Color(0xFFF6E3BF)),
       ),
       child: Row(
         children: [
@@ -544,19 +665,37 @@ class VoucherTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpace.sm),
-          if (voucher.fullyUsed)
-            const StatusChip(label: 'Used', tone: StatusTone.gray)
-          else if (saved)
-            const StatusChip(label: 'Saved', tone: StatusTone.emerald)
-          else
-            FilledButton(
-              onPressed: busy ? null : onClaim,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.brandRed,
-                minimumSize: const Size(72, 40),
-              ),
-              child: Text(busy ? 'Saving…' : 'Save'),
-            ),
+          AnimatedSwitcher(
+            duration: Motion.medium,
+            child: voucher.fullyUsed
+                ? const StatusChip(
+                    key: ValueKey('used'),
+                    label: 'Used',
+                    tone: StatusTone.gray,
+                  )
+                : saved
+                ? const StatusChip(
+                    key: ValueKey('saved'),
+                    label: 'Saved',
+                    tone: StatusTone.emerald,
+                  )
+                : FilledButton(
+                    key: const ValueKey('save'),
+                    onPressed: busy ? null : onClaim,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.ink,
+                      minimumSize: const Size(68, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: Text(busy ? 'Saving…' : 'Save'),
+                  ),
+          ),
         ],
       ),
     );
@@ -580,16 +719,13 @@ class _OptionsRow extends StatelessWidget {
         : '${product.totalStock} in stock';
     return BlockCard(
       padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 56,
+      child: MenuRow(
+        icon: LucideIcons.package,
+        title: summary,
+        subtitle:
+            'Delivery in ${product.deliveryDaysMin} to ${product.deliveryDaysMax} days'
+            '${product.purchaseLimit != null ? ' · Limit ${product.purchaseLimit} per buyer' : ''}',
         onTap: product.soldOut || product.onVacation ? null : onTap,
-        leading: const Icon(LucideIcons.package, color: AppColors.stone600),
-        title: Text(summary),
-        subtitle: Text(
-          'Delivery in ${product.deliveryDaysMin} to ${product.deliveryDaysMax} days'
-          '${product.purchaseLimit != null ? ' · Limit ${product.purchaseLimit} per buyer' : ''}',
-        ),
-        trailing: const Icon(LucideIcons.chevronRight, size: 18),
       ),
     );
   }
@@ -621,13 +757,16 @@ class _ShopCard extends StatelessWidget {
                   children: [
                     Text(
                       seller.shopName,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     if (place.isNotEmpty)
                       Text(
                         place,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 12.5,
                           color: AppColors.stone500,
                         ),
                       ),
@@ -636,15 +775,17 @@ class _ShopCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.md),
+          const SizedBox(height: AppSpace.lg),
           Row(
             children: [
               _Stat('${seller.productCount}', 'Products'),
+              const _StatDivider(),
               _Stat(seller.avgRating?.toStringAsFixed(1) ?? '—', 'Rating'),
+              const _StatDivider(),
               _Stat('${seller.unitsSold}', 'Sold'),
             ],
           ),
-          const SizedBox(height: AppSpace.md),
+          const SizedBox(height: AppSpace.lg),
           Row(
             children: [
               Expanded(
@@ -654,7 +795,7 @@ class _ShopCard extends StatelessWidget {
                   label: const Text('Chat'),
                 ),
               ),
-              const SizedBox(width: AppSpace.md),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () =>
@@ -685,10 +826,12 @@ class _Stat extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
+              fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColors.brandRed,
+              color: AppColors.stone900,
             ),
           ),
+          const SizedBox(height: 1),
           Text(
             label,
             style: const TextStyle(fontSize: 12, color: AppColors.stone500),
@@ -699,43 +842,13 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _Details extends StatelessWidget {
+class _Details extends StatefulWidget {
   const _Details({required this.product});
 
   final ProductDetail product;
 
   @override
-  Widget build(BuildContext context) {
-    return BlockCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Product details',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: AppSpace.sm),
-          if (product.categoryName != null)
-            InfoRow('Category', product.categoryName!),
-          for (final row in product.specs.entries) InfoRow(row.key, row.value),
-          if (product.description.isNotEmpty) ...[
-            const SizedBox(height: AppSpace.md),
-            Text(product.description, style: const TextStyle(height: 1.5)),
-          ],
-          if (product.warranty != null) ...[
-            const SizedBox(height: AppSpace.md),
-            InfoRow('Warranty', product.warranty!),
-          ],
-          if (product.returnPolicy != null) ...[
-            const SizedBox(height: AppSpace.md),
-            Text('Returns', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: AppSpace.xs),
-            Text(product.returnPolicy!, style: const TextStyle(height: 1.5)),
-          ],
-        ],
-      ),
-    );
-  }
+  State<_Details> createState() => _DetailsState();
 }
 
 class _ReviewsBlock extends ConsumerStatefulWidget {
@@ -761,12 +874,7 @@ class _ReviewsBlockState extends ConsumerState<_ReviewsBlock> {
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  'Reviews (${product.reviewCount})',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
+              Expanded(child: BlockTitle('Reviews (${product.reviewCount})')),
               if (product.reviewCount > 0)
                 TextButton(
                   onPressed: () => showReviewsSheet(
@@ -776,10 +884,15 @@ class _ReviewsBlockState extends ConsumerState<_ReviewsBlock> {
                         .read(buyerApiProvider)
                         .productReviews(product.id, page: page),
                   ),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
                   child: const Text('See all'),
                 ),
             ],
           ),
+          const SizedBox(height: AppSpace.xs),
           FutureBuilder(
             future: _reviews,
             builder: (context, snapshot) {
@@ -833,15 +946,18 @@ class _RelatedState extends ConsumerState<_Related> {
           children: [
             const SectionHeader(title: 'You may also like'),
             SizedBox(
-              height: 262,
+              height: productRowHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
                 itemCount: items.length,
                 separatorBuilder: (_, _) => const SizedBox(width: AppSpace.md),
                 itemBuilder: (_, index) => SizedBox(
-                  width: 150,
-                  child: ProductCard(product: items[index]),
+                  width: productRowCardWidth,
+                  child: ProductCard(
+                    product: items[index],
+                    heroScope: 'related',
+                  ),
                 ),
               ),
             ),
@@ -872,30 +988,53 @@ class _BuyBar extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        boxShadow: AppShadow.soft,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x141E1B18),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+        ],
       ),
       padding: const EdgeInsets.fromLTRB(
         AppSpace.md,
-        AppSpace.sm,
+        AppSpace.md,
         AppSpace.lg,
-        AppSpace.sm,
+        AppSpace.md,
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
-            IconButton(
-              tooltip: 'Chat with the shop',
-              onPressed: onChat,
-              icon: const Icon(LucideIcons.messageCircle),
+            Tooltip(
+              message: 'Chat with the shop',
+              child: PressScale(
+                scale: 0.92,
+                onTap: onChat,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.stone100,
+                    borderRadius: BuyerRadius.buttonAll,
+                  ),
+                  child: const Icon(
+                    LucideIcons.messageCircle,
+                    size: 21,
+                    color: AppColors.stone800,
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(width: AppSpace.xs),
+            const SizedBox(width: AppSpace.sm),
             if (blocked)
               Expanded(
                 child: FilledButton(
                   onPressed: null,
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
+                    minimumSize: const Size.fromHeight(50),
                   ),
                   child: Text(blockedLabel),
                 ),
@@ -905,11 +1044,12 @@ class _BuyBar extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onAddToCart,
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                    foregroundColor: AppColors.brandRed,
-                    side: const BorderSide(color: AppColors.brandRed),
+                    minimumSize: const Size.fromHeight(50),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    foregroundColor: AppColors.ink,
+                    side: const BorderSide(color: AppColors.ink),
                   ),
-                  child: const Text('Add to cart'),
+                  child: const Text('Add to cart', maxLines: 1),
                 ),
               ),
               const SizedBox(width: AppSpace.sm),
@@ -918,9 +1058,10 @@ class _BuyBar extends StatelessWidget {
                   onPressed: onBuyNow,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brandRed,
-                    minimumSize: const Size.fromHeight(52),
+                    minimumSize: const Size.fromHeight(50),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
-                  child: const Text('Buy now'),
+                  child: const Text('Buy now', maxLines: 1),
                 ),
               ),
             ],
@@ -932,29 +1073,125 @@ class _BuyBar extends StatelessWidget {
 }
 
 class _ProductSkeleton extends StatelessWidget {
-  const _ProductSkeleton();
+  const _ProductSkeleton({this.hero});
+
+  final ProductHero? hero;
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    return Skeleton(
-      child: ListView(
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          SkeletonBox(width: width, height: width, radius: 0),
-          const Padding(
+    final known = hero;
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      children: [
+        if (known != null)
+          SizedBox(
+            width: width,
+            height: width,
+            child: Hero(tag: known.tag, child: NetImage(known.imageUrl)),
+          )
+        else
+          Skeleton(
+            child: SkeletonBox(width: width, height: width, radius: 0),
+          ),
+        const Skeleton(
+          child: Padding(
             padding: EdgeInsets.all(AppSpace.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SkeletonBox(width: 140, height: 24),
-                SizedBox(height: AppSpace.md),
-                SkeletonBox(height: 16),
+                SkeletonBox(height: 22),
                 SizedBox(height: AppSpace.sm),
-                SkeletonBox(width: 200, height: 16),
+                SkeletonBox(width: 200, height: 22),
+                SizedBox(height: AppSpace.md),
+                SkeletonBox(width: 120, height: 14),
+                SizedBox(height: AppSpace.lg),
+                SkeletonBox(width: 140, height: 30),
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 26, color: const Color(0xFFEFEBE6));
+}
+
+class _DetailsState extends State<_Details> {
+  /// Long text folds to this many lines until "Read more".
+  static const _foldedLines = 5;
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final product = widget.product;
+    final long = product.description.length > 240;
+    return BlockCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BlockTitle('Product details'),
+          const SizedBox(height: AppSpace.md),
+          if (product.categoryName != null)
+            InfoRow('Category', product.categoryName!),
+          for (final row in product.specs.entries) InfoRow(row.key, row.value),
+          if (product.description.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.md),
+            AnimatedSize(
+              duration: Motion.medium,
+              curve: Motion.glide,
+              alignment: Alignment.topCenter,
+              child: Text(
+                product.description,
+                maxLines: long && !_open ? _foldedLines : null,
+                overflow: long && !_open
+                    ? TextOverflow.ellipsis
+                    : TextOverflow.clip,
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.55,
+                  color: AppColors.stone700,
+                ),
+              ),
+            ),
+            if (long)
+              TextButton(
+                onPressed: () => setState(() => _open = !_open),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 36),
+                ),
+                child: Text(_open ? 'Show less' : 'Read more'),
+              ),
+          ],
+          if (product.warranty != null) ...[
+            const SizedBox(height: AppSpace.md),
+            InfoRow('Warranty', product.warranty!),
+          ],
+          if (product.returnPolicy != null) ...[
+            const SizedBox(height: AppSpace.md),
+            const Text(
+              'Returns',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              product.returnPolicy!,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.55,
+                color: AppColors.stone700,
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -12,6 +12,8 @@ import '../../auth/account_actions.dart';
 import '../buyer_paths.dart';
 import '../data/buyer_api.dart';
 import '../data/orders.dart';
+import '../widgets/buyer_theme.dart';
+import '../widgets/buyer_widgets.dart';
 
 final _orderCountsProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
@@ -31,7 +33,6 @@ class AccountScreen extends ConsumerWidget {
     final idCheck = ref.watch(idVerificationProvider).value;
 
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Account')),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -40,16 +41,22 @@ class AccountScreen extends ConsumerWidget {
           await ref.read(sessionProvider.notifier).refreshUser();
         },
         child: ListView(
-          padding: const EdgeInsets.only(bottom: AppSpace.xl),
+          padding: EdgeInsets.only(bottom: AppSpace.xl + dockInset(context)),
           children: [
-            InkWell(
-              onTap: () => context.push(BuyerPaths.profile),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpace.lg),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.lg,
+                AppSpace.xs,
+                AppSpace.lg,
+                AppSpace.lg,
+              ),
+              child: PressScale(
+                scale: 0.985,
+                onTap: () => context.push(BuyerPaths.profile),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 30,
+                      radius: 32,
                       backgroundColor: AppColors.brandRedTint,
                       child: user?.avatarUrl == null
                           ? Text(
@@ -57,7 +64,8 @@ class AccountScreen extends ConsumerWidget {
                                   ? user!.firstName[0].toUpperCase()
                                   : '?',
                               style: const TextStyle(
-                                fontSize: 22,
+                                fontFamily: 'serif',
+                                fontSize: 26,
                                 color: AppColors.brandRed,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -65,8 +73,8 @@ class AccountScreen extends ConsumerWidget {
                           : ClipOval(
                               child: NetImage(
                                 user!.avatarUrl,
-                                width: 60,
-                                height: 60,
+                                width: 64,
+                                height: 64,
                               ),
                             ),
                     ),
@@ -77,11 +85,19 @@ class AccountScreen extends ConsumerWidget {
                         children: [
                           Text(
                             user?.fullName ?? '',
-                            style: Theme.of(context).textTheme.titleMedium,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: BuyerText.screenTitle.copyWith(fontSize: 21),
                           ),
+                          const SizedBox(height: 2),
                           Text(
                             user?.email ?? '',
-                            style: const TextStyle(color: AppColors.stone500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              color: AppColors.stone500,
+                            ),
                           ),
                         ],
                       ),
@@ -103,7 +119,8 @@ class AccountScreen extends ConsumerWidget {
                   AppSpace.lg,
                   AppSpace.md,
                 ),
-                child: InkWell(
+                child: PressScale(
+                  scale: 0.985,
                   onTap: () => openWebsite('/seller'),
                   child: const MessageBanner(
                     message: 'Your shop is run from the website. Tap to open the Seller Centre.',
@@ -120,7 +137,8 @@ class AccountScreen extends ConsumerWidget {
                   AppSpace.lg,
                   AppSpace.md,
                 ),
-                child: InkWell(
+                child: PressScale(
+                  scale: 0.985,
                   onTap: () => context.push(BuyerPaths.idVerification),
                   child: MessageBanner(
                     message: switch (idCheck.status) {
@@ -134,108 +152,115 @@ class AccountScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-            _Section(
-              title: 'My orders',
-              trailing: TextButton(
-                onPressed: () => context.push(BuyerPaths.orders),
-                child: const Text('See all'),
+            BlockCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.lg,
+                      AppSpace.sm,
+                      AppSpace.xs,
+                      0,
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(child: BlockTitle('My orders')),
+                        TextButton(
+                          onPressed: () => context.push(BuyerPaths.orders),
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(0, 40),
+                          ),
+                          child: const Text('See all'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.sm,
+                      AppSpace.xs,
+                      AppSpace.sm,
+                      AppSpace.md,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _OrderShortcut(
+                          tab: OrderTab.toPay,
+                          icon: LucideIcons.wallet,
+                          count: counts['to_pay'],
+                        ),
+                        _OrderShortcut(
+                          tab: OrderTab.toShip,
+                          icon: LucideIcons.package,
+                          count: counts['to_ship'],
+                        ),
+                        _OrderShortcut(
+                          tab: OrderTab.toReceive,
+                          icon: LucideIcons.truck,
+                          count: counts['to_receive'],
+                        ),
+                        _OrderShortcut(
+                          tab: OrderTab.completed,
+                          icon: LucideIcons.circleCheck,
+                          count: null,
+                        ),
+                        _OrderShortcut(
+                          tab: OrderTab.returns,
+                          icon: LucideIcons.undo2,
+                          count: counts['return_refund'],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpace.sm,
-                  0,
-                  AppSpace.sm,
-                  AppSpace.md,
+            ),
+            _Group(
+              rows: const [
+                _Link(LucideIcons.star, 'Reviews', BuyerPaths.reviews),
+                _Link(LucideIcons.heart, 'Wishlist', BuyerPaths.wishlist),
+                _Link(
+                  LucideIcons.store,
+                  'Shops I follow',
+                  BuyerPaths.following,
                 ),
-                child: Row(
-                  children: [
-                    _OrderShortcut(
-                      tab: OrderTab.toPay,
-                      icon: LucideIcons.wallet,
-                      count: counts['to_pay'],
-                    ),
-                    _OrderShortcut(
-                      tab: OrderTab.toShip,
-                      icon: LucideIcons.package,
-                      count: counts['to_ship'],
-                    ),
-                    _OrderShortcut(
-                      tab: OrderTab.toReceive,
-                      icon: LucideIcons.truck,
-                      count: counts['to_receive'],
-                    ),
-                    _OrderShortcut(
-                      tab: OrderTab.completed,
-                      icon: LucideIcons.circleCheck,
-                      count: null,
-                    ),
-                    _OrderShortcut(
-                      tab: OrderTab.returns,
-                      icon: LucideIcons.undo2,
-                      count: counts['return_refund'],
-                    ),
-                  ],
+                _Link(LucideIcons.ticket, 'My vouchers', BuyerPaths.vouchers),
+                _Link(LucideIcons.mapPin, 'My addresses', BuyerPaths.addresses),
+              ],
+            ),
+            _Group(
+              rows: const [
+                _Link(LucideIcons.userRound, 'Profile', BuyerPaths.profile),
+                _Link(
+                  LucideIcons.idCard,
+                  'ID verification',
+                  BuyerPaths.idVerification,
                 ),
-              ),
+                _Link(LucideIcons.lock, 'Change password', BuyerPaths.password),
+                _Link(LucideIcons.mail, 'Change email', BuyerPaths.email),
+                _Link(
+                  LucideIcons.phone,
+                  'Change mobile number',
+                  BuyerPaths.phone,
+                ),
+              ],
             ),
-            _Section(
-              child: Column(
-                children: [
-                  _Link(LucideIcons.star, 'Reviews', BuyerPaths.reviews),
-                  _Link(LucideIcons.heart, 'Wishlist', BuyerPaths.wishlist),
-                  _Link(
-                    LucideIcons.store,
-                    'Shops I follow',
-                    BuyerPaths.following,
-                  ),
-                  _Link(LucideIcons.ticket, 'My vouchers', BuyerPaths.vouchers),
-                  _Link(
-                    LucideIcons.mapPin,
-                    'My addresses',
-                    BuyerPaths.addresses,
-                  ),
-                ],
-              ),
-            ),
-            _Section(
-              child: Column(
-                children: [
-                  _Link(LucideIcons.userRound, 'Profile', BuyerPaths.profile),
-                  _Link(
-                    LucideIcons.idCard,
-                    'ID verification',
-                    BuyerPaths.idVerification,
-                  ),
-                  _Link(
-                    LucideIcons.lock,
-                    'Change password',
-                    BuyerPaths.password,
-                  ),
-                  _Link(LucideIcons.mail, 'Change email', BuyerPaths.email),
-                  _Link(
-                    LucideIcons.phone,
-                    'Change mobile number',
-                    BuyerPaths.phone,
-                  ),
-                ],
-              ),
-            ),
-            _Section(
-              child: Column(
-                children: [
-                  _Link(
-                    LucideIcons.bell,
-                    'Notifications',
-                    BuyerPaths.notifications,
-                  ),
-                  _Link(
-                    LucideIcons.messageSquare,
-                    'Send feedback',
-                    BuyerPaths.feedback,
-                  ),
-                  _Link(LucideIcons.fileText, 'Policies', BuyerPaths.policies),
-                ],
-              ),
+            _Group(
+              rows: const [
+                _Link(
+                  LucideIcons.bell,
+                  'Notifications',
+                  BuyerPaths.notifications,
+                ),
+                _Link(
+                  LucideIcons.messageSquare,
+                  'Send feedback',
+                  BuyerPaths.feedback,
+                ),
+                _Link(LucideIcons.fileText, 'Policies', BuyerPaths.policies),
+              ],
             ),
             const Padding(padding: AppSpace.page, child: HomeSwitchList()),
             const Padding(
@@ -257,57 +282,6 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.child, this.title, this.trailing});
-
-  final Widget child;
-  final String? title;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpace.lg,
-        0,
-        AppSpace.lg,
-        AppSpace.md,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: AppRadius.cardAll,
-        border: Border.all(color: AppColors.stone200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (title != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.lg,
-                AppSpace.sm,
-                AppSpace.xs,
-                0,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title!,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  ?trailing,
-                ],
-              ),
-            ),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
 class _OrderShortcut extends StatelessWidget {
   const _OrderShortcut({
     required this.tab,
@@ -321,25 +295,46 @@ class _OrderShortcut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final waiting = (count ?? 0) > 0;
     return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+      child: PressScale(
+        scale: 0.94,
         onTap: () => context.push(BuyerPaths.ordersTab(tab.key)),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
           child: Column(
             children: [
               Badge(
-                isLabelVisible: (count ?? 0) > 0,
+                isLabelVisible: waiting,
                 backgroundColor: AppColors.brandRed,
+                offset: const Offset(4, -4),
                 label: Text('${count ?? 0}'),
-                child: Icon(icon, color: AppColors.stone700),
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: waiting
+                        ? AppColors.brandRedTint
+                        : AppColors.stone100,
+                    borderRadius: BorderRadius.circular(BuyerRadius.field),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 21,
+                    color: waiting ? AppColors.brandRed : AppColors.stone700,
+                  ),
+                ),
               ),
               const SizedBox(height: 6),
               Text(
                 tab.label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11.5),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  height: 1.2,
+                  color: AppColors.stone700,
+                ),
               ),
             ],
           ),
@@ -358,16 +353,27 @@ class _Link extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      minTileHeight: 52,
-      leading: Icon(icon, size: 20, color: AppColors.stone700),
-      title: Text(label),
-      trailing: const Icon(
-        LucideIcons.chevronRight,
-        size: 18,
-        color: AppColors.stone400,
+    return MenuRow(icon: icon, title: label, onTap: () => context.push(path));
+  }
+}
+
+class _Group extends StatelessWidget {
+  const _Group({required this.rows});
+
+  final List<_Link> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlockCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const MenuDivider(),
+            rows[i],
+          ],
+        ],
       ),
-      onTap: () => context.push(path),
     );
   }
 }

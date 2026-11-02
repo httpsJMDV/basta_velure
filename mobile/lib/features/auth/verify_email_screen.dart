@@ -7,9 +7,9 @@ import '../../core/api/api_failure.dart';
 import '../../core/session/session.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/validation/rules.dart';
 import '../../core/widgets/widgets.dart';
 import 'auth_layout.dart';
+import 'code_boxes.dart';
 
 /// The 6-digit email code (`POST /auth/verify-email`). It works for 5 minutes, once; 5 wrong tries need a new code.
 /// Resending (`POST /auth/resend-verification`) cancels the old one. A right code signs the person in.
@@ -114,6 +114,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         title: 'Check your email',
         subtitle:
             'Enter the 6-digit code we sent to $email. It works for 5 minutes.',
+        photo: AuthPhoto.bags,
         footer: TextButton(
           style: TextButton.styleFrom(foregroundColor: AppColors.stone600),
           onPressed: ref.read(sessionProvider.notifier).useAnotherAccount,
@@ -132,16 +133,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
           ],
           Form(
             key: _form,
-            child: AppTextField(
-              label: '6-digit code',
+            child: CodeBoxes(
               controller: _code,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              autofillHints: const [AutofillHints.oneTimeCode],
-              inputFormatters: [Only.digits],
-              maxLength: 6,
-              autofocus: true,
-              validator: Rules.emailCode,
               serverError: failure?.errorFor('code'),
               onSubmitted: (_) => _verify(),
             ),

@@ -10,6 +10,7 @@ import '../../../core/widgets/widgets.dart';
 import '../buyer_paths.dart';
 import '../data/cart.dart';
 import '../data/checkout.dart';
+import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 
 /// The Cart tab (B6). The cart lives on the server, so it is the same as on the website; every change answers with
@@ -25,7 +26,25 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   /// Lines with a change on its way, so a second tap waits for the first.
   final _busy = <int>{};
 
+  /// Lines swiped away, hidden while the server removes them. They come back if it couldn't.
+  final _gone = <int>{};
+
   CartController get _cart => ref.read(cartProvider.notifier);
+
+  Future<void> _removeSwiped(CartLine line) async {
+    setState(() => _gone.add(line.id));
+    await _run(line.id, () => _cart.remove(line.id));
+    if (!mounted) return;
+    final stillThere =
+        ref
+            .read(cartProvider)
+            .value
+            ?.stores
+            .expand((store) => store.lines)
+            .any((other) => other.id == line.id) ??
+        false;
+    if (stillThere) setState(() => _gone.remove(line.id));
+  }
 
   Future<void> _run(int key, Future<void> Function() change) async {
     if (_busy.contains(key)) return;
@@ -41,15 +60,18 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     }
   }
 
+  Future<bool> _askToRemove(CartLine line) => confirmAction(
+    context,
+    title: 'Remove this item?',
+    message: '${line.name} will be taken out of your cart.',
+    confirmLabel: 'Remove',
+    destructive: true,
+  );
+
   Future<void> _remove(CartLine line) async {
-    final confirmed = await confirmAction(
-      context,
-      title: 'Remove this item?',
-      message: '${line.name} will be taken out of your cart.',
-      confirmLabel: 'Remove',
-      destructive: true,
-    );
-    if (confirmed) await _run(line.id, () => _cart.remove(line.id));
+    if (await _askToRemove(line)) {
+      await _run(line.id, () => _cart.remove(line.id));
+    }
   }
 
   @override
@@ -58,7 +80,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final view = cart.value;
 
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(
         title: Text(
           view == null || view.lines == 0 ? 'Cart' : 'Cart (${view.lines})',
@@ -89,9 +110,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         child: ListView(
           children: [
             SizedBox(
-              height: 420,
+              height: 480,
               child: EmptyState(
-                icon: LucideIcons.shoppingCart,
+                icon: LucideIcons.shoppingBag,
                 title: 'Your cart is empty',
                 message: 'Find something you love and add it here.',
                 actionLabel: 'Start shopping',
@@ -105,7 +126,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     return RefreshIndicator(
       onRefresh: _cart.refresh,
       child: ListView(
-        padding: const EdgeInsets.only(top: AppSpace.md, bottom: AppSpace.xl),
+        padding: const EdgeInsets.only(top: AppSpace.xs, bottom: AppSpace.xl),
         children: [
           for (final store in view.stores) _storeCard(store),
           if (view.lines >= 100)
@@ -124,188 +145,217 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   Widget _storeCard(CartStore store) {
     final storeKey = -1000 - store.seller.id;
     return BlockCard(
+      key: ValueKey('store-${store.seller.id}'),
       padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => context.push(BuyerPaths.shop(store.seller.shopKey)),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.xs,
-                AppSpace.xs,
-                AppSpace.md,
-                AppSpace.xs,
-              ),
-              child: Row(
-                children: [
-                  Checkbox(
-                    value: store.allSelected,
-                    onChanged:
-                        _busy.contains(storeKey) ||
-                            store.lines.every((line) => line.blocked)
-                        ? null
-                        : (on) => _run(
-                            storeKey,
-                            () => _cart.selectAll(
-                              on ?? false,
-                              sellerId: store.seller.id,
+      child: AnimatedSize(
+        duration: Motion.medium,
+        curve: Motion.glide,
+        alignment: Alignment.topCenter,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => context.push(BuyerPaths.shop(store.seller.shopKey)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.xs,
+                  AppSpace.xs,
+                  AppSpace.md,
+                  AppSpace.xs,
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: store.allSelected,
+                      onChanged:
+                          _busy.contains(storeKey) ||
+                              store.lines.every((line) => line.blocked)
+                          ? null
+                          : (on) => _run(
+                              storeKey,
+                              () => _cart.selectAll(
+                                on ?? false,
+                                sellerId: store.seller.id,
+                              ),
                             ),
-                          ),
-                  ),
-                  const Icon(
-                    LucideIcons.store,
-                    size: 18,
-                    color: AppColors.stone700,
-                  ),
-                  const SizedBox(width: AppSpace.sm),
-                  Expanded(
-                    child: Text(
-                      store.seller.shopName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  ),
-                  if (store.seller.onVacation)
-                    const StatusChip(
-                      label: 'On vacation',
-                      tone: StatusTone.amber,
+                    Expanded(
+                      child: Text(
+                        store.seller.shopName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  const Icon(
-                    LucideIcons.chevronRight,
-                    size: 18,
-                    color: AppColors.stone400,
-                  ),
-                ],
+                    if (store.seller.onVacation)
+                      const StatusChip(
+                        label: 'On vacation',
+                        tone: StatusTone.amber,
+                      ),
+                    const Icon(
+                      LucideIcons.chevronRight,
+                      size: 18,
+                      color: AppColors.stone400,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const Divider(height: 1),
-          for (final line in store.lines) _lineTile(line),
-          if (store.promoDiscount > 0)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.lg,
-                0,
-                AppSpace.lg,
-                AppSpace.md,
+            const Divider(height: 1),
+            for (final line in store.lines)
+              if (!_gone.contains(line.id)) _lineTile(line),
+            if (store.promoDiscount > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.lg,
+                  0,
+                  AppSpace.lg,
+                  AppSpace.md,
+                ),
+                child: InfoRow(
+                  'Shop promotion',
+                  '-${formatPeso(store.promoDiscount)}',
+                  valueColor: AppColors.brandRed,
+                ),
               ),
-              child: InfoRow(
-                'Shop promotion',
-                '-${formatPeso(store.promoDiscount)}',
-                valueColor: AppColors.brandRed,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _lineTile(CartLine line) {
     final busy = _busy.contains(line.id);
-    return Opacity(
-      opacity: line.blocked ? 0.6 : 1,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.xs,
-          AppSpace.md,
-          AppSpace.md,
-          AppSpace.md,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Checkbox(
-              value: line.selected && !line.blocked,
-              onChanged: line.blocked || busy
-                  ? null
-                  : (on) => _run(
-                      line.id,
-                      () => _cart.setSelected(line.id, on ?? false),
-                    ),
-            ),
-            GestureDetector(
-              onTap: () => context.push(BuyerPaths.product(line.productId)),
-              child: NetImage(line.imageUrl, width: 76, height: 76, radius: 10),
-            ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(line.name, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  if (line.variantLabel != null)
+    return Dismissible(
+      key: ValueKey('line-${line.id}'),
+      direction: busy ? DismissDirection.none : DismissDirection.endToStart,
+      confirmDismiss: (_) => _askToRemove(line),
+      onDismissed: (_) => _removeSwiped(line),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: AppSpace.xl),
+        color: StatusTone.rose.background,
+        child: Icon(LucideIcons.trash2, color: StatusTone.rose.foreground),
+      ),
+      child: AnimatedOpacity(
+        duration: Motion.fast,
+        opacity: line.blocked ? 0.55 : (busy ? 0.7 : 1),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.xs,
+            AppSpace.md,
+            AppSpace.md,
+            AppSpace.sm,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 18),
+                child: Checkbox(
+                  value: line.selected && !line.blocked,
+                  onChanged: line.blocked || busy
+                      ? null
+                      : (on) => _run(
+                          line.id,
+                          () => _cart.setSelected(line.id, on ?? false),
+                        ),
+                ),
+              ),
+              PressScale(
+                onTap: () => context.push(BuyerPaths.product(line.productId)),
+                child: NetImage(
+                  line.imageUrl,
+                  width: 84,
+                  height: 84,
+                  radius: BuyerRadius.field,
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      line.variantLabel!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.stone500,
-                      ),
+                      line.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13.5, height: 1.3),
                     ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      PesoText(
-                        line.unitPrice,
+                    if (line.variantLabel != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        line.variantLabel!,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.brandRed,
-                        ),
-                      ),
-                      if (line.regularPrice > line.unitPrice) ...[
-                        const SizedBox(width: 6),
-                        PesoText(
-                          line.regularPrice,
-                          struck: true,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (line.message != null || line.priceChanged != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      line.message ??
-                          (line.priceChanged == 'up'
-                              ? 'The price went up since you added it.'
-                              : 'The price went down since you added it.'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: line.blocked || line.priceChanged == 'up'
-                            ? StatusTone.rose.foreground
-                            : StatusTone.emerald.foreground,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpace.sm),
-                  Row(
-                    children: [
-                      if (!line.blocked)
-                        QuantityStepper(
-                          value: line.quantity,
-                          max: line.maxQuantity < 1 ? 1 : line.maxQuantity,
-                          enabled: !busy,
-                          onChanged: (quantity) => _run(
-                            line.id,
-                            () => _cart.setQuantity(line.id, quantity),
-                          ),
-                        ),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: 'Remove ${line.name}',
-                        onPressed: busy ? null : () => _remove(line),
-                        icon: const Icon(
-                          LucideIcons.trash2,
-                          size: 20,
+                          fontSize: 12,
                           color: AppColors.stone500,
                         ),
                       ),
                     ],
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        PesoText(
+                          line.unitPrice,
+                          style: BuyerText.price.copyWith(fontSize: 15),
+                        ),
+                        if (line.regularPrice > line.unitPrice) ...[
+                          const SizedBox(width: 6),
+                          PesoText(
+                            line.regularPrice,
+                            struck: true,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (line.message != null || line.priceChanged != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        line.message ??
+                            (line.priceChanged == 'up'
+                                ? 'The price went up since you added it.'
+                                : 'The price went down since you added it.'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: line.blocked || line.priceChanged == 'up'
+                              ? StatusTone.rose.foreground
+                              : StatusTone.emerald.foreground,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpace.sm),
+                    Row(
+                      children: [
+                        if (!line.blocked)
+                          QuantityStepper(
+                            value: line.quantity,
+                            max: line.maxQuantity < 1 ? 1 : line.maxQuantity,
+                            enabled: !busy,
+                            onChanged: (quantity) => _run(
+                              line.id,
+                              () => _cart.setQuantity(line.id, quantity),
+                            ),
+                          ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Remove ${line.name}',
+                          onPressed: busy ? null : () => _remove(line),
+                          icon: const Icon(
+                            LucideIcons.trash2,
+                            size: 18,
+                            color: AppColors.stone400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -328,13 +378,20 @@ class _CheckoutBar extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        boxShadow: AppShadow.soft,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x141E1B18),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+        ],
       ),
       padding: const EdgeInsets.fromLTRB(
         AppSpace.xs,
-        AppSpace.sm,
+        AppSpace.md,
         AppSpace.lg,
-        AppSpace.sm,
+        AppSpace.md,
       ),
       child: SafeArea(
         top: false,
@@ -344,7 +401,7 @@ class _CheckoutBar extends StatelessWidget {
               value: view.allSelected,
               onChanged: busy ? null : (on) => onSelectAll(on ?? false),
             ),
-            const Text('All'),
+            const Text('All', style: TextStyle(fontSize: 13.5)),
             const Spacer(),
             Column(
               mainAxisSize: MainAxisSize.min,
@@ -354,13 +411,10 @@ class _CheckoutBar extends StatelessWidget {
                   'Total',
                   style: TextStyle(fontSize: 12, color: AppColors.stone500),
                 ),
-                PesoText(
-                  view.total,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.brandRed,
-                  ),
+                CountingNumber(
+                  value: view.total.toDouble(),
+                  format: formatPeso,
+                  style: BuyerText.price.copyWith(fontSize: 19),
                 ),
               ],
             ),
@@ -374,12 +428,17 @@ class _CheckoutBar extends StatelessWidget {
                     ),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brandRed,
-                minimumSize: const Size(120, 52),
+                minimumSize: const Size(118, 50),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
               ),
-              child: Text(
-                view.selectedLines == 0
-                    ? 'Check out'
-                    : 'Check out (${view.selectedUnits})',
+              child: AnimatedSwitcher(
+                duration: Motion.fast,
+                child: Text(
+                  view.selectedLines == 0
+                      ? 'Check out'
+                      : 'Check out (${view.selectedUnits})',
+                  key: ValueKey(view.selectedUnits),
+                ),
               ),
             ),
           ],

@@ -65,7 +65,10 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
       _showErrors = true;
       _failure = null;
     });
-    if (Rules.stars(_stars) != null || !_form.currentState!.validate()) return;
+    if (Rules.stars(_stars) != null ||
+        !_form.currentState!.validateAndReveal()) {
+      return;
+    }
     final api = ref.read(buyerApiProvider);
     try {
       if (_existing != null) {
@@ -111,115 +114,120 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
       ),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpace.lg),
-          children: [
-            if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-              MessageBanner(message: _failure!.message),
-              const SizedBox(height: AppSpace.lg),
-            ],
-            Text(
-              _pending?.productName ?? _existing?.productName ?? 'Product',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppSpace.lg),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 1; i <= 5; i++)
-                  IconButton(
-                    tooltip: '$i star${i == 1 ? '' : 's'}',
-                    iconSize: 36,
-                    onPressed: () => setState(() => _stars = i),
-                    icon: Icon(
-                      LucideIcons.star,
-                      color: i <= (_stars ?? 0)
-                          ? const Color(0xFFF59E0B)
-                          : AppColors.stone300,
-                      fill: i <= (_stars ?? 0) ? 1 : 0,
-                    ),
-                  ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
+                MessageBanner(message: _failure!.message),
+                const SizedBox(height: AppSpace.lg),
               ],
-            ),
-            if (starError != null)
               Text(
-                starError,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: StatusTone.rose.foreground,
-                  fontSize: 12,
-                ),
+                _pending?.productName ?? _existing?.productName ?? 'Product',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-            const SizedBox(height: AppSpace.lg),
-            AppTextField(
-              label: 'Your review (optional)',
-              controller: _comment,
-              minLines: 3,
-              maxLines: 6,
-              maxLength: 500,
-              showCounter: true,
-              textCapitalization: TextCapitalization.sentences,
-              validator: (value) => Rules.maxLength(value, 'Your review', 500),
-              serverError: _failure?.errorFor('comment'),
-            ),
-            if (_existing == null) ...[
               const SizedBox(height: AppSpace.lg),
-              Text(
-                'Photos (${_photos.length} of $maxPhotos)',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: AppSpace.sm),
-              Wrap(
-                spacing: AppSpace.sm,
-                runSpacing: AppSpace.sm,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  for (var i = 0; i < _photos.length; i++)
-                    GestureDetector(
-                      onLongPress: () => setState(() => _photos.removeAt(i)),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.memory(
-                          Uint8List.fromList(_photos[i].bytes),
-                          width: 80,
-                          height: 80,
-                          fit: BoxFit.cover,
-                        ),
+                  for (var i = 1; i <= 5; i++)
+                    IconButton(
+                      tooltip: '$i star${i == 1 ? '' : 's'}',
+                      iconSize: 36,
+                      onPressed: () => setState(() => _stars = i),
+                      icon: Icon(
+                        LucideIcons.star,
+                        color: i <= (_stars ?? 0)
+                            ? const Color(0xFFF59E0B)
+                            : AppColors.stone300,
+                        fill: i <= (_stars ?? 0) ? 1 : 0,
                       ),
-                    ),
-                  if (_photos.length < maxPhotos)
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(80, 80),
-                      ),
-                      onPressed: _addPhoto,
-                      child: const Icon(LucideIcons.camera),
                     ),
                 ],
               ),
-              if (_photos.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: AppSpace.xs),
-                  child: Text(
-                    'Press and hold a photo to remove it.',
-                    style: TextStyle(fontSize: 12, color: AppColors.stone500),
-                  ),
-                ),
-              if (_failure?.errorFor('photos') != null)
+              if (starError != null)
                 Text(
-                  _failure!.errorFor('photos')!,
+                  starError,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: StatusTone.rose.foreground,
                     fontSize: 12,
                   ),
                 ),
+              const SizedBox(height: AppSpace.lg),
+              AppTextField(
+                label: 'Your review (optional)',
+                controller: _comment,
+                minLines: 3,
+                maxLines: 6,
+                maxLength: 500,
+                showCounter: true,
+                textCapitalization: TextCapitalization.sentences,
+                validator: (value) =>
+                    Rules.maxLength(value, 'Your review', 500),
+                serverError: _failure?.errorFor('comment'),
+              ),
+              if (_existing == null) ...[
+                const SizedBox(height: AppSpace.lg),
+                Text(
+                  'Photos (${_photos.length} of $maxPhotos)',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Wrap(
+                  spacing: AppSpace.sm,
+                  runSpacing: AppSpace.sm,
+                  children: [
+                    for (var i = 0; i < _photos.length; i++)
+                      GestureDetector(
+                        onLongPress: () => setState(() => _photos.removeAt(i)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.memory(
+                            Uint8List.fromList(_photos[i].bytes),
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    if (_photos.length < maxPhotos)
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(80, 80),
+                        ),
+                        onPressed: _addPhoto,
+                        child: const Icon(LucideIcons.camera),
+                      ),
+                  ],
+                ),
+                if (_photos.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: AppSpace.xs),
+                    child: Text(
+                      'Press and hold a photo to remove it.',
+                      style: TextStyle(fontSize: 12, color: AppColors.stone500),
+                    ),
+                  ),
+                if (_failure?.errorFor('photos') != null)
+                  Text(
+                    _failure!.errorFor('photos')!,
+                    style: TextStyle(
+                      color: StatusTone.rose.foreground,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+              const SizedBox(height: AppSpace.xl),
+              SubmitButton(
+                label: 'Post review',
+                busyLabel: 'Posting…',
+                onPressed: _save,
+              ),
             ],
-            const SizedBox(height: AppSpace.xl),
-            SubmitButton(
-              label: 'Post review',
-              busyLabel: 'Posting…',
-              onPressed: _save,
-            ),
-          ],
+          ),
         ),
       ),
     );

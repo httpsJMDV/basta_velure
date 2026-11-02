@@ -1,8 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/session/session.dart';
 import 'chat/logistics_chat.dart';
 import 'courier/courier_add_rider_screen.dart';
 import 'courier/courier_cod_screen.dart';
@@ -38,15 +36,8 @@ Widget _hub(Widget screen) => HubThemed(child: screen);
 final logisticsRoutes = <RouteBase>[
   GoRoute(
     path: LogisticsPaths.root,
-    redirect: (context, _) {
-      final user = ProviderScope.containerOf(
-        context,
-        listen: false,
-      ).read(currentUserProvider);
-      return user?.logisticsCompany?.isApproved ?? false
-          ? LogisticsPaths.courierHome
-          : LogisticsPaths.hubHome;
-    },
+    // redirectFor in router.dart sends each account to its own screens before this is reached.
+    redirect: (_, _) => LogisticsPaths.hubHome,
   ),
   StatefulShellRoute.indexedStack(
     builder: (_, _, shell) => _hub(HubShell(shell: shell)),

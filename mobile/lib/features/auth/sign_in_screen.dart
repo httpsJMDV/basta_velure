@@ -11,7 +11,7 @@ import '../../core/validation/rules.dart';
 import '../../core/widgets/widgets.dart';
 import 'auth_layout.dart';
 import 'auth_routes.dart';
-import 'google_sign_in.dart';
+import 'google_button.dart';
 
 /// `POST /auth/login` with an email or a username. Every account signs in here; the account decides which home
 /// opens next (task A6).
@@ -27,36 +27,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _identifier = TextEditingController();
   final _password = TextEditingController();
   ApiFailure? _failure;
-  bool _googleBusy = false;
 
   @override
   void dispose() {
     _identifier.dispose();
     _password.dispose();
     super.dispose();
-  }
-
-  /// Continue with Google (B1): Google's account picker, then `POST /auth/google` with its ID token.
-  Future<void> _google() async {
-    setState(() {
-      _googleBusy = true;
-      _failure = null;
-    });
-    try {
-      final token = await googleIdToken();
-      if (token == null) return;
-      await ref.read(sessionProvider.notifier).signInWithGoogle(token);
-    } on GoogleSignInProblem catch (problem) {
-      if (mounted) {
-        setState(
-          () => _failure = ApiFailure(FailureKind.forbidden, problem.message),
-        );
-      }
-    } on ApiFailure catch (failure) {
-      if (mounted) setState(() => _failure = failure);
-    } finally {
-      if (mounted) setState(() => _googleBusy = false);
-    }
   }
 
   Future<void> _submit() async {
@@ -86,11 +62,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       child: AuthLayout(
         title: 'Welcome back',
         subtitle: 'Sign in with your email or username.',
+        photo: AuthPhoto.parcel,
+        tall: true,
         footer: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   'New to Loved-IT?',
@@ -104,7 +83,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             ),
             // Part C: riders apply on their own form, with an email of their own.
             TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: AppColors.stone700),
+              style: TextButton.styleFrom(foregroundColor: AppColors.stone600),
               onPressed: () => context.go(AuthPaths.becomeRider),
               icon: const Icon(LucideIcons.bike, size: 18),
               label: const Text('Want to deliver? Become a rider'),
@@ -127,6 +106,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 AppTextField(
                   label: 'Email or username',
                   controller: _identifier,
+                  prefixIcon: LucideIcons.userRound,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [
@@ -141,10 +121,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       failure?.errorFor('identifier') ??
                       failure?.errorFor('email'),
                 ),
-                const SizedBox(height: AppSpace.lg),
+                const SizedBox(height: AppSpace.md),
                 AppTextField(
                   label: 'Password',
                   controller: _password,
+                  prefixIcon: LucideIcons.lockKeyhole,
                   obscure: true,
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.password],
@@ -157,62 +138,27 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.brandRed,
-                    ),
                     onPressed: () => context.go(AuthPaths.forgotPassword),
                     child: const Text('Forgot password?'),
                   ),
                 ),
-                const SizedBox(height: AppSpace.sm),
                 SubmitButton(
                   label: 'Sign in',
                   busyLabel: 'Signing in…',
                   onPressed: _submit,
                 ),
                 const SizedBox(height: AppSpace.lg),
-                const _OrDivider(),
+                const AuthOrDivider(),
                 const SizedBox(height: AppSpace.lg),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                  onPressed: _googleBusy ? null : _google,
-                  icon: const Text(
-                    'G',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.stone700,
-                    ),
-                  ),
-                  label: Text(
-                    _googleBusy ? 'Opening Google…' : 'Continue with Google',
-                  ),
+                GoogleButton(
+                  onStart: () => setState(() => _failure = null),
+                  onFailure: (failure) => setState(() => _failure = failure),
                 ),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Expanded(child: Divider()),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppSpace.md),
-          child: Text('or', style: TextStyle(color: AppColors.stone500)),
-        ),
-        Expanded(child: Divider()),
-      ],
     );
   }
 }

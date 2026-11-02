@@ -38,7 +38,6 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Wishlist')),
       body: PagedList<WishlistEntry>(
         key: _list,
@@ -135,7 +134,6 @@ class FollowingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(title: const Text('Shops I follow')),
       body: PagedList<FollowedShop>(
         load: (page) => ref.read(buyerApiProvider).followedShops(page: page),

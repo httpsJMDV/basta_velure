@@ -18,6 +18,7 @@ import '../../../core/widgets/widgets.dart';
 import '../buyer_paths.dart';
 import '../data/account.dart';
 import '../data/buyer_api.dart';
+import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 import '../widgets/photo_viewer.dart';
 
@@ -203,7 +204,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final conversation = _conversation;
     final me = ref.watch(currentUserProvider)?.id;
     return Scaffold(
-      backgroundColor: AppColors.stone50,
       appBar: AppBar(
         title: Text(
           conversation?.title ?? 'Chat',
@@ -235,10 +235,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           controller: _scroll,
                           padding: const EdgeInsets.all(AppSpace.lg),
                           itemCount: _messages.length,
-                          itemBuilder: (_, index) => _Bubble(
-                            message: _messages[index],
-                            mine: _messages[index].senderId == me,
-                          ),
+                          itemBuilder: (_, index) {
+                            final bubble = _Bubble(
+                              message: _messages[index],
+                              mine: _messages[index].senderId == me,
+                            );
+                            // The newest message rises in; the rest stay put.
+                            return index == _messages.length - 1
+                                ? FadeSlideIn(
+                                    key: ValueKey(_messages[index].id),
+                                    offset: 10,
+                                    duration: Motion.medium,
+                                    child: bubble,
+                                  )
+                                : bubble;
+                          },
                         ),
                 ),
                 if (!_canSend)
@@ -359,8 +370,13 @@ class _Bubble extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: mine ? AppColors.brandRed : AppColors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: mine ? null : Border.all(color: AppColors.stone200),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(mine ? 18 : 6),
+              bottomRight: Radius.circular(mine ? 6 : 18),
+            ),
+            boxShadow: mine ? null : BuyerShadow.card,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -524,40 +540,58 @@ class _Composer extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        boxShadow: AppShadow.soft,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x141E1B18),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+        ],
       ),
       padding: const EdgeInsets.fromLTRB(
-        AppSpace.xs,
         AppSpace.sm,
-        AppSpace.sm,
-        AppSpace.sm,
+        AppSpace.md,
+        AppSpace.md,
+        AppSpace.md,
       ),
       child: SafeArea(
         top: false,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            PopupMenuButton<String>(
+            IconButton(
               tooltip: 'Attach',
-              icon: const Icon(LucideIcons.plus),
-              onSelected: (choice) => switch (choice) {
-                'photo' => onPhoto(),
-                'product' => onProduct?.call(),
-                _ => onOrder(),
+              icon: const Icon(LucideIcons.plus, size: 22),
+              onPressed: () async {
+                final choice = await showAppSelect<String>(
+                  context,
+                  title: 'Attach',
+                  options: [
+                    const AppOption('photo', 'Photo', icon: LucideIcons.image),
+                    if (onProduct != null)
+                      const AppOption(
+                        'product',
+                        'A product from this shop',
+                        icon: LucideIcons.package,
+                      ),
+                    if (canAttachCards)
+                      const AppOption(
+                        'order',
+                        'One of my orders',
+                        icon: LucideIcons.receipt,
+                      ),
+                  ],
+                );
+                switch (choice) {
+                  case 'photo':
+                    onPhoto();
+                  case 'product':
+                    onProduct?.call();
+                  case 'order':
+                    onOrder();
+                }
               },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'photo', child: Text('Photo')),
-                if (onProduct != null)
-                  const PopupMenuItem(
-                    value: 'product',
-                    child: Text('A product from this shop'),
-                  ),
-                if (canAttachCards)
-                  const PopupMenuItem(
-                    value: 'order',
-                    child: Text('One of my orders'),
-                  ),
-              ],
             ),
             Expanded(
               child: TextField(
@@ -566,9 +600,27 @@ class _Composer extends StatelessWidget {
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
                 inputFormatters: [Only.max(ChatScreen.maxLength)],
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Write a message',
                   isDense: true,
+                  filled: true,
+                  fillColor: AppColors.stone100,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.lg,
+                    vertical: 13,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ),
