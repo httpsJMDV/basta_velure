@@ -247,8 +247,11 @@ class ShopGcash {
     this.number,
     this.accountName,
     this.qrUrl,
+    this.freeDeliveryMin,
   });
 
+  /// The order amount from which this shop delivers for free, when it does.
+  final num? freeDeliveryMin;
   final int sellerId;
   final String shopName;
   final bool acceptsGcash;
@@ -261,6 +264,7 @@ class ShopGcash {
   factory ShopGcash.fromJson(Json json) {
     final gcash = asJson(json['gcash']);
     return ShopGcash(
+      freeDeliveryMin: asDoubleOrNull(json['free_delivery_min']),
       sellerId: asInt(json['seller_id']),
       shopName: asString(json['shop_name']) ?? 'Shop',
       acceptsGcash: asBool(json['accepts_gcash']),

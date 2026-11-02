@@ -21,20 +21,29 @@ Future<OptionChoice?> showOptionSheet(
   BuildContext context, {
   required ProductDetail product,
   required OptionAction action,
+  int quantity = 1,
 }) {
   return showModalBottomSheet<OptionChoice>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _OptionSheet(product: product, action: action),
+    builder: (_) =>
+        _OptionSheet(product: product, action: action, quantity: quantity),
   );
 }
 
 class _OptionSheet extends StatefulWidget {
-  const _OptionSheet({required this.product, required this.action});
+  const _OptionSheet({
+    required this.product,
+    required this.action,
+    required this.quantity,
+  });
 
   final ProductDetail product;
   final OptionAction action;
+
+  /// What the product page's own stepper was set to.
+  final int quantity;
 
   @override
   State<_OptionSheet> createState() => _OptionSheetState();
@@ -46,7 +55,7 @@ class _OptionSheetState extends State<_OptionSheet> {
 
   /// For a product without variation types: the chosen variant.
   ProductOption? _plainChoice;
-  int _quantity = 1;
+  late int _quantity = widget.quantity;
 
   ProductDetail get product => widget.product;
   List<String> get types => product.variationTypes;

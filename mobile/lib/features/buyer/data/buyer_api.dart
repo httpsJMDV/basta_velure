@@ -111,11 +111,18 @@ class BuyerApi {
           .map(ProductSummary.fromJson)
           .toList();
 
-  Future<ApiPage<ProductReview>> productReviews(int id, {int page = 1}) async =>
-      ApiPage.from(
-        await _get('/products/$id/reviews', query: {'page': page}),
-        ProductReview.fromJson,
-      );
+  /// With [rating], only the reviews of that many stars. The page's `meta` counts them all, by stars.
+  Future<ApiPage<ProductReview>> productReviews(
+    int id, {
+    int page = 1,
+    int? rating,
+  }) async => ApiPage.from(
+    await _get(
+      '/products/$id/reviews',
+      query: {'page': page, 'rating': ?rating},
+    ),
+    ProductReview.fromJson,
+  );
 
   Future<List<Voucher>> productVouchers(int id) async =>
       asJsonList((await _get('/products/$id/vouchers'))['data'])

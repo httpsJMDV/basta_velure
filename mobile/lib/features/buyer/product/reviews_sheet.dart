@@ -43,14 +43,27 @@ Future<void> showReviewsSheet(
   );
 }
 
-/// One product review: stars, the buyer's (masked) name, text, photos and the shop's reply.
+/// One product review: the buyer's (masked) name and picture, the stars in words, what they bought, their text and
+/// photos, and the shop's reply.
 class ReviewTile extends StatelessWidget {
   const ReviewTile({super.key, required this.review});
 
   final ProductReview review;
 
+  static String wordFor(int stars) => switch (stars) {
+    5 => 'Excellent',
+    4 => 'Good',
+    3 => 'Okay',
+    2 => 'Poor',
+    _ => 'Bad',
+  };
+
   @override
   Widget build(BuildContext context) {
+    final bought = [
+      review.productName,
+      review.variantLabel,
+    ].whereType<String>().join(' · ');
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
       decoration: const BoxDecoration(
@@ -61,30 +74,58 @@ class ReviewTile extends StatelessWidget {
         children: [
           Row(
             children: [
+              ShopAvatar(
+                name: review.buyerName,
+                url: review.avatarUrl,
+                size: 32,
+              ),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
                   review.buyerName,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontSize: 13.5,
                   ),
                 ),
               ),
+              const SizedBox(width: AppSpace.sm),
               Text(
                 Fmt.date(review.createdAt),
                 style: const TextStyle(fontSize: 12, color: AppColors.stone500),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Stars(rating: review.rating, size: 13),
-          if (review.variantLabel != null || review.productName != null) ...[
-            const SizedBox(height: 4),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Stars(rating: review.rating, size: 14),
+              Text(
+                wordFor(review.rating),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: StatusTone.amber.foreground,
+                ),
+              ),
+              if (review.verifiedPurchase)
+                Text(
+                  '· Verified purchase',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: StatusTone.emerald.foreground,
+                  ),
+                ),
+            ],
+          ),
+          if (bought.isNotEmpty) ...[
+            const SizedBox(height: 3),
             Text(
-              [
-                review.productName,
-                review.variantLabel,
-              ].whereType<String>().join(' · '),
+              'Purchased: $bought',
               style: const TextStyle(fontSize: 12, color: AppColors.stone500),
             ),
           ],
