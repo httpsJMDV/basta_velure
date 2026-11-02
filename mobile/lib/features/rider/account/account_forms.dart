@@ -533,7 +533,6 @@ class _FormPage extends StatelessWidget {
         ? failure!.message
         : null;
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: Text(title)),
       body: Form(
         key: formKey,
@@ -617,7 +616,7 @@ class _RiderDocumentScreenState extends ConsumerState<RiderDocumentScreen> {
   Widget build(BuildContext context) {
     final bytes = _bytes;
     return Scaffold(
-      backgroundColor: AppColors.gray900,
+      backgroundColor: AppColors.ink,
       appBar: AppBar(title: Text(widget.label ?? 'Document')),
       body: bytes == null
           ? (_failure != null

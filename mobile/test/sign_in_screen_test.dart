@@ -182,7 +182,7 @@ void main() {
     expect(find.text('Courier Station'), findsOneWidget);
 
     // The switch is on the rider's Account tab (Part C), reachable even with no internet.
-    await tester.tap(find.text('Account'));
+    await tester.tap(find.byTooltip('Account'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Switch to Shop'));
     await tester.pumpAndSettle();

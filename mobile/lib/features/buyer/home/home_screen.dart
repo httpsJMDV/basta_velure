@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -18,8 +19,8 @@ import '../data/catalog.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 
-/// The Home tab (B0, B3), in the website's order: search, the hero banner, the categories, Trending now, the shops to
-/// know, then every product.
+/// The Home tab (B0, B3): the red header with search, shortcuts into the catalog and the account, then in the website's
+/// order the hero banner, the categories, Trending now, the shops to know and every product.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -62,58 +63,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           message: 'Shops are adding products. Check back soon.',
         ),
         header: [
-          const SliverAppBar(
+          SliverAppBar(
             pinned: true,
-            toolbarHeight: 68,
-            titleSpacing: AppSpace.lg,
-            title: _SearchField(),
+            toolbarHeight: 64,
+            titleSpacing: AppSpace.md,
+            backgroundColor: AppColors.brandRed,
+            surfaceTintColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
+              statusBarColor: Colors.transparent,
+            ),
+            title: const _SearchField(),
             actions: [
-              _BellButton(),
-              SizedBox(width: AppSpace.lg),
+              _HeaderIcon(
+                icon: LucideIcons.heart,
+                tooltip: 'My wishlist',
+                onTap: () => context.push(BuyerPaths.wishlist),
+              ),
+              const _BellButton(),
+              const SizedBox(width: AppSpace.xs),
             ],
           ),
-          if (user != null)
-            SliverToBoxAdapter(child: _Greeting(name: user.firstName)),
+          const SliverToBoxAdapter(child: _QuickCard()),
+          const SliverToBoxAdapter(child: _Shortcuts()),
           if (user?.isSeller ?? false)
             const SliverToBoxAdapter(child: _SellerNote()),
-          const SliverToBoxAdapter(child: _HeroCarousel()),
+          const SliverPadding(
+            padding: EdgeInsets.only(top: AppSpace.md),
+            sliver: SliverToBoxAdapter(child: _HeroCarousel()),
+          ),
           const SliverToBoxAdapter(child: _Categories()),
           const SliverToBoxAdapter(child: _Trending()),
           const SliverToBoxAdapter(child: _ShopsToKnow()),
           const SliverToBoxAdapter(child: SectionHeader(title: 'Discover')),
         ],
-      ),
-    );
-  }
-}
-
-class _Greeting extends StatelessWidget {
-  const _Greeting({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    final hour = DateTime.now().hour;
-    final part = hour < 12
-        ? 'morning'
-        : hour < 18
-        ? 'afternoon'
-        : 'evening';
-    return FadeSlideIn(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.lg,
-          AppSpace.xs,
-          AppSpace.lg,
-          AppSpace.lg,
-        ),
-        child: Text(
-          name.isEmpty ? 'Good $part' : 'Good $part, $name',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: BuyerText.screenTitle.copyWith(fontSize: 26),
-        ),
       ),
     );
   }
@@ -134,12 +117,11 @@ class _SearchField extends StatelessWidget {
         scale: 0.985,
         onTap: open,
         child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: BorderRadius.circular(BuyerRadius.button),
-            boxShadow: BuyerShadow.card,
+            borderRadius: BorderRadius.circular(BuyerRadius.field),
           ),
           child: const Row(
             children: [
@@ -148,12 +130,62 @@ class _SearchField extends StatelessWidget {
               Text(
                 'Search Loved-IT',
                 style: TextStyle(
+                  fontFamily: 'Inter',
                   fontSize: 14.5,
                   fontWeight: FontWeight.w400,
+                  letterSpacing: 0,
                   color: AppColors.stone500,
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The white icons on the red header, each with its count.
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.count = 0,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        onTap: onTap,
+        excludeSemantics: true,
+        child: PressScale(
+          scale: 0.9,
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: 44,
+            child: Center(
+              child: Badge(
+                isLabelVisible: count > 0,
+                backgroundColor: AppColors.white,
+                textColor: AppColors.brandRed,
+                offset: const Offset(8, -6),
+                label: PopOnChange(
+                  value: count,
+                  child: Text(count > 99 ? '99+' : '$count'),
+                ),
+                child: Icon(icon, size: 24, color: AppColors.white),
+              ),
+            ),
           ),
         ),
       ),
@@ -167,36 +199,355 @@ class _BellButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
-    return Tooltip(
-      message: unread > 0 ? 'Notifications, $unread unread' : 'Notifications',
-      child: PressScale(
-        scale: 0.92,
-        onTap: () => context.push(BuyerPaths.notifications),
-        child: Container(
-          width: 48,
-          height: 48,
-          margin: const EdgeInsets.only(left: AppSpace.sm),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(BuyerRadius.button),
-            boxShadow: BuyerShadow.card,
+    return _HeaderIcon(
+      icon: LucideIcons.bell,
+      tooltip: unread > 0 ? 'Notifications, $unread unread' : 'Notifications',
+      count: unread,
+      onTap: () => context.push(BuyerPaths.notifications),
+    );
+  }
+}
+
+/// Three things people come back for, on a card that sits half on the red header.
+class _QuickCard extends StatelessWidget {
+  const _QuickCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(height: 40, color: AppColors.brandRed),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.md,
+            AppSpace.xs,
+            AppSpace.md,
+            0,
           ),
-          alignment: Alignment.center,
-          child: Badge(
-            isLabelVisible: unread > 0,
-            backgroundColor: AppColors.brandRed,
-            offset: const Offset(8, -6),
-            label: PopOnChange(
-              value: unread,
-              child: Text(unread > 99 ? '99+' : '$unread'),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(BuyerRadius.button),
+              boxShadow: BuyerShadow.card,
             ),
-            child: const Icon(
-              LucideIcons.bell,
-              size: 21,
-              color: AppColors.stone800,
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  _QuickItem(
+                    icon: LucideIcons.ticketPercent,
+                    title: 'Vouchers',
+                    subtitle: 'Save at checkout',
+                    onTap: () => context.push(BuyerPaths.vouchers),
+                  ),
+                  const _QuickDivider(),
+                  _QuickItem(
+                    icon: LucideIcons.packageSearch,
+                    title: 'My orders',
+                    subtitle: 'Track your parcels',
+                    onTap: () => context.push(BuyerPaths.orders),
+                  ),
+                  const _QuickDivider(),
+                  _QuickItem(
+                    icon: LucideIcons.tag,
+                    title: 'On sale',
+                    subtitle: 'Lower prices now',
+                    onTap: () => context.push(
+                      BuyerPaths.searchFor(onSale: true, title: 'On sale'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _QuickDivider extends StatelessWidget {
+  const _QuickDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const VerticalDivider(
+      width: 1,
+      thickness: 1,
+      indent: AppSpace.md,
+      endIndent: AppSpace.md,
+      color: Color(0xFFEFEBE6),
+    );
+  }
+}
+
+class _QuickItem extends StatelessWidget {
+  const _QuickItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Semantics(
+        button: true,
+        label: '$title. $subtitle',
+        onTap: onTap,
+        excludeSemantics: true,
+        child: PressScale(
+          scale: 0.96,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.md,
+              AppSpace.md,
+              AppSpace.xs,
+              AppSpace.md,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 18, color: AppColors.brandRed),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    height: 1.3,
+                    color: AppColors.stone500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ways into the catalog and the account, in a row that swipes sideways. The little bar shows how far along it is.
+class _Shortcuts extends StatefulWidget {
+  const _Shortcuts();
+
+  @override
+  State<_Shortcuts> createState() => _ShortcutsState();
+}
+
+class _ShortcutsState extends State<_Shortcuts> {
+  final _row = ScrollController();
+
+  @override
+  void dispose() {
+    _row.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    void browse(String title, String sort) =>
+        context.push(BuyerPaths.searchFor(sort: sort, title: title));
+    final items = <(IconData, String, VoidCallback)>[
+      (LucideIcons.flame, 'Trending', () => browse('Trending now', 'trending')),
+      (
+        LucideIcons.trophy,
+        'Best sellers',
+        () => browse('Best sellers', 'best_selling'),
+      ),
+      (
+        LucideIcons.sparkles,
+        'New arrivals',
+        () => browse('New arrivals', 'newest'),
+      ),
+      (
+        LucideIcons.star,
+        'Top rated',
+        () => browse('Top rated', 'highest_rated'),
+      ),
+      (
+        LucideIcons.badgePercent,
+        'Lowest prices',
+        () => browse('Lowest prices', 'price_asc'),
+      ),
+      (
+        LucideIcons.layoutGrid,
+        'All categories',
+        () => context.go(BuyerPaths.categories),
+      ),
+      (
+        LucideIcons.heart,
+        'My wishlist',
+        () => context.push(BuyerPaths.wishlist),
+      ),
+      (
+        LucideIcons.store,
+        'Shops I follow',
+        () => context.push(BuyerPaths.following),
+      ),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.md,
+        AppSpace.md,
+        AppSpace.md,
+        0,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(BuyerRadius.button),
+          boxShadow: BuyerShadow.card,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(top: AppSpace.md, bottom: 10),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 92,
+                child: ListView.builder(
+                  controller: _row,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
+                  itemExtent: 78,
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final (icon, label, onTap) = items[index];
+                    return _Shortcut(icon: icon, label: label, onTap: onTap);
+                  },
+                ),
+              ),
+              const SizedBox(height: AppSpace.xs),
+              _RowProgress(controller: _row),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Shortcut extends StatelessWidget {
+  const _Shortcut({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: PressScale(
+        scale: 0.93,
+        onTap: onTap,
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppColors.brandRedTint,
+                borderRadius: BorderRadius.circular(BuyerRadius.field),
+              ),
+              child: Icon(icon, size: 24, color: AppColors.brandRed),
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  height: 1.2,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.stone800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RowProgress extends StatelessWidget {
+  const _RowProgress({required this.controller});
+
+  final ScrollController controller;
+
+  static const _track = 36.0;
+  static const _thumb = 16.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final hasRoom =
+              controller.hasClients && controller.position.hasContentDimensions;
+          final max = hasRoom ? controller.position.maxScrollExtent : 0.0;
+          final along = max > 0
+              ? (controller.offset / max).clamp(0.0, 1.0)
+              : 0.0;
+          return Container(
+            width: _track,
+            height: 4,
+            alignment: Alignment.centerLeft,
+            decoration: BoxDecoration(
+              color: AppColors.stone200,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: Transform.translate(
+              offset: Offset(along * (_track - _thumb), 0),
+              child: Container(
+                width: _thumb,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.brandRed,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -733,7 +1084,7 @@ class _Rank extends StatelessWidget {
         child: Text(
           '$rank',
           style: const TextStyle(
-            fontFamily: 'serif',
+            fontFamily: 'NotoSerif',
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: AppColors.white,

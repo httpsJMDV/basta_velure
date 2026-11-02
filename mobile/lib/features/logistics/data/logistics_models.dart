@@ -98,12 +98,111 @@ class HubHome {
     required this.expected,
     required this.pendingRiders,
     required this.unreadMessages,
+    this.toDispatch = 0,
+    this.waitingForRiders = 0,
+    this.transfers = const HubTransfers(),
   });
 
   final HubMetrics metrics;
   final int expected;
   final int pendingRiders;
   final int unreadMessages;
+
+  /// Sorted parcels with no rider yet.
+  final int toDispatch;
+
+  /// Parcels given to a rider and still at the hub.
+  final int waitingForRiders;
+  final HubTransfers transfers;
+}
+
+/// One day of `GET /hub/reports/summary`.
+class HubDay {
+  const HubDay({required this.date, required this.delivered});
+
+  final String date;
+  final int delivered;
+
+  /// M, T, W... from the date the server sends, which is already a Manila day.
+  String get weekdayLetter {
+    final parsed = DateTime.tryParse(date);
+    if (parsed == null) return '';
+    return const ['M', 'T', 'W', 'T', 'F', 'S', 'S'][parsed.weekday - 1];
+  }
+}
+
+/// `GET /hub/reports/summary`, the hub's last 7 days.
+class HubWeek {
+  const HubWeek({
+    required this.received,
+    required this.delivered,
+    required this.failedAttempts,
+    required this.days,
+    this.successRate,
+    this.onTimeRate,
+    this.avgDwellHours,
+    this.slaHours,
+  });
+
+  final int received;
+  final int delivered;
+  final int failedAttempts;
+  final List<HubDay> days;
+
+  /// 0 to 1, or null when nothing was delivered to measure it by.
+  final double? successRate;
+  final double? onTimeRate;
+  final double? avgDwellHours;
+  final int? slaHours;
+
+  factory HubWeek.fromJson(Json json) {
+    final totals = asJson(json['totals']);
+    return HubWeek(
+      received: asInt(totals['received']),
+      delivered: asInt(totals['delivered']),
+      failedAttempts: asInt(totals['failed_attempts']),
+      successRate: asDoubleOrNull(totals['success_rate']),
+      onTimeRate: asDoubleOrNull(totals['on_time_rate']),
+      avgDwellHours: asDoubleOrNull(totals['avg_hub_dwell_hours']),
+      slaHours: asIntOrNull(json['sla_hours']),
+      days: asJsonList(json['daily'])
+          .map(
+            (day) => HubDay(
+              date: asString(day['date']) ?? '',
+              delivered: asInt(day['delivered']),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+/// `GET /hub/earnings`: what the hub has earned.
+class HubEarningsSummary {
+  const HubEarningsSummary({
+    required this.todayTotal,
+    required this.todayCount,
+    required this.weekTotal,
+    required this.monthTotal,
+    required this.unpaidTotal,
+  });
+
+  final String todayTotal;
+  final int todayCount;
+  final String weekTotal;
+  final String monthTotal;
+  final String unpaidTotal;
+
+  factory HubEarningsSummary.fromJson(Json json) {
+    final today = asJson(json['today']);
+    return HubEarningsSummary(
+      todayTotal: asString(today['total']) ?? '0',
+      todayCount: asInt(today['deliveries_count']),
+      weekTotal: asString(asJson(json['week'])['total']) ?? '0',
+      monthTotal: asString(asJson(json['month'])['total']) ?? '0',
+      unpaidTotal: asString(json['unpaid_total']) ?? '0',
+    );
+  }
 }
 
 /// `GET /hub/profile`: read-only here, because the hub's courier approves these details.
@@ -158,6 +257,8 @@ class IntakeParcel {
     this.scannedInAt,
     this.recipientName,
     this.recipientAddress,
+    this.comingFrom,
+    this.nextHub,
   });
 
   final String trackingNumber;
@@ -165,6 +266,12 @@ class IntakeParcel {
   final String? status;
   final String? shopName;
   final String? barangayName;
+
+  /// The hub that sent it here, while it is on its way.
+  final String? comingFrom;
+
+  /// The hub this hub has to send it on to.
+  final String? nextHub;
   final String? riderName;
   final String? riderPlate;
   final DateTime? pickedUpAt;
@@ -188,6 +295,8 @@ class IntakeParcel {
       riderPlate: asString(rider['plate_number']),
       pickedUpAt: asDate(json['picked_up_at']),
       scannedInAt: asDate(json['scanned_in_at']),
+      comingFrom: asString(json['coming_from']),
+      nextHub: asString(json['next_hub']),
       recipientName: asString(recipient['name']),
       recipientAddress: address.isEmpty
           ? null
@@ -204,6 +313,46 @@ class IntakeParcel {
 // Hub: sorting and dispatch (D3, D4) ------------------------------------------------------------------------------
 
 /// `GET /hub/sorting/groups`: parcels at the hub, by destination barangay.
+/// Parcels this hub has to send on to another hub.
+class HubTransferGroup {
+  const HubTransferGroup({
+    required this.hubName,
+    required this.city,
+    required this.parcelCount,
+    required this.trackingNumbers,
+    this.oldestAt,
+  });
+
+  final String hubName;
+  final String city;
+  final int parcelCount;
+  final List<String> trackingNumbers;
+  final DateTime? oldestAt;
+
+  factory HubTransferGroup.fromJson(Json json) {
+    final hub = asJson(json['hub']);
+    return HubTransferGroup(
+      hubName: asString(hub['name']) ?? 'The next hub',
+      city: asString(hub['city']) ?? '',
+      parcelCount: asInt(json['parcel_count']),
+      trackingNumbers: asStringList(json['tracking_numbers']),
+      oldestAt: asDate(json['oldest_scanned_in_at']),
+    );
+  }
+}
+
+class HubTransfers {
+  const HubTransfers({this.groups = const [], this.onTheWayHere = 0});
+
+  final List<HubTransferGroup> groups;
+  final int onTheWayHere;
+
+  factory HubTransfers.fromJson(Json json) => HubTransfers(
+    groups: asJsonList(json['data']).map(HubTransferGroup.fromJson).toList(),
+    onTheWayHere: asInt(asJson(json['meta'])['on_the_way_here']),
+  );
+}
+
 class SortingGroup {
   const SortingGroup({
     required this.barangayCode,
@@ -666,6 +815,10 @@ class CourierDashboard {
     required this.atHubs,
     required this.outForDelivery,
     required this.failed,
+    this.hubsSuspended = 0,
+    this.delivered30Days = 0,
+    this.returned30Days = 0,
+    this.period,
   });
 
   final int hubsActive;
@@ -677,12 +830,27 @@ class CourierDashboard {
   final int atHubs;
   final int outForDelivery;
   final int failed;
+  final int hubsSuspended;
+  final int delivered30Days;
+  final int returned30Days;
+
+  /// Null on a server that doesn't send it yet.
+  final CourierPeriod? period;
+
+  int get parcelsNow => awaitingPickup + atHubs + outForDelivery + failed;
 
   factory CourierDashboard.fromJson(Json json) {
     final hubs = asJson(json['hubs']);
     final riders = asJson(json['riders']);
     final parcels = asJson(json['parcels_now']);
+    final last30 = asJson(json['last_30_days']);
     return CourierDashboard(
+      hubsSuspended: asInt(hubs['suspended']),
+      delivered30Days: asInt(last30['delivered']),
+      returned30Days: asInt(last30['returned']),
+      period: json['period'] == null
+          ? null
+          : CourierPeriod.fromJson(asJson(json['period'])),
       hubsActive: asInt(hubs['approved']),
       hubApplications: asInt(hubs['pending']),
       ridersActive: asInt(riders['active']),
@@ -692,6 +860,212 @@ class CourierDashboard {
       atHubs: asInt(parcels['at_hubs']),
       outForDelivery: asInt(parcels['out_for_delivery']),
       failed: asInt(parcels['failed']),
+    );
+  }
+}
+
+/// What the network moved over a stretch of days, from the dashboard (the last 30 unless asked otherwise).
+class CourierPeriod {
+  const CourierPeriod({
+    required this.shipments,
+    required this.pickedUp,
+    required this.delivered,
+    required this.failed,
+    required this.returned,
+    required this.codCollected,
+    this.from,
+    this.to,
+  });
+
+  final int shipments;
+  final int pickedUp;
+  final int delivered;
+  final int failed;
+  final int returned;
+  final double codCollected;
+  final DateTime? from;
+  final DateTime? to;
+
+  factory CourierPeriod.fromJson(Json json) => CourierPeriod(
+    shipments: asInt(json['shipments']),
+    pickedUp: asInt(json['picked_up']),
+    delivered: asInt(json['delivered']),
+    failed: asInt(json['failed']),
+    returned: asInt(json['returned']),
+    codCollected: asDoubleOrNull(json['cod_collected']) ?? 0,
+    from: asDate(json['from']),
+    to: asDate(json['to']),
+  );
+}
+
+/// `GET /logistics/reports`: the network's delivery rates, and the same for each hub.
+class CourierReport {
+  const CourierReport({
+    required this.slaHours,
+    required this.received,
+    required this.delivered,
+    required this.failedAttempts,
+    required this.returned,
+    required this.hubs,
+    this.onTimeRate,
+    this.successRate,
+  });
+
+  final int slaHours;
+  final int received;
+  final int delivered;
+  final int failedAttempts;
+  final int returned;
+  final List<CourierHubReport> hubs;
+
+  /// 0 to 1, and null when nothing was delivered to measure it by.
+  final double? onTimeRate;
+  final double? successRate;
+
+  CourierHubReport? hub(int id) {
+    for (final row in hubs) {
+      if (row.hubId == id) return row;
+    }
+    return null;
+  }
+
+  factory CourierReport.fromJson(Json json) {
+    final totals = asJson(json['totals']);
+    return CourierReport(
+      slaHours: asInt(json['sla_hours']),
+      received: asInt(totals['received']),
+      delivered: asInt(totals['delivered']),
+      failedAttempts: asInt(totals['failed_attempts']),
+      returned: asInt(totals['returned']),
+      onTimeRate: asDoubleOrNull(totals['on_time_rate']),
+      successRate: asDoubleOrNull(totals['success_rate']),
+      hubs: asJsonList(json['hubs']).map(CourierHubReport.fromJson).toList(),
+    );
+  }
+}
+
+class CourierHubReport {
+  const CourierHubReport({
+    required this.hubId,
+    required this.name,
+    required this.received,
+    required this.sorted,
+    required this.dispatched,
+    required this.delivered,
+    required this.failedAttempts,
+    required this.returned,
+    this.onTimeRate,
+    this.successRate,
+    this.avgDwellHours,
+    this.avgDeliveryHours,
+  });
+
+  final int hubId;
+  final String name;
+  final int received;
+  final int sorted;
+  final int dispatched;
+  final int delivered;
+  final int failedAttempts;
+  final int returned;
+  final double? onTimeRate;
+  final double? successRate;
+  final double? avgDwellHours;
+  final double? avgDeliveryHours;
+
+  factory CourierHubReport.fromJson(Json json) => CourierHubReport(
+    hubId: asInt(json['hub_id']),
+    name: asString(json['hub_name']) ?? 'Hub',
+    received: asInt(json['received']),
+    sorted: asInt(json['sorted']),
+    dispatched: asInt(json['dispatched']),
+    delivered: asInt(json['delivered']),
+    failedAttempts: asInt(json['failed_attempts']),
+    returned: asInt(json['returned']),
+    onTimeRate: asDoubleOrNull(json['on_time_rate']),
+    successRate: asDoubleOrNull(json['success_rate']),
+    avgDwellHours: asDoubleOrNull(json['avg_hub_dwell_hours']),
+    avgDeliveryHours: asDoubleOrNull(json['avg_delivery_hours']),
+  );
+}
+
+/// One rider or hub the company pays: what is still unpaid, as the server worked it out.
+class CourierPayee {
+  const CourierPayee({
+    required this.id,
+    required this.name,
+    required this.unpaid,
+    required this.unpaidCount,
+    this.hubName,
+    this.gcashName,
+    this.gcashNumber,
+    this.lastPaidAt,
+  });
+
+  final int id;
+  final String name;
+  final double unpaid;
+  final int unpaidCount;
+  final String? hubName;
+  final String? gcashName;
+  final String? gcashNumber;
+  final DateTime? lastPaidAt;
+
+  factory CourierPayee.fromJson(Json json) {
+    final gcash = asJson(json['gcash']);
+    return CourierPayee(
+      id: asInt(json['id']),
+      name: asString(json['name']) ?? '—',
+      unpaid: asDoubleOrNull(json['unpaid']) ?? 0,
+      unpaidCount: asInt(json['unpaid_count']),
+      hubName: asString(json['hub_name']),
+      gcashName: asString(gcash['name']),
+      gcashNumber: asString(gcash['number']),
+      lastPaidAt: asDate(json['last_paid_at']),
+    );
+  }
+}
+
+/// `GET /logistics/payouts`: who the company still owes, biggest first.
+class CourierPayouts {
+  const CourierPayouts({required this.riders, required this.hubs});
+
+  final List<CourierPayee> riders;
+  final List<CourierPayee> hubs;
+
+  List<CourierPayee> get ridersOwed =>
+      riders.where((rider) => rider.unpaidCount > 0).toList();
+  List<CourierPayee> get hubsOwed =>
+      hubs.where((hub) => hub.unpaidCount > 0).toList();
+
+  CourierPayee? rider(int id) => _find(riders, id);
+  CourierPayee? hub(int id) => _find(hubs, id);
+
+  static CourierPayee? _find(List<CourierPayee> people, int id) {
+    for (final person in people) {
+      if (person.id == id) return person;
+    }
+    return null;
+  }
+
+  factory CourierPayouts.fromJson(Json json) => CourierPayouts(
+    riders: asJsonList(json['riders']).map(CourierPayee.fromJson).toList(),
+    hubs: asJsonList(json['hubs']).map(CourierPayee.fromJson).toList(),
+  );
+}
+
+/// The two totals of `GET /logistics/settlements`: what shops still owe the courier, and what it owes them.
+class CourierSettlementTotals {
+  const CourierSettlementTotals({required this.toReceive, required this.toPay});
+
+  final double toReceive;
+  final double toPay;
+
+  factory CourierSettlementTotals.fromJson(Json json) {
+    final totals = asJson(json['totals']);
+    return CourierSettlementTotals(
+      toReceive: asDoubleOrNull(totals['to_receive']) ?? 0,
+      toPay: asDoubleOrNull(totals['to_pay']) ?? 0,
     );
   }
 }
@@ -880,6 +1254,11 @@ class CourierRider {
     this.rejectionReason,
     this.suspensionReason,
     this.activationExpiresAt,
+    this.lastSeenAt,
+    this.appliedAt,
+    this.activatedAt,
+    this.suspendedAt,
+    this.joinedAt,
     this.documents = const [],
     this.audit = const [],
   });
@@ -902,6 +1281,11 @@ class CourierRider {
   final String? rejectionReason;
   final String? suspensionReason;
   final DateTime? activationExpiresAt;
+  final DateTime? lastSeenAt;
+  final DateTime? appliedAt;
+  final DateTime? activatedAt;
+  final DateTime? suspendedAt;
+  final DateTime? joinedAt;
 
   /// Only on the detail: `{key, label}` of what is on file.
   final List<RiderDocument> documents;
@@ -934,6 +1318,11 @@ class CourierRider {
     rejectionReason: asString(json['rejection_reason']),
     suspensionReason: asString(json['suspension_reason']),
     activationExpiresAt: asDate(json['activation_expires_at']),
+    lastSeenAt: asDate(json['last_seen_at']),
+    appliedAt: asDate(json['applied_at']),
+    activatedAt: asDate(json['activated_at']),
+    suspendedAt: asDate(json['suspended_at']),
+    joinedAt: asDate(json['created_at']),
     documents: asJsonList(json['documents'])
         .map(RiderDocument.fromJson)
         .toList(),

@@ -77,7 +77,6 @@ class _CollectScreenState extends ConsumerState<CollectScreen> {
     return PopScope(
       canPop: !_sending,
       child: Scaffold(
-        backgroundColor: AppColors.gray50,
         appBar: AppBar(
           title: Text(started == null ? 'Collect at hub' : 'Delivery started'),
           leading: started == null

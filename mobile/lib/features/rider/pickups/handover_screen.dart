@@ -86,7 +86,6 @@ class _HandoverScreenState extends ConsumerState<HandoverScreen> {
     return PopScope(
       canPop: !_sending,
       child: Scaffold(
-        backgroundColor: AppColors.gray50,
         appBar: AppBar(
           title: Text(
             result == null ? 'Pickup handover' : 'Handover confirmed',
@@ -128,7 +127,7 @@ class _HandoverScreenState extends ConsumerState<HandoverScreen> {
                 padding: EdgeInsets.only(bottom: AppSpace.sm),
                 child: Text(
                   "Parcels you don't scan stay in My pickups.",
-                  style: TextStyle(fontSize: 14, color: AppColors.gray600),
+                  style: TextStyle(fontSize: 14, color: AppColors.stone600),
                 ),
               ),
             SubmitButton(

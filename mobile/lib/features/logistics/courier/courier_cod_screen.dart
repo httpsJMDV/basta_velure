@@ -11,6 +11,7 @@ import '../../rider/widgets/rider_widgets.dart';
 import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../widgets/logistics_widgets.dart';
+import 'courier_kit.dart';
 
 /// Cash on delivery (D7): what each rider collected and handed over on one day, and the remittances waiting for the
 /// company. A remittance counts only once it is confirmed, so confirming asks first. Exports stay on the website.
@@ -80,26 +81,32 @@ class _CourierCodScreenState extends ConsumerState<CourierCodScreen> {
         key: _view,
         load: () => _api.cod(date: Rules.ymd(_day)),
         builder: (context, day) => ListView(
-          padding: const EdgeInsets.all(AppSpace.lg),
+          padding: EdgeInsets.fromLTRB(
+            AppSpace.lg,
+            AppSpace.lg,
+            AppSpace.lg,
+            AppSpace.lg + dockInset(context),
+          ),
           children: [
-            RiderCard(
-              child: Column(
-                children: [
-                  _Total('Collected', day.collected),
-                  _Total('Remitted', day.remitted),
-                  _Total('Difference', day.difference, strong: true),
-                ],
-              ),
-            ),
+            _DayPanel(day: day),
             const SizedBox(height: AppSpace.lg),
-            RiderSectionTitle(
-              'Waiting for your confirmation (${day.pending.length})',
+            HubSection(
+              title: 'Waiting for your confirmation (${day.pending.length})',
+              note: 'Cash counts as handed over only once you confirm it here.',
             ),
             if (day.pending.isEmpty)
               const RiderCard(
-                child: Text(
-                  'No remittances to confirm.',
-                  style: RiderText.body,
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.circleCheck, color: kDeliveredGreen),
+                    SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: Text(
+                        'No remittances to confirm.',
+                        style: RiderText.body,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             for (final remittance in day.pending) ...[
@@ -110,7 +117,10 @@ class _CourierCodScreenState extends ConsumerState<CourierCodScreen> {
               const SizedBox(height: AppSpace.sm),
             ],
             const SizedBox(height: AppSpace.lg),
-            const RiderSectionTitle('Riders on this day'),
+            const HubSection(
+              title: 'Riders on this day',
+              note: 'What each one collected, handed over, and still holds.',
+            ),
             if (day.riders.isEmpty)
               const RiderCard(
                 child: Text(
@@ -129,30 +139,110 @@ class _CourierCodScreenState extends ConsumerState<CourierCodScreen> {
   }
 }
 
-class _Total extends StatelessWidget {
-  const _Total(this.label, this.amount, {this.strong = false});
+/// The day's cash on the portal's dark panel: what came in, and how much of it reached the company.
+class _DayPanel extends StatelessWidget {
+  const _DayPanel({required this.day});
 
-  final String label;
-  final String amount;
-  final bool strong;
+  final CodDay day;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-      child: Row(
+    // Only for the bar's width. Every amount on screen is the one the server sent.
+    final collected = double.tryParse(day.collected) ?? 0;
+    final remitted = double.tryParse(day.remitted) ?? 0;
+    final short = day.riders.where((rider) => rider.shortfall).length;
+    final dim = AppColors.white.withValues(alpha: 0.72);
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.lg),
+      decoration: BoxDecoration(
+        color: AppColors.gray900,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: Text(label, style: RiderText.body)),
-          PesoText(
-            amount,
-            style: TextStyle(
-              fontSize: strong ? 20 : 17,
-              fontWeight: FontWeight.w800,
-              color: AppColors.gray900,
+          Text('Collected', style: TextStyle(fontSize: 13, color: dim)),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: PesoText(
+              day.collected,
+              style: const TextStyle(
+                fontSize: 32,
+                height: 1.1,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: AppColors.white,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
             ),
+          ),
+          const SizedBox(height: AppSpace.md),
+          CourierMeter(
+            value: collected <= 0 ? 0 : remitted / collected,
+            color: AppColors.heroEmerald,
+            track: AppColors.white.withValues(alpha: 0.14),
+            height: 8,
+            label:
+                'Remitted ${formatPeso(day.remitted)} of ${formatPeso(day.collected)}',
+          ),
+          const SizedBox(height: AppSpace.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _DarkFigure('Remitted', day.remitted)),
+              const SizedBox(width: AppSpace.md),
+              Expanded(child: _DarkFigure('Difference', day.difference)),
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          Text(
+            [
+              '${day.riders.length} rider${day.riders.length == 1 ? '' : 's'} with cash',
+              '${day.pending.length} to confirm',
+              if (short > 0) '$short short',
+            ].join(' · '),
+            style: TextStyle(fontSize: 13, color: dim),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DarkFigure extends StatelessWidget {
+  const _DarkFigure(this.label, this.amount);
+
+  final String label;
+  final String amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.white.withValues(alpha: 0.72),
+          ),
+        ),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: PesoText(
+            amount,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppColors.white,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -165,34 +255,61 @@ class _PendingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = remittance.rider ?? 'Rider';
     return RiderCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              HubAvatar(name: name, size: 42),
+              const SizedBox(width: AppSpace.md),
               Expanded(
-                child: Text(remittance.rider ?? 'Rider', style: RiderText.name),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: RiderText.name),
+                    Text(
+                      'Sent ${Fmt.dayTime(remittance.submittedAt)}',
+                      style: HubText.small,
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: AppSpace.sm),
               PesoText(
                 remittance.amount,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 19,
                   fontWeight: FontWeight.w800,
                   color: AppColors.gray900,
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
             ],
           ),
-          Text(
-            [
-              ?remittance.reference,
-              if (remittance.balanceAtSubmission != null)
-                'Balance when sent ${formatPeso(remittance.balanceAtSubmission)}',
-              Fmt.dayTime(remittance.submittedAt),
-            ].join(' · '),
-            style: const TextStyle(fontSize: 14, color: AppColors.gray600),
-          ),
+          if (remittance.reference != null ||
+              remittance.balanceAtSubmission != null) ...[
+            const SizedBox(height: AppSpace.sm),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (remittance.reference != null)
+                  HubMetaChip(
+                    icon: LucideIcons.hash,
+                    label: remittance.reference!,
+                  ),
+                if (remittance.balanceAtSubmission != null)
+                  HubMetaChip(
+                    icon: LucideIcons.wallet,
+                    label:
+                        'Balance when sent ${formatPeso(remittance.balanceAtSubmission)}',
+                  ),
+              ],
+            ),
+          ],
           if (remittance.isShort) ...[
             const SizedBox(height: AppSpace.sm),
             MessageBanner(
@@ -221,19 +338,61 @@ class _RiderDayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return RiderCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
+              HubAvatar(name: rider.rider, size: 36),
+              const SizedBox(width: AppSpace.md),
               Expanded(child: Text(rider.rider, style: RiderText.name)),
               if (rider.shortfall)
                 const StatusChip(label: 'Shortfall', tone: StatusTone.rose),
             ],
           ),
-          _Total('Collected', rider.collected),
-          _Total('Remitted', rider.remitted),
-          _Total('Difference', rider.difference),
-          _Total('Balance now', rider.balance),
+          const SizedBox(height: AppSpace.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: HubSummaryItem(
+                  value: formatPeso(rider.collected),
+                  label: 'Collected',
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: HubSummaryItem(
+                  value: formatPeso(rider.remitted),
+                  label: 'Remitted',
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: HubSummaryItem(
+                  value: formatPeso(rider.difference),
+                  label: 'Difference',
+                  color: rider.shortfall
+                      ? StatusTone.rose.foreground
+                      : AppColors.gray900,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: AppSpace.xl),
+          Row(
+            children: [
+              const Expanded(child: Text('Balance now', style: HubText.small)),
+              PesoText(
+                rider.balance,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.gray900,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

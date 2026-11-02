@@ -226,6 +226,8 @@ class _ProductViewState extends ConsumerState<_ProductView> {
             SliverToBoxAdapter(
               child: FadeSlideIn(child: _PriceBlock(product: product)),
             ),
+            if (product.bulky != null)
+              SliverToBoxAdapter(child: _HeavyNotice(bulky: product.bulky!)),
             SliverToBoxAdapter(child: _Vouchers(productId: product.id)),
             SliverToBoxAdapter(
               child: FadeSlideIn(
@@ -695,6 +697,49 @@ class VoucherTile extends StatelessWidget {
                     ),
                     child: Text(busy ? 'Saving…' : 'Save'),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeavyNotice extends StatelessWidget {
+  const _HeavyNotice({required this.bulky});
+
+  final BulkyInfo bulky;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlockCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(LucideIcons.weight, size: 20, color: AppColors.stone700),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  bulky.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: AppColors.stone900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  bulky.message,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: AppColors.stone600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

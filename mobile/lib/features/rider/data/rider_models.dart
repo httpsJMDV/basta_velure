@@ -141,6 +141,68 @@ enum PickupView {
 }
 
 /// One shop's parcels in the pickup lists.
+/// Which way some of a shop's parcels go, hub by hub.
+class HubRoute {
+  const HubRoute({
+    required this.path,
+    required this.parcelCount,
+    required this.trackingNumber,
+  });
+
+  final List<String> path;
+  final int parcelCount;
+
+  /// One parcel on this route, to open its timeline.
+  final String trackingNumber;
+
+  factory HubRoute.fromJson(Json json) => HubRoute(
+    path: asStringList(json['path']),
+    parcelCount: asInt(json['parcel_count']),
+    trackingNumber: asString(json['tracking_number']) ?? '',
+  );
+}
+
+/// One place on a parcel's way from the shop to the buyer.
+class JourneyNode {
+  const JourneyNode({
+    required this.kind,
+    required this.title,
+    required this.subtitle,
+    required this.state,
+    required this.label,
+    this.movingHere = false,
+    this.at,
+    this.leftAt,
+  });
+
+  static const done = 'done';
+  static const current = 'current';
+  static const upcoming = 'upcoming';
+
+  /// shop, hub, buyer or return.
+  final String kind;
+  final String title;
+  final String subtitle;
+  final String state;
+  final String label;
+
+  /// The parcel is on the stretch that ends here.
+  final bool movingHere;
+  final DateTime? at;
+  final DateTime? leftAt;
+
+  factory JourneyNode.fromJson(Json json) => JourneyNode(
+    kind: asString(json['kind']) ?? 'hub',
+    title: asString(json['title']) ?? '',
+    subtitle: asString(json['subtitle']) ?? '',
+    state: asString(json['state']) ?? upcoming,
+    label: asString(json['label']) ?? '',
+    movingHere: asBool(json['moving_here']),
+    at: asDate(json['at']),
+    leftAt: asDate(json['left_at']),
+  );
+}
+
 class PickupGroup {
   const PickupGroup({
     required this.sellerId,
@@ -154,6 +216,7 @@ class PickupGroup {
     this.acceptedAt,
     this.pickedUpAt,
     this.hub,
+    this.hubRoutes = const [],
   });
 
   final int sellerId;
@@ -172,6 +235,9 @@ class PickupGroup {
   /// Where to drop the collected parcels (the picked-up view).
   final RiderPlace? hub;
 
+  /// Where the parcels go from the rider's hub. Not in the available view.
+  final List<HubRoute> hubRoutes;
+
   factory PickupGroup.fromJson(Json json) => PickupGroup(
     sellerId: asInt(json['seller_id']),
     shopName: asString(json['shop_name']) ?? 'Shop',
@@ -184,6 +250,7 @@ class PickupGroup {
     acceptedAt: asDate(json['pickup_accepted_at']),
     pickedUpAt: asDate(json['picked_up_at']),
     hub: RiderPlace.maybe(json['hub']),
+    hubRoutes: asJsonList(json['hub_routes']).map(HubRoute.fromJson).toList(),
   );
 }
 
@@ -249,6 +316,7 @@ class DeliveryStop {
     this.weightKg,
     this.assignedAt,
     this.outForDeliveryAt,
+    this.hubPath = const [],
   });
 
   final String trackingNumber;
@@ -267,6 +335,9 @@ class DeliveryStop {
   final String itemSummary;
   final DateTime? assignedAt;
   final DateTime? outForDeliveryAt;
+
+  /// The hubs it came through.
+  final List<String> hubPath;
 
   bool get isCod => codAmount != null;
 
@@ -287,6 +358,7 @@ class DeliveryStop {
       itemSummary: asString(json['item_summary']) ?? '',
       assignedAt: asDate(json['assigned_at']),
       outForDeliveryAt: asDate(json['out_for_delivery_at']),
+      hubPath: asStringList(json['hub_path']),
     );
   }
 }
@@ -533,8 +605,38 @@ enum EarningsPeriod {
 }
 
 /// `GET /rider/earnings/summary`.
+/// The pay and limits in force, for the guide.
+class RiderRates {
+  const RiderRates({
+    required this.pickup,
+    required this.delivery,
+    required this.maxDeliveryAttempts,
+    required this.maxParcelKg,
+    required this.codMax,
+  });
+
+  final double pickup;
+  final double delivery;
+  final int maxDeliveryAttempts;
+  final double maxParcelKg;
+  final double codMax;
+
+  static RiderRates? maybe(Object? json) {
+    if (json is! Map) return null;
+    final rates = asJson(json);
+    return RiderRates(
+      pickup: asDouble(rates['pickup']).toDouble(),
+      delivery: asDouble(rates['delivery']).toDouble(),
+      maxDeliveryAttempts: asInt(rates['max_delivery_attempts']),
+      maxParcelKg: asDouble(rates['max_parcel_kg']).toDouble(),
+      codMax: asDouble(rates['cod_max']).toDouble(),
+    );
+  }
+}
+
 class EarningsSummary {
   const EarningsSummary({
+    this.rates,
     required this.startDate,
     required this.endDate,
     required this.isCurrent,
@@ -544,6 +646,8 @@ class EarningsSummary {
     required this.lifetimeTotal,
     this.unpaidTotal,
   });
+
+  final RiderRates? rates;
 
   /// Manila calendar dates, `YYYY-MM-DD`, both inclusive.
   final String startDate;
@@ -561,6 +665,7 @@ class EarningsSummary {
     final period = asJson(json['period']);
     final previous = asJson(json['previous']);
     return EarningsSummary(
+      rates: RiderRates.maybe(json['rates']),
       startDate: asString(period['start_date']) ?? '',
       endDate: asString(period['end_date']) ?? '',
       isCurrent: asBool(period['is_current']),

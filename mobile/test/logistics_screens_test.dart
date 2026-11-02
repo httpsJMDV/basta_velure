@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loved_it/app.dart';
 import 'package:loved_it/core/theme/app_colors.dart';
+import 'package:loved_it/features/logistics/logistics_paths.dart';
 import 'package:loved_it/router.dart';
 
 import 'support/fakes.dart';
@@ -1400,6 +1401,129 @@ void main() {
       expect(problems, isEmpty);
       await closeApp(tester);
     });
+
+    /// Home's extra reading: what the server's reports and earnings say.
+    FakeApi withInsights(FakeApi server) => server
+      ..routes['GET /hub/earnings'] = ((_) => jsonBody(200, {
+        'data': {
+          'today': {'total': '84.50', 'deliveries_count': 11},
+          'week': {'total': '512.00', 'deliveries_count': 68},
+          'month': {'total': '2140.75', 'deliveries_count': 281},
+          'unpaid_total': '630.25',
+        },
+      }))
+      ..routes['GET /hub/reports/summary'] = ((_) => jsonBody(200, {
+        'data': {
+          'sla_hours': 48,
+          'totals': {
+            'received': 96,
+            'delivered': 68,
+            'failed_attempts': 7,
+            'success_rate': 0.9067,
+            'on_time_rate': null,
+            'avg_hub_dwell_hours': 6.4,
+          },
+          'daily': [
+            {'date': '2026-11-02', 'delivered': 9},
+            {'date': '2026-11-03', 'delivered': 11},
+          ],
+        },
+      }));
+
+    testWidgets(
+      'Home: the last 7 days and the hub\'s share come from the server',
+      (tester) async {
+        await openApp(tester, withInsights(hubServer()));
+
+        await tester.scrollUntilVisible(find.text('Last 7 days'), 300);
+        await tester.pumpAndSettle();
+        expect(find.text('96'), findsOneWidget);
+        await tester.scrollUntilVisible(find.text('91%'), 200);
+        expect(find.text('6.4 h'), findsOneWidget);
+        // Nothing delivered to measure it by: no made-up number.
+        expect(find.text('—'), findsOneWidget);
+        await tester.scrollUntilVisible(find.text('Your share'), 300);
+        await tester.scrollUntilVisible(find.text('Not paid yet'), 200);
+        expect(find.text('₱84.50'), findsOneWidget);
+        expect(find.text('₱630.25'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await closeApp(tester);
+      },
+    );
+
+    testWidgets('Home still works when the extra reading can\'t load', (
+      tester,
+    ) async {
+      await openApp(tester, hubServer());
+
+      expect(find.text('Hub overview'), findsOneWidget);
+      expect(find.text('2 failed deliveries'), findsOneWidget);
+      expect(find.text('Last 7 days'), findsNothing);
+      expect(find.text('Your share'), findsNothing);
+      await closeApp(tester);
+    });
+
+    testWidgets('Sorting and Dispatch add up their lists', (tester) async {
+      await openApp(tester, hubServer());
+      await tester.tap(find.text('Sorting'));
+      await tester.pumpAndSettle();
+      expect(find.text('Longest wait'), findsOneWidget);
+      expect(find.text('No rider'), findsOneWidget);
+
+      await tester.tap(find.text('Dispatch'));
+      await tester.pumpAndSettle();
+      expect(find.text('To dispatch'), findsWidgets);
+      await closeApp(tester);
+    });
+
+    testWidgets('Every hub page fits a small phone with large text', (
+      tester,
+    ) async {
+      await openApp(
+        tester,
+        withInsights(hubServer()),
+        size: const Size(720, 1280),
+        ratio: 2,
+      );
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final problems = <String>[];
+      final report = FlutterError.onError;
+      FlutterError.onError = (details) => problems.add(details.toString());
+      await tester.pumpAndSettle();
+
+      Future<void> scrollAll() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.drag(
+            find.byType(Scrollable).first,
+            const Offset(0, -500),
+          );
+          await tester.pumpAndSettle();
+        }
+      }
+
+      await scrollAll();
+      for (final path in [
+        LogisticsPaths.hubIntake,
+        LogisticsPaths.hubDeliveries,
+        '${LogisticsPaths.hubDeliveries}?tab=failed',
+        LogisticsPaths.hubRiders,
+        LogisticsPaths.hubRider(14),
+        LogisticsPaths.hubAwaiting,
+      ]) {
+        go(path);
+        await tester.pumpAndSettle();
+        container.read(routerProvider).pop();
+        await tester.pumpAndSettle();
+      }
+      for (final tab in ['Sorting', 'Dispatch', 'More']) {
+        await tester.tap(find.text(tab).last);
+        await tester.pumpAndSettle();
+      }
+      FlutterError.onError = report;
+      expect(problems, isEmpty);
+      await closeApp(tester);
+    });
   });
 
   group('courier team', () {
@@ -1439,6 +1563,11 @@ void main() {
         expect(find.text('DTI permit'), findsOneWidget);
         expect(find.text('PhilSys'), findsOneWidget);
         // No name from the PSGC list in a test: the code shows rather than nothing.
+        await tester.scrollUntilVisible(
+          find.text('043405001'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
         expect(find.text('043405001'), findsOneWidget);
 
         await tester.tap(find.text('Reject'));
@@ -1583,9 +1712,19 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Add rider'), findsOneWidget);
+      // The button clears the floating dock, so it can be tapped.
+      expect(
+        tester.getBottomLeft(find.text('Add rider')).dy,
+        lessThan(tester.getTopLeft(find.text('More')).dy),
+      );
 
       await tester.tap(find.text('Pedro Mendoza'));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Approved'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Approved'), findsOneWidget);
       await tester.tap(find.text('Suspend'));
       await tester.pumpAndSettle();
@@ -1736,7 +1875,17 @@ void main() {
       go('/logistics/courier/cod');
       await tester.pumpAndSettle();
       expect(find.text('Short by ₱250.00'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Shortfall'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Shortfall'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.widgetWithText(FilledButton, 'Confirm received'),
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
 
       await tester.tap(find.widgetWithText(FilledButton, 'Confirm received'));
       await tester.pump(const Duration(milliseconds: 300));
@@ -1787,6 +1936,264 @@ void main() {
       expect(find.text('Demo Courier Co. · DCC'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Zones and rates'), 300);
       expect(find.text('Settlements and pay'), findsOneWidget);
+      await closeApp(tester);
+    });
+
+    /// Home's extra reading: what the server's reports, payouts and settlements say.
+    FakeApi withCourierInsights(FakeApi server) => server
+      ..routes['GET /logistics/dashboard'] = ((_) => jsonBody(200, {
+        'data': {
+          'hubs': {'approved': 4, 'pending': 2, 'suspended': 1, 'rejected': 0},
+          'riders': {'active': 10, 'pending': 1, 'online': 6},
+          'parcels_now': {
+            'awaiting_pickup': 12,
+            'at_hubs': 30,
+            'out_for_delivery': 18,
+            'failed': 3,
+          },
+          'last_30_days': {'delivered': 240, 'returned': 5},
+          'period': {
+            'from': '2026-10-04',
+            'to': '2026-11-03',
+            'shipments': 311,
+            'picked_up': 296,
+            'delivered': 240,
+            'failed': 22,
+            'returned': 5,
+            'cod_collected': 48250.5,
+          },
+        },
+      }))
+      ..routes['GET /logistics/reports'] = ((_) => jsonBody(200, {
+        'data': {
+          'range': {'from': '2026-10-04', 'to': '2026-11-03', 'days': 30},
+          'sla_hours': 72,
+          'totals': {
+            'received': 296,
+            'delivered': 240,
+            'failed_attempts': 22,
+            'returned': 5,
+            'on_time_deliveries': 201,
+            'on_time_rate': 0.8375,
+            'success_rate': 0.916,
+          },
+          'hubs': [
+            {
+              'hub_id': 3,
+              'hub_name': 'Pagsanjan Hub',
+              'received': 180,
+              'sorted': 176,
+              'dispatched': 170,
+              'delivered': 151,
+              'failed_attempts': 9,
+              'returned': 2,
+              'on_time_rate': 0.87,
+              'success_rate': 0.94,
+              'avg_hub_dwell_hours': 6.4,
+              'avg_delivery_hours': 31.5,
+            },
+            {
+              'hub_id': 4,
+              'hub_name': 'Santa Cruz Hub',
+              'received': 116,
+              'sorted': 110,
+              'dispatched': 104,
+              'delivered': 89,
+              'failed_attempts': 13,
+              'returned': 3,
+              'on_time_rate': null,
+              'success_rate': null,
+              'avg_hub_dwell_hours': null,
+              'avg_delivery_hours': null,
+            },
+          ],
+        },
+      }))
+      ..routes['GET /logistics/payouts'] = ((_) => jsonBody(200, {
+        'data': {
+          'riders': [
+            {
+              'id': 7,
+              'name': 'Pedro Mendoza',
+              'hub_name': 'Santa Cruz Hub',
+              'gcash': {'name': 'Pedro Mendoza', 'number': '0917 123 4567'},
+              'unpaid': 1840.5,
+              'unpaid_count': 37,
+              'last_paid_at': '2026-10-26T02:00:00+00:00',
+            },
+            {
+              'id': 8,
+              'name': 'Paid Up',
+              'hub_name': 'Pila Hub',
+              'unpaid': 0,
+              'unpaid_count': 0,
+              'last_paid_at': '2026-10-26T02:00:00+00:00',
+            },
+          ],
+          'hubs': [
+            {
+              'id': 3,
+              'name': 'Pagsanjan Hub',
+              'unpaid': 930.25,
+              'unpaid_count': 151,
+              'last_paid_at': null,
+            },
+          ],
+        },
+      }))
+      ..routes['GET /logistics/settlements'] = ((_) => jsonBody(200, {
+        'data': {
+          'weeks': [],
+          'totals': {'to_receive': 1200.75, 'to_pay': 8640},
+        },
+      }));
+
+    testWidgets('Home: the last 30 days and the money come from the server', (
+      tester,
+    ) async {
+      await openApp(tester, withCourierInsights(courierServer()));
+      final list = find.byType(Scrollable).first;
+      expect(find.text('63'), findsOneWidget);
+      expect(find.text('6/10'), findsOneWidget);
+      expect(find.text('1 suspended'), findsOneWidget);
+
+      await tester.scrollUntilVisible(find.text('92%'), 300, scrollable: list);
+      expect(find.text('On time, within 72 hours'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('311'), 200, scrollable: list);
+      await tester.scrollUntilVisible(
+        find.text('₱48,250.50'),
+        200,
+        scrollable: list,
+      );
+      await tester.scrollUntilVisible(
+        find.text('94% success'),
+        200,
+        scrollable: list,
+      );
+      // A hub with nothing to measure says so, with no made-up number.
+      await tester.scrollUntilVisible(
+        find.text('Nothing to measure yet'),
+        200,
+        scrollable: list,
+      );
+      await tester.scrollUntilVisible(
+        find.text('₱8,640.00'),
+        200,
+        scrollable: list,
+      );
+      expect(find.text('₱1,200.75'), findsOneWidget);
+      // Riders with nothing unpaid don't count as waiting.
+      expect(find.text('Paid Up'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('₱1,840.50'),
+        200,
+        scrollable: list,
+      );
+      expect(tester.takeException(), isNull);
+      await closeApp(tester);
+    });
+
+    testWidgets('Home still works when the extra reading can\'t load', (
+      tester,
+    ) async {
+      await openApp(tester, courierServer());
+      expect(find.text('Demo Courier Co.'), findsOneWidget);
+      expect(find.text('2 hub applications'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Last 30 days'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Your hubs at a glance'), findsNothing);
+      expect(find.text('Money still open'), findsNothing);
+      await closeApp(tester);
+    });
+
+    testWidgets('A hub and a rider show what the server knows about them', (
+      tester,
+    ) async {
+      await openApp(tester, withCourierInsights(courierServer()));
+      go('/logistics/courier/hubs/3');
+      await tester.pumpAndSettle();
+      final hub = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(find.text('176'), 200, scrollable: hub);
+      await tester.scrollUntilVisible(find.text('6.4 h'), 200, scrollable: hub);
+      expect(find.text('31.5 h'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('₱930.25'),
+        200,
+        scrollable: hub,
+      );
+      expect(find.text('151 unpaid earnings'), findsOneWidget);
+      container.read(routerProvider).pop();
+      await tester.pumpAndSettle();
+
+      go('/logistics/courier/riders/7');
+      await tester.pumpAndSettle();
+      expect(find.text('Online'), findsOneWidget);
+      final rider = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(
+        find.text('₱1,840.50'),
+        200,
+        scrollable: rider,
+      );
+      expect(find.text('37 unpaid earnings'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Pedro Mendoza · 0917 123 4567'),
+        200,
+        scrollable: rider,
+      );
+      await closeApp(tester);
+    });
+
+    testWidgets('Every courier page fits a small phone with large text', (
+      tester,
+    ) async {
+      await openApp(
+        tester,
+        withCourierInsights(courierServer()),
+        size: const Size(720, 1280),
+        ratio: 2,
+      );
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final problems = <String>[];
+      final report = FlutterError.onError;
+      FlutterError.onError = (details) => problems.add(details.toString());
+      await tester.pumpAndSettle();
+
+      Future<void> scrollAll() async {
+        for (var i = 0; i < 6; i++) {
+          await tester.drag(
+            find.byType(Scrollable).first,
+            const Offset(0, -500),
+          );
+          await tester.pumpAndSettle();
+        }
+      }
+
+      await scrollAll();
+      for (final path in [
+        '/logistics/courier/hubs/3',
+        '/logistics/courier/parcels/50',
+        '/logistics/courier/riders/7',
+        '/logistics/courier/riders/add',
+        '/logistics/courier/dispatch',
+        '/logistics/courier/scan',
+        '/logistics/courier/cod',
+      ]) {
+        go(path);
+        await tester.pumpAndSettle();
+        await scrollAll();
+        container.read(routerProvider).pop();
+        await tester.pumpAndSettle();
+      }
+      for (final tab in ['Hubs', 'Parcels', 'Riders', 'More']) {
+        await tester.tap(find.text(tab).last);
+        await tester.pumpAndSettle();
+      }
+      FlutterError.onError = report;
+      expect(problems, isEmpty);
       await closeApp(tester);
     });
   });

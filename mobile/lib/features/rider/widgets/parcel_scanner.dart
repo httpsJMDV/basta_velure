@@ -238,7 +238,7 @@ class _ParcelScannerState extends State<ParcelScanner> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                const ColoredBox(color: AppColors.gray900),
+                const ColoredBox(color: AppColors.ink),
                 if (_cameraOn)
                   MobileScanner(controller: _controller, onDetect: _onDetect)
                 else
@@ -250,7 +250,7 @@ class _ParcelScannerState extends State<ParcelScanner> {
                               AppColors.gray900
                           ? FilledButton.styleFrom(
                               backgroundColor: AppColors.white,
-                              foregroundColor: AppColors.gray900,
+                              foregroundColor: AppColors.ink,
                             )
                           : null,
                       onPressed: _askAndStart,
@@ -286,7 +286,7 @@ class _ParcelScannerState extends State<ParcelScanner> {
                         final on = state.torchState == TorchState.on;
                         return IconButton.filled(
                           style: IconButton.styleFrom(
-                            backgroundColor: AppColors.gray900.withValues(
+                            backgroundColor: AppColors.ink.withValues(
                               alpha: 0.6,
                             ),
                             foregroundColor: AppColors.white,

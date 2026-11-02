@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:loved_it/core/api/api_client.dart';
 import 'package:loved_it/core/session/session.dart';
 import 'package:loved_it/core/session/token_store.dart';
+import 'package:loved_it/features/rider/map/route_map_services.dart';
 
 /// The sign-in token kept in memory instead of the Android Keystore.
 class MemoryTokenStore implements TokenStore {
@@ -92,7 +93,12 @@ Map<String, dynamic> userJson({
 /// A container whose API answers from [api] and whose token lives in [store].
 ProviderContainer containerWith(FakeApi api, MemoryTokenStore store) {
   final container = ProviderContainer(
-    overrides: [tokenStoreProvider.overrideWithValue(store)],
+    overrides: [
+      tokenStoreProvider.overrideWithValue(store),
+      // No map tiles or address lookups go out from a test.
+      riderMapTilesProvider.overrideWithValue(null),
+      routeMapServicesProvider.overrideWithValue(const NoRouteMapServices()),
+    ],
   );
   container.read(dioProvider).httpClientAdapter = api;
   return container;

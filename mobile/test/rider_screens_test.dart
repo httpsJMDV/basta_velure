@@ -340,7 +340,7 @@ void main() {
     tester,
   ) async {
     await openApp(tester);
-    await tester.tap(find.text('Pickups'));
+    await tester.tap(find.byTooltip('Pickups'));
     await tester.pumpAndSettle();
     expect(find.text('Aling Nena Store'), findsOneWidget);
     expect(find.text('Available  1'), findsOneWidget);
@@ -357,7 +357,7 @@ void main() {
     tester,
   ) async {
     await openApp(tester);
-    await tester.tap(find.text('Deliveries'));
+    await tester.tap(find.byTooltip('Deliveries'));
     await tester.pumpAndSettle();
     expect(find.text('Ana Santos'), findsOneWidget);
     expect(find.text('Attempt 1 of 3'), findsOneWidget);
@@ -409,7 +409,7 @@ void main() {
     'Delivered: no photo and the wrong cash are stopped on the phone',
     (tester) async {
       await openApp(tester);
-      await tester.tap(find.text('Deliveries'));
+      await tester.tap(find.byTooltip('Deliveries'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(
         find.widgetWithText(FilledButton, 'Delivered'),
@@ -443,7 +443,7 @@ void main() {
 
   testWidgets('Message the buyer from a stop card', (tester) async {
     await openApp(tester);
-    await tester.tap(find.text('Deliveries'));
+    await tester.tap(find.byTooltip('Deliveries'));
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(find.text('Message'));
@@ -470,7 +470,7 @@ void main() {
 
   testWidgets('Earnings and History', (tester) async {
     await openApp(tester);
-    await tester.tap(find.text('Earnings'));
+    await tester.tap(find.byTooltip('Earnings'));
     await tester.pumpAndSettle();
     expect(find.text('₱93.50'), findsWidgets);
     expect(find.text('Pickup'), findsOneWidget);
@@ -488,7 +488,7 @@ void main() {
     tester,
   ) async {
     await openApp(tester);
-    await tester.tap(find.text('Account'));
+    await tester.tap(find.byTooltip('Account'));
     await tester.pumpAndSettle();
     expect(find.text('King Ordona'), findsWidgets);
     expect(find.text('Motorcycle · NBC1234'), findsOneWidget);
@@ -505,6 +505,8 @@ void main() {
     tester.view.physicalSize = const Size(720, 1280);
     tester.view.devicePixelRatio = 2;
     await tester.pumpAndSettle();
+    // The dock is still gliding to its new size for a moment after the screen itself shrinks. Only the tabs count.
+    tester.takeException();
     for (final tab in [
       'Pickups',
       'Deliveries',
@@ -512,12 +514,12 @@ void main() {
       'Account',
       'Home',
     ]) {
-      await tester.tap(find.text(tab).last);
+      await tester.tap(find.byTooltip(tab));
       await tester.pumpAndSettle();
       // A RenderFlex overflow is reported as an exception: none may happen.
       expect(tester.takeException(), isNull, reason: tab);
     }
-    await tester.tap(find.text('Deliveries').last);
+    await tester.tap(find.byTooltip('Deliveries'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Delivery failed'));
     await tester.pumpAndSettle();

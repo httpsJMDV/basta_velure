@@ -7,6 +7,8 @@ import '../../../core/theme/app_theme.dart';
 Future<T?> showRiderSheet<T>(BuildContext context, WidgetBuilder builder) =>
     showModalBottomSheet<T>(
       context: context,
+      // Over the whole app: inside the tab, the floating dock would cover the sheet's buttons.
+      useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
@@ -49,9 +51,10 @@ class RiderSheetFrame extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.gray900,
+                    fontFamily: 'NotoSerif',
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
                   ),
                 ),
                 if (subtitle != null)
@@ -59,7 +62,7 @@ class RiderSheetFrame extends StatelessWidget {
                     subtitle!,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: AppColors.gray600,
+                      color: AppColors.stone600,
                     ),
                   ),
               ],
@@ -117,7 +120,7 @@ class SheetStep extends StatelessWidget {
             height: 28,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-              color: AppColors.gray900,
+              color: AppColors.ink,
               shape: BoxShape.circle,
             ),
             child: Text(
@@ -141,7 +144,7 @@ class SheetStep extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.gray900,
+                      color: AppColors.ink,
                     ),
                   ),
                 ),

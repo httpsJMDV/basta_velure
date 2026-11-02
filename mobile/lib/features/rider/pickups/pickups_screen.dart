@@ -10,14 +10,17 @@ import '../../../core/format.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../buyer/widgets/buyer_theme.dart';
 import '../chat/rider_chat.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
 import '../data/rider_state.dart';
 import '../location/location_bar.dart';
 import '../location/location_beacon.dart';
+import '../map/route_map.dart';
 import '../rider_paths.dart';
 import '../widgets/rider_app_bar.dart';
+import '../widgets/parcel_journey.dart';
 import '../widgets/rider_widgets.dart';
 
 /// Pickups (C4): shops in the rider's areas with parcels ready, the shops this rider accepted (scan each parcel at the
@@ -137,12 +140,11 @@ class _PickupsScreenState extends ConsumerState<PickupsScreen> {
   Widget build(BuildContext context) {
     final list = _list;
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: const RiderAppBar(title: 'Pickups'),
       body: LocationGate(
         child: Column(
           children: [
-            RiderTabs<PickupView>(
+            RiderSegments<PickupView>(
               values: PickupView.values,
               selected: _view,
               onSelected: _select,
@@ -194,13 +196,42 @@ class _PickupsScreenState extends ConsumerState<PickupsScreen> {
               },
       );
     }
+    // The shops to reach, on one map. Only for pickups the rider has taken: an offer is not their route yet.
+    final showMap =
+        _view == PickupView.mine &&
+        list.groups.any((group) => group.pickupAddress != null);
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpace.lg),
-      itemCount: list.groups.length,
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.lg,
+        AppSpace.lg,
+        AppSpace.lg + dockInset(context),
+      ),
+      itemCount: list.groups.length + (showMap ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: AppSpace.md),
       itemBuilder: (context, index) {
-        final group = list.groups[index];
+        if (showMap && index == 0) {
+          final shops = list.groups
+              .where((group) => group.pickupAddress != null)
+              .toList();
+          return RouteMapCard(
+            title:
+                '${shops.length} shop${shops.length == 1 ? '' : 's'} to visit',
+            stops: [
+              for (final (i, group) in shops.indexed)
+                RouteStop(
+                  number: i + 1,
+                  title: group.shopName,
+                  place: group.pickupAddress!,
+                  phone: group.shopPhone,
+                  note:
+                      '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'} to collect.',
+                ),
+            ],
+          );
+        }
+        final group = list.groups[index - (showMap ? 1 : 0)];
         return switch (_view) {
           PickupView.available => _AvailableCard(
             group: group,
@@ -227,24 +258,20 @@ class _PickupsScreenState extends ConsumerState<PickupsScreen> {
 }
 
 class _ShopHeader extends StatelessWidget {
-  const _ShopHeader({required this.group, this.trailing});
+  const _ShopHeader({required this.group});
 
   final PickupGroup group;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.brandRedTint,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(LucideIcons.store, color: AppColors.brandRed),
+        const RiderIconTile(
+          icon: LucideIcons.store,
+          color: AppColors.brandRed,
+          background: AppColors.brandRedTint,
+          size: 48,
         ),
         const SizedBox(width: AppSpace.md),
         Expanded(
@@ -257,14 +284,13 @@ class _ShopHeader extends StatelessWidget {
                 '${group.areaLabel != null ? ' · ${group.areaLabel}' : ''}',
                 style: const TextStyle(
                   fontSize: 15,
-                  color: AppColors.gray600,
+                  color: AppColors.stone600,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
         ),
-        ?trailing,
       ],
     );
   }
@@ -367,46 +393,78 @@ class _MineCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ShopHeader(
-            group: group,
-            trailing: group.trackingNumbers.isEmpty
-                ? null
-                : RiderMessageButton(
+          _ShopHeader(group: group),
+          const SizedBox(height: AppSpace.md),
+          if (address.isNotEmpty) ...[
+            InfoRow(icon: LucideIcons.mapPin, text: address),
+            const SizedBox(height: 6),
+          ],
+          if (group.shopPhone != null) ...[
+            InfoRow(icon: LucideIcons.phone, text: group.shopPhone!),
+            const SizedBox(height: 6),
+          ],
+          const SizedBox(height: AppSpace.sm),
+          Row(
+            children: [
+              Expanded(child: RiderCallPill(phone: group.shopPhone ?? '')),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(child: RiderMapsPill(address: address)),
+              if (group.trackingNumbers.isNotEmpty) ...[
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: RiderMessageButton(
                     trackingNumber: group.trackingNumbers.first,
                     counterparts: const [Counterpart.seller, Counterpart.hub],
                   ),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: AppSpace.md),
-          if (group.shopPhone != null)
-            InfoRow(
-              icon: LucideIcons.phone,
-              text: group.shopPhone!,
-              action: CallButton(phone: group.shopPhone!),
-            ),
-          if (address.isNotEmpty)
-            InfoRow(
-              icon: LucideIcons.mapPin,
-              text: address,
-              action: MapsButton(address: address),
-            ),
           const SizedBox(height: AppSpace.sm),
           for (final tn in group.trackingNumbers) TrackingNumberText(tn),
-          const SizedBox(height: AppSpace.md),
+          _HubRoutes(group: group),
+          const SizedBox(height: AppSpace.sm),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
+              minimumSize: const Size.fromHeight(56),
             ),
             onPressed: onScan,
             icon: const Icon(LucideIcons.scanLine),
             label: const Text('Scan parcels at the shop'),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.gray600),
+            style: TextButton.styleFrom(foregroundColor: AppColors.stone600),
             onPressed: onRelease,
             child: const Text('Give this pickup back'),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Where a shop's parcels go after the rider's hub. They can go different ways.
+class _HubRoutes extends StatelessWidget {
+  const _HubRoutes({required this.group});
+
+  final PickupGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    final routes = group.hubRoutes;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final route in routes)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.sm),
+            child: HubPathStrip(
+              path: route.path,
+              trackingNumber: route.trackingNumber,
+              parcelCount: routes.length > 1 ? route.parcelCount : null,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -432,14 +490,21 @@ class _ToHubCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: AppSpace.md),
+          _HubRoutes(group: group),
           if (hub != null) ...[
             const Text('Drop off at', style: RiderText.label),
             Text(hub.name ?? 'Your hub', style: RiderText.name),
-            InfoRow(
-              icon: LucideIcons.warehouse,
-              text: hub.fullAddress,
-              action: MapsButton(address: hub.fullAddress),
+            const SizedBox(height: 2),
+            Text(
+              hub.fullAddress,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.35,
+                color: AppColors.stone600,
+              ),
             ),
+            const SizedBox(height: AppSpace.md),
+            RiderMapsPill(address: hub.fullAddress),
             const SizedBox(height: AppSpace.sm),
           ],
           for (final tn in group.trackingNumbers) TrackingNumberText(tn),

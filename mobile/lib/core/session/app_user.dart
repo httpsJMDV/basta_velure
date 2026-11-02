@@ -122,12 +122,16 @@ class RiderSummary {
     required this.status,
     this.hubName,
     this.companyName,
+    this.vehicleType,
   });
 
   final int id;
   final String status;
   final String? hubName;
   final String? companyName;
+
+  /// Motorcycle, Tricycle, Car or Van: what their map marker looks like.
+  final String? vehicleType;
 
   /// A suspended rider still opens the rider screens and sees why there, like the website (RID-PROF-006).
   bool get opensRiderHome => status == 'ACTIVE' || status == 'SUSPENDED';
@@ -137,6 +141,7 @@ class RiderSummary {
     status: json['status'] as String? ?? '',
     hubName: json['hub_name'] as String?,
     companyName: json['company_name'] as String?,
+    vehicleType: json['vehicle_type'] as String?,
   );
 }
 

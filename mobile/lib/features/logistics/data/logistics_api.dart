@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_failure.dart';
 import '../../../core/api/json.dart';
+import '../../../core/format.dart';
 import '../../../core/media/photo_picker.dart';
 import 'logistics_models.dart';
 
@@ -97,19 +98,54 @@ class HubApi extends _LogisticsApi {
 
   /// The Home screen: the numbers, and the counts behind its alerts.
   Future<HubHome> home() async {
+    // The last three only add detail, so Home still opens without them.
     final results = await Future.wait<Object>([
       metrics(),
       _get('/hub/intake/expected', query: {'per_page': 1}),
       _get('/hub/riders', query: {'status': 'PENDING', 'per_page': 1}),
       unreadMessages(),
+      dispatchBatches().catchError((Object _) => <DispatchBatch>[]),
+      awaitingPickup().catchError((Object _) => <AwaitingRider>[]),
+      transfers().catchError((Object _) => const HubTransfers()),
     ]);
     return HubHome(
       metrics: results[0] as HubMetrics,
       expected: asInt(asJson((results[1] as Json)['meta'])['total']),
       pendingRiders: asInt(asJson((results[2] as Json)['counts'])['pending']),
       unreadMessages: results[3] as int,
+      toDispatch: (results[4] as List<DispatchBatch>).fold(
+        0,
+        (sum, batch) => sum + batch.parcelCount,
+      ),
+      waitingForRiders: (results[5] as List<AwaitingRider>).fold(
+        0,
+        (sum, rider) => sum + rider.parcels.length,
+      ),
+      transfers: results[6] as HubTransfers,
     );
   }
+
+  /// The hub's last 7 Manila days, today included.
+  Future<HubWeek> week() async {
+    final today = Fmt.manila(DateTime.now());
+    String day(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    return HubWeek.fromJson(
+      asJson(
+        (await _get(
+          '/hub/reports/summary',
+          query: {
+            'from': day(today.subtract(const Duration(days: 6))),
+            'to': day(today),
+          },
+        ))['data'],
+      ),
+    );
+  }
+
+  Future<HubEarningsSummary> earnings() async => HubEarningsSummary.fromJson(
+    asJson((await _get('/hub/earnings'))['data']),
+  );
 
   // Parcels coming in (D2) ----------------------------------------------------------------------------------------
 
@@ -175,6 +211,20 @@ class HubApi extends _LogisticsApi {
       message: asString(body['message']) ?? 'Parcels sorted.',
       barangay: asString(asJson(body['barangay'])['name']),
     );
+  }
+
+  // Hub to hub --------------------------------------------------------------------
+
+  Future<HubTransfers> transfers() async =>
+      HubTransfers.fromJson(await _get('/hub/transfers'));
+
+  /// All or nothing, like sorting.
+  Future<String> sendTransfer(List<String> trackingNumbers) async {
+    final body = await _send(
+      '/hub/transfers/send',
+      data: {'tracking_numbers': trackingNumbers},
+    );
+    return asString(body['message']) ?? 'Parcels sent.';
   }
 
   // Dispatch (D4) -------------------------------------------------------------------------------------------------
@@ -399,6 +449,19 @@ class CourierApi extends _LogisticsApi {
   Future<CourierDashboard> dashboard() async => CourierDashboard.fromJson(
     asJson((await _get('/logistics/dashboard'))['data']),
   );
+
+  Future<CourierReport> reports() async => CourierReport.fromJson(
+    asJson((await _get('/logistics/reports'))['data']),
+  );
+
+  Future<CourierPayouts> payouts() async => CourierPayouts.fromJson(
+    asJson((await _get('/logistics/payouts'))['data']),
+  );
+
+  Future<CourierSettlementTotals> settlementTotals() async =>
+      CourierSettlementTotals.fromJson(
+        asJson((await _get('/logistics/settlements'))['data']),
+      );
 
   // Hubs ----------------------------------------------------------------------------------------------------------
 

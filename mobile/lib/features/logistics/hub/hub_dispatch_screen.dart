@@ -13,6 +13,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'hub_kit.dart';
 import 'hub_sorting_screen.dart';
 
 /// Dispatch (D4): sorted parcels, one batch per barangay, each given to a rider who covers it. Parcels already given to
@@ -59,7 +60,6 @@ class _HubDispatchScreenState extends ConsumerState<HubDispatchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Dispatch')),
       body: ListDetailLayout(
         placeholder: 'Choose a barangay to give its parcels to a rider.',
@@ -99,8 +99,41 @@ class _HubDispatchScreenState extends ConsumerState<HubDispatchScreen> {
                 load: _load,
                 refreshEvery: const Duration(seconds: 30),
                 builder: (context, data) => ListView(
-                  padding: const EdgeInsets.all(AppSpace.lg),
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpace.lg,
+                    AppSpace.md,
+                    AppSpace.lg,
+                    AppSpace.lg + dockInset(context),
+                  ),
                   children: [
+                    if (data.batches.isNotEmpty) ...[
+                      HubSummaryStrip(
+                        items: [
+                          HubSummaryItem(
+                            value: '${data.parcelCount}',
+                            label: 'To dispatch',
+                          ),
+                          HubSummaryItem(
+                            value: '${data.batches.length}',
+                            label: data.batches.length == 1
+                                ? 'Barangay'
+                                : 'Barangays',
+                          ),
+                          HubSummaryItem(
+                            value: Fmt.waited(data.oldest),
+                            label: 'Longest wait',
+                          ),
+                          HubSummaryItem(
+                            value: '${data.noRider}',
+                            label: 'No rider',
+                            color: data.noRider > 0
+                                ? StatusTone.rose.foreground
+                                : AppColors.gray900,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpace.md),
+                    ],
                     if (data.waitingCount > 0) ...[
                       AlertRow(
                         icon: LucideIcons.packageCheck,
@@ -153,6 +186,20 @@ class _DispatchData {
 
   int get waitingCount =>
       awaiting.fold(0, (sum, rider) => sum + rider.parcels.length);
+
+  int get parcelCount =>
+      batches.fold(0, (sum, batch) => sum + batch.parcelCount);
+
+  int get noRider => batches.where((batch) => batch.eligibleRiders == 0).length;
+
+  DateTime? get oldest {
+    DateTime? first;
+    for (final batch in batches) {
+      final at = batch.oldestAt;
+      if (at != null && (first == null || at.isBefore(first))) first = at;
+    }
+    return first;
+  }
 }
 
 class _BatchCard extends StatelessWidget {
@@ -168,54 +215,31 @@ class _BatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RiderCard(
-      padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 72,
-        selected: selected,
-        selectedTileColor: AppColors.gray100,
-        onTap: onTap,
-        title: Text(
-          batch.barangayName,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.gray900,
+    return HubWorkCard(
+      count: batch.parcelCount,
+      title: batch.barangayName,
+      subtitle: batch.city,
+      selected: selected,
+      onTap: onTap,
+      chips: [
+        HubMetaChip(
+          icon: LucideIcons.clock,
+          label: 'Waiting ${Fmt.waited(batch.oldestAt)}',
+          tone: waitedLong(batch.oldestAt) ? StatusTone.amber : null,
+        ),
+        if (batch.eligibleRiders > 0)
+          HubMetaChip(
+            icon: LucideIcons.bike,
+            label:
+                '${batch.eligibleRiders} rider${batch.eligibleRiders == 1 ? '' : 's'} available',
+          )
+        else
+          const HubMetaChip(
+            icon: LucideIcons.bike,
+            label: 'No rider covers it',
+            tone: StatusTone.rose,
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              [
-                if (batch.city.isNotEmpty) batch.city,
-                'Waiting ${Fmt.waited(batch.oldestAt)}',
-              ].join(' · '),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpace.xs),
-              child: batch.eligibleRiders > 0
-                  ? StatusChip(
-                      label:
-                          '${batch.eligibleRiders} rider${batch.eligibleRiders == 1 ? '' : 's'} available',
-                      tone: StatusTone.gray,
-                    )
-                  : const StatusChip(
-                      label: 'No rider covers it',
-                      tone: StatusTone.rose,
-                    ),
-            ),
-          ],
-        ),
-        trailing: Text(
-          '${batch.parcelCount}',
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: AppColors.gray900,
-          ),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -229,7 +253,6 @@ class HubBatchScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: Text(batch.barangayName)),
       body: _BatchBody(
         batch: batch,
@@ -336,7 +359,27 @@ class _BatchBodyState extends ConsumerState<_BatchBody> {
           child: ListView(
             padding: const EdgeInsets.all(AppSpace.lg),
             children: [
-              const RiderSectionTitle('Rider'),
+              HubSummaryStrip(
+                items: [
+                  HubSummaryItem(
+                    value: '${_picked.length} of ${parcels.length}',
+                    label: 'Chosen',
+                  ),
+                  HubSummaryItem(
+                    value: Fmt.waited(widget.batch.oldestAt),
+                    label: 'Longest wait',
+                  ),
+                  HubSummaryItem(
+                    value: '${riders.length}',
+                    label: riders.length == 1 ? 'Rider' : 'Riders',
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpace.lg),
+              const HubSection(
+                title: 'Rider',
+                note: 'Only riders who cover this barangay show here.',
+              ),
               if (riders.isEmpty)
                 const MessageBanner(
                   tone: StatusTone.amber,
@@ -355,20 +398,47 @@ class _BatchBodyState extends ConsumerState<_BatchBody> {
                         for (final rider in riders)
                           RadioListTile<int>(
                             value: rider.id,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.md,
+                              vertical: AppSpace.xs,
+                            ),
+                            controlAffinity: ListTileControlAffinity.trailing,
+                            secondary: HubAvatar(name: rider.name, size: 42),
                             title: Text(
                               rider.name,
                               style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.gray900,
                               ),
                             ),
-                            subtitle: Text(
-                              [
-                                ?rider.vehicleType,
-                                ?rider.plateNumber,
-                                '${rider.currentLoad} parcel${rider.currentLoad == 1 ? '' : 's'} now',
-                                if (rider.areaLabels.isNotEmpty)
-                                  rider.areaLabels.join(', '),
-                              ].join(' · '),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  if (rider.vehicleType != null ||
+                                      rider.plateNumber != null)
+                                    HubMetaChip(
+                                      icon: hubVehicleIcon(rider.vehicleType),
+                                      label: [
+                                        ?rider.vehicleType,
+                                        ?rider.plateNumber,
+                                      ].join(' · '),
+                                    ),
+                                  HubMetaChip(
+                                    icon: LucideIcons.package,
+                                    label:
+                                        '${rider.currentLoad} parcel${rider.currentLoad == 1 ? '' : 's'} now',
+                                  ),
+                                  if (rider.areaLabels.isNotEmpty)
+                                    HubMetaChip(
+                                      icon: LucideIcons.mapPin,
+                                      label: rider.areaLabels.join(', '),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                       ],
@@ -376,7 +446,7 @@ class _BatchBodyState extends ConsumerState<_BatchBody> {
                   ),
                 ),
               const SizedBox(height: AppSpace.lg),
-              RiderSectionTitle('Parcels (${parcels.length})'),
+              HubSection(title: 'Parcels (${parcels.length})'),
               for (final parcel in parcels) ...[
                 ParcelRowCard(
                   trackingNumber: parcel.trackingNumber,
@@ -421,7 +491,6 @@ class HubAwaitingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Waiting for riders to collect')),
       body: LoadView<List<AwaitingRider>>(
         load: ref.read(hubApiProvider).awaitingPickup,
@@ -442,9 +511,38 @@ class HubAwaitingScreen extends ConsumerWidget {
             : ListView(
                 padding: const EdgeInsets.all(AppSpace.lg),
                 children: [
+                  HubSummaryStrip(
+                    items: [
+                      HubSummaryItem(
+                        value:
+                            '${riders.fold<int>(0, (sum, rider) => sum + rider.parcels.length)}',
+                        label: 'Parcels waiting',
+                      ),
+                      HubSummaryItem(
+                        value: '${riders.length}',
+                        label: riders.length == 1 ? 'Rider' : 'Riders',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.md),
+                  const HubHint(
+                    text: 'Each rider scans a parcel\'s waybill at the hub to take it out for delivery.',
+                  ),
+                  const SizedBox(height: AppSpace.lg),
                   for (final rider in riders) ...[
-                    RiderSectionTitle(
-                      '${rider.riderName} (${rider.parcels.length})',
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: AppSpace.sm),
+                          child: HubAvatar(name: rider.riderName, size: 28),
+                        ),
+                        Expanded(
+                          child: RiderSectionTitle(
+                            '${rider.riderName} (${rider.parcels.length})',
+                          ),
+                        ),
+                      ],
                     ),
                     for (final parcel in rider.parcels) ...[
                       ParcelRowCard(

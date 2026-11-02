@@ -550,7 +550,7 @@ class ShopAvatar extends StatelessWidget {
                 child: Text(
                   name.isEmpty ? '?' : name.characters.first.toUpperCase(),
                   style: TextStyle(
-                    fontFamily: 'serif',
+                    fontFamily: 'NotoSerif',
                     color: AppColors.brandRed,
                     fontWeight: FontWeight.w700,
                     fontSize: size * 0.42,

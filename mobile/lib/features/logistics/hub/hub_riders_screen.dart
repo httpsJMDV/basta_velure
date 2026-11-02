@@ -13,6 +13,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'hub_kit.dart';
 
 /// The hub's tabs and the status each asks the server for.
 enum _RiderTab {
@@ -64,7 +65,6 @@ class _HubRidersScreenState extends ConsumerState<HubRidersScreen> {
   Widget build(BuildContext context) {
     final api = ref.read(hubApiProvider);
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Riders')),
       body: ListDetailLayout(
         placeholder: 'Choose a rider to see their details.',
@@ -145,35 +145,94 @@ class _RiderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final vehicle = [?rider.vehicleType, ?rider.plateNumber].join(' · ');
     return RiderCard(
       padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 72,
-        selected: selected,
-        selectedTileColor: AppColors.gray100,
+      child: InkWell(
         onTap: onTap,
-        title: Text(
-          rider.name,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.gray900,
+        child: AnimatedContainer(
+          duration: kMotion,
+          color: selected ? AppColors.gray100 : Colors.transparent,
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              HubAvatar(name: rider.name),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: AppSpace.sm,
+                      runSpacing: AppSpace.xs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          rider.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.gray900,
+                          ),
+                        ),
+                        ToneChip(StatusWords.hubRider(rider.status)),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpace.sm),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (vehicle.isNotEmpty)
+                          HubMetaChip(
+                            icon: hubVehicleIcon(rider.vehicleType),
+                            label: vehicle,
+                          ),
+                        if (rider.status == 'ACTIVE')
+                          HubMetaChip(
+                            icon: LucideIcons.mapPin,
+                            label:
+                                '${rider.activeAreas} area${rider.activeAreas == 1 ? '' : 's'}',
+                            tone: rider.activeAreas == 0
+                                ? StatusTone.amber
+                                : null,
+                          )
+                        else
+                          HubMetaChip(
+                            icon: LucideIcons.calendar,
+                            label: 'Applied ${Fmt.date(rider.submittedAt)}',
+                          ),
+                        if (rider.applicant)
+                          const HubMetaChip(
+                            icon: LucideIcons.globe,
+                            label: 'Applied online',
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        subtitle: Text(
-          [
-            [?rider.vehicleType, ?rider.plateNumber].join(' '),
-            if (rider.applicant) 'Applied online',
-            if (rider.status == 'ACTIVE')
-              '${rider.activeAreas} area${rider.activeAreas == 1 ? '' : 's'}'
-            else
-              'Applied ${Fmt.date(rider.submittedAt)}',
-          ].where((part) => part.isNotEmpty).join(' · '),
-        ),
-        trailing: ToneChip(StatusWords.hubRider(rider.status)),
       ),
     );
   }
+}
+
+/// A chip when a rider's license has run out or soon will. Only a reminder: the courier decides what to do about it.
+Widget? _licenseWarning(String? expiry) {
+  final date = expiry == null ? null : DateTime.tryParse(expiry);
+  if (date == null) return null;
+  final days = date.difference(DateTime.now()).inDays;
+  if (days < 0) {
+    return const StatusChip(label: 'Expired', tone: StatusTone.rose);
+  }
+  if (days <= 30) {
+    return const StatusChip(label: 'Expires soon', tone: StatusTone.amber);
+  }
+  return null;
 }
 
 /// One rider on their own screen, on a phone.
@@ -185,7 +244,6 @@ class HubRiderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Rider')),
       body: _RiderBody(riderId: riderId),
     );
@@ -257,38 +315,109 @@ class _RiderBodyState extends ConsumerState<_RiderBody> {
               padding: const EdgeInsets.all(AppSpace.lg),
               children: [
                 RiderCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(rider.name, style: RiderText.name),
-                          ),
-                          ToneChip(StatusWords.hubRider(rider.status)),
-                        ],
+                      HubAvatar(name: rider.name, size: 56),
+                      const SizedBox(width: AppSpace.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(rider.name, style: RiderText.name),
+                            const SizedBox(height: AppSpace.xs),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                ToneChip(StatusWords.hubRider(rider.status)),
+                                if (rider.applicant)
+                                  const HubMetaChip(
+                                    icon: LucideIcons.globe,
+                                    label: 'Applied online',
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      if (rider.applicant)
-                        const Text('Applied online', style: RiderText.label),
-                      const Divider(height: AppSpace.xl),
-                      FactRow('Email', rider.email),
-                      FactRow('Mobile', rider.phone),
-                      FactRow('Date of birth', rider.dateOfBirth),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpace.lg),
+                const HubSection(title: 'Contact'),
+                RiderCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.lg,
+                    vertical: AppSpace.sm,
+                  ),
+                  child: Column(
+                    children: [
+                      HubFact(
+                        icon: LucideIcons.phone,
+                        label: 'Mobile',
+                        value: rider.phone,
+                      ),
+                      HubFact(
+                        icon: LucideIcons.mail,
+                        label: 'Email',
+                        value: rider.email,
+                      ),
+                      HubFact(
+                        icon: LucideIcons.cake,
+                        label: 'Date of birth',
+                        value: rider.dateOfBirth,
+                      ),
                       if (rider.address != null)
-                        FactRow('Address', rider.address),
-                      FactRow(
-                        'Vehicle',
-                        [?rider.vehicleType, ?rider.plateNumber].join(' · '),
+                        HubFact(
+                          icon: LucideIcons.house,
+                          label: 'Address',
+                          value: rider.address,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpace.lg),
+                const HubSection(title: 'Vehicle and license'),
+                RiderCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.lg,
+                    vertical: AppSpace.sm,
+                  ),
+                  child: Column(
+                    children: [
+                      HubFact(
+                        icon: hubVehicleIcon(rider.vehicleType),
+                        label: 'Vehicle',
+                        value: [
+                          ?rider.vehicleType,
+                          ?rider.plateNumber,
+                        ].join(' · '),
                       ),
-                      FactRow(
-                        'License',
-                        [
+                      HubFact(
+                        icon: LucideIcons.idCard,
+                        label: 'License',
+                        value: [
                           ?rider.licenseNumber,
                           if (rider.licenseExpiry != null)
                             'expires ${rider.licenseExpiry}',
                         ].join(' · '),
+                        trailing: _licenseWarning(rider.licenseExpiry),
                       ),
-                      FactRow('Applied', Fmt.date(rider.submittedAt)),
+                      HubFact(
+                        icon: LucideIcons.calendar,
+                        label: 'Applied',
+                        value: Fmt.date(rider.submittedAt),
+                      ),
+                      if (rider.reviewedAt != null)
+                        HubFact(
+                          icon: LucideIcons.userCheck,
+                          label: 'Reviewed',
+                          value: [
+                            Fmt.date(rider.reviewedAt),
+                            if (rider.reviewerName != null)
+                              'by ${rider.reviewerName}',
+                          ].join(' '),
+                        ),
                     ],
                   ),
                 ),
@@ -299,7 +428,10 @@ class _RiderBodyState extends ConsumerState<_RiderBody> {
                   ),
                 ],
                 const SizedBox(height: AppSpace.lg),
-                const RiderSectionTitle('Documents'),
+                const HubSection(
+                  title: 'Documents',
+                  note: 'Shown from memory only. Never saved to this phone.',
+                ),
                 if (!rider.hasLicense && !rider.hasOrCr)
                   const RiderCard(
                     child: Text('No documents on file.', style: RiderText.body),
@@ -321,11 +453,33 @@ class _RiderBodyState extends ConsumerState<_RiderBody> {
                   ),
                 if (rider.status == 'ACTIVE') ...[
                   const SizedBox(height: AppSpace.lg),
-                  RiderSectionTitle(
-                    'Delivery areas (${rider.areas.where((a) => a.isActive).length})',
+                  HubSection(
+                    title:
+                        'Delivery areas (${rider.areas.where((a) => a.isActive).length})',
                   ),
                   LinkList(
                     children: [
+                      for (final area in rider.areas.where((a) => a.isActive))
+                        ListTile(
+                          leading: const RiderIconTile(
+                            icon: LucideIcons.mapPin,
+                            size: 40,
+                            color: AppColors.gray900,
+                            background: AppColors.gray100,
+                          ),
+                          title: Text(
+                            area.label,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.gray900,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${area.barangays.length} barangay${area.barangays.length == 1 ? '' : 's'}',
+                            style: HubText.small,
+                          ),
+                        ),
                       LinkTile(
                         icon: LucideIcons.mapPin,
                         title: 'Set delivery areas',

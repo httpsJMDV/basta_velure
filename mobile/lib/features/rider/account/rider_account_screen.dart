@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/validation/rules.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../auth/account_actions.dart';
+import '../../buyer/widgets/buyer_theme.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
 import '../rider_paths.dart';
@@ -60,7 +61,6 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
   Widget build(BuildContext context) {
     final profile = _profile;
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: const RiderAppBar(title: 'Account'),
       body: profile == null
           ? (_failure != null
@@ -81,7 +81,12 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.all(AppSpace.lg),
+                padding: EdgeInsets.fromLTRB(
+                  AppSpace.lg,
+                  AppSpace.xs,
+                  AppSpace.lg,
+                  AppSpace.lg + dockInset(context),
+                ),
                 children: [
                   _Header(profile: profile),
                   const SizedBox(height: AppSpace.md),
@@ -200,13 +205,60 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = profile.fullName.trim();
     return RiderCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Text(profile.fullName, style: RiderText.name)),
+              ExcludeSemantics(
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: AppColors.ink,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    name.isEmpty ? '?' : name[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontFamily: 'NotoSerif',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(profile.fullName, style: RiderText.name),
+                    const SizedBox(height: 2),
+                    Text(
+                      profile.email,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        color: AppColors.stone600,
+                      ),
+                    ),
+                    if (profile.phone.isNotEmpty)
+                      Text(
+                        profile.phone,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          color: AppColors.stone600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpace.xs),
               StatusChip(
                 label: profile.isSuspended ? 'Suspended' : 'Active',
                 tone: profile.isSuspended
@@ -215,10 +267,6 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.xs),
-          Text(profile.email, style: RiderText.body),
-          if (profile.phone.isNotEmpty)
-            Text(profile.phone, style: RiderText.body),
           const Divider(height: AppSpace.xl),
           if (profile.hubName != null)
             InfoRow(
@@ -276,23 +324,24 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      minTileHeight: 64,
-      leading: Icon(icon, color: AppColors.gray900),
+      minTileHeight: 68,
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+      leading: RiderIconTile(icon: icon, size: 40),
       title: Text(
         title,
         style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: AppColors.gray900,
+          color: AppColors.ink,
         ),
       ),
       subtitle: subtitle.isEmpty
           ? null
           : Text(
               subtitle,
-              style: const TextStyle(fontSize: 14, color: AppColors.gray600),
+              style: const TextStyle(fontSize: 14, color: AppColors.stone600),
             ),
-      trailing: const Icon(LucideIcons.chevronRight, color: AppColors.gray600),
+      trailing: const Icon(LucideIcons.chevronRight, color: AppColors.stone500),
       onTap: onTap,
     );
   }

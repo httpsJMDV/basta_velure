@@ -32,7 +32,7 @@ abstract final class Env {
     'GOOGLE_SERVER_CLIENT_ID',
   );
 
-  /// The map tiles for Track package: OpenStreetMap, the same free map as the website (`VITE_MAP_TILE_URL`).
+  /// The map tiles for Track package and the rider's route map: OpenStreetMap, the same free map as the website (`VITE_MAP_TILE_URL`).
   static const mapTileUrl = String.fromEnvironment(
     'MAP_TILE_URL',
     defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

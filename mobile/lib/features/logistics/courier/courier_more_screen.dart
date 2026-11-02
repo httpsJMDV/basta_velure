@@ -7,12 +7,13 @@ import '../../../core/session/session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/account_actions.dart';
-import '../../rider/widgets/rider_widgets.dart';
+import '../../buyer/widgets/buyer_theme.dart';
 import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../data/logistics_state.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'courier_kit.dart';
 
 /// More: dispatch, hub scanning, COD, messages and the account. Office work (zones and rates, settlements, payouts,
 /// reports, exports, company settings) stays on the website, and these link there.
@@ -27,29 +28,41 @@ class CourierMoreScreen extends ConsumerWidget {
       backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('More')),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpace.lg),
+        padding: EdgeInsets.fromLTRB(
+          AppSpace.lg,
+          AppSpace.sm,
+          AppSpace.lg,
+          AppSpace.lg + dockInset(context),
+        ),
         children: [
-          LinkList(
+          _CourierAccount(
+            name: user?.fullName ?? '',
+            email: user?.email ?? '',
+            role: user?.logisticsCompany?.memberRole,
+          ),
+          const SizedBox(height: AppSpace.xl),
+          const HubSection(title: 'Your work'),
+          StatGrid(
             children: [
-              LinkTile(
+              CourierWorkTile(
                 icon: LucideIcons.navigation,
                 title: 'Dispatch',
                 subtitle: 'Unassigned and offered pickups',
                 onTap: () => context.push(LogisticsPaths.courierDispatch),
               ),
-              LinkTile(
+              CourierWorkTile(
                 icon: LucideIcons.scanLine,
                 title: 'Hub scanning',
                 subtitle: 'Inbound, sort, outbound',
                 onTap: () => context.push(LogisticsPaths.courierScan),
               ),
-              LinkTile(
+              CourierWorkTile(
                 icon: LucideIcons.coins,
                 title: 'COD',
                 subtitle: 'Collections and remittances',
                 onTap: () => context.push(LogisticsPaths.courierCod),
               ),
-              LinkTile(
+              CourierWorkTile(
                 icon: LucideIcons.messageCircle,
                 title: 'Messages',
                 subtitle: 'Your hubs',
@@ -63,17 +76,11 @@ class CourierMoreScreen extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.lg),
-          const RiderSectionTitle('Account'),
-          RiderCard(
-            child: _CourierAccount(
-              name: user?.fullName ?? '',
-              email: user?.email ?? '',
-              role: user?.logisticsCompany?.memberRole,
-            ),
+          const SizedBox(height: AppSpace.xl),
+          const HubSection(
+            title: 'On the website',
+            note: 'Office work stays there, where it has a bigger screen.',
           ),
-          const SizedBox(height: AppSpace.lg),
-          const RiderSectionTitle('On the website'),
           const LinkList(
             children: [
               WebsiteTile(
@@ -145,20 +152,84 @@ class _CourierAccountState extends ConsumerState<_CourierAccount> {
   @override
   Widget build(BuildContext context) {
     final company = _company;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(widget.name, style: RiderText.name),
-        Text(widget.email, style: RiderText.body),
-        if (company != null) ...[
-          const Divider(height: AppSpace.xl),
-          FactRow('Company', [company.name, ?company.code].join(' · ')),
-          FactRow(
-            'Contact',
-            [?company.contactPhone, ?company.contactEmail].join(' · '),
+    final dim = AppColors.white.withValues(alpha: 0.72);
+    final role = widget.role;
+    final contact = company == null
+        ? ''
+        : [?company.contactPhone, ?company.contactEmail].join(' · ');
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.lg),
+      decoration: BoxDecoration(
+        color: AppColors.gray900,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (company != null) ...[
+            Text(
+              [company.name, ?company.code].join(' · '),
+              style: BuyerText.section.copyWith(
+                fontSize: 18,
+                height: 1.25,
+                color: AppColors.white,
+              ),
+            ),
+            if (contact.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(contact, style: TextStyle(fontSize: 13, color: dim)),
+            ],
+            Divider(
+              height: AppSpace.xl,
+              color: AppColors.white.withValues(alpha: 0.14),
+            ),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.name,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.white,
+                      ),
+                    ),
+                    Text(
+                      widget.email,
+                      style: TextStyle(fontSize: 13, color: dim),
+                    ),
+                  ],
+                ),
+              ),
+              if (role != null && role.isNotEmpty) ...[
+                const SizedBox(width: AppSpace.sm),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    role[0].toUpperCase() + role.substring(1),
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
-      ],
+      ),
     );
   }
 }

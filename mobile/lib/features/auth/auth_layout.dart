@@ -148,7 +148,7 @@ class AuthLayout extends StatelessWidget {
                                       title,
                                       style: const TextStyle(
                                         // The phone's serif, like the website's headings.
-                                        fontFamily: 'serif',
+                                        fontFamily: 'NotoSerif',
                                         fontSize: 30,
                                         height: 1.12,
                                         fontWeight: FontWeight.w700,

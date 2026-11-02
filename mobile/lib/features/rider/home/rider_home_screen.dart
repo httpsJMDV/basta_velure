@@ -11,6 +11,7 @@ import '../../../core/session/session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../buyer/widgets/buyer_theme.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
 import '../data/rider_state.dart';
@@ -18,8 +19,8 @@ import '../rider_paths.dart';
 import '../widgets/rider_app_bar.dart';
 import '../widgets/rider_widgets.dart';
 
-/// Home (C2): the big Online / Offline switch, today's jobs and earnings, and anything waiting (returns to the
-/// seller, cash to hand over). Job offers come over every screen (the shell).
+/// Home (C2): the status panel with the Online / Offline switch and today's earnings, the rider's jobs, and anything
+/// waiting (returns to the seller, cash to hand over). Job offers come over every screen (the shell).
 class RiderHomeScreen extends ConsumerStatefulWidget {
   const RiderHomeScreen({super.key});
 
@@ -31,6 +32,7 @@ class _HomeData {
   const _HomeData({
     required this.pickups,
     required this.deliveries,
+    required this.onTheRoad,
     required this.today,
     required this.returns,
     required this.cod,
@@ -38,6 +40,7 @@ class _HomeData {
 
   final PickupCounts pickups;
   final DeliveryList deliveries;
+  final DeliveryList onTheRoad;
   final EarningsSummary today;
   final List<ReturnJob> returns;
   final CodSummary cod;
@@ -67,6 +70,7 @@ class _RiderHomeScreenState extends ConsumerState<RiderHomeScreen> {
       final results = await Future.wait<Object>([
         api.pickups(PickupView.mine),
         api.deliveries(DeliveryView.assigned),
+        api.deliveries(DeliveryView.outForDelivery),
         api.earningsSummary(EarningsPeriod.day),
         api.returns(),
         api.cod(),
@@ -77,9 +81,10 @@ class _RiderHomeScreenState extends ConsumerState<RiderHomeScreen> {
         _data = _HomeData(
           pickups: (results[0] as PickupList).counts,
           deliveries: results[1] as DeliveryList,
-          today: results[2] as EarningsSummary,
-          returns: results[3] as List<ReturnJob>,
-          cod: results[4] as CodSummary,
+          onTheRoad: results[2] as DeliveryList,
+          today: results[3] as EarningsSummary,
+          returns: results[4] as List<ReturnJob>,
+          cod: results[5] as CodSummary,
         );
       });
     } catch (error) {
@@ -96,24 +101,28 @@ class _RiderHomeScreenState extends ConsumerState<RiderHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(currentUserProvider);
+    final rider = ref.watch(currentUserProvider)?.rider;
     final status = ref.watch(riderStatusProvider);
     final data = _data;
 
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: RiderAppBar(
         title: 'Courier Station',
-        subtitle: user == null ? null : 'Hi, ${user.firstName}',
+        subtitle: rider?.companyName ?? rider?.hubName,
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppSpace.lg),
+          padding: EdgeInsets.fromLTRB(
+            AppSpace.lg,
+            AppSpace.xs,
+            AppSpace.lg,
+            AppSpace.lg + dockInset(context),
+          ),
           children: [
-            _OnlineSwitch(status: status),
-            const SizedBox(height: AppSpace.lg),
+            _StatusPanel(status: status, today: data?.today),
+            const SizedBox(height: AppSpace.md),
             if (data == null && _failure != null)
               SizedBox(
                 height: 320,
@@ -122,9 +131,15 @@ class _RiderHomeScreenState extends ConsumerState<RiderHomeScreen> {
             else if (data == null)
               const SizedBox(height: 360, child: SkeletonList(count: 3))
             else ...[
-              _TodayCard(data: data, status: status.value),
-              const SizedBox(height: AppSpace.lg),
+              _Jobs(data: data, status: status.value),
+              if (_nextStop(data) case final next?) ...[
+                const SizedBox(height: AppSpace.md),
+                _NextStop(stop: next),
+              ],
+              const SizedBox(height: AppSpace.xl),
               ..._waiting(data),
+              const SizedBox(height: AppSpace.xl),
+              const _GuideLink(),
             ],
           ],
         ),
@@ -171,7 +186,11 @@ class _RiderHomeScreenState extends ConsumerState<RiderHomeScreen> {
         const RiderCard(
           child: Row(
             children: [
-              Icon(LucideIcons.circleCheck, color: Color(0xFF047857)),
+              RiderIconTile(
+                icon: LucideIcons.circleCheck,
+                color: kDeliveredGreen,
+                background: Color(0xFFECFDF5),
+              ),
               SizedBox(width: AppSpace.md),
               Expanded(
                 child: Text(
@@ -187,28 +206,49 @@ class _RiderHomeScreenState extends ConsumerState<RiderHomeScreen> {
           item,
           const SizedBox(height: AppSpace.sm),
         ],
-      const SizedBox(height: AppSpace.lg),
-      OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-        onPressed: () => context.push(RiderPaths.cod).then((_) => _load()),
-        icon: const Icon(LucideIcons.banknote, size: 20),
-        label: const Text('Cash on delivery'),
+      const SizedBox(height: AppSpace.md),
+      RiderCard(
+        padding: EdgeInsets.zero,
+        child: InkWell(
+          onTap: () => context.push(RiderPaths.cod).then((_) => _load()),
+          child: const Padding(
+            padding: EdgeInsets.all(AppSpace.md),
+            child: Row(
+              children: [
+                RiderIconTile(icon: LucideIcons.banknote),
+                SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: Text(
+                    'Cash on delivery',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                ),
+                Icon(LucideIcons.chevronRight, color: AppColors.stone500),
+              ],
+            ),
+          ),
+        ),
       ),
     ];
   }
 }
 
-/// The big switch. Green when Online.
-class _OnlineSwitch extends ConsumerStatefulWidget {
-  const _OnlineSwitch({required this.status});
+/// The first thing a rider reads: dark while Offline and green while Online, with the switch and what they earned today.
+class _StatusPanel extends ConsumerStatefulWidget {
+  const _StatusPanel({required this.status, required this.today});
 
   final AsyncValue<RiderWorkState> status;
+  final EarningsSummary? today;
 
   @override
-  ConsumerState<_OnlineSwitch> createState() => _OnlineSwitchState();
+  ConsumerState<_StatusPanel> createState() => _StatusPanelState();
 }
 
-class _OnlineSwitchState extends ConsumerState<_OnlineSwitch> {
+class _StatusPanelState extends ConsumerState<_StatusPanel> {
   bool _busy = false;
 
   Future<void> _toggle(bool online) async {
@@ -252,7 +292,7 @@ class _OnlineSwitchState extends ConsumerState<_OnlineSwitch> {
                 ],
               ),
             )
-          : const Skeleton(child: SkeletonBox(height: 120, radius: 16));
+          : const Skeleton(child: SkeletonBox(height: 196, radius: 24));
     }
 
     if (state.status == 'SUSPENDED') {
@@ -264,137 +304,214 @@ class _OnlineSwitchState extends ConsumerState<_OnlineSwitch> {
     }
 
     final online = state.online;
-    final green = const Color(0xFF047857);
-    return Semantics(
-      toggled: online,
-      label: online ? 'You are Online' : 'You are Offline',
+    final today = widget.today;
+    const faint = Color(0xFFE7E5E4);
+    return AnimatedContainer(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : Motion.slow,
+      curve: Motion.settle,
+      decoration: BoxDecoration(
+        color: online ? kDeliveredGreen : AppColors.ink,
+        borderRadius: BorderRadius.circular(24),
+      ),
       child: Material(
-        color: online ? green : AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: _busy ? null : () => _toggle(!online),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpace.xl),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: online ? green : const Color(0xFFE5E7EB),
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Semantics(
+              toggled: online,
+              label: online ? 'You are Online' : 'You are Offline',
+              child: InkWell(
+                onTap: _busy ? null : () => _toggle(!online),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.xl,
+                    AppSpace.xl,
+                    AppSpace.xl,
+                    AppSpace.lg,
+                  ),
+                  child: Row(
                     children: [
-                      Text(
-                        online ? 'Online' : 'Offline',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: online ? AppColors.white : AppColors.gray900,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                _LiveDot(online: online),
+                                const SizedBox(width: AppSpace.sm),
+                                Flexible(
+                                  child: Text(
+                                    online ? 'Online' : 'Offline',
+                                    style: const TextStyle(
+                                      fontSize: 30,
+                                      height: 1.1,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.5,
+                                      color: AppColors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              online
+                                  ? "You get jobs while you're Online."
+                                  : 'Go Online to get new jobs.',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                color: faint,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: AppSpace.xs),
-                      Text(
-                        online
-                            ? "You get jobs while you're Online."
-                            : 'Go Online to get new jobs.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: online ? AppColors.white : AppColors.gray600,
+                      const SizedBox(width: AppSpace.sm),
+                      if (_busy)
+                        const SizedBox.square(
+                          dimension: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: AppColors.white,
+                          ),
+                        )
+                      else
+                        Transform.scale(
+                          scale: 1.3,
+                          child: Switch(
+                            value: online,
+                            onChanged: _toggle,
+                            thumbColor: WidgetStatePropertyAll(
+                              online ? kDeliveredGreen : AppColors.ink,
+                            ),
+                            trackColor: const WidgetStatePropertyAll(
+                              AppColors.white,
+                            ),
+                            trackOutlineColor: const WidgetStatePropertyAll(
+                              Colors.transparent,
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
-                if (_busy)
-                  SizedBox.square(
-                    dimension: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      color: online ? AppColors.white : AppColors.brandRed,
-                    ),
-                  )
-                else
-                  Transform.scale(
-                    scale: 1.4,
-                    child: Switch(
-                      value: online,
-                      onChanged: _toggle,
-                      activeThumbColor: green,
-                      activeTrackColor: AppColors.white,
-                      inactiveThumbColor: AppColors.white,
-                      inactiveTrackColor: AppColors.gray600,
+              ),
+            ),
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+              color: AppColors.white.withValues(alpha: 0.16),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.xl,
+                AppSpace.lg,
+                AppSpace.xl,
+                AppSpace.xl,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _PanelFigure(
+                      value: today == null
+                          ? '—'
+                          : formatPeso(today.totalEarned),
+                      label: 'Earned today',
                     ),
                   ),
-              ],
+                  Expanded(
+                    flex: 2,
+                    child: _PanelFigure(
+                      value: today == null ? '—' : '${today.count}',
+                      label: 'Paid jobs today',
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _TodayCard extends StatelessWidget {
-  const _TodayCard({required this.data, this.status});
+/// A soft pulse while Online, so the panel reads as live from arm's length. Still for anyone who asked for less motion.
+class _LiveDot extends StatefulWidget {
+  const _LiveDot({required this.online});
 
-  final _HomeData data;
-  final RiderWorkState? status;
+  final bool online;
+
+  @override
+  State<_LiveDot> createState() => _LiveDotState();
+}
+
+class _LiveDotState extends State<_LiveDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_LiveDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    if (widget.online && !MediaQuery.disableAnimationsOf(context)) {
+      if (!_pulse.isAnimating) _pulse.repeat();
+    } else {
+      _pulse
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final jobs = status;
-    return RiderCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final color = widget.online ? AppColors.white : AppColors.stone400;
+    return SizedBox.square(
+      dimension: 18,
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          const Text('Today', style: RiderText.label),
-          const SizedBox(height: AppSpace.sm),
-          Row(
-            children: [
-              Expanded(
-                child: _Figure(
-                  value: formatPeso(data.today.totalEarned),
-                  label: 'Earned today',
+          if (widget.online)
+            AnimatedBuilder(
+              animation: _pulse,
+              builder: (context, _) => Container(
+                width: 8 + 10 * _pulse.value,
+                height: 8 + 10 * _pulse.value,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.4 * (1 - _pulse.value)),
                 ),
               ),
-              Expanded(
-                child: _Figure(
-                  value: '${data.today.count}',
-                  label: 'Paid jobs today',
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: AppSpace.xl),
-          Row(
-            children: [
-              Expanded(
-                child: _Figure(
-                  value: jobs == null
-                      ? '—'
-                      : '${jobs.activeJobs} of ${jobs.maxActiveJobs}',
-                  label: 'Job slots used',
-                ),
-              ),
-              Expanded(
-                child: _Figure(
-                  value: '${data.pickups.mine + data.pickups.pickedUp}',
-                  label: 'Pickups open',
-                ),
-              ),
-              Expanded(
-                child: _Figure(
-                  value:
-                      '${data.deliveries.assignedCount + data.deliveries.outForDeliveryCount}',
-                  label: 'Deliveries open',
-                ),
-              ),
-            ],
+            ),
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
           ),
         ],
       ),
@@ -402,8 +519,8 @@ class _TodayCard extends StatelessWidget {
   }
 }
 
-class _Figure extends StatelessWidget {
-  const _Figure({required this.value, required this.label});
+class _PanelFigure extends StatelessWidget {
+  const _PanelFigure({required this.value, required this.label});
 
   final String value;
   final String label;
@@ -415,18 +532,276 @@ class _Figure extends StatelessWidget {
       children: [
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontSize: 22,
+            fontSize: 24,
+            height: 1.15,
             fontWeight: FontWeight.w800,
-            color: AppColors.gray900,
+            letterSpacing: -0.3,
+            color: AppColors.white,
             fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
+        const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(fontSize: 14, color: AppColors.gray600),
+          style: const TextStyle(fontSize: 13.5, color: Color(0xFFE7E5E4)),
         ),
       ],
+    );
+  }
+}
+
+DeliveryStop? _nextStop(_HomeData data) {
+  for (final group in data.onTheRoad.groups) {
+    if (group.stops.isNotEmpty) return group.stops.first;
+  }
+  return null;
+}
+
+/// Where to go now, with the cash to have ready. Opens Deliveries.
+class _NextStop extends StatelessWidget {
+  const _NextStop({required this.stop});
+
+  final DeliveryStop stop;
+
+  @override
+  Widget build(BuildContext context) {
+    final area = [
+      stop.address.barangay,
+      stop.address.city,
+    ].whereType<String>().join(', ');
+    return RiderCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.go(RiderPaths.deliveries),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.lg),
+          child: Row(
+            children: [
+              const RiderIconTile(
+                icon: LucideIcons.navigation,
+                color: AppColors.brandRed,
+                background: AppColors.brandRedTint,
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Next stop', style: RiderText.label),
+                    Text(
+                      stop.recipientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: RiderText.name,
+                    ),
+                    Text(
+                      [
+                        if (area.isNotEmpty) area,
+                        if (stop.isCod)
+                          'Collect ${formatPeso(stop.codAmount)}'
+                        else
+                          'Paid',
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.stone600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                LucideIcons.chevronRight,
+                size: 20,
+                color: AppColors.stone500,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideLink extends StatelessWidget {
+  const _GuideLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return RiderCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push(RiderPaths.guide),
+        child: const Padding(
+          padding: EdgeInsets.all(AppSpace.lg),
+          child: Row(
+            children: [
+              RiderIconTile(icon: LucideIcons.bookOpen),
+              SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('How it works', style: RiderText.name),
+                    Text(
+                      'Your pay, each step of the job, and staying safe',
+                      style: RiderText.label,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                LucideIcons.chevronRight,
+                size: 20,
+                color: AppColors.stone500,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The rider's slots and open jobs. Pickups and deliveries open their tabs.
+class _Jobs extends StatelessWidget {
+  const _Jobs({required this.data, this.status});
+
+  final _HomeData data;
+  final RiderWorkState? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final jobs = status;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _JobTile(
+              value: jobs == null
+                  ? '—'
+                  : '${jobs.activeJobs} of ${jobs.maxActiveJobs}',
+              label: 'Job slots used',
+              footer: jobs == null
+                  ? null
+                  : _SlotBar(used: jobs.activeJobs, total: jobs.maxActiveJobs),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: _JobTile(
+              value: '${data.pickups.mine + data.pickups.pickedUp}',
+              label: 'Pickups open',
+              onTap: () => context.go(RiderPaths.pickups),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: _JobTile(
+              value:
+                  '${data.deliveries.assignedCount + data.deliveries.outForDeliveryCount}',
+              label: 'Deliveries open',
+              onTap: () => context.go(RiderPaths.deliveries),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JobTile extends StatelessWidget {
+  const _JobTile({
+    required this.value,
+    required this.label,
+    this.onTap,
+    this.footer,
+  });
+
+  final String value;
+  final String label;
+  final VoidCallback? onTap;
+  final Widget? footer;
+
+  @override
+  Widget build(BuildContext context) {
+    return RiderCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    height: 1.15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.25,
+                  color: AppColors.stone600,
+                ),
+              ),
+              if (footer != null) ...[
+                const SizedBox(height: AppSpace.sm),
+                footer!,
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SlotBar extends StatelessWidget {
+  const _SlotBar({required this.used, required this.total});
+
+  final int used;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Row(
+        children: [
+          for (var i = 0; i < total; i++) ...[
+            if (i > 0) const SizedBox(width: 3),
+            Expanded(
+              child: Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  color: i < used ? AppColors.brandRed : AppColors.stone200,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -448,21 +823,19 @@ class _WaitingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: tone.background,
-      borderRadius: BorderRadius.circular(16),
+    return RiderCard(
+      padding: EdgeInsets.zero,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(AppSpace.lg),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: tone.border),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.md),
           child: Row(
             children: [
-              Icon(icon, color: tone.foreground, size: 24),
+              RiderIconTile(
+                icon: icon,
+                color: tone.foreground,
+                background: tone.background,
+              ),
               const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Column(
@@ -472,21 +845,25 @@ class _WaitingTile extends StatelessWidget {
                       title,
                       style: const TextStyle(
                         fontSize: 16,
+                        height: 1.3,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.gray900,
+                        color: AppColors.ink,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: const TextStyle(
                         fontSize: 14,
-                        color: AppColors.gray600,
+                        height: 1.35,
+                        color: AppColors.stone600,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(LucideIcons.chevronRight, color: tone.foreground),
+              const SizedBox(width: AppSpace.xs),
+              const Icon(LucideIcons.chevronRight, color: AppColors.stone500),
             ],
           ),
         ),

@@ -302,7 +302,7 @@ class _PhotoBox extends StatelessWidget {
                     if (onRemove != null)
                       TextButton(
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.gray600,
+                          foregroundColor: AppColors.stone600,
                         ),
                         onPressed: onRemove,
                         child: const Text('Remove'),

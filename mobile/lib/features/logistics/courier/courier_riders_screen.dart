@@ -12,6 +12,8 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import '../../../core/validation/rules.dart';
+import 'courier_kit.dart';
 import 'courier_parcels_screen.dart';
 
 enum _RiderFilter {
@@ -88,12 +90,16 @@ class _CourierRidersScreenState extends ConsumerState<CourierRidersScreen> {
     return Scaffold(
       backgroundColor: AppColors.gray50,
       appBar: AppBar(title: const Text('Riders')),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: LogisticsLook.courierAction,
-        foregroundColor: AppColors.white,
-        onPressed: _add,
-        icon: const Icon(LucideIcons.userPlus),
-        label: const Text('Add rider'),
+      // The dock floats over the page, and a button placed by this inner page doesn't know about it.
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: dockInset(context)),
+        child: FloatingActionButton.extended(
+          backgroundColor: LogisticsLook.courierAction,
+          foregroundColor: AppColors.white,
+          onPressed: _add,
+          icon: const Icon(LucideIcons.userPlus),
+          label: const Text('Add rider'),
+        ),
       ),
       body: ListDetailLayout(
         placeholder: 'Choose a rider to see their details.',
@@ -124,9 +130,47 @@ class _CourierRidersScreenState extends ConsumerState<CourierRidersScreen> {
                     builder: (context, data) {
                       final shown = data.riders.where(_filter.matches).toList();
                       return ListView(
-                        // Room for the Add rider button.
-                        padding: const EdgeInsets.only(bottom: 88),
+                        // Room for the Add rider button, above the dock.
+                        padding: EdgeInsets.only(
+                          bottom: 88 + dockInset(context),
+                        ),
                         children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpace.lg,
+                              AppSpace.md,
+                              AppSpace.lg,
+                              0,
+                            ),
+                            child: HubSummaryStrip(
+                              items: [
+                                HubSummaryItem(
+                                  value: '${data.summary.online}',
+                                  label: 'Online',
+                                  color: kDeliveredGreen,
+                                ),
+                                HubSummaryItem(
+                                  value: '${data.summary.active}',
+                                  label: 'Active',
+                                ),
+                                HubSummaryItem(
+                                  value:
+                                      '${data.summary.toVerify + data.summary.applications}',
+                                  label: 'To review',
+                                  color:
+                                      data.summary.toVerify +
+                                              data.summary.applications >
+                                          0
+                                      ? StatusTone.amber.foreground
+                                      : AppColors.gray900,
+                                ),
+                                HubSummaryItem(
+                                  value: '${data.summary.suspended}',
+                                  label: 'Suspended',
+                                ),
+                              ],
+                            ),
+                          ),
                           RiderTabs<_RiderFilter>(
                             values: _RiderFilter.values,
                             selected: _filter,
@@ -188,48 +232,82 @@ class _RiderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final vehicle = [?rider.vehicleType, ?rider.plateNumber].join(' ');
     return RiderCard(
       padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 72,
-        selected: selected,
-        selectedTileColor: AppColors.gray100,
+      child: InkWell(
         onTap: onTap,
-        title: Text(
-          rider.name,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.gray900,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              [
-                ?rider.hubName,
-                [?rider.vehicleType, ?rider.plateNumber].join(' '),
-              ].where((part) => part.isNotEmpty).join(' · '),
-            ),
-            if (rider.status == 'ACTIVE')
-              Text(
-                '${rider.online ? 'Online' : 'Offline'} · ${rider.activeJobs}/$maxJobs jobs · ${rider.deliveredToday} delivered today',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: rider.online
-                      ? StatusTone.emerald.foreground
-                      : AppColors.gray600,
+        child: AnimatedContainer(
+          duration: kMotion,
+          color: selected ? AppColors.gray100 : Colors.transparent,
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CourierPersonAvatar(name: rider.name, online: rider.online),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rider.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.25,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.gray900,
+                      ),
+                    ),
+                    if (rider.status == 'ACTIVE') ...[
+                      Text(
+                        '${rider.online ? 'Online' : 'Offline'} · ${rider.activeJobs}/$maxJobs jobs · ${rider.deliveredToday} delivered today',
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                          color: rider.online
+                              ? StatusTone.emerald.foreground
+                              : AppColors.gray600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      CourierMeter(
+                        value: maxJobs == 0 ? 0 : rider.activeJobs / maxJobs,
+                        label: '${rider.activeJobs} of $maxJobs jobs',
+                      ),
+                    ],
+                    const SizedBox(height: AppSpace.sm),
+                    // Chips wrap: "Waiting for verification" is too long to sit beside a name on a small phone.
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ToneChip(StatusWords.courierRider(rider.status)),
+                        if (rider.needsReverification)
+                          const HubMetaChip(
+                            icon: LucideIcons.fileWarning,
+                            label: 'Changed documents to check',
+                            tone: StatusTone.amber,
+                          ),
+                        if (vehicle.isNotEmpty)
+                          HubMetaChip(
+                            icon: hubVehicleIcon(rider.vehicleType),
+                            label: vehicle,
+                          ),
+                        if (rider.hubName != null)
+                          HubMetaChip(
+                            icon: LucideIcons.warehouse,
+                            label: rider.hubName!,
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            if (rider.needsReverification)
-              const Text('Changed documents to check'),
-            // Under the text: "Waiting for verification" is too long to sit beside a name on a small phone.
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpace.xs),
-              child: ToneChip(StatusWords.courierRider(rider.status)),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -266,8 +344,35 @@ class _RiderBody extends ConsumerStatefulWidget {
 
 class _RiderBodyState extends ConsumerState<_RiderBody> {
   final _view = GlobalKey<LoadViewState<CourierRider>>();
+  CourierPayee? _pay;
 
   CourierApi get _api => ref.read(courierApiProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPay();
+  }
+
+  /// What the rider is owed. Their own page doesn't need it, so a failure stays quiet.
+  Future<void> _loadPay() async {
+    try {
+      final payouts = await _api.payouts();
+      if (mounted) setState(() => _pay = payouts.rider(widget.riderId));
+    } catch (_) {}
+  }
+
+  /// A warning once the license is close to its date. It is a date with no time, so it counts whole days.
+  (String, StatusTone)? _licenseWarning(String? expiry) {
+    final date = DateTime.tryParse(expiry ?? '');
+    if (date == null) return null;
+    final days = date.difference(Rules.manilaToday()).inDays;
+    if (days < 0) return ('Expired', StatusTone.rose);
+    if (days <= 30) {
+      return ('Expires in $days day${days == 1 ? '' : 's'}', StatusTone.amber);
+    }
+    return null;
+  }
 
   Future<void> _changed() async {
     await _view.currentState?.reload();
@@ -359,6 +464,174 @@ class _RiderBodyState extends ConsumerState<_RiderBody> {
       ),
   ];
 
+  Widget _riderHeader(CourierRider rider) {
+    return RiderCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CourierPersonAvatar(
+                name: rider.name,
+                online: rider.online,
+                size: 56,
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(rider.name, style: RiderText.name),
+                    if (rider.applicant)
+                      const Text('Applied online', style: RiderText.label),
+                    const SizedBox(height: AppSpace.xs),
+                    ToneChip(StatusWords.courierRider(rider.status)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (rider.status == 'ACTIVE') ...[
+            const Divider(height: AppSpace.xl),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: HubSummaryItem(
+                    value: rider.online ? 'Online' : 'Offline',
+                    label: rider.lastSeenAt == null
+                        ? 'Right now'
+                        : 'Seen ${Fmt.waited(rider.lastSeenAt)} ago',
+                    color: rider.online ? kDeliveredGreen : AppColors.gray600,
+                  ),
+                ),
+                const SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: HubSummaryItem(
+                    value: '${rider.activeJobs}',
+                    label: rider.activeJobs == 1 ? 'Job now' : 'Jobs now',
+                  ),
+                ),
+                const SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: HubSummaryItem(
+                    value: '${rider.deliveredToday}',
+                    label: 'Delivered today',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _riderFacts(CourierRider rider) {
+    final warning = _licenseWarning(rider.licenseExpiry);
+    final pay = _pay;
+    return [
+      const SizedBox(height: AppSpace.lg),
+      const HubSection(title: 'Contact'),
+      RiderCard(
+        child: Column(
+          children: [
+            HubFact(icon: LucideIcons.mail, label: 'Email', value: rider.email),
+            HubFact(
+              icon: LucideIcons.phone,
+              label: 'Mobile',
+              value: rider.phone,
+            ),
+            HubFact(
+              icon: LucideIcons.warehouse,
+              label: 'Hub',
+              value: rider.hubName,
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: AppSpace.lg),
+      const HubSection(title: 'Vehicle and license'),
+      RiderCard(
+        child: Column(
+          children: [
+            HubFact(
+              icon: hubVehicleIcon(rider.vehicleType),
+              label: 'Vehicle',
+              value: [?rider.vehicleType, ?rider.plateNumber].join(' · '),
+            ),
+            HubFact(
+              icon: LucideIcons.idCard,
+              label: 'License',
+              value: [
+                ?rider.licenseNumber,
+                if (rider.licenseExpiry != null)
+                  'expires ${rider.licenseExpiry}',
+              ].join(' · '),
+              trailing: warning == null ? null : ToneChip(warning),
+            ),
+            if (rider.status == 'PENDING_ACTIVATION')
+              HubFact(
+                icon: LucideIcons.mailCheck,
+                label: 'Activation link works until',
+                value: Fmt.dateTime(rider.activationExpiresAt),
+              ),
+          ],
+        ),
+      ),
+      if (pay != null) ...[
+        const SizedBox(height: AppSpace.lg),
+        const HubSection(title: 'What you owe this rider'),
+        CourierPay(
+          amount: formatPeso(pay.unpaid),
+          count: pay.unpaidCount,
+          lastPaid: pay.lastPaidAt == null
+              ? 'Not yet'
+              : Fmt.date(pay.lastPaidAt),
+          gcash: [?pay.gcashName, ?pay.gcashNumber].join(' · '),
+        ),
+      ],
+      if (rider.appliedAt != null ||
+          rider.joinedAt != null ||
+          rider.activatedAt != null ||
+          rider.suspendedAt != null) ...[
+        const SizedBox(height: AppSpace.lg),
+        const HubSection(title: 'With your company'),
+        RiderCard(
+          child: Column(
+            children: [
+              if (rider.appliedAt != null)
+                HubFact(
+                  icon: LucideIcons.fileClock,
+                  label: 'Applied',
+                  value: Fmt.date(rider.appliedAt),
+                ),
+              if (rider.joinedAt != null)
+                HubFact(
+                  icon: LucideIcons.userPlus,
+                  label: 'Added',
+                  value: Fmt.date(rider.joinedAt),
+                ),
+              if (rider.activatedAt != null)
+                HubFact(
+                  icon: LucideIcons.badgeCheck,
+                  label: 'Activated',
+                  value: Fmt.date(rider.activatedAt),
+                ),
+              if (rider.suspendedAt != null)
+                HubFact(
+                  icon: LucideIcons.ban,
+                  label: 'Suspended on',
+                  value: Fmt.date(rider.suspendedAt),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return LoadView<CourierRider>(
@@ -370,51 +643,14 @@ class _RiderBodyState extends ConsumerState<_RiderBody> {
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.all(AppSpace.lg),
+                padding: EdgeInsets.fromLTRB(
+                  AppSpace.lg,
+                  AppSpace.lg,
+                  AppSpace.lg,
+                  AppSpace.lg + (actions.isEmpty ? dockInset(context) : 0),
+                ),
                 children: [
-                  RiderCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(rider.name, style: RiderText.name),
-                            ),
-                            ToneChip(StatusWords.courierRider(rider.status)),
-                          ],
-                        ),
-                        if (rider.applicant)
-                          const Text('Applied online', style: RiderText.label),
-                        if (rider.status == 'ACTIVE')
-                          Text(
-                            '${rider.online ? 'Online' : 'Offline'} · ${rider.activeJobs} jobs · ${rider.deliveredToday} delivered today',
-                            style: RiderText.label,
-                          ),
-                        const Divider(height: AppSpace.xl),
-                        FactRow('Email', rider.email),
-                        FactRow('Mobile', rider.phone),
-                        FactRow('Hub', rider.hubName),
-                        FactRow(
-                          'Vehicle',
-                          [?rider.vehicleType, ?rider.plateNumber].join(' · '),
-                        ),
-                        FactRow(
-                          'License',
-                          [
-                            ?rider.licenseNumber,
-                            if (rider.licenseExpiry != null)
-                              'expires ${rider.licenseExpiry}',
-                          ].join(' · '),
-                        ),
-                        if (rider.status == 'PENDING_ACTIVATION')
-                          FactRow(
-                            'Activation link works until',
-                            Fmt.dateTime(rider.activationExpiresAt),
-                          ),
-                      ],
-                    ),
-                  ),
+                  _riderHeader(rider),
                   if (rider.suspensionReason != null) ...[
                     const SizedBox(height: AppSpace.md),
                     MessageBanner(
@@ -428,8 +664,13 @@ class _RiderBodyState extends ConsumerState<_RiderBody> {
                       message: 'Not approved: ${rider.rejectionReason}',
                     ),
                   ],
+                  ..._riderFacts(rider),
                   const SizedBox(height: AppSpace.lg),
-                  const RiderSectionTitle('Documents'),
+                  const HubSection(
+                    title: 'Documents',
+                    note:
+                        'Private. Shown here only, never saved to this phone.',
+                  ),
                   if (rider.documents.isEmpty)
                     const RiderCard(
                       child: Text(
@@ -448,7 +689,10 @@ class _RiderBodyState extends ConsumerState<_RiderBody> {
                       ],
                     ),
                   const SizedBox(height: AppSpace.lg),
-                  const RiderSectionTitle('Audit trail'),
+                  const HubSection(
+                    title: 'Audit trail',
+                    note: 'Every decision about this rider. It can\'t be changed.',
+                  ),
                   AuditCard(entries: rider.audit, emptyText: 'Nothing yet.'),
                 ],
               ),

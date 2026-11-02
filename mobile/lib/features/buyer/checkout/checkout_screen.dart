@@ -39,6 +39,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   int _quoteGeneration = 0;
 
   String _payment = 'cod';
+  bool _agreed = false;
   final _storeVouchers = <int, String>{};
   String? _platformVoucher;
   String? _shippingVoucher;
@@ -110,10 +111,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (!mounted || generation != _quoteGeneration) return;
       if (!quote.gcashPossible && _payment == 'gcash') _payment = 'cod';
       setState(() {
+        // An agreement is to one amount, so a new total asks again.
+        if (_quote?.total != quote.total) _agreed = false;
         _quote = quote;
         _quoting = false;
         _loadFailure = null;
       });
+      if (!quote.codAvailable && _payment == 'cod' && quote.gcashPossible) {
+        await _choosePayment('gcash');
+      }
     } catch (error) {
       if (!mounted || generation != _quoteGeneration) return;
       setState(() {
@@ -200,6 +206,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         paymentMethod: _payment,
         addressId: address.id,
         expectedTotal: quote.total,
+        highValueAgreed: _agreed,
         storeVouchers: _storeVouchers,
         platformVoucher: _platformVoucher,
         shippingVoucher: _shippingVoucher,
@@ -291,6 +298,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     _platformVouchers(quote),
                     _paymentBlock(quote),
                     _totals(quote),
+                    if (quote.agreementRequired)
+                      _BigPurchaseAgreement(
+                        total: quote.total,
+                        agreed: _agreed,
+                        onChanged: (value) => setState(() => _agreed = value),
+                      ),
                   ],
                 ),
               ),
@@ -353,7 +366,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 _quoting ||
                                     !quote.canPlace ||
                                     !canOrder ||
-                                    _address == null
+                                    _address == null ||
+                                    (_payment == 'cod' &&
+                                        !quote.codAvailable) ||
+                                    (quote.agreementRequired && !_agreed)
                                 ? null
                                 : _place,
                           ),
@@ -606,9 +622,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _PayOption(
             icon: LucideIcons.banknote,
             title: 'Cash on delivery',
-            subtitle: 'Pay the rider the exact amount when your order arrives.',
+            subtitle: quote.codAvailable
+                ? 'Pay the rider the exact amount when your order arrives.'
+                : 'Not available: cash on delivery is for up to ${formatPeso(quote.codMax)} per shop.',
             selected: _payment == 'cod',
-            onTap: () => _choosePayment('cod'),
+            onTap: quote.codAvailable ? () => _choosePayment('cod') : null,
           ),
           const SizedBox(height: AppSpace.sm),
           _PayOption(
@@ -743,6 +761,45 @@ class _AddressCard extends StatelessWidget {
 }
 
 /// A way to pay, as a card that lights up when chosen. Read out as a radio choice.
+/// The buyer's word on a big purchase. Saved with the order on the server.
+class _BigPurchaseAgreement extends StatelessWidget {
+  const _BigPurchaseAgreement({
+    required this.total,
+    required this.agreed,
+    required this.onChanged,
+  });
+
+  final num total;
+  final bool agreed;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlockCard(
+      child: CheckboxListTile(
+        value: agreed,
+        onChanged: (value) => onChanged(value ?? false),
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        title: const Text(
+          'This is a big purchase',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        subtitle: Text(
+          'I checked the items, the shop and the total of ${formatPeso(total)}. '
+          'I can ask for a return within 7 days of delivery. My agreement is '
+          'saved with this order.',
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.45,
+            color: AppColors.stone600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PayOption extends StatelessWidget {
   const _PayOption({
     required this.icon,

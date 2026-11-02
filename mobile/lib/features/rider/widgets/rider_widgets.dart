@@ -14,25 +14,25 @@ abstract final class RiderText {
   static const name = TextStyle(
     fontSize: 18,
     fontWeight: FontWeight.w700,
-    color: AppColors.gray900,
+    color: AppColors.ink,
     height: 1.3,
   );
   static const body = TextStyle(
     fontSize: 16,
-    color: AppColors.gray900,
+    color: AppColors.ink,
     height: 1.4,
   );
   static const label = TextStyle(
     fontSize: 13,
     fontWeight: FontWeight.w600,
-    color: AppColors.gray600,
+    color: AppColors.stone600,
     letterSpacing: 0.2,
   );
   static const mono = TextStyle(
     fontFamily: 'monospace',
     fontSize: 15,
     fontWeight: FontWeight.w600,
-    color: AppColors.gray900,
+    color: AppColors.ink,
     letterSpacing: 0.5,
   );
 }
@@ -58,14 +58,24 @@ class RiderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // A Material (not a coloured box), so list rows inside still show their tap ripple.
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A1E1B18),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
       child: Material(
-        color: muted ? AppColors.gray100 : AppColors.white,
+        color: muted ? AppColors.stone100 : AppColors.white,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFFEFEBE6)),
         ),
         child: Padding(padding: padding, child: child),
       ),
@@ -85,12 +95,12 @@ class StopBadge extends StatelessWidget {
       label: 'Stop $number',
       excludeSemantics: true,
       child: Container(
-        width: 36,
-        height: 36,
+        width: 38,
+        height: 38,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AppColors.brandRed,
-          shape: BoxShape.circle,
+        decoration: BoxDecoration(
+          color: AppColors.ink,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           '$number',
@@ -117,19 +127,24 @@ class CodBlock extends StatelessWidget {
     final tone = StatusTone.amber;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpace.md,
-        vertical: AppSpace.md,
-      ),
+      padding: const EdgeInsets.all(AppSpace.md),
       decoration: BoxDecoration(
         color: tone.background,
-        borderRadius: AppRadius.cardAll,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: tone.border),
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.banknote, color: tone.foreground, size: 22),
-          const SizedBox(width: AppSpace.sm),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(LucideIcons.banknote, color: tone.foreground, size: 24),
+          ),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Text.rich(
               TextSpan(
@@ -137,13 +152,18 @@ class CodBlock extends StatelessWidget {
                   TextSpan(text: '$prefix '),
                   TextSpan(
                     text: formatPeso(amount),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
                   ),
                   const TextSpan(text: ' cash on delivery'),
                 ],
               ),
               style: const TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 color: Color(0xFF78350F),
                 fontWeight: FontWeight.w600,
               ),
@@ -170,7 +190,7 @@ class TrackingNumberText extends StatelessWidget {
         IconButton(
           tooltip: 'Copy tracking number',
           icon: const Icon(LucideIcons.copy, size: 18),
-          color: AppColors.gray600,
+          color: AppColors.stone600,
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: trackingNumber));
             if (context.mounted) {
@@ -201,11 +221,126 @@ class InfoRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 20, color: AppColors.gray600),
+        Icon(icon, size: 20, color: AppColors.stone600),
         const SizedBox(width: AppSpace.sm),
         Expanded(child: Text(text, style: RiderText.body)),
         ?action,
       ],
+    );
+  }
+}
+
+/// A wide soft button for reaching someone or somewhere, in a row of equals on a job card.
+class RiderActionPill extends StatelessWidget {
+  const RiderActionPill({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = onTap == null ? AppColors.stone400 : AppColors.ink;
+    return Material(
+      color: const Color(0xFFF5F2EE),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 20, color: color),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// [RiderActionPill] that phones this number.
+class RiderCallPill extends StatelessWidget {
+  const RiderCallPill({super.key, required this.phone});
+
+  final String phone;
+
+  @override
+  Widget build(BuildContext context) {
+    return RiderActionPill(
+      icon: LucideIcons.phone,
+      label: 'Call',
+      onTap: phone.isEmpty
+          ? null
+          : () => _open(context, Uri(scheme: 'tel', path: phone)),
+    );
+  }
+}
+
+/// [RiderActionPill] that opens this address in a maps app.
+class RiderMapsPill extends StatelessWidget {
+  const RiderMapsPill({super.key, required this.address});
+
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    return RiderActionPill(
+      icon: LucideIcons.navigation,
+      label: 'Maps',
+      onTap: address.trim().isEmpty
+          ? null
+          : () => _open(context, MapsButton.uriFor(address)),
+    );
+  }
+}
+
+/// A rounded square around an icon, in the colour of what it stands for.
+class RiderIconTile extends StatelessWidget {
+  const RiderIconTile({
+    super.key,
+    required this.icon,
+    this.color = AppColors.ink,
+    this.background = const Color(0xFFF5F2EE),
+    this.size = 44,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color background;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Icon(icon, size: size * 0.5, color: color),
     );
   }
 }
@@ -312,9 +447,12 @@ class RiderSectionTitle extends StatelessWidget {
             child: Text(
               title,
               style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: AppColors.gray900,
+                fontFamily: 'NotoSerif',
+                fontSize: 18,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+                color: AppColors.ink,
               ),
             ),
           ),
@@ -346,8 +484,9 @@ class OutcomeButtons extends StatelessWidget {
         Expanded(
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
+              minimumSize: const Size.fromHeight(56),
               foregroundColor: rose,
+              backgroundColor: AppColors.white,
               side: BorderSide(color: rose, width: 1.5),
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
             ),
@@ -360,7 +499,7 @@ class OutcomeButtons extends StatelessWidget {
         Expanded(
           child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
+              minimumSize: const Size.fromHeight(56),
               backgroundColor: kDeliveredGreen,
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
             ),
@@ -370,6 +509,116 @@ class OutcomeButtons extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Up to three choices sharing the full width, with a dark thumb that slides to the open one.
+class RiderSegments<T> extends StatelessWidget {
+  const RiderSegments({
+    super.key,
+    required this.values,
+    required this.selected,
+    required this.labelOf,
+    required this.onSelected,
+    this.countOf,
+    this.padding = const EdgeInsets.fromLTRB(
+      AppSpace.lg,
+      AppSpace.sm,
+      AppSpace.lg,
+      0,
+    ),
+  });
+
+  final List<T> values;
+  final T selected;
+  final String Function(T value) labelOf;
+  final int? Function(T value)? countOf;
+  final ValueChanged<T> onSelected;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final index = values.indexOf(selected);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : Motion.medium;
+    return Padding(
+      padding: padding,
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFEBE6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Stack(
+          children: [
+            AnimatedAlign(
+              duration: duration,
+              curve: Motion.glide,
+              alignment: Alignment(
+                values.length < 2 ? 0 : -1 + 2 * index / (values.length - 1),
+                0,
+              ),
+              child: FractionallySizedBox(
+                widthFactor: 1 / values.length,
+                heightFactor: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.ink,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                for (final value in values)
+                  Expanded(
+                    child: Semantics(
+                      button: true,
+                      selected: value == selected,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (value == selected) return;
+                          HapticFeedback.selectionClick();
+                          onSelected(value);
+                        },
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            // Scaled down rather than cut off on a narrow phone or with large text.
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: AnimatedDefaultTextStyle(
+                                duration: duration,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: value == selected
+                                      ? AppColors.white
+                                      : AppColors.ink,
+                                ),
+                                child: Text(
+                                  countOf?.call(value) == null
+                                      ? labelOf(value)
+                                      : '${labelOf(value)}  ${countOf!(value)}',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -416,7 +665,7 @@ class RiderTabs<T> extends StatelessWidget {
               labelStyle: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: value == selected ? AppColors.white : AppColors.gray900,
+                color: value == selected ? AppColors.white : AppColors.ink,
               ),
               materialTapTargetSize: MaterialTapTargetSize.padded,
               label: Text(

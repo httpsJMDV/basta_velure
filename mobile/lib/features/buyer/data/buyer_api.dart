@@ -230,6 +230,7 @@ class BuyerApi {
     String? shippingVoucher,
     Map<int, String> gcashReferences = const {},
     Map<int, PickedPhoto> gcashProofs = const {},
+    bool highValueAgreed = false,
     ProgressCallback? onSendProgress,
   }) async {
     final fields = <String, dynamic>{
@@ -237,6 +238,7 @@ class BuyerApi {
       'payment_method': paymentMethod,
       'address_id': addressId,
       'expected_total': expectedTotal,
+      'high_value_agreed': highValueAgreed ? 1 : 0,
       'vouchers': _vouchers(storeVouchers, platformVoucher, shippingVoucher),
     };
     final Object data;

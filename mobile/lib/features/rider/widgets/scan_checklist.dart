@@ -38,7 +38,7 @@ class ScanChecklist extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: AppColors.gray900,
+                color: AppColors.ink,
               ),
             ),
           ),
@@ -62,7 +62,7 @@ class ScanChecklist extends StatelessWidget {
                         ? kDeliveredGreen
                         : refused.containsKey(tn)
                         ? rose
-                        : AppColors.gray600,
+                        : AppColors.stone600,
                     semanticLabel: scanned.contains(tn)
                         ? 'Scanned'
                         : 'Not scanned',
@@ -155,7 +155,7 @@ class DoneHeader extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: AppColors.gray900,
+                color: AppColors.ink,
               ),
             ),
             if (message != null) ...[

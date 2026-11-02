@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -7,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/media/permissions.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/motion.dart';
 import 'location_beacon.dart';
 
 /// The thin bar across the top while the rider's location is shared, so they can always see it is on.
@@ -16,43 +18,59 @@ class LocationBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(locationBeaconProvider);
-    if (state != BeaconState.sharing && state != BeaconState.starting) {
+    if (state != BeaconState.sharing &&
+        state != BeaconState.starting &&
+        state != BeaconState.weakSignal) {
       return const SizedBox.shrink();
     }
     final parcels = ref.read(locationBeaconProvider.notifier).activeParcels;
-    return Material(
-      color: const Color(0xFF047857),
-      child: SafeArea(
-        bottom: false,
-        child: Semantics(
-          liveRegion: true,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.lg,
-              vertical: 6,
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  LucideIcons.locateFixed,
-                  size: 16,
-                  color: AppColors.white,
-                ),
-                const SizedBox(width: AppSpace.sm),
-                Expanded(
-                  child: Text(
-                    state == BeaconState.starting
-                        ? 'Finding your location…'
-                        : 'Sharing your location'
-                              '${parcels > 0 ? ' · $parcels parcel${parcels == 1 ? '' : 's'}' : ''}',
-                    style: const TextStyle(
-                      color: AppColors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+    final sharing = state == BeaconState.sharing;
+    final weak = state == BeaconState.weakSignal;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+      ),
+      child: AnimatedContainer(
+        duration: Motion.medium,
+        color: sharing
+            ? const Color(0xFF047857)
+            : weak
+            ? const Color(0xFFB45309)
+            : AppColors.ink,
+        child: SafeArea(
+          bottom: false,
+          child: Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.lg,
+                vertical: 7,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    weak ? LucideIcons.signalLow : LucideIcons.locateFixed,
+                    size: 15,
+                    color: AppColors.white,
+                  ),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: Text(
+                      weak
+                          ? 'Weak GPS signal. Move near a window or outdoors.'
+                          : state == BeaconState.starting
+                          ? 'Finding your location…'
+                          : 'Sharing your location'
+                                '${parcels > 0 ? ' · $parcels parcel${parcels == 1 ? '' : 's'}' : ''}',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -75,7 +93,8 @@ class LocationGate extends ConsumerWidget {
     final (title, body, action) = switch (state) {
       BeaconState.idle ||
       BeaconState.sharing ||
-      BeaconState.starting => (null, null, null),
+      BeaconState.starting ||
+      BeaconState.weakSignal => (null, null, null),
       BeaconState.needsPermission => (
         'Turn on your location',
         'You have parcels to collect or carry. The buyer, the seller and the hub follow them on the map through '
@@ -119,9 +138,10 @@ class LocationGate extends ConsumerWidget {
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.gray900,
+                fontFamily: 'NotoSerif',
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink,
               ),
             ),
             const SizedBox(height: AppSpace.sm),
@@ -130,7 +150,7 @@ class LocationGate extends ConsumerWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 16,
-                color: AppColors.gray600,
+                color: AppColors.stone600,
                 height: 1.45,
               ),
             ),

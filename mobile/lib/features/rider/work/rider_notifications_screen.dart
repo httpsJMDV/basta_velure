@@ -50,7 +50,6 @@ class _RiderNotificationsScreenState
     final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
     final api = ref.read(buyerApiProvider);
     return Scaffold(
-      backgroundColor: AppColors.gray50,
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
@@ -77,14 +76,14 @@ class _RiderNotificationsScreenState
               onTap: () => _markRead(n),
               leading: Icon(
                 LucideIcons.bell,
-                color: unreadNow ? AppColors.brandRed : AppColors.gray600,
+                color: unreadNow ? AppColors.brandRed : AppColors.stone600,
               ),
               title: Text(
                 n.title,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: unreadNow ? FontWeight.w800 : FontWeight.w600,
-                  color: AppColors.gray900,
+                  color: AppColors.ink,
                 ),
               ),
               subtitle: Text('${n.body}\n${Fmt.dateTime(n.createdAt)}'),
