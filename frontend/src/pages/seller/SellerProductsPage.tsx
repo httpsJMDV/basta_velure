@@ -534,7 +534,11 @@ export default function SellerProductsPage() {
   const actions: RowActions = {
     savePrice: async (p, v, value) => {
       try { replace(await setVariantPriceApi(p.id, Number(value), v?.id)); return undefined; }
-      catch (e) { return apiErrorMessage(e, 'The price could not be saved.'); }
+      catch (e) {
+        // That agreement has a box on the edit page, and this quick editor has no room for it.
+        const agreement = (e as { response?: { data?: { errors?: { high_value_agreed?: string[] } } } }).response?.data?.errors?.high_value_agreed;
+        return agreement ? 'A price this high needs your agreement. Open Edit on this product to set it.' : apiErrorMessage(e, 'The price could not be saved.');
+      }
     },
     saveStock: async (p, v, value) => {
       try { replace(await setVariantStockApi(p.id, Number(value), v?.id)); return undefined; }

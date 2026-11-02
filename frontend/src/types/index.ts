@@ -626,6 +626,10 @@ export interface HubParcelRecord {
   pickup_rider: { name: string; plate_number: string | null } | null;
   picked_up_at: string | null;
   scanned_in_at: string | null;
+  /** The hub that sent it here, while it is on its way. */
+  coming_from?: string | null;
+  /** The hub this hub has to send it on to. */
+  next_hub?: string | null;
   /** Present on lookup and receive responses only. */
   recipient?: {
     name: string;
@@ -689,6 +693,18 @@ export interface HubSortingParcelsResponse {
     from: number | null;
     to: number | null;
   };
+}
+
+export interface HubTransferGroup {
+  hub: { id: number; name: string; city: string; province: string };
+  parcel_count: number;
+  oldest_scanned_in_at: string | null;
+  tracking_numbers: string[];
+}
+
+export interface HubTransfersResponse {
+  data: HubTransferGroup[];
+  meta: { total_parcels: number; on_the_way_here: number; sent_today: number };
 }
 
 export interface HubSortResponse {
@@ -1772,6 +1788,8 @@ export interface ProductDetailSpecs {
   description: string;
   whats_in_box: string[] | null;
   weight_grams: number | null;
+  /** Only for a heavy item: what one parcel can carry of it. */
+  bulky?: { weight_kg: number; max_per_order: number; max_parcel_kg: number } | null;
   dimensions_cm: string | null;  // e.g. "30 × 20 × 10"
   sku: string | null;
   // Food & Grocery

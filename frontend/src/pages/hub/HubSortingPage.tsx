@@ -24,6 +24,7 @@ import {
 import { useToast } from '../../components/ui/Toast';
 import type { HubSortingGroup, HubSortingParcel, HubSortingSort } from '../../types';
 import { PageHeader, StatCard } from './hubKit';
+import HubTransfersPanel from './HubTransfersPanel';
 import CustomSelect from '../../components/ui/CustomSelect';
 
 const POLL_MS = 30000;
@@ -303,6 +304,7 @@ export default function HubSortingPage() {
         <StatCard icon={Clock} label="Longest wait" value={loading || groups.length === 0 ? null : waitingLabel(groups.map((g) => g.oldest_scanned_in_at).filter((v): v is string => !!v).sort()[0] ?? null)} subtext="Oldest parcel at the hub" iconBg="bg-amber-50" iconColor="text-amber-600" />
         <StatCard icon={Users} label="No rider covers" value={loading ? null : groups.filter((g) => g.riders_covering === 0).length} subtext="Barangays nobody can deliver" iconBg="bg-rose-50" iconColor="text-rose-600" />
       </section>
+      <HubTransfersPanel />
       {/* Controls and the list, in one card */}
       <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
       <div className="flex flex-col gap-2 p-3 border-b border-gray-100 bg-gray-50/40 sm:flex-row sm:items-center">

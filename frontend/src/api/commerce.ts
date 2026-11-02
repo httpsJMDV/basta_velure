@@ -153,6 +153,8 @@ export interface CheckoutQuote {
   };
   problems: CheckoutProblem[];
   can_place: boolean;
+  /** What this order needs because of its size. The server refuses the order without them. */
+  limits?: { cod_max: number; cod_available: boolean; agreement_min: number; agreement_required: boolean };
   wallet: WalletVoucher[];
 }
 

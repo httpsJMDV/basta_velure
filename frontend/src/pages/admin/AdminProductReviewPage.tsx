@@ -16,6 +16,7 @@ import {
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
 import { Avatar } from '../../components/admin/listKit';
 import { AiReviewBanner, aiReviewText } from '../../components/admin/AiReviewNote';
+import { safeHtml } from '../../utils/safeHtml';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -590,7 +591,7 @@ export default function AdminProductReviewPage() {
             {product.description ? (
               <div
                 className="max-w-prose py-1 text-[14px] text-gray-700 leading-7 [&_img]:rounded-lg [&_img]:max-w-full [&_img]:my-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_li]:mb-1 [&_b]:text-gray-900 [&_strong]:text-gray-900"
-                dangerouslySetInnerHTML={{ __html: product.description }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(product.description) }}
               />
             ) : (
               <p className="py-2 text-[13px] text-gray-400">The seller did not write a description.</p>

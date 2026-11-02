@@ -22,6 +22,7 @@ import { createSellerProductKeyedApi, getStoreCategoriesApi, updateSellerProduct
 import type { StoreCategoryNode } from '../../api/sellerCatalog';
 import { useAuth } from '../../hooks/useAuth';
 import { displayNameError, fileError, skuError } from '../../utils/accountRules';
+import { htmlText, safeHtml } from '../../utils/safeHtml';
 import type {
   AddProductFormState, ProductFormImage,
   ProductFormVariantType, ProductFormVariantRow, SellerProductVariant,
@@ -71,14 +72,15 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PICKED_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_STORE_CATEGORIES = 3;
 const OPTION_MAX = 20;
-const MAX_WEIGHT_KG = 1000;
+// A rider has to carry it: config/shipping.php's max_parcel_kg.
+const MAX_WEIGHT_KG = 50;
+// config/orders.php's high_value_min: from this price the seller confirms it.
+const HIGH_VALUE_MIN = 50000;
 const MAX_DIMENSION_CM = 1000;
 
 /** The visible text of the rich-text description, as the server counts it. */
 function visibleText(html: string): string {
-  const el = document.createElement('div');
-  el.innerHTML = html;
-  return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+  return htmlText(html).replace(/\s+/g, ' ').trim();
 }
 
 function priceError(value: string): string | undefined {
@@ -1078,7 +1080,7 @@ function RichTextEditor({
   useEffect(() => {
     if (!editorRef.current) return;
     if (!isInitialized.current && value) {
-      editorRef.current.innerHTML = value;
+      editorRef.current.innerHTML = safeHtml(value);
       isInitialized.current = true;
     }
   }, [value]);
@@ -1335,6 +1337,10 @@ export default function SellerAddProductPage() {
   const [form, setForm] = useState<AddProductFormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [highValueAgreed, setHighValueAgreed] = useState(false);
+  const [agreementMissing, setAgreementMissing] = useState(false);
+  const loadedTopPrice = useRef(0);
+  const agreementRef = useRef<HTMLDivElement>(null);
   // The server's summary, shown above the form so an error for a field without its own slot is never silent.
   const [serverError, setServerError] = useState('');
   const serverErrorRef = useRef<HTMLDivElement>(null);
@@ -1401,6 +1407,7 @@ export default function SellerAddProductPage() {
     if (!isEdit) return;
     getSellerProductApi(Number(id))
       .then((p) => {
+        loadedTopPrice.current = Math.max(0, ...p.variants.map((v) => Number(v.regular_price ?? v.price ?? 0)));
         // The live tree may still be loading; the effect on `tree` settles the parent once it has.
         const parentEntry = CATEGORY_TREE.find((n) =>
           n.children.some((c) => c.id === p.category_id)
@@ -1505,9 +1512,17 @@ export default function SellerAddProductPage() {
     if (!v) setForm((prev) => ({ ...prev, variantTypes: [], variantRows: [] }));
   };
 
+  const topPrice = form.hasVariants ? Math.max(0, ...form.variantRows.map((row) => Number(row.price) || 0)) : Number(form.price) || 0;
+  const needsAgreement = topPrice >= HIGH_VALUE_MIN && topPrice > loadedTopPrice.current;
+
   // Submit: a draft needs only a valid name; publishing checks every rule and makes the product live at once.
   const handleSubmit = async (publish: boolean) => {
     if (submitting) return;
+    if (needsAgreement && !highValueAgreed) {
+      setAgreementMissing(true);
+      agreementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     const { errors: errs, firstSection } = validate(form, publish, tree);
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -1538,6 +1553,7 @@ export default function SellerAddProductPage() {
       fd.append('description', form.description);
       fd.append('category_slug', form.leafCategoryId);
       fd.append('status', publish ? 'active' : 'draft');
+      if (highValueAgreed) fd.append('high_value_agreed', '1');
 
       if (form.hasVariants) {
         form.variantTypes
@@ -1962,6 +1978,26 @@ export default function SellerAddProductPage() {
               </FieldWrap>
             </div>
           </div>
+        </div>
+      )}
+
+      {needsAgreement && (
+        <div ref={agreementRef} className={`rounded-2xl border px-6 py-5 ${agreementMissing && !highValueAgreed ? 'border-red-300 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={highValueAgreed}
+              onChange={(e) => setHighValueAgreed(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 accent-brand-red"
+            />
+            <span className="text-[13px] leading-relaxed text-gray-700">
+              <span className="block font-bold text-gray-900">High-value listing agreement</span>
+              I confirm that ₱{topPrice.toLocaleString('en-PH')} is the correct price, that I have this item and can deliver it, and that a false or mistaken listing is my responsibility. Loved-IT keeps a record of this agreement.
+            </span>
+          </label>
+          {agreementMissing && !highValueAgreed && (
+            <p role="alert" className="mt-2 ml-7 text-[12px] font-medium text-red-600">Tick the box to confirm this price.</p>
+          )}
         </div>
       )}
 

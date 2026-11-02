@@ -134,6 +134,7 @@ import type {
   HubSortingParcelsResponse,
   HubSortingSort,
   HubSortResponse,
+  HubTransfersResponse,
   PublicApprovedHub,
   RiderRegistrationResponse,
   HubRidersListResponse,
@@ -972,6 +973,14 @@ export const getHubSortingGroupParcelsApi = (
 
 export const sortHubParcelsApi = (trackingNumbers: string[]) =>
   http.post<HubSortResponse>('/hub/sorting/sort', { tracking_numbers: trackingNumbers }).then((r) => r.data);
+
+// ─── Hub to hub ───────────────────────────────────────────────────────────────
+
+export const getHubTransfersApi = () =>
+  http.get<HubTransfersResponse>('/hub/transfers').then((r) => r.data);
+
+export const sendHubTransferApi = (trackingNumbers: string[]) =>
+  http.post<{ message: string; sent_count: number; to: string[] }>('/hub/transfers/send', { tracking_numbers: trackingNumbers }).then((r) => r.data);
 
 // ─── Rider Delivery Console (Feature 2.6) ────────────────────────────────────────
 

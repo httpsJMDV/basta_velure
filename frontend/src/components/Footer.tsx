@@ -1,33 +1,65 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { MessageSquare, LifeBuoy, ShieldCheck, Truck, Banknote, ArrowUpRight } from 'lucide-react';
+import { MessageSquare, LifeBuoy, ShieldCheck, Truck, Banknote, ArrowUpRight, ArrowRight } from 'lucide-react';
 import LovedItLogo from './LovedItLogo';
 import AndroidIcon from './ui/AndroidIcon';
 import { useAuth } from '../hooks/useAuth';
 import { useChat } from '../hooks/useChat';
 import gcashLogo from '../assets/brand/gcash-logo.svg';
-import appHome from '../assets/app/home.webp';
-import appTracking from '../assets/app/tracking.webp';
 
-/** The way to the app, above the links. Two real screens rise from the bottom edge on wider screens. */
+/** For anyone on a computer: the download page, one scan away. The QR library loads only when this comes into view. */
+function ScanToGetIt() {
+  const [src, setSrc] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = box.current;
+    if (!node) return;
+    let cancelled = false;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      observer.disconnect();
+      void import('qrcode').then(({ default: QRCode }) =>
+        QRCode.toDataURL(`${window.location.origin}/download`, { width: 232, margin: 0, errorCorrectionLevel: 'M', color: { dark: '#1E1B18', light: '#ffffff' } }),
+      ).then((url) => {
+        if (!cancelled) setSrc(url);
+      });
+    }, { rootMargin: '200px' });
+    observer.observe(node);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, []);
+
+  // 58 pixels is exactly 2 for each square of this code, so it stays sharp enough for a camera at this small size.
+  return (
+    <div ref={box} className="items-center hidden gap-2.5 lg:flex shrink-0">
+      <span className="p-1 bg-white rounded-lg shrink-0">
+        {src ? <img src={src} width={58} height={58} alt="QR code that opens the download page on your phone" /> : <span className="block w-[58px] h-[58px]" aria-hidden="true" />}
+      </span>
+      <span className="max-w-[96px] text-[12px] leading-snug text-white/50">Or scan it with your phone’s camera</span>
+    </div>
+  );
+}
+
+/** The way to the app, above the links: one slim line on the dark footer. */
 function AppBand() {
   return (
-    <section aria-label="The Loved-IT app" className="relative mb-12 overflow-hidden rounded-3xl bg-white/[0.06] ring-1 ring-inset ring-white/10">
-      <div className="px-6 py-8 sm:px-10 sm:py-10 sm:pr-[320px] lg:pr-[420px]">
-        <p className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-amber-300">The Loved-IT app</p>
-        <h2 className="mt-2 font-serif text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.1]">Take the marketplace with you.</h2>
-        <p className="mt-2.5 max-w-xl text-[14px] leading-relaxed text-white/60">
-          Shop, pay, follow your parcel and message shops from your Android phone. It is free, and it works with the account you already have.
-        </p>
-        <Link to="/download" className="inline-flex items-center gap-2.5 mt-5 h-11 px-5 rounded-full bg-white hover:bg-stone-200 text-[#1E1B18] text-[13.5px] font-semibold transition-colors">
-          <AndroidIcon className="w-[18px] h-[18px] text-[#3DDC84]" />
-          Download for Android
-        </Link>
+    <section aria-label="The Loved-IT app" className="flex flex-col gap-4 p-4 mb-10 sm:flex-row sm:items-center sm:gap-6 sm:px-5 sm:py-3 rounded-2xl bg-white/[0.05] ring-1 ring-inset ring-white/10">
+      <div className="flex items-center flex-1 min-w-0 gap-3.5">
+        <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 shrink-0">
+          <AndroidIcon className="w-6 h-6 text-[#3DDC84]" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-white">Get the Loved-IT app</h2>
+          <p className="mt-0.5 text-[13px] leading-snug text-white/55">Shop, pay and track your parcels on your Android phone. Free, with the account you already have.</p>
+        </div>
       </div>
-      <div aria-hidden="true" className="absolute bottom-0 hidden sm:block right-6 lg:right-14 w-[270px] lg:w-[340px] h-full">
-        <img src={appTracking} alt="" loading="lazy" className="absolute right-0 w-[130px] lg:w-[160px] top-[56px] rounded-t-[22px] border-[5px] border-b-0 border-[#2A2623] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)]" />
-        <img src={appHome} alt="" loading="lazy" className="absolute left-0 w-[140px] lg:w-[175px] top-[28px] rounded-t-[24px] border-[5px] border-b-0 border-[#2A2623] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)]" />
-      </div>
+      <ScanToGetIt />
+      <Link to="/download" className="inline-flex items-center justify-center gap-1.5 h-10 px-5 rounded-full bg-white hover:bg-white/85 text-[13px] font-semibold text-[#1E1B18] whitespace-nowrap transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-black">
+        Download the app <ArrowRight className="w-4 h-4" aria-hidden="true" />
+      </Link>
     </section>
   );
 }
