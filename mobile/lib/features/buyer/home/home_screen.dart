@@ -127,14 +127,18 @@ class _SearchField extends StatelessWidget {
             children: [
               Icon(LucideIcons.search, size: 18, color: AppColors.stone600),
               SizedBox(width: AppSpace.md),
-              Text(
-                'Search Loved-IT',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0,
-                  color: AppColors.stone500,
+              Expanded(
+                child: Text(
+                  'Search Loved-IT',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w400,
+                    letterSpacing: 0,
+                    color: AppColors.stone500,
+                  ),
                 ),
               ),
             ],
@@ -234,21 +238,21 @@ class _QuickCard extends StatelessWidget {
               child: Row(
                 children: [
                   _QuickItem(
-                    icon: LucideIcons.ticketPercent,
+                    image: 'assets/home/ticket.webp',
                     title: 'Vouchers',
                     subtitle: 'Save at checkout',
                     onTap: () => context.push(BuyerPaths.vouchers),
                   ),
                   const _QuickDivider(),
                   _QuickItem(
-                    icon: LucideIcons.packageSearch,
+                    image: 'assets/home/parcel.webp',
                     title: 'My orders',
                     subtitle: 'Track your parcels',
                     onTap: () => context.push(BuyerPaths.orders),
                   ),
                   const _QuickDivider(),
                   _QuickItem(
-                    icon: LucideIcons.tag,
+                    image: 'assets/home/tag.webp',
                     title: 'On sale',
                     subtitle: 'Lower prices now',
                     onTap: () => context.push(
@@ -282,13 +286,13 @@ class _QuickDivider extends StatelessWidget {
 
 class _QuickItem extends StatelessWidget {
   const _QuickItem({
-    required this.icon,
+    required this.image,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
-  final IconData icon;
+  final String image;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -314,25 +318,19 @@ class _QuickItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(icon, size: 18, color: AppColors.brandRed),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                    ),
-                  ],
+                Image.asset(image, width: 34, height: 34),
+                const SizedBox(height: 6),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.ink,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   maxLines: 2,
@@ -373,40 +371,44 @@ class _ShortcutsState extends State<_Shortcuts> {
   Widget build(BuildContext context) {
     void browse(String title, String sort) =>
         context.push(BuyerPaths.searchFor(sort: sort, title: title));
-    final items = <(IconData, String, VoidCallback)>[
-      (LucideIcons.flame, 'Trending', () => browse('Trending now', 'trending')),
+    final items = <(String, String, VoidCallback)>[
       (
-        LucideIcons.trophy,
+        'assets/home/fire.webp',
+        'Trending',
+        () => browse('Trending now', 'trending'),
+      ),
+      (
+        'assets/home/trophy.webp',
         'Best sellers',
         () => browse('Best sellers', 'best_selling'),
       ),
       (
-        LucideIcons.sparkles,
+        'assets/home/sparkles.webp',
         'New arrivals',
         () => browse('New arrivals', 'newest'),
       ),
       (
-        LucideIcons.star,
+        'assets/home/star.webp',
         'Top rated',
         () => browse('Top rated', 'highest_rated'),
       ),
       (
-        LucideIcons.badgePercent,
+        'assets/home/prices.webp',
         'Lowest prices',
         () => browse('Lowest prices', 'price_asc'),
       ),
       (
-        LucideIcons.layoutGrid,
+        'assets/home/bags.webp',
         'All categories',
         () => context.go(BuyerPaths.categories),
       ),
       (
-        LucideIcons.heart,
+        'assets/home/heart.webp',
         'My wishlist',
         () => context.push(BuyerPaths.wishlist),
       ),
       (
-        LucideIcons.store,
+        'assets/home/store.webp',
         'Shops I follow',
         () => context.push(BuyerPaths.following),
       ),
@@ -429,7 +431,8 @@ class _ShortcutsState extends State<_Shortcuts> {
           child: Column(
             children: [
               SizedBox(
-                height: 92,
+                // The picture, and room for a two-line label at any text size.
+                height: 60 + MediaQuery.textScalerOf(context).scale(28),
                 child: ListView.builder(
                   controller: _row,
                   scrollDirection: Axis.horizontal,
@@ -437,8 +440,8 @@ class _ShortcutsState extends State<_Shortcuts> {
                   itemExtent: 78,
                   itemCount: items.length,
                   itemBuilder: (context, index) {
-                    final (icon, label, onTap) = items[index];
-                    return _Shortcut(icon: icon, label: label, onTap: onTap);
+                    final (image, label, onTap) = items[index];
+                    return _Shortcut(image: image, label: label, onTap: onTap);
                   },
                 ),
               ),
@@ -454,12 +457,12 @@ class _ShortcutsState extends State<_Shortcuts> {
 
 class _Shortcut extends StatelessWidget {
   const _Shortcut({
-    required this.icon,
+    required this.image,
     required this.label,
     required this.onTap,
   });
 
-  final IconData icon;
+  final String image;
   final String label;
   final VoidCallback onTap;
 
@@ -475,16 +478,8 @@ class _Shortcut extends StatelessWidget {
         onTap: onTap,
         child: Column(
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: AppColors.brandRedTint,
-                borderRadius: BorderRadius.circular(BuyerRadius.field),
-              ),
-              child: Icon(icon, size: 24, color: AppColors.brandRed),
-            ),
-            const SizedBox(height: 6),
+            Image.asset(image, width: 50, height: 50),
+            const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Text(

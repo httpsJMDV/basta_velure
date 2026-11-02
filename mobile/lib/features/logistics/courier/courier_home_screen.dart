@@ -14,12 +14,13 @@ import '../../../core/widgets/widgets.dart';
 import '../../rider/widgets/rider_widgets.dart';
 import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
+import '../../buyer/widgets/buyer_theme.dart';
 import '../data/logistics_state.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
 import 'courier_kit.dart';
 
-const _awaitingColor = Color(0xFFFCD34D);
+const _awaitingColor = Color(0xFFF59E0B);
 
 /// The courier team's Home (D7): the company's numbers on the portal's dark header, what needs attention, the work to
 /// open, and how the network and its money are doing.
@@ -74,38 +75,13 @@ class _CourierHomeScreenState extends ConsumerState<CourierHomeScreen> {
           subtitle:
               '${dashboard.hubsActive} active hubs · ${dashboard.ridersOnline} of ${dashboard.ridersActive} riders Online',
           logoText: _initials(company?.name),
-          middle: _ParcelsNow(dashboard: dashboard),
-          figures: [
-            HeroFigure(
-              'Awaiting pickup',
-              dashboard.awaitingPickup,
-              color: _awaitingColor,
-              icon: LucideIcons.packageOpen,
-            ),
-            HeroFigure(
-              'At your hubs',
-              dashboard.atHubs,
-              icon: LucideIcons.warehouse,
-            ),
-            HeroFigure(
-              'Out for delivery',
-              dashboard.outForDelivery,
-              color: AppColors.heroEmerald,
-              icon: LucideIcons.truck,
-            ),
-            HeroFigure(
-              'Failed deliveries',
-              dashboard.failed,
-              color: dashboard.failed > 0 ? AppColors.heroRed : AppColors.white,
-              icon: LucideIcons.triangleAlert,
-            ),
-          ],
-          onFigureTap: (index) => switch (index) {
-            0 => _open(LogisticsPaths.courierDispatch),
-            1 => _open(LogisticsPaths.courierScan),
-            3 => _open(LogisticsPaths.courierProblems),
-            _ => context.go(LogisticsPaths.courierParcels),
-          },
+          card: _ParcelsNowCard(
+            dashboard: dashboard,
+            onAwaiting: () => _open(LogisticsPaths.courierDispatch),
+            onAtHubs: () => _open(LogisticsPaths.courierScan),
+            onOut: () => context.go(LogisticsPaths.courierParcels),
+            onFailed: () => _open(LogisticsPaths.courierProblems),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.all(AppSpace.lg),
@@ -237,85 +213,280 @@ class _CourierHomeScreenState extends ConsumerState<CourierHomeScreen> {
   }
 }
 
-/// How the moving parcels split up, on the dark header. The colours are the same as the figures under it, so those read
-/// as the legend.
-class _ParcelsNow extends StatelessWidget {
-  const _ParcelsNow({required this.dashboard});
+/// Where the moving parcels are, read left to right the way a parcel travels: waiting at the shop, at a hub, on the way
+/// to the buyer. The bar shows the split in the colours of the dots. Failed sits apart, because it is the only one that
+/// can need someone. Each part opens the screen that works on it.
+class _ParcelsNowCard extends StatelessWidget {
+  const _ParcelsNowCard({
+    required this.dashboard,
+    required this.onAwaiting,
+    required this.onAtHubs,
+    required this.onOut,
+    required this.onFailed,
+  });
 
   final CourierDashboard dashboard;
+  final VoidCallback onAwaiting;
+  final VoidCallback onAtHubs;
+  final VoidCallback onOut;
+  final VoidCallback onFailed;
 
   @override
   Widget build(BuildContext context) {
     final total = dashboard.parcelsNow;
+    final rose = StatusTone.rose.foreground;
     final parts = [
       (dashboard.awaitingPickup, _awaitingColor),
-      (dashboard.atHubs, AppColors.white),
-      (dashboard.outForDelivery, AppColors.heroEmerald),
-      (dashboard.failed, AppColors.heroRed),
+      (dashboard.atHubs, AppColors.gray900),
+      (dashboard.outForDelivery, kDeliveredGreen),
+      (dashboard.failed, rose),
     ].where((part) => part.$1 > 0).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: BuyerShadow.floating,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '$total',
-              style: const TextStyle(
-                fontSize: 34,
-                height: 1.1,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.6,
-                color: AppColors.white,
-                fontFeatures: [FontFeature.tabularFigures()],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.lg,
+                AppSpace.md,
+                AppSpace.lg,
+                0,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text('$total', style: HubText.figure.copyWith(fontSize: 32)),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: Text(
+                      total == 1
+                          ? 'parcel moving right now'
+                          : 'parcels moving right now',
+                      style: HubText.small.copyWith(fontSize: 14),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: Text(
-                total == 1
-                    ? 'parcel moving right now'
-                    : 'parcels moving right now',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.white.withValues(alpha: 0.75),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.lg,
+                AppSpace.sm,
+                AppSpace.lg,
+                AppSpace.sm,
+              ),
+              child: ExcludeSemantics(
+                child: SizedBox(
+                  key: const ValueKey('parcels-now-bar'),
+                  height: 8,
+                  child: parts.isEmpty
+                      ? const DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.gray200,
+                            borderRadius: BorderRadius.all(Radius.circular(4)),
+                          ),
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (var i = 0; i < parts.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 3),
+                              Expanded(
+                                flex: parts[i].$1,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: parts[i].$2,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+              child: IntrinsicHeight(
+                child: Row(
+                  children: [
+                    _Stage(
+                      value: dashboard.awaitingPickup,
+                      label: 'Awaiting pickup',
+                      color: _awaitingColor,
+                      onTap: onAwaiting,
+                    ),
+                    const _StageArrow(),
+                    _Stage(
+                      value: dashboard.atHubs,
+                      label: 'At your hubs',
+                      color: AppColors.gray900,
+                      onTap: onAtHubs,
+                    ),
+                    const _StageArrow(),
+                    _Stage(
+                      value: dashboard.outForDelivery,
+                      label: 'Out for delivery',
+                      color: kDeliveredGreen,
+                      onTap: onOut,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpace.xs),
+            const Divider(height: 1, color: AppColors.gray100),
+            Semantics(
+              button: true,
+              label: '${dashboard.failed} failed deliveries',
+              excludeSemantics: true,
+              onTap: onFailed,
+              child: InkWell(
+                onTap: onFailed,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.lg,
+                    vertical: AppSpace.md,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.triangleAlert,
+                        size: 17,
+                        color: dashboard.failed > 0 ? rose : AppColors.gray600,
+                      ),
+                      const SizedBox(width: AppSpace.sm),
+                      Expanded(
+                        child: Text(
+                          'Failed deliveries',
+                          style: HubText.small.copyWith(
+                            fontSize: 14,
+                            fontWeight: dashboard.failed > 0
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: dashboard.failed > 0
+                                ? rose
+                                : AppColors.gray600,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${dashboard.failed}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: dashboard.failed > 0
+                              ? rose
+                              : AppColors.gray900,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpace.xs),
+                      const Icon(
+                        LucideIcons.chevronRight,
+                        size: 16,
+                        color: AppColors.gray600,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: AppSpace.sm),
-        ExcludeSemantics(
-          child: SizedBox(
-            height: 8,
-            child: parts.isEmpty
-                ? DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+}
+
+/// One step of a parcel's way: a dot in the bar's colour, how many are there, and what that step is.
+class _Stage extends StatelessWidget {
+  const _Stage({
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final int value;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Semantics(
+        button: true,
+        label: '$value $label',
+        excludeSemantics: true,
+        onTap: onTap,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpace.sm),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                    child: const SizedBox.expand(),
-                  )
-                : Row(
-                    children: [
-                      for (var i = 0; i < parts.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 3),
-                        Expanded(
-                          flex: parts[i].$1,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: parts[i].$2,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '$value',
+                          style: HubText.figure.copyWith(fontSize: 22),
                         ),
-                      ],
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: HubText.small.copyWith(fontSize: 12.5, height: 1.25),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _StageArrow extends StatelessWidget {
+  const _StageArrow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ExcludeSemantics(
+      child: Icon(
+        LucideIcons.chevronRight,
+        size: 14,
+        color: AppColors.stone300,
+      ),
     );
   }
 }

@@ -106,77 +106,81 @@ class ProductCard extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(2, 10, 2, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        height: 1.3,
-                        color: AppColors.stone800,
+              // The grid fixes the card's height, so very large text stops growing here instead of being cut off.
+              child: MediaQuery.withClampedTextScaling(
+                maxScaleFactor: 1.1,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 10, 2, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          height: 1.3,
+                          color: AppColors.stone800,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        PesoText(
-                          product.price,
-                          style: BuyerText.price.copyWith(fontSize: 16),
-                        ),
-                        if (discount > 0) ...[
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: PesoText(
-                              product.originalPrice,
-                              struck: true,
-                              style: const TextStyle(fontSize: 11.5),
+                      const Spacer(),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          PesoText(
+                            product.price,
+                            style: BuyerText.price.copyWith(fontSize: 16),
+                          ),
+                          if (discount > 0) ...[
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: PesoText(
+                                product.originalPrice,
+                                struck: true,
+                                style: const TextStyle(fontSize: 11.5),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          if (product.avgRating != null &&
+                              product.reviewCount > 0) ...[
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: Color(0xFFF59E0B),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              product.avgRating!.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.stone700,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child: Text(
+                              sold ?? 'New',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.stone500,
+                              ),
                             ),
                           ),
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        if (product.avgRating != null &&
-                            product.reviewCount > 0) ...[
-                          const Icon(
-                            Icons.star_rounded,
-                            size: 14,
-                            color: Color(0xFFF59E0B),
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            product.avgRating!.toStringAsFixed(1),
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.stone700,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Expanded(
-                          child: Text(
-                            sold ?? 'New',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: AppColors.stone500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

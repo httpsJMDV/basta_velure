@@ -104,19 +104,22 @@ class _ParcelScannerState extends State<ParcelScanner> {
   }
 
   Future<void> _startCamera() async {
+    // The camera view goes on screen first: start() waits half a second for it, and gives up without it.
+    setState(() => _cameraOn = true);
+    var started = false;
     try {
       await _controller.start();
-      if (mounted) setState(() => _cameraOn = true);
+      // A camera the phone can't open comes back as a state, not as a thrown error.
+      started = _controller.value.error == null;
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _cameraOn = false;
-          _show(
-            _Flash.bad,
-            "The camera couldn't start. Type the tracking number instead.",
-          );
-        });
-      }
+      // Same as above: the message below says what to do instead.
+    }
+    if (!started && mounted) {
+      setState(() => _cameraOn = false);
+      _show(
+        _Flash.bad,
+        "The camera couldn't start. Type the tracking number instead.",
+      );
     }
   }
 
@@ -128,11 +131,14 @@ class _ParcelScannerState extends State<ParcelScanner> {
     if (raw == null) return;
     final code = Rules.normalizeTrackingNumber(raw);
     final now = DateTime.now();
-    if (code == _lastCode &&
+    final stillThere =
+        code == _lastCode &&
         _lastAt != null &&
-        now.difference(_lastAt!) < _sameCodeWait) {
-      return;
-    }
+        now.difference(_lastAt!) < _sameCodeWait;
+    // Each sighting restarts the wait, so a waybill held still counts once, however long it is held.
+    if (code == _lastCode) _lastAt = now;
+    // Not while the last one is sending: this code is read again in a moment, so it isn't lost.
+    if (stillThere || _checking || !widget.enabled) return;
     _lastCode = code;
     _lastAt = now;
     _handle(code);

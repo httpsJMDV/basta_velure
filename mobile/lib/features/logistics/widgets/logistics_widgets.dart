@@ -520,215 +520,117 @@ class StatGrid extends StatelessWidget {
   }
 }
 
-/// One figure on the courier's dark header, in a soft see-through box (the website's `HeroStats`).
-class HeroFigure {
-  const HeroFigure(
-    this.label,
-    this.value, {
-    this.color = AppColors.white,
-    this.icon,
-  });
-
-  final String label;
-  final int value;
-  final Color color;
-  final IconData? icon;
-}
-
-/// The courier portal's dark header: the company's logo tile, its name, and the numbers in see-through boxes.
+/// The courier portal's dark header: the company's logo tile and its name, with [card] sitting half on the dark and half
+/// on the page.
 class CourierHero extends StatelessWidget {
   const CourierHero({
     super.key,
     required this.eyebrow,
     required this.title,
-    required this.figures,
+    required this.card,
     this.subtitle,
     this.logoText,
-    this.onFigureTap,
-    this.middle,
   });
+
+  /// How far the card hangs below the dark.
+  static const _overhang = 64.0;
 
   final String eyebrow;
   final String title;
   final String? subtitle;
   final String? logoText;
-  final List<HeroFigure> figures;
-  final ValueChanged<int>? onFigureTap;
-
-  /// Between the name and the figures, on the dark.
-  final Widget? middle;
+  final Widget card;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.gray900,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        AppSpace.lg,
-        MediaQuery.paddingOf(context).top + AppSpace.md,
-        AppSpace.lg,
-        AppSpace.lg,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (logoText != null) ...[
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: StatusTone.amber.background,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    logoText!,
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: StatusTone.amber.foreground,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpace.md),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      eyebrow.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.8,
-                        color: AppColors.white.withValues(alpha: 0.65),
-                      ),
-                    ),
-                    Text(
-                      title,
-                      style: BuyerText.section.copyWith(
-                        fontSize: 21,
-                        height: 1.2,
-                        color: AppColors.white,
-                      ),
-                    ),
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.white.withValues(alpha: 0.75),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (middle != null) ...[const SizedBox(height: AppSpace.lg), middle!],
-          const SizedBox(height: AppSpace.md),
-          _HeroFigures(figures: figures, onTap: onFigureTap),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroFigures extends StatelessWidget {
-  const _HeroFigures({required this.figures, this.onTap});
-
-  final List<HeroFigure> figures;
-  final ValueChanged<int>? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final columns = MediaQuery.sizeOf(context).width >= 700 ? 4 : 2;
-    return Column(
+    return Stack(
       children: [
-        for (var i = 0; i < figures.length; i += columns) ...[
-          if (i > 0) const SizedBox(height: AppSpace.sm),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var j = i; j < i + columns; j++) ...[
-                  if (j > i) const SizedBox(width: AppSpace.sm),
-                  Expanded(
-                    child: j < figures.length
-                        ? _box(figures[j], j)
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ],
+        const Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: _overhang,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.gray900,
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
             ),
           ),
-        ],
-      ],
-    );
-  }
-
-  Widget _box(HeroFigure figure, int index) {
-    return Material(
-      color: AppColors.white.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppColors.white.withValues(alpha: 0.1)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap == null ? null : () => onTap!(index),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpace.md),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpace.lg,
+            MediaQuery.paddingOf(context).top + AppSpace.md,
+            AppSpace.lg,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${figure.value}',
-                      style: TextStyle(
-                        fontSize: 26,
-                        height: 1.1,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.4,
-                        color: figure.color,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+              Row(
+                children: [
+                  if (logoText != null) ...[
+                    Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: StatusTone.amber.background,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        logoText!,
+                        maxLines: 1,
+                        overflow: TextOverflow.clip,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: StatusTone.amber.foreground,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      figure.label,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.white.withValues(alpha: 0.72),
-                      ),
-                    ),
+                    const SizedBox(width: AppSpace.md),
                   ],
-                ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          eyebrow.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                            color: AppColors.white.withValues(alpha: 0.65),
+                          ),
+                        ),
+                        Text(
+                          title,
+                          style: BuyerText.section.copyWith(
+                            fontSize: 21,
+                            height: 1.2,
+                            color: AppColors.white,
+                          ),
+                        ),
+                        if (subtitle != null)
+                          Text(
+                            subtitle!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.white.withValues(alpha: 0.75),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              if (figure.icon != null) ...[
-                const SizedBox(width: AppSpace.xs),
-                Icon(
-                  figure.icon,
-                  size: 17,
-                  color: AppColors.white.withValues(alpha: 0.5),
-                ),
-              ],
+              const SizedBox(height: AppSpace.lg),
+              card,
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -34,6 +34,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Address? _address;
   CheckoutQuote? _quote;
   ApiFailure? _loadFailure;
+
+  /// Why the chosen address can't be used yet, when it can't: it was saved before addresses had barangay codes.
+  String? _addressProblem;
+  bool _sentToFixAddress = false;
   ApiFailure? _placeFailure;
   bool _quoting = true;
   int _quoteGeneration = 0;
@@ -79,7 +83,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     });
     try {
       final addresses = await ref.read(addressesProvider.future);
-      _address ??=
+      // The same one when it was just edited, so its new version is used.
+      final chosen = _address;
+      _address =
+          addresses.where((a) => a.id == chosen?.id).firstOrNull ??
           addresses.where((a) => a.isDefault).firstOrNull ??
           addresses.firstOrNull;
       await _requote();
@@ -99,6 +106,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() {
       _quoting = true;
       _placeFailure = null;
+      _addressProblem = null;
     });
     try {
       final quote = await _api.quote(
@@ -122,6 +130,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }
     } catch (error) {
       if (!mounted || generation != _quoteGeneration) return;
+      final problem = ApiFailure.from(error).errorFor('address_id');
+      if (problem != null && _address != null) {
+        _showAddressProblem(problem);
+        return;
+      }
       setState(() {
         _quoting = false;
         if (_quote == null) {
@@ -130,6 +143,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _placeFailure = ApiFailure.from(error);
         }
       });
+    }
+  }
+
+  /// Straight to the address form the first time. Coming back without saving shows why the order can't go on yet, with
+  /// the way forward, and doesn't send them there again.
+  void _showAddressProblem(String problem) {
+    setState(() {
+      _quoting = false;
+      _addressProblem = problem;
+    });
+    if (_sentToFixAddress) return;
+    _sentToFixAddress = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _fixAddress();
+    });
+  }
+
+  Future<void> _fixAddress() async {
+    final saved = await context.push<Address>(
+      BuyerPaths.editAddress,
+      extra: _address,
+    );
+    if (saved != null && mounted) {
+      _address = saved;
+      await _start();
     }
   }
 
@@ -253,7 +291,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout')),
-      body: _loadFailure != null
+      body: _addressProblem != null
+          ? _AddressProblem(
+              address: _address,
+              message: _addressProblem!,
+              onFix: _fixAddress,
+              onChoose: _pickAddress,
+            )
+          : _loadFailure != null
           ? ErrorRetry(failure: _loadFailure!, onRetry: _start)
           : quote == null
           ? const SkeletonList(count: 4)
@@ -730,6 +775,75 @@ class _IdNotice extends StatelessWidget {
               label: const Text('Verify my ID'),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// The chosen address can't be delivered to yet. Not an error to retry: it needs the person to do one thing.
+class _AddressProblem extends StatelessWidget {
+  const _AddressProblem({
+    required this.address,
+    required this.message,
+    required this.onFix,
+    required this.onChoose,
+  });
+
+  final Address? address;
+  final String message;
+  final VoidCallback onFix;
+  final VoidCallback onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpace.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Update your address to continue', style: BuyerText.section),
+            const SizedBox(height: AppSpace.sm),
+            MessageBanner(
+              message: message,
+              tone: StatusTone.amber,
+              icon: LucideIcons.mapPin,
+            ),
+            if (address != null) ...[
+              const SizedBox(height: AppSpace.md),
+              Text(
+                address!.fullName,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                address!.oneLine,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  height: 1.4,
+                  color: AppColors.stone600,
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpace.lg),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
+              onPressed: onFix,
+              child: const Text('Update this address'),
+            ),
+            const SizedBox(height: AppSpace.sm),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
+              onPressed: onChoose,
+              child: const Text('Use another address'),
+            ),
+          ],
+        ),
       ),
     );
   }

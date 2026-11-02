@@ -134,6 +134,7 @@ class ProductSeller {
     this.productCount = 0,
     this.avgRating,
     this.unitsSold = 0,
+    this.joinedAt,
   });
 
   /// The seller's user id: `seller_id` everywhere else (chat, vouchers, follow).
@@ -146,6 +147,9 @@ class ProductSeller {
   final int productCount;
   final double? avgRating;
   final int unitsSold;
+
+  /// When the shop was approved to sell.
+  final DateTime? joinedAt;
 
   /// The shop page takes the slug, or the id for a shop without one.
   String get shopKey => shopSlug ?? '$id';
@@ -160,6 +164,7 @@ class ProductSeller {
     productCount: asInt(json['product_count']),
     avgRating: asDoubleOrNull(json['avg_rating']),
     unitsSold: asInt(json['units_sold']),
+    joinedAt: asDate(json['joined_at']),
   );
 }
 
@@ -565,6 +570,8 @@ class ProductReview {
     this.variantLabel,
     this.productName,
     this.sellerReply,
+    this.avatarUrl,
+    this.verifiedPurchase = false,
   });
 
   final int id;
@@ -576,6 +583,8 @@ class ProductReview {
   final String? variantLabel;
   final String? productName;
   final String? sellerReply;
+  final String? avatarUrl;
+  final bool verifiedPurchase;
 
   factory ProductReview.fromJson(Json json) => ProductReview(
     id: asInt(json['id']),
@@ -589,6 +598,8 @@ class ProductReview {
         asString(asJson(json['product'])['name']) ??
         asString(json['product_name']),
     sellerReply: asString(asJson(json['seller_reply'])['body']),
+    avatarUrl: asString(asJson(json['buyer'])['avatar_url']),
+    verifiedPurchase: asBool(json['verified_purchase']),
   );
 }
 
