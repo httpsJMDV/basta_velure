@@ -34,7 +34,7 @@ class AdminBuyerApplicationController extends Controller
             }))
             ->orderBy('created_at', $sort === 'oldest' ? 'asc' : 'desc');
 
-        $perPage = min((int) ($request->per_page ?? 30), 100);
+        $perPage = min(max((int) ($request->per_page ?? 30), 1), 100);
         $users   = $query->paginate($perPage);
 
         // Summary counts (always for pending with complete application regardless of current filter)

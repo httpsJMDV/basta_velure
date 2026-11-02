@@ -64,6 +64,31 @@ RateLimiter::for('auth', fn (Request $request) => \Illuminate\Cache\RateLimiting
 RateLimiter::for('register', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(30)->by($request->ip()));
 RateLimiter::for('upload', fn (Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by($request->ip()));
 
+// Guessing passwords: a few tries for one account from one address, a cap on that account from anywhere (without locking
+// its owner out for long), and a cap on how many accounts one address can try.
+RateLimiter::for('login', function (Request $request) {
+    $identifier = $request->input('identifier') ?? $request->input('email');
+    $account = mb_strtolower(trim(is_string($identifier) ? $identifier : ''));
+    $tooMany = fn (Request $request, array $headers) => response()->json([
+        'message' => 'Too many sign-in attempts. Wait a few minutes and try again.',
+    ], 429, $headers);
+
+    return [
+        \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by('pair:' . $request->ip() . '|' . $account)->response($tooMany),
+        \Illuminate\Cache\RateLimiting\Limit::perMinutes(15, 30)->by('account:' . $account)->response($tooMany),
+        \Illuminate\Cache\RateLimiting\Limit::perMinute(20)->by('address:' . $request->ip())->response($tooMany),
+    ];
+});
+// A reset link is an email to someone else's inbox, so one address cannot be flooded with them.
+RateLimiter::for('forgot-password', function (Request $request) {
+    $email = $request->input('email');
+
+    return \Illuminate\Cache\RateLimiting\Limit::perMinutes(15, 5)->by('reset:' . mb_strtolower(trim(is_string($email) ? $email : '')))
+        ->response(fn (Request $request, array $headers) => response()->json([
+            'message' => 'If that email exists, a reset link has been sent.',
+        ], 200, $headers));
+});
+
 // Broadcast auth for Sanctum (/api/broadcasting/auth)
 \Illuminate\Support\Facades\Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
@@ -108,8 +133,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/rider-activation', [\App\Http\Controllers\Api\V1\RiderActivationController::class, 'activate']);
     });
     Route::middleware('throttle:auth')->group(function () {
-        Route::post('/auth/login', [AuthController::class, 'login']);
-        Route::post('/auth/forgot-password', [PasswordController::class, 'forgot']);
+        Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+        Route::post('/auth/forgot-password', [PasswordController::class, 'forgot'])->middleware('throttle:forgot-password');
         Route::post('/auth/reset-password', [PasswordController::class, 'reset']);
         Route::post('/auth/google', GoogleAuthController::class);
     });
@@ -609,6 +634,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/sorting/groups',                          [HubSortingController::class, 'groups']);
             Route::get('/sorting/groups/{barangay_code}/parcels',  [HubSortingController::class, 'groupParcels']);
             Route::post('/sorting/sort',                           [HubSortingController::class, 'sort']);
+
+            // Hub-to-hub transfers
+            Route::get('/transfers',       [\App\Http\Controllers\Api\V1\HubTransferController::class, 'index']);
+            Route::post('/transfers/send', [\App\Http\Controllers\Api\V1\HubTransferController::class, 'send']);
 
             // Delivery monitoring and failure triage (Feature 1.9)
             Route::get('/deliveries/out',                               [HubDeliveryController::class, 'out']);

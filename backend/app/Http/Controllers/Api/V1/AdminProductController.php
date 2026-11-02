@@ -32,7 +32,7 @@ class AdminProductController extends Controller
             ->when($request->seller_id, fn ($q) => $q->where('seller_id', $request->seller_id))
             ->latest();
 
-        $perPage = min((int) $request->input('per_page', 50), 100);
+        $perPage = min(max((int) $request->input('per_page', 50), 1), 100);
         $paginated = $query->paginate($perPage);
 
         return response()->json([

@@ -9,6 +9,7 @@ use App\Models\Parcel;
 use App\Models\SortingCenter;
 use App\Services\Commerce\ShippingCalculator;
 use App\Services\Courier\Dispatcher;
+use App\Services\Courier\HubRouter;
 use App\Services\Notifier;
 use App\Services\OrderStateMachine;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +28,7 @@ class LogisticsHubOpsController extends Controller
     public function __construct(
         private readonly OrderStateMachine $machine,
         private readonly Dispatcher $dispatcher,
+        private readonly HubRouter $router,
     ) {}
 
     private function company(Request $request): LogisticsCompany
@@ -71,7 +73,7 @@ class LogisticsHubOpsController extends Controller
 
         return response()->json(['data' => [
             'incoming' => $parcels->where('status', Parcel::STATUS_PICKED_UP)->map(fn ($p) => $this->row($p))->values(),
-            'to_sort'  => $parcels->where('status', Parcel::STATUS_AT_SORTING_CENTER)->map(fn ($p) => $this->row($p))->values(),
+            'to_sort'  => $parcels->where('status', Parcel::STATUS_AT_SORTING_CENTER)->reject(fn (Parcel $p) => $p->awaitingTransfer())->map(fn ($p) => $this->row($p))->values(),
             'zones'    => $sorted,
         ]]);
     }
@@ -88,6 +90,11 @@ class LogisticsHubOpsController extends Controller
             if ($parcel->status === Parcel::STATUS_READY_FOR_PICKUP) {
                 abort(409, 'This parcel has not been picked up yet. The rider scans it at the shop first.');
             }
+            if ($parcel->transit_since !== null) {
+                $this->router->arrive($parcel, $parcel->sortingCenter, $request->user(), 'logistics');
+
+                return $parcel->fresh(['order:id,order_number']);
+            }
             if ($parcel->status !== Parcel::STATUS_PICKED_UP) {
                 abort(409, 'Already received' . ($parcel->scanned_in_at ? ' on ' . $parcel->scanned_in_at->setTimezone('Asia/Manila')->format('M j, g:i A') : '') . '. Nothing was changed.');
             }
@@ -95,6 +102,9 @@ class LogisticsHubOpsController extends Controller
             $this->machine->transition($parcel->order, OrderStatus::AT_SORTING_CENTER, 'logistics', $request->user()->id,
                 'Received at the hub.', ['tracking_number' => $parcel->tracking_number, 'sorting_center_id' => $hub]);
             Parcel::whereKey($parcel->id)->update(['scanned_in_at' => now(), 'sorting_center_id' => $hub]);
+            if ($received = SortingCenter::find($hub)) {
+                $this->router->plan($parcel, $received);
+            }
 
             return $parcel->fresh(['order:id,order_number']);
         });
@@ -112,6 +122,9 @@ class LogisticsHubOpsController extends Controller
             $parcel = $this->lock($company, $data['tracking_number']);
             if (in_array($parcel->status, [Parcel::STATUS_READY_FOR_PICKUP, Parcel::STATUS_PICKED_UP], true)) {
                 abort(409, 'Scan this parcel at Inbound first.');
+            }
+            if ($parcel->awaitingTransfer()) {
+                abort(409, 'This parcel goes on to another hub, so it is sorted there.');
             }
             if ($parcel->status !== Parcel::STATUS_AT_SORTING_CENTER) {
                 abort(409, 'Already sorted' . ($parcel->shipping_zone ? " into {$parcel->shipping_zone}" : '') . '. Nothing was changed.');

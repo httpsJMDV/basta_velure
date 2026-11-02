@@ -54,6 +54,7 @@ class CheckoutController extends Controller
             'notes'          => ['nullable'],
             'expected_total' => ['nullable', 'numeric', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:80'],
+            'high_value_agreed' => ['nullable', 'boolean'],
         ], [
             'payment_method.required' => 'Choose how you will pay.',
             'payment_method.in'       => 'Choose cash on delivery, GCash, e-wallet or card.',
@@ -71,6 +72,7 @@ class CheckoutController extends Controller
                 'items' => $items, 'destination' => $destination, 'snapshot' => $snapshot, 'codes' => $this->codes($request),
                 'payment_method' => $method, 'notes' => $notes, 'source' => $source,
                 'expected_total' => $request->filled('expected_total') ? (float) $request->input('expected_total') : null,
+                'high_value_agreed' => $request->boolean('high_value_agreed'),
             ], $key !== '' ? $key : null, $gcash);
         } catch (\Throwable $e) {
             if ($gcash) {

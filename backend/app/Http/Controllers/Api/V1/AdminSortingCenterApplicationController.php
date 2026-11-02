@@ -22,7 +22,7 @@ class AdminSortingCenterApplicationController extends Controller
         $status  = $request->query('status', SortingCenter::STATUS_PENDING);
         $search  = $request->query('search');
         $sort    = $request->query('sort', 'newest');
-        $perPage = min((int) $request->query('per_page', 30), 100);
+        $perPage = min(max((int) $request->query('per_page', 30), 1), 100);
 
         $query = SortingCenter::with('user');
 

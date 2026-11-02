@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Services\CourierAssigner;
 use App\Services\Pricing\PriceBook;
+use App\Support\OrderLimits;
 use App\Support\Validation;
 use Illuminate\Support\Str;
 
@@ -182,6 +183,15 @@ class CheckoutCalculator
             if ($destination && ! $shipping['serviceable']) {
                 $problems[] = ['type' => 'unserviceable', 'seller_id' => (int) $sellerId, 'message' => $shipping['message']];
             }
+            // A rider carries the shop's whole parcel, so the limit is on all of its items together.
+            if ($grams / 1000 > OrderLimits::maxParcelKg() + 1e-9) {
+                $problems[] = [
+                    'type' => 'too_heavy', 'seller_id' => (int) $sellerId,
+                    'message' => $out[$sellerId]['seller']['shop_name'] . ': this parcel weighs ' . OrderLimits::kg($grams / 1000)
+                        . '. One shop\'s parcel can weigh at most ' . OrderLimits::kg(OrderLimits::maxParcelKg())
+                        . ', because a rider has to carry it. Lower the quantity, then order the rest separately.',
+                ];
+            }
         }
 
         // ── Platform and shipping vouchers ─────────────────────────────────
@@ -229,6 +239,18 @@ class CheckoutCalculator
             'total'             => round(array_sum(array_column($out, 'total')), 2),
         ];
 
+        $lineCount = array_sum(array_map(fn ($s) => count($s['lines']), $out));
+        if ($lineCount > (int) config('orders.max_lines')) {
+            $problems[] = ['type' => 'too_many_items', 'message' => 'One checkout can have at most ' . config('orders.max_lines') . " different items, and this one has {$lineCount}. Remove some and order them separately."];
+        }
+        if ($totals['items'] > (int) config('orders.max_units')) {
+            $problems[] = ['type' => 'too_many_items', 'message' => 'One checkout can have at most ' . config('orders.max_units') . " pieces, and this one has {$totals['items']}. Lower the quantity and order the rest separately."];
+        }
+        if ($totals['total'] > (float) config('orders.max_total')) {
+            $problems[] = ['type' => 'order_too_large', 'message' => 'One checkout can total at most ' . OrderLimits::peso((float) config('orders.max_total')) . '. Split this into smaller orders.'];
+        }
+        $biggestOrder = $out === [] ? 0.0 : max(array_column($out, 'total'));
+
         return [
             'stores'           => array_values($out),
             'platform_voucher' => $platform,
@@ -236,6 +258,12 @@ class CheckoutCalculator
             'totals'           => $totals,
             'problems'         => $problems,
             'can_place'        => $problems === [] && $out !== [],
+            'limits'           => [
+                'cod_max'            => OrderLimits::codMax(),
+                'cod_available'      => $biggestOrder <= OrderLimits::codMax(),
+                'agreement_min'      => OrderLimits::highValueMin(),
+                'agreement_required' => $totals['total'] >= OrderLimits::highValueMin(),
+            ],
             'wallet'           => $this->walletFor($buyer, $out, $merchAll, $netAll, $shipAll),
         ];
     }

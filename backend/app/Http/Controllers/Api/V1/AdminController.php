@@ -261,7 +261,7 @@ class AdminController extends Controller
             ->when($request->role === 'rider', fn ($q) => $q->with('rider.sortingCenter'))
             ->latest();
 
-        $perPage = min((int) ($request->per_page ?? 30), 100);
+        $perPage = min(max((int) ($request->per_page ?? 30), 1), 100);
         $users = $query->paginate($perPage);
 
         return response()->json(UserResource::collection($users)->response()->getData(true));

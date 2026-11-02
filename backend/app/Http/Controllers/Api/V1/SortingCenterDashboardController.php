@@ -70,7 +70,7 @@ class SortingCenterDashboardController extends Controller
 
         // Count parcels currently in AT_SORTING_CENTER status awaiting sorting
         $inSorting = $sortingCenter->parcels()
-            ->where('status', Parcel::STATUS_AT_SORTING_CENTER)
+            ->waitingToSort()
             ->count();
 
         // Count active riders assigned to this sorting center with active area assignments

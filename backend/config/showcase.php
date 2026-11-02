@@ -30,6 +30,15 @@ return [
     // They meet the password rule every real account meets (A5: 8+ characters, upper and lower case, a number and
     // a symbol). Accounts seeded with the old easy ones get these from: php artisan showcase:check --fix
     'passwords' => [
+        'buyer'   => env('SHOWCASE_PASSWORD_BUYER', 'Buyer@123'),
+        'seller'  => env('SHOWCASE_PASSWORD_SELLER', 'Seller@123'),
+        'courier' => env('SHOWCASE_PASSWORD_COURIER', 'Courier@123'),
+        'hub'     => env('SHOWCASE_PASSWORD_HUB', 'Hub@1234'),
+        'rider'   => env('SHOWCASE_PASSWORD_RIDER', 'Rider@123'),
+    ],
+
+    // These are readable in the repository, so they must not stay on a live site: php artisan showcase:rotate-passwords
+    'public_passwords' => [
         'buyer'   => 'Buyer@123',
         'seller'  => 'Seller@123',
         'courier' => 'Courier@123',

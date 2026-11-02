@@ -14,6 +14,13 @@ class AdminSeeder extends Seeder
             return;
         }
 
+        // This password is public in the code, so it must never become the real site's admin.
+        if (app()->environment('production')) {
+            $this->command?->warn('No admin was created: set one up by hand on a live site.');
+
+            return;
+        }
+
         $user = User::create([
             'first_name' => 'Loved-IT',
             'last_name'  => 'Admin',

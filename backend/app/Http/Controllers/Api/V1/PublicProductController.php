@@ -42,6 +42,10 @@ class PublicProductController extends Controller
     /** GET /products */
     public function index(Request $request, ProductSearch $searcher): JsonResponse
     {
+        // The search compares word by word, so its cost grows with what is typed. ?q[]=x is not a search at all.
+        $typed = $request->input('q');
+        $request->merge(['q' => is_string($typed) ? mb_substr($typed, 0, 100) : null]);
+
         // A price range is checked before it filters anything: no negatives, and the minimum cannot exceed the maximum.
         $request->validate([
             'min_price' => ['nullable', 'numeric', 'min:0'],
@@ -168,7 +172,7 @@ class PublicProductController extends Controller
                 : $query->orderByDesc('units_sold')->orderByDesc('avg_rating'),
         };
 
-        $perPage   = min((int) $request->input('per_page', 28), 100);
+        $perPage   = min(max((int) $request->input('per_page', 28), 1), 100);
         $paginated = $query->paginate($perPage);
         $this->book = PriceBook::for(collect($paginated->items())->pluck('id'));
 
@@ -608,6 +612,7 @@ class PublicProductController extends Controller
             'specs' => [
                 'description'            => $product->description ?? '',
                 'whats_in_box'           => null,
+                'bulky'                  => \App\Support\OrderLimits::bulkyInfo($product->weight_kg),
                 'weight_grams'           => $product->weight_kg ? (int) ($product->weight_kg * 1000) : null,
                 'dimensions_cm'          => $product->dimension_l_cm
                     ? "{$product->dimension_l_cm} × {$product->dimension_w_cm} × {$product->dimension_h_cm}"

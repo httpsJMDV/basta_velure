@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Parcel;
 use App\Models\SortingCenter;
+use App\Services\Courier\HubRouter;
 use App\Services\OrderStateMachine;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,7 @@ class HubParcelIntakeController extends Controller
 {
     protected const NOT_FOUND_MESSAGE = 'Parcel not found for this hub.';
 
-    public function __construct(protected OrderStateMachine $stateMachine)
+    public function __construct(protected OrderStateMachine $stateMachine, protected HubRouter $router)
     {
     }
 
@@ -66,6 +67,16 @@ class HubParcelIntakeController extends Controller
                 ], 409);
             }
 
+            // Sent here by another hub: the order is already AT_SORTING_CENTER, so only the parcel moves on.
+            if ($parcel->transit_since !== null) {
+                $this->router->arrive($parcel, $hub, $request->user());
+
+                return response()->json([
+                    'message' => 'Parcel received.',
+                    'data'    => $this->detail(Parcel::with(['order:id,order_number', 'pickupRider.user'])->find($parcel->id)),
+                ]);
+            }
+
             if ($parcel->scanned_in_at !== null || $parcel->status !== Parcel::STATUS_PICKED_UP) {
                 return response()->json([
                     'message'        => 'This parcel has already been received.',
@@ -91,6 +102,7 @@ class HubParcelIntakeController extends Controller
             );
 
             Parcel::where('id', $parcel->id)->update(['scanned_in_at' => now()]);
+            $this->router->plan($parcel, $hub);
 
             $parcel = Parcel::with(['order:id,order_number', 'pickupRider.user'])->find($parcel->id);
 
@@ -112,7 +124,7 @@ class HubParcelIntakeController extends Controller
 
         $paginated = Parcel::with(['order:id,order_number', 'pickupRider.user'])
             ->where('sorting_center_id', $hub->id)
-            ->where('status', Parcel::STATUS_PICKED_UP)
+            ->expectedAtHub()
             ->orderBy('picked_up_at', 'asc')
             ->orderBy('id', 'asc')
             ->paginate($this->perPage($request));
@@ -202,6 +214,9 @@ class HubParcelIntakeController extends Controller
             ] : null,
             'picked_up_at'         => $parcel->picked_up_at?->toIso8601String(),
             'scanned_in_at'        => $parcel->scanned_in_at?->toIso8601String(),
+            // A transfer: which hub sent it here, or which hub this hub has to send it on to.
+            'coming_from'          => $this->router->comingFrom($parcel),
+            'next_hub'             => $this->router->nextHub($parcel)?->hub_name,
         ];
     }
 

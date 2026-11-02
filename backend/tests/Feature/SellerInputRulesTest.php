@@ -85,8 +85,8 @@ class SellerInputRulesTest extends TestCase
         }
         $this->send('/api/v1/seller/products', $this->product(['sku' => 'SKU 001!', 'status' => 'draft']))
             ->assertStatus(422)->assertJsonValidationErrors(['sku']);
-        $this->send('/api/v1/seller/products', $this->product(['weight_kg' => 1001, 'status' => 'draft']))
-            ->assertStatus(422)->assertJsonValidationErrors(['weight_kg' => 'The weight must be 1,000 kg or less.']);
+        $this->send('/api/v1/seller/products', $this->product(['weight_kg' => 51, 'status' => 'draft']))
+            ->assertStatus(422)->assertJsonValidationErrors(['weight_kg' => 'The weight must be 50 kg or less, because a rider has to carry it.']);
 
         // Option names: 1 to 20 characters with a letter or a number.
         foreach (['Extraordinarily Long Color', '!!!'] as $option) {

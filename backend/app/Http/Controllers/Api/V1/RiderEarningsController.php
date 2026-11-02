@@ -48,6 +48,14 @@ class RiderEarningsController extends Controller
                 'breakdown'            => $this->breakdown($rider, $period),
                 'lifetime_total'       => Money::fromCents(Money::toCents($lifetime)),
                 'unpaid_total'         => Money::fromCents(Money::toCents($unpaid)),
+                // What the guide in the rider app tells them: the numbers that are actually in force.
+                'rates'                => [
+                    'pickup'                => (string) config('shipping.rider_pay.pickup'),
+                    'delivery'              => (string) config('shipping.rider_pay.delivery'),
+                    'max_delivery_attempts' => (int) config('logistics.max_delivery_attempts'),
+                    'max_parcel_kg'         => \App\Support\OrderLimits::maxParcelKg(),
+                    'cod_max'               => \App\Support\OrderLimits::codMax(),
+                ],
             ],
         ]);
     }

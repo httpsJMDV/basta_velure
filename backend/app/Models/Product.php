@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\SafeHtml;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +25,15 @@ class Product extends Model
 
     /** Order statuses after which an order no longer holds a product or variant (A19). */
     public const FINISHED_ORDER_STATUSES = ['COMPLETED', 'CANCELLED', 'RETURNED', 'LOST', 'DAMAGED'];
+
+    /** Shown as HTML on buyer and admin pages, so it is cleaned on the way in and, for older rows, on the way out. */
+    protected function description(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value) => SafeHtml::clean($value),
+            set: fn (?string $value) => SafeHtml::clean($value),
+        );
+    }
 
     protected $casts = [
         'base_price'     => 'float',

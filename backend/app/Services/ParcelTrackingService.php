@@ -6,6 +6,7 @@ use App\Models\Parcel;
 use App\Models\Rider;
 use App\Models\SortingCenter;
 use App\Models\User;
+use App\Services\Courier\HubRouter;
 
 /**
  * Builds the "Track package" payload for one parcel: a timeline written from the order's status history, the
@@ -57,6 +58,8 @@ class ParcelTrackingService
             // The buyer can start a chat with the rider bringing the parcel (Message rider), only while it is out for delivery.
             'can_message_rider' => $viewerRole === 'buyer' && app(RiderChatService::class)->buyerCanMessageRider($parcel),
             'events'          => $this->events($parcel),
+            // The whole way, hub by hub, as a timeline.
+            'journey'         => app(HubRouter::class)->journey($parcel),
             'proof'           => [
                 'count'        => (int) (bool) $parcel->delivery_proof_path + (int) (bool) $parcel->delivery_proof_path_2,
                 'delivered_at' => $parcel->delivered_at?->toIso8601String(),
@@ -180,6 +183,8 @@ class ParcelTrackingService
             $to = $h->to_status instanceof \BackedEnum ? $h->to_status->value : (string) $h->to_status;
             $event = is_array($h->meta) ? ($h->meta['event'] ?? null) : null;
             [$title, $detail] = $event ? match ($event) {
+                'hub_departed'      => ['Left the hub', (string) $h->note],
+                'hub_arrived'       => ['Arrived at the next hub', (string) $h->note],
                 'pickup_assigned'   => ['Courier assigned', $h->note ?: 'A courier will pick up the package.'],
                 'pickup_reassigned' => ['Courier changed', $h->note ?: 'Another courier will pick up the package.'],
                 'rts_assigned'      => ['Returning to the seller', $h->note ?: 'A courier is taking the package back to the seller.'],

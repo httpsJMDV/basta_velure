@@ -434,6 +434,8 @@ class RiderDeliveryController extends Controller
         return [
             'tracking_number'     => $parcel->tracking_number,
             'order_number'        => $parcel->order?->order_number,
+            // The hubs it came through, last one being the rider's own.
+            'hub_path'            => app(\App\Services\Courier\HubRouter::class)->path($parcel),
             'recipient'           => [
                 'name'    => (string) ($recipient['name'] ?? ''),
                 'phone'   => (string) ($recipient['phone'] ?? ''),
