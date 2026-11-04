@@ -214,7 +214,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
         icon: last ? LucideIcons.check : null,
         onPressed: _continue,
       ),
-      footer: const Align(alignment: Alignment.center, child: SignOutButton()),
+      footer: const Align(alignment: Alignment.center, child: SignOutButton.compact()),
       children: [
         AuthStepBar(steps: _steps, current: _step),
         const SizedBox(height: AppSpace.xl),

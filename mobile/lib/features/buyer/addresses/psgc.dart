@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_failure.dart';
@@ -50,11 +53,18 @@ final psgcProvider = Provider<Psgc>((ref) {
 /// The free PSGC list the website uses (`https://psgc.gitlab.io/api`). Its own client, so the Loved-IT sign-in
 /// token is never sent to another site. Lists are kept for the session: places don't change.
 class Psgc {
+  Psgc({@visibleForTesting HttpClientAdapter? adapter}) {
+    if (adapter != null) _dio.httpClientAdapter = adapter;
+  }
+
+  // Read as plain text: this service labels its JSON as a web page (text/html), so Dio would hand back a string, and
+  // that used to look like having no internet. A browser's `.json()` doesn't care, which is why the website never saw it.
   final _dio = Dio(
     BaseOptions(
       baseUrl: 'https://psgc.gitlab.io/api',
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
+      responseType: ResponseType.plain,
     ),
   );
   final _cache = <String, List<PsgcPlace>>{};
@@ -118,8 +128,10 @@ class Psgc {
 
   Future<Json?> _object(String path) async {
     try {
-      return asJson((await _dio.get<Object?>(path)).data);
+      return asJson(jsonDecode((await _dio.get<String>(path)).data ?? ''));
     } on DioException {
+      return null;
+    } on FormatException {
       return null;
     }
   }
@@ -128,9 +140,9 @@ class Psgc {
     final cached = _cache[path];
     if (cached != null) return cached;
     try {
-      final response = await _dio.get<List<dynamic>>(path);
+      final response = await _dio.get<String>(path);
       final places =
-          asJsonList(response.data)
+          asJsonList(jsonDecode(response.data ?? ''))
               .map(
                 (json) => PsgcPlace(
                   asString(json['code']) ?? '',
@@ -143,6 +155,12 @@ class Psgc {
       return _cache[path] = places;
     } on DioException catch (error) {
       throw ApiFailure.fromDio(error);
+    } on FormatException {
+      // The service answered, with something that isn't the list. Saying "no internet" would be wrong.
+      throw const ApiFailure(
+        FailureKind.server,
+        "The list of places isn't available right now. Please try again in a moment.",
+      );
     }
   }
 

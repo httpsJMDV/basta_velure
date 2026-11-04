@@ -238,21 +238,21 @@ class _QuickCard extends StatelessWidget {
               child: Row(
                 children: [
                   _QuickItem(
-                    image: 'assets/home/ticket.webp',
+                    image: 'assets/home/vouchers.webp',
                     title: 'Vouchers',
                     subtitle: 'Save at checkout',
                     onTap: () => context.push(BuyerPaths.vouchers),
                   ),
                   const _QuickDivider(),
                   _QuickItem(
-                    image: 'assets/home/parcel.webp',
+                    image: 'assets/home/orders.webp',
                     title: 'My orders',
                     subtitle: 'Track your parcels',
                     onTap: () => context.push(BuyerPaths.orders),
                   ),
                   const _QuickDivider(),
                   _QuickItem(
-                    image: 'assets/home/tag.webp',
+                    image: 'assets/home/sale.webp',
                     title: 'On sale',
                     subtitle: 'Lower prices now',
                     onTap: () => context.push(
@@ -265,6 +265,29 @@ class _QuickCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A real photograph in a circle, for a shortcut.
+class _PhotoCircle extends StatelessWidget {
+  const _PhotoCircle(this.image, {required this.size});
+
+  final String image;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final pixels = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    return ClipOval(
+      child: Image.asset(
+        image,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        cacheWidth: pixels,
+        excludeFromSemantics: true,
+      ),
     );
   }
 }
@@ -318,7 +341,7 @@ class _QuickItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Image.asset(image, width: 34, height: 34),
+                _PhotoCircle(image, size: 40),
                 const SizedBox(height: 6),
                 Text(
                   title,
@@ -373,42 +396,42 @@ class _ShortcutsState extends State<_Shortcuts> {
         context.push(BuyerPaths.searchFor(sort: sort, title: title));
     final items = <(String, String, VoidCallback)>[
       (
-        'assets/home/fire.webp',
+        'assets/categories/mens-footwear.jpg',
         'Trending',
         () => browse('Trending now', 'trending'),
       ),
       (
-        'assets/home/trophy.webp',
+        'assets/categories/earphones-audio.jpg',
         'Best sellers',
         () => browse('Best sellers', 'best_selling'),
       ),
       (
-        'assets/home/sparkles.webp',
+        'assets/categories/smartwatches-wearables.jpg',
         'New arrivals',
         () => browse('New arrivals', 'newest'),
       ),
       (
-        'assets/home/star.webp',
+        'assets/categories/fragrances.jpg',
         'Top rated',
         () => browse('Top rated', 'highest_rated'),
       ),
       (
-        'assets/home/prices.webp',
+        'assets/categories/canned-goods.jpg',
         'Lowest prices',
         () => browse('Lowest prices', 'price_asc'),
       ),
       (
-        'assets/home/bags.webp',
+        'assets/categories/bags-accessories.jpg',
         'All categories',
         () => context.go(BuyerPaths.categories),
       ),
       (
-        'assets/home/heart.webp',
+        'assets/categories/jewelry.jpg',
         'My wishlist',
         () => context.push(BuyerPaths.wishlist),
       ),
       (
-        'assets/home/store.webp',
+        'assets/categories/food-grocery.jpg',
         'Shops I follow',
         () => context.push(BuyerPaths.following),
       ),
@@ -478,8 +501,8 @@ class _Shortcut extends StatelessWidget {
         onTap: onTap,
         child: Column(
           children: [
-            Image.asset(image, width: 50, height: 50),
-            const SizedBox(height: 8),
+            _PhotoCircle(image, size: 54),
+            const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Text(

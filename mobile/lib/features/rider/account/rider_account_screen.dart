@@ -74,7 +74,7 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
                       ),
                       const HomeSwitchList(),
                       const SizedBox(height: AppSpace.md),
-                      const Center(child: SignOutButton()),
+                      const SignOutButton(),
                     ],
                   )
                 : const SkeletonList(count: 4))
@@ -154,7 +154,7 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
                   const SizedBox(height: AppSpace.lg),
                   const HomeSwitchList(),
                   const SizedBox(height: AppSpace.md),
-                  const Center(child: SignOutButton()),
+                  const SignOutButton(),
                 ],
               ),
             ),
