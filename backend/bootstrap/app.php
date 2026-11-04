@@ -30,7 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // The public site reaches PHP through a Cloudflare Tunnel (cloudflared on this machine), so every
         // request comes from 127.0.0.1. Trust it so $request->ip() is the visitor's address from
         // X-Forwarded-For and the per-IP rate limits apply per visitor, not to everyone at once.
-        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+        // On Laravel Cloud requests arrive through Cloud's own load balancer instead, so trust that hop
+        // (otherwise links are built as http:// and every visitor shares one rate limit).
+        $middleware->trustProxies(at: laravel_cloud() ? '*' : ['127.0.0.1', '::1']);
 
         // The framework default sends guests to route('login'), which this API-only app does not have, so any
         // /api/* request without "Accept: application/json" crashed with a 500 instead of a 401.
