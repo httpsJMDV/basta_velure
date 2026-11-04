@@ -38,14 +38,50 @@ void main() {
       expect(homesFor(user(role: 'admin')), [AppHome.webOnly]);
     });
 
-    test(
-      'an active rider opens Rider; a buyer who rides can switch to the shop',
-      () {
-        final ridingBuyer = user(rider: {'id': 1, 'status': 'ACTIVE'});
-        expect(homesFor(ridingBuyer), [AppHome.rider, AppHome.buyer]);
-        expect(defaultHomeFor(ridingBuyer), AppHome.rider);
-      },
-    );
+    test('an active rider opens Rider and cannot switch to the shop, even with a buyer role', () {
+      final ridingBuyer = user(rider: {'id': 1, 'status': 'ACTIVE'});
+      expect(homesFor(ridingBuyer), [AppHome.rider]);
+      expect(defaultHomeFor(ridingBuyer), AppHome.rider);
+    });
+
+    test('an approved hub or courier account has no shop to switch to', () {
+      expect(
+        homesFor(
+          user(
+            hub: {'id': 3, 'hub_name': 'Sta. Cruz Hub', 'status': 'APPROVED'},
+          ),
+        ),
+        [AppHome.logistics],
+      );
+      expect(
+        homesFor(
+          user(
+            courier: {
+              'id': 2,
+              'name': 'DCC',
+              'status': 'APPROVED',
+              'role': 'owner',
+            },
+          ),
+        ),
+        [AppHome.logistics],
+      );
+    });
+
+    test('a hub owner who also rides switches between those two only', () {
+      final both = user(
+        hub: {'id': 3, 'hub_name': 'Hub', 'status': 'APPROVED'},
+        rider: {'id': 1, 'status': 'ACTIVE'},
+      );
+      expect(homesFor(both), [AppHome.logistics, AppHome.rider]);
+    });
+
+    test('a rider account still waiting for activation gets no shop', () {
+      expect(
+        homesFor(user(role: 'rider', rider: {'id': 1, 'status': 'PENDING'})),
+        [AppHome.rider],
+      );
+    });
 
     test('a rider-only account has no shop', () {
       expect(
@@ -183,11 +219,24 @@ void main() {
     });
 
     test('switching home moves to that home', () {
-      final shopping = SignedIn(
-        user(rider: {'id': 1, 'status': 'ACTIVE'}),
-        AppHome.buyer,
+      final both = user(
+        hub: {'id': 3, 'hub_name': 'Hub', 'status': 'APPROVED'},
+        rider: {'id': 1, 'status': 'ACTIVE'},
       );
-      expect(redirectFor(shopping, '/rider'), '/buyer');
+      expect(
+        redirectFor(SignedIn(both, AppHome.rider), '/logistics'),
+        '/rider',
+      );
+    });
+
+    test('a rider is kept out of every shop screen', () {
+      final rider = SignedIn(
+        user(rider: {'id': 1, 'status': 'ACTIVE'}),
+        AppHome.rider,
+      );
+      expect(redirectFor(rider, '/buyer'), '/rider');
+      expect(redirectFor(rider, '/buyer/cart'), '/rider');
+      expect(redirectFor(rider, '/buyer/product/1'), '/rider');
     });
 
     test('a Google sign-up finishes its profile before anything else', () {

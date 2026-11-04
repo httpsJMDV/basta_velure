@@ -223,17 +223,25 @@ void main() {
   test('switching home only to a home the account has', () async {
     final api = FakeApi({
       'GET /auth/me': (_) => jsonBody(200, {
-        'data': userJson(rider: {'id': 1, 'status': 'ACTIVE'}),
+        'data': userJson(
+          rider: {'id': 1, 'status': 'ACTIVE'},
+          sortingCenter: {'id': 3, 'hub_name': 'Hub', 'status': 'APPROVED'},
+        ),
       }),
     });
     final container = containerWith(api, MemoryTokenStore('tok'));
     addTearDown(container.dispose);
     await settled(container);
     final controller = container.read(sessionProvider.notifier);
+    expect(
+      (container.read(sessionProvider) as SignedIn).home,
+      AppHome.logistics,
+    );
 
+    controller.switchHome(AppHome.rider);
+    expect((container.read(sessionProvider) as SignedIn).home, AppHome.rider);
+    // A work account has no shop: the switch is refused and nothing moves.
     controller.switchHome(AppHome.buyer);
-    expect((container.read(sessionProvider) as SignedIn).home, AppHome.buyer);
-    controller.switchHome(AppHome.logistics);
-    expect((container.read(sessionProvider) as SignedIn).home, AppHome.buyer);
+    expect((container.read(sessionProvider) as SignedIn).home, AppHome.rider);
   });
 }
