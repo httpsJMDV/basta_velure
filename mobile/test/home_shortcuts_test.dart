@@ -10,17 +10,17 @@ import 'support/fakes.dart';
 
 void main() {
   const pictures = [
-    'ticket',
-    'parcel',
-    'tag',
-    'fire',
-    'trophy',
-    'sparkles',
-    'star',
-    'prices',
-    'bags',
-    'heart',
-    'store',
+    'assets/home/vouchers.webp',
+    'assets/home/orders.webp',
+    'assets/home/sale.webp',
+    'assets/categories/mens-footwear.jpg',
+    'assets/categories/earphones-audio.jpg',
+    'assets/categories/smartwatches-wearables.jpg',
+    'assets/categories/fragrances.jpg',
+    'assets/categories/canned-goods.jpg',
+    'assets/categories/bags-accessories.jpg',
+    'assets/categories/jewelry.jpg',
+    'assets/categories/food-grocery.jpg',
   ];
 
   Future<void> openHome(WidgetTester tester) async {
@@ -63,9 +63,9 @@ void main() {
 
   test('every Home picture is in the app', () async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    for (final name in pictures) {
-      final bytes = await rootBundle.load('assets/home/$name.webp');
-      expect(bytes.lengthInBytes, greaterThan(0), reason: name);
+    for (final path in pictures) {
+      final bytes = await rootBundle.load(path);
+      expect(bytes.lengthInBytes, greaterThan(0), reason: path);
     }
   });
 
@@ -77,14 +77,13 @@ void main() {
     for (final label in ['Vouchers', 'My orders', 'On sale', 'Trending']) {
       expect(find.text(label), findsOneWidget);
     }
-    Finder picture(String name) => find.byWidgetPredicate(
-      (widget) =>
-          widget is Image &&
-          widget.image is AssetImage &&
-          (widget.image as AssetImage).assetName == 'assets/home/$name.webp',
-    );
-    for (final name in ['ticket', 'parcel', 'tag', 'fire', 'trophy']) {
-      expect(picture(name), findsOneWidget, reason: name);
+    Finder picture(String path) => find.byWidgetPredicate((widget) {
+      final image = widget is Image ? widget.image : null;
+      final asset = image is ResizeImage ? image.imageProvider : image;
+      return asset is AssetImage && asset.assetName == path;
+    });
+    for (final path in pictures.take(5)) {
+      expect(picture(path), findsOneWidget, reason: path);
     }
     await leaveHome(tester);
   });
