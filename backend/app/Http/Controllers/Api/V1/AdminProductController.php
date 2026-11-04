@@ -139,17 +139,17 @@ class AdminProductController extends Controller
     }
 
     /** GET /admin/products/{product}/fda-lto */
-    public function fdaLto(Product $product): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function fdaLto(Product $product): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         abort_unless($product->fda_lto_path && Storage::disk('local')->exists($product->fda_lto_path), 404);
-        return response()->file(Storage::disk('local')->path($product->fda_lto_path));
+        return Storage::disk('local')->response($product->fda_lto_path);
     }
 
     /** GET /admin/products/{product}/fda-cpr */
-    public function fdaCpr(Product $product): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function fdaCpr(Product $product): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         abort_unless($product->fda_cpr_path && Storage::disk('local')->exists($product->fda_cpr_path), 404);
-        return response()->file(Storage::disk('local')->path($product->fda_cpr_path));
+        return Storage::disk('local')->response($product->fda_cpr_path);
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────

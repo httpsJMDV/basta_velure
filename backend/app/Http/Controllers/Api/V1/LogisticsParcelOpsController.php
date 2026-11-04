@@ -18,7 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * One parcel as the courier company sees it (Logistics L6, L7): its timeline, every failed attempt, the audit trail,
@@ -128,12 +128,12 @@ class LogisticsParcelOpsController extends Controller
     }
 
     /** GET /logistics/parcels/{parcel}/exception-photo */
-    public function exceptionPhoto(Request $request, int $parcel): BinaryFileResponse
+    public function exceptionPhoto(Request $request, int $parcel): StreamedResponse
     {
         $p = $this->parcel($request, $parcel);
         abort_unless($p->exception_photo_path && Storage::disk('ids')->exists($p->exception_photo_path), 404, 'No photo.');
 
-        return response()->file(Storage::disk('ids')->path($p->exception_photo_path));
+        return Storage::disk('ids')->response($p->exception_photo_path);
     }
 
     /**

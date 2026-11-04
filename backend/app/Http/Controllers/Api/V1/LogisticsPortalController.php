@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The courier company's own portal (/logistics): its network of hubs, their riders and parcels. Every query is
@@ -163,7 +163,7 @@ class LogisticsPortalController extends Controller
     }
 
     /** GET /logistics/hubs/{hub}/documents/{doc} : permit | id | id-back, from private storage. */
-    public function hubDocument(Request $request, int $hub, string $doc): BinaryFileResponse
+    public function hubDocument(Request $request, int $hub, string $doc): StreamedResponse
     {
         $hub = $this->hubOr404($this->company($request), $hub);
         $path = match ($doc) {
@@ -174,7 +174,7 @@ class LogisticsPortalController extends Controller
         };
         abort_unless($path && Storage::disk('ids')->exists($path), 404, 'Document not found.');
 
-        return response()->file(Storage::disk('ids')->path($path));
+        return Storage::disk('ids')->response($path);
     }
 
     public function approveHub(Request $request, int $hub, HubApplicationReviewer $reviewer): JsonResponse

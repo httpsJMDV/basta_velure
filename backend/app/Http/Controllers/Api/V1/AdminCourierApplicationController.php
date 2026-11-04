@@ -12,7 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /** The admin's review of courier companies: list, inspect, approve, reject, suspend and reactivate. */
 class AdminCourierApplicationController extends Controller
@@ -101,15 +101,15 @@ class AdminCourierApplicationController extends Controller
     }
 
     /** The business permit, from private storage, for the admin only. */
-    public function permit(LogisticsCompany $company): BinaryFileResponse
+    public function permit(LogisticsCompany $company): StreamedResponse
     {
         abort_unless($company->business_permit_path && Storage::disk('ids')->exists($company->business_permit_path), 404, 'Business permit not found.');
 
-        return response()->file(Storage::disk('ids')->path($company->business_permit_path));
+        return Storage::disk('ids')->response($company->business_permit_path);
     }
 
     /** GET /admin/courier-applications/{company}/documents/{sec|bir|rep-id} */
-    public function document(LogisticsCompany $company, string $doc): BinaryFileResponse
+    public function document(LogisticsCompany $company, string $doc): StreamedResponse
     {
         $path = match ($doc) {
             'sec'    => $company->sec_certificate_path,
@@ -119,7 +119,7 @@ class AdminCourierApplicationController extends Controller
         };
         abort_unless($path && Storage::disk('ids')->exists($path), 404, 'Document not found.');
 
-        return response()->file(Storage::disk('ids')->path($path));
+        return Storage::disk('ids')->response($path);
     }
 
     private function decide(Request $request, LogisticsCompany $company, string $status, ?string $reason, string $action, string $description): void

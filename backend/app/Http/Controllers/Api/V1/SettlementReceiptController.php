@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Services\SettlementPayments;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The GCash receipt of a weekly courier ↔ shop payment, from the private disk. Readable by the shop, the courier
@@ -18,7 +18,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class SettlementReceiptController extends Controller
 {
     /** GET /settlements/{settlement}/receipt?attempt= */
-    public function show(Request $request, CourierSettlement $settlement): BinaryFileResponse
+    public function show(Request $request, CourierSettlement $settlement): StreamedResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -32,7 +32,7 @@ class SettlementReceiptController extends Controller
 
         abort_unless($path && Storage::disk(SettlementPayments::RECEIPT_DISK)->exists($path), 404, 'Receipt not found.');
 
-        return response()->file(Storage::disk(SettlementPayments::RECEIPT_DISK)->path($path), [
+        return Storage::disk(SettlementPayments::RECEIPT_DISK)->response($path, null, [
             'Cache-Control'          => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);

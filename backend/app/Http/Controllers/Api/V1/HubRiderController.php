@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HubRiderController extends Controller
 {
@@ -299,7 +299,7 @@ class HubRiderController extends Controller
      *
      * GET /api/v1/hub/riders/{rider}/or-cr
      */
-    public function orCrDocument(Request $request, Rider $rider): BinaryFileResponse
+    public function orCrDocument(Request $request, Rider $rider): StreamedResponse
     {
         $hub = $this->getAuthenticatedHub($request);
 
@@ -307,7 +307,7 @@ class HubRiderController extends Controller
         abort_unless($rider->or_cr_path, 404, 'OR/CR document not found.');
         abort_unless(Storage::disk('ids')->exists($rider->or_cr_path), 404, 'File not found on storage disk.');
 
-        return response()->file(Storage::disk('ids')->path($rider->or_cr_path));
+        return Storage::disk('ids')->response($rider->or_cr_path);
     }
 
     /**
@@ -315,7 +315,7 @@ class HubRiderController extends Controller
      *
      * GET /api/v1/hub/riders/{rider}/license
      */
-    public function licenseDocument(Request $request, Rider $rider): BinaryFileResponse
+    public function licenseDocument(Request $request, Rider $rider): StreamedResponse
     {
         $hub = $this->getAuthenticatedHub($request);
 
@@ -323,7 +323,7 @@ class HubRiderController extends Controller
         abort_unless($rider->drivers_license_path, 404, "Driver's license document not found.");
         abort_unless(Storage::disk('ids')->exists($rider->drivers_license_path), 404, 'File not found on storage disk.');
 
-        return response()->file(Storage::disk('ids')->path($rider->drivers_license_path));
+        return Storage::disk('ids')->response($rider->drivers_license_path);
     }
 
     /**

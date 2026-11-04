@@ -10,7 +10,7 @@ use App\Services\HubApplicationReviewer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminSortingCenterApplicationController extends Controller
 {
@@ -103,18 +103,18 @@ class AdminSortingCenterApplicationController extends Controller
     /**
      * Securely serve DTI / business permit file to authorized Admins from private storage.
      */
-    public function dtiPermit(SortingCenter $sortingCenter): BinaryFileResponse
+    public function dtiPermit(SortingCenter $sortingCenter): StreamedResponse
     {
         abort_unless($sortingCenter->dti_permit_path, 404, 'DTI permit document not found.');
         abort_unless(Storage::disk('ids')->exists($sortingCenter->dti_permit_path), 404, 'File not found on storage disk.');
 
-        return response()->file(Storage::disk('ids')->path($sortingCenter->dti_permit_path));
+        return Storage::disk('ids')->response($sortingCenter->dti_permit_path);
     }
 
     /**
      * Securely serve applicant front ID image to authorized Admins from private storage.
      */
-    public function idImage(SortingCenter $sortingCenter): BinaryFileResponse
+    public function idImage(SortingCenter $sortingCenter): StreamedResponse
     {
         $user = $sortingCenter->user;
         abort_unless($user && $user->government_id_image_path, 404, 'Government ID image not found.');
@@ -125,7 +125,7 @@ class AdminSortingCenterApplicationController extends Controller
     /**
      * Securely serve applicant back ID image to authorized Admins from private storage.
      */
-    public function idImageBack(SortingCenter $sortingCenter): BinaryFileResponse
+    public function idImageBack(SortingCenter $sortingCenter): StreamedResponse
     {
         $user = $sortingCenter->user;
         abort_unless($user && $user->government_id_image_back_path, 404, 'Government ID back image not found.');
@@ -137,11 +137,11 @@ class AdminSortingCenterApplicationController extends Controller
      * The owner's ID photo is the one of their Loved-IT account: identity verification keeps it on the private "local"
      * disk (older uploads may be on "ids").
      */
-    private function accountIdFile(string $path): BinaryFileResponse
+    private function accountIdFile(string $path): StreamedResponse
     {
         $disk = collect(['local', 'ids'])->first(fn ($d) => Storage::disk($d)->exists($path));
         abort_unless($disk, 404, 'File not found on storage disk.');
 
-        return response()->file(Storage::disk($disk)->path($path));
+        return Storage::disk($disk)->response($path);
     }
 }

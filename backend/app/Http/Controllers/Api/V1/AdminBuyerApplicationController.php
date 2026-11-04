@@ -121,19 +121,19 @@ class AdminBuyerApplicationController extends Controller
     /**
      * Serve the buyer's government ID from the private disk — never a direct path.
      */
-    public function idImage(User $user): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function idImage(User $user): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         abort_if(! $user->government_id_image_path, 404);
         abort_unless(Storage::disk('local')->exists($user->government_id_image_path), 404);
 
-        return response()->file(Storage::disk('local')->path($user->government_id_image_path));
+        return Storage::disk('local')->response($user->government_id_image_path);
     }
 
-    public function idImageBack(User $user): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function idImageBack(User $user): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         abort_if(! $user->government_id_image_back_path, 404);
         abort_unless(Storage::disk('local')->exists($user->government_id_image_back_path), 404);
 
-        return response()->file(Storage::disk('local')->path($user->government_id_image_back_path));
+        return Storage::disk('local')->response($user->government_id_image_back_path);
     }
 }

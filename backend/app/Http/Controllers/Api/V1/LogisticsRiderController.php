@@ -20,7 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The courier company's riders (Logistics workbook L3, Rider Account Creation): add a rider, resend the activation
@@ -121,13 +121,13 @@ class LogisticsRiderController extends Controller
     }
 
     /** GET /logistics/riders/{rider}/documents/{license|or-cr} */
-    public function document(Request $request, int $rider, string $doc): BinaryFileResponse
+    public function document(Request $request, int $rider, string $doc): StreamedResponse
     {
         $r = $this->riderOr404($request, $rider);
         $path = $doc === 'license' ? $r->drivers_license_path : ($doc === 'or-cr' ? $r->or_cr_path : null);
         abort_unless($path && Storage::disk('ids')->exists($path), 404, 'Document not found.');
 
-        return response()->file(Storage::disk('ids')->path($path));
+        return Storage::disk('ids')->response($path);
     }
 
     /** POST /logistics/riders: the Add Rider form. */

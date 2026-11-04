@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class RiderController extends Controller
 {
@@ -31,13 +31,13 @@ class RiderController extends Controller
     }
 
     /** GET /rider/documents/{license|or-cr}: the rider's own uploaded documents. */
-    public function document(Request $request, string $doc): BinaryFileResponse
+    public function document(Request $request, string $doc): StreamedResponse
     {
         $rider = $this->rider($request);
         $path = $doc === 'license' ? $rider->drivers_license_path : ($doc === 'or-cr' ? $rider->or_cr_path : null);
         abort_unless($path && Storage::disk('ids')->exists($path), 404, 'Document not found.');
 
-        return response()->file(Storage::disk('ids')->path($path));
+        return Storage::disk('ids')->response($path);
     }
 
     /**

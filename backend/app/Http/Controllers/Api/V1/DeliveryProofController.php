@@ -10,7 +10,7 @@ use App\Support\ParcelAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DeliveryProofController extends Controller
 {
@@ -21,7 +21,7 @@ class DeliveryProofController extends Controller
      * hub, the order's seller, the order's buyer and admins may read it. Everyone else, and any parcel
      * without a proof, gets the same 404. The file is never reachable by a public path.
      */
-    public function show(Request $request, string $tracking): BinaryFileResponse
+    public function show(Request $request, string $tracking): StreamedResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -36,7 +36,7 @@ class DeliveryProofController extends Controller
         abort_unless($parcel && $path && $this->mayView($user, $parcel), 404, 'Delivery proof not found.');
         abort_unless(Storage::disk('ids')->exists($path), 404, 'Delivery proof not found.');
 
-        return response()->file(Storage::disk('ids')->path($path), [
+        return Storage::disk('ids')->response($path, null, [
             'Cache-Control'          => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
