@@ -30,6 +30,19 @@ abstract final class BuyerPaths {
 
   static String product(int id) => '/buyer/product/$id';
 
+  /// A product's reviews page, optionally already filtered. Open to guests, like the product page.
+  static String productReviews(
+    int id, {
+    int? rating,
+    bool withPhotos = false,
+  }) => Uri(
+    path: '/buyer/product/$id/reviews',
+    queryParameters: {
+      if (rating != null) 'rating': '$rating',
+      if (withPhotos) 'photos': '1',
+    },
+  ).toString();
+
   /// The dock's tabs, in order.
   static const tabs = [home, categories, messages, cart, account];
 

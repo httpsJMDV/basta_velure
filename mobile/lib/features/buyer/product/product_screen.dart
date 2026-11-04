@@ -12,6 +12,7 @@ import '../../../core/api/json.dart';
 import '../../../core/env.dart';
 import '../../../core/format.dart';
 import '../../../core/session/session.dart';
+import '../../../core/share.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
@@ -24,6 +25,8 @@ import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 import '../widgets/guest.dart';
 import '../widgets/photo_viewer.dart';
+import '../reviews/review_guidelines.dart';
+import 'item_reviews_screen.dart';
 import 'option_sheet.dart';
 import 'reviews_sheet.dart';
 
@@ -182,11 +185,18 @@ class _ProductViewState extends ConsumerState<_ProductView> {
     }
   }
 
-  void _copyLink() {
-    Clipboard.setData(
-      ClipboardData(text: '${Env.webUrl}/products/${product.id}'),
-    );
-    showSnack(context, 'Link copied.');
+  /// Android's share sheet with the product's web link; the link is copied when the sheet can't open.
+  Future<void> _share() async {
+    final link = '${Env.webUrl}/products/${product.id}';
+    if (await shareText(
+      '${product.name}\n$link',
+      subject: product.name,
+      title: 'Share product',
+    )) {
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: link));
+    if (mounted) showSnack(context, 'Link copied.');
   }
 
   Future<void> _toggleWishlist() async {
@@ -337,7 +347,10 @@ class _ProductViewState extends ConsumerState<_ProductView> {
                   SliverToBoxAdapter(
                     child: KeyedSubtree(
                       key: _reviewsAnchor,
-                      child: _ReviewsBlock(product: product),
+                      child: _ReviewsBlock(
+                        product: product,
+                        onAddToCart: () => _choose(OptionAction.addToCart),
+                      ),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -374,7 +387,7 @@ class _ProductViewState extends ConsumerState<_ProductView> {
                     ? context.pop()
                     : context.go(BuyerPaths.home),
                 onSearch: () => context.push(BuyerPaths.search),
-                onShare: _copyLink,
+                onShare: _share,
               ),
             ),
             Positioned(
@@ -1740,244 +1753,214 @@ class _Details extends StatefulWidget {
   State<_Details> createState() => _DetailsState();
 }
 
+/// The reviews on the product page: the average and its stars (the (?) explains star ratings), the verified-purchase
+/// banner, shortcuts to the photos and to each number of stars, and the three most helpful reviews. Everything else is
+/// on the item reviews page; its Add to cart comes back here to choose the options.
 class _ReviewsBlock extends ConsumerStatefulWidget {
-  const _ReviewsBlock({required this.product});
+  const _ReviewsBlock({required this.product, required this.onAddToCart});
 
   final ProductDetail product;
+  final VoidCallback onAddToCart;
 
   @override
   ConsumerState<_ReviewsBlock> createState() => _ReviewsBlockState();
 }
 
 class _ReviewsBlockState extends ConsumerState<_ReviewsBlock> {
-  /// Which reviews show: all of them, or only this many stars.
-  int? _stars;
-
-  /// How many reviews have each number of stars, from the first answer. A filtered answer counts the same ones.
-  Map<int, int> _counts = const {};
   late Future<ApiPage<ProductReview>> _reviews = _load();
 
-  Future<ApiPage<ProductReview>> _load() async {
-    final page = await ref
-        .read(buyerApiProvider)
-        .productReviews(widget.product.id, rating: _stars);
-    final counts = asJson(page.meta['rating_counts']);
-    final known = {
-      for (var stars = 5; stars >= 1; stars--) stars: asInt(counts['$stars']),
-    };
-    if (mounted && _counts.isEmpty) setState(() => _counts = known);
-    return page;
+  Future<ApiPage<ProductReview>> _load() => ref
+      .read(buyerApiProvider)
+      .productReviews(widget.product.id, sort: ReviewSort.recommended);
+
+  @override
+  void didUpdateWidget(_ReviewsBlock old) {
+    super.didUpdateWidget(old);
+    // Pull to refresh brings the product again; its reviews may have changed too.
+    if (!identical(old.product, widget.product)) _reviews = _load();
   }
 
-  void _filter(int? stars) {
-    setState(() {
-      _stars = stars;
-      _reviews = _load();
-    });
-  }
+  void _retry() => setState(() => _reviews = _load());
 
-  void _seeAll() {
-    final stars = _stars;
-    showReviewsSheet(
-      context,
-      title: 'Reviews',
-      load: (page) => ref
-          .read(buyerApiProvider)
-          .productReviews(widget.product.id, page: page, rating: stars),
+  Future<void> _open({int? rating, bool withPhotos = false}) async {
+    final result = await context.push<String>(
+      BuyerPaths.productReviews(
+        widget.product.id,
+        rating: rating,
+        withPhotos: withPhotos,
+      ),
+      extra: widget.product,
     );
+    if (result == itemReviewsAddToCart && mounted) widget.onAddToCart();
   }
 
   @override
   Widget build(BuildContext context) {
     final product = widget.product;
-    final rated = product.avgRating != null && product.reviewCount > 0;
-    final filters = _counts.entries.where((entry) => entry.value > 0).toList();
-    final green = StatusTone.emerald;
     return _Section(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            onTap: rated ? _seeAll : null,
-            child: Row(
-              children: [
-                Expanded(
-                  child: rated
-                      ? Wrap(
-                          spacing: 6,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(
-                              product.avgRating!.toStringAsFixed(1),
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                            Stars(rating: product.avgRating!, size: 17),
-                            Text(
-                              '(${product.reviewCount})',
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                color: AppColors.stone600,
-                              ),
-                            ),
-                          ],
-                        )
-                      : const BlockTitle('Reviews'),
-                ),
-                if (rated)
-                  const Icon(
-                    LucideIcons.chevronRight,
-                    size: 18,
-                    color: AppColors.stone400,
-                  ),
-              ],
-            ),
-          ),
-          if (rated) ...[
-            const SizedBox(height: AppSpace.md),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpace.md,
-                vertical: AppSpace.sm,
-              ),
-              decoration: BoxDecoration(
-                color: green.background,
-                borderRadius: BorderRadius.circular(BuyerRadius.field),
-              ),
-              child: Row(
+      child: FutureBuilder<ApiPage<ProductReview>>(
+        future: _reviews,
+        builder: (context, snapshot) {
+          final page = snapshot.data;
+          final stats = page == null ? null : ReviewStats.fromMeta(page.meta);
+          final total = stats?.total ?? product.reviewCount;
+          final average = stats?.average ?? product.avgRating;
+          final rated = total > 0 && average != null;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  Icon(
-                    LucideIcons.shieldCheck,
-                    size: 17,
-                    color: green.foreground,
-                  ),
-                  const SizedBox(width: AppSpace.sm),
                   Expanded(
-                    child: Text(
-                      'Reviews come from buyers who received their order',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: green.foreground,
-                      ),
+                    child: Row(
+                      children: [
+                        // On a narrow phone or with large text, the rating shrinks rather than pushing See all off.
+                        Flexible(
+                          child: rated
+                              ? FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        average.toStringAsFixed(1),
+                                        style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.ink,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Stars(rating: average, size: 18),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '($total)',
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          color: AppColors.stone600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : const BlockTitle('Reviews'),
+                        ),
+                        IconButton(
+                          tooltip: 'How star ratings work',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            LucideIcons.circleHelp,
+                            size: 18,
+                            color: AppColors.stone500,
+                          ),
+                          onPressed: () => showStarRatingGuidelines(context),
+                        ),
+                      ],
                     ),
                   ),
+                  if (rated)
+                    TextButton(
+                      onPressed: _open,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.ink,
+                        padding: const EdgeInsets.only(left: AppSpace.sm),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('See all'),
+                          Icon(LucideIcons.chevronRight, size: 18),
+                        ],
+                      ),
+                    ),
                 ],
               ),
-            ),
-          ],
-          if (filters.length > 1) ...[
-            const SizedBox(height: AppSpace.md),
-            Wrap(
-              spacing: AppSpace.sm,
-              runSpacing: AppSpace.sm,
-              children: [
-                _StarFilter(
-                  label: 'All',
-                  selected: _stars == null,
-                  onTap: () => _filter(null),
-                ),
-                for (final entry in filters)
-                  _StarFilter(
-                    label:
-                        '${entry.key} star${entry.key == 1 ? '' : 's'} (${entry.value})',
-                    selected: _stars == entry.key,
-                    onTap: () => _filter(entry.key),
-                  ),
-              ],
-            ),
-          ],
-          const SizedBox(height: AppSpace.xs),
-          FutureBuilder<ApiPage<ProductReview>>(
-            future: _reviews,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Padding(
-                  padding: EdgeInsets.only(top: AppSpace.sm),
-                  child: Skeleton(child: SkeletonBox(height: 60)),
-                );
-              }
-              final reviews = snapshot.data?.items ?? const <ProductReview>[];
-              if (reviews.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpace.sm),
-                  child: Text(
-                    'No reviews yet. Buyers can review after their order is delivered.',
-                    style: TextStyle(color: AppColors.stone500),
-                  ),
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final review in reviews.take(3))
-                    ReviewTile(review: review),
-                  if ((snapshot.data?.total ?? 0) > 3) ...[
-                    const SizedBox(height: AppSpace.md),
-                    OutlinedButton(
-                      onPressed: _seeAll,
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(44),
-                        shape: const StadiumBorder(),
-                        foregroundColor: AppColors.ink,
+              const SizedBox(height: AppSpace.sm),
+              VerifiedReviewsBanner(
+                onHelp: () => showStarRatingGuidelines(context),
+              ),
+              if (snapshot.connectionState != ConnectionState.done)
+                const Padding(
+                  padding: EdgeInsets.only(top: AppSpace.md),
+                  child: Skeleton(child: SkeletonBox(height: 120)),
+                )
+              else if (snapshot.hasError)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpace.md),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          "Couldn't load the reviews.",
+                          style: TextStyle(color: AppColors.stone500),
+                        ),
                       ),
-                      child: Text('See all ${snapshot.data!.total} reviews'),
+                      TextButton(
+                        onPressed: _retry,
+                        child: const Text('Try again'),
+                      ),
+                    ],
+                  ),
+                )
+              else if (page == null || page.items.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: AppSpace.md),
+                  child: Text(
+                    'No reviews yet. Buyers can rate this product once their order is completed.',
+                    style: TextStyle(color: AppColors.stone500, height: 1.45),
+                  ),
+                )
+              else ...[
+                const SizedBox(height: AppSpace.md),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (stats!.photoCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(right: AppSpace.sm),
+                          child: ReviewFilterChip(
+                            label: 'With photos (${stats.photoCount})',
+                            icon: LucideIcons.images,
+                            onTap: () => _open(withPhotos: true),
+                          ),
+                        ),
+                      for (var stars = 5; stars >= 1; stars--)
+                        if ((stats.counts[stars] ?? 0) > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(right: AppSpace.sm),
+                            child: ReviewFilterChip(
+                              label:
+                                  '$stars star${stars == 1 ? '' : 's'} (${stats.counts[stars]})',
+                              onTap: () => _open(rating: stars),
+                            ),
+                          ),
+                    ],
+                  ),
+                ),
+                for (final (index, review) in page.items.take(3).indexed)
+                  ReviewTile(
+                    key: ValueKey(review.id),
+                    review: review,
+                    productId: product.id,
+                    divider: index < page.items.take(3).length - 1,
+                  ),
+                if (total > 3) ...[
+                  const SizedBox(height: AppSpace.sm),
+                  OutlinedButton(
+                    onPressed: _open,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      shape: const StadiumBorder(),
+                      foregroundColor: AppColors.ink,
                     ),
-                  ],
+                    child: Text('See all $total reviews'),
+                  ),
                 ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StarFilter extends StatelessWidget {
-  const _StarFilter({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: PressScale(
-        scale: 0.96,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: Motion.fast,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.ink : AppColors.white,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(
-              color: selected ? AppColors.ink : AppColors.stone300,
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: selected ? AppColors.white : AppColors.stone800,
-            ),
-          ),
-        ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }

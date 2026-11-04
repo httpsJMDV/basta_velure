@@ -570,8 +570,13 @@ class ProductReview {
     this.variantLabel,
     this.productName,
     this.sellerReply,
+    this.sellerRepliedAt,
     this.avatarUrl,
+    this.productId,
     this.verifiedPurchase = false,
+    this.helpfulCount = 0,
+    this.helped = false,
+    this.isMine = false,
   });
 
   final int id;
@@ -583,24 +588,83 @@ class ProductReview {
   final String? variantLabel;
   final String? productName;
   final String? sellerReply;
+  final DateTime? sellerRepliedAt;
   final String? avatarUrl;
+
+  /// Only on a shop's list, where the reviews are of different products.
+  final int? productId;
   final bool verifiedPurchase;
 
-  factory ProductReview.fromJson(Json json) => ProductReview(
-    id: asInt(json['id']),
-    rating: asInt(json['rating']),
-    comment: asString(json['comment']),
-    buyerName: asString(asJson(json['buyer'])['name']) ?? 'Buyer',
-    images: asStringList(json['images']),
-    createdAt: asDate(json['created_at']),
-    variantLabel: asString(json['variant_label']),
-    productName:
-        asString(asJson(json['product'])['name']) ??
-        asString(json['product_name']),
-    sellerReply: asString(asJson(json['seller_reply'])['body']),
-    avatarUrl: asString(asJson(json['buyer'])['avatar_url']),
-    verifiedPurchase: asBool(json['verified_purchase']),
-  );
+  /// How many accounts marked it helpful, and whether the signed-in one did.
+  final int helpfulCount;
+  final bool helped;
+
+  /// Written by the signed-in account, which can't mark it helpful.
+  final bool isMine;
+
+  factory ProductReview.fromJson(Json json) {
+    final product = asJson(json['product']);
+    final reply = asJson(json['seller_reply']);
+    return ProductReview(
+      id: asInt(json['id']),
+      rating: asInt(json['rating']),
+      comment: asString(json['comment']),
+      buyerName: asString(asJson(json['buyer'])['name']) ?? 'Buyer',
+      images: asStringList(json['images']),
+      createdAt: asDate(json['created_at']),
+      variantLabel: asString(json['variant_label']),
+      productName: asString(product['name']) ?? asString(json['product_name']),
+      productId: asIntOrNull(product['id']),
+      sellerReply: asString(reply['body']),
+      sellerRepliedAt: asDate(reply['replied_at']),
+      avatarUrl: asString(asJson(json['buyer'])['avatar_url']),
+      verifiedPurchase: asBool(json['verified_purchase']),
+      helpfulCount: asInt(json['helpful_count']),
+      helped: asBool(json['helped']),
+      isMine: asBool(json['is_mine']),
+    );
+  }
+}
+
+/// How a product's reviews are ordered (`sort` on `/products/{id}/reviews`).
+enum ReviewSort {
+  recommended('helpful', 'Recommended'),
+  recent('recent', 'Most recent'),
+  highest(null, 'Highest rated');
+
+  const ReviewSort(this.apiValue, this.label);
+
+  final String? apiValue;
+  final String label;
+}
+
+/// What the review list's `meta` says about every review of the product, whatever the filter.
+class ReviewStats {
+  const ReviewStats({
+    required this.counts,
+    required this.photoCount,
+    this.average,
+  });
+
+  static const empty = ReviewStats(counts: {}, photoCount: 0);
+
+  /// Stars (5 to 1) to how many reviews gave that many.
+  final Map<int, int> counts;
+  final int photoCount;
+  final double? average;
+
+  int get total => counts.values.fold(0, (sum, count) => sum + count);
+
+  factory ReviewStats.fromMeta(Json meta) {
+    final counts = asJson(meta['rating_counts']);
+    return ReviewStats(
+      counts: {
+        for (var stars = 5; stars >= 1; stars--) stars: asInt(counts['$stars']),
+      },
+      photoCount: asInt(meta['photo_count']),
+      average: asDoubleOrNull(meta['avg_rating']),
+    );
+  }
 }
 
 /// A comment about a shop, without stars (`/shops/{shop}/shop-reviews`).

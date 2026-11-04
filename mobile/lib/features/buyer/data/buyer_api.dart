@@ -111,18 +111,43 @@ class BuyerApi {
           .map(ProductSummary.fromJson)
           .toList();
 
-  /// With [rating], only the reviews of that many stars. The page's `meta` counts them all, by stars.
+  /// With [rating], only the reviews of that many stars; with [withPhotos], only those with photos. The page's `meta`
+  /// counts every review of the product, by stars and with photos ([ReviewStats]).
   Future<ApiPage<ProductReview>> productReviews(
     int id, {
     int page = 1,
     int? rating,
+    bool withPhotos = false,
+    ReviewSort sort = ReviewSort.highest,
   }) async => ApiPage.from(
     await _get(
       '/products/$id/reviews',
-      query: {'page': page, 'rating': ?rating},
+      query: {
+        'page': page,
+        'rating': ?rating,
+        if (withPhotos) 'with_photos': 1,
+        'sort': ?sort.apiValue,
+      },
     ),
     ProductReview.fromJson,
   );
+
+  /// Marks or unmarks a review as helpful. Both are safe to repeat. Returns the count after the change.
+  Future<({int count, bool helped})> setHelpful(
+    int reviewId, {
+    required bool helpful,
+  }) async {
+    final data = asJson(
+      (await _send(
+        helpful ? 'PUT' : 'DELETE',
+        '/reviews/$reviewId/helpful',
+      ))['data'],
+    );
+    return (
+      count: asInt(data['helpful_count']),
+      helped: asBool(data['helped']),
+    );
+  }
 
   Future<List<Voucher>> productVouchers(int id) async =>
       asJsonList((await _get('/products/$id/vouchers'))['data'])

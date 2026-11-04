@@ -48,6 +48,14 @@ class PickedPhoto {
   );
 }
 
+/// Photos picked together, and why one was left out (the first refusal), if any.
+class PickedPhotos {
+  const PickedPhotos(this.photos, {this.rejected});
+
+  final List<PickedPhoto> photos;
+  final String? rejected;
+}
+
 /// A photo the app refused before uploading. Show [message] under the field.
 class PhotoRejected implements Exception {
   const PhotoRejected(this.message);
@@ -110,35 +118,89 @@ class PhotoPicker {
     return file == null ? null : prepare(file, kind);
   }
 
+  /// Up to [max] photos at once from the phone's photo picker. Each is prepared like [chooseFromGallery]; one that
+  /// can't be used is left out and named in [PickedPhotos.rejected], and the rest still come back.
+  Future<PickedPhotos> chooseSeveralFromGallery({
+    required int max,
+    UploadKind kind = UploadKind.image,
+  }) async {
+    if (max <= 0) return const PickedPhotos([]);
+    final files = max == 1
+        ? [
+            ?await _picker.pickImage(
+              source: ImageSource.gallery,
+              requestFullMetadata: false,
+            ),
+          ]
+        : await _picker.pickMultiImage(limit: max, requestFullMetadata: false);
+    final photos = <PickedPhoto>[];
+    String? rejected;
+    // Every picked file is prepared (and so deleted from the cache), even past the limit or after a refusal.
+    for (final file in files) {
+      try {
+        final photo = await prepare(file, kind);
+        if (photos.length < max) photos.add(photo);
+      } on PhotoRejected catch (error) {
+        rejected ??= error.message;
+      }
+    }
+    return PickedPhotos(photos, rejected: rejected);
+  }
+
+  /// "Take photo" or "Choose from gallery" (several at once, up to [max]) in a bottom sheet.
+  Future<PickedPhotos> pickSeveral(
+    BuildContext context, {
+    required String reason,
+    required int max,
+    UploadKind kind = UploadKind.image,
+  }) async {
+    final source = await _askSource(context, several: max > 1);
+    if (source == null || !context.mounted) return const PickedPhotos([]);
+    if (source == ImageSource.gallery) {
+      return chooseSeveralFromGallery(max: max, kind: kind);
+    }
+    try {
+      final photo = await takePhoto(context, reason: reason, kind: kind);
+      return PickedPhotos([?photo]);
+    } on PhotoRejected catch (error) {
+      return PickedPhotos(const [], rejected: error.message);
+    }
+  }
+
+  Future<ImageSource?> _askSource(
+    BuildContext context, {
+    bool several = false,
+  }) => showModalBottomSheet<ImageSource>(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.camera),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.image),
+              title: Text(several ? 'Choose photos' : 'Choose from gallery'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
   /// "Take photo" or "Choose from gallery" in a bottom sheet.
   Future<PickedPhoto?> pick(
     BuildContext context, {
     required String reason,
     UploadKind kind = UploadKind.image,
   }) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpace.sm),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(LucideIcons.camera),
-                title: const Text('Take photo'),
-                onTap: () => Navigator.of(context).pop(ImageSource.camera),
-              ),
-              ListTile(
-                leading: const Icon(LucideIcons.image),
-                title: const Text('Choose from gallery'),
-                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final source = await _askSource(context);
     if (source == null || !context.mounted) return null;
     return source == ImageSource.camera
         ? takePhoto(context, reason: reason, kind: kind)
