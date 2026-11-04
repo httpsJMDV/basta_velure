@@ -1,0 +1,4 @@
+# The app download (61 MB) is too big for Cloudflare's static assets, so it lives in the
+# Laravel Cloud public bucket. setup/publish-apk.ps1 still writes public/download/ for the PC.
+/download/version.json https://fls-a3256292-20b2-4e71-9420-0c178fc37586.laravel.cloud/download/version.json 302
+/download/loved-it.apk https://fls-a3256292-20b2-4e71-9420-0c178fc37586.laravel.cloud/download/loved-it.apk 302
