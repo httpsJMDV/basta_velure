@@ -235,16 +235,24 @@ class PublicProductController extends Controller
     /** GET /products/{product}/reviews */
     public function reviews(Product $product, Request $request): JsonResponse
     {
+        $viewer = auth('sanctum')->user();
         $query = Review::with(['buyer', 'images'])
+            ->withHelpful($viewer)
             ->where('product_id', $product->id)
             ->where('moderation_status', 'visible');
 
         if ($request->filled('rating')) {
             $query->where('rating', (int) $request->input('rating'));
         }
+        if ($request->boolean('with_photos')) {
+            $query->whereHas('images');
+        }
 
         if ($request->input('sort') === 'recent') {
-            $query->latest();
+            $query->latest()->orderByDesc('id');
+        } elseif ($request->input('sort') === 'helpful') {
+            // Most helpful first; among equals, the ones with photos, then the newest.
+            $query->withCount('images')->orderByDesc('helpful_count')->orderByDesc('images_count')->latest()->orderByDesc('id');
         } else {
             $query->orderByDesc('rating')->latest();
         }
@@ -281,6 +289,7 @@ class PublicProductController extends Controller
                     'replied_at' => $r->seller_replied_at?->toIso8601String(),
                     'edited_at' => $r->seller_reply_edited_at?->toIso8601String(),
                 ] : null,
+                ...$r->helpfulFor($viewer),
             ]),
             'meta' => [
                 'current_page'  => $paginated->currentPage(),
@@ -288,6 +297,7 @@ class PublicProductController extends Controller
                 'total'         => $paginated->total(),
                 'avg_rating'    => $avgRating ? round((float) $avgRating, 1) : null,
                 'rating_counts' => $ratingCounts,
+                'photo_count'   => Review::where('product_id', $product->id)->where('moderation_status', 'visible')->whereHas('images')->count(),
             ],
         ]);
     }

@@ -75,6 +75,7 @@ class BuyerReviewController extends Controller
     {
         $reviews = Review::where('buyer_id', $request->user()->id)
             ->with(['product.images', 'order:id,order_number', 'images'])
+            ->withCount('helpfulVotes as helpful_count')
             ->latest()
             ->get();
 
@@ -188,6 +189,7 @@ class BuyerReviewController extends Controller
             'comment'           => $r->comment,
             'verified_purchase' => (bool) $r->verified_purchase,
             'images'            => $r->imageUrls(),
+            'helpful_count'     => (int) ($r->helpful_count ?? $r->helpfulVotes()->count()),
             'created_at'        => $r->created_at?->toIso8601String(),
             'updated_at'        => $r->updated_at?->toIso8601String(),
             'can_edit'          => ($r->created_at?->gte(now()->subDays(self::EDIT_DAYS)) ?? false) && $r->edit_count < self::MAX_EDITS,

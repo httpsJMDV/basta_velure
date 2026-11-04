@@ -307,6 +307,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/buyer/reviews/pending', [BuyerReviewController::class, 'pending']);
         Route::post('/buyer/reviews', [BuyerReviewController::class, 'store'])->middleware('throttle:upload');
         Route::patch('/buyer/reviews/{review}', [BuyerReviewController::class, 'update']);
+        // "Helpful" on someone else's product review: one vote per account, PUT and DELETE are idempotent
+        Route::put('/reviews/{review}/helpful', [\App\Http\Controllers\Api\V1\ReviewHelpfulController::class, 'store'])->whereNumber('review')->middleware('throttle:60,1');
+        Route::delete('/reviews/{review}/helpful', [\App\Http\Controllers\Api\V1\ReviewHelpfulController::class, 'destroy'])->whereNumber('review')->middleware('throttle:60,1');
         // A shop's page: only signed-in accounts see it (its profile, product reviews and the comments about it)
         Route::get('/shops/{shop}',                [PublicShopController::class, 'show']);
         Route::get('/shops/{shop}/reviews',        [PublicShopController::class, 'reviews']);

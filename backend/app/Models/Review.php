@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,6 +33,26 @@ class Review extends Model
     public function order(): BelongsTo { return $this->belongsTo(Order::class); }
     public function product(): BelongsTo { return $this->belongsTo(Product::class); }
     public function images(): HasMany    { return $this->hasMany(ReviewImage::class)->orderBy('sort_order'); }
+    public function helpfulVotes(): HasMany { return $this->hasMany(ReviewHelpfulVote::class); }
+
+    /** Adds `helpful_count` and, for a signed-in viewer, `helped` (whether they marked it). */
+    public function scopeWithHelpful(Builder $query, ?User $viewer): void
+    {
+        $query->withCount('helpfulVotes as helpful_count');
+        if ($viewer) {
+            $query->withExists(['helpfulVotes as helped' => fn ($q) => $q->where('user_id', $viewer->id)]);
+        }
+    }
+
+    /** The viewer's side of a review: how many it helped, whether it helped them and whether it is theirs. */
+    public function helpfulFor(?User $viewer): array
+    {
+        return [
+            'helpful_count' => (int) ($this->helpful_count ?? 0),
+            'helped'        => (bool) ($this->helped ?? false),
+            'is_mine'       => $viewer !== null && (int) $this->buyer_id === (int) $viewer->id,
+        ];
+    }
 
     /** Public URLs of the review's photos, in order. @return array<int, string> */
     public function imageUrls(): array

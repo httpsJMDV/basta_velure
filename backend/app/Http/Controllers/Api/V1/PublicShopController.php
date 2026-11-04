@@ -112,9 +112,11 @@ class PublicShopController extends Controller
         $seller = $profile->user;
         abort_if(!$seller, 404);
 
+        $viewer = $request->user();
         $query = Review::whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
             ->where('moderation_status', 'visible')
-            ->with(['buyer', 'product.images', 'images']);
+            ->with(['buyer', 'product.images', 'images'])
+            ->withHelpful($viewer);
 
         if ($request->filled('rating') && in_array((int) $request->rating, [1, 2, 3, 4, 5], true)) {
             $query->where('rating', (int) $request->rating);
@@ -144,6 +146,7 @@ class PublicShopController extends Controller
                         ? asset('storage/' . $r->product->images->first()->path)
                         : null,
                 ],
+                ...$r->helpfulFor($viewer),
             ]),
             'meta' => [
                 'current_page' => $paginated->currentPage(),
