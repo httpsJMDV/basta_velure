@@ -236,7 +236,8 @@ Never push straight to `main`. Every part goes in through its pull request.
 - [x] `sorting_center` approved, or `logistics_company` present → **Logistics home** (Part D).
 - [x] `role` is `admin` → "Use loved-it.shop on a computer for the admin console" and a Sign out button.
 - [x] Everyone else (buyers, and sellers, who can shop too) → **Buyer home** (Part B). A seller sees a note that the shop is run from the website.
-- [x] Someone with two roles (for example a buyer who is also a rider) gets **Switch to rider/logistics** in Account.
+- [x] Someone with two work roles (a hub owner who also rides) gets **Switch to Rider/Logistics** in Account.
+- [x] Hub, courier and rider accounts are work accounts: **no Shop and no Switch to Shop** (Nov 4, `homesFor`). The person shops with a separate buyer account. A pending or refused application still shops.
 
 ### A7. The shared base: validation, widgets, photos, live updates
 
@@ -459,6 +460,9 @@ The buyer app should feel like **loved-it.shop on a phone**. Open the website on
 
 - [x] To review `GET /buyer/reviews/pending`, my reviews `GET /buyer/reviews`.
 - [x] Write `POST /buyer/reviews` (multipart): 1 to 5 stars (required), up to 500 characters, up to 5 photos. Edit `PATCH /buyer/reviews/{id}`. One per product per delivered order.
+- [x] **Item reviews page** (Nov 4, `product/item_reviews_screen.dart`, `/buyer/product/{id}/reviews`, open to guests): verified-purchase banner, average and star bars, Recommended / Most recent / Highest rated, a stars filter, With photos, big review photos, the shop's reply, **Share** (Android share sheet through `MainActivity`'s `shop.lovedit/share` channel, no package) and **Helpful** (`PUT/DELETE /reviews/{id}/helpful`, `docs/api/product-reviews.md`). Add to cart there goes back to the product page. The product page shows the three most helpful reviews.
+- [x] **Guidelines**: "Guidelines for star rating" dialog from every (?) and the review guidelines sheet (`reviews/review_guidelines.dart`), linked from Write a review and Reviews.
+- [x] Write a review: big stars named in words, several photos at once (`PhotoPicker.pickSeveral`), × to remove one, upload progress.
 
 ### B11. Messages and Loved-IT Support
 
