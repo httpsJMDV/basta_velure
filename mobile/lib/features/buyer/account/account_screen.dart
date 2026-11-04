@@ -265,15 +265,12 @@ class AccountScreen extends ConsumerWidget {
             const Padding(padding: AppSpace.page, child: HomeSwitchList()),
             const Padding(
               padding: EdgeInsets.fromLTRB(
-                AppSpace.sm,
+                AppSpace.lg,
                 AppSpace.sm,
                 AppSpace.lg,
                 0,
               ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: SignOutButton(),
-              ),
+              child: SignOutButton(),
             ),
           ],
         ),

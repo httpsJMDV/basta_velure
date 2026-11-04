@@ -31,7 +31,7 @@ class WebOnlyScreen extends ConsumerWidget {
           label: const Text('Open loved-it.shop'),
         ),
         const SizedBox(height: AppSpace.sm),
-        const SignOutButton(),
+        const SignOutButton.compact(),
       ],
     );
   }

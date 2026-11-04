@@ -113,7 +113,7 @@ class CourierMoreScreen extends ConsumerWidget {
           const SizedBox(height: AppSpace.lg),
           const HomeSwitchList(),
           const SizedBox(height: AppSpace.md),
-          const Center(child: SignOutButton()),
+          const SignOutButton(),
         ],
       ),
     );

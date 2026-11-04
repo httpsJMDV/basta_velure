@@ -55,10 +55,7 @@ class PlaceholderHome extends ConsumerWidget {
             const SizedBox(height: AppSpace.lg),
             const HomeSwitchList(),
             const SizedBox(height: AppSpace.sm),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: SignOutButton(),
-            ),
+            const SignOutButton(),
           ],
         ),
       ),
