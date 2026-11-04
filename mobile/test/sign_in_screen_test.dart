@@ -171,7 +171,7 @@ void main() {
     await closeApp(tester);
   });
 
-  testWidgets('a rider who also shops lands on Rider and can switch', (
+  testWidgets('a rider lands on Rider and has no shop to switch to', (
     tester,
   ) async {
     await openApp(
@@ -186,12 +186,11 @@ void main() {
     await signIn(tester, 'rider1', 'rider123');
     expect(find.text('Courier Station'), findsOneWidget);
 
-    // The switch is on the rider's Account tab (Part C), reachable even with no internet.
+    // A rider account is a work account: its Account tab offers no Shop, even with a buyer role.
     await tester.tap(find.byTooltip('Account'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Switch to Shop'));
-    await tester.pumpAndSettle();
-    expect(find.text('Search Loved-IT'), findsOneWidget);
+    expect(find.text('Switch to Shop'), findsNothing);
+    expect(find.text('Sign out'), findsWidgets);
     await closeApp(tester);
   });
 

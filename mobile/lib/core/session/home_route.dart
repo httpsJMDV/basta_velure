@@ -18,19 +18,22 @@ enum AppHome {
 /// The order follows the website's `roleHomePath`: a courier team member or an approved hub opens Logistics, an
 /// active (or suspended) rider opens Rider, and everyone else opens the shop. A pending or refused application never
 /// opens a portal; the person keeps shopping, as on the website.
+///
+/// A hub, courier or rider account is a work account: it has no Shop and cannot switch to one. The person shops with a
+/// separate buyer account. An account that is both (a hub owner who also rides) still switches between those two.
 List<AppHome> homesFor(AppUser user) {
   if (user.isAdmin) return const [AppHome.webOnly];
 
-  final homes = <AppHome>[
+  final work = <AppHome>[
     if (user.logisticsCompany?.isApproved == true ||
         user.sortingCenter?.isApproved == true)
       AppHome.logistics,
     if (user.rider?.opensRiderHome == true) AppHome.rider,
-    // A rider account made by a courier or the public rider form has the `rider` role, and the buyer endpoints are
-    // not all open to it (confirm receipt needs `role:buyer`), so it gets no shop.
-    if (user.role != 'rider') AppHome.buyer,
   ];
-  return homes.isEmpty ? const [AppHome.rider] : homes;
+  if (work.isNotEmpty) return work;
+  // A rider account made by a courier or the public rider form has the `rider` role, and the buyer endpoints are not
+  // all open to it (confirm receipt needs `role:buyer`), so it gets no shop even before it is activated.
+  return user.role == 'rider' ? const [AppHome.rider] : const [AppHome.buyer];
 }
 
 AppHome defaultHomeFor(AppUser user) => homesFor(user).first;

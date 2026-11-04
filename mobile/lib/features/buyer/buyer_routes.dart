@@ -17,6 +17,7 @@ import 'catalog/categories_screen.dart';
 import 'catalog/search_screen.dart';
 import 'checkout/checkout_screen.dart';
 import 'data/account.dart';
+import 'data/catalog.dart' show ProductDetail;
 import 'data/checkout.dart';
 import 'home/home_screen.dart';
 import 'messages/chat_screen.dart';
@@ -26,6 +27,7 @@ import 'orders/order_detail_screen.dart';
 import 'orders/orders_screen.dart';
 import 'orders/return_request_screen.dart';
 import 'orders/tracking_screen.dart';
+import 'product/item_reviews_screen.dart';
 import 'product/product_screen.dart';
 import 'reviews/reviews_screen.dart';
 import 'reviews/write_review_screen.dart';
@@ -101,6 +103,17 @@ final buyerRoutes = <RouteBase>[
     (state) => ProductScreen(
       productId: int.parse(state.pathParameters['id']!),
       hero: state.extra is ProductHero ? state.extra! as ProductHero : null,
+    ),
+  ),
+  _screen(
+    '/buyer/product/:id/reviews',
+    (state) => ItemReviewsScreen(
+      productId: int.parse(state.pathParameters['id']!),
+      product: state.extra is ProductDetail
+          ? state.extra! as ProductDetail
+          : null,
+      initialRating: int.tryParse(state.uri.queryParameters['rating'] ?? ''),
+      initialWithPhotos: state.uri.queryParameters['photos'] == '1',
     ),
   ),
   _screen(

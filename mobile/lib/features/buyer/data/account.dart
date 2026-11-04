@@ -394,12 +394,14 @@ class MyReview {
     this.orderNumber,
     this.createdAt,
     this.sellerReply,
+    this.helpfulCount = 0,
   });
 
   final int id;
   final int rating;
   final String? comment;
   final List<String> images;
+  final int helpfulCount;
 
   /// Rating and text can be changed for a while after posting.
   final bool canEdit;
@@ -422,6 +424,7 @@ class MyReview {
       orderNumber: asString(asJson(json['order'])['order_number']),
       createdAt: asDate(json['created_at']),
       sellerReply: asString(asJson(json['seller_reply'])['body']),
+      helpfulCount: asInt(json['helpful_count']),
     );
   }
 }

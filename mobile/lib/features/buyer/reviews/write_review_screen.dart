@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -13,10 +12,13 @@ import '../../../core/validation/rules.dart';
 import '../../../core/widgets/widgets.dart';
 import '../data/account.dart';
 import '../data/buyer_api.dart';
+import '../product/reviews_sheet.dart';
 import '../widgets/buyer_widgets.dart';
+import 'review_guidelines.dart';
 
 /// Write a review (a [PendingReview]) or edit one (a [MyReview]): 1 to 5 stars, up to 500 characters and, for a new
-/// review, up to 5 photos. One review per product per delivered order. Pops `true` when saved.
+/// review, up to 5 photos of what arrived, taken or chosen several at once. One review per product per completed order;
+/// stars and text can be changed once, photos can't. Pops `true` when saved.
 class WriteReviewScreen extends ConsumerStatefulWidget {
   const WriteReviewScreen({super.key, required this.target});
 
@@ -28,6 +30,7 @@ class WriteReviewScreen extends ConsumerStatefulWidget {
 
 class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
   static const maxPhotos = 5;
+  static const maxText = 500;
 
   late final PendingReview? _pending = widget.target is PendingReview
       ? widget.target! as PendingReview
@@ -40,7 +43,12 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
   final _photos = <PickedPhoto>[];
   final _form = GlobalKey<FormState>();
   bool _showErrors = false;
+  bool _picking = false;
   ApiFailure? _failure;
+  String? _photoError;
+  int _sent = 0;
+  int _total = 0;
+  bool _sending = false;
 
   @override
   void dispose() {
@@ -48,16 +56,31 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
     super.dispose();
   }
 
-  Future<void> _addPhoto() async {
+  Future<void> _addPhotos() async {
+    if (_picking) return;
+    setState(() {
+      _picking = true;
+      _photoError = null;
+    });
     try {
-      final photo = await PhotoPicker().pick(
+      final picked = await PhotoPicker().pickSeveral(
         context,
-        reason: 'Take a photo of the product for your review.',
+        reason: 'Take a photo of the product you received for your review.',
+        max: maxPhotos - _photos.length,
       );
-      if (photo != null && mounted) setState(() => _photos.add(photo));
-    } on PhotoRejected catch (rejected) {
-      if (mounted) showSnack(context, rejected.message, error: true);
+      if (!mounted) return;
+      setState(() {
+        _photos.addAll(picked.photos.take(maxPhotos - _photos.length));
+        _photoError = picked.rejected;
+      });
+    } finally {
+      if (mounted) setState(() => _picking = false);
     }
+  }
+
+  void _removePhoto(int index) {
+    HapticFeedback.selectionClick();
+    setState(() => _photos.removeAt(index));
   }
 
   Future<void> _save() async {
@@ -70,6 +93,11 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
       return;
     }
     final api = ref.read(buyerApiProvider);
+    setState(() {
+      _sending = true;
+      _sent = 0;
+      _total = 0;
+    });
     try {
       if (_existing != null) {
         await api.editReview(
@@ -84,6 +112,14 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
           rating: _stars!,
           comment: _comment.text.trim(),
           photos: _photos,
+          onSendProgress: (sent, total) {
+            if (mounted) {
+              setState(() {
+                _sent = sent;
+                _total = total;
+              });
+            }
+          },
         );
       }
       if (!mounted) return;
@@ -91,6 +127,8 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
       context.pop(true);
     } catch (error) {
       if (mounted) setState(() => _failure = ApiFailure.from(error));
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -105,128 +143,464 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
         ),
       );
     }
+    final editing = _existing != null;
     final starError =
         _failure?.errorFor('rating') ??
         (_showErrors ? Rules.stars(_stars) : null);
+    final photoError = _failure?.errorFor('photos') ?? _photoError;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_existing == null ? 'Write a review' : 'Edit your review'),
+        title: Text(editing ? 'Edit your review' : 'Rate product'),
       ),
       body: Form(
         key: _form,
         // Not a lazy list: a field scrolled out of a ListView is unmounted, and validate() skips it.
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpace.lg),
+          padding: const EdgeInsets.only(top: AppSpace.sm),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_failure != null && _failure!.fieldErrors.isEmpty) ...[
-                MessageBanner(message: _failure!.message),
-                const SizedBox(height: AppSpace.lg),
-              ],
-              Text(
-                _pending?.productName ?? _existing?.productName ?? 'Product',
-                style: Theme.of(context).textTheme.titleMedium,
+              if (_failure != null && _failure!.fieldErrors.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.lg,
+                    0,
+                    AppSpace.lg,
+                    AppSpace.md,
+                  ),
+                  child: MessageBanner(message: _failure!.message),
+                ),
+              BlockCard(
+                child: _ProductHeader(pending: _pending, existing: _existing),
               ),
-              const SizedBox(height: AppSpace.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (var i = 1; i <= 5; i++)
-                    IconButton(
-                      tooltip: '$i star${i == 1 ? '' : 's'}',
-                      iconSize: 36,
-                      onPressed: () => setState(() => _stars = i),
-                      icon: Icon(
-                        LucideIcons.star,
-                        color: i <= (_stars ?? 0)
-                            ? const Color(0xFFF59E0B)
-                            : AppColors.stone300,
-                        fill: i <= (_stars ?? 0) ? 1 : 0,
+              BlockCard(
+                child: Column(
+                  children: [
+                    const Text(
+                      'How would you rate it?',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
                       ),
                     ),
-                ],
-              ),
-              if (starError != null)
-                Text(
-                  starError,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: StatusTone.rose.foreground,
-                    fontSize: 12,
-                  ),
-                ),
-              const SizedBox(height: AppSpace.lg),
-              AppTextField(
-                label: 'Your review (optional)',
-                controller: _comment,
-                minLines: 3,
-                maxLines: 6,
-                maxLength: 500,
-                showCounter: true,
-                textCapitalization: TextCapitalization.sentences,
-                validator: (value) =>
-                    Rules.maxLength(value, 'Your review', 500),
-                serverError: _failure?.errorFor('comment'),
-              ),
-              if (_existing == null) ...[
-                const SizedBox(height: AppSpace.lg),
-                Text(
-                  'Photos (${_photos.length} of $maxPhotos)',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: AppSpace.sm),
-                Wrap(
-                  spacing: AppSpace.sm,
-                  runSpacing: AppSpace.sm,
-                  children: [
-                    for (var i = 0; i < _photos.length; i++)
-                      GestureDetector(
-                        onLongPress: () => setState(() => _photos.removeAt(i)),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.memory(
-                            Uint8List.fromList(_photos[i].bytes),
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                          ),
+                    const SizedBox(height: AppSpace.sm),
+                    _StarPicker(
+                      value: _stars,
+                      onChanged: (stars) => setState(() => _stars = stars),
+                    ),
+                    AnimatedSwitcher(
+                      duration: kMotion,
+                      child: Text(
+                        _stars == null
+                            ? 'Tap a star to rate'
+                            : ReviewTile.wordFor(_stars!),
+                        key: ValueKey(_stars),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _stars == null
+                              ? AppColors.stone500
+                              : StatusTone.amber.foreground,
                         ),
                       ),
-                    if (_photos.length < maxPhotos)
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(80, 80),
+                    ),
+                    if (starError != null) ...[
+                      const SizedBox(height: AppSpace.xs),
+                      Text(
+                        starError,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: StatusTone.rose.foreground,
+                          fontSize: 12.5,
                         ),
-                        onPressed: _addPhoto,
-                        child: const Icon(LucideIcons.camera),
                       ),
+                    ],
                   ],
                 ),
-                if (_photos.isNotEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: AppSpace.xs),
-                    child: Text(
-                      'Press and hold a photo to remove it.',
-                      style: TextStyle(fontSize: 12, color: AppColors.stone500),
+              ),
+              BlockCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CardTitle(
+                      icon: LucideIcons.camera,
+                      title: 'Photos',
+                      trailing: editing ? null : '${_photos.length}/$maxPhotos',
                     ),
-                  ),
-                if (_failure?.errorFor('photos') != null)
-                  Text(
-                    _failure!.errorFor('photos')!,
-                    style: TextStyle(
-                      color: StatusTone.rose.foreground,
-                      fontSize: 12,
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      editing
+                          ? "Photos can't be changed after a review is posted."
+                          : 'Show the product you received. Real photos help other buyers the most.',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: AppColors.stone500,
+                      ),
                     ),
+                    const SizedBox(height: AppSpace.md),
+                    if (editing)
+                      _existing.images.isEmpty
+                          ? const Text(
+                              'No photos on this review.',
+                              style: TextStyle(color: AppColors.stone500),
+                            )
+                          : Wrap(
+                              spacing: AppSpace.sm,
+                              runSpacing: AppSpace.sm,
+                              children: [
+                                for (final url in _existing.images)
+                                  NetImage(
+                                    url,
+                                    width: _PhotoTile.size,
+                                    height: _PhotoTile.size,
+                                    radius: 12,
+                                  ),
+                              ],
+                            )
+                    else
+                      Wrap(
+                        spacing: AppSpace.sm,
+                        runSpacing: AppSpace.sm,
+                        children: [
+                          for (var i = 0; i < _photos.length; i++)
+                            _PhotoTile(
+                              bytes: _photos[i].bytes,
+                              label: 'Photo ${i + 1}',
+                              onRemove: _sending ? null : () => _removePhoto(i),
+                            ),
+                          if (_photos.length < maxPhotos)
+                            _AddPhotoTile(
+                              busy: _picking,
+                              onTap: _sending ? null : _addPhotos,
+                            ),
+                        ],
+                      ),
+                    if (photoError != null) ...[
+                      const SizedBox(height: AppSpace.sm),
+                      Text(
+                        photoError,
+                        style: TextStyle(
+                          color: StatusTone.rose.foreground,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              BlockCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _CardTitle(
+                      icon: LucideIcons.penLine,
+                      title: 'Your review',
+                      trailing: 'Optional',
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    AppTextField(
+                      label: 'What did you like or not like?',
+                      hint: 'Quality, size, how it matches the photos…',
+                      controller: _comment,
+                      minLines: 4,
+                      maxLines: 8,
+                      maxLength: maxText,
+                      showCounter: true,
+                      textCapitalization: TextCapitalization.sentences,
+                      validator: (value) =>
+                          Rules.maxLength(value, 'Your review', maxText),
+                      serverError: _failure?.errorFor('comment'),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+                child: TextButton.icon(
+                  onPressed: () => showReviewGuidelines(context),
+                  icon: const Icon(LucideIcons.bookOpen, size: 17),
+                  label: const Text('Read the review guidelines'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.stone700,
+                    alignment: Alignment.centerLeft,
                   ),
+                ),
+              ),
+              const SizedBox(height: AppSpace.lg),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.stone200)),
+        ),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.lg,
+          AppSpace.md,
+          AppSpace.lg,
+          AppSpace.md,
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_sending && _photos.isNotEmpty && !editing) ...[
+                UploadProgress(sent: _sent, total: _total),
+                const SizedBox(height: AppSpace.sm),
               ],
-              const SizedBox(height: AppSpace.xl),
               SubmitButton(
-                label: 'Post review',
-                busyLabel: 'Posting…',
+                label: editing ? 'Save changes' : 'Post review',
+                busyLabel: editing ? 'Saving…' : 'Posting…',
                 onPressed: _save,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductHeader extends StatelessWidget {
+  const _ProductHeader({this.pending, this.existing});
+
+  final PendingReview? pending;
+  final MyReview? existing;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = [
+      pending?.variantLabel,
+      pending?.shopName,
+      pending?.orderNumber ?? existing?.orderNumber,
+    ].whereType<String>().where((part) => part.isNotEmpty).join(' · ');
+    return Row(
+      children: [
+        NetImage(
+          pending?.imageUrl ?? existing?.productImageUrl,
+          width: 60,
+          height: 60,
+          radius: 12,
+        ),
+        const SizedBox(width: AppSpace.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                pending?.productName ?? existing?.productName ?? 'Product',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.ink,
+                ),
+              ),
+              if (details.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  details,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.stone500,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CardTitle extends StatelessWidget {
+  const _CardTitle({required this.icon, required this.title, this.trailing});
+
+  final IconData icon;
+  final String title;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.brandRed),
+        const SizedBox(width: AppSpace.sm),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
+        ),
+        if (trailing != null)
+          Text(
+            trailing!,
+            style: const TextStyle(fontSize: 12.5, color: AppColors.stone500),
+          ),
+      ],
+    );
+  }
+}
+
+/// Five big stars to tap.
+class _StarPicker extends StatelessWidget {
+  const _StarPicker({required this.value, required this.onChanged});
+
+  final int? value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 1; i <= 5; i++)
+          IconButton(
+            tooltip: '$i star${i == 1 ? '' : 's'}',
+            iconSize: 40,
+            isSelected: i <= (value ?? 0),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              onChanged(i);
+            },
+            icon: AnimatedScale(
+              scale: i <= (value ?? 0) ? 1.08 : 1,
+              duration: kMotion,
+              child: Icon(
+                Icons.star_rounded,
+                color: i <= (value ?? 0)
+                    ? const Color(0xFFF59E0B)
+                    : AppColors.stone200,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A picked photo with a round × to take it out again.
+class _PhotoTile extends StatelessWidget {
+  const _PhotoTile({required this.bytes, required this.label, this.onRemove});
+
+  static const size = 88.0;
+
+  final List<int> bytes;
+  final String label;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                Uint8List.fromList(bytes),
+                fit: BoxFit.cover,
+                semanticLabel: label,
+              ),
+            ),
+          ),
+          if (onRemove != null)
+            Positioned(
+              top: -10,
+              right: -10,
+              child: IconButton(
+                tooltip: 'Remove ${label.toLowerCase()}',
+                onPressed: onRemove,
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.stone900,
+                  foregroundColor: AppColors.white,
+                  minimumSize: const Size(28, 28),
+                  fixedSize: const Size(28, 28),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.padded,
+                ),
+                icon: const Icon(LucideIcons.x, size: 15),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The dashed square that adds photos.
+class _AddPhotoTile extends StatelessWidget {
+  const _AddPhotoTile({required this.onTap, this.busy = false});
+
+  final VoidCallback? onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Add photos',
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.stone50,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.stone300),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: busy ? null : onTap,
+          child: SizedBox.square(
+            dimension: _PhotoTile.size,
+            child: busy
+                ? const Center(
+                    child: SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    ),
+                  )
+                // Shrinks with large text instead of spilling out of the square.
+                : const Padding(
+                    padding: EdgeInsets.all(AppSpace.sm),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                        children: [
+                          Icon(
+                            LucideIcons.imagePlus,
+                            size: 24,
+                            color: AppColors.stone600,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Add photos',
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.stone600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
           ),
         ),
       ),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loved_it/app.dart';
 import 'package:loved_it/core/session/session.dart';
+import 'package:loved_it/features/buyer/data/account.dart';
 import 'package:loved_it/router.dart';
 
 import 'support/fakes.dart';
@@ -351,8 +352,13 @@ void main() {
       expect(find.text('1 star (0)'), findsNothing);
       await scrollTo(tester, find.text('Clear sound, and it came fast.'));
       expect(find.text('Excellent'), findsOneWidget);
-      expect(find.text('· Verified purchase'), findsOneWidget);
+      expect(find.text('Verified purchase'), findsOneWidget);
       expect(find.text('Purchased: Black'), findsOneWidget);
+      // The page asks for the most helpful reviews first.
+      expect(
+        sent('GET', '/products/1/reviews').first.queryParameters['sort'],
+        'helpful',
+      );
       await scrollTo(tester, find.text('Maria Audio'));
       expect(
         find.text('14 products  •  320 sold  •  4.6 rating'),
@@ -397,7 +403,7 @@ void main() {
       await closeApp(tester);
     });
 
-    testWidgets('choosing a star rating asks for those reviews', (
+    testWidgets('choosing a star rating opens those reviews on their page', (
       tester,
     ) async {
       await openApp(tester, shopWindow());
@@ -408,11 +414,13 @@ void main() {
       await tester.tap(find.text('4 stars (3)'));
       await tester.pumpAndSettle();
 
+      expect(where(), '/buyer/product/1/reviews');
+      expect(find.text('Item reviews'), findsOneWidget);
       expect(
         sent('GET', '/products/1/reviews').last.queryParameters['rating'],
         4,
       );
-      await scrollTo(tester, find.text('Good for the price.'));
+      expect(find.text('Good for the price.'), findsOneWidget);
       await closeApp(tester);
     });
 
@@ -525,6 +533,259 @@ void main() {
     });
   });
 
+  group('item reviews', () {
+    Map<String, dynamic> review(
+      int id, {
+      int helpful = 0,
+      bool helped = false,
+      bool mine = false,
+      String? reply,
+    }) => {
+      'id': id,
+      'rating': 5,
+      'comment': 'Review number $id.',
+      'verified_purchase': true,
+      'variant_label': 'Black',
+      'images': <Object>[],
+      'created_at': '2026-10-13T00:00:00+00:00',
+      'buyer': {'name': 'B***r $id'},
+      'seller_reply': ?(reply == null ? null : {'body': reply}),
+      'helpful_count': helpful,
+      'helped': helped,
+      'is_mine': mine,
+    };
+
+    Map<String, FakeHandler> reviewsPage() => {
+      ...shopWindow(),
+      'GET /products/1/reviews': (r) => jsonBody(200, {
+        'data': r.queryParameters['with_photos'] == 1
+            ? [review(9)]
+            : [
+                review(5, helpful: 2, reply: 'Salamat po!'),
+                review(6, mine: true),
+              ],
+        'meta': {
+          'current_page': 1,
+          'last_page': 1,
+          'total': 2,
+          'avg_rating': 4.8,
+          'rating_counts': {'1': 0, '2': 0, '3': 0, '4': 1, '5': 1},
+          'photo_count': 1,
+        },
+      }),
+    };
+
+    testWidgets(
+      'shows the summary, the reply, and Helpful only on other people\'s reviews',
+      (tester) async {
+        await openApp(tester, {
+          ...reviewsPage(),
+          ...signedInToo(),
+          'PUT /reviews/5/helpful': (_) => jsonBody(200, {
+            'data': {'review_id': 5, 'helpful_count': 3, 'helped': true},
+          }),
+        }, token: 't');
+        push('/buyer/product/1/reviews');
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('All reviews are from verified purchases'),
+          findsOneWidget,
+        );
+        expect(find.text('4.8'), findsOneWidget);
+        expect(find.text('2 ratings'), findsOneWidget);
+        expect(find.text('With photos (1)'), findsOneWidget);
+        expect(
+          sent('GET', '/products/1/reviews').first.queryParameters['sort'],
+          'helpful',
+        );
+        expect(find.text("Shop's reply"), findsOneWidget);
+        expect(find.text('Salamat po!'), findsOneWidget);
+        expect(find.text('Your review'), findsOneWidget);
+        expect(find.text('Helpful (2)'), findsOneWidget);
+
+        await tester.tap(find.text('Helpful (2)'));
+        await tester.pumpAndSettle();
+        expect(sent('PUT', '/reviews/5/helpful'), hasLength(1));
+        expect(find.text('Helpful (3)'), findsOneWidget);
+        await closeApp(tester);
+      },
+    );
+
+    testWidgets('fits a small phone with large text', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await openApp(tester, {...reviewsPage(), ...signedInToo()}, token: 't');
+      tester.view.physicalSize = const Size(720, 1280);
+      tester.view.devicePixelRatio = 2;
+      push('/buyer/product/1');
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.text('See all'));
+      await tester.tap(find.text('See all'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Item reviews'), findsOneWidget);
+      for (var i = 0; i < 4; i++) {
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
+        await tester.pumpAndSettle();
+      }
+      expect(tester.takeException(), isNull);
+      await closeApp(tester);
+    });
+
+    testWidgets('Helpful goes back when the server refuses', (tester) async {
+      await openApp(tester, {
+        ...reviewsPage(),
+        ...signedInToo(),
+        'PUT /reviews/5/helpful': (_) =>
+            jsonBody(404, {'message': 'Review not found.'}),
+      }, token: 't');
+      push('/buyer/product/1/reviews');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Helpful (2)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Helpful (2)'), findsOneWidget);
+      expect(find.text('Review not found.'), findsOneWidget);
+      await closeApp(tester);
+    });
+
+    testWidgets('a guest signs in before marking a review helpful', (
+      tester,
+    ) async {
+      await openApp(tester, reviewsPage());
+      push('/buyer/product/1/reviews');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Helpful (2)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(sent('PUT', '/reviews/5/helpful'), isEmpty);
+      await closeApp(tester);
+    });
+
+    testWidgets('With photos asks for those, and Clear shows them all again', (
+      tester,
+    ) async {
+      await openApp(tester, reviewsPage());
+      push('/buyer/product/1/reviews');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('With photos (1)'));
+      await tester.pumpAndSettle();
+      expect(
+        sent('GET', '/products/1/reviews').last.queryParameters['with_photos'],
+        1,
+      );
+      expect(find.text('Review number 9.'), findsOneWidget);
+
+      await tester.tap(find.text('Clear'));
+      await tester.pumpAndSettle();
+      expect(
+        sent('GET', '/products/1/reviews').last.queryParameters,
+        isNot(contains('with_photos')),
+      );
+      expect(find.text('Review number 5.'), findsOneWidget);
+      await closeApp(tester);
+    });
+
+    testWidgets('the (?) explains star ratings and links the guidelines', (
+      tester,
+    ) async {
+      await openApp(tester, reviewsPage());
+      push('/buyer/product/1/reviews');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('All reviews are from verified purchases'));
+      await tester.pumpAndSettle();
+      expect(find.text('Guidelines for star rating'), findsOneWidget);
+
+      await tester.tap(find.text('Read the review guidelines'));
+      await tester.pumpAndSettle();
+      expect(find.text('Review guidelines'), findsOneWidget);
+      expect(find.text('Who can review'), findsOneWidget);
+      await closeApp(tester);
+    });
+
+    testWidgets('Add to cart there comes back to the product and adds it', (
+      tester,
+    ) async {
+      await openApp(tester, {...reviewsPage(), ...signedInToo()}, token: 't');
+      push('/buyer/product/1');
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.text('See all'));
+      await tester.tap(find.text('See all'));
+      await tester.pumpAndSettle();
+      expect(where(), '/buyer/product/1/reviews');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to cart'));
+      await tester.pumpAndSettle();
+      expect(where(), '/buyer/product/1');
+      expect(sent('POST', '/cart/items'), hasLength(1));
+      await closeApp(tester);
+    });
+  });
+
+  group('write a review', () {
+    const pending = PendingReview(
+      orderId: 40,
+      orderNumber: 'VEL-ABC123',
+      productId: 1,
+      productName: 'Wireless Earbuds',
+      variantLabel: 'Black',
+      shopName: 'Maria Audio',
+    );
+
+    Future<void> openWriter(WidgetTester tester) async {
+      await openApp(tester, {
+        ...shopWindow(),
+        ...signedInToo(),
+        'POST /buyer/reviews': (_) => jsonBody(201, {'data': {}}),
+      }, token: 't');
+      container
+          .read(routerProvider)
+          .push('/buyer/reviews/write', extra: pending);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('asks for stars, names them, and posts the rating', (
+      tester,
+    ) async {
+      await openWriter(tester);
+      expect(find.text('Rate product'), findsOneWidget);
+      expect(find.text('Wireless Earbuds'), findsOneWidget);
+      expect(find.text('Add photos'), findsOneWidget);
+      expect(find.text('0/5'), findsOneWidget);
+
+      await tester.tap(find.text('Post review'));
+      await tester.pumpAndSettle();
+      expect(sent('POST', '/buyer/reviews'), isEmpty);
+
+      await tester.tap(find.byTooltip('4 stars'));
+      await tester.pumpAndSettle();
+      expect(find.text('Good'), findsOneWidget);
+      await tester.tap(find.text('Post review'));
+      await tester.pumpAndSettle();
+
+      final form = sent('POST', '/buyer/reviews').single.data as FormData;
+      expect(Map.fromEntries(form.fields), containsPair('rating', '4'));
+      await closeApp(tester);
+    });
+
+    testWidgets('fits a small phone with large text', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await openWriter(tester);
+      tester.view.physicalSize = const Size(720, 1280);
+      tester.view.devicePixelRatio = 2;
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await closeApp(tester);
+    });
+  });
+
   group('checkout with an old address', () {
     final old = {
       'id': 3,
@@ -609,6 +870,7 @@ void main() {
           '/buyer/categories',
           '/buyer/search',
           '/buyer/product/1',
+          '/buyer/product/1/reviews',
           '/sign-in',
         ]) {
           expect(redirectFor(const SignedOut(), open), isNull, reason: open);

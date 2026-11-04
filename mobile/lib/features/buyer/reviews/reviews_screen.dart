@@ -12,6 +12,8 @@ import '../buyer_paths.dart';
 import '../data/account.dart';
 import '../data/buyer_api.dart';
 import '../widgets/buyer_widgets.dart';
+import '../widgets/photo_viewer.dart';
+import 'review_guidelines.dart';
 
 /// Reviews (B10): what is waiting for a review, and the reviews already written.
 class ReviewsScreen extends ConsumerStatefulWidget {
@@ -46,6 +48,13 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reviews'),
+          actions: [
+            IconButton(
+              tooltip: 'Review guidelines',
+              icon: const Icon(LucideIcons.circleHelp),
+              onPressed: () => showReviewGuidelines(context),
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'To review'),
@@ -63,7 +72,7 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
               empty: const EmptyState(
                 icon: LucideIcons.star,
                 title: 'Nothing to review',
-                message: 'Products from delivered orders show here so you can rate them.',
+                message: 'Products from completed orders show here so you can rate them, with photos.',
               ),
             ),
             PagedList<MyReview>(
@@ -186,9 +195,33 @@ class _MyReviewTile extends StatelessWidget {
               const SizedBox(height: AppSpace.sm),
               Text(review.comment!, style: const TextStyle(height: 1.4)),
             ],
-            const SizedBox(height: AppSpace.xs),
+            if (review.images.isNotEmpty) ...[
+              const SizedBox(height: AppSpace.sm),
+              Wrap(
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.sm,
+                children: [
+                  for (var i = 0; i < review.images.length; i++)
+                    GestureDetector(
+                      onTap: () =>
+                          showPhotoViewer(context, review.images, initial: i),
+                      child: NetImage(
+                        review.images[i],
+                        width: 64,
+                        height: 64,
+                        radius: 8,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: AppSpace.sm),
             Text(
-              Fmt.date(review.createdAt),
+              [
+                Fmt.date(review.createdAt),
+                if (review.helpfulCount > 0)
+                  '${review.helpfulCount} found this helpful',
+              ].join(' · '),
               style: const TextStyle(fontSize: 12, color: AppColors.stone500),
             ),
             if (review.sellerReply != null) ...[
