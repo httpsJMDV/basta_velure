@@ -298,4 +298,79 @@ class TruckTripTest extends TestCase
             ->assertJsonPath('data.vehicle_type', 'Truck');
         $this->getJson('/api/v1/logistics/riders?duty=truck')->assertOk()->assertJsonCount(1, 'data');
     }
+
+    // ── Activity logs (hub, courier, rider) ──────────────────────────────────
+
+    /** @return list<string> */
+    private function titles(string $url): array
+    {
+        return array_column($this->getJson($url)->assertOk()->json('data'), 'title');
+    }
+
+    public function test_each_hub_sees_the_steps_of_the_parcels_it_handled_and_its_trucks(): void
+    {
+        $driver = $this->driver();
+        $parcel = $this->parcel();
+        $this->send([$parcel], $driver)->assertOk();
+        $stranger = $this->parcel(self::SANTA_CRUZ);
+        Sanctum::actingAs($this->secondUser->fresh());
+        $this->postJson("/api/v1/hub/parcels/{$parcel->tracking_number}/receive")->assertOk();
+
+        Sanctum::actingAs($this->firstUser->fresh());
+        $titles = $this->titles('/api/v1/hub/activity');
+        $this->assertContains('Received at the hub', $titles);
+        $this->assertContains('Left for another hub', $titles);
+        $this->assertContains('Truck left with parcels', $titles);
+
+        // Narrowed to transfers, then to one tracking number.
+        $transfers = $this->getJson('/api/v1/hub/activity?category=transfers')->assertOk()->json('data');
+        $this->assertNotEmpty($transfers);
+        $this->assertSame(['transfers'], array_values(array_unique(array_column($transfers, 'category'))));
+        $only = $this->getJson('/api/v1/hub/activity?search=' . $stranger->tracking_number)->assertOk()->json('data');
+        $this->assertSame([$stranger->tracking_number], array_values(array_unique(array_column($only, 'tracking_number'))));
+
+        // The second hub sees the parcel it received, not the one that stayed at the first hub.
+        Sanctum::actingAs($this->secondUser->fresh());
+        $rows = $this->getJson('/api/v1/hub/activity')->assertOk()->json('data');
+        $this->assertContains('Arrived from another hub', array_column($rows, 'title'));
+        $this->assertNotContains($stranger->tracking_number, array_column($rows, 'tracking_number'));
+
+        $this->getJson('/api/v1/hub/activity?category=nonsense')->assertStatus(422);
+    }
+
+    public function test_the_courier_and_the_driver_see_their_activity(): void
+    {
+        $driver = $this->driver();
+        $parcel = $this->parcel();
+        $this->send([$parcel], $driver)->assertOk();
+        Sanctum::actingAs($this->secondUser->fresh());
+        $this->postJson("/api/v1/hub/parcels/{$parcel->tracking_number}/receive")->assertOk();
+        Sanctum::actingAs($this->ops->fresh());
+        $this->postJson("/api/v1/logistics/truck-drivers/{$driver->id}/pay")->assertOk();
+
+        $titles = $this->titles('/api/v1/logistics/activity');
+        $this->assertContains('Truck driver paid', $titles);
+        $this->assertContains('Arrived from another hub', $titles);
+        $money = $this->getJson('/api/v1/logistics/activity?category=money')->assertOk()->json('data');
+        $this->assertSame('Truck driver paid', $money[0]['title']);
+        $this->assertSame('Courier', $money[0]['actor']['role']);
+
+        Sanctum::actingAs($driver->user->fresh());
+        $mine = $this->titles('/api/v1/rider/activity');
+        $this->assertContains('Truck left with parcels', $mine);
+        $this->assertContains('Truck driver paid', $mine);
+    }
+
+    public function test_the_log_pages_with_next_before(): void
+    {
+        $parcel = $this->parcel();
+        Sanctum::actingAs($this->firstUser->fresh());
+        $first = $this->getJson('/api/v1/hub/activity')->assertOk();
+        $this->assertNull($first->json('meta.next_before'));
+        $this->assertNotEmpty($first->json('meta.categories'));
+
+        $later = $this->getJson('/api/v1/hub/activity?before=' . urlencode(now()->subDay()->toIso8601String()))->assertOk();
+        $this->assertSame([], $later->json('data'));
+        $this->assertNotNull($parcel);
+    }
 }

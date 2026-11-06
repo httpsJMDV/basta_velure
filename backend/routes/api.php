@@ -198,6 +198,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/truck-trips', [$trucks, 'trips']);
             Route::post('/truck-trips/{trip}/close', [$trucks, 'close'])->whereNumber('trip');
             Route::put('/truck-rate', [$trucks, 'rate']);
+            // Activity log across the network: parcel steps and people's decisions, newest first
+            Route::get('/activity', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'company']);
             // Delivery zones and shipping rates (L8), every change audit-logged
             $shipping = \App\Http\Controllers\Api\V1\LogisticsShippingController::class;
             Route::get('/shipping', [$shipping, 'index']);
@@ -664,6 +666,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/transfers/send', [\App\Http\Controllers\Api\V1\HubTransferController::class, 'send']);
             Route::get('/truck-drivers',   [\App\Http\Controllers\Api\V1\HubTransferController::class, 'drivers']);
             Route::get('/truck-trips',     [\App\Http\Controllers\Api\V1\HubTransferController::class, 'trips']);
+            // Activity log: everything that happened to this hub's parcels, riders and trucks
+            Route::get('/activity',        [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'hub']);
 
             // Delivery monitoring and failure triage (Feature 1.9)
             Route::get('/deliveries/out',                               [HubDeliveryController::class, 'out']);
@@ -714,6 +718,8 @@ Route::prefix('v1')->group(function () {
             // Truck drivers: trips between hubs and trip pay
             Route::get('/trips', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'index']);
             Route::post('/trips/{trip}/arrived', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'arrived'])->whereNumber('trip');
+            // Activity log: what this rider did and what was decided about their account
+            Route::get('/activity', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'rider']);
 
             // Online / Offline, job offers, returns to the seller and COD remittance (R3, R4, R7, R9)
             $jobs = \App\Http\Controllers\Api\V1\RiderJobController::class;
