@@ -402,6 +402,48 @@ class BuyerApi {
       ) ??
       'Sent to Loved-IT for review.';
 
+  // ── Refunds the shop sends by hand (docs/api/refunds.md) ──────────────────
+
+  /// Which GCash gets the refund; allowed until the shop has sent it.
+  Future<String> setRefundAccount(
+    int orderId, {
+    required String gcashNumber,
+    required String gcashName,
+  }) async =>
+      asString(
+        (await _send(
+          'PUT',
+          '/buyer/orders/$orderId/refund/account',
+          data: {'gcash_number': gcashNumber, 'gcash_name': gcashName},
+        ))['message'],
+      ) ??
+      'Saved.';
+
+  Future<String> confirmRefund(int orderId) async =>
+      asString(
+        (await _send('POST', '/buyer/orders/$orderId/refund/confirm'))['message'],
+      ) ??
+      'The refund is marked as received.';
+
+  Future<String> reportRefund(int orderId, String note) async =>
+      asString(
+        (await _send(
+          'POST',
+          '/buyer/orders/$orderId/refund/report',
+          data: {'note': note},
+        ))['message'],
+      ) ??
+      'Reported to Loved-IT.';
+
+  /// The shop's GCash receipt. Private: kept in memory only.
+  Future<List<int>> refundReceipt(int refundId) => _run(() async {
+    final response = await _dio.get<List<int>>(
+      '/refunds/$refundId/receipt',
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return response.data ?? const <int>[];
+  });
+
   Future<ParcelTracking> tracking(String trackingNumber) async =>
       ParcelTracking.fromJson(
         asJson(

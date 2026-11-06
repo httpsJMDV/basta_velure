@@ -8,6 +8,7 @@ import '../../../core/api/api_failure.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../chat/rider_chat.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
 import '../data/rider_state.dart';
@@ -150,6 +151,12 @@ class _ReturnCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: AppSpace.md),
+          // The shop knows it is coming back; agree a time in the chat.
+          RiderMessageButton(
+            trackingNumber: job.trackingNumber,
+            counterparts: const [Counterpart.seller],
+          ),
+          const SizedBox(height: AppSpace.sm),
           SubmitButton(
             label: 'Handed back to the seller',
             busyLabel: 'Sending…',

@@ -317,6 +317,8 @@ class DeliveryStop {
     this.assignedAt,
     this.outForDeliveryAt,
     this.hubPath = const [],
+    this.buyerContacted = false,
+    this.contactFirstReasons = const ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'],
   });
 
   final String trackingNumber;
@@ -324,6 +326,12 @@ class DeliveryStop {
   final String recipientName;
   final String recipientPhone;
   final RiderPlace address;
+
+  /// The rider called, texted or messaged the buyer on this trip.
+  final bool buyerContacted;
+
+  /// Failure reasons that need that contact first ("not at home", "could not contact").
+  final List<String> contactFirstReasons;
 
   /// Cash to collect; null for a prepaid (GCash) order.
   final double? codAmount;
@@ -359,6 +367,10 @@ class DeliveryStop {
       assignedAt: asDate(json['assigned_at']),
       outForDeliveryAt: asDate(json['out_for_delivery_at']),
       hubPath: asStringList(json['hub_path']),
+      buyerContacted: asBool(json['buyer_contacted']),
+      contactFirstReasons: json['contact_first_reasons'] is List
+          ? asStringList(json['contact_first_reasons'])
+          : const ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'],
     );
   }
 }

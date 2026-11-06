@@ -282,9 +282,12 @@ class RiderActionPill extends StatelessWidget {
 
 /// [RiderActionPill] that phones this number.
 class RiderCallPill extends StatelessWidget {
-  const RiderCallPill({super.key, required this.phone});
+  const RiderCallPill({super.key, required this.phone, this.onCall});
 
   final String phone;
+
+  /// Runs as the call starts, for example to record that the rider tried to reach the buyer.
+  final VoidCallback? onCall;
 
   @override
   Widget build(BuildContext context) {
@@ -293,10 +296,17 @@ class RiderCallPill extends StatelessWidget {
       label: 'Call',
       onTap: phone.isEmpty
           ? null
-          : () => _open(context, Uri(scheme: 'tel', path: phone)),
+          : () {
+              onCall?.call();
+              _open(context, Uri(scheme: 'tel', path: phone));
+            },
     );
   }
 }
+
+/// Opens the phone's dialer or messages app for [phone] (`tel:` or `sms:`).
+Future<void> openPhoneApp(BuildContext context, String phone, {bool sms = false}) =>
+    _open(context, Uri(scheme: sms ? 'sms' : 'tel', path: phone));
 
 /// [RiderActionPill] that opens this address in a maps app.
 class RiderMapsPill extends StatelessWidget {
