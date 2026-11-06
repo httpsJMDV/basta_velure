@@ -101,6 +101,8 @@ class UserResource extends JsonResource
                 'id'                => $this->rider->id,
                 'status'            => $this->rider->status,
                 'vehicle_type'      => $this->rider->vehicle_type,
+                // "truck": drives parcels between hubs and sees Trips instead of Pickups and Deliveries
+                'duty'              => $this->rider->duty ?? \App\Models\Rider::DUTY_DELIVERY,
                 'plate_number'      => $this->rider->plate_number,
                 'license_number'    => $this->rider->license_number,
                 'license_expiry'    => $this->rider->license_expiry?->toDateString(),

@@ -43,4 +43,18 @@ return [
         'sends_per_minute' => (int) env('RIDER_CHAT_SENDS_PER_MINUTE', 20),
     ],
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Truck trips between hubs (line-haul)
+    |--------------------------------------------------------------------------
+    |
+    | What a courier pays its truck driver for one trip from one hub to another,
+    | when the courier has not set its own rate. The courier pays it from its own
+    | money, so the shipping fee split (riders 85%, hub 15%) does not change.
+    |
+    */
+
+    'truck_trip_rate' => (float) env('LOGISTICS_TRUCK_TRIP_RATE', 800),
+
 ];

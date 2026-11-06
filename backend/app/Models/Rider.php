@@ -79,6 +79,19 @@ class Rider extends Model
         self::VEHICLE_VAN,
     ];
 
+    public const VEHICLE_TRUCK = 'Truck';
+
+    /** What a truck driver may drive between hubs. */
+    public const TRUCK_VEHICLE_TYPES = [self::VEHICLE_TRUCK, self::VEHICLE_VAN];
+
+    /** Picks up from shops and delivers to buyers (every rider before truck drivers). */
+    public const DUTY_DELIVERY = 'delivery';
+
+    /** Drives parcels from one hub to another; never gets pickup or delivery jobs. */
+    public const DUTY_TRUCK = 'truck';
+
+    public const DUTIES = [self::DUTY_DELIVERY, self::DUTY_TRUCK];
+
     /** GCash numbers are only sent where a screen needs them. */
     protected $hidden = ['gcash_number'];
 
@@ -88,6 +101,7 @@ class Rider extends Model
         'user_id',
         'sorting_center_id',
         'vehicle_type',
+        'duty',
         'plate_number',
         'vehicle_updated_at',
         'last_latitude',
@@ -158,6 +172,23 @@ class Rider extends Model
     public function isApplicant(): bool
     {
         return $this->applied_at !== null && $this->activated_at === null && $this->status === self::STATUS_PENDING;
+    }
+
+    public function isTruckDriver(): bool
+    {
+        return $this->duty === self::DUTY_TRUCK;
+    }
+
+    /** @return list<string> */
+    public static function vehicleTypesFor(?string $duty): array
+    {
+        return $duty === self::DUTY_TRUCK ? self::TRUCK_VEHICLE_TYPES : self::VEHICLE_TYPES;
+    }
+
+    /** Riders who pick up and deliver parcels: everyone but truck drivers. */
+    public function scopeCarriesParcels($query)
+    {
+        return $query->where('duty', '!=', self::DUTY_TRUCK);
     }
 
     /** Online now: switched Online, Active, and heard from within the presence timeout. */

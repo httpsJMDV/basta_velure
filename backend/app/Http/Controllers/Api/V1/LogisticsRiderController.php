@@ -64,6 +64,7 @@ class LogisticsRiderController extends Controller
         $riders = self::companyRiders($company)->with(['user', 'sortingCenter'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', strtoupper($status)))
             ->when($request->query('hub_id'), fn ($q, $hubId) => $q->where('sorting_center_id', (int) $hubId))
+            ->when(in_array($request->query('duty'), Rider::DUTIES, true), fn ($q) => $q->where('duty', $request->query('duty')))
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('plate_number', 'like', "%{$search}%")
                 ->orWhere('license_number', 'like', "%{$search}%")
@@ -289,6 +290,7 @@ class LogisticsRiderController extends Controller
             'active_jobs'           => $activeJobs,
             'delivered_today'       => $deliveredToday,
             'vehicle_type'          => $r->vehicle_type,
+            'duty'                  => $r->duty ?? Rider::DUTY_DELIVERY,
             'plate_number'          => $r->plate_number,
             'license_number'        => $r->license_number,
             'license_expiry'        => $r->license_expiry?->toDateString(),

@@ -59,7 +59,7 @@ class LogisticsDispatchController extends Controller
         $parcelId = (int) $request->query('parcel_id');
         $parcel = $parcelId ? LogisticsCompany::constrain(Parcel::query(), $company->id)->find($parcelId) : null;
 
-        $all = LogisticsRiderController::companyRiders($company)->with('user')->whereIn('status', [Rider::STATUS_ACTIVE, Rider::STATUS_SUSPENDED])->get();
+        $all = LogisticsRiderController::companyRiders($company)->carriesParcels()->with('user')->whereIn('status', [Rider::STATUS_ACTIVE, Rider::STATUS_SUSPENDED])->get();
         $jobs = $this->workload->activeJobCounts($all->pluck('id'));
         $ranked = $parcel ? $this->dispatcher->eligibleRiders($parcel)->keyBy(fn ($e) => $e['rider']->id) : collect();
 
@@ -119,7 +119,7 @@ class LogisticsDispatchController extends Controller
             'rider_id'     => ['required', 'integer'],
         ], ['rider_id.required' => 'Choose a rider.']);
         $company = $this->company($request);
-        $rider = LogisticsRiderController::companyRiders($company)->find($data['rider_id']);
+        $rider = LogisticsRiderController::companyRiders($company)->carriesParcels()->find($data['rider_id']);
         abort_unless($rider, 422, 'This rider is not one of your riders.');
 
         if (count($data['parcel_ids']) === 1) {

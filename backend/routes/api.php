@@ -191,6 +191,13 @@ Route::prefix('v1')->group(function () {
             $riders = \App\Http\Controllers\Api\V1\LogisticsRiderController::class;
             Route::get('/riders', [$riders, 'index']);
             Route::post('/riders', [$riders, 'store'])->middleware('throttle:upload');
+            // Truck drivers between hubs: their trips and the trip pay the company owes them
+            $trucks = \App\Http\Controllers\Api\V1\LogisticsTruckController::class;
+            Route::get('/truck-drivers', [$trucks, 'drivers']);
+            Route::post('/truck-drivers/{rider}/pay', [$trucks, 'pay'])->whereNumber('rider');
+            Route::get('/truck-trips', [$trucks, 'trips']);
+            Route::post('/truck-trips/{trip}/close', [$trucks, 'close'])->whereNumber('trip');
+            Route::put('/truck-rate', [$trucks, 'rate']);
             // Delivery zones and shipping rates (L8), every change audit-logged
             $shipping = \App\Http\Controllers\Api\V1\LogisticsShippingController::class;
             Route::get('/shipping', [$shipping, 'index']);
@@ -655,6 +662,8 @@ Route::prefix('v1')->group(function () {
             // Hub-to-hub transfers
             Route::get('/transfers',       [\App\Http\Controllers\Api\V1\HubTransferController::class, 'index']);
             Route::post('/transfers/send', [\App\Http\Controllers\Api\V1\HubTransferController::class, 'send']);
+            Route::get('/truck-drivers',   [\App\Http\Controllers\Api\V1\HubTransferController::class, 'drivers']);
+            Route::get('/truck-trips',     [\App\Http\Controllers\Api\V1\HubTransferController::class, 'trips']);
 
             // Delivery monitoring and failure triage (Feature 1.9)
             Route::get('/deliveries/out',                               [HubDeliveryController::class, 'out']);
@@ -702,6 +711,9 @@ Route::prefix('v1')->group(function () {
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
             Route::get('/me', [RiderController::class, 'me']);
+            // Truck drivers: trips between hubs and trip pay
+            Route::get('/trips', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'index']);
+            Route::post('/trips/{trip}/arrived', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'arrived'])->whereNumber('trip');
 
             // Online / Offline, job offers, returns to the seller and COD remittance (R3, R4, R7, R9)
             $jobs = \App\Http\Controllers\Api\V1\RiderJobController::class;

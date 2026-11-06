@@ -65,6 +65,7 @@ class HubRiderAreaAssignmentController extends Controller
             422,
             'Areas can only be assigned to active approved couriers.'
         );
+        abort_if($rider->isTruckDriver(), 422, 'Truck drivers carry parcels between hubs and do not get delivery areas.');
 
         $request->merge(['area_label' => Str::squish((string) $request->input('area_label'))]);
         $validated = $request->validate([

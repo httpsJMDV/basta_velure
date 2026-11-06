@@ -35,6 +35,8 @@ class RiderProfileResource extends JsonResource
             'phone'        => $user?->phone,
             'status'       => $this->status,
             'vehicle_type' => $this->vehicle_type,
+            // "truck": drives parcels between hubs (Trips); "delivery": picks up and delivers
+            'duty'         => $this->duty ?? \App\Models\Rider::DUTY_DELIVERY,
             'plate_number' => $this->plate_number,
             'vehicle_updated_at' => $this->vehicle_updated_at?->toIso8601String(),
             'license_number' => $this->license_number,

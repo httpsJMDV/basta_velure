@@ -144,7 +144,7 @@ class LogisticsParcelOpsController extends Controller
     {
         $riderId = $request->validate(['rider_id' => ['required', 'integer']], ['rider_id.required' => 'Choose the delivery rider.'])['rider_id'];
         $company = $this->company($request);
-        $rider = LogisticsRiderController::companyRiders($company)->with('user')->find($riderId);
+        $rider = LogisticsRiderController::companyRiders($company)->carriesParcels()->with('user')->find($riderId);
         abort_unless($rider, 422, 'This rider is not one of your riders.');
 
         $attempt = DB::transaction(function () use ($request, $company, $parcel, $rider) {
@@ -190,7 +190,7 @@ class LogisticsParcelOpsController extends Controller
     public function assignReturn(Request $request, int $parcel): JsonResponse
     {
         $riderId = $request->validate(['rider_id' => ['required', 'integer']], ['rider_id.required' => 'Choose a rider.'])['rider_id'];
-        $rider = LogisticsRiderController::companyRiders($this->company($request))->with('user')->find($riderId);
+        $rider = LogisticsRiderController::companyRiders($this->company($request))->carriesParcels()->with('user')->find($riderId);
         abort_unless($rider, 422, 'This rider is not one of your riders.');
         $this->rts->assign($this->company($request), $parcel, $rider, $request->user());
 

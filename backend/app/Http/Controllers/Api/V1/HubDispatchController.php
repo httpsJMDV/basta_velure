@@ -250,6 +250,7 @@ class HubDispatchController extends Controller
             $rider = Rider::with('user')
                 ->where('id', $riderId)
                 ->where('sorting_center_id', $hub->id)
+                ->carriesParcels()
                 ->lockForUpdate()
                 ->first();
 

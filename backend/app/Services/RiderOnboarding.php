@@ -175,6 +175,7 @@ class RiderOnboarding
                     'logistics_company_id' => $company->id,
                     'sorting_center_id'    => $hubId,
                     'vehicle_type'         => $data['vehicle_type'],
+                    'duty'                 => $data['duty'] ?? Rider::DUTY_DELIVERY,
                     'plate_number'         => $data['plate_number'],
                     'license_number'       => $data['license_number'],
                     'license_expiry'       => $data['license_expiry'],

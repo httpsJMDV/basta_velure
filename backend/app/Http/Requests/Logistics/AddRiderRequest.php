@@ -44,7 +44,7 @@ class AddRiderRequest extends FormRequest
         }
         if (is_string($request->input('vehicle_type'))) {
             $raw = trim($request->input('vehicle_type'));
-            $match = collect(Rider::VEHICLE_TYPES)->first(fn ($t) => strcasecmp($t, $raw) === 0);
+            $match = collect([...Rider::VEHICLE_TYPES, Rider::VEHICLE_TRUCK])->first(fn ($t) => strcasecmp($t, $raw) === 0);
             if ($match) {
                 $merge['vehicle_type'] = $match;
             }
@@ -107,7 +107,9 @@ class AddRiderRequest extends FormRequest
             'email'          => ['required', 'string', 'email:rfc', 'max:100', 'unique:users,email'],
             'phone'          => ['required', ...PhMobile::rules(), 'unique:users,phone'],
             ...self::licenseRules(),
-            'vehicle_type'   => ['required', 'string', Rule::in(Rider::VEHICLE_TYPES)],
+            // A truck driver drives parcels between hubs and gets no pickup or delivery jobs.
+            'duty'           => ['nullable', 'string', Rule::in(Rider::DUTIES)],
+            'vehicle_type'   => ['required', 'string', Rule::in(Rider::vehicleTypesFor($this->input('duty')))],
             'plate_number'   => ['required', 'string', 'regex:/^[A-Z0-9]{2,10}$/', function ($attr, $value, $fail) {
                 if (is_string($value) && self::plateTaken($value)) {
                     $fail('This plate number is already registered to another rider.');
@@ -142,7 +144,8 @@ class AddRiderRequest extends FormRequest
             'phone.unique'     => 'This mobile number is already in use by another account.',
             ...self::licenseMessages(),
             'vehicle_type.required' => 'Choose the vehicle type.',
-            'vehicle_type.in'       => 'Vehicle type must be Motorcycle, Tricycle, Car or Van.',
+            'vehicle_type.in'       => $this->input('duty') === Rider::DUTY_TRUCK ? 'A truck driver drives a Truck or a Van.' : 'Vehicle type must be Motorcycle, Tricycle, Car or Van.',
+            'duty.in'               => 'Choose Rider or Truck driver.',
             'plate_number.required' => 'Plate number is required.',
             'plate_number.regex'    => 'Enter the plate number with letters and numbers only, for example 123ABC or NBC1234.',
             ...Validation::uploadMessages('drivers_license_image', "the driver's license", document: true),

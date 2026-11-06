@@ -53,7 +53,7 @@ class Dispatcher
             return collect();
         }
 
-        $riders = LogisticsRiderController::companyRiders($company)
+        $riders = LogisticsRiderController::companyRiders($company)->carriesParcels()
             ->with(['user', 'sortingCenter', 'areaAssignments' => fn ($q) => $q->where('is_active', true)])
             ->where('status', Rider::STATUS_ACTIVE)
             ->where('is_online', true)
