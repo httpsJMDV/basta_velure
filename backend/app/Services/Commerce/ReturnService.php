@@ -7,6 +7,7 @@ use App\Models\Dispute;
 use App\Models\DisputePhoto;
 use App\Models\Order;
 use App\Models\PlatformSetting;
+use App\Models\Refund;
 use App\Models\User;
 use App\Services\MailNotifier;
 use App\Services\Notifier;
@@ -70,13 +71,22 @@ class ReturnService
                 if ($why = self::unavailableReason($locked)) {
                     abort(422, $why);
                 }
+                // A parcel that never arrived is between the buyer and the courier: Loved-IT decides it from the
+                // rider's proof, not the shop.
+                $notReceived = $reason === Dispute::REASON_NOT_RECEIVED;
                 $dispute = Dispute::updateOrCreate(['order_id' => $locked->id], [
                     'buyer_id' => $buyer->id, 'seller_id' => $locked->items()->value('seller_id'),
-                    'reason' => $reason, 'description' => $description, 'status' => 'pending',
-                    'respond_by' => now()->addDays(PlatformSetting::sellerResponseDays()), 'seller_reason' => null, 'seller_responded_at' => null,
-                    'escalate_by' => null, 'escalated_at' => null, 'auto_approved' => false, 'resolution_note' => null,
+                    'reason' => $reason, 'description' => $description, 'status' => $notReceived ? 'escalated' : 'pending',
+                    'respond_by' => $notReceived ? null : now()->addDays(PlatformSetting::sellerResponseDays()), 'seller_reason' => null, 'seller_responded_at' => null,
+                    'escalate_by' => null, 'escalated_at' => $notReceived ? now() : null, 'auto_approved' => false,
+                    'resolution_note' => $notReceived ? 'Parcel not received: Loved-IT checks the delivery proof and decides.' : null,
                     'resolved_by' => null, 'resolved_at' => null, 'refund_amount' => null,
                 ]);
+                if ($notReceived) {
+                    app(Notifier::class)->toAdmins('dispute.not_received', 'Parcel not received: decision needed',
+                        "Order {$locked->order_number}: the buyer says the parcel marked delivered never arrived. Check the rider's proof photos and decide.",
+                        '/admin/disputes', ['order_id' => $locked->id, 'dispute_id' => $dispute->id]);
+                }
                 $dispute->photos()->delete();
                 foreach (array_values($photos) as $i => $photo) {
                     $path = $photo->store('returns', 'public');
@@ -84,7 +94,7 @@ class ReturnService
                     DisputePhoto::create(['dispute_id' => $dispute->id, 'path' => $path, 'sort_order' => $i]);
                 }
                 $this->machine->transition($locked, OrderStatus::DISPUTED, 'buyer', $buyer->id, "Return requested: {$reason}");
-                app(MailNotifier::class)->returnRequested($locked, "{$reason} — {$description}");
+                app(MailNotifier::class)->returnRequested($locked, "{$reason} — {$description}", $notReceived);
 
                 return $dispute->fresh('photos');
             });
@@ -112,6 +122,31 @@ class ReturnService
             $this->machine->transition($locked, OrderStatus::RETURNED, $actor, $actorId, $auto ? 'Return approved automatically after 3 days' : 'Return approved');
             $this->refundReturn($locked->fresh());
             app(MailNotifier::class)->returnResolved($locked, 'accepted');
+            // The shop approved it itself; otherwise it learns the 3-day rule or Loved-IT decided.
+            if ($actor !== 'seller') {
+                app(MailNotifier::class)->sellerReturnDecided($locked->fresh(), $auto ? 'auto_approved' : 'refund', $note);
+            }
+
+            return $dispute->fresh('photos');
+        });
+    }
+
+    /** Loved-IT decides an escalated return for the shop: the request closes and the order completes. */
+    public function closeForShop(Order $order, int $adminId, string $note): Dispute
+    {
+        return DB::transaction(function () use ($order, $adminId, $note) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $dispute = Dispute::where('order_id', $locked->id)->lockForUpdate()->firstOrFail();
+            if (! in_array($dispute->status, ['escalated', 'open', 'in_progress'], true)) {
+                abort(409, 'This return request has already been decided.');
+            }
+            $dispute->update(['status' => 'closed', 'resolution_note' => "Loved-IT decided for the shop. {$note}", 'resolved_by' => $adminId, 'resolved_at' => now()]);
+            $this->machine->transition($locked, OrderStatus::COMPLETED, 'admin', $adminId, 'Return dispute closed in favour of the shop');
+            app(Notifier::class)->toUserId($locked->buyer_id, 'return.decided', 'Loved-IT decided your return',
+                "Order {$locked->order_number}: Loved-IT reviewed the request and decided for the shop. {$note}",
+                "/settings/orders?order={$locked->id}", ['order_id' => $locked->id]);
+            app(MailNotifier::class)->returnResolved($locked, 'closed', $note);
+            app(MailNotifier::class)->sellerReturnDecided($locked, 'shop', $note);
 
             return $dispute->fresh('photos');
         });
@@ -153,6 +188,7 @@ class ReturnService
             $dispute->update(['status' => 'escalated', 'escalated_at' => now(), 'resolution_note' => 'Escalated to Loved-IT for a decision.']);
             app(Notifier::class)->toSeller($dispute->seller_id, 'returns', 'return.escalated', 'Return escalated to Loved-IT',
                 "The buyer escalated the return for order {$order->order_number}. Loved-IT will decide.", "/seller/orders?order={$order->id}", ['order_id' => $order->id]);
+            app(MailNotifier::class)->sellerReturnDecided($order, 'escalated');
             app(Notifier::class)->toAdmins('dispute.escalated', 'Return escalated: decision needed',
                 "Order {$order->order_number}: the buyer escalated a return the shop rejected. Read both sides and decide.", '/admin/disputes', ['order_id' => $order->id, 'dispute_id' => $dispute->id]);
 
@@ -160,15 +196,18 @@ class ReturnService
         });
     }
 
-    /** The return refund: the exact amount paid, to the original payment method (or the refund account for COD). */
+    /**
+     * The return refund: the exact amount paid. E-wallet and card at once; a GCash order and the cash a rider
+     * collected went to the shop, so the shop sends those to the buyer's GCash (ManualRefunds).
+     */
     private function refundReturn(Order $order): void
     {
         if ($order->payment_method === 'cod') {
-            $order->forceFill(['refund_status' => 'refunded', 'refund_amount' => (float) $order->total, 'refunded_at' => now()])->save();
+            app(ManualRefunds::class)->open($order, Refund::CAUSE_RETURN, (float) $order->total);
 
             return;
         }
-        $this->canceller->refund($order);
+        $this->canceller->refund($order, null, Refund::CAUSE_RETURN);
     }
 
     /**

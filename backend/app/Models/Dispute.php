@@ -13,7 +13,13 @@ class Dispute extends Model
     /** A return request (A31): the shop answers within 3 days or it is approved; a rejection can be escalated once within 3 days. */
     public const RESPOND_DAYS = 3;
     public const ESCALATE_DAYS = 3;
-    public const REASONS = ['Damaged item', 'Wrong item', 'Missing item or parts', 'Not as described', 'Defective or not working', 'Expired product'];
+    /**
+     * "Marked delivered, but nothing came": the shop cannot check a courier's delivery, so this goes straight to
+     * Loved-IT, which reads the rider's proof photos. Photos from the buyer are optional for it.
+     */
+    public const REASON_NOT_RECEIVED = 'Parcel not received';
+
+    public const REASONS = ['Damaged item', 'Wrong item', 'Missing item or parts', 'Not as described', 'Defective or not working', 'Expired product', self::REASON_NOT_RECEIVED];
 
     protected $fillable = [
         'order_id', 'buyer_id', 'seller_id', 'reason', 'description',

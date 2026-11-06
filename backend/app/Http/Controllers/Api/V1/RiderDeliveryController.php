@@ -340,6 +340,14 @@ class RiderDeliveryController extends Controller
                 return $this->cannotUpdate();
             }
 
+            // "Not at home" and "could not contact" only after the rider tried to reach the buyer on this trip.
+            if (in_array($reason, self::CONTACT_FIRST, true) && ! $this->contactedThisTrip($parcel, $request->user()->id)) {
+                return response()->json([
+                    'message' => 'Call or message the buyer first. Use Call or Message on this stop, then record the failed attempt if they still cannot receive it.',
+                    'code'    => 'contact_required',
+                ], 422);
+            }
+
             $now = now();
 
             // The buyer can read the history note, so it carries only the reason label, not the free-text note.
@@ -382,6 +390,66 @@ class RiderDeliveryController extends Controller
                 'pay'               => '0.00',
             ]);
         });
+    }
+
+    /**
+     * POST /api/v1/rider/deliveries/{tracking}/contact {method: call|sms}
+     *
+     * The rider is calling or texting the buyer from this stop (the app opens the phone right after). Stamps the trip
+     * so "Recipient unavailable" and "Could not contact" can be recorded, and tells the buyer by the bell, at most
+     * once every few minutes. Repeating it is harmless.
+     */
+    public function contact(Request $request, string $tracking): JsonResponse
+    {
+        $request->validate(['method' => ['nullable', Rule::in(['call', 'sms'])]]);
+        $rider = $this->rider($request);
+        $trackingNumber = Str::upper(trim($tracking));
+
+        return DB::transaction(function () use ($request, $rider, $trackingNumber) {
+            $parcel = $this->lockOwnParcel($rider, $trackingNumber);
+            if (! $parcel) {
+                return $this->notFound();
+            }
+            if ($parcel->status !== Parcel::STATUS_OUT_FOR_DELIVERY) {
+                return $this->conflict($parcel);
+            }
+
+            $previous = $parcel->buyer_contacted_at;
+            $now = now();
+            $parcel->forceFill(['buyer_contacted_at' => $now])->save();
+
+            $recentlyTold = $previous && $previous->gt($now->copy()->subMinutes(self::CONTACT_NOTICE_MINUTES))
+                && (! $parcel->out_for_delivery_at || $previous->gte($parcel->out_for_delivery_at));
+            if (! $recentlyTold && $parcel->order) {
+                $name = $request->user()->first_name ?: 'Your rider';
+                app(\App\Services\Notifier::class)->toUserId($parcel->order->buyer_id, 'order.rider_calling', "{$name} is trying to reach you",
+                    "Your rider is at your address with order {$parcel->order->order_number}" . ($request->input('method') === 'sms' ? ' and sent you a text.' : ' and is calling you.') . ' Answer so the parcel is not sent back.',
+                    "/settings/orders?order={$parcel->order_id}", ['order_id' => $parcel->order_id, 'tracking_number' => $parcel->tracking_number]);
+            }
+
+            return response()->json(['message' => 'Contact attempt saved.', 'buyer_contacted_at' => $now->toIso8601String()]);
+        });
+    }
+
+    /** Failure reasons that need a call or a message to the buyer first. */
+    public const CONTACT_FIRST = [DeliveryFailureReason::RECIPIENT_UNAVAILABLE, DeliveryFailureReason::CANNOT_CONTACT];
+
+    /** The buyer hears "your rider is calling" at most once per this many minutes. */
+    private const CONTACT_NOTICE_MINUTES = 5;
+
+    /** The rider called or texted (POST .../contact) or sent the buyer a chat message since this trip started. */
+    protected function contactedThisTrip(Parcel $parcel, int $riderUserId): bool
+    {
+        $since = $parcel->out_for_delivery_at;
+        if ($parcel->buyer_contacted_at && (! $since || $parcel->buyer_contacted_at->gte($since))) {
+            return true;
+        }
+
+        return \App\Models\Message::query()
+            ->whereHas('conversation', fn ($q) => $q->where('parcel_id', $parcel->id)->where('type', \App\Models\Conversation::TYPE_RIDER_BUYER))
+            ->where('sender_id', $riderUserId)
+            ->when($since, fn ($q) => $q->where('created_at', '>=', $since))
+            ->exists();
     }
 
     /**
@@ -462,6 +530,10 @@ class RiderDeliveryController extends Controller
             'item_summary'        => $this->itemSummary($items),
             'assigned_at'         => $parcel->assigned_at?->toIso8601String(),
             'out_for_delivery_at' => $parcel->out_for_delivery_at?->toIso8601String(),
+            // "Recipient unavailable" and "Could not contact" need a call, text or chat message on this trip first.
+            'buyer_contacted'     => $parcel->status === Parcel::STATUS_OUT_FOR_DELIVERY && $parcel->buyer_contacted_at !== null
+                && (! $parcel->out_for_delivery_at || $parcel->buyer_contacted_at->gte($parcel->out_for_delivery_at)),
+            'contact_first_reasons' => array_map(fn (DeliveryFailureReason $r) => $r->value, self::CONTACT_FIRST),
         ];
     }
 

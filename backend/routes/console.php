@@ -23,6 +23,9 @@ Schedule::command('orders:cancel-unpaid')->everyMinute()->withoutOverlapping();
 // A31: unanswered return requests are approved after 3 days; rejections not escalated in 3 days close.
 Schedule::command('returns:process-deadlines')->everyFifteenMinutes()->withoutOverlapping();
 
+// Refunds the shop sends by hand: unreported sent refunds count as received after 3 days; late shops are flagged.
+Schedule::command('refunds:process-deadlines')->everyFifteenMinutes()->withoutOverlapping();
+
 // A14: pickup offers last 60 seconds; an expired one goes to the next rider. The rider and company screens also
 // expire offers on every read (the rider app checks every 5 seconds); this catches the rest.
 Schedule::command('dispatch:expire-offers')->everyMinute()->withoutOverlapping();

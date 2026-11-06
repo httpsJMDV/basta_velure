@@ -23,6 +23,8 @@ class BuyerConfirmReceiptTest extends TestCase
         // These tests cover the configurable escrow hold and auto-complete window, so they pin a 7-day hold and a
         // 3-day window. The workbook defaults (no hold, 7 days, A11 and A15) are covered in CommerceOrdersTest.
         config(['payouts.escrow_hold_days' => 7, 'orders.auto_complete_days' => 3]);
+        // Auto-complete never runs before the return window ends, so a 3-day window comes with a 3-day return window.
+        \App\Models\PlatformSetting::updateOrCreate(['key' => 'return_policy_config'], ['value' => json_encode(['return_window_days' => 3])]);
         $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
     }
 

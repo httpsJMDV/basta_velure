@@ -21,9 +21,21 @@ class AutoCompleteDeliveredOrders extends Command
 
     protected $description = 'Complete DELIVERED orders the buyer has not confirmed within orders.auto_complete_days';
 
+    /**
+     * Days after delivery before an order completes by itself: orders.auto_complete_days, but never before the return
+     * window (Platform Settings) has ended, because completing an order ends the buyer's right to ask for a return.
+     * 0 (for demos) completes at once.
+     */
+    public static function days(): int
+    {
+        $days = max(0, (int) config('orders.auto_complete_days', 7));
+
+        return $days === 0 ? 0 : max($days, \App\Models\PlatformSetting::returnWindowDays());
+    }
+
     public function handle(OrderStateMachine $stateMachine): int
     {
-        $days = max(0, (int) config('orders.auto_complete_days', 3));
+        $days = self::days();
         $cutoff = now()->subDays($days);
 
         $completed = 0;

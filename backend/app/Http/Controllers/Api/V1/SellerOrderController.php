@@ -46,7 +46,7 @@ class SellerOrderController extends Controller
         $base = fn () => Order::whereHas('items', fn ($q) => $q->where('seller_id', $sellerId))
             ->when($range, fn ($q) => $q->whereBetween('created_at', $range));
 
-        $query = $base()->with(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'parcel', 'dispute.photos']);
+        $query = $base()->with(['buyer', 'items' => fn ($q) => $q->where('seller_id', $sellerId), 'payment', 'parcel', 'dispute.photos', 'refund']);
         $tab = $request->query('tab');
         if (is_string($tab) && isset(self::TABS[$tab])) {
             $query->whereIn('status', self::TABS[$tab]);
@@ -382,6 +382,23 @@ class SellerOrderController extends Controller
         ]);
     }
 
+    /**
+     * The rider the shop can message about this order now (POST /parcels/{tracking}/rider-chat), or null.
+     *
+     * @return array{tracking_number: string, rider_first_name: string|null, leg: string}|null
+     */
+    private function riderChat(Order $o): ?array
+    {
+        $p = $o->relationLoaded('parcel') ? $o->parcel : $o->parcel()->first();
+        $target = $p ? app(\App\Services\RiderChatService::class)->sellerChatRider($p) : null;
+
+        return $target ? [
+            'tracking_number'  => $p->tracking_number,
+            'rider_first_name' => $target['rider']->user?->first_name,
+            'leg'              => $target['phase'],
+        ] : null;
+    }
+
     /** @return array{state: string, since: string|null, confirmed_at: string|null}|null */
     private function rtsState(Order $o): ?array
     {
@@ -543,6 +560,10 @@ class SellerOrderController extends Controller
             'cancelled_at'          => $o->cancelled_at?->toIso8601String(),
             'refund_status'         => $o->refund_status,
             'refund_amount'         => $o->refund_amount !== null ? (float) $o->refund_amount : null,
+            // A refund this shop sends by hand to the buyer's GCash (GCash and COD orders).
+            'refund'                => \App\Services\Commerce\ManualRefunds::present($o->relationLoaded('refund') ? $o->refund : $o->refund()->first(), 'seller'),
+            // The rider the shop can message right now: the pickup rider, or the rider bringing a parcel back.
+            'rider_chat'            => $this->riderChat($o),
             'can_cancel'            => OrderCanceller::canSellerCancel($o),
             // A failed delivery coming back, or back and waiting for the shop to confirm it (A13).
             'return_to_sender'      => $this->rtsState($o),

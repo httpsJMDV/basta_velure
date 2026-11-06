@@ -51,7 +51,7 @@ class AdminDisputeController extends Controller
 
     public function show(Dispute $dispute): JsonResponse
     {
-        $dispute->load(['order.buyer', 'order.items', 'buyer', 'resolver', 'seller.sellerProfile', 'photos']);
+        $dispute->load(['order.buyer', 'order.items', 'order.refund', 'buyer', 'resolver', 'seller.sellerProfile', 'photos']);
         return response()->json(['data' => $this->format($dispute, detail: true)]);
     }
 
@@ -76,10 +76,7 @@ class AdminDisputeController extends Controller
             if ($request->decision === 'refund') {
                 app(\App\Services\Commerce\ReturnService::class)->approve($dispute->order, 'admin', $request->user()->id, "Loved-IT decided: refund. {$note}");
             } else {
-                \Illuminate\Support\Facades\DB::transaction(function () use ($dispute, $request, $note) {
-                    $dispute->update(['status' => 'closed', 'resolution_note' => "Loved-IT decided for the shop. {$note}", 'resolved_by' => $request->user()->id, 'resolved_at' => now()]);
-                    app(\App\Services\OrderStateMachine::class)->transition($dispute->order, \App\Enums\OrderStatus::COMPLETED, 'admin', $request->user()->id, 'Return dispute closed in favour of the shop');
-                });
+                app(\App\Services\Commerce\ReturnService::class)->closeForShop($dispute->order, $request->user()->id, $note);
             }
             AdminActivityLog::create([
                 'admin_id' => $request->user()->id, 'action' => 'resolve_dispute', 'target_type' => 'dispute', 'target_id' => $dispute->id,
@@ -186,8 +183,34 @@ class AdminDisputeController extends Controller
                 'first_name' => $d->resolver->first_name,
                 'last_name'  => $d->resolver->last_name,
             ] : null;
+            $base['delivery'] = self::deliveryEvidence($d->order);
+            $base['refund'] = \App\Services\Commerce\ManualRefunds::present($d->order->refund, 'admin');
         }
 
         return $base;
+    }
+
+    /**
+     * What the courier recorded at the door, for deciding a "Parcel not received" claim: when, by which rider, who
+     * received it and how many proof photos (served by GET /parcels/{tracking}/delivery-proof?photo=).
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function deliveryEvidence(\App\Models\Order $order): ?array
+    {
+        $parcel = $order->parcel()->with('assignedRider.user')->first();
+        if (! $parcel) {
+            return null;
+        }
+        $rider = $parcel->assignedRider?->user;
+
+        return [
+            'tracking_number'   => $parcel->tracking_number,
+            'delivered_at'      => $parcel->delivered_at?->toIso8601String(),
+            'received_by'       => $parcel->received_by,
+            'rider_name'        => $rider ? trim("{$rider->first_name} {$rider->last_name}") : null,
+            'proof_photo_count' => (int) (bool) $parcel->delivery_proof_path + (int) (bool) $parcel->delivery_proof_path_2,
+            'cod_collected'     => $parcel->cod_collected_amount !== null ? (float) $parcel->cod_collected_amount : null,
+        ];
     }
 }

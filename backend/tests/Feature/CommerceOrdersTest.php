@@ -265,8 +265,10 @@ class CommerceOrdersTest extends TestCase
         $this->patchJson("/api/v1/admin/disputes/{$disputeId}/resolve", ['decision' => 'refund', 'resolution_note' => 'Photos show the rim was broken in transit.'])->assertOk();
         $order = Order::find($id);
         $this->assertSame(OrderStatus::RETURNED, $order->status);
-        $this->assertSame('refunded', $order->refund_status);
+        // A COD buyer paid the shop in cash, so the shop sends the refund to their GCash (ManualRefundsTest).
+        $this->assertSame('pending', $order->refund_status);
         $this->assertEqualsWithDelta((float) $order->total, (float) $order->refund_amount, 0.001);
+        $this->assertSame(\App\Models\Refund::STATUS_AWAITING_ACCOUNT, \App\Models\Refund::where('order_id', $id)->value('status'));
         $this->patchJson("/api/v1/admin/disputes/{$disputeId}/resolve", ['decision' => 'reject', 'resolution_note' => 'Second decision.'])->assertStatus(409);
     }
 

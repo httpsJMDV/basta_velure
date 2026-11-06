@@ -103,6 +103,7 @@ class HubParcelIntakeController extends Controller
 
             Parcel::where('id', $parcel->id)->update(['scanned_in_at' => now()]);
             $this->router->plan($parcel, $hub);
+            app(\App\Services\Notifier::class)->handoverConfirmed($parcel, $hub);
 
             $parcel = Parcel::with(['order:id,order_number', 'pickupRider.user'])->find($parcel->id);
 

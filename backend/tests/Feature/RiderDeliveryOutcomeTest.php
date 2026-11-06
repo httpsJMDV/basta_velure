@@ -212,6 +212,11 @@ class RiderDeliveryOutcomeTest extends TestCase
 
     protected function markFailed(User $user, string $tracking, array $payload)
     {
+        // "Not at home" and "could not contact" need a call first (DeliverySafeguardsTest covers that rule).
+        if (in_array($payload['reason'] ?? null, ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'], true)) {
+            $this->actingAs($user, 'sanctum')->postJson('/api/v1/rider/deliveries/' . $tracking . '/contact', ['method' => 'call']);
+        }
+
         return $this->actingAs($user, 'sanctum')->postJson('/api/v1/rider/deliveries/' . $tracking . '/failed', $payload);
     }
 

@@ -53,6 +53,12 @@ class UserResource extends JsonResource
                 ];
             }),
             'has_password'  => ! is_null($this->password),
+            // Admins only: refused parcels and whether cash on delivery is off for this account (CodRefusals).
+            'cod' => $this->when($request->user()?->role === 'admin' && $this->role !== 'admin', fn () => [
+                'refusals' => \App\Services\Commerce\CodRefusals::count($this->resource),
+                'limit'    => \App\Services\Commerce\CodRefusals::limit(),
+                'blocked'  => \App\Services\Commerce\CodRefusals::blocked($this->resource),
+            ]),
             'created_at' => $this->created_at?->toIso8601String(),
             'seller_profile' => $this->whenLoaded('sellerProfile', fn () => [
                 'shop_name'            => $this->sellerProfile->shop_name,

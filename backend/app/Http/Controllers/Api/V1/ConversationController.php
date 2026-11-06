@@ -571,14 +571,22 @@ class ConversationController extends Controller
 
     // ── The buyer starts a chat with the rider bringing their parcel ─────────
 
-    /** POST /parcels/{tracking}/rider-chat: from Track package, while the parcel is out for delivery. */
+    /**
+     * POST /parcels/{tracking}/rider-chat. The buyer: from Track package, while the parcel is out for delivery. The
+     * shop that sent the parcel: with the pickup rider, or the rider bringing it back.
+     */
     public function startRiderChat(Request $request, string $tracking): JsonResponse
     {
-        $conversation = $this->riderChat()->openThreadForBuyer($request->user(), $tracking);
+        $user = $request->user();
+        $isShop = \App\Models\Parcel::where('tracking_number', \Illuminate\Support\Str::upper(trim($tracking)))->where('seller_id', $user->id)->exists();
+        $conversation = $isShop
+            ? $this->riderChat()->openThreadForSeller($user, $tracking)
+            : $this->riderChat()->openThreadForBuyer($user, $tracking);
+        $role = $isShop ? RiderChatService::ROLE_SELLER : RiderChatService::ROLE_BUYER;
         $this->riderChat()->loadForFormatting(collect([$conversation]));
 
         return response()->json([
-            'data' => $this->riderChat()->formatConversation($conversation, RiderChatService::ROLE_BUYER, $this->riderChat()->isOpen($conversation)),
+            'data' => $this->riderChat()->formatConversation($conversation, $role, $this->riderChat()->isOpen($conversation)),
         ], $conversation->wasRecentlyCreated ? 201 : 200);
     }
 

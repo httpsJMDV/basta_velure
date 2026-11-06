@@ -314,14 +314,37 @@ class AdminController extends Controller
         return response()->json(['data' => new UserResource($user->fresh(['rider.sortingCenter']))]);
     }
 
+    /** POST /admin/users/{user}/restore-cod: cash on delivery back on; earlier refused parcels stop counting. */
+    public function restoreCod(Request $request, User $user): JsonResponse
+    {
+        abort_if($user->role === 'admin', 404, 'User not found.');
+        abort_unless(\App\Services\Commerce\CodRefusals::blocked($user), 409, 'Cash on delivery is already on for this account.');
+
+        DB::transaction(function () use ($user, $request) {
+            \App\Services\Commerce\CodRefusals::restore($user);
+            AdminActivityLog::create([
+                'admin_id'    => $request->user()->id,
+                'action'      => 'restore_cod',
+                'target_type' => 'user',
+                'target_id'   => $user->id,
+                'description' => "Turned cash on delivery back on for {$user->email}.",
+                'meta'        => ['email' => $user->email],
+            ]);
+            app(\App\Services\Notifier::class)->send($user, 'account.cod_on', 'Cash on delivery is back on',
+                'Loved-IT turned cash on delivery back on for your account.', '/settings/orders');
+        });
+
+        return response()->json(['data' => new UserResource($user->fresh(['rider.sortingCenter']))]);
+    }
+
     // ── Activity log ─────────────────────────────────────────────────────────
 
     /** The admin actions by area, for the activity log's filters and figures. */
     public const LOG_AREAS = [
         'applications' => ['approve_buyer', 'reject_buyer', 'approve_seller', 'reject_seller', 'approve_courier', 'reject_courier', 'approve_sorting_center', 'reject_sorting_center'],
-        'accounts'     => ['suspend_user', 'reactivate_user', 'suspend_courier', 'reactivate_courier', 'suspend_sorting_center', 'reactivate_sorting_center'],
+        'accounts'     => ['suspend_user', 'reactivate_user', 'suspend_courier', 'reactivate_courier', 'suspend_sorting_center', 'reactivate_sorting_center', 'restore_cod'],
         'catalog'      => ['create_category', 'update_category', 'delete_category'],
-        'money'        => ['update_commission', 'update_return_policy', 'confirm_commission', 'resolve_settlement', 'remind_settlement'],
+        'money'        => ['update_commission', 'update_return_policy', 'confirm_commission', 'resolve_settlement', 'remind_settlement', 'resolve_refund'],
         'disputes'     => ['resolve_dispute'],
     ];
 

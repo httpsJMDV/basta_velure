@@ -37,6 +37,8 @@ class RiderChatService
 {
     public const PHASE_PICKUP = 'pickup';
     public const PHASE_DELIVERY = 'delivery';
+    /** Bringing a failed delivery back to the shop (rts_rider_id). */
+    public const PHASE_RETURN = 'return';
 
     public const ROLE_RIDER = 'rider';
     public const ROLE_SELLER = 'seller';
@@ -53,6 +55,7 @@ class RiderChatService
     public const PHASE_COUNTERPARTS = [
         self::PHASE_PICKUP   => [self::ROLE_SELLER, self::ROLE_HUB],
         self::PHASE_DELIVERY => [self::ROLE_BUYER, self::ROLE_HUB],
+        self::PHASE_RETURN   => [self::ROLE_SELLER],
     ];
 
     /** Counterpart kind to conversation type. */
@@ -87,7 +90,7 @@ class RiderChatService
             $parcel = Parcel::with('order')
                 ->where('tracking_number', Str::upper(trim($trackingNumber)))
                 ->where(function ($q) use ($rider) {
-                    $q->where('pickup_rider_id', $rider->id)->orWhere('assigned_rider_id', $rider->id);
+                    $q->where('pickup_rider_id', $rider->id)->orWhere('assigned_rider_id', $rider->id)->orWhere('rts_rider_id', $rider->id);
                 })
                 ->lockForUpdate()
                 ->first();
@@ -103,9 +106,11 @@ class RiderChatService
 
             if (! in_array($counterpart, self::PHASE_COUNTERPARTS[$phase], true)) {
                 throw ValidationException::withMessages([
-                    'counterpart' => [$phase === self::PHASE_PICKUP
-                        ? 'During pickup you can message the seller or the hub.'
-                        : 'During delivery you can message the buyer or the hub.'],
+                    'counterpart' => [match ($phase) {
+                        self::PHASE_PICKUP => 'During pickup you can message the seller or the hub.',
+                        self::PHASE_RETURN => 'While bringing a parcel back you can message the seller.',
+                        default            => 'During delivery you can message the buyer or the hub.',
+                    }],
                 ]);
             }
 
@@ -238,8 +243,55 @@ class RiderChatService
         if (in_array($parcel->status, self::DELIVERY_STATUSES, true) && (int) $parcel->assigned_rider_id === $riderId) {
             return self::PHASE_DELIVERY;
         }
+        if ($parcel->status === Parcel::STATUS_RETURN_TO_SENDER && (int) $parcel->rts_rider_id === $riderId) {
+            return self::PHASE_RETURN;
+        }
 
         return null;
+    }
+
+    /**
+     * The rider the shop can message about a parcel now: the pickup rider once one has the job (until the hub scans
+     * it in), or the rider bringing a failed delivery back. Only an active rider.
+     *
+     * @return array{rider: Rider, phase: string}|null
+     */
+    public function sellerChatRider(Parcel $parcel): ?array
+    {
+        [$riderId, $phase] = match (true) {
+            in_array($parcel->status, self::PICKUP_STATUSES, true) && $parcel->pickup_rider_id !== null => [$parcel->pickup_rider_id, self::PHASE_PICKUP],
+            $parcel->status === Parcel::STATUS_RETURN_TO_SENDER && $parcel->rts_rider_id !== null      => [$parcel->rts_rider_id, self::PHASE_RETURN],
+            default => [null, null],
+        };
+        $rider = $riderId ? Rider::with('user')->find($riderId) : null;
+
+        return $rider && $rider->status === Rider::STATUS_ACTIVE ? ['rider' => $rider, 'phase' => $phase] : null;
+    }
+
+    /**
+     * The shop starts (or reopens) the chat with the rider collecting its parcel or bringing one back. Another shop's
+     * parcel is a 404; with no rider to message it is a 409.
+     */
+    public function openThreadForSeller(User $seller, string $trackingNumber): Conversation
+    {
+        return DB::transaction(function () use ($seller, $trackingNumber) {
+            $parcel = Parcel::where('tracking_number', Str::upper(trim($trackingNumber)))->lockForUpdate()->first();
+            if (! $parcel || (int) $parcel->seller_id !== (int) $seller->id) {
+                abort(404, 'Parcel not found.');
+            }
+            $target = $this->sellerChatRider($parcel);
+            if (! $target) {
+                $this->fail409('You can message the rider once one has taken the pickup, or while a rider brings the parcel back.');
+            }
+
+            return Conversation::firstOrCreate(
+                ['parcel_id' => $parcel->id, 'rider_id' => $target['rider']->user_id, 'type' => Conversation::TYPE_RIDER_SELLER],
+                [
+                    'status' => 'open', 'seller_id' => $seller->id, 'order_id' => $parcel->order_id,
+                    'subject' => ($target['phase'] === self::PHASE_RETURN ? 'Return ' : 'Pickup ') . $parcel->tracking_number, 'last_message_at' => now(),
+                ],
+            );
+        });
     }
 
     /**

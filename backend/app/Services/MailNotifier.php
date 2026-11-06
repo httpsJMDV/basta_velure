@@ -566,7 +566,10 @@ class MailNotifier
         $seller = $order->items->first()?->seller;
         $sellerLink = ['actionUrl' => $this->url('/seller/orders'), 'actionLabel' => 'Open order'];
         $sellerFooter = ['footer' => 'You received this email because of an order at your Loved-IT shop.'];
+        $pickupRider = $to === OrderStatus::PICKED_UP->value ? Parcel::with('pickupRider.user')->where('order_id', $order->id)->first()?->pickupRider?->user?->first_name : null;
         $sellerNotice = match ($to) {
+            OrderStatus::PICKED_UP->value => ['tone' => 'info', 'label' => 'Order picked up', 'title' => 'The courier collected your parcel.',
+                'paragraphs' => [($pickupRider ? $pickupRider . ', the rider,' : 'The rider') . ' picked up order ' . $order->order_number . ' from your shop. It is on its way to the sorting hub; you will be told when it is delivered.']],
             OrderStatus::DELIVERED->value => ['tone' => 'success', 'label' => 'Order delivered', 'title' => 'Your order reached the buyer.',
                 'paragraphs' => ['Order ' . $order->order_number . ' was delivered. It completes when the buyer confirms receipt, or automatically after a few days.']],
             OrderStatus::COMPLETED->value => ['tone' => 'success', 'label' => 'Order completed', 'title' => 'Order complete. Earnings on the way.',
@@ -616,15 +619,17 @@ class MailNotifier
 
     // ── Returns ──────────────────────────────────────────────────────────────
 
-    public function returnRequested(Order $order, string $reason): void
+    public function returnRequested(Order $order, string $reason, bool $notReceived = false): void
     {
         $order->loadMissing(['items.seller', 'buyer']);
         $seller = $order->items->first()?->seller;
-        $this->send($seller, 'Return requested for ' . $order->order_number, 'return_requested', [
+        $this->send($seller, ($notReceived ? 'Parcel not received: ' : 'Return requested for ') . $order->order_number, 'return_requested', [
             'tone' => 'warning',
-            'label' => 'Return requested',
-            'title' => 'A buyer asked for a return.',
-            'paragraphs' => ['The buyer of order ' . $order->order_number . ' requested a return. Review the request and accept or reject it.'],
+            'label' => $notReceived ? 'Parcel not received' : 'Return requested',
+            'title' => $notReceived ? 'A buyer says their parcel never arrived.' : 'A buyer asked for a return.',
+            'paragraphs' => [$notReceived
+                ? 'The buyer of order ' . $order->order_number . ' says the parcel marked delivered never reached them. Loved-IT checks the rider\'s proof photos and decides; you do not need to answer. You will be told the decision.'
+                : 'The buyer of order ' . $order->order_number . ' requested a return. Review the request and accept or reject it.'],
             'highlight' => ['title' => 'Buyer\'s reason', 'body' => $reason],
             'details' => ['Order' => $order->order_number, 'Buyer' => trim(($order->buyer?->first_name ?? '') . ' ' . ($order->buyer?->last_name ?? '')), 'Order total' => $this->peso($order->total)],
             'actionUrl' => $this->url('/seller/orders'),
@@ -633,17 +638,22 @@ class MailNotifier
         ]);
     }
 
-    /** @param 'accepted'|'rejected'|'partial' $outcome */
+    /** @param 'accepted'|'rejected'|'partial'|'closed' $outcome */
     public function returnResolved(Order $order, string $outcome, ?string $reason = null, ?float $partialAmount = null): void
     {
         $order->loadMissing('buyer');
+        $instant = in_array($order->payment_method, Order::GATEWAY_METHODS, true);
         [$tone, $label, $title, $line] = match ($outcome) {
             'accepted' => ['success', 'Return accepted', 'Your return was accepted.',
-                'The shop accepted your return request for order ' . $order->order_number . '. Follow the instructions in your orders to send the item back.'],
+                'Your return request for order ' . $order->order_number . ' was accepted and ' . $this->peso($order->total) . ' is refunded'
+                . ($instant ? ' to your original payment method.' : '. The shop sends it to your GCash: open the order to tell us which account, then confirm when it arrives.')
+                . ' The shop will message you if it needs the item back.'],
             'partial' => ['info', 'Partial refund offered', 'The shop offered a partial refund.',
                 'The shop offered a partial refund of ' . $this->peso($partialAmount) . ' for order ' . $order->order_number . '. Loved-IT will mediate the request.'],
+            'closed' => ['info', 'Return decided', 'Loved-IT decided for the shop.',
+                'Loved-IT reviewed both sides of your return request for order ' . $order->order_number . ' and decided for the shop. The order is now complete.'],
             default => ['danger', 'Return declined', 'Your return was declined.',
-                'The shop declined your return request for order ' . $order->order_number . '. Loved-IT will review the case.'],
+                'The shop declined your return request for order ' . $order->order_number . '. You can escalate it to Loved-IT from your orders within 3 days.'],
         };
 
         $this->send($order->buyer, $label . ': ' . $order->order_number, 'return_' . $outcome, array_filter([
@@ -651,12 +661,199 @@ class MailNotifier
             'label' => $label,
             'title' => $title,
             'paragraphs' => [$line],
-            'highlight' => ($outcome !== 'accepted' && $reason) ? ['title' => 'Note from the shop', 'body' => $reason] : null,
+            'highlight' => ($outcome !== 'accepted' && $reason) ? ['title' => $outcome === 'closed' ? 'Note from Loved-IT' : 'Note from the shop', 'body' => $reason] : null,
             'details' => ['Order' => $order->order_number],
-            'actionUrl' => $this->url('/settings/returns'),
-            'actionLabel' => 'View returns',
+            'actionUrl' => $this->url('/settings/orders?order=' . $order->id),
+            'actionLabel' => 'View your order',
             'footer' => 'You received this email because you requested a return on Loved-IT.',
         ]));
+    }
+
+    /**
+     * The shop hears what happened to a return it did not decide itself.
+     *
+     * @param 'escalated'|'auto_approved'|'refund'|'shop' $what
+     */
+    public function sellerReturnDecided(Order $order, string $what, ?string $note = null): void
+    {
+        $order->loadMissing('items.seller');
+        $seller = $order->items->first()?->seller;
+        $direct = ! in_array($order->payment_method, Order::GATEWAY_METHODS, true);
+        $refundLine = $direct ? ' The buyer paid you directly, so send them the refund by GCash: the order shows where and how much.' : ' Loved-IT refunded the buyer; this order is not in your earnings.';
+        [$tone, $label, $title, $line] = match ($what) {
+            'escalated' => ['warning', 'Return escalated', 'The buyer escalated a return you rejected.',
+                'The buyer of order ' . $order->order_number . ' asked Loved-IT to review the return you rejected. Loved-IT reads both sides and decides.'],
+            'auto_approved' => ['warning', 'Return approved automatically', 'A return was approved because it was not answered.',
+                'The return request for order ' . $order->order_number . ' was not answered within 3 days, so it was approved.' . $refundLine],
+            'refund' => ['warning', 'Loved-IT approved a return', 'Loved-IT decided for the buyer.',
+                'Loved-IT reviewed the return for order ' . $order->order_number . ' and decided to refund the buyer.' . $refundLine],
+            default => ['success', 'Return decided for you', 'Loved-IT decided for your shop.',
+                'Loved-IT reviewed the return for order ' . $order->order_number . ' and decided for your shop. The order is complete.'],
+        };
+
+        $this->send($seller, $label . ': ' . $order->order_number, 'seller_return_' . $what, array_filter([
+            'tone' => $tone,
+            'label' => $label,
+            'title' => $title,
+            'paragraphs' => [$line],
+            'highlight' => $note ? ['title' => 'Note from Loved-IT', 'body' => $note] : null,
+            'details' => ['Order' => $order->order_number, 'Order total' => $this->peso($order->total)],
+            'actionUrl' => $this->url('/seller/orders?order=' . $order->id),
+            'actionLabel' => 'Open order',
+            'footer' => 'You received this email because of an order at your Loved-IT shop.',
+        ]));
+    }
+
+    // ── Refunds the shop sends by hand ───────────────────────────────────────
+
+    public function refundAccountNeeded(\App\Models\Refund $refund): void
+    {
+        $order = $refund->order;
+        $this->send($refund->buyer, 'Where should we send your refund? ' . $order->order_number, 'refund_account_needed', [
+            'tone' => 'info',
+            'label' => 'Refund',
+            'title' => 'Tell us where to send ' . $this->peso($refund->amount) . '.',
+            'paragraphs' => [
+                'You paid the shop directly for order ' . $order->order_number . ', so the shop sends your refund to a GCash account.',
+                'Open the order and enter the GCash number and the name on the account. The shop then has ' . \App\Services\Commerce\ManualRefunds::sendDays() . ' days to send it.',
+            ],
+            'details' => ['Order' => $order->order_number, 'Refund' => $this->peso($refund->amount)],
+            'actionUrl' => $this->url('/settings/orders?order=' . $order->id),
+            'actionLabel' => 'Add GCash account',
+            'footer' => 'You received this email because you are being refunded on Loved-IT.',
+        ]);
+    }
+
+    public function refundToSend(\App\Models\Refund $refund, bool $again = false, ?string $note = null, bool $late = false): void
+    {
+        $order = $refund->order;
+        $this->send($refund->seller, ($late ? 'Late refund: ' : ($again ? 'Send the refund again: ' : 'Refund to send: ')) . $order->order_number, 'refund_to_send', array_filter([
+            'tone' => $late || $again ? 'danger' : 'warning',
+            'label' => $late ? 'Refund is late' : 'Refund to send',
+            'title' => 'Send ' . $this->peso($refund->amount) . ' to the buyer\'s GCash.',
+            'paragraphs' => [
+                $late ? 'The time to send this refund has passed and Loved-IT has been told. Send it now.'
+                    : ($again ? 'Loved-IT checked the buyer\'s report that your earlier transfer did not arrive, and asks you to send it again.'
+                        : 'The buyer of order ' . $order->order_number . ' paid you directly, so you send their refund. You have ' . \App\Services\Commerce\ManualRefunds::sendDays() . ' days.'),
+                'After sending, open the order and enter the 13-digit GCash reference with a screenshot of the receipt.',
+            ],
+            'highlight' => $note ? ['title' => 'Note from Loved-IT', 'body' => $note] : null,
+            'details' => [
+                'Order' => $order->order_number,
+                'Amount' => $this->peso($refund->amount),
+                'GCash number' => (string) \App\Support\Gcash::format($refund->gcash_number),
+                'Account name' => (string) $refund->gcash_name,
+            ],
+            'actionUrl' => $this->url('/seller/orders?order=' . $order->id),
+            'actionLabel' => 'Record the refund',
+            'footer' => 'You received this email because of an order at your Loved-IT shop.',
+        ]));
+    }
+
+    public function refundSent(\App\Models\Refund $refund): void
+    {
+        $order = $refund->order;
+        $this->send($refund->buyer, 'Refund sent: ' . $order->order_number, 'refund_sent', [
+            'tone' => 'success',
+            'label' => 'Refund sent',
+            'title' => 'The shop sent ' . $this->peso($refund->amount) . ' to your GCash.',
+            'paragraphs' => [
+                'Check your GCash, then confirm it arrived from the order page.',
+                'If nothing came, tell us within ' . \App\Services\Commerce\ManualRefunds::confirmDays() . ' days and Loved-IT will check the shop\'s receipt. After that it counts as received.',
+            ],
+            'details' => [
+                'Order' => $order->order_number,
+                'Amount' => $this->peso($refund->amount),
+                'Sent to' => (string) \App\Support\Gcash::format($refund->gcash_number),
+                'Reference' => (string) $refund->reference,
+            ],
+            'actionUrl' => $this->url('/settings/orders?order=' . $order->id),
+            'actionLabel' => 'Confirm or report',
+            'footer' => 'You received this email because you are being refunded on Loved-IT.',
+        ]);
+    }
+
+    public function refundReported(\App\Models\Refund $refund): void
+    {
+        $order = $refund->order;
+        $this->send($refund->seller, 'Refund not received: ' . $order->order_number, 'refund_reported', array_filter([
+            'tone' => 'danger',
+            'label' => 'Refund not received',
+            'title' => 'The buyer says your refund did not arrive.',
+            'paragraphs' => ['Loved-IT will compare your receipt with the buyer\'s report and tell you if the refund has to be sent again. Check that the number and reference you entered are right.'],
+            'highlight' => $refund->report_note ? ['title' => 'The buyer says', 'body' => $refund->report_note] : null,
+            'details' => ['Order' => $order->order_number, 'Amount' => $this->peso($refund->amount), 'Reference' => (string) $refund->reference],
+            'actionUrl' => $this->url('/seller/orders?order=' . $order->id),
+            'actionLabel' => 'Open order',
+            'footer' => 'You received this email because of an order at your Loved-IT shop.',
+        ]));
+    }
+
+    // ── Shipping notices for the shop ────────────────────────────────────────
+
+    /** A rider accepted (or was given) the pickup at the shop. */
+    public function sellerPickupAssigned(Parcel $parcel, string $riderName, ?string $vehicle = null): void
+    {
+        $parcel->loadMissing('order', 'seller');
+        $this->send($parcel->seller, 'A rider is coming for ' . $parcel->tracking_number, 'seller_order_pickup_assigned', [
+            'tone' => 'info',
+            'label' => 'Pickup on the way',
+            'title' => $riderName . ' is coming to collect your parcel.',
+            'paragraphs' => ['Have parcel ' . $parcel->tracking_number . ' packed with its waybill. The rider scans it at your shop. You can message the rider from the order.'],
+            'details' => array_filter(['Order' => $parcel->order?->order_number, 'Tracking number' => $parcel->tracking_number, 'Rider' => $riderName, 'Vehicle' => $vehicle]),
+            'actionUrl' => $this->url('/seller/orders?order=' . $parcel->order_id),
+            'actionLabel' => 'Open order',
+            'footer' => 'You received this email because of an order at your Loved-IT shop.',
+        ]);
+    }
+
+    /** The parcel is coming back: refused at the door, or out of delivery attempts. */
+    public function sellerParcelReturning(Parcel $parcel, string $why): void
+    {
+        $parcel->loadMissing('order', 'seller');
+        $this->send($parcel->seller, 'Parcel coming back: ' . $parcel->tracking_number, 'seller_order_returning', [
+            'tone' => 'warning',
+            'label' => 'Coming back to you',
+            'title' => 'A parcel is on its way back to your shop.',
+            'paragraphs' => [$why . '. The courier is bringing parcel ' . $parcel->tracking_number . ' back. When it arrives, confirm it in the order so the stock goes back on sale.'],
+            'details' => ['Order' => (string) $parcel->order?->order_number, 'Tracking number' => $parcel->tracking_number],
+            'actionUrl' => $this->url('/seller/orders?order=' . $parcel->order_id),
+            'actionLabel' => 'Open order',
+            'footer' => 'You received this email because of an order at your Loved-IT shop.',
+        ]);
+    }
+
+    /** The return rider (or the hub) handed the parcel back. */
+    public function sellerParcelReturned(Parcel $parcel): void
+    {
+        $parcel->loadMissing('order', 'seller');
+        $this->send($parcel->seller, 'Parcel returned to you: ' . $parcel->tracking_number, 'seller_order_returned_to_you', [
+            'tone' => 'info',
+            'label' => 'Parcel returned',
+            'title' => 'Your parcel is back.',
+            'paragraphs' => ['The courier handed parcel ' . $parcel->tracking_number . ' back to your shop. Confirm you received it in the order so the stock goes back on sale.'],
+            'details' => ['Order' => (string) $parcel->order?->order_number, 'Tracking number' => $parcel->tracking_number],
+            'actionUrl' => $this->url('/seller/orders?order=' . $parcel->order_id),
+            'actionLabel' => 'Confirm it arrived',
+            'footer' => 'You received this email because of an order at your Loved-IT shop.',
+        ]);
+    }
+
+    /** The buyer refused too many parcels, so cash on delivery is off for them. */
+    public function codTurnedOff(User $buyer, int $refusals): void
+    {
+        $this->send($buyer, 'Cash on delivery is turned off for your account', 'cod_turned_off', [
+            'tone' => 'warning',
+            'label' => 'Cash on delivery off',
+            'title' => 'You can pay by GCash for now.',
+            'paragraphs' => [
+                'You refused ' . $refusals . ' parcels at the door. Each one costs the shop and the rider a trip, so cash on delivery is off for your account.',
+                'You can still order and pay by GCash. If you think this is a mistake, message Loved-IT Support.',
+            ],
+            'actionUrl' => $this->url('/settings/orders'),
+            'actionLabel' => 'View your orders',
+            'footer' => 'You received this email because you have a Loved-IT account.',
+        ]);
     }
 
     // ── Payouts ──────────────────────────────────────────────────────────────
@@ -713,6 +910,7 @@ class MailNotifier
         'seller_new_order'  => 'new_order',
         'seller_order_'     => 'order_updates',
         'return_requested'  => 'returns',
+        'seller_return_'    => 'returns',
         'stock_low'         => 'low_stock',
         'review_new'        => 'new_review',
         'earnings_released' => 'payouts',

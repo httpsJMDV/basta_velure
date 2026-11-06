@@ -56,7 +56,7 @@ class BuyerOrderPresenter
         $parcel = $o->relationLoaded('parcel') ? $o->parcel : $o->parcel()->first();
         $deliveredAt = $parcel?->delivered_at;
         $autoCompleteAt = ($statusStr === OrderStatus::DELIVERED->value && $deliveredAt)
-            ? $deliveredAt->copy()->addDays(max(0, (int) config('orders.auto_complete_days', 7)))
+            ? $deliveredAt->copy()->addDays(\App\Console\Commands\AutoCompleteDeliveredOrders::days())
             : null;
         $session = $o->awaitingPayment()
             ? PaymentSession::where('checkout_group_id', $o->checkout_group_id)->where('status', 'pending')->where('expires_at', '>', now())->latest('id')->first()
@@ -111,6 +111,8 @@ class BuyerOrderPresenter
             'refund_status'       => $o->refund_status,
             'refund_amount'       => $o->refund_amount !== null ? (float) $o->refund_amount : null,
             'refunded_at'         => $o->refunded_at?->toIso8601String(),
+            // A refund the shop sends by hand (GCash and COD orders): the account, the transfer, confirm or report.
+            'refund'              => ManualRefunds::present($o->relationLoaded('refund') ? $o->refund : $o->refund()->first(), 'buyer'),
             'can_cancel'          => OrderCanceller::canBuyerCancel($o),
             'can_return'          => ReturnService::unavailableReason($o) === null,
             'return_unavailable_reason' => $statusStr === OrderStatus::DELIVERED->value ? ReturnService::unavailableReason($o) : null,

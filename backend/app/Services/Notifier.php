@@ -222,6 +222,40 @@ class Notifier
             '/rider/pickups', ['parcel_id' => $parcel->id, 'tracking_number' => $parcel->tracking_number]);
     }
 
+    // ── Handovers ────────────────────────────────────────────────────────────
+
+    /** The hub scanned in the parcel a pickup rider brought: the rider's handover is confirmed. */
+    public function handoverConfirmed(Parcel $parcel, ?\App\Models\SortingCenter $hub): void
+    {
+        $rider = $parcel->pickup_rider_id ? Rider::with('user')->find($parcel->pickup_rider_id) : null;
+        if (! $rider?->user) {
+            return;
+        }
+        $this->send($rider->user, 'rider.handover_confirmed', 'Handover confirmed',
+            ($hub?->hub_name ?? 'The hub') . " received parcel {$parcel->tracking_number}. It is off your list.",
+            '/rider/history', ['tracking_number' => $parcel->tracking_number, 'sorting_center_id' => $hub?->id]);
+    }
+
+    /** A hub sent a parcel on: the next hub knows it is coming. */
+    public function transferSent(Parcel $parcel, ?\App\Models\SortingCenter $from, \App\Models\SortingCenter $to): void
+    {
+        $this->send($to->loadMissing('user')->user, 'hub.transfer_incoming', 'Parcel on its way to you',
+            "Parcel {$parcel->tracking_number} left " . ($from?->hub_name ?? 'another hub') . ' for your hub. Scan it in when it arrives.',
+            '/hub/intake', ['tracking_number' => $parcel->tracking_number, 'from_hub_id' => $from?->id]);
+    }
+
+    /** The next hub scanned the parcel in: the hub that sent it, and the courier company, know it arrived. */
+    public function transferArrived(Parcel $parcel, ?\App\Models\SortingCenter $from, \App\Models\SortingCenter $to): void
+    {
+        $body = "{$to->hub_name} received parcel {$parcel->tracking_number}" . ($from ? " from {$from->hub_name}." : '.');
+        if ($from) {
+            $this->send($from->loadMissing('user')->user, 'hub.transfer_received', 'Transfer received', $body,
+                '/hub/sorting', ['tracking_number' => $parcel->tracking_number, 'to_hub_id' => $to->id]);
+        }
+        $this->send($this->companyMembers($parcel->logistics_company_id), 'shipment.transfer_received', 'Transfer received', $body,
+            '/logistics/parcels?search=' . urlencode((string) $parcel->tracking_number), ['tracking_number' => $parcel->tracking_number]);
+    }
+
     public function riderDecision(Rider $rider, bool $approved, ?string $reason = null): void
     {
         $rider->loadMissing('user');

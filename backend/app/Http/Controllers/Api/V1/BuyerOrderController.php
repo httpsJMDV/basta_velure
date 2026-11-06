@@ -20,7 +20,7 @@ use Illuminate\Validation\Rule;
 /** The buyer's orders (B10 to B12): tabs, details, cancel, return and refund, receipt and Pay Again. */
 class BuyerOrderController extends Controller
 {
-    private const WITH = ['items.seller.sellerProfile', 'payment', 'parcel', 'dispute.photos'];
+    private const WITH = ['items.seller.sellerProfile', 'payment', 'parcel', 'dispute.photos', 'refund'];
 
     public function __construct(
         protected OrderStateMachine $stateMachine,
@@ -106,10 +106,12 @@ class BuyerOrderController extends Controller
         if ($why = ReturnService::unavailableReason($order)) {
             return response()->json(['message' => $why], 422);
         }
+        // Nothing to photograph when nothing arrived: photos are optional for "Parcel not received" only.
+        $notReceived = $request->input('reason') === Dispute::REASON_NOT_RECEIVED;
         $data = $request->validate([
             'reason'      => ['required', Rule::in(Dispute::REASONS)],
             'description' => ['required', 'string', 'min:10', 'max:500'],
-            'photos'      => ['required', 'array', 'min:1', 'max:5'],
+            'photos'      => $notReceived ? ['nullable', 'array', 'max:5'] : ['required', 'array', 'min:1', 'max:5'],
             'photos.*'    => Validation::image(),
         ], [
             'reason.required'      => 'Choose a reason for the return.',
@@ -126,7 +128,9 @@ class BuyerOrderController extends Controller
         $this->returns->request($order, $user, $data['reason'], trim(strip_tags($data['description'])), $request->file('photos', []));
 
         return response()->json([
-            'message' => 'Return request sent. The shop has 3 days to answer; if it does not, the request is approved.',
+            'message' => $notReceived
+                ? 'Report sent. Loved-IT checks the rider\'s delivery proof and decides, usually within 3 days.'
+                : 'Return request sent. The shop has 3 days to answer; if it does not, the request is approved.',
             'data'    => BuyerOrderPresenter::present($order->fresh([...self::WITH, 'statusHistories']), detail: true),
         ]);
     }
