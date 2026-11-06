@@ -13,6 +13,7 @@ import {
   RefreshCw,
   MessageSquare,
   Warehouse,
+  Container,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderChatUnread, type RiderChatUnread } from '../../hooks/useRiderChatUnread';
@@ -60,7 +61,14 @@ const NAV: NavGroup[] = [
   { heading: 'Settings', items: [{ icon: UserIcon, label: 'Account', to: '/rider/account' }] },
 ];
 
-const BOTTOM_NAV: NavItem[] = NAV.flatMap((g) => g.items);
+// A truck driver carries parcels between hubs: no pickups or deliveries.
+const TRUCK_NAV: NavGroup[] = [
+  { heading: 'Work', items: [{ icon: Container, label: 'Trips', to: '/rider/trips' }] },
+  { heading: 'Settings', items: [{ icon: UserIcon, label: 'Account', to: '/rider/account' }] },
+];
+
+/** Pages a truck driver has no use for; they open Trips instead. */
+const DELIVERY_ONLY = ['/rider/dashboard', '/rider/pickups', '/rider/deliveries', '/rider/earnings'];
 
 const PAGE_LABELS: Record<string, string> = {
   '/rider/dashboard': 'Dashboard',
@@ -68,6 +76,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/rider/deliveries': 'Deliveries',
   '/rider/earnings': 'Earnings',
   '/rider/account': 'Account',
+  '/rider/trips': 'Trips',
 };
 
 function UnreadBadge({ count, floating = false }: { count: number; floating?: boolean }) {
@@ -142,6 +151,14 @@ export default function RiderLayout() {
   useEffect(() => {
     void fetchRiderProfile();
   }, [fetchRiderProfile]);
+
+  const isTruck = (riderData?.duty ?? user?.rider?.duty) === 'truck';
+  const nav = isTruck ? TRUCK_NAV : NAV;
+  const bottomNav = nav.flatMap((g) => g.items);
+  useEffect(() => {
+    if (isTruck && DELIVERY_ONLY.includes(location.pathname)) navigate('/rider/trips', { replace: true });
+    if (!isTruck && riderData && location.pathname === '/rider/trips') navigate('/rider/dashboard', { replace: true });
+  }, [isTruck, riderData, location.pathname, navigate]);
 
   // The status, hub and delivery areas change when the company or hub acts: picked up live, no Refresh button.
   useLiveRefresh(() => void fetchRiderProfile(true), 60_000, statusRevokedMessage !== null);
@@ -234,7 +251,7 @@ export default function RiderLayout() {
         </div>
 
         <nav aria-label="Courier" className="flex-1 px-2.5 py-3 space-y-3.5 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-          {NAV.map((group) => (
+          {nav.map((group) => (
             <div key={group.heading}>
               <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500 px-2.5 mb-1">{group.heading}</p>
               {group.items.map(({ icon: Icon, label, to }) => {
@@ -285,7 +302,10 @@ export default function RiderLayout() {
           user={{ name: fullName || 'Courier', email: user?.email, initials }}
           alertsTitle="Courier Alerts"
           searchPlaceholder="Search courier pages..."
-          searchItems={[
+          searchItems={isTruck ? [
+            { label: 'Trips', to: '/rider/trips', group: 'Work', icon: Container },
+            { label: 'My account', to: '/rider/account', group: 'Account', icon: UserIcon },
+          ] : [
             { label: 'Dashboard', to: '/rider/dashboard', group: 'Overview', icon: LayoutDashboard },
             { label: 'Pickups', to: '/rider/pickups', group: 'Work', icon: PackagePlus },
             { label: 'Deliveries', to: '/rider/deliveries', group: 'Work', icon: Truck },
@@ -346,7 +366,7 @@ export default function RiderLayout() {
         aria-label="Courier mobile navigation"
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] flex items-stretch justify-around"
       >
-        {BOTTOM_NAV.map(({ icon: Icon, label, to }) => {
+        {bottomNav.map(({ icon: Icon, label, to }) => {
           const active = isActive(to);
           return (
             <Link

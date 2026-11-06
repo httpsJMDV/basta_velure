@@ -299,6 +299,8 @@ export interface LogisticsRiderRow {
   active_jobs: number;
   delivered_today: number;
   vehicle_type: string;
+  /** truck: drives parcels between hubs; delivery: picks up and delivers */
+  duty?: 'delivery' | 'truck';
   plate_number: string;
   license_number: string | null;
   license_expiry: string | null;
@@ -385,6 +387,7 @@ export interface RiderSummary {
   is_online?: boolean;
   needs_reverification?: boolean;
   suspension_reason?: string | null;
+  duty?: 'delivery' | 'truck';
 }
 
 export interface PublicApprovedHub {
@@ -542,6 +545,7 @@ export interface RiderProfileData {
   needs_reverification: boolean;
   suspension_reason: string | null;
   rejection_reason: string | null;
+  duty?: 'delivery' | 'truck';
   active_jobs: number;
   max_active_jobs: number;
   documents: { key: string; label: string; url: string }[];
@@ -707,6 +711,74 @@ export interface HubTransferGroup {
 export interface HubTransfersResponse {
   data: HubTransferGroup[];
   meta: { total_parcels: number; on_the_way_here: number; sent_today: number };
+}
+
+// Truck trips between hubs (the courier's line-haul)
+export type TruckTripStatus = 'on_the_way' | 'completed' | 'closed';
+
+export interface TruckTripHub { id: number; name: string; city: string }
+
+export interface TruckTrip {
+  id: number;
+  code: string;
+  status: TruckTripStatus;
+  from_hub: TruckTripHub | null;
+  to_hub: TruckTripHub | null;
+  driver: { id: number; name: string; phone: string | null; vehicle_type: string } | null;
+  plate_number: string | null;
+  parcel_count: number;
+  received_count: number;
+  departed_at: string | null;
+  driver_arrived_at: string | null;
+  completed_at: string | null;
+  close_reason: string | null;
+  pay_amount: number;
+  paid_at: string | null;
+  paid_reference: string | null;
+  parcels?: { tracking_number: string | null; received: boolean; received_at: string | null }[];
+}
+
+export interface HubTruckDriver {
+  id: number;
+  name: string;
+  phone: string | null;
+  vehicle_type: string;
+  plate_number: string | null;
+  home_hub: string | null;
+  busy: boolean;
+  on_trip_to: string | null;
+}
+
+export interface TruckPaySummary {
+  unpaid_total: number;
+  unpaid_trips: number;
+  paid_total: number;
+  trips_this_week: number;
+  rate: number;
+}
+
+export interface RiderTripsResponse {
+  data: { is_truck_driver: boolean; current: TruckTrip | null; trips: TruckTrip[]; pay: TruckPaySummary };
+}
+
+export interface LogisticsTruckDriver {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  vehicle_type: string;
+  plate_number: string | null;
+  home_hub: string | null;
+  current_trip: TruckTrip | null;
+  unpaid_trips: number;
+  unpaid_amount: number;
+  trips_this_week: number;
+}
+
+export interface LogisticsTruckDriversResponse {
+  data: LogisticsTruckDriver[];
+  summary: { drivers: number; active: number; on_the_way: number; unpaid_amount: number; rate: number };
 }
 
 export interface HubSortResponse {

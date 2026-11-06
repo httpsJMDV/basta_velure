@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings, Container } from 'lucide-react';
 import { getCourierChatUnreadApi } from '../../api/courierChat';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
@@ -77,6 +77,7 @@ export default function LogisticsLayout() {
       items: [
         { icon: Warehouse, label: 'Hubs', to: '/logistics/hubs', badge: pendingHubs },
         { icon: Bike, label: 'Riders', to: '/logistics/riders' },
+        { icon: Container, label: 'Truck drivers', to: '/logistics/trucks' },
         { icon: MapPinned, label: 'Zones & rates', to: '/logistics/shipping' },
         { icon: MessageSquare, label: 'Messages', to: '/logistics/messages', badge: chatUnread },
       ],
@@ -105,6 +106,7 @@ export default function LogisticsLayout() {
     { label: 'Network overview', to: '/logistics', group: 'Overview', icon: Gauge },
     { label: 'Hubs and hub applications', to: '/logistics/hubs', group: 'Network', icon: Warehouse },
     { label: 'Riders across the network', to: '/logistics/riders', group: 'Network', icon: Bike },
+    { label: 'Truck drivers, trips between hubs and trip pay', to: '/logistics/trucks', group: 'Network', icon: Container },
     { label: 'Find a parcel', to: '/logistics/parcels', group: 'Network', icon: Package },
     { label: 'Delivery zones and shipping rates', to: '/logistics/shipping', group: 'Network', icon: MapPinned },
     { label: 'Dispatch: unassigned pickups, auto-assign', to: '/logistics/dispatch', group: 'Operations', icon: Navigation },
