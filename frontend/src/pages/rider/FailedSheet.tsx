@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { AlertCircle, RefreshCw, X, XCircle } from 'lucide-react';
-import { getRiderFailureReasonsApi, markRiderFailedApi } from '../../api/client';
+import { AlertCircle, Check, MessageSquare, Phone, RefreshCw, X, XCircle } from 'lucide-react';
+import { getRiderFailureReasonsApi, markRiderFailedApi, recordRiderContactApi } from '../../api/client';
 import type { RiderDeliveryParcel, RiderFailedResponse, RiderFailureReason } from '../../types';
 import { sentenceError } from '../../utils/accountRules';
 
 const NOTE_MIN = 5;
 const NOTE_MAX = 500;
+/** Used when an older server does not send the list. */
+const CONTACT_FIRST = ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'];
 
 interface FailedSheetProps {
   parcel: RiderDeliveryParcel;
@@ -79,7 +81,31 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
   // The company and the hub read the note: it has to be words, the same rule the server checks.
   const noteError = sentenceError(note, 'The note', { required: noteRequired, min: NOTE_MIN, max: NOTE_MAX });
   const showNoteError = noteTouched && trimmedNote !== '' ? noteError : undefined;
-  const canSubmit = selected !== null && !noteError && !submitting;
+  // "Not at home" and "could not contact" need a call or a text on this trip first (the server checks it too).
+  const [contacted, setContacted] = useState(!!parcel.buyer_contacted);
+  const [contacting, setContacting] = useState(false);
+  const contactFirst = selected !== null && (parcel.contact_first_reasons ?? CONTACT_FIRST).includes(selected.code);
+  const needsContact = contactFirst && !contacted;
+  const canSubmit = selected !== null && !noteError && !submitting && !needsContact;
+
+  const contactBuyer = async (method: 'call' | 'sms') => {
+    setContacting(true);
+    setErrors([]);
+    try {
+      await recordRiderContactApi(parcel.tracking_number, method);
+      setContacted(true);
+      const phone = parcel.recipient.phone.replace(/[^+\d]/g, '');
+      if (phone) window.location.href = `${method === 'sms' ? 'sms' : 'tel'}:${phone}`;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response && (err.response.status === 404 || err.response.status === 409)) {
+        onConflict(err.response.data?.message || 'This stop can no longer be updated.');
+        return;
+      }
+      setErrors(['The call attempt was not saved. Check your connection and try again.']);
+    } finally {
+      setContacting(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!selected || busyRef.current || !canSubmit) return;
@@ -189,6 +215,31 @@ export default function FailedSheet({ parcel, onClose, onSuccess, onConflict }: 
                   );
                 })}
               </fieldset>
+
+              {contactFirst && (
+                <div className={`rounded-xl border p-3 space-y-2 ${contacted ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`} aria-live="polite">
+                  {contacted ? (
+                    <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                      <Check className="w-4 h-4" aria-hidden="true" /> You tried to reach the buyer on this trip.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold text-amber-900">Call or text the buyer first</p>
+                      <p className="text-xs text-amber-900">They may be nearby. The buyer is told you are trying to reach them.</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => void contactBuyer('call')} disabled={contacting}
+                          className="min-h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white text-sm font-bold disabled:opacity-60">
+                          <Phone className="w-4 h-4" aria-hidden="true" /> Call
+                        </button>
+                        <button type="button" onClick={() => void contactBuyer('sms')} disabled={contacting}
+                          className="min-h-12 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-900 disabled:opacity-60">
+                          <MessageSquare className="w-4 h-4" aria-hidden="true" /> Text
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label htmlFor="failed-note" className="block text-sm font-bold text-gray-900">

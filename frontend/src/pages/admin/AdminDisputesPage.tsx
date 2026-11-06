@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
-import { getAdminDisputesApi, getAdminDisputeApi, resolveDisputeApi, getAdminDisputeStatsApi } from '../../api/client';
+import { Link, useSearchParams } from 'react-router-dom';
+import { getAdminDisputesApi, getAdminDisputeApi, resolveDisputeApi, getAdminDisputeStatsApi, getDeliveryProofBlobUrl } from '../../api/client';
+import type { RefundStatus } from '../../api/commerce';
+import AdminRefundsPanel from './AdminRefundsPanel';
 import type { AdminDispute, DisputeStatus, AdminDisputeStats } from '../../types';
 import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
 import { SearchField, ListError, Pill, Avatar, type PillTone, relativeTime } from '../../components/admin/listKit';
@@ -63,6 +65,57 @@ function isReturn(d: AdminDispute) {
 const PAYMENT_LABEL: Record<string, string> = { cod: 'COD', gcash: 'GCash', e_wallet: 'e-wallet', card: 'card' };
 
 type Choice = 'refund' | 'reject' | 'resolved' | 'closed';
+
+const REFUND_STATUS: Record<RefundStatus, { label: string; tone: PillTone }> = {
+  awaiting_account: { label: 'Waiting for the buyer\'s GCash', tone: 'gray' },
+  awaiting_shop: { label: 'The shop has to send it', tone: 'amber' },
+  sent: { label: 'Sent, buyer to confirm', tone: 'amber' },
+  not_received: { label: 'Buyer says not received', tone: 'red' },
+  received: { label: 'Received', tone: 'emerald' },
+};
+
+/**
+ * The rider's record of the delivery: when, who, who received it and the proof photos (private, fetched as blobs).
+ * The evidence for a "Parcel not received" claim.
+ */
+function DeliveryEvidence({ delivery, onOpen }: { delivery: NonNullable<AdminDispute['delivery']>; onOpen: (src: string) => void }) {
+  const [urls, setUrls] = useState<string[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const made: string[] = [];
+    const photos = ([1, 2] as const).slice(0, delivery.proof_photo_count);
+    Promise.all(photos.map((n) => getDeliveryProofBlobUrl(delivery.tracking_number, n)))
+      .then((list) => { made.push(...list); if (alive) setUrls(list); else list.forEach((u) => URL.revokeObjectURL(u)); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; made.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [delivery.tracking_number, delivery.proof_photo_count]);
+
+  return (
+    <Block title="Delivery proof">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12.5px]">
+        <dt className="text-gray-500">Delivered</dt><dd className="text-gray-900">{day(delivery.delivered_at, true)}</dd>
+        <dt className="text-gray-500">Rider</dt><dd className="text-gray-900">{delivery.rider_name ?? '—'}</dd>
+        <dt className="text-gray-500">Received by</dt><dd className="text-gray-900">{delivery.received_by ?? 'Not written down'}</dd>
+        {delivery.cod_collected !== null && (<><dt className="text-gray-500">Cash collected</dt><dd className="text-gray-900 tabular-nums">{peso(delivery.cod_collected)}</dd></>)}
+      </dl>
+      {delivery.proof_photo_count === 0 ? (
+        <p className="mt-3 text-[12.5px] text-gray-500">The rider took no proof photo.</p>
+      ) : failed ? (
+        <p className="mt-3 text-[12.5px] text-red-700">The proof photos could not be loaded.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 mt-3 max-w-xs" aria-busy={urls === null}>
+          {(urls ?? Array.from({ length: delivery.proof_photo_count }, () => '')).map((src, i) => src ? (
+            <button key={src} type="button" onClick={() => onOpen(src)} className="aspect-square overflow-hidden bg-gray-100 border border-gray-200 rounded-xl hover:ring-2 hover:ring-brand-red/40" aria-label={`Open proof photo ${i + 1}`}>
+              <img src={src} alt={`Proof ${i + 1}`} className="object-cover w-full h-full" />
+            </button>
+          ) : <span key={i} className="aspect-square rounded-xl bg-gray-100 animate-pulse" />)}
+        </div>
+      )}
+    </Block>
+  );
+}
 
 // ─── Pieces of the case file ──────────────────────────────────────────────────
 
@@ -186,7 +239,7 @@ function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdat
   const shop = dispute.seller?.shop_name ?? 'The shop';
   const options: [Choice, string, string][] = returnCase
     ? [
-        ['refund', 'Refund the buyer', `The order becomes Returned and ${dispute.order ? peso(dispute.order.total) : 'the amount paid'} goes back${paidWith ? ` to the buyer's ${paidWith === 'COD' ? 'refund account' : paidWith}` : ''}. The shop does not earn on it.`],
+        ['refund', 'Refund the buyer', `The order becomes Returned and ${dispute.order ? peso(dispute.order.total) : 'the amount paid'} goes back${paidWith === 'COD' || paidWith === 'GCash' ? ': the shop was paid directly, so it sends the refund to the buyer\'s GCash and the buyer confirms it' : paidWith ? ` to the buyer's ${paidWith}` : ''}. The shop does not earn on it.`],
         ['reject', 'Side with the shop', 'The return is closed and the order is Completed, so the shop is paid.'],
       ]
     : [
@@ -273,6 +326,21 @@ function CaseFile({ disputeId, onUpdated, onBack }: { disputeId: number; onUpdat
               </Block>
             )}
           </div>
+
+          {dispute.delivery && dispute.delivery.delivered_at && (
+            <DeliveryEvidence delivery={dispute.delivery} onOpen={setPhoto} />
+          )}
+
+          {dispute.refund && (
+            <Block title="Refund the shop sends">
+              <p className="text-[13px] text-gray-800">
+                {peso(dispute.refund.amount)} · {REFUND_STATUS[dispute.refund.status].label}
+                {dispute.refund.gcash_number ? ` · to ${dispute.refund.gcash_number}` : ''}
+                {dispute.refund.reference ? ` · ref ${dispute.refund.reference}` : ''}
+              </p>
+              <Link to="/admin/disputes?tab=refunds" className="mt-1 inline-flex text-[12px] font-bold text-brand-red hover:underline">Open the refunds list</Link>
+            </Block>
+          )}
 
           {dispute.order && (
             <Block title="The order" aside={
@@ -434,6 +502,10 @@ export default function AdminDisputesPage() {
     loadStats();
   };
 
+  const [params, setParams] = useSearchParams();
+  const view: 'cases' | 'refunds' = params.get('tab') === 'refunds' ? 'refunds' : 'cases';
+  const showView = (v: 'cases' | 'refunds') => setParams(v === 'refunds' ? { tab: 'refunds' } : {}, { replace: true });
+
   const pick = (g: Group) => { setGroup(g); setPage(1); setSelected(null); setMobilePane('list'); };
   const counts: Record<Group, number | undefined> = {
     needs: stats?.needs_decision,
@@ -453,6 +525,16 @@ export default function AdminDisputesPage() {
         )}
       </PageHero>
 
+      <div className="inline-grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100/80" role="tablist" aria-label="Disputes or refunds">
+        {([['cases', 'Disputes & returns'], ['refunds', 'Refunds by shops']] as const).map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => showView(key)}
+            className={`min-h-9 px-4 rounded-lg text-[12.5px] font-semibold ${view === key ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'refunds' ? <AdminRefundsPanel /> : (<>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {stats === null ? [1, 2, 3, 4].map((i) => <StatCardSkeleton key={i} />) : (
           <>
@@ -581,6 +663,7 @@ export default function AdminDisputesPage() {
           )}
         </section>
       </div>
+      </>)}
     </div>
   );
 }

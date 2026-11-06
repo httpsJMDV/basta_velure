@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Search,
   CheckCircle2,
@@ -17,7 +17,9 @@ import {
   ShoppingBag,
   Printer,
   AlertTriangle,
+  MessageCircle,
 } from 'lucide-react';
+import SellerRefundBlock from '../../components/orders/SellerRefundBlock';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -25,6 +27,7 @@ import {
   confirmSellerOrderPaymentApi,
   rejectSellerOrderPaymentApi,
   updateSellerOrderStatusApi,
+  startRiderChatApi,
 } from '../../api/client';
 import type { SellerOrder } from '../../types';
 import { useMountAnim } from '../../hooks/useDashboardAnimations';
@@ -33,7 +36,7 @@ import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
 import { Dialog, BUTTON } from '../../components/ui/Overlay';
-import { SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi } from '../../api/commerce';
+import { NOT_RECEIVED_REASON, SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi } from '../../api/commerce';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
 import { useToast } from '../../components/ui/Toast';
 import { useLiveRefresh } from '../../hooks/useLiveNotices';
@@ -82,6 +85,7 @@ export default function SellerOrdersPage() {
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   // The app's toast floats above the order panel, so a result is seen even with a dialog open.
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const { user } = useAuth();
   const addressNeedsUpdate = Boolean(user?.seller_profile?.address_needs_update);
@@ -226,6 +230,19 @@ export default function SellerOrdersPage() {
       void fetchOrders(true);
     } catch (err) {
       showToast(apiErrorMessage(err, 'The order could not be updated.'), 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /** Opens (or reopens) the chat with the pickup or return rider, in Messages. */
+  const openRiderChat = async (trackingNumber: string) => {
+    setActionLoading(true);
+    try {
+      const conversation = await startRiderChatApi(trackingNumber);
+      navigate(`/seller/messages?conversation=${conversation.id}`);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The chat could not be opened.'), 'error');
     } finally {
       setActionLoading(false);
     }
@@ -863,8 +880,24 @@ export default function SellerOrdersPage() {
             {normalizeOrderStatus(selectedOrder.status) === 'CANCELLED' && !selectedOrder.return_to_sender && (
               <p className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700">
                 <span className="font-bold">Cancelled by {selectedOrder.cancelled_by === 'seller' ? 'you' : selectedOrder.cancelled_by === 'buyer' ? 'the buyer' : 'Loved-IT'}</span>{selectedOrder.cancel_reason ? `: ${selectedOrder.cancel_reason}` : ''}
-                {selectedOrder.refund_status && <span className="block mt-0.5">Refund {selectedOrder.refund_status === 'refunded' ? 'sent' : 'to send from your GCash'}: {peso(selectedOrder.refund_amount)}</span>}
+                {selectedOrder.refund_status && !selectedOrder.refund && <span className="block mt-0.5">Refund {selectedOrder.refund_status === 'refunded' ? 'sent' : 'to send from your GCash'}: {peso(selectedOrder.refund_amount)}</span>}
               </p>
+            )}
+
+            {selectedOrder.refund && (
+              <SellerRefundBlock key={`${selectedOrder.refund.id}-${selectedOrder.refund.status}`} orderId={selectedOrder.id} refund={selectedOrder.refund} onChanged={(r) => {
+                const next = { ...selectedOrder, refund: r };
+                setSelectedOrder(next);
+                setOrders((prev) => prev.map((o) => (o.id === next.id ? next : o)));
+              }} />
+            )}
+
+            {selectedOrder.rider_chat && (
+              <button type="button" onClick={() => void openRiderChat(selectedOrder.rider_chat!.tracking_number)} disabled={actionLoading}
+                className="w-full py-2 text-xs font-bold text-gray-800 border border-gray-300 rounded-xl hover:border-gray-900 inline-flex items-center justify-center gap-1.5 disabled:opacity-60">
+                <MessageCircle className="w-4 h-4" />
+                Message {selectedOrder.rider_chat.rider_first_name ?? 'the rider'}{selectedOrder.rider_chat.leg === 'return' ? ' (bringing it back)' : ' (pickup)'}
+              </button>
             )}
 
             {selectedOrder.awaiting_payment && (
@@ -974,7 +1007,13 @@ export default function SellerOrdersPage() {
                   </>
                 )}
                 {selectedOrder.dispute.status === 'rejected' && <p className="text-[11px] text-rose-800">You rejected it: {selectedOrder.dispute.seller_reason} The buyer can escalate it to Loved-IT until {when(selectedOrder.dispute.escalate_by)}.</p>}
-                {selectedOrder.dispute.status === 'escalated' && <p className="text-[11px] text-rose-800">The buyer escalated the request. Loved-IT will decide; you can no longer approve or reject it.</p>}
+                {selectedOrder.dispute.status === 'escalated' && (
+                  <p className="text-[11px] text-rose-800">
+                    {selectedOrder.dispute.reason === NOT_RECEIVED_REASON
+                      ? 'The buyer says the parcel never arrived. Loved-IT decides this from the rider\'s delivery photos; you do not need to answer.'
+                      : 'The buyer escalated the request. Loved-IT will decide; you can no longer approve or reject it.'}
+                  </p>
+                )}
                 {selectedOrder.dispute.status === 'approved' && <p className="text-[11px] text-emerald-800">Approved{selectedOrder.dispute.auto_approved ? ' automatically after 3 days' : ''}. The buyer was refunded {peso(selectedOrder.dispute.refund_amount)}; this order is not in your earnings.</p>}
               </div>
             )}

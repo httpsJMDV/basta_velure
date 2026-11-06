@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   MessageSquare,
   Search,
@@ -111,8 +111,14 @@ export default function SellerMessagesPage() {
   const loadConversationsRef = useRef(loadConversations);
   loadConversationsRef.current = loadConversations;
 
+  // ?conversation=ID (from "Message rider" on an order) opens that thread on the first load.
+  const [searchParams] = useSearchParams();
+  const deepLinkId = useRef(Number(searchParams.get('conversation')) || undefined);
+
   useEffect(() => {
-    loadConversations();
+    const selectId = deepLinkId.current;
+    deepLinkId.current = undefined;
+    loadConversations(selectId);
   }, [loadConversations]);
 
   // ── 1. WebSockets: Per-user Channel for Live Inbox Updates ──

@@ -307,6 +307,10 @@ export const suspendUserApi = (id: number) =>
 export const reactivateUserApi = (id: number) =>
   http.patch<{ data: User }>(`/admin/users/${id}/reactivate`).then((r) => r.data.data);
 
+/** Cash on delivery back on for a buyer who refused too many parcels; earlier refusals stop counting. */
+export const restoreCodApi = (id: number) =>
+  http.post<{ data: User }>(`/admin/users/${id}/restore-cod`).then((r) => r.data.data);
+
 // Admin — activity log
 export const getActivityLogApi = (params?: { action?: string; area?: string; admin_id?: number; search?: string; period?: string; page?: number; per_page?: number }) =>
   http.get<PaginatedResponse<ActivityLogEntry> & { summary: ActivityLogSummary }>('/admin/activity-log', { params }).then((r) => r.data);
@@ -1010,6 +1014,13 @@ export const markRiderDeliveredApi = (
       },
     })
     .then((r) => r.data);
+
+/**
+ * The rider is calling or texting the buyer from a stop. "Recipient unavailable" and "Could not contact" are refused
+ * until the rider tried on this trip (a call, a text or a chat message).
+ */
+export const recordRiderContactApi = (trackingNumber: string, method: 'call' | 'sms') =>
+  http.post<{ message: string; buyer_contacted_at: string }>(`/rider/deliveries/${encodeURIComponent(trackingNumber)}/contact`, { method }).then((r) => r.data);
 
 export const markRiderFailedApi = (trackingNumber: string, reason: string, note: string | null) =>
   http

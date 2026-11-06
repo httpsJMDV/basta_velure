@@ -385,7 +385,7 @@ export default function CheckoutPage() {
                 <h2 className="text-[13px] font-semibold text-stone-900">Payment method</h2>
                 <div className="mt-2.5 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
                   {([
-                    { key: 'cod', title: 'Cash on delivery', text: codOff && quote?.limits ? `Up to ${peso(quote.limits.cod_max)} per shop` : 'Pay the rider', icon: <Banknote className="w-5 h-5 text-amber-600" /> },
+                    { key: 'cod', title: 'Cash on delivery', text: quote?.limits?.cod_blocked ? 'Off for your account' : codOff && quote?.limits ? `Up to ${peso(quote.limits.cod_max)} per shop` : 'Pay the rider', icon: <Banknote className="w-5 h-5 text-amber-600" /> },
                     { key: 'gcash', title: 'GCash', text: gcashBlockers.length ? 'Not every shop takes it' : 'Send to the shop', icon: <img src={gcashMark} alt="" className="w-5 h-5 object-contain" /> },
                   ] as const).map((m) => {
                     const on = method === m.key;
@@ -401,9 +401,14 @@ export default function CheckoutPage() {
                     );
                   })}
                 </div>
+                {quote?.limits?.cod_blocked && quote.limits.cod_blocked_reason && (
+                  <p className="mt-2.5 text-[12px] leading-snug text-stone-600">{quote.limits.cod_blocked_reason}</p>
+                )}
                 {codOff && gcashBlockers.length > 0 && (
                   <p role="alert" className="mt-2.5 text-[12px] leading-snug font-medium text-brand-red">
-                    This is too much for cash on delivery, and not every shop here takes GCash. Split it into smaller orders.
+                    {quote?.limits?.cod_blocked
+                      ? 'Cash on delivery is off for your account, and not every shop here takes GCash. Order from those shops separately.'
+                      : 'This is too much for cash on delivery, and not every shop here takes GCash. Split it into smaller orders.'}
                   </p>
                 )}
               </div>

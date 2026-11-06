@@ -8,6 +8,7 @@ import {
 import { apiErrorMessage } from '../../utils/apiError';
 import { useToast } from '../ui/Toast';
 import { SectionCard } from '../../pages/rider/RiderUi';
+import RiderMessageControl from '../../pages/rider/RiderMessageControl';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../../pages/rider/riderStyles';
 import { useLiveRefresh } from '../../hooks/useLiveNotices';
 import { compact, firstErrors, paymentReferenceError, squish } from '../../utils/accountRules';
@@ -240,6 +241,8 @@ export function ReturnJobs() {
             <ol className="text-[11px] text-amber-900 space-y-0.5 pl-6 list-decimal">
               {j.failures.map((f) => <li key={f.attempt}>{f.reason}{f.note ? `: ${f.note}` : ''}</li>)}
             </ol>
+            {/* The shop knows it is coming back; agree a time in the chat. */}
+            <RiderMessageControl trackingNumber={j.tracking_number} phase="return" />
             <button type="button" className={`${BTN_PRIMARY} w-full`} disabled={busy !== null} onClick={() => void done(j)}>
               {busy === j.tracking_number ? <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Package className="w-4 h-4" aria-hidden="true" />}
               Handed back to the shop

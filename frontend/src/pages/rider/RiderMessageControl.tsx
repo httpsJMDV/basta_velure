@@ -3,8 +3,11 @@ import { ChevronDown, MessageSquare } from 'lucide-react';
 import type { RiderChatCounterpart } from '../../types';
 import RiderChatSheet, { type RiderChatTarget } from './RiderChatSheet';
 
-/** The phase decides who the rider may message: the seller while collecting, the buyer while delivering, the hub always. */
-export type MessagePhase = 'pickup' | 'delivery';
+/**
+ * The phase decides who the rider may message: the seller while collecting, the buyer while delivering, the hub in
+ * both, and only the seller while bringing a failed delivery back.
+ */
+export type MessagePhase = 'pickup' | 'delivery' | 'return';
 
 const OPTIONS: Record<MessagePhase, { counterpart: RiderChatCounterpart; label: string }[]> = {
   pickup: [
@@ -14,6 +17,9 @@ const OPTIONS: Record<MessagePhase, { counterpart: RiderChatCounterpart; label: 
   delivery: [
     { counterpart: 'buyer', label: 'Message the buyer' },
     { counterpart: 'hub', label: 'Message the hub' },
+  ],
+  return: [
+    { counterpart: 'seller', label: 'Message the seller' },
   ],
 };
 

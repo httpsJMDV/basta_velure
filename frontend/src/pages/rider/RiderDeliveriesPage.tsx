@@ -17,7 +17,7 @@ import {
   User,
   XCircle,
 } from 'lucide-react';
-import { getRiderDeliveriesApi } from '../../api/client';
+import { getRiderDeliveriesApi, recordRiderContactApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { RiderDeliveriesResponse, RiderDeliveryParcel, RiderDeliveryView } from '../../types';
 import { PageHero, StateCard, TabBar } from './RiderUi';
@@ -346,6 +346,8 @@ export default function RiderDeliveriesPage() {
 
                     <a
                       href={telHref(p.recipient.phone)}
+                      // On the road, a call counts as trying to reach the buyer (needed before "not at home").
+                      onClick={() => { if (view === 'out_for_delivery') void recordRiderContactApi(p.tracking_number, 'call').catch(() => {}); }}
                       className="inline-flex items-center gap-2 min-h-11 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-bold text-gray-900"
                     >
                       <Phone className="w-4 h-4 text-gray-500" aria-hidden="true" />
