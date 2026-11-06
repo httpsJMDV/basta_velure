@@ -41,6 +41,8 @@ abstract final class LogisticsPaths {
   static const courierChats = '/logistics/courier/messages';
   static const courierAddRider = '/logistics/courier/riders/add';
   static const courierTrucks = '/logistics/courier/trucks';
+  static const courierActivity = '/logistics/courier/activity';
+  static const hubActivity = '/logistics/hub/activity';
 
   /// Failed and returned parcels.
   static const courierProblems = '$courierParcels?problems=1';

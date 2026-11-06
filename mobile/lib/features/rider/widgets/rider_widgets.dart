@@ -305,8 +305,11 @@ class RiderCallPill extends StatelessWidget {
 }
 
 /// Opens the phone's dialer or messages app for [phone] (`tel:` or `sms:`).
-Future<void> openPhoneApp(BuildContext context, String phone, {bool sms = false}) =>
-    _open(context, Uri(scheme: sms ? 'sms' : 'tel', path: phone));
+Future<void> openPhoneApp(
+  BuildContext context,
+  String phone, {
+  bool sms = false,
+}) => _open(context, Uri(scheme: sms ? 'sms' : 'tel', path: phone));
 
 /// [RiderActionPill] that opens this address in a maps app.
 class RiderMapsPill extends StatelessWidget {

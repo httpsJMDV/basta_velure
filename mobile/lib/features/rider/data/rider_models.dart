@@ -318,7 +318,10 @@ class DeliveryStop {
     this.outForDeliveryAt,
     this.hubPath = const [],
     this.buyerContacted = false,
-    this.contactFirstReasons = const ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'],
+    this.contactFirstReasons = const [
+      'RECIPIENT_UNAVAILABLE',
+      'CANNOT_CONTACT',
+    ],
   });
 
   final String trackingNumber;

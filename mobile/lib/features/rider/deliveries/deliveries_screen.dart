@@ -569,7 +569,10 @@ class StopCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: RiderCallPill(phone: stop.recipientPhone, onCall: onCall),
+                child: RiderCallPill(
+                  phone: stop.recipientPhone,
+                  onCall: onCall,
+                ),
               ),
               const SizedBox(width: AppSpace.sm),
               Expanded(child: RiderMapsPill(address: address)),

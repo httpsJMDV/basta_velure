@@ -6,6 +6,7 @@ import '../../core/session/session.dart';
 
 import '../buyer/widgets/buyer_theme.dart';
 
+import '../logistics/activity/activity_screen.dart';
 import 'account/account_forms.dart';
 import 'account/rider_account_screen.dart';
 import 'apply/rider_apply_screen.dart';
@@ -111,6 +112,11 @@ final riderRoutes = <RouteBase>[
         state.extra is List<RouteStop> ? null : RiderPaths.deliveries,
     builder: (_, state) =>
         _themed(RouteMapScreen(stops: state.extra! as List<RouteStop>)),
+  ),
+  GoRoute(
+    path: RiderPaths.activity,
+    builder: (_, _) =>
+        _themed(const ActivityScreen(scope: 'rider', title: 'Activity')),
   ),
   GoRoute(
     path: RiderPaths.guide,

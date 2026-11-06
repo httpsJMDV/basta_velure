@@ -53,6 +53,12 @@ class HubMoreScreen extends ConsumerWidget {
                 onTap: () => context.push(LogisticsPaths.hubDeliveries),
               ),
               _WorkTile(
+                icon: LucideIcons.history,
+                title: 'Activity log',
+                subtitle: 'Scans, trucks, returns, cancellations',
+                onTap: () => context.push(LogisticsPaths.hubActivity),
+              ),
+              _WorkTile(
                 icon: LucideIcons.bike,
                 title: 'Riders',
                 subtitle: 'Applications and delivery areas',

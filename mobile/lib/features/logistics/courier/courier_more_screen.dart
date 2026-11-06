@@ -57,6 +57,12 @@ class CourierMoreScreen extends ConsumerWidget {
                 onTap: () => context.push(LogisticsPaths.courierScan),
               ),
               CourierWorkTile(
+                icon: LucideIcons.history,
+                title: 'Activity log',
+                subtitle: 'Returns, cancellations, every step',
+                onTap: () => context.push(LogisticsPaths.courierActivity),
+              ),
+              CourierWorkTile(
                 icon: LucideIcons.container,
                 title: 'Truck drivers',
                 subtitle: 'Trips between hubs, trip pay',

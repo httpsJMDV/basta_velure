@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'activity/activity_screen.dart';
 import 'chat/logistics_chat.dart';
 import 'courier/courier_add_rider_screen.dart';
 import 'courier/courier_cod_screen.dart';
@@ -257,6 +258,14 @@ final logisticsRoutes = <RouteBase>[
   GoRoute(
     path: LogisticsPaths.courierTrucks,
     builder: (_, _) => _courier(const CourierTrucksScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierActivity,
+    builder: (_, _) => _courier(const ActivityScreen(scope: 'logistics')),
+  ),
+  GoRoute(
+    path: LogisticsPaths.hubActivity,
+    builder: (_, _) => _hub(const ActivityScreen(scope: 'hub')),
   ),
   GoRoute(
     path: '${LogisticsPaths.courierRiders}/:id',
