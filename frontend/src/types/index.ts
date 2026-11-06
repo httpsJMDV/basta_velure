@@ -781,6 +781,26 @@ export interface LogisticsTruckDriversResponse {
   summary: { drivers: number; active: number; on_the_way: number; unpaid_amount: number; rate: number };
 }
 
+// Activity logs of a hub, a courier company and a rider
+export interface ActivityEntry {
+  id: string;
+  kind: 'timeline' | 'audit';
+  category: string;
+  title: string;
+  detail: string | null;
+  at: string;
+  actor: { role: string; name: string | null };
+  tracking_number: string | null;
+  order_number: string | null;
+}
+
+export interface ActivityCategory { key: string; label: string }
+
+export interface ActivityResponse {
+  data: ActivityEntry[];
+  meta: { next_before: string | null; categories: ActivityCategory[] };
+}
+
 export interface HubSortResponse {
   message: string;
   sorted_count: number;

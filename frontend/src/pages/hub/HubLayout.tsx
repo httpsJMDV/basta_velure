@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
+  History,
   Gauge,
   PackagePlus,
   Layers,
@@ -47,6 +48,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/hub/messages': 'Rider Messages',
   '/hub/reports': 'Performance Reports',
   '/hub/earnings': 'Earnings',
+  '/hub/activity': 'Activity Log',
   '/hub/settings': 'Settings',
 };
 
@@ -126,6 +128,7 @@ export default function HubLayout() {
       items: [
         { icon: BarChart2, label: 'Reports', to: '/hub/reports' },
         { icon: Wallet, label: 'Earnings', to: '/hub/earnings' },
+        { icon: History, label: 'Activity log', to: '/hub/activity' },
       ],
     },
     { heading: 'Settings', items: [{ icon: Settings, label: 'Settings', to: '/hub/settings' }] },
@@ -141,6 +144,7 @@ export default function HubLayout() {
     { label: 'Rider Messages', to: '/hub/messages', group: 'People', icon: MessageSquare },
     { label: 'Performance Reports', to: '/hub/reports', group: 'Insights', icon: BarChart2 },
     { label: 'Earnings: your share of delivery fees', to: '/hub/earnings', group: 'Insights', icon: Wallet },
+    { label: 'Activity log: scans, transfers, returns, cancellations', to: '/hub/activity', group: 'Insights', icon: History },
     { label: 'Settings: account, password, hub and GCash', to: '/hub/settings', group: 'Settings', icon: Settings },
   ];
 

@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Warehouse,
   Container,
+  History,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderChatUnread, type RiderChatUnread } from '../../hooks/useRiderChatUnread';
@@ -58,13 +59,13 @@ const NAV: NavGroup[] = [
     ],
   },
   { heading: 'Finance', items: [{ icon: Wallet, label: 'Earnings', to: '/rider/earnings' }] },
-  { heading: 'Settings', items: [{ icon: UserIcon, label: 'Account', to: '/rider/account' }] },
+  { heading: 'Settings', items: [{ icon: History, label: 'Activity', to: '/rider/activity' }, { icon: UserIcon, label: 'Account', to: '/rider/account' }] },
 ];
 
 // A truck driver carries parcels between hubs: no pickups or deliveries.
 const TRUCK_NAV: NavGroup[] = [
   { heading: 'Work', items: [{ icon: Container, label: 'Trips', to: '/rider/trips' }] },
-  { heading: 'Settings', items: [{ icon: UserIcon, label: 'Account', to: '/rider/account' }] },
+  { heading: 'Settings', items: [{ icon: History, label: 'Activity', to: '/rider/activity' }, { icon: UserIcon, label: 'Account', to: '/rider/account' }] },
 ];
 
 /** Pages a truck driver has no use for; they open Trips instead. */
@@ -77,6 +78,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/rider/earnings': 'Earnings',
   '/rider/account': 'Account',
   '/rider/trips': 'Trips',
+  '/rider/activity': 'Activity',
 };
 
 function UnreadBadge({ count, floating = false }: { count: number; floating?: boolean }) {
@@ -154,7 +156,8 @@ export default function RiderLayout() {
 
   const isTruck = (riderData?.duty ?? user?.rider?.duty) === 'truck';
   const nav = isTruck ? TRUCK_NAV : NAV;
-  const bottomNav = nav.flatMap((g) => g.items);
+  // Activity stays in the menu and the account list: five tabs fit a phone.
+  const bottomNav = nav.flatMap((g) => g.items).filter((i) => i.to !== '/rider/activity');
   useEffect(() => {
     if (isTruck && DELIVERY_ONLY.includes(location.pathname)) navigate('/rider/trips', { replace: true });
     if (!isTruck && riderData && location.pathname === '/rider/trips') navigate('/rider/dashboard', { replace: true });
@@ -326,7 +329,8 @@ export default function RiderLayout() {
           messages={{ to: '/rider/account', unread: chat.total }}
           menuLinks={[
             { icon: UserIcon, label: 'My account', to: '/rider/account' },
-            { icon: Wallet, label: 'Earnings', to: '/rider/earnings' },
+            ...(isTruck ? [] : [{ icon: Wallet, label: 'Earnings', to: '/rider/earnings' }]),
+            { icon: History, label: 'Activity', to: '/rider/activity' },
           ]}
           leading={
             <Link to="/rider/dashboard" className="lg:hidden shrink-0" aria-label="Courier dashboard">

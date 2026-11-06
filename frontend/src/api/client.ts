@@ -157,6 +157,7 @@ import type {
   HubTruckDriver,
   RiderTripsResponse,
   LogisticsTruckDriversResponse,
+  ActivityResponse,
 } from '../types';
 
 export const http = axios.create({
@@ -1021,6 +1022,13 @@ export const payTruckDriverApi = (riderId: number, reference?: string) =>
 
 export const closeTruckTripApi = (tripId: number, reason: string) =>
   http.post<{ message: string; data: TruckTrip }>(`/logistics/truck-trips/${tripId}/close`, { reason }).then((r) => r.data);
+
+// ─── Activity logs ───────────────────────────────────────────────────────────
+
+export type ActivityScope = 'hub' | 'logistics' | 'rider';
+
+export const getActivityApi = (scope: ActivityScope, params: { category?: string; search?: string; before?: string } = {}) =>
+  http.get<ActivityResponse>(`/${scope}/activity`, { params }).then((r) => r.data);
 
 export const setTruckTripRateApi = (rate: number) =>
   http.put<{ message: string; data: { rate: number } }>('/logistics/truck-rate', { rate }).then((r) => r.data);
