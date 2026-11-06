@@ -669,7 +669,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             title: 'Cash on delivery',
             subtitle: quote.codAvailable
                 ? 'Pay the rider the exact amount when your order arrives.'
-                : 'Not available: cash on delivery is for up to ${formatPeso(quote.codMax)} per shop.',
+                : quote.codBlockedReason ??
+                      'Not available: cash on delivery is for up to ${formatPeso(quote.codMax)} per shop.',
             selected: _payment == 'cod',
             onTap: quote.codAvailable ? () => _choosePayment('cod') : null,
           ),

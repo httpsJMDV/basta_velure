@@ -16,6 +16,7 @@ import '../data/buyer_api.dart';
 import '../data/orders.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
+import 'refund_card.dart';
 
 final orderProvider = FutureProvider.autoDispose.family<Order, int>(
   (ref, id) => ref.watch(buyerApiProvider).order(id),
@@ -50,6 +51,11 @@ class OrderDetailScreen extends ConsumerWidget {
               _StatusCard(order: order),
               if (order.canTrack) _TrackingCard(order: order),
               if (order.returnRequest != null) _ReturnCard(order: order),
+              if (order.refund != null)
+                RefundCard(
+                  order: order,
+                  onChanged: () => ref.invalidate(orderProvider(orderId)),
+                ),
               if (order.deliveryProofCount > 0 && order.trackingNumber != null)
                 _ProofCard(
                   trackingNumber: order.trackingNumber!,
@@ -158,7 +164,8 @@ class _StatusCard extends StatelessWidget {
             const SizedBox(height: AppSpace.md),
             MessageBanner(message: order.rejectionReason!),
           ],
-          if (order.refundStatus != null) ...[
+          // A refund the shop sends by hand has its own card with the steps.
+          if (order.refundStatus != null && order.refund == null) ...[
             const SizedBox(height: AppSpace.md),
             MessageBanner(
               message: order.refundStatus == 'refunded'

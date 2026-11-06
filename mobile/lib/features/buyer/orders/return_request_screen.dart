@@ -58,6 +58,9 @@ class _ReturnRequestScreenState extends ConsumerState<ReturnRequestScreen> {
     }
   }
 
+  /// Nothing to photograph when nothing arrived.
+  bool get _notReceived => _reason == OrderReasons.notReceived;
+
   Future<void> _submit() async {
     setState(() {
       _showErrors = true;
@@ -65,14 +68,16 @@ class _ReturnRequestScreenState extends ConsumerState<ReturnRequestScreen> {
     });
     if (!_form.currentState!.validateAndReveal() ||
         _reason == null ||
-        _photos.isEmpty) {
+        (_photos.isEmpty && !_notReceived)) {
       return;
     }
     final confirmed = await confirmAction(
       context,
-      title: 'Send this return request?',
-      message: 'The shop answers within a few days. You can ask Loved-IT to review if they refuse.',
-      confirmLabel: 'Send request',
+      title: _notReceived ? 'Report that it never arrived?' : 'Send this return request?',
+      message: _notReceived
+          ? 'Loved-IT checks the rider\'s delivery photos and decides, usually within 3 days.'
+          : 'The shop answers within a few days. You can ask Loved-IT to review if they refuse.',
+      confirmLabel: _notReceived ? 'Send report' : 'Send request',
     );
     if (!confirmed) return;
     setState(() => _sending = true);
@@ -106,7 +111,7 @@ class _ReturnRequestScreenState extends ConsumerState<ReturnRequestScreen> {
   Widget build(BuildContext context) {
     final photoError =
         _failure?.errorFor('photos') ??
-        (_showErrors && _photos.isEmpty
+        (_showErrors && _photos.isEmpty && !_notReceived
             ? 'Add at least one photo of the problem.'
             : null);
     return Scaffold(
@@ -164,7 +169,9 @@ class _ReturnRequestScreenState extends ConsumerState<ReturnRequestScreen> {
               ),
               const SizedBox(height: AppSpace.lg),
               Text(
-                'Photos (${_photos.length} of $maxPhotos)',
+                _notReceived
+                    ? 'Photos, optional (${_photos.length} of $maxPhotos)'
+                    : 'Photos (${_photos.length} of $maxPhotos)',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: AppSpace.sm),

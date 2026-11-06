@@ -103,6 +103,9 @@ class HubRouter
         $this->machine->recordEvent($parcel->order, 'hub_departed', $actorType, $by->id,
             'Package left ' . ($current?->hub?->hub_name ?? 'the hub') . '. Next stop: ' . $next->hub?->hub_name . '.',
             ['from_hub_id' => $current?->sorting_center_id, 'to_hub_id' => $next->sorting_center_id, 'tracking_number' => $parcel->tracking_number]);
+        if ($next->hub) {
+            app(\App\Services\Notifier::class)->transferSent($parcel, $current?->hub, $next->hub);
+        }
 
         return $next->hub;
     }
@@ -111,12 +114,14 @@ class HubRouter
     public function arrive(Parcel $parcel, SortingCenter $hub, User $by, string $actorType = 'hub'): void
     {
         $now = now();
+        $from = $parcel->hubStops()->with('hub')->whereNotNull('departed_at')->orderByDesc('position')->first()?->hub;
         $parcel->hubStops()->where('sorting_center_id', $hub->id)->whereNull('arrived_at')->update(['arrived_at' => $now]);
         $parcel->forceFill(['transit_since' => null, 'scanned_in_at' => $now])->save();
 
         $where = $hub->address_city ? " in {$hub->address_city}" : '';
         $this->machine->recordEvent($parcel->order, 'hub_arrived', $actorType, $by->id, "Package arrived at {$hub->hub_name}{$where}.",
             ['sorting_center_id' => $hub->id, 'tracking_number' => $parcel->tracking_number]);
+        app(\App\Services\Notifier::class)->transferArrived($parcel, $from, $hub);
     }
 
     /** The hub a parcel on its way here is coming from. */

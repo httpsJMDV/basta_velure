@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useLocation } from 'react-router-dom';
-import { getAdminUsersApi, suspendUserApi, reactivateUserApi } from '../../api/client';
+import { getAdminUsersApi, suspendUserApi, reactivateUserApi, restoreCodApi } from '../../api/client';
 import type { User, Role, UserStatus, RiderStatus } from '../../types';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -213,12 +213,14 @@ function BuyerDetailsModal({
   onSuspend,
   onActivate,
   acting,
+  onRestoreCod,
 }: {
   user: User;
   onClose: () => void;
   onSuspend: (u: User) => void;
   onActivate: (u: User) => void;
   acting: boolean;
+  onRestoreCod?: (u: User) => void;
 }) {
   const [lightboxUrl,  setLightboxUrl]  = useState<string | null>(null);
   const [confirm,      setConfirm]      = useState<'suspend' | 'activate' | null>(null);
@@ -418,6 +420,21 @@ function BuyerDetailsModal({
                     <InfoRow label="Status" value={user.status.charAt(0).toUpperCase() + user.status.slice(1)} />
                   </div>
                 </div>
+
+                {user.cod && (
+                  <div>
+                    <SectionHeading>Cash on delivery</SectionHeading>
+                    <p className="text-[13px] text-gray-700">
+                      {user.cod.refusals} of {user.cod.limit} parcels refused at the door.{' '}
+                      {user.cod.blocked ? <span className="font-semibold text-red-700">Cash on delivery is off: this buyer pays by GCash.</span> : 'Cash on delivery is on.'}
+                    </p>
+                    {user.cod.blocked && onRestoreCod && (
+                      <Button variant="secondary" className="mt-2 !min-h-[34px] !px-4 text-[12.5px]" loading={acting} onClick={() => onRestoreCod(user)}>
+                        Turn cash on delivery back on
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -609,6 +626,17 @@ export default function AdminUsersPage() {
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
       setSelected((prev) => (prev?.id === updated.id ? updated : prev));
       loadCounts();
+    } finally { setActing(null); }
+  }
+
+  async function handleRestoreCod(user: User) {
+    setActing(user.id);
+    try {
+      const updated = await restoreCodApi(user.id);
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+      setSelected((prev) => (prev?.id === updated.id ? updated : prev));
+    } catch {
+      // The drawer keeps showing the current state; a 409 means it is already on.
     } finally { setActing(null); }
   }
 
@@ -860,6 +888,7 @@ export default function AdminUsersPage() {
           onClose={() => setSelected(null)}
           onSuspend={handleSuspend}
           onActivate={handleReactivate}
+          onRestoreCod={handleRestoreCod}
           acting={acting === selected.id}
         />
       , document.body)}

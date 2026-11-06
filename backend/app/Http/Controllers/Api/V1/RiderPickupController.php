@@ -311,6 +311,17 @@ class RiderPickupController extends Controller
                 'pickup_accepted_at' => $now,
             ]);
 
+            // The shop learns who is coming: one bell and one email for the whole pickup.
+            $first = Parcel::find($parcelIds[0]);
+            $rider->loadMissing('user');
+            $riderName = \App\Services\Courier\Dispatcher::name($rider);
+            $vehicle = trim(ucfirst((string) $rider->vehicle_type) . ($rider->plate_number ? ' · ' . $rider->plate_number : '')) ?: null;
+            $count = count($parcelIds);
+            app(\App\Services\Notifier::class)->toSeller($sellerId, 'order_updates', 'order.pickup_assigned', 'A rider is coming',
+                "{$riderName} will collect " . ($count === 1 ? "parcel {$first->tracking_number}" : "{$count} parcels") . ($vehicle ? " ({$vehicle})" : '') . '. You can message the rider from the order.',
+                "/seller/orders?order={$first->order_id}", ['order_id' => $first->order_id, 'tracking_number' => $first->tracking_number]);
+            app(\App\Services\MailNotifier::class)->sellerPickupAssigned($first, $riderName, $vehicle);
+
             return response()->json([
                 'message'          => $waiting > count($parcelIds)
                     ? 'Accepted ' . count($parcelIds) . ' of ' . $waiting . ' parcels: you can hold ' . Rider::MAX_ACTIVE_JOBS . ' jobs at a time.'

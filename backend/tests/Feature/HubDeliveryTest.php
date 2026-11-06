@@ -812,6 +812,8 @@ class HubDeliveryTest extends TestCase
 
         // Both fail on the rider's first attempt.
         foreach ([$retry, $giveUp] as $p) {
+            // The rider calls the buyer first, as "not at home" requires.
+            $this->actingAs($riderUser, 'sanctum')->postJson("/api/v1/rider/deliveries/{$p->tracking_number}/contact", ['method' => 'call'])->assertOk();
             $this->actingAs($riderUser, 'sanctum')
                 ->postJson("/api/v1/rider/deliveries/{$p->tracking_number}/failed", ['reason' => 'RECIPIENT_UNAVAILABLE', 'note' => 'Nobody home'])
                 ->assertOk()->assertJsonPath('delivery_attempts', 1);

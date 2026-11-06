@@ -250,6 +250,7 @@ class CheckoutCalculator
             $problems[] = ['type' => 'order_too_large', 'message' => 'One checkout can total at most ' . OrderLimits::peso((float) config('orders.max_total')) . '. Split this into smaller orders.'];
         }
         $biggestOrder = $out === [] ? 0.0 : max(array_column($out, 'total'));
+        $codRefused = CodRefusals::blocked($buyer);
 
         return [
             'stores'           => array_values($out),
@@ -260,7 +261,10 @@ class CheckoutCalculator
             'can_place'        => $problems === [] && $out !== [],
             'limits'           => [
                 'cod_max'            => OrderLimits::codMax(),
-                'cod_available'      => $biggestOrder <= OrderLimits::codMax(),
+                'cod_available'      => $biggestOrder <= OrderLimits::codMax() && ! $codRefused,
+                // Off for a buyer who refused too many parcels at the door (CodRefusals); the reason says so.
+                'cod_blocked'        => $codRefused,
+                'cod_blocked_reason' => $codRefused ? CodRefusals::blockedMessage() : null,
                 'agreement_min'      => OrderLimits::highValueMin(),
                 'agreement_required' => $totals['total'] >= OrderLimits::highValueMin(),
             ],

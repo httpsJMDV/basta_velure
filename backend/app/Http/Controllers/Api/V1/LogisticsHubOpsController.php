@@ -105,6 +105,7 @@ class LogisticsHubOpsController extends Controller
             if ($received = SortingCenter::find($hub)) {
                 $this->router->plan($parcel, $received);
             }
+            app(\App\Services\Notifier::class)->handoverConfirmed($parcel, $received);
 
             return $parcel->fresh(['order:id,order_number']);
         });

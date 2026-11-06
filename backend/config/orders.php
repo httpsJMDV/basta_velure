@@ -49,4 +49,33 @@ return [
     'cod_max'        => max(1, (float) env('ORDER_COD_MAX', 50000)),
     'high_value_min' => max(1, (float) env('ORDER_HIGH_VALUE_MIN', 50000)),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cash on delivery after refused parcels
+    |--------------------------------------------------------------------------
+    |
+    | A buyer who refused this many parcels at the door can no longer pay by
+    | cash on delivery: they pay by GCash until an admin turns COD back on.
+    | Only refusals count, not "not at home". 0 turns the rule off.
+    |
+    */
+
+    'cod_refusal_limit' => max(0, (int) env('ORDER_COD_REFUSAL_LIMIT', 3)),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Refunds the shop sends by hand
+    |--------------------------------------------------------------------------
+    |
+    | A GCash or cash-on-delivery order was paid to the shop, so the shop sends
+    | the refund to the buyer's GCash. refund_send_days: how long the shop has
+    | before Loved-IT is told it is late. refund_confirm_days: how long the
+    | buyer has to say a sent refund did not arrive; after that it counts as
+    | received.
+    |
+    */
+
+    'refund_send_days'    => max(1, (int) env('ORDER_REFUND_SEND_DAYS', 3)),
+    'refund_confirm_days' => max(1, (int) env('ORDER_REFUND_CONFIRM_DAYS', 3)),
+
 ];

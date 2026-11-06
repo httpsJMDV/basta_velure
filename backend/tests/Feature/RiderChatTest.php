@@ -185,6 +185,57 @@ class RiderChatTest extends TestCase
             : $user->postJson("/api/v1/conversations/{$threadId}/messages", ['body' => $body]);
     }
 
+    // ── The seller starts the chat ───────────────────────────────────────────
+
+    public function test_the_seller_starts_the_chat_with_the_pickup_rider_and_both_sides_can_send(): void
+    {
+        [$riderUser, $rider] = $this->makeRider();
+        $parcel = $this->pickupParcel($rider);
+
+        $res = $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/parcels/{$parcel->tracking_number}/rider-chat")
+            ->assertCreated()->assertJsonPath('data.type', 'rider_seller')->assertJsonPath('data.can_send', true);
+        $threadId = $res->json('data.id');
+        // Opening it again is the same thread, also the one the rider would open.
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/parcels/{$parcel->tracking_number}/rider-chat")
+            ->assertOk()->assertJsonPath('data.id', $threadId);
+        $this->assertSame($threadId, $this->openThread($riderUser, $parcel, 'seller')->json('data.id'));
+
+        $this->viaConversations($this->seller, $threadId, 'The parcel is at the counter.')->assertCreated();
+        $this->riderSend($riderUser, $threadId, 'On my way, 10 minutes.')->assertCreated();
+    }
+
+    public function test_the_seller_cannot_message_before_a_rider_has_the_pickup_or_about_another_shops_parcel(): void
+    {
+        $unclaimed = $this->makeParcel(null, null, Parcel::STATUS_READY_FOR_PICKUP);
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/parcels/{$unclaimed->tracking_number}/rider-chat")->assertStatus(409);
+
+        [, $rider] = $this->makeRider();
+        $parcel = $this->pickupParcel($rider);
+        $otherShop = $this->makeUser('seller', 'Other');
+        // Not their parcel and not their order: the same 404 as an unknown one.
+        $this->actingAs($otherShop, 'sanctum')->postJson("/api/v1/parcels/{$parcel->tracking_number}/rider-chat")->assertNotFound();
+
+        // Once the hub has it, the pickup chat is over.
+        $parcel->forceFill(['status' => Parcel::STATUS_AT_SORTING_CENTER])->save();
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/parcels/{$parcel->tracking_number}/rider-chat")->assertStatus(409);
+    }
+
+    public function test_the_rider_bringing_a_parcel_back_and_the_seller_can_chat_until_it_is_returned(): void
+    {
+        [$riderUser, $rider] = $this->makeRider();
+        $parcel = $this->makeParcel(null, null, Parcel::STATUS_RETURN_TO_SENDER, ['rts_rider_id' => $rider->id, 'rts_assigned_at' => now()]);
+
+        // The return rider can message the seller, not the buyer.
+        $this->openThread($riderUser, $parcel, 'buyer')->assertStatus(422)->assertJsonValidationErrors('counterpart');
+        $threadId = $this->openThread($riderUser, $parcel, 'seller')->assertCreated()->json('data.id');
+        $this->actingAs($this->seller, 'sanctum')->postJson("/api/v1/parcels/{$parcel->tracking_number}/rider-chat")
+            ->assertOk()->assertJsonPath('data.id', $threadId);
+        $this->viaConversations($this->seller, $threadId, 'I am at the shop until 6 PM.')->assertCreated();
+
+        $parcel->forceFill(['status' => Parcel::STATUS_RETURNED])->save();
+        $this->riderSend($riderUser, $threadId, 'Handed over.')->assertStatus(409);
+    }
+
     // ── The buyer starts the chat (Message rider) ────────────────────────────
 
     public function test_the_buyer_starts_the_rider_chat_from_track_package_while_the_parcel_is_out_for_delivery(): void

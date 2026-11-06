@@ -361,3 +361,20 @@ Hub intake (`PICKED_UP → AT_SORTING_CENTER`, Feature 1.6) and everything about
 - **Backfill.** `php artisan parcels:backfill-delivered-at` (dry run) and `--apply` give older DELIVERED parcels a time from the order's first `DELIVERED` history row. Idempotent; skips parcels that already have a time or have no history.
 - **Admin deliveries in rider figures.** They are in the hub's totals but in no rider's row (`unattributed_deliveries`), because no rider reported them.
 - Contract and full definitions: `docs/api/logistics-hub-reports.md`.
+
+---
+
+## 19. Refunds the shop sends, "Parcel not received" and delivery safeguards
+
+**No new status and no money rule changes.** Every status still moves through `OrderStateMachine`; amounts are the ones the order already refunds.
+
+- **Decision: a direct order's refund is a task for the shop.** A paid GCash order that is cancelled, and an approved return of a GCash or COD order, open a `refunds` row (`ManualRefunds`): the buyer gives a GCash account, the shop sends the money and records the 13-digit reference and receipt, the buyer confirms it arrived or reports it (silence counts as received after 3 days), and Loved-IT settles a report (received, or send again). The order's `refund_status` stays `pending` until then and becomes `refunded` at the end. Sandbox e-wallet and card refunds stay instant. Before this, a COD return was marked refunded although nobody paid the buyer back.
+- **Decision: "Parcel not received" goes to Loved-IT.** The shop cannot check a courier's delivery, so that reason opens the dispute as `escalated` (no shop answer, no 3-day auto-approval) and the admin decides from the rider's proof photos, the delivery time, who received it and the cash collected. Photos are optional for it.
+- **Decision: three refused parcels turn COD off.** Counted from `delivery_logs` (`REFUSED` only); the admin turns it back on (`users.cod_refusals_reset_at`).
+- **Decision: "not at home" needs a call or a message first.** `RECIPIENT_UNAVAILABLE` and `CANNOT_CONTACT` need a call or text recorded from the stop, or a chat message to the buyer, on this trip.
+- **Decision: auto-complete never ends the return window early.** It waits the longer of `orders.auto_complete_days` and the return window.
+- **Handover confirmations:** the pickup rider hears when the hub scans their parcel in; hub-to-hub transfers tell the next hub a parcel is coming and the sending hub when it arrived; the return rider hears when the shop confirms the parcel came back.
+- **Rider and shop chat:** the shop can start it with the pickup rider or the return rider; the return rider can message the seller while bringing the parcel back.
+- **Who pays for a failed delivery:** nobody is charged. The rider is not paid for a failed attempt; a prepaid buyer of a refused or undeliverable parcel is refunded in full; a buyer who refuses parcels loses cash on delivery.
+- **Not built:** sending the item itself back from the buyer to the shop after a return is approved (a reverse pickup). The shop arranges it with the buyer in chat if it needs the item back.
+- Contract: `docs/api/refunds.md`.

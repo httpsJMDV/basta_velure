@@ -10,6 +10,7 @@ use App\Models\Parcel;
 use App\Models\Payment;
 use App\Models\PaymentSession;
 use App\Models\ProductVariant;
+use App\Models\Refund;
 use App\Models\Voucher;
 use App\Models\VoucherUsage;
 use App\Services\OrderStateMachine;
@@ -130,8 +131,11 @@ class OrderCanceller
         }
     }
 
-    /** The exact amount paid goes back: at once for the sandbox gateway, by the shop for a direct GCash payment. */
-    public function refund(Order $order, ?float $amount = null): void
+    /**
+     * The exact amount paid goes back: at once for the sandbox gateway; for a direct GCash payment the shop sends it
+     * back by hand, tracked as a Refund (ManualRefunds) until the buyer confirms it arrived.
+     */
+    public function refund(Order $order, ?float $amount = null, string $cause = Refund::CAUSE_CANCELLED): void
     {
         if ($order->payment_status !== 'paid') {
             return;
@@ -141,8 +145,7 @@ class OrderCanceller
             $order->forceFill(['refund_status' => 'refunded', 'refund_amount' => $amount, 'refunded_at' => now(), 'payment_status' => 'refunded'])->save();
             Payment::where('order_id', $order->id)->update(['status' => 'refunded', 'refund_amount' => $amount, 'refunded_at' => now()]);
         } else {
-            // Paid straight to the shop's GCash: the shop sends it back; the order shows the refund as pending.
-            $order->forceFill(['refund_status' => 'pending', 'refund_amount' => $amount])->save();
+            app(ManualRefunds::class)->open($order, $cause, $amount);
         }
     }
 

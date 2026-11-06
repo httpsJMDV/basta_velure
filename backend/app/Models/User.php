@@ -35,7 +35,7 @@ class User extends Authenticatable
         // role, status and username are intentionally excluded — set explicitly in code only (username: demo seeder)
     ];
 
-    protected $hidden = ['password', 'remember_token', 'verification_token', 'reset_token', 'username'];
+    protected $hidden = ['password', 'remember_token', 'verification_token', 'reset_token', 'username', 'cod_refusals_reset_at'];
 
     protected function casts(): array
     {
@@ -47,6 +47,7 @@ class User extends Authenticatable
             'date_of_birth'                 => 'date',
             'password'                      => 'hashed',
             'notification_preferences'      => 'array',
+            'cod_refusals_reset_at'         => 'datetime',
         ];
     }
 

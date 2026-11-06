@@ -70,6 +70,9 @@ class OrderPlacer
                 throw ValidationException::withMessages(['items' => array_column($quote['problems'], 'message')]);
             }
             $this->refuseChangedVouchers($quote, $input['codes']);
+            if ($input['payment_method'] === 'cod' && ! empty($quote['limits']['cod_blocked'])) {
+                throw ValidationException::withMessages(['payment_method' => CodRefusals::blockedMessage()]);
+            }
             if ($input['payment_method'] === 'cod' && ! $quote['limits']['cod_available']) {
                 throw ValidationException::withMessages(['payment_method' => 'Cash on delivery is for orders up to ' . OrderLimits::peso(OrderLimits::codMax()) . ' per shop, since a rider should not carry more than that. Pay the shop by GCash instead.']);
             }

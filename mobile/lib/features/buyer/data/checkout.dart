@@ -181,6 +181,7 @@ class CheckoutQuote {
     this.shippingVoucher,
     this.codMax = 0,
     this.codAvailable = true,
+    this.codBlockedReason,
     this.agreementRequired = false,
   });
 
@@ -201,8 +202,12 @@ class CheckoutQuote {
   /// The most cash a rider collects for one shop's order.
   final num codMax;
 
-  /// False when a shop's order is above [codMax], so a rider never carries that much.
+  /// False when a shop's order is above [codMax], so a rider never carries that much, or when the buyer refused too
+  /// many parcels at the door ([codBlockedReason] then says so).
   final bool codAvailable;
+
+  /// Set when cash on delivery is off for this account after refused parcels.
+  final String? codBlockedReason;
 
   /// A big purchase is agreed to first. The server refuses the order without it.
   final bool agreementRequired;
@@ -233,6 +238,10 @@ class CheckoutQuote {
       codMax: asDouble(limits['cod_max']),
       codAvailable:
           limits['cod_available'] == null || asBool(limits['cod_available']),
+      codBlockedReason: asBool(limits['cod_blocked'])
+          ? (asString(limits['cod_blocked_reason']) ??
+                'Cash on delivery is off for your account. Pay by GCash instead.')
+          : null,
       agreementRequired: asBool(limits['agreement_required']),
     );
   }

@@ -64,6 +64,9 @@ abstract final class OrderReasons {
     'Other',
   ];
 
+  /// Marked delivered but nothing came: Loved-IT decides it from the rider's proof, and photos are optional.
+  static const notReceived = 'Parcel not received';
+
   static const returns = [
     'Damaged item',
     'Wrong item',
@@ -71,6 +74,7 @@ abstract final class OrderReasons {
     'Not as described',
     'Defective or not working',
     'Expired product',
+    notReceived,
   ];
 }
 
@@ -165,6 +169,85 @@ class ReturnRequest {
   }
 }
 
+/// A refund the shop sends by hand to the buyer's GCash (GCash and cash-on-delivery orders), from
+/// `refund` on the order. See docs/api/refunds.md.
+class Refund {
+  const Refund({
+    required this.id,
+    required this.status,
+    required this.amount,
+    required this.overdue,
+    required this.hasReceipt,
+    required this.autoConfirmed,
+    required this.canSetAccount,
+    required this.canConfirm,
+    required this.canReport,
+    this.gcashNumber,
+    this.gcashName,
+    this.sendBy,
+    this.reference,
+    this.sentAt,
+    this.confirmBy,
+    this.receivedAt,
+    this.resolutionNote,
+  });
+
+  final int id;
+
+  /// `awaiting_account`, `awaiting_shop`, `sent`, `not_received` or `received`.
+  final String status;
+  final num amount;
+  final bool overdue;
+  final bool hasReceipt;
+  final bool autoConfirmed;
+  final bool canSetAccount;
+  final bool canConfirm;
+  final bool canReport;
+  final String? gcashNumber;
+  final String? gcashName;
+  final DateTime? sendBy;
+  final String? reference;
+  final DateTime? sentAt;
+  final DateTime? confirmBy;
+  final DateTime? receivedAt;
+  final String? resolutionNote;
+
+  bool get done => status == 'received';
+
+  String get statusLabel => switch (status) {
+    'awaiting_account' => 'Add your GCash',
+    'awaiting_shop' => 'The shop is sending it',
+    'sent' => 'Sent, please check',
+    'not_received' => 'Loved-IT is checking',
+    'received' => 'Done',
+    _ => status,
+  };
+
+  static Refund? fromJson(Object? value) {
+    if (value is! Map) return null;
+    final json = asJson(value);
+    return Refund(
+      id: asInt(json['id']),
+      status: asString(json['status']) ?? 'awaiting_account',
+      amount: asDouble(json['amount']),
+      overdue: asBool(json['overdue']),
+      hasReceipt: asBool(json['has_receipt']),
+      autoConfirmed: asBool(json['auto_confirmed']),
+      canSetAccount: asBool(json['can_set_account']),
+      canConfirm: asBool(json['can_confirm']),
+      canReport: asBool(json['can_report']),
+      gcashNumber: asString(json['gcash_number']),
+      gcashName: asString(json['gcash_name']),
+      sendBy: asDate(json['send_by']),
+      reference: asString(json['reference']),
+      sentAt: asDate(json['sent_at']),
+      confirmBy: asDate(json['confirm_by']),
+      receivedAt: asDate(json['received_at']),
+      resolutionNote: asString(json['resolution_note']),
+    );
+  }
+}
+
 class OrderHistoryEntry {
   const OrderHistoryEntry({required this.status, this.at, this.note});
 
@@ -211,6 +294,7 @@ class Order {
     this.rejectionReason,
     this.cancelReason,
     this.refundStatus,
+    this.refund,
     this.returnRequest,
     this.returnUnavailableReason,
     this.returnWindowEndsAt,
@@ -252,6 +336,9 @@ class Order {
   final String? rejectionReason;
   final String? cancelReason;
   final String? refundStatus;
+
+  /// A refund the shop sends by hand; null for an instant (e-wallet or card) one or none at all.
+  final Refund? refund;
   final bool canCancel;
   final bool canReturn;
   final ReturnRequest? returnRequest;
@@ -320,6 +407,7 @@ class Order {
       rejectionReason: asString(json['rejection_reason']),
       cancelReason: asString(json['cancel_reason']),
       refundStatus: asString(json['refund_status']),
+      refund: Refund.fromJson(json['refund']),
       canCancel: asBool(json['can_cancel']),
       canReturn: asBool(json['can_return']),
       returnRequest: ReturnRequest.fromJson(json['dispute']),

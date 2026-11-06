@@ -199,6 +199,15 @@ class RiderApi {
     );
   }
 
+  /// The rider is calling or texting the buyer from this stop. Needed before "not at home" or "could not contact";
+  /// the buyer is told the rider is trying to reach them. Repeating it is harmless.
+  Future<void> contactBuyer(String trackingNumber, {String method = 'call'}) async {
+    await _post(
+      '/rider/deliveries/${_tn(trackingNumber)}/contact',
+      data: {'method': method},
+    );
+  }
+
   Future<FailedResult> failed(
     String trackingNumber, {
     required String reason,

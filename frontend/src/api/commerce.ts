@@ -154,7 +154,11 @@ export interface CheckoutQuote {
   problems: CheckoutProblem[];
   can_place: boolean;
   /** What this order needs because of its size. The server refuses the order without them. */
-  limits?: { cod_max: number; cod_available: boolean; agreement_min: number; agreement_required: boolean };
+  limits?: {
+    cod_max: number; cod_available: boolean; agreement_min: number; agreement_required: boolean;
+    /** Off after too many parcels refused at the door; the reason says so. */
+    cod_blocked?: boolean; cod_blocked_reason?: string | null;
+  };
   wallet: WalletVoucher[];
 }
 
@@ -255,7 +259,9 @@ export const endVoucherApi = (id: number, admin = false) =>
 
 export const BUYER_CANCEL_REASONS = ['Changed my mind', 'Found a better price', 'Ordered by mistake', 'Need to change the delivery address', 'Need to change the payment method', 'Other'] as const;
 export const SELLER_CANCEL_REASONS = ['Out of stock', 'Buyer asked to cancel', 'Cannot ship to this address', 'Pricing error', 'Other'] as const;
-export const RETURN_REASONS = ['Damaged item', 'Wrong item', 'Missing item or parts', 'Not as described', 'Defective or not working', 'Expired product'] as const;
+/** Marked delivered but nothing came: Loved-IT decides it from the rider's proof, and photos are optional. */
+export const NOT_RECEIVED_REASON = 'Parcel not received';
+export const RETURN_REASONS = ['Damaged item', 'Wrong item', 'Missing item or parts', 'Not as described', 'Defective or not working', 'Expired product', NOT_RECEIVED_REASON] as const;
 
 export const cancelBuyerOrderApi = <O = unknown>(orderId: number, reason: string, details?: string) =>
   http.post<{ data: O; message: string }>(`/buyer/orders/${orderId}/cancel`, { reason, details: details || null }).then((r) => r.data);
@@ -289,6 +295,68 @@ export interface ReturnRequestView {
   resolved_at: string | null;
   created_at: string | null;
 }
+
+// ─── Refunds the shop sends by hand (docs/api/refunds.md) ───────────────────
+
+export type RefundStatus = 'awaiting_account' | 'awaiting_shop' | 'sent' | 'not_received' | 'received';
+
+export interface RefundView {
+  id: number;
+  status: RefundStatus;
+  cause: 'return' | 'cancelled';
+  amount: number;
+  gcash_number: string | null;
+  gcash_name: string | null;
+  send_by: string | null;
+  overdue: boolean;
+  reference: string | null;
+  has_receipt: boolean;
+  sent_at: string | null;
+  confirm_by: string | null;
+  received_at: string | null;
+  auto_confirmed: boolean;
+  reported_at: string | null;
+  report_note: string | null;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  times_sent_before: number;
+  can_set_account: boolean;
+  can_confirm: boolean;
+  can_report: boolean;
+  can_send: boolean;
+  can_decide: boolean;
+  created_at: string | null;
+}
+
+export interface RefundRow extends RefundView {
+  order: { id: number; order_number: string; payment_method: string; total: number } | null;
+  buyer?: { id: number; name: string; email: string } | null;
+  shop?: { id: number; shop_name: string | null } | null;
+}
+
+export const setRefundAccountApi = <O = unknown>(orderId: number, gcashNumber: string, gcashName: string) =>
+  http.put<{ data: O; message: string }>(`/buyer/orders/${orderId}/refund/account`, { gcash_number: gcashNumber, gcash_name: gcashName }).then((r) => r.data);
+export const confirmRefundApi = <O = unknown>(orderId: number) =>
+  http.post<{ data: O; message: string }>(`/buyer/orders/${orderId}/refund/confirm`).then((r) => r.data);
+export const reportRefundApi = <O = unknown>(orderId: number, note: string) =>
+  http.post<{ data: O; message: string }>(`/buyer/orders/${orderId}/refund/report`, { note }).then((r) => r.data);
+export const sendRefundApi = (orderId: number, reference: string, receipt: File) => {
+  const form = new FormData();
+  form.append('reference', reference);
+  form.append('receipt', receipt);
+  return http.post<{ data: RefundView; message: string }>(`/seller/orders/${orderId}/refund/sent`, form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
+};
+export const getSellerRefundsApi = (status: 'open' | 'done' = 'open') =>
+  http.get<{ data: RefundRow[]; meta: { current_page: number; last_page: number; total: number; to_send: number } }>('/seller/refunds', { params: { status } }).then((r) => r.data);
+export const getAdminRefundsApi = (status: string = 'attention', page = 1) =>
+  http.get<{ data: RefundRow[]; meta: { current_page: number; last_page: number; total: number; attention: number } }>('/admin/refunds', { params: { status, page } }).then((r) => r.data);
+export const resolveRefundApi = (refundId: number, decision: 'received' | 'send_again', note: string) =>
+  http.post<{ data: RefundRow }>(`/admin/refunds/${refundId}/resolve`, { decision, note }).then((r) => r.data.data);
+/** The shop's GCash receipt, from the private disk, as an object URL the caller revokes. */
+export const refundReceiptUrlApi = async (refundId: number) => {
+  const res = await http.get<Blob>(`/refunds/${refundId}/receipt`, { responseType: 'blob' });
+  return URL.createObjectURL(res.data);
+};
 
 // ─── Courier delivery zones and rates ───────────────────────────────────────
 

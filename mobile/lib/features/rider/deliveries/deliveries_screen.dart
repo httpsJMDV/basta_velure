@@ -376,6 +376,11 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
               stop: stop,
               onDelivered: () => _delivered(stop),
               onFailed: () => _failed(stop),
+              // A call from the stop counts as trying to reach the buyer (needed before "not at home").
+              onCall: () => ref
+                  .read(riderApiProvider)
+                  .contactBuyer(stop.trackingNumber)
+                  .catchError((Object _) {}),
             ),
             const SizedBox(height: AppSpace.md),
           ],
@@ -481,12 +486,14 @@ class StopCard extends StatelessWidget {
     required this.stop,
     required this.onDelivered,
     required this.onFailed,
+    this.onCall,
   });
 
   final int number;
   final DeliveryStop stop;
   final VoidCallback onDelivered;
   final VoidCallback onFailed;
+  final VoidCallback? onCall;
 
   @override
   Widget build(BuildContext context) {
@@ -561,7 +568,9 @@ class StopCard extends StatelessWidget {
           ],
           Row(
             children: [
-              Expanded(child: RiderCallPill(phone: stop.recipientPhone)),
+              Expanded(
+                child: RiderCallPill(phone: stop.recipientPhone, onCall: onCall),
+              ),
               const SizedBox(width: AppSpace.sm),
               Expanded(child: RiderMapsPill(address: address)),
               const SizedBox(width: AppSpace.sm),

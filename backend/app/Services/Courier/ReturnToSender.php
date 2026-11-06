@@ -46,6 +46,9 @@ class ReturnToSender
      */
     public function afterFailure(Parcel $parcel, DeliveryFailureReason $reason): bool
     {
+        if ($reason === DeliveryFailureReason::REFUSED) {
+            \App\Services\Commerce\CodRefusals::afterRefusal($parcel->order?->buyer);
+        }
         if ($reason !== DeliveryFailureReason::REFUSED && (int) $parcel->delivery_attempts < self::maxAttempts()) {
             return false;
         }
@@ -62,6 +65,7 @@ class ReturnToSender
                 ($order->isPrepaid() ? ' and refunded in full.' : '.'), "/settings/orders?order={$order->id}", ['order_id' => $order->id]);
             $notifier->toSeller($parcel->seller_id, 'order_updates', 'order.status', 'A parcel is coming back to you',
                 "Order {$order->order_number}: {$why}. The courier is bringing it back to your shop.", "/seller/orders?order={$order->id}", ['order_id' => $order->id]);
+            app(\App\Services\MailNotifier::class)->sellerParcelReturning($parcel, $why);
             $notifier->send($notifier->companyMembers($parcel->logistics_company_id), 'shipment.rts', 'Return to sender',
                 "Parcel {$parcel->tracking_number}: {$why}. Assign a rider to take it back to the seller.", '/logistics/returns',
                 ['tracking_number' => $parcel->tracking_number]);
@@ -150,6 +154,7 @@ class ReturnToSender
         app(Notifier::class)->toSeller($parcel->seller_id, 'order_updates', 'order.returned_to_sender', 'Parcel returned to you',
             "Order {$order->order_number}: the parcel is back with you. Confirm you received it so the stock goes back on sale.",
             "/seller/orders?order={$order->id}", ['order_id' => $order->id]);
+        app(\App\Services\MailNotifier::class)->sellerParcelReturned($parcel);
     }
 
     /** The seller confirms the returned parcel arrived: the stock goes back, once (L7, LOG-RTS-003). */
@@ -162,6 +167,13 @@ class ReturnToSender
 
             $parcel->forceFill(['seller_return_confirmed_at' => now()])->save();
             $this->canceller->restoreStock($order);
+
+            // The handover is confirmed: the return rider hears that the shop has it.
+            if ($parcel->rts_rider_id && ($rtsRider = Rider::with('user')->find($parcel->rts_rider_id))) {
+                app(Notifier::class)->send($rtsRider->user, 'rider.return_confirmed', 'Return confirmed by the shop',
+                    "The shop confirmed parcel {$parcel->tracking_number} is back with them.", '/rider/history',
+                    ['tracking_number' => $parcel->tracking_number]);
+            }
 
             return $parcel->fresh();
         });

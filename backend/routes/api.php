@@ -152,6 +152,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/parcels/{tracking}/delivery-proof', [DeliveryProofController::class, 'show']);
         // The GCash receipt of a weekly courier ↔ shop payment (the two sides and admins)
         Route::get('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\SettlementReceiptController::class, 'show'])->whereNumber('settlement');
+        // The GCash receipt of a refund a shop sent (the buyer, the shop and admins)
+        Route::get('/refunds/{refund}/receipt', [\App\Http\Controllers\Api\V1\RefundController::class, 'receipt'])->whereNumber('refund');
         // Track package: timeline, route places and the courier's live position (buyer, seller, hub, rider, admin)
         Route::get('/parcels/{tracking}/tracking', [ParcelTrackingController::class, 'show']);
         Route::post('/parcels/{tracking}/rider-chat', [ConversationController::class, 'startRiderChat'])->middleware('throttle:20,1');
@@ -323,6 +325,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/buyer/orders/{order}', [BuyerOrderController::class, 'show']);
         Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn'])->middleware('throttle:upload');
         Route::post('/buyer/orders/{order}/escalate-return', [BuyerOrderController::class, 'escalateReturn']);
+        // A refund the shop sends by hand: where to send it, then "it arrived" or "it did not"
+        Route::put('/buyer/orders/{order}/refund/account', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerAccount'])->middleware('throttle:20,1');
+        Route::post('/buyer/orders/{order}/refund/confirm', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerConfirm']);
+        Route::post('/buyer/orders/{order}/refund/report', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerReport'])->middleware('throttle:10,1');
         Route::post('/buyer/orders/{order}/cancel', [BuyerOrderController::class, 'cancel']);
         Route::post('/buyer/orders/{order}/pay-again', [BuyerOrderController::class, 'payAgain']);
         // Feature 2.8: only buyers (other roles get 403); another buyer's order is a 404 in the controller
@@ -467,6 +473,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/disputes/stats', [AdminDisputeController::class, 'stats']);
             Route::get('/disputes/{dispute}', [AdminDisputeController::class, 'show']);
             Route::patch('/disputes/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
+            // Refunds shops send by hand: reported as not received, late, or any by status
+            Route::get('/refunds', [\App\Http\Controllers\Api\V1\RefundController::class, 'adminIndex']);
+            Route::post('/refunds/{refund}/resolve', [\App\Http\Controllers\Api\V1\RefundController::class, 'adminResolve'])->whereNumber('refund');
+            // Cash on delivery after refused parcels: turn it back on for a buyer
+            Route::post('/users/{user}/restore-cod', [AdminController::class, 'restoreCod'])->whereNumber('user');
 
             // Reviews
             // Reviews are read-only for the admin (honest feedback: no approve, hide or delete), grouped by shop.
@@ -566,6 +577,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller/orders/{order}/cancel', [SellerOrderController::class, 'cancel']);
             // A13: a parcel back from a failed delivery; the stock returns only on this confirmation
             Route::post('/seller/orders/{order}/confirm-return-received', [SellerOrderController::class, 'confirmReturnReceived']);
+            // Refunds the shop sends by hand (GCash and COD orders)
+            Route::get('/seller/refunds', [\App\Http\Controllers\Api\V1\RefundController::class, 'sellerIndex']);
+            Route::post('/seller/orders/{order}/refund/sent', [\App\Http\Controllers\Api\V1\RefundController::class, 'sellerSent'])->middleware('throttle:upload');
             // Store vouchers (S9)
             $vouchers = \App\Http\Controllers\Api\V1\VoucherManagementController::class;
             Route::get('/seller/vouchers', [$vouchers, 'index']);
@@ -726,6 +740,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/deliveries/failure-reasons', [RiderDeliveryController::class, 'failureReasons']);
             Route::post('/deliveries/{tracking}/delivered', [RiderDeliveryController::class, 'delivered']);
             Route::post('/deliveries/{tracking}/failed', [RiderDeliveryController::class, 'failed']);
+            // The rider calls or texts the buyer from the stop; needed before "not at home" or "could not contact"
+            Route::post('/deliveries/{tracking}/contact', [RiderDeliveryController::class, 'contact'])->middleware('throttle:30,1');
 
             // Delivery chat and vehicle (Feature 2.10). The seller and buyer use /conversations; the hub uses /hub/chat.
             Route::get('/chat/threads', [RiderChatController::class, 'index']);

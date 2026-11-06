@@ -160,6 +160,11 @@ class CourierOpsTest extends TestCase
 
     private function failAttempt(User $riderUser, Parcel $p, string $reason = 'RECIPIENT_UNAVAILABLE')
     {
+        // "Not at home" needs a call to the buyer on this trip first.
+        if (in_array($reason, ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'], true)) {
+            $this->as($riderUser)->postJson("/api/v1/rider/deliveries/{$p->tracking_number}/contact", ['method' => 'call']);
+        }
+
         return $this->as($riderUser)->postJson("/api/v1/rider/deliveries/{$p->tracking_number}/failed", ['reason' => $reason]);
     }
 

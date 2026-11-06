@@ -137,6 +137,7 @@ class Parcel extends Model
         'exception_reason',
         'exception_photo_path',
         'exception_at',
+        'buyer_contacted_at',
     ];
 
     protected function casts(): array
@@ -165,6 +166,7 @@ class Parcel extends Model
             'rts_assigned_at'         => 'datetime',
             'seller_return_confirmed_at' => 'datetime',
             'exception_at'            => 'datetime',
+            'buyer_contacted_at'      => 'datetime',
         ];
     }
 

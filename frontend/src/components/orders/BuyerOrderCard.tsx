@@ -6,10 +6,11 @@ import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../..
 import OrderStatusTimeline from './OrderStatusTimeline';
 import BuyerReceiptConfirm from './BuyerReceiptConfirm';
 import TrackPackageButton from '../tracking/TrackPackageButton';
+import BuyerRefundPanel from './BuyerRefundPanel';
 import { Dialog, BUTTON } from '../ui/Overlay';
 import { useToast } from '../ui/Toast';
 import {
-  BUYER_CANCEL_REASONS, RETURN_REASONS, cancelBuyerOrderApi, escalateReturnApi, payAgainApi, requestReturnApi,
+  BUYER_CANCEL_REASONS, NOT_RECEIVED_REASON, RETURN_REASONS, cancelBuyerOrderApi, escalateReturnApi, payAgainApi, requestReturnApi,
 } from '../../api/commerce';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
 import { pesoCompact as peso } from '../../utils/pricing';
@@ -130,10 +131,11 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
           <p className="rounded-xl bg-stone-50 px-3 py-2 text-[12.5px] text-stone-700">
             <span className="font-semibold">Cancelled{order.cancel_reason === 'Failed delivery' ? '' : order.cancelled_by ? ` by ${order.cancelled_by === 'buyer' ? 'you' : order.cancelled_by === 'seller' ? 'the shop' : 'Loved-IT'}` : ''}</span>
             {order.cancel_reason && <>: {order.cancel_reason}</>}
-            {order.refund_status && <span className="block mt-0.5">{refundLine(order)}</span>}
+            {order.refund_status && !order.refund && <span className="block mt-0.5">{refundLine(order)}</span>}
           </p>
         )}
         {dispute && <ReturnStatus order={order} onEscalate={escalate} escalating={busy === 'escalate'} />}
+        {order.refund && <BuyerRefundPanel key={`${order.refund.id}-${order.refund.status}`} order={order} refund={order.refund} onUpdated={onUpdated} />}
         {multiShop && <p className="text-[12px] text-stone-500">Part of a checkout with several shops; each shop ships its own parcel.</p>}
         {status === 'DELIVERED' && <BuyerReceiptConfirm order={order} onUpdated={onUpdated} />}
       </div>
@@ -233,10 +235,16 @@ function ReturnStatus({ order, onEscalate, escalating }: { order: Order; onEscal
           ) : <p className="mt-1 opacity-80">The time to escalate has passed.</p>}
         </div>
       )}
-      {d.status === 'escalated' && <p className="mt-1.5">Loved-IT is reviewing the request with you and the shop. Neither side can change it now.</p>}
+      {d.status === 'escalated' && (
+        <p className="mt-1.5">
+          {d.reason === NOT_RECEIVED_REASON
+            ? 'Loved-IT is checking the rider\'s delivery photos and will decide, usually within 3 days.'
+            : 'Loved-IT is reviewing the request with you and the shop. Neither side can change it now.'}
+        </p>
+      )}
       {d.status === 'approved' && (
         <p className="mt-1.5 inline-flex items-start gap-1.5"><CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{d.auto_approved ? 'Approved because the shop did not answer in 3 days. ' : ''}{refundLine(order) || 'Your refund is on its way.'} Pack the item with its tags and hand it to the courier when they contact you.</span>
+          <span>{d.auto_approved ? 'Approved because the shop did not answer in 3 days. ' : ''}{order.refund ? 'Your refund is below.' : (refundLine(order) || 'Your refund is on its way.')} If the shop needs the item back, it will message you.</span>
         </p>
       )}
       {d.status === 'closed' && d.resolution_note && <p className="mt-1.5">{d.resolution_note}</p>}
@@ -307,6 +315,7 @@ function ReturnDialog({ open, order, onClose, onDone }: { open: boolean; order: 
   const [busy, setBusy] = useState(false);
   const previews = useMemo(() => photos.map((f) => URL.createObjectURL(f)), [photos]);
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+  const notReceived = reason === NOT_RECEIVED_REASON;
 
   const addPhotos = (list: FileList | null) => {
     if (!list) return;
@@ -327,7 +336,7 @@ function ReturnDialog({ open, order, onClose, onDone }: { open: boolean; order: 
     const text = description.trim();
     if (text.length < 10) e.description = 'Describe the problem in at least 10 characters.';
     if (text.length > 500) e.description = 'The description can be at most 500 characters.';
-    if (photos.length === 0) e.photos = 'Add at least one photo of the problem.';
+    if (photos.length === 0 && !notReceived) e.photos = 'Add at least one photo of the problem.';
     setErrors(e);
     if (Object.keys(e).length) return;
     const form = new FormData();
@@ -355,7 +364,8 @@ function ReturnDialog({ open, order, onClose, onDone }: { open: boolean; order: 
         <button type="button" className={BUTTON.primary} onClick={submit} disabled={busy}>{busy ? 'Sending…' : 'Send request'}</button>
       </>}>
       <p className="text-[12.5px] text-stone-500 mb-3">
-        Order <span className="font-mono">#{order.order_number}</span>{order.return_window_ends_at ? ` · request by ${when(order.return_window_ends_at)}` : ''}. The shop has 3 days to answer.
+        Order <span className="font-mono">#{order.order_number}</span>{order.return_window_ends_at ? ` · request by ${when(order.return_window_ends_at)}` : ''}.
+        {notReceived ? ' Loved-IT decides this one from the rider\'s delivery photos.' : ' The shop has 3 days to answer.'}
       </p>
       <p className="text-[13px] font-semibold text-stone-800 mb-1.5">What went wrong?</p>
       <div className="grid sm:grid-cols-2 gap-1.5" role="radiogroup">
@@ -367,11 +377,11 @@ function ReturnDialog({ open, order, onClose, onDone }: { open: boolean; order: 
       </div>
       <label htmlFor={`return-desc-${order.id}`} className="mt-4 block text-[13px] font-semibold text-stone-800">Describe the problem</label>
       <textarea id={`return-desc-${order.id}`} rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-        placeholder="e.g. Basket arrived with a broken rim." aria-invalid={!!errors.description}
+        placeholder={notReceived ? 'e.g. It says delivered at 2 PM but nobody came to our house.' : 'e.g. Basket arrived with a broken rim.'} aria-invalid={!!errors.description}
         className={`mt-1.5 w-full px-3.5 py-2.5 text-[13px] rounded-xl border outline-none focus:ring-2 focus:ring-brand-red/10 resize-none ${errors.description ? 'border-brand-red' : 'border-stone-300 focus:border-brand-red'}`} />
       <p className={`text-[11px] tabular-nums ${errors.description ? 'text-brand-red font-medium' : 'text-stone-400'}`}>{errors.description ?? `${description.trim().length}/500 · at least 10`}</p>
 
-      <p className="mt-3 text-[13px] font-semibold text-stone-800">Photos <span className="font-normal text-stone-500">(1 to 5, JPG or PNG up to 5 MB)</span></p>
+      <p className="mt-3 text-[13px] font-semibold text-stone-800">Photos <span className="font-normal text-stone-500">({notReceived ? 'optional, up to 5' : '1 to 5'}, JPG or PNG up to 5 MB)</span></p>
       <div className="mt-1.5 flex flex-wrap gap-2">
         {previews.map((src, i) => (
           <span key={src} className="relative">

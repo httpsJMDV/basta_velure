@@ -193,6 +193,8 @@ export interface User {
   email_verified_at?: string | null;
   /** The mobile number as 09XXXXXXXXX. */
   phone_local?: string | null;
+  /** Admins only: parcels refused at the door, and whether cash on delivery is off for this account. */
+  cod?: { refusals: number; limit: number; blocked: boolean };
   seller_profile?: SellerProfileSummary;
   sorting_center?: SortingCenterSummary;
   rider?: RiderSummary;
@@ -742,6 +744,10 @@ export interface RiderDeliveryParcel {
   item_summary: string;
   assigned_at: string | null;
   out_for_delivery_at: string | null;
+  /** The rider called, texted or messaged the buyer on this trip. */
+  buyer_contacted?: boolean;
+  /** Failure reasons that need that contact first. */
+  contact_first_reasons?: string[];
 }
 
 export interface RiderDeliveryGroup {
@@ -1151,6 +1157,8 @@ export interface Order {
   refund_status?: 'pending' | 'refunded' | null;
   refund_amount?: number | null;
   refunded_at?: string | null;
+  /** A refund the shop sends by hand to the buyer's GCash (GCash and COD orders). */
+  refund?: import('./../api/commerce').RefundView | null;
   can_cancel?: boolean;
   can_return?: boolean;
   delivery_attempt?: { failed: number; max: number } | null;
@@ -1235,6 +1243,10 @@ export interface SellerOrder {
   cancelled_at?: string | null;
   refund_status?: string | null;
   refund_amount?: number | null;
+  /** A refund this shop sends by hand to the buyer's GCash. */
+  refund?: import('./../api/commerce').RefundView | null;
+  /** The rider the shop can message now: the pickup rider, or the rider bringing a parcel back. */
+  rider_chat?: { tracking_number: string; rider_first_name: string | null; leg: 'pickup' | 'return' } | null;
   can_cancel?: boolean;
   /** A failed delivery coming back to the shop, or back and waiting for the shop to confirm it (A13). */
   return_to_sender?: { state: 'on_the_way' | 'awaiting_confirmation' | 'confirmed'; since: string | null; confirmed_at: string | null } | null;
@@ -1483,6 +1495,17 @@ export interface AdminDispute {
     items?: OrderItem[];
   } | null;
   resolver?: { first_name: string; last_name: string } | null;
+  /** What the courier recorded at the door (case detail only), for a "Parcel not received" claim. */
+  delivery?: {
+    tracking_number: string;
+    delivered_at: string | null;
+    received_by: string | null;
+    rider_name: string | null;
+    proof_photo_count: number;
+    cod_collected: number | null;
+  } | null;
+  /** A refund the shop sends by hand for this order (case detail only). */
+  refund?: import('./../api/commerce').RefundView | null;
 }
 
 export interface AdminDisputeStats {

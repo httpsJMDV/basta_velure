@@ -88,8 +88,12 @@ JSON body.
 | `reason` | **Required.** One of the codes from the failure-reasons endpoint. |
 | `note` | Optional; when given, 5 to 500 characters with at least three letters (`.....` or `1234567` is a `422`), the same rule as the hub's return note. **Required when `reason` is `OTHER`.** |
 
+### Contact the buyer first
+`RECIPIENT_UNAVAILABLE` and `CANNOT_CONTACT` are refused with **`422` `{ "code": "contact_required" }`** unless, since this trip started (`out_for_delivery_at`), the rider called or texted the buyer through `POST /api/v1/rider/deliveries/{tracking}/contact` `{ method: call | sms }`, or sent them a chat message. The contact endpoint tells the buyer by the bell (at most once every 5 minutes). Each out-for-delivery stop carries `buyer_contacted` and `contact_first_reasons`. See `docs/api/refunds.md`.
+
 ### What happens
 - The order moves `OUT_FOR_DELIVERY → DELIVERY_FAILED` through `OrderStateMachine` with actor `rider`; the buyer, the shop and the courier company are notified.
+- A `REFUSED` reason counts towards turning cash on delivery off for the buyer (3 refusals by default; `docs/api/refunds.md`).
 - On the parcel: `failed_at`, `failure_reason` and `failure_note` are set, and `delivery_attempts` goes up by one. The attempt pays nothing.
 - The history note is `Delivery failed: <reason label>`; the rider's free-text note stays on the parcel and in the log.
 - **Return to Sender (A13):** a `REFUSED` reason, or the last allowed attempt (`LOGISTICS_MAX_DELIVERY_ATTEMPTS`, default 3), moves the parcel straight to `RETURN_TO_SENDER`. No further attempt can be scheduled; the courier company gives the trip back to the shop to a rider.

@@ -212,6 +212,28 @@ class HubTransferTest extends TestCase
         $this->postJson("/api/v1/hub/parcels/{$parcel->tracking_number}/receive")->assertStatus(409);
     }
 
+    public function test_each_side_of_a_transfer_is_told_it_was_sent_and_received(): void
+    {
+        $parcel = $this->toTheSecondHub();
+
+        // The next hub hears a parcel is on its way.
+        $incoming = $this->secondUser->notifications()->where('data->kind', 'hub.transfer_incoming')->first();
+        $this->assertNotNull($incoming);
+        $this->assertStringContainsString($parcel->tracking_number, $incoming->data['body']);
+        $this->assertStringContainsString($this->first->hub_name, $incoming->data['body']);
+        $this->assertSame(0, $this->firstUser->notifications()->where('data->kind', 'hub.transfer_received')->count());
+
+        // When it scans it in, the hub that sent it gets the confirmation.
+        $this->receive($parcel, $this->secondUser)->assertOk();
+        $received = $this->firstUser->notifications()->where('data->kind', 'hub.transfer_received')->first();
+        $this->assertNotNull($received);
+        $this->assertStringContainsString($this->second->hub_name, $received->data['body']);
+
+        // A repeat scan confirms nothing twice.
+        $this->postJson("/api/v1/hub/parcels/{$parcel->tracking_number}/receive")->assertStatus(409);
+        $this->assertSame(1, $this->firstUser->notifications()->where('data->kind', 'hub.transfer_received')->count());
+    }
+
     public function test_a_hub_cannot_send_or_receive_another_hubs_parcel(): void
     {
         $parcel = $this->parcel(self::PILA);
