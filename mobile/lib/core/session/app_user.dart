@@ -123,10 +123,16 @@ class RiderSummary {
     this.hubName,
     this.companyName,
     this.vehicleType,
+    this.duty,
   });
 
   final int id;
   final String status;
+
+  /// `truck`: drives parcels between hubs and sees Trips, not pickups or deliveries. `delivery` otherwise.
+  final String? duty;
+
+  bool get isTruckDriver => duty == 'truck';
   final String? hubName;
   final String? companyName;
 
@@ -142,6 +148,7 @@ class RiderSummary {
     hubName: json['hub_name'] as String?,
     companyName: json['company_name'] as String?,
     vehicleType: json['vehicle_type'] as String?,
+    duty: json['duty'] as String?,
   );
 }
 

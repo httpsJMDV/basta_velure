@@ -6,6 +6,7 @@ import '../../../core/api/api_failure.dart';
 import '../../../core/api/json.dart';
 import '../../../core/media/photo_picker.dart';
 import 'rider_models.dart';
+import 'trip_models.dart';
 
 final riderApiProvider = Provider<RiderApi>(
   (ref) => RiderApi(ref.watch(dioProvider)),
@@ -65,6 +66,16 @@ class RiderApi {
 
   Future<RiderProfile> me() async =>
       RiderProfile.fromJson(asJson((await _get('/rider/me'))['data']));
+
+  // Truck drivers: trips between hubs --------------------------------------------
+
+  Future<TruckTrips> trips() async =>
+      TruckTrips.fromJson(asJson((await _get('/rider/trips'))['data']));
+
+  /// The truck is at the next hub's dock: the hub is told to scan the parcels in. Returns the server's message.
+  Future<String> tripArrived(int tripId) async =>
+      asString((await _post('/rider/trips/$tripId/arrived'))['message']) ??
+      'The hub was told you are there.';
 
   Future<RiderWorkState> status() async =>
       RiderWorkState.fromJson(asJson((await _get('/rider/status'))['data']));
@@ -201,7 +212,10 @@ class RiderApi {
 
   /// The rider is calling or texting the buyer from this stop. Needed before "not at home" or "could not contact";
   /// the buyer is told the rider is trying to reach them. Repeating it is harmless.
-  Future<void> contactBuyer(String trackingNumber, {String method = 'call'}) async {
+  Future<void> contactBuyer(
+    String trackingNumber, {
+    String method = 'call',
+  }) async {
     await _post(
       '/rider/deliveries/${_tn(trackingNumber)}/contact',
       data: {'method': method},

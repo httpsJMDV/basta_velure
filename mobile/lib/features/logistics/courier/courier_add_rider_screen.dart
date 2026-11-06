@@ -34,6 +34,9 @@ class _CourierAddRiderScreenState extends ConsumerState<CourierAddRiderScreen> {
   DateTime? _birthday;
   DateTime? _expiry;
   String? _vehicle;
+
+  /// `truck`: carries parcels between hubs and gets no pickup or delivery jobs.
+  String _duty = 'delivery';
   int? _hubId;
   List<OpsHub> _hubs = const [];
   PickedPhoto? _licensePhoto;
@@ -102,6 +105,7 @@ class _CourierAddRiderScreenState extends ConsumerState<CourierAddRiderScreen> {
               'phone': Rules.normalizeMobile(_phone.text),
               'license_number': Rules.normalizeLicenseNumber(_license.text),
               'license_expiry': Rules.ymd(_expiry!),
+              'duty': _duty,
               'vehicle_type': _vehicle,
               'plate_number': Rules.normalizePlateNumber(_plate.text),
               'sorting_center_id': ?_hubId,
@@ -218,7 +222,31 @@ class _CourierAddRiderScreenState extends ConsumerState<CourierAddRiderScreen> {
                 onChanged: (date) => _expiry = date,
               ),
               const SizedBox(height: AppSpace.lg),
+              const Text('Job', style: RiderText.label),
+              const SizedBox(height: AppSpace.xs),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'delivery', label: Text('Rider')),
+                  ButtonSegment(value: 'truck', label: Text('Truck driver')),
+                ],
+                selected: {_duty},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => setState(() {
+                  _duty = s.first;
+                  _vehicle = null;
+                }),
+              ),
+              const SizedBox(height: AppSpace.xs),
+              Text(
+                _duty == 'truck'
+                    ? 'Carries parcels between your hubs. No pickup or delivery jobs; you pay per trip.'
+                    : 'Picks up from shops and delivers to buyers.',
+                style: RiderText.label,
+              ),
+              const SizedBox(height: AppSpace.lg),
               VehicleTypeField(
+                key: ValueKey(_duty),
+                types: _duty == 'truck' ? Rules.truckTypes : Rules.vehicleTypes,
                 serverError: failure?.errorFor('vehicle_type'),
                 onChanged: (type) => _vehicle = type,
               ),

@@ -1,5 +1,8 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../core/session/session.dart';
 
 import '../buyer/widgets/buyer_theme.dart';
 
@@ -17,6 +20,7 @@ import 'pickups/handover_screen.dart';
 import 'pickups/pickups_screen.dart';
 import 'rider_paths.dart';
 import 'rider_shell.dart';
+import 'trips/trips_screen.dart';
 import 'work/cod_screen.dart';
 import 'work/returns_screen.dart';
 import 'work/rider_guide_screen.dart';
@@ -24,6 +28,19 @@ import 'work/rider_notifications_screen.dart';
 
 /// A rider screen outside the tabs, in the same look as the shop.
 Widget _themed(Widget screen) => BuyerThemed(child: screen);
+
+/// The first tab: a truck driver's trips, or every other rider's home.
+class _HomeOrTrips extends ConsumerWidget {
+  const _HomeOrTrips();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final truck = ref.watch(
+      currentUserProvider.select((u) => u?.rider?.isTruckDriver ?? false),
+    );
+    return truck ? const TripsScreen() : const RiderHomeScreen();
+  }
+}
 
 /// Part C (King): every rider screen lives under `/rider`. The five tabs share the bottom bar; everything else opens
 /// over it. "Become a rider" opens signed out.
@@ -35,7 +52,7 @@ final riderRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: RiderPaths.home,
-            builder: (_, _) => const RiderHomeScreen(),
+            builder: (_, _) => const _HomeOrTrips(),
           ),
         ],
       ),

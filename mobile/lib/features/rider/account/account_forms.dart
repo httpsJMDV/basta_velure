@@ -22,8 +22,10 @@ class VehicleTypeField extends FormField<String> {
     super.initialValue,
     String? serverError,
     ValueChanged<String>? onChanged,
+    List<String> types = Rules.vehicleTypes,
   }) : super(
-         validator: Rules.vehicleType,
+         validator: (value) =>
+             types.contains(value) ? null : 'Choose the vehicle type.',
          builder: (field) => Column(
            crossAxisAlignment: CrossAxisAlignment.start,
            children: [
@@ -33,7 +35,7 @@ class VehicleTypeField extends FormField<String> {
                spacing: AppSpace.sm,
                runSpacing: AppSpace.sm,
                children: [
-                 for (final type in Rules.vehicleTypes)
+                 for (final type in types)
                    ChoiceChip(
                      label: Text(type),
                      selected: field.value == type,

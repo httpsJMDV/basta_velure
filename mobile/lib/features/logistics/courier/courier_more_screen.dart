@@ -57,6 +57,12 @@ class CourierMoreScreen extends ConsumerWidget {
                 onTap: () => context.push(LogisticsPaths.courierScan),
               ),
               CourierWorkTile(
+                icon: LucideIcons.container,
+                title: 'Truck drivers',
+                subtitle: 'Trips between hubs, trip pay',
+                onTap: () => context.push(LogisticsPaths.courierTrucks),
+              ),
+              CourierWorkTile(
                 icon: LucideIcons.coins,
                 title: 'COD',
                 subtitle: 'Collections and remittances',

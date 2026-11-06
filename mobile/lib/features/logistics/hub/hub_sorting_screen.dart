@@ -253,20 +253,38 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
 
   Future<void> _send() async {
     final group = widget.group;
-    final confirmed = await confirmAction(
-      context,
-      title: 'Send to ${group.hubName}?',
-      message:
-          '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'} will leave this hub. '
-          '${group.hubName} scans them in when they arrive.',
-      confirmLabel: 'Send',
-    );
-    if (!confirmed || !mounted) return;
+    final api = ref.read(hubApiProvider);
+    setState(() => _sending = true);
+    List<HubTruckDriver> drivers;
+    try {
+      drivers = await api.truckDrivers();
+    } catch (_) {
+      drivers = const [];
+    }
+    if (!mounted) return;
+    setState(() => _sending = false);
+
+    int? driverId;
+    if (drivers.isNotEmpty) {
+      driverId = await _pickDriver(drivers, group);
+      if (driverId == null || !mounted) return;
+    } else {
+      final confirmed = await confirmAction(
+        context,
+        title: 'Send to ${group.hubName}?',
+        message:
+            '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'} will leave this hub. '
+            '${group.hubName} scans them in when they arrive.',
+        confirmLabel: 'Send',
+      );
+      if (!confirmed || !mounted) return;
+    }
     setState(() => _sending = true);
     try {
-      final message = await ref
-          .read(hubApiProvider)
-          .sendTransfer(group.trackingNumbers);
+      final message = await api.sendTransfer(
+        group.trackingNumbers,
+        driverId: driverId,
+      );
       if (!mounted) return;
       showRiderMessage(context, message);
       await widget.onSent();
@@ -275,6 +293,97 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// The truck driver taking this hub's parcels. A driver on another trip can't be picked.
+  Future<int?> _pickDriver(
+    List<HubTruckDriver> drivers,
+    HubTransferGroup group,
+  ) {
+    int? picked = drivers.where((d) => !d.busy).firstOrNull?.id;
+    final word =
+        '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'}';
+    return showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.lg,
+              0,
+              AppSpace.lg,
+              AppSpace.lg,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Load on a truck to ${group.hubName}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.gray900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$word. Choose the driver taking them. ${group.hubName} scans them in when the truck arrives.',
+                  style: HubText.small,
+                ),
+                const SizedBox(height: AppSpace.md),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final d in drivers)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          enabled: !d.busy,
+                          onTap: d.busy
+                              ? null
+                              : () => setSheet(() => picked = d.id),
+                          leading: Icon(
+                            picked == d.id
+                                ? LucideIcons.circleCheck
+                                : LucideIcons.circle,
+                            color: picked == d.id
+                                ? AppColors.gray900
+                                : AppColors.stone400,
+                          ),
+                          title: Text(d.name),
+                          subtitle: Text(
+                            [
+                              [d.vehicleType, ?d.plateNumber].join(' '),
+                              if (d.busy)
+                                'On a trip to ${d.onTripTo ?? 'another hub'}',
+                            ].join(' · '),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: LogisticsLook.hubAction,
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  onPressed: picked == null
+                      ? null
+                      : () => Navigator.of(sheet).pop(picked),
+                  child: Text(
+                    picked == null ? 'Every driver is on a trip' : 'Send $word',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override

@@ -6,7 +6,10 @@ import '../../../core/api/api_failure.dart';
 import '../../../core/api/json.dart';
 import '../../../core/format.dart';
 import '../../../core/media/photo_picker.dart';
+import '../../rider/data/trip_models.dart';
 import 'logistics_models.dart';
+
+export '../../rider/data/trip_models.dart';
 
 final hubApiProvider = Provider<HubApi>(
   (ref) => HubApi(ref.watch(dioProvider)),
@@ -218,14 +221,28 @@ class HubApi extends _LogisticsApi {
   Future<HubTransfers> transfers() async =>
       HubTransfers.fromJson(await _get('/hub/transfers'));
 
-  /// All or nothing, like sorting.
-  Future<String> sendTransfer(List<String> trackingNumbers) async {
+  /// All or nothing, like sorting. Once the courier has truck drivers, [driverId] names the one taking them.
+  Future<String> sendTransfer(
+    List<String> trackingNumbers, {
+    int? driverId,
+  }) async {
     final body = await _send(
       '/hub/transfers/send',
-      data: {'tracking_numbers': trackingNumbers},
+      data: {'tracking_numbers': trackingNumbers, 'driver_id': ?driverId},
     );
     return asString(body['message']) ?? 'Parcels sent.';
   }
+
+  /// The courier's truck drivers, and whether each is free to take a trip now.
+  Future<List<HubTruckDriver>> truckDrivers() async =>
+      asJsonList((await _get('/hub/truck-drivers'))['data'])
+          .map(HubTruckDriver.fromJson)
+          .toList();
+
+  /// Trucks on the road to (`in`) or from (`out`) this hub.
+  Future<List<TruckTrip>> truckTrips(String direction) async => asJsonList(
+    (await _get('/hub/truck-trips', query: {'direction': direction}))['data'],
+  ).map(TruckTrip.fromJson).where((t) => t.onTheWay).toList();
 
   // Dispatch (D4) -------------------------------------------------------------------------------------------------
 
@@ -442,6 +459,19 @@ class HubApi extends _LogisticsApi {
 /// server; another company's hub or parcel is a 404.
 class CourierApi extends _LogisticsApi {
   CourierApi(super.dio);
+
+  /// The truck drivers, the trip each is on and the trip pay owed.
+  Future<CourierTrucks> truckDrivers() async =>
+      CourierTrucks.fromJson(await _get('/logistics/truck-drivers'));
+
+  /// Every finished, unpaid trip of this driver is paid. Returns the server's message.
+  Future<String> payTruckDriver(int riderId, {String? reference}) async {
+    final body = await _send(
+      '/logistics/truck-drivers/$riderId/pay',
+      data: {'reference': ?reference},
+    );
+    return asString(body['message']) ?? 'Marked paid.';
+  }
 
   Future<CourierCompany> company() async =>
       CourierCompany.fromJson(asJson((await _get('/logistics/me'))['data']));

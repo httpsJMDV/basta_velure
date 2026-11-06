@@ -12,6 +12,7 @@ import 'courier/courier_parcels_screen.dart';
 import 'courier/courier_riders_screen.dart';
 import 'courier/courier_scan_screen.dart';
 import 'courier/courier_shell.dart';
+import 'courier/courier_trucks_screen.dart';
 import 'data/logistics_api.dart';
 import 'data/logistics_models.dart';
 import 'data/logistics_state.dart';
@@ -252,6 +253,10 @@ final logisticsRoutes = <RouteBase>[
   GoRoute(
     path: LogisticsPaths.courierAddRider,
     builder: (_, _) => _courier(const CourierAddRiderScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierTrucks,
+    builder: (_, _) => _courier(const CourierTrucksScreen()),
   ),
   GoRoute(
     path: '${LogisticsPaths.courierRiders}/:id',
