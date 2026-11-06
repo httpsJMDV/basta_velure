@@ -203,6 +203,9 @@ To mark a parcel **Delivered**, the rider must:
 ### When a delivery fails
 
 - The rider picks a reason: recipient unavailable, wrong address, refused, couldn't contact, address not accessible, or other (other needs a note). A failed attempt pays the rider nothing.
+- **Recipient unavailable** and **couldn't contact** need the rider to **call or text the buyer first** on that trip (or message them in the chat). The buyer gets a notice that the rider is trying to reach them.
+- A buyer who **refuses 3 parcels** at the door can no longer pay by cash on delivery; they pay by GCash until the admin turns it back on (Users → the buyer). "Not at home" never counts.
+- Nobody is charged for a failed delivery: the rider earns nothing for it, and a prepaid buyer is refunded in full when the parcel goes back.
 - The hub can **reschedule**. A parcel gets at most **3 attempts**.
 - If the **buyer refused it**, or it was the **3rd failed attempt**, it goes **back to the seller** automatically:
   - The courier gives the return trip to a rider.
@@ -239,7 +242,24 @@ When an order is cancelled, the stock goes back, unexpired vouchers go back, and
 3. If it's rejected, the buyer can **escalate once**, within **3 days**. The admin then decides: refund or reject.
 4. If it's approved, the buyer is refunded and the order becomes **Returned**. If it's rejected and not escalated, the order completes.
 
-The admin can change the 7-day and 3-day windows in Platform Settings.
+The admin can change the 7-day and 3-day windows in Platform Settings. An order never completes by itself before the return window ends.
+
+**Parcel not received.** If an order says Delivered but nothing came, the buyer picks **Parcel not received** (photos are optional). It skips the shop and goes straight to the admin, who checks the rider's proof photos, the time, who received it and the cash collected, then refunds the buyer or closes it.
+
+The item itself is not picked up from the buyer by a courier. If the shop needs it back, it arranges that with the buyer in chat.
+
+### How a refund reaches the buyer
+
+| Paid by | Refund |
+|---|---|
+| E-wallet or card | At once, by Loved-IT |
+| GCash, or cash on delivery | The money went to the shop, so **the shop sends it** to the buyer's GCash |
+
+When the shop sends it:
+1. The buyer enters the GCash number and name the refund goes to.
+2. The shop has **3 days** to send it and enter the 13-digit GCash reference with a screenshot of the receipt. If it is late, the shop is reminded and the admin is told.
+3. The buyer taps **I received it**, or **It did not arrive** within **3 days**. No answer counts as received.
+4. If the buyer says it did not arrive, the admin compares the receipt and decides: received, or the shop sends it again.
 
 ---
 
@@ -268,12 +288,15 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
   - with the **seller** during pickup
   - with the **buyer** during delivery
   - with the **hub** during both
+  - with the **seller** while bringing a failed delivery back
 
-  It closes when the parcel is done; old messages stay readable. The buyer can also start it with **Message rider** on Track Package while the parcel is out for delivery, and the "Out for delivery" notice names the rider ("Juan is bringing your parcel"). Riders find their messages on the **Account** page. Limits: 1000 characters per message, 20 messages a minute.
+  The **seller** can also start it, with **Message rider** on the order, once a rider has the pickup or is bringing the parcel back. It closes when the parcel is done; old messages stay readable. The buyer can also start it with **Message rider** on Track Package while the parcel is out for delivery, and the "Out for delivery" notice names the rider ("Juan is bringing your parcel"). Riders find their messages on the **Account** page. Limits: 1000 characters per message, 20 messages a minute.
 - **Order confirmation:** after an order is placed, the shop's chat sends a card asking the buyer to confirm the delivery address.
 - **Courier ↔ hub chat:** each courier company has a private chat with each of its hubs (Messages in both portals). Loved-IT admins can't read it.
 - **Loved-IT Assistant (AI, off until a key is set):** answers the buyer's Loved-IT Support chat first. It can look up **only that buyer's** orders and explain the rules; it can't cancel, refund or change anything. "Talk to a person" hands the chat to the admins, and so does an admin's reply or any AI error.
 - **Notification bell:** every role has one. It updates live and shows a red count. Emails go out too. Sellers can choose which notifications they get by bell and by email.
+- **Emails to the shop** about its parcels: a rider is coming for the pickup (name and vehicle), the parcel was picked up, delivered, coming back, and back with you; returns that were escalated, approved automatically or decided by Loved-IT; and refunds to send (refund emails can't be turned off).
+- **Handover confirmations:** the pickup rider is told when the hub scans their parcel in; for a hub-to-hub transfer the next hub is told a parcel is coming and the sending hub is told when it arrived; the return rider is told when the shop confirms the parcel came back.
 
 ---
 
@@ -355,6 +378,7 @@ The admin can change the 7-day and 3-day windows in Platform Settings.
 | Send flash sale reminders | Every minute |
 | Complete orders 7 days after delivery | Every 5 minutes |
 | Apply return deadlines (auto-approve after 3 days, close unescalated rejections) | Every 15 minutes |
+| Close sent refunds nobody reported after 3 days; flag shops late sending one | Every 15 minutes |
 | Release earnings that are due | Every hour |
 
 These only run while `php artisan schedule:work` is running.
@@ -468,7 +492,10 @@ These only run while `php artisan schedule:work` is running.
 | Form | Rule |
 |---|---|
 | Cancel | Pick a reason. "Other" needs 10 to 300 characters. |
-| Return request | Reason, a 10 to 500 character description, 1 to 5 photos |
+| Return request | Reason, a 10 to 500 character description, 1 to 5 photos (optional for "Parcel not received") |
+| Refund account (buyer) | GCash mobile number and the name on the account |
+| Refund sent (shop) | The 13-digit GCash reference and a receipt picture (JPG, PNG or WebP, 8 MB) |
+| Refund not received (buyer) | 10 to 500 characters, in words |
 | Seller rejecting a return | Reason of 10 to 300 characters |
 | Review | 1 to 5 stars, up to 500 characters, up to 5 photos |
 | Payout request | ₱100 or more, at most 2 decimals, no more than the available balance |
@@ -478,7 +505,7 @@ These only run while `php artisan schedule:work` is running.
 | Action | Rule |
 |---|---|
 | Delivered | Proof photo, and for COD the exact cash amount |
-| Failed | A reason from the list. "Other" needs a note. |
+| Failed | A reason from the list. "Other" needs a note. "Recipient unavailable" and "Couldn't contact" need a call, text or chat message to the buyer on that trip first. |
 | Accept a job | Must be Online, the offer still open, fewer than 3 jobs |
 | Tracking number | `LIT-YYMMDD-XXXXXX`. Typing it without dashes is fine. |
 | Rider area name (hub) | 3 to 60 characters, at least 2 letters |
@@ -506,7 +533,7 @@ These are how the app behaves today. Some may be worth changing:
 
 - **Non-returnable categories** (food, custom items, personal care) appear as policy text in Platform Settings, but the app doesn't actually block returns for them.
 - After applying for a hub or courier, the message says "wait for administrator approval". For hubs, it's actually the **courier company** that reviews it.
-- Buyers **can't start** a chat with the rider. The rider has to message first.
+- A returned item is not collected from the buyer by a courier; the shop arranges it in chat if it needs the item back.
 - "Nearest" uses barangay coverage and addresses, **not GPS distance**. Hubs and shops have no map pin.
 - The notification and email for "Out for delivery" don't name the rider. The rider's first name shows only on Track Package.
 - Rider messages are a section of the rider's **Account** page, not a separate tab.

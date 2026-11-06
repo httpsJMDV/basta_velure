@@ -31,8 +31,11 @@ The rider's role on a parcel decides the phase. The phase is checked against the
 |---|---|---|---|
 | Pickup | `READY_FOR_PICKUP` (accepted by this rider), `PICKED_UP` | `parcels.pickup_rider_id` | `seller`, `hub` |
 | Delivery | `ASSIGNED_TO_RIDER`, `OUT_FOR_DELIVERY` | `parcels.assigned_rider_id` | `buyer`, `hub` |
+| Return | `RETURN_TO_SENDER` | `parcels.rts_rider_id` | `seller` |
 
 Any other status, or a different rider, means the parcel is **not active for that rider**.
+
+**Who starts it:** the rider (below), the buyer from Track package while the parcel is out for delivery, and the **shop**: `POST /api/v1/parcels/{tracking}/rider-chat` by the parcel's shop opens the `rider_seller` thread with the pickup rider (once a rider has the job) or the return rider; `409` when there is no such rider, `404` for another shop's parcel. Seller orders carry `rider_chat` when there is someone to message (`docs/api/refunds.md`).
 
 ### Open and closed
 - A thread is **open** while the parcel is active for its rider **and** the counterpart is allowed in that phase. Otherwise it is **closed**.
