@@ -168,6 +168,8 @@ class RiderPickupController extends Controller
                     // Where these parcels go after the rider's hub.
                     'hub_routes'         => app(\App\Services\Courier\HubRouter::class)->groupedPaths($sellerParcels, $rider->sortingCenter),
                     'ready_since'        => $earliestReady ? Carbon::parse($earliestReady)->toIso8601String() : null,
+                    // The earliest pickup time the shop asked for among these parcels; null: as soon as possible
+                    'pickup_slot'        => $sellerParcels->map(fn (Parcel $p) => $p->pickupSlot())->filter()->sortBy('starts_at')->first(),
                     'pickup_accepted_at' => $acceptedAt ? Carbon::parse($acceptedAt)->toIso8601String() : null,
                     'matched_area_label' => $barangayMap[$code] ?? $snapshot['barangay'] ?? 'Assigned Area',
                 ];

@@ -40,12 +40,14 @@ class LogisticsDispatchController extends Controller
         $parcels = $base()->with(['order:id,order_number,payment_method,total', 'pickupRider.user', 'offers' => fn ($q) => $q->with('rider.user')->latest('id')])
             ->when($state === 'unassigned', fn ($q) => $q->whereNull('pickup_rider_id')->where(fn ($w) => $w->whereNull('dispatch_state')->orWhere('dispatch_state', Parcel::DISPATCH_UNASSIGNED)))
             ->when($state === 'offering', fn ($q) => $q->whereNull('pickup_rider_id')->where('dispatch_state', Parcel::DISPATCH_OFFERING))
+            ->when($state === 'scheduled', fn ($q) => $q->whereNull('pickup_rider_id')->where('dispatch_state', Parcel::DISPATCH_SCHEDULED))
             ->when($state === 'assigned', fn ($q) => $q->whereNotNull('pickup_rider_id'))
             ->orderBy('ready_at')->limit(200)->get();
 
         $counts = [
             'unassigned' => $base()->whereNull('pickup_rider_id')->where(fn ($w) => $w->whereNull('dispatch_state')->orWhere('dispatch_state', Parcel::DISPATCH_UNASSIGNED))->count(),
             'offering'   => $base()->whereNull('pickup_rider_id')->where('dispatch_state', Parcel::DISPATCH_OFFERING)->count(),
+            'scheduled'  => $base()->whereNull('pickup_rider_id')->where('dispatch_state', Parcel::DISPATCH_SCHEDULED)->count(),
             'assigned'   => $base()->whereNotNull('pickup_rider_id')->count(),
         ];
 
@@ -152,7 +154,12 @@ class LogisticsDispatchController extends Controller
             'dropoff_area'    => $p->destination_barangay,
             'cod_amount'      => $p->cod_amount !== null ? (float) $p->cod_amount : null,
             'ready_at'        => $p->ready_at?->toIso8601String(),
-            'state'           => $p->pickup_rider_id ? 'assigned' : ($p->dispatch_state === Parcel::DISPATCH_OFFERING ? 'offering' : 'unassigned'),
+            'state'           => $p->pickup_rider_id ? 'assigned' : match ($p->dispatch_state) {
+                Parcel::DISPATCH_OFFERING  => 'offering',
+                Parcel::DISPATCH_SCHEDULED => 'scheduled',
+                default                    => 'unassigned',
+            },
+            'pickup_slot'     => $p->pickupSlot(),
             'attempts'        => (int) $p->dispatch_attempts,
             'max_attempts'    => DispatchOffer::MAX_ATTEMPTS,
             'rider'           => $p->pickupRider ? ['id' => $p->pickupRider->id, 'name' => Dispatcher::name($p->pickupRider)] : null,

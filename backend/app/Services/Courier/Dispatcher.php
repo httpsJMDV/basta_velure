@@ -158,6 +158,33 @@ class Dispatcher
         return $offer;
     }
 
+    /**
+     * Scheduled pickups whose window is about to open (PickupSlot::OFFER_LEAD_MINUTES) start being offered to riders.
+     * Run every five minutes (pickups:release-scheduled). Returns how many started.
+     */
+    public function releaseScheduled(): int
+    {
+        $started = 0;
+        $ids = Parcel::where('status', Parcel::STATUS_READY_FOR_PICKUP)->whereNull('pickup_rider_id')
+            ->where('dispatch_state', Parcel::DISPATCH_SCHEDULED)
+            ->whereDate('pickup_date', '<=', now(\App\Support\PickupSlot::TZ)->toDateString())
+            ->pluck('id');
+        foreach ($ids as $id) {
+            DB::transaction(function () use ($id, &$started) {
+                $parcel = Parcel::lockForUpdate()->find($id);
+                if (! $parcel || $parcel->dispatch_state !== Parcel::DISPATCH_SCHEDULED || $parcel->pickup_rider_id
+                    || \App\Support\PickupSlot::isLater(substr((string) $parcel->pickup_date, 0, 10), $parcel->pickup_window)) {
+                    return;
+                }
+                $parcel->forceFill(['dispatch_state' => null])->save();
+                $this->offerNext($parcel);
+                $started++;
+            });
+        }
+
+        return $started;
+    }
+
     /** A parcel just became Ready for Pickup: start offering it. */
     public function start(Parcel $parcel): ?DispatchOffer
     {
@@ -174,7 +201,7 @@ class Dispatcher
         $this->expireDue();
         $ids = LogisticsCompany::constrain(Parcel::query(), $company->id)
             ->where('status', Parcel::STATUS_READY_FOR_PICKUP)->whereNull('pickup_rider_id')
-            ->where(fn ($q) => $q->whereNull('dispatch_state')->orWhere('dispatch_state', '!=', Parcel::DISPATCH_OFFERING))
+            ->where(fn ($q) => $q->whereNull('dispatch_state')->orWhereNotIn('dispatch_state', [Parcel::DISPATCH_OFFERING, Parcel::DISPATCH_SCHEDULED]))
             ->when($parcelIds !== null, fn ($q) => $q->whereIn('id', $parcelIds))
             ->orderBy('ready_at')->pluck('id');
 

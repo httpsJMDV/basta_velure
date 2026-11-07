@@ -335,10 +335,18 @@ class OrderStateMachine
                     'weight_kg'                 => $order->total_weight_grams ? round($order->total_weight_grams / 1000, 3) : null,
                     'shipping_zone'             => $zone,
                     'ready_at'                  => now(),
+                    // The time the shop wants the rider, when it chose one (null: as soon as possible).
+                    'pickup_date'               => $meta['pickup_date'] ?? null,
+                    'pickup_window'             => $meta['pickup_window'] ?? null,
                 ]);
 
-                // A14: offer the pickup to the nearest eligible rider straight away.
-                app(\App\Services\Courier\Dispatcher::class)->offerNext($parcel);
+                // A14: offer the pickup to the nearest eligible rider straight away, or shortly before the shop's
+                // chosen window (pickups:release-scheduled).
+                if (\App\Support\PickupSlot::isLater($parcel->pickup_date, $parcel->pickup_window)) {
+                    $parcel->forceFill(['dispatch_state' => Parcel::DISPATCH_SCHEDULED])->save();
+                } else {
+                    app(\App\Services\Courier\Dispatcher::class)->offerNext($parcel);
+                }
             }
         }
 

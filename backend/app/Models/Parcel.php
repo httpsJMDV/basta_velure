@@ -73,6 +73,9 @@ class Parcel extends Model
     public const DISPATCH_UNASSIGNED = 'unassigned';
     public const DISPATCH_ASSIGNED = 'assigned';
 
+    /** The shop chose a later pickup time: riders are offered it shortly before (PickupSlot). */
+    public const DISPATCH_SCHEDULED = 'scheduled';
+
     public const STATUSES = [
         self::STATUS_READY_FOR_PICKUP,
         self::STATUS_PICKED_UP,
@@ -107,6 +110,8 @@ class Parcel extends Model
         'recipient_snapshot',
         'cod_amount',
         'ready_at',
+        'pickup_date',
+        'pickup_window',
         'pickup_accepted_at',
         'picked_up_at',
         'scanned_in_at',
@@ -299,6 +304,16 @@ class Parcel extends Model
     public function assignedRider(): BelongsTo
     {
         return $this->belongsTo(Rider::class, 'assigned_rider_id');
+    }
+
+    /**
+     * The pickup time the shop chose, or null for as soon as possible.
+     *
+     * @return array{date: string, window: string, label: string, starts_at: string}|null
+     */
+    public function pickupSlot(): ?array
+    {
+        return \App\Support\PickupSlot::present($this->pickup_date ? substr((string) $this->pickup_date, 0, 10) : null, $this->pickup_window);
     }
 
     /** The first name of the rider bringing an order's parcel (riders are named by first name only), or null. */

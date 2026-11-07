@@ -11,9 +11,11 @@ use App\Models\Payment;
 use App\Services\Commerce\OrderCanceller;
 use App\Services\Commerce\ReturnService;
 use App\Services\OrderStateMachine;
+use App\Support\PickupSlot;
 use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -452,6 +454,9 @@ class SellerOrderController extends Controller
         $data = $request->validate([
             'status' => ['required', 'string'],
             'note'   => ['nullable', 'string', 'max:500'],
+            // Ready for pickup only: when the rider should come (both, or neither for as soon as possible)
+            'pickup_date'   => ['nullable', 'date_format:Y-m-d'],
+            'pickup_window' => ['nullable', 'string', 'in:' . implode(',', array_keys(PickupSlot::WINDOWS))],
         ]);
 
         $requestedStatus = match (strtolower($data['status'])) {
@@ -489,11 +494,72 @@ class SellerOrderController extends Controller
             default => "Order status updated to {$requestedStatus} by seller",
         };
 
-        $order = $this->stateMachine->transition($order, $requestedStatus, 'seller', $sellerId, $data['note'] ?? $defaultNote);
+        $meta = [];
+        if ($requestedStatus === OrderStatus::READY_FOR_PICKUP->value) {
+            $date = $data['pickup_date'] ?? null;
+            $window = $data['pickup_window'] ?? null;
+            if ($why = PickupSlot::problem($date, $window)) {
+                return response()->json(['message' => $why, 'errors' => ['pickup_date' => [$why]]], 422);
+            }
+            if ($date !== null) {
+                $meta = ['pickup_date' => $date, 'pickup_window' => $window];
+                $defaultNote = 'Ready for pickup. The shop asked for ' . PickupSlot::label($date, $window) . '.';
+            }
+        }
+
+        $order = $this->stateMachine->transition($order, $requestedStatus, 'seller', $sellerId, $data['note'] ?? $defaultNote, $meta);
 
         return response()->json([
             'message' => "Order status updated to {$requestedStatus}.",
             'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'statusHistories', 'parcel']), $sellerId),
+        ]);
+    }
+
+    /**
+     * PATCH /api/v1/seller/orders/{order}/pickup-slot {pickup_date?, pickup_window?}: change when the rider comes, until
+     * the rider has the parcel. Both empty means as soon as possible. A rider who already took the job is told.
+     */
+    public function updatePickupSlot(Request $request, Order $order): JsonResponse
+    {
+        $sellerId = $request->user()->id;
+        abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
+        $data = $request->validate([
+            'pickup_date'   => ['nullable', 'date_format:Y-m-d'],
+            'pickup_window' => ['nullable', 'string', 'in:' . implode(',', array_keys(PickupSlot::WINDOWS))],
+        ]);
+        $date = $data['pickup_date'] ?? null;
+        $window = $data['pickup_window'] ?? null;
+        if ($why = PickupSlot::problem($date, $window)) {
+            return response()->json(['message' => $why, 'errors' => ['pickup_date' => [$why]]], 422);
+        }
+
+        DB::transaction(function () use ($order, $date, $window, $sellerId) {
+            $parcel = $order->parcel()->lockForUpdate()->first();
+            if (! $parcel || $parcel->status !== \App\Models\Parcel::STATUS_READY_FOR_PICKUP) {
+                abort(409, 'The rider already has this parcel, so the pickup time can no longer change.');
+            }
+            $later = PickupSlot::isLater($date, $window);
+            $parcel->forceFill([
+                'pickup_date' => $date, 'pickup_window' => $window,
+                // Not offered to riders yet: wait for the new time, or start now for "as soon as possible".
+                'dispatch_state' => $parcel->pickup_rider_id ? $parcel->dispatch_state
+                    : ($later ? \App\Models\Parcel::DISPATCH_SCHEDULED : ($parcel->dispatch_state === \App\Models\Parcel::DISPATCH_SCHEDULED ? null : $parcel->dispatch_state)),
+            ])->save();
+            $label = PickupSlot::label($date, $window) ?? 'as soon as possible';
+            $this->stateMachine->recordEvent($order, 'pickup_time_changed', 'seller', $sellerId, "The shop changed the pickup time to {$label}.",
+                ['tracking_number' => $parcel->tracking_number]);
+            if ($parcel->pickup_rider_id && ($rider = \App\Models\Rider::with('user')->find($parcel->pickup_rider_id))) {
+                app(\App\Services\Notifier::class)->send($rider->user, 'rider.pickup_time_changed', 'Pickup time changed',
+                    "The shop wants parcel {$parcel->tracking_number} picked up {$label}.", '/rider/pickups', ['tracking_number' => $parcel->tracking_number]);
+            }
+            if (! $later && ! $parcel->pickup_rider_id && $parcel->dispatch_state !== \App\Models\Parcel::DISPATCH_OFFERING) {
+                app(\App\Services\Courier\Dispatcher::class)->offerNext($parcel);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Pickup time saved.',
+            'data'    => $this->formatOrder($order->fresh(['buyer', 'items', 'payment', 'dispute.photos', 'statusHistories', 'parcel']), $sellerId, detail: true),
         ]);
     }
 
@@ -538,6 +604,8 @@ class SellerOrderController extends Controller
             'checkout_orders_count' => $checkoutOrdersCount,
             'order_number'          => $o->order_number,
             'tracking_number'       => $o->relationLoaded('parcel') ? $o->parcel?->tracking_number : $o->parcel()->value('tracking_number'),
+            // The pickup time the shop chose (null: as soon as possible); it can change it until the rider has the parcel
+            'pickup_slot'           => ($o->relationLoaded('parcel') ? $o->parcel : $o->parcel()->first())?->pickupSlot(),
             'courier'               => \App\Models\LogisticsCompany::summaryFor($o->logistics_company_id),
             'status'                => $statusStr,
             'payment_method'        => $o->payment_method,

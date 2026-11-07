@@ -603,6 +603,8 @@ Route::prefix('v1')->group(function () {
             Route::patch('/seller/vouchers/{voucher}', [$vouchers, 'update'])->whereNumber('voucher');
             Route::post('/seller/vouchers/{voucher}/end', [$vouchers, 'end'])->whereNumber('voucher');
             Route::patch('/seller/orders/{order}/status', [SellerOrderController::class, 'updateStatus']);
+            // When the rider should come for the parcel (until the rider has it)
+            Route::patch('/seller/orders/{order}/pickup-slot', [SellerOrderController::class, 'updatePickupSlot']);
 
             // Seller earnings & payouts
             Route::get('/seller/earnings', [SellerEarningsController::class, 'summary']);
