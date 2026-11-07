@@ -235,9 +235,46 @@ class MailNotifier
     }
 
     /** A visitor applied on the "Become a rider" form: the applicant and the hub that reviews it are told. */
+    /** A truck driver application: the courier company reviews it, so its team is emailed instead of the hub. */
+    private function truckDriverApplicationReceived(Rider $rider, string $hubName): void
+    {
+        $company = \App\Models\LogisticsCompany::summaryFor($rider->companyId())['name'] ?? 'the courier company';
+        $name = trim($rider->user->first_name . ' ' . $rider->user->last_name);
+
+        $this->send($rider->user, 'We received your Loved-IT truck driver application', 'rider_received', [
+            'tone' => 'info',
+            'label' => 'Truck driver application received',
+            'title' => 'Your truck driver application is in.',
+            'paragraphs' => [
+                'Thank you for applying to drive parcels between the hubs of ' . $company . '.',
+                $company . ' checks your driver\'s license and OR/CR, usually within 1 to 3 business days. If they approve you, we email you a link to set your password; you cannot sign in until then.',
+            ],
+            'details' => ['Courier' => $company, 'Home hub' => $hubName, 'Vehicle' => $rider->vehicle_type . ' · ' . $rider->plate_number, 'Status' => 'Waiting for the courier'],
+            'footer' => 'You received this email because someone applied to be a Loved-IT truck driver with this address. If it was not you, you can ignore it.',
+        ]);
+
+        foreach (app(Notifier::class)->companyMembers($rider->logistics_company_id) as $member) {
+            $this->send($member, 'New truck driver application', 'hub_new_rider', [
+                'tone' => 'info',
+                'label' => 'New truck driver application',
+                'title' => 'A truck driver wants to join your network.',
+                'paragraphs' => [$name . ' applied to drive a truck between your hubs, with ' . $hubName . ' as home hub. Review their documents to approve or decline.'],
+                'details' => ['Applicant' => $name, 'Vehicle' => $rider->vehicle_type . ' · ' . $rider->plate_number],
+                'actionUrl' => $this->url('/logistics/riders'),
+                'actionLabel' => 'Review application',
+                'footer' => 'You received this email because you are on the team of ' . $company . ' on Loved-IT.',
+            ]);
+        }
+    }
+
     public function riderApplicationReceived(Rider $rider): void
     {
         $hubName = $rider->sortingCenter?->hub_name ?? 'the hub';
+        if ($rider->isTruckDriver()) {
+            $this->truckDriverApplicationReceived($rider, $hubName);
+
+            return;
+        }
 
         $this->send($rider->user, 'We received your Loved-IT rider application', 'rider_received', [
             'tone' => 'info',

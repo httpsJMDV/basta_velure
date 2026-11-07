@@ -88,7 +88,9 @@ class ApplyRiderRequest extends FormRequest
             }],
             'phone'          => ['required', ...PhMobile::rules(), Rule::unique('users', 'phone')->ignore($again?->user_id)],
             ...AddRiderRequest::licenseRules($again?->id),
-            'vehicle_type'   => ['required', 'string', Rule::in(Rider::VEHICLE_TYPES)],
+            // "truck": drives parcels between the courier's hubs; the courier (not the hub) reviews it.
+            'duty'           => ['nullable', 'string', Rule::in(Rider::DUTIES)],
+            'vehicle_type'   => ['required', 'string', Rule::in(Rider::vehicleTypesFor($this->input('duty')))],
             'plate_number'   => ['required', 'string', 'regex:/^[A-Z0-9]{2,10}$/', function ($attr, $value, $fail) use ($again) {
                 if (is_string($value) && AddRiderRequest::plateTaken($value, $again?->id)) {
                     $fail('This plate number is already registered to another rider.');
@@ -119,7 +121,8 @@ class ApplyRiderRequest extends FormRequest
             'phone.unique'     => 'This mobile number is already in use by another account.',
             ...AddRiderRequest::licenseMessages(),
             'vehicle_type.required' => 'Choose the vehicle type.',
-            'vehicle_type.in'       => 'Vehicle type must be Motorcycle, Tricycle, Car or Van.',
+            'vehicle_type.in'       => $this->input('duty') === Rider::DUTY_TRUCK ? 'A truck driver drives a Truck or a Van.' : 'Vehicle type must be Motorcycle, Tricycle, Car or Van.',
+            'duty.in'               => 'Choose Rider or Truck driver.',
             'plate_number.required' => 'Plate number is required.',
             'plate_number.regex'    => 'Enter the plate number with letters and numbers only, for example 123ABC or NBC1234.',
             ...Validation::uploadMessages('drivers_license_image', "the driver's license", document: true),

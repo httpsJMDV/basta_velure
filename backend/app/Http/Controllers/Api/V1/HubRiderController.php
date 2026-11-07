@@ -51,7 +51,8 @@ class HubRiderController extends Controller
         $sort    = $request->query('sort', 'newest');
         $perPage = min(max((int) $request->query('per_page', 20), 1), 100);
 
-        $query = Rider::where('sorting_center_id', $hub->id)
+        // Truck drivers belong to the courier (Truck drivers page there); the hub's list is its delivery riders.
+        $query = Rider::where('sorting_center_id', $hub->id)->carriesParcels()
             ->with(['user', 'areaAssignments']);
 
         if ($status && strtolower($status) !== 'all') {
@@ -78,10 +79,10 @@ class HubRiderController extends Controller
 
         // Status counts for hub tab badges
         $counts = [
-            'pending'     => Rider::where('sorting_center_id', $hub->id)->where('status', Rider::STATUS_PENDING)->count(),
-            'active'      => Rider::where('sorting_center_id', $hub->id)->where('status', Rider::STATUS_ACTIVE)->count(),
-            'disapproved' => Rider::where('sorting_center_id', $hub->id)->where('status', Rider::STATUS_DISAPPROVED)->count(),
-            'all'         => Rider::where('sorting_center_id', $hub->id)->count(),
+            'pending'     => Rider::where('sorting_center_id', $hub->id)->carriesParcels()->where('status', Rider::STATUS_PENDING)->count(),
+            'active'      => Rider::where('sorting_center_id', $hub->id)->carriesParcels()->where('status', Rider::STATUS_ACTIVE)->count(),
+            'disapproved' => Rider::where('sorting_center_id', $hub->id)->carriesParcels()->where('status', Rider::STATUS_DISAPPROVED)->count(),
+            'all'         => Rider::where('sorting_center_id', $hub->id)->carriesParcels()->count(),
         ];
 
         return response()->json([
@@ -124,6 +125,7 @@ class HubRiderController extends Controller
         $hub = $this->getAuthenticatedHub($request);
 
         abort_unless($rider->sorting_center_id === $hub->id, 404, 'Rider not found.');
+        abort_if($rider->isTruckDriver(), 403, 'Your courier company reviews truck driver applications.');
 
         abort_if(
             $rider->status !== Rider::STATUS_PENDING,
@@ -229,6 +231,7 @@ class HubRiderController extends Controller
         $hub = $this->getAuthenticatedHub($request);
 
         abort_unless($rider->sorting_center_id === $hub->id, 404, 'Rider not found.');
+        abort_if($rider->isTruckDriver(), 403, 'Your courier company reviews truck driver applications.');
 
         abort_if(
             $rider->status !== Rider::STATUS_PENDING,

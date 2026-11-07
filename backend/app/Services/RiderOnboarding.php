@@ -61,6 +61,7 @@ class RiderOnboarding
                     'logistics_company_id' => LogisticsCompany::effectiveId($hub->logistics_company_id),
                     'sorting_center_id'    => $hub->id,
                     'vehicle_type'         => $data['vehicle_type'],
+                    'duty'                 => $data['duty'] ?? Rider::DUTY_DELIVERY,
                     'plate_number'         => $data['plate_number'],
                     'license_number'       => $data['license_number'],
                     'license_expiry'       => $data['license_expiry'],
@@ -92,9 +93,18 @@ class RiderOnboarding
 
         $rider->load(['user', 'sortingCenter']);
         app(MailNotifier::class)->riderApplicationReceived($rider);
-        app(Notifier::class)->toUserId($hub->user_id, 'rider.application', 'New rider application',
-            trim($rider->user->first_name . ' ' . $rider->user->last_name) . " applied to ride for {$hub->hub_name}. Check their license and OR/CR, then approve or reject.",
-            '/hub/riders?tab=PENDING');
+        $name = trim($rider->user->first_name . ' ' . $rider->user->last_name);
+        if ($rider->isTruckDriver()) {
+            // Trucks belong to the courier, so its team reviews truck drivers; the hub is only their home hub.
+            $notifier = app(Notifier::class);
+            $notifier->send($notifier->companyMembers($rider->logistics_company_id), 'rider.application', 'New truck driver application',
+                "{$name} applied to drive a truck between your hubs (home hub {$hub->hub_name}). Check their license and OR/CR, then approve or reject.",
+                '/logistics/riders');
+        } else {
+            app(Notifier::class)->toUserId($hub->user_id, 'rider.application', 'New rider application',
+                "{$name} applied to ride for {$hub->hub_name}. Check their license and OR/CR, then approve or reject.",
+                '/hub/riders?tab=PENDING');
+        }
 
         return $rider;
     }

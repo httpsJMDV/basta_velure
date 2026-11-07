@@ -170,6 +170,31 @@ class RiderApplicationTest extends TestCase
         $this->postJson("/api/v1/hub/riders/{$rider->id}/approve")->assertStatus(422);
     }
 
+    public function test_a_truck_driver_applies_and_only_the_courier_reviews_it(): void
+    {
+        $this->apply($this->payload(['duty' => 'truck', 'vehicle_type' => 'Motorcycle']))->assertStatus(422)->assertJsonValidationErrors('vehicle_type');
+
+        $payload = $this->payload(['duty' => 'truck', 'vehicle_type' => 'Truck']);
+        $this->apply($payload)->assertCreated()->assertJsonPath('message', fn ($m) => str_contains($m, $this->company->name));
+        $rider = Rider::whereHas('user', fn ($q) => $q->where('email', $payload['email']))->firstOrFail();
+        $this->assertSame(Rider::DUTY_TRUCK, $rider->duty);
+        $this->assertTrue($rider->isApplicant());
+
+        // The courier's team is told, not the hub; the hub neither lists nor decides it.
+        $this->assertSame(1, $this->courierOwner->notifications()->where('data->title', 'New truck driver application')->count());
+        $this->assertSame(0, $this->hubOwner->notifications()->where('data->kind', 'rider.application')->count());
+        Sanctum::actingAs($this->hubOwner);
+        $this->getJson('/api/v1/hub/riders?status=PENDING')->assertOk()->assertJsonPath('counts.pending', 0);
+        $this->postJson("/api/v1/hub/riders/{$rider->id}/approve")->assertForbidden();
+
+        Sanctum::actingAs($this->courierOwner);
+        $this->getJson('/api/v1/logistics/truck-drivers')->assertOk()->assertJsonPath('data.0.id', $rider->id);
+        $this->postJson("/api/v1/logistics/riders/{$rider->id}/approve")->assertOk()
+            ->assertJsonPath('data.status', Rider::STATUS_PENDING_ACTIVATION)
+            ->assertJsonPath('data.duty', 'truck');
+        $this->assertNotEmpty($this->activationToken($payload['email']));
+    }
+
     public function test_the_courier_company_can_approve_an_application_too(): void
     {
         $payload = $this->payload();

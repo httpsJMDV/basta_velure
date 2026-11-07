@@ -7,7 +7,8 @@ the truck drivers, the **sending hub** picks the driver, and the **next hub's sc
 
 | Who | What |
 | --- | --- |
-| Courier company | Adds truck drivers (Add rider, Job: Truck driver), sets the pay per trip, pays drivers and marks it paid, closes a trip whose parcels went missing |
+| Truck driver applicant | Applies on the public Become a rider form (website `/register/rider` or the app) with Job: Truck driver, a home hub, and a Truck or Van. `POST /auth/register-rider` takes `duty: truck` |
+| Courier company | Reviews truck driver applications (Riders page; the hub never sees or decides them, 403 if it tries), or adds drivers itself (Add rider, Job: Truck driver). Sets the pay per trip, pays drivers and marks it paid, closes a trip whose parcels went missing |
 | Sending hub | Under Sorting, For other hubs: Load on a truck, picks a free driver |
 | Truck driver | Rider app or `/rider/trips`: sees the trip and the parcels on board, taps "I'm at the hub" at the dock |
 | Next hub | Scans the parcels in as usual (Parcel intake); the last scan completes the trip |

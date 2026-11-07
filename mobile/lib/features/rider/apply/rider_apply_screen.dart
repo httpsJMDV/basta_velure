@@ -42,6 +42,9 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
   DateTime? _birthday;
   DateTime? _expiry;
   String? _vehicle;
+
+  /// `truck`: drives parcels between the courier's hubs, and the courier reviews the application.
+  String _duty = 'delivery';
   PickedPhoto? _licensePhoto;
   PickedPhoto? _orCrPhoto;
   String? _licensePhotoError;
@@ -125,6 +128,7 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
               'phone': Rules.normalizeMobile(_phone.text),
               'license_number': Rules.normalizeLicenseNumber(_license.text),
               'license_expiry': Rules.ymd(_expiry!),
+              'duty': _duty,
               'vehicle_type': _vehicle,
               'plate_number': Rules.normalizePlateNumber(_plate.text),
               'accept_terms': '1',
@@ -200,6 +204,28 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const Text('Job', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: AppSpace.xs),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'delivery', label: Text('Rider')),
+                  ButtonSegment(value: 'truck', label: Text('Truck driver')),
+                ],
+                selected: {_duty},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => setState(() {
+                  _duty = s.first;
+                  _vehicle = null;
+                }),
+              ),
+              const SizedBox(height: AppSpace.xs),
+              Text(
+                _duty == 'truck'
+                    ? 'Drive parcels from one hub to another. The courier company reviews you and pays per trip. Pick your home hub below.'
+                    : 'Pick up from shops and deliver to buyers. The hub reviews you.',
+                style: const TextStyle(fontSize: 13, color: AppColors.stone600),
+              ),
+              const SizedBox(height: AppSpace.lg),
               _hubPicker(),
               if (_hubError != null)
                 Text(_hubError!, style: TextStyle(color: rose, fontSize: 13)),
@@ -270,6 +296,8 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
               ),
               const SizedBox(height: AppSpace.lg),
               VehicleTypeField(
+                key: ValueKey(_duty),
+                types: _duty == 'truck' ? Rules.truckTypes : Rules.vehicleTypes,
                 serverError: failure?.errorFor('vehicle_type'),
                 onChanged: (type) => _vehicle = type,
               ),
