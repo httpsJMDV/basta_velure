@@ -267,6 +267,87 @@ class MailNotifier
         }
     }
 
+    // ── Logistics accounts: suspensions and truck pay ─────────────────────────
+
+    /** The courier company (or Loved-IT) suspended a hub: its riders cannot take new jobs. */
+    public function hubSuspended(\App\Models\SortingCenter $hub, string $reason): void
+    {
+        $this->send($hub->loadMissing('user')->user, 'Your hub ' . $hub->hub_name . ' is suspended', 'hub_suspended', [
+            'tone' => 'warning',
+            'label' => 'Hub suspended',
+            'title' => 'Your hub is suspended.',
+            'paragraphs' => [
+                $hub->hub_name . ' was taken off the network. Its riders cannot go Online or take new jobs, but they can finish the parcels they already carry.',
+                'Reason: ' . $reason,
+                'Reply to your courier company if you think this is a mistake.',
+            ],
+            'details' => ['Hub' => $hub->hub_name, 'Status' => 'Suspended'],
+            'footer' => 'You received this email because you run ' . $hub->hub_name . ' on Loved-IT.',
+        ]);
+    }
+
+    public function hubReactivated(\App\Models\SortingCenter $hub): void
+    {
+        $this->send($hub->loadMissing('user')->user, 'Your hub ' . $hub->hub_name . ' is open again', 'hub_reactivated', [
+            'tone' => 'success',
+            'label' => 'Hub reactivated',
+            'title' => 'Your hub is back on the network.',
+            'paragraphs' => [$hub->hub_name . ' can receive, sort and dispatch parcels again, and its riders can go Online.'],
+            'details' => ['Hub' => $hub->hub_name, 'Status' => 'Active'],
+            'actionUrl' => $this->url('/hub/dashboard'),
+            'actionLabel' => 'Open the hub dashboard',
+            'footer' => 'You received this email because you run ' . $hub->hub_name . ' on Loved-IT.',
+        ]);
+    }
+
+    /** The rider's courier company suspended them. */
+    public function riderSuspendedByCourier(Rider $rider, string $reason): void
+    {
+        $company = \App\Models\LogisticsCompany::summaryFor($rider->companyId())['name'] ?? 'Your courier company';
+        $this->send($rider->loadMissing('user')->user, 'Your Loved-IT rider account is suspended', 'rider_suspended', [
+            'tone' => 'warning',
+            'label' => 'Rider account suspended',
+            'title' => 'Your rider account is suspended.',
+            'paragraphs' => [
+                $company . ' suspended your rider account, so you cannot go Online or take jobs. You can still sign in and see your history.',
+                'Reason: ' . $reason,
+            ],
+            'details' => ['Courier' => $company, 'Status' => 'Suspended'],
+            'footer' => 'You received this email because you ride for ' . $company . ' on Loved-IT.',
+        ]);
+    }
+
+    public function riderReactivatedByCourier(Rider $rider): void
+    {
+        $company = \App\Models\LogisticsCompany::summaryFor($rider->companyId())['name'] ?? 'Your courier company';
+        $this->send($rider->loadMissing('user')->user, 'Your Loved-IT rider account is active again', 'rider_reactivated', [
+            'tone' => 'success',
+            'label' => 'Rider account reactivated',
+            'title' => 'You can ride again.',
+            'paragraphs' => [$company . ' reactivated your rider account. Sign in and go Online to take jobs.'],
+            'details' => ['Courier' => $company, 'Status' => 'Active'],
+            'actionUrl' => $this->url('/rider/login'),
+            'actionLabel' => 'Sign in',
+            'footer' => 'You received this email because you ride for ' . $company . ' on Loved-IT.',
+        ]);
+    }
+
+    /** The courier paid a truck driver for their finished trips. */
+    public function truckPaySent(Rider $driver, float $amount, int $trips, ?string $reference): void
+    {
+        $company = \App\Models\LogisticsCompany::summaryFor($driver->companyId())['name'] ?? 'Your courier company';
+        $this->send($driver->loadMissing('user')->user, 'Trip pay sent: ₱' . number_format($amount, 2), 'truck_pay_sent', [
+            'tone' => 'success',
+            'label' => 'Trip pay sent',
+            'title' => 'Your trip pay is on its way.',
+            'paragraphs' => [$company . ' paid you ₱' . number_format($amount, 2) . ' for ' . $trips . ' ' . ($trips === 1 ? 'trip' : 'trips') . ' between hubs. Check your GCash or bank.'],
+            'details' => array_filter(['Amount' => '₱' . number_format($amount, 2), 'Trips' => (string) $trips, 'Reference' => $reference]),
+            'actionUrl' => $this->url('/rider/trips'),
+            'actionLabel' => 'See your trips',
+            'footer' => 'You received this email because you drive for ' . $company . ' on Loved-IT.',
+        ]);
+    }
+
     public function riderApplicationReceived(Rider $rider): void
     {
         $hubName = $rider->sortingCenter?->hub_name ?? 'the hub';

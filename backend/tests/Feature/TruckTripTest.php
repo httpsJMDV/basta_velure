@@ -251,6 +251,7 @@ class TruckTripTest extends TestCase
 
     public function test_the_courier_pays_the_driver_and_sets_the_rate(): void
     {
+        \Illuminate\Support\Facades\Mail::fake();
         $driver = $this->driver();
         Sanctum::actingAs($this->ops->fresh());
         $this->putJson('/api/v1/logistics/truck-rate', ['rate' => 1250])->assertOk();
@@ -271,6 +272,7 @@ class TruckTripTest extends TestCase
         $this->assertNotNull(TruckTrip::firstOrFail()->paid_at);
         $this->assertTrue(AuditLog::where('action', 'truck_driver.paid')->where('subject_id', $driver->id)->exists());
         $this->assertSame(1, $driver->user->notifications()->where('data->kind', 'rider.truck_paid')->count());
+        \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\NoticeMail::class, fn ($m) => $m->kind === 'truck_pay_sent' && $m->hasTo($driver->user->email));
     }
 
     public function test_the_courier_can_close_a_trip_with_parcels_missing(): void
