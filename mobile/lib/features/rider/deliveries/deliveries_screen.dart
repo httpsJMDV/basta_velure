@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api/api_failure.dart';
+import '../../../core/returns/return_pickups.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
@@ -38,6 +39,9 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
 
   /// Parcels this rider is taking back to a seller (the guide lists them on this page).
   int _returns = 0;
+
+  /// Returned items to collect from buyers or bring to the shop.
+  int _pickups = 0;
   ApiFailure? _failure;
   Timer? _timer;
   bool _chosen = false;
@@ -85,7 +89,17 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
   Future<void> _loadReturns() async {
     try {
       final returns = await ref.read(riderApiProvider).returns();
-      if (mounted) setState(() => _returns = returns.length);
+      final (pickups, _) = await ref
+          .read(returnPickupApiProvider)
+          .list('rider');
+      if (mounted) {
+        setState(() {
+          _returns = returns.length;
+          _pickups = pickups
+              .where((p) => p.status == 'assigned' || p.status == 'collected')
+              .length;
+        });
+      }
     } catch (_) {
       // Keep the last count; Home shows returns too.
     }
@@ -154,6 +168,31 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
                         ? list.assignedCount
                         : list.outForDeliveryCount),
             ),
+            if (_pickups > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.lg,
+                  AppSpace.md,
+                  AppSpace.lg,
+                  0,
+                ),
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    foregroundColor: StatusTone.blue.foreground,
+                    backgroundColor: StatusTone.blue.background,
+                    side: BorderSide(color: StatusTone.blue.border),
+                  ),
+                  onPressed: () async {
+                    await context.push(RiderPaths.returnPickups);
+                    if (mounted) await _changed();
+                  },
+                  icon: const Icon(LucideIcons.packageOpen, size: 20),
+                  label: Text(
+                    '$_pickups return pickup${_pickups == 1 ? '' : 's'} to collect or bring back',
+                  ),
+                ),
+              ),
             if (_returns > 0)
               Padding(
                 padding: const EdgeInsets.fromLTRB(

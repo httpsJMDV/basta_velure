@@ -1,4 +1,5 @@
 import '../../../core/api/json.dart';
+import '../../../core/returns/return_pickups.dart';
 import '../../../core/theme/app_colors.dart';
 
 /// The order statuses (backend `OrderStatus`), worded like the website's `utils/orderStatus.ts`.
@@ -296,6 +297,7 @@ class Order {
     this.refundStatus,
     this.refund,
     this.returnRequest,
+    this.returnPickup,
     this.returnUnavailableReason,
     this.returnWindowEndsAt,
     this.failedAttempts,
@@ -342,6 +344,9 @@ class Order {
   final bool canCancel;
   final bool canReturn;
   final ReturnRequest? returnRequest;
+
+  /// A rider collecting the returned item from the buyer; null when the buyer keeps it.
+  final ReturnPickup? returnPickup;
   final String? returnUnavailableReason;
   final DateTime? returnWindowEndsAt;
   final int deliveryProofCount;
@@ -411,6 +416,7 @@ class Order {
       canCancel: asBool(json['can_cancel']),
       canReturn: asBool(json['can_return']),
       returnRequest: ReturnRequest.fromJson(json['dispute']),
+      returnPickup: ReturnPickup.fromJson(json['return_pickup']),
       returnUnavailableReason: asString(json['return_unavailable_reason']),
       returnWindowEndsAt: asDate(json['return_window_ends_at']),
       deliveryProofCount: asInt(

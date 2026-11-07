@@ -22,6 +22,7 @@ abstract final class RiderPaths {
   static const license = '/rider/account/license';
   static const gcash = '/rider/account/gcash';
   static const activity = '/rider/activity';
+  static const returnPickups = '/rider/return-pickups';
 
   static String chat(int threadId) => '/rider/chats/$threadId';
   static String document(String key) => '/rider/account/documents/$key';

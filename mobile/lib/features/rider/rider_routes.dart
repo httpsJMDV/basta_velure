@@ -23,6 +23,7 @@ import 'rider_paths.dart';
 import 'rider_shell.dart';
 import 'trips/trips_screen.dart';
 import 'work/cod_screen.dart';
+import 'work/return_pickups_screen.dart';
 import 'work/returns_screen.dart';
 import 'work/rider_guide_screen.dart';
 import 'work/rider_notifications_screen.dart';
@@ -112,6 +113,10 @@ final riderRoutes = <RouteBase>[
         state.extra is List<RouteStop> ? null : RiderPaths.deliveries,
     builder: (_, state) =>
         _themed(RouteMapScreen(stops: state.extra! as List<RouteStop>)),
+  ),
+  GoRoute(
+    path: RiderPaths.returnPickups,
+    builder: (_, _) => _themed(const ReturnPickupsScreen()),
   ),
   GoRoute(
     path: RiderPaths.activity,

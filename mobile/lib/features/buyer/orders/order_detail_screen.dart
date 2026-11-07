@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api/api_failure.dart';
 import '../../../core/format.dart';
+import '../../../core/returns/return_pickups.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/validation/rules.dart';
@@ -299,6 +300,10 @@ class _ReturnCard extends ConsumerWidget {
               message: 'Loved-IT: ${request.resolutionNote}',
               tone: StatusTone.blue,
             ),
+          ],
+          if (order.returnPickup != null) ...[
+            const SizedBox(height: AppSpace.md),
+            _PickupProgress(pickup: order.returnPickup!),
           ],
           if (request.canEscalate) ...[
             const SizedBox(height: AppSpace.md),
@@ -825,4 +830,104 @@ class _OrderProgress extends StatelessWidget {
   /// Green once delivered, brand red on the way there.
   static Color _color(int step) =>
       step == 3 ? StatusTone.emerald.foreground : AppColors.brandRed;
+}
+
+/// The rider collecting the returned item: booked, rider assigned, collected, back with the shop.
+class _PickupProgress extends StatelessWidget {
+  const _PickupProgress({required this.pickup});
+
+  final ReturnPickup pickup;
+
+  static const _steps = [
+    'Booked',
+    'Rider assigned',
+    'Collected',
+    'Back with the shop',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cancelled = pickup.status == 'cancelled';
+    final line = switch (pickup.status) {
+      'requested' => 'Keep the item packed. A rider will come to collect it; we will tell you who.',
+      'assigned' =>
+        '${pickup.riderName ?? 'A rider'} will collect the item. Keep your phone on.',
+      'collected' => 'The rider has the item and is taking it to the shop.',
+      'delivered' => 'The rider handed the item to the shop.',
+      'received' => 'The shop has the item back. This return is complete.',
+      _ => pickup.cancelReason ?? 'The pickup was cancelled.',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Return pickup',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            StatusChip(
+              label: pickup.statusLabel,
+              tone: cancelled ? StatusTone.rose : StatusTone.blue,
+            ),
+          ],
+        ),
+        if (!cancelled) ...[
+          const SizedBox(height: AppSpace.sm),
+          Row(
+            children: [
+              for (var i = 0; i < _steps.length; i++)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: i == _steps.length - 1 ? 0 : 4,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: i <= pickup.step
+                                ? AppColors.ink
+                                : AppColors.stone200,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _steps[i],
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.2,
+                            fontWeight: i <= pickup.step
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: i <= pickup.step
+                                ? AppColors.ink
+                                : AppColors.stone400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: AppSpace.sm),
+        Text(
+          line,
+          style: const TextStyle(color: AppColors.stone600, height: 1.4),
+        ),
+        if (pickup.attempts > 0 && pickup.status == 'assigned')
+          Text(
+            'Missed visit ${pickup.attempts} of ${pickup.maxAttempts}${pickup.lastFailure != null ? ': ${pickup.lastFailure}' : ''}',
+            style: TextStyle(fontSize: 13, color: StatusTone.amber.foreground),
+          ),
+      ],
+    );
+  }
 }
