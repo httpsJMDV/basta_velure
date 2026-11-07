@@ -42,6 +42,7 @@ import { PageHeader, StatCard } from './hubKit';
 import CustomSelect from '../../components/ui/CustomSelect';
 import { sentenceError } from '../../utils/accountRules';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
+import ReturnPickupsPanel from '../../components/logistics/ReturnPickupsPanel';
 
 const POLL_MS = 30000;
 const NOTE_MAX = 500;
@@ -318,6 +319,8 @@ export default function HubDeliveriesPage() {
         <StatCard icon={AlertTriangle} label="Failed deliveries" value={counts.failed} subtext="Waiting for your decision" iconBg="bg-rose-50" iconColor="text-rose-600" onClick={() => switchTab('failed')} active={tab === 'failed'} />
         <StatCard icon={Bike} label="Riders on the road" value={out.data ? out.data.meta.riders.filter((r) => r.rider_id !== null).length : null} subtext="With parcels to deliver" iconBg="bg-violet-50" iconColor="text-violet-600" />
       </section>
+
+      <ReturnPickupsPanel scope="hub" hideWhenEmpty />
 
       {/* Tabs, filters and the list, in one card */}
       <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">

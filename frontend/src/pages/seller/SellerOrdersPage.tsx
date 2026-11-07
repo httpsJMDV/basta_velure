@@ -36,7 +36,8 @@ import OrderStatusTimeline from '../../components/orders/OrderStatusTimeline';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
 import { Dialog, BUTTON } from '../../components/ui/Overlay';
-import { NOT_RECEIVED_REASON, SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi } from '../../api/commerce';
+import { NOT_RECEIVED_REASON, SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi, confirmReturnPickupReceivedApi } from '../../api/commerce';
+import ReturnPickupProgress from '../../components/orders/ReturnPickupProgress';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
 import { useToast } from '../../components/ui/Toast';
 import { useLiveRefresh } from '../../hooks/useLiveNotices';
@@ -263,11 +264,30 @@ export default function SellerOrdersPage() {
     }
   };
 
+  // Approving: a rider brings the item back unless the shop lets the buyer keep it.
+  const [returnItem, setReturnItem] = useState(true);
+
+  const handleReturnPickupReceived = async () => {
+    if (!selectedOrder) return;
+    setActionLoading(true);
+    try {
+      const res = await confirmReturnPickupReceivedApi(selectedOrder.id);
+      const next = { ...selectedOrder, return_pickup: res.data };
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? next : o)));
+      setSelectedOrder(next);
+      showToast(res.message);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The return could not be confirmed.'), 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleRespondReturn = async (action: 'approve' | 'reject', reason?: string) => {
     if (!selectedOrder) return;
     setActionLoading(true);
     try {
-      const res = await respondReturnApi<SellerOrder>(selectedOrder.id, action, reason);
+      const res = await respondReturnApi<SellerOrder>(selectedOrder.id, action, reason, returnItem);
       setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.data : o)));
       setSelectedOrder(res.data);
       setRejectReturnOpen(false);
@@ -1000,6 +1020,10 @@ export default function SellerOrdersPage() {
                 {selectedOrder.dispute.status === 'pending' && (
                   <>
                     <p className="text-[11px] font-semibold text-rose-800">Answer by {when(selectedOrder.dispute.respond_by)}. With no answer, the return is approved automatically.</p>
+                    <label className="flex items-start gap-2 text-[12px] text-rose-900 cursor-pointer">
+                      <input type="checkbox" checked={returnItem} onChange={(e) => setReturnItem(e.target.checked)} className="mt-0.5 accent-rose-700" />
+                      <span><span className="font-semibold">Send a rider to bring the item back to me.</span> Untick for cheap or damaged items the buyer can keep.</span>
+                    </label>
                     <div className="flex gap-2">
                       <Button variant="primary" onClick={() => handleRespondReturn('approve')} disabled={actionLoading} className="flex-1 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700">Approve return</Button>
                       <Button variant="secondary" onClick={() => setRejectReturnOpen(true)} disabled={actionLoading} className="flex-1 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border-red-200">Reject with a reason</Button>
@@ -1014,7 +1038,10 @@ export default function SellerOrdersPage() {
                       : 'The buyer escalated the request. Loved-IT will decide; you can no longer approve or reject it.'}
                   </p>
                 )}
-                {selectedOrder.dispute.status === 'approved' && <p className="text-[11px] text-emerald-800">Approved{selectedOrder.dispute.auto_approved ? ' automatically after 3 days' : ''}. The buyer was refunded {peso(selectedOrder.dispute.refund_amount)}; this order is not in your earnings.</p>}
+                {selectedOrder.dispute.status === 'approved' && <p className="text-[11px] text-emerald-800">Approved{selectedOrder.dispute.auto_approved ? ' automatically after 3 days' : ''}. The buyer was refunded {peso(selectedOrder.dispute.refund_amount)}; this order is not in your earnings.{selectedOrder.return_pickup || selectedOrder.dispute.reason === NOT_RECEIVED_REASON ? '' : ' The buyer keeps the item.'}</p>}
+                {selectedOrder.return_pickup && (
+                  <ReturnPickupProgress pickup={selectedOrder.return_pickup} audience="seller" busy={actionLoading} onReceived={() => void handleReturnPickupReceived()} />
+                )}
               </div>
             )}
 

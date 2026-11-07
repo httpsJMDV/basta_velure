@@ -30,6 +30,7 @@ import type { RiderOutletContext } from './RiderLayout';
 import RiderMessageControl from './RiderMessageControl';
 import TrackPackageButton from '../../components/tracking/TrackPackageButton';
 import { ReturnJobs } from '../../components/rider/RiderWork';
+import ReturnPickupJobs from '../../components/rider/ReturnPickupJobs';
 
 /** The stop the rider is recording an outcome for. */
 interface OutcomeTarget {
@@ -177,6 +178,7 @@ export default function RiderDeliveriesPage() {
         subtitle="Collect your parcels at the hub, then deliver them."
       />
 
+      <ReturnPickupJobs />
       <ReturnJobs />
 
       <TabBar

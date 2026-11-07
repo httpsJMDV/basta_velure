@@ -1228,6 +1228,7 @@ export interface Order {
   delivery_proof_count?: number;
   /** The return request (A31), with its evidence and the shop's answer. */
   dispute?: import('./../api/commerce').ReturnRequestView | null;
+  return_pickup?: import('./../api/commerce').ReturnPickupView | null;
   items: OrderItem[];
   status_history?: OrderStatusHistory[];
   /** The buyer tab the order is in (A10). */
@@ -1343,6 +1344,7 @@ export interface SellerOrder {
   /** A failed delivery coming back to the shop, or back and waiting for the shop to confirm it (A13). */
   return_to_sender?: { state: 'on_the_way' | 'awaiting_confirmation' | 'confirmed'; since: string | null; confirmed_at: string | null } | null;
   dispute?: import('./../api/commerce').ReturnRequestView | null;
+  return_pickup?: import('./../api/commerce').ReturnPickupView | null;
 }
 
 export interface WaybillData {

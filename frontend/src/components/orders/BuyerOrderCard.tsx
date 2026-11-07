@@ -7,6 +7,7 @@ import OrderStatusTimeline from './OrderStatusTimeline';
 import BuyerReceiptConfirm from './BuyerReceiptConfirm';
 import TrackPackageButton from '../tracking/TrackPackageButton';
 import BuyerRefundPanel from './BuyerRefundPanel';
+import ReturnPickupProgress from './ReturnPickupProgress';
 import { Dialog, BUTTON } from '../ui/Overlay';
 import { useToast } from '../ui/Toast';
 import {
@@ -244,8 +245,11 @@ function ReturnStatus({ order, onEscalate, escalating }: { order: Order; onEscal
       )}
       {d.status === 'approved' && (
         <p className="mt-1.5 inline-flex items-start gap-1.5"><CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{d.auto_approved ? 'Approved because the shop did not answer in 3 days. ' : ''}{order.refund ? 'Your refund is below.' : (refundLine(order) || 'Your refund is on its way.')} If the shop needs the item back, it will message you.</span>
+          <span>{d.auto_approved ? 'Approved because the shop did not answer in 3 days. ' : ''}{order.refund ? 'Your refund is below.' : (refundLine(order) || 'Your refund is on its way.')}{order.return_pickup ? '' : d.reason === NOT_RECEIVED_REASON ? '' : ' The shop does not need the item back, so you keep it.'}</span>
         </p>
+      )}
+      {d.status === 'approved' && order.return_pickup && (
+        <div className="mt-2"><ReturnPickupProgress pickup={order.return_pickup} audience="buyer" /></div>
       )}
       {d.status === 'closed' && d.resolution_note && <p className="mt-1.5">{d.resolution_note}</p>}
     </div>

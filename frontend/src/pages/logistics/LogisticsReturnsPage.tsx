@@ -6,6 +6,7 @@ import CustomSelect from '../../components/ui/CustomSelect';
 import { useToast } from '../../components/ui/Toast';
 import { getCourierReturnsApi, assignReturnApi, type ReturnRow } from '../../api/courierOps';
 import CourierParcelPanel from '../../components/logistics/CourierParcelPanel';
+import ReturnPickupsPanel from '../../components/logistics/ReturnPickupsPanel';
 import { HeroStats, Panel, RiderAvailabilityStrip, useRiderAvailability } from '../../components/logistics/CourierKit';
 import { apiErrorMessage } from '../../utils/apiError';
 
@@ -69,6 +70,8 @@ export default function LogisticsReturnsPage() {
       </PageHero>
 
       <RiderAvailabilityStrip riders={riders} />
+
+      <ReturnPickupsPanel scope="logistics" />
 
       {failed ? <ListError message="The returns could not be loaded." onRetry={load} /> : (
         <Panel icon={Undo2} title="Going back to the seller"
