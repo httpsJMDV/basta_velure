@@ -248,6 +248,7 @@ class LogisticsRiderController extends Controller
         });
 
         app(Notifier::class)->riderSuspended($r, $reason);
+        app(\App\Services\MailNotifier::class)->riderSuspendedByCourier($r, $reason);
 
         return response()->json([
             'message' => $released > 0
@@ -266,6 +267,7 @@ class LogisticsRiderController extends Controller
         $r->forceFill(['status' => Rider::STATUS_ACTIVE, 'suspended_at' => null, 'suspension_reason' => null])->save();
         AuditLog::record($request->user(), 'rider.reactivated', $r, ['status' => Rider::STATUS_SUSPENDED], ['status' => Rider::STATUS_ACTIVE],
             companyId: $this->company($request)->id, actorRole: 'logistics');
+        app(\App\Services\MailNotifier::class)->riderReactivatedByCourier($r);
 
         return response()->json(['message' => 'Rider reactivated. They can go Online again.']);
     }

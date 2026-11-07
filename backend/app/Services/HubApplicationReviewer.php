@@ -62,6 +62,7 @@ class HubApplicationReviewer
             $hub->update(['status' => SortingCenter::STATUS_SUSPENDED, 'rejection_reason' => $reason, 'reviewed_by' => $reviewer->id, 'reviewed_at' => now()]);
             $this->log($reviewer, 'suspend_sorting_center', $hub, "Suspended hub \"{$hub->hub_name}\".", ['reason' => $reason]);
         });
+        app(\App\Services\MailNotifier::class)->hubSuspended($hub->fresh(), $reason);
     }
 
     public function reactivate(SortingCenter $hub, User $reviewer): void
@@ -72,6 +73,7 @@ class HubApplicationReviewer
             $hub->update(['status' => SortingCenter::STATUS_APPROVED, 'rejection_reason' => null, 'reviewed_by' => $reviewer->id, 'reviewed_at' => now()]);
             $this->log($reviewer, 'reactivate_sorting_center', $hub, "Reactivated hub \"{$hub->hub_name}\".");
         });
+        app(\App\Services\MailNotifier::class)->hubReactivated($hub->fresh());
     }
 
     /** @param array<string, mixed> $extra */

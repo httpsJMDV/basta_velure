@@ -200,6 +200,7 @@ class TruckTrips
             'trips' => $trips->count(), 'amount' => $amount, 'reference' => $reference, 'trip_codes' => $trips->pluck('code')->all(),
         ], companyId: $companyId, actorRole: 'logistics');
 
+        app(\App\Services\MailNotifier::class)->truckPaySent($driver, $amount, $trips->count(), $reference);
         $this->notifier->send($driver->loadMissing('user')->user, 'rider.truck_paid', 'Trip pay sent',
             'Your courier paid ₱' . number_format($amount, 2) . ' for ' . $trips->count() . ' ' . ($trips->count() === 1 ? 'trip' : 'trips') . ($reference ? " (reference {$reference})." : '.'),
             '/rider/trips', ['amount' => $amount]);
