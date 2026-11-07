@@ -344,6 +344,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/buyer/orders/{order}/refund/confirm', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerConfirm']);
         Route::post('/buyer/orders/{order}/refund/report', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerReport'])->middleware('throttle:10,1');
         Route::post('/buyer/orders/{order}/cancel', [BuyerOrderController::class, 'cancel']);
+        // Buy again: the order's items back in the cart at today's price
+        Route::post('/buyer/orders/{order}/buy-again', [BuyerOrderController::class, 'buyAgain'])->middleware('throttle:20,1');
         Route::post('/buyer/orders/{order}/pay-again', [BuyerOrderController::class, 'payAgain']);
         // Feature 2.8: only buyers (other roles get 403); another buyer's order is a 404 in the controller
         Route::post('/buyer/orders/{order}/confirm-receipt', [BuyerOrderController::class, 'confirmReceipt'])->middleware('role:buyer');
