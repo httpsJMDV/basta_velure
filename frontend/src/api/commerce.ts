@@ -204,6 +204,10 @@ export const getPaymentSessionApi = (token: string) =>
   http.get<{ data: PaymentSessionView }>(`/payments/sessions/${token}`).then((r) => r.data.data);
 export const completePaymentApi = (token: string, outcome: 'success' | 'decline' | 'cancel') =>
   http.post<{ data: PaymentSessionView; message: string }>(`/payments/sessions/${token}/complete`, { outcome }).then((r) => r.data);
+/** Buy again: the order's items back in the cart; `skipped` names the ones that cannot be bought now. */
+export const buyAgainApi = (orderId: number) =>
+  http.post<{ message: string; added: number; skipped: { name: string; message: string }[] }>(`/buyer/orders/${orderId}/buy-again`).then((r) => r.data);
+
 export const payAgainApi = (orderId: number) =>
   http.post<{ data: PaymentSessionView; message: string }>(`/buyer/orders/${orderId}/pay-again`).then((r) => r.data.data);
 
@@ -274,8 +278,68 @@ export const escalateReturnApi = <O = unknown>(orderId: number) =>
 /** A13: the parcel of a failed delivery is back at the shop; its stock returns on this confirmation. */
 export const confirmReturnReceivedApi = <O = unknown>(orderId: number) =>
   http.post<{ data: O; message: string }>(`/seller/orders/${orderId}/confirm-return-received`).then((r) => r.data);
-export const respondReturnApi = <O = unknown>(orderId: number, action: 'approve' | 'reject', reason?: string) =>
-  http.post<{ data: O; message: string }>(`/seller/orders/${orderId}/respond-return`, { action, reason: reason || null }).then((r) => r.data);
+/** Approve with returnItem false to let the buyer keep the item; otherwise a rider brings it back to the shop. */
+export const respondReturnApi = <O = unknown>(orderId: number, action: 'approve' | 'reject', reason?: string, returnItem = true) =>
+  http
+    .post<{ data: O; message: string }>(`/seller/orders/${orderId}/respond-return`, { action, reason: reason || null, ...(action === 'approve' ? { return_item: returnItem } : {}) })
+    .then((r) => r.data);
+
+// ─── Return pickups: a rider brings the returned item back (docs/api/return-pickups.md) ─
+
+export type ReturnPickupStatus = 'requested' | 'assigned' | 'collected' | 'delivered' | 'received' | 'cancelled';
+
+export interface ReturnPickupView {
+  id: number;
+  code: string;
+  status: ReturnPickupStatus;
+  status_label: string;
+  attempts: number;
+  max_attempts: number;
+  last_failure: string | null;
+  rider_name: string | null;
+  assigned_at: string | null;
+  collected_at: string | null;
+  delivered_at: string | null;
+  received_at: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  has_photo: boolean;
+  photo_url: string | null;
+  created_at: string | null;
+  // Rider, hub and courier views only
+  order_number?: string | null;
+  buyer?: { name: string | null; phone: string | null; full_address: string | null; barangay: string | null; city: string | null };
+  shop?: { shop_name: string | null; phone: string | null; full_address: string | null; barangay: string | null; city: string | null };
+  rider?: { id: number; name: string; phone: string | null } | null;
+}
+
+export interface ReturnPickupList {
+  data: ReturnPickupView[];
+  meta: { waiting?: number; moving?: number; open?: number; riders?: { id: number; name: string; online: boolean }[] };
+}
+
+export const confirmReturnPickupReceivedApi = (orderId: number) =>
+  http.post<{ message: string; data: ReturnPickupView }>(`/seller/orders/${orderId}/return-pickup/received`).then((r) => r.data);
+
+export const getReturnPickupsApi = (scope: 'hub' | 'logistics' | 'rider') =>
+  http.get<ReturnPickupList>(`/${scope}/return-pickups`).then((r) => r.data);
+
+export const assignReturnPickupApi = (scope: 'hub' | 'logistics', id: number, riderId: number) =>
+  http.post<{ message: string; data: ReturnPickupView }>(`/${scope}/return-pickups/${id}/assign`, { rider_id: riderId }).then((r) => r.data);
+
+export const collectReturnPickupApi = (id: number, photo: Blob) => {
+  const form = new FormData();
+  form.append('photo', photo, 'item.jpg');
+  return http
+    .post<{ message: string; data: ReturnPickupView }>(`/rider/return-pickups/${id}/collected`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    .then((r) => r.data);
+};
+
+export const failReturnPickupApi = (id: number, reason: string) =>
+  http.post<{ message: string; data: ReturnPickupView }>(`/rider/return-pickups/${id}/failed`, { reason }).then((r) => r.data);
+
+export const deliverReturnPickupApi = (id: number) =>
+  http.post<{ message: string; data: ReturnPickupView }>(`/rider/return-pickups/${id}/delivered`).then((r) => r.data);
 
 export interface ReturnRequestView {
   id: number;

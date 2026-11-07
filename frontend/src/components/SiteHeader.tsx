@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, Menu, X, ShoppingCart, ChevronDown, ChevronRight, User, MapPin, Package, RotateCcw, XCircle, Star, Heart, Store, LogOut, Headphones, MessageSquare, Phone, Truck, Warehouse, Bike, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
+import RecentSearches from './storefront/RecentSearches';
 import { useCart } from '../hooks/useCart';
 import { useChat } from '../hooks/useChat';
 import UserAvatar from './ui/UserAvatar';
@@ -188,6 +189,8 @@ export default function SiteHeader() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // Recent searches show under the empty box while it has focus (signed-in shoppers only).
+  const [searchFocused, setSearchFocused] = useState(false);
   const mobileCategories = useStorefrontCategories();
 
   function handleSearch(e?: React.FormEvent) {
@@ -250,13 +253,15 @@ export default function SiteHeader() {
 
           <CategoriesMenu />
 
-          <form onSubmit={handleSearch} role="search" className="flex-1 min-w-0 max-w-[720px] mx-auto">
+          <form onSubmit={handleSearch} role="search" className="relative flex-1 min-w-0 max-w-[720px] mx-auto">
             <div className="flex items-center h-10 sm:h-11 rounded-full bg-white pl-4 pr-1 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)] focus-within:ring-2 focus-within:ring-white/70 transition-shadow">
               <Search className="hidden lg:block w-4 h-4 text-stone-400 shrink-0" aria-hidden="true" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
                 placeholder="Search for products, brands and more"
                 aria-label="Search Loved-IT"
                 className="flex-1 min-w-0 h-full px-0 lg:px-3 bg-transparent text-[13px] sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none"
@@ -270,6 +275,10 @@ export default function SiteHeader() {
                 <span className="hidden lg:inline">Search</span>
               </button>
             </div>
+            <RecentSearches
+              open={Boolean(user) && searchFocused && searchQuery.trim() === ''}
+              onPick={(q) => { setSearchQuery(q); setSearchFocused(false); navigate(`/search?q=${encodeURIComponent(q)}`); }}
+            />
           </form>
 
           {/* Account and cart */}

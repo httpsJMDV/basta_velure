@@ -34,7 +34,7 @@ class UpdateRiderVehicleRequest extends FormRequest
         $rider = $this->rider();
 
         return [
-            'vehicle_type' => ['required', 'string', Rule::in(Rider::VEHICLE_TYPES)],
+            'vehicle_type' => ['required', 'string', Rule::in(Rider::vehicleTypesFor($rider->duty))],
             'plate_number' => ['required', 'string', 'regex:/^[A-Z0-9]{2,10}$/', function ($attr, $value, $fail) use ($rider) {
                 if (is_string($value) && AddRiderRequest::plateTaken($value, $rider->id)) {
                     $fail('This plate number is already registered to another rider.');

@@ -385,7 +385,8 @@ class RiderDeliveryOutcomeTest extends TestCase
         $second = $this->actingAs($admin, 'sanctum')->get($url . '?photo=2');
         $first->assertOk();
         $second->assertOk();
-        $this->assertNotSame(file_get_contents($first->baseResponse->getFile()->getPathname()), file_get_contents($second->baseResponse->getFile()->getPathname()));
+        // Photos stream from the disk (Storage::response), so compare what was streamed.
+        $this->assertNotSame($first->streamedContent(), $second->streamedContent());
     }
 
     public function test_the_photo_is_required_and_must_be_a_small_image(): void

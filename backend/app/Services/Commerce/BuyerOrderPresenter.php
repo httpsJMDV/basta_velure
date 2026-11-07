@@ -76,7 +76,7 @@ class BuyerOrderPresenter
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,
             'payment_reference'   => $o->payment_reference,
-            'payment_proof_url'   => $o->payment_proof_path ? asset('storage/' . $o->payment_proof_path) : null,
+            'payment_proof_url'   => $o->paymentProofUrl(),
             'payment_verified_at' => $o->payment_verified_at?->toIso8601String(),
             'payment_due_at'      => $o->payment_due_at?->toIso8601String(),
             'paid_at'             => $o->paid_at?->toIso8601String(),
@@ -136,6 +136,8 @@ class BuyerOrderPresenter
                 'image_url'     => $i->image_url,
             ])->values(),
             'dispute'             => ReturnService::present($dispute),
+            // A rider collecting the returned item from the buyer
+            'return_pickup'       => \App\Services\Courier\ReturnPickups::present($o->returnPickup()->first(), 'buyer'),
             'status_history'      => ($detail || $o->relationLoaded('statusHistories')) ? $o->statusHistories->map(fn ($h) => [
                 'id'          => $h->id,
                 'from_status' => $h->from_status,

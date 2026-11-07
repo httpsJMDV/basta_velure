@@ -13,12 +13,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $parcel_id
  * @property int $position
  * @property int $sorting_center_id
+ * @property int|null $truck_trip_id the truck carrying the parcel to this stop
  * @property \Carbon\Carbon|null $arrived_at
  * @property \Carbon\Carbon|null $departed_at
  */
 class ParcelHubStop extends Model
 {
-    protected $fillable = ['parcel_id', 'position', 'sorting_center_id', 'arrived_at', 'departed_at'];
+    protected $fillable = ['parcel_id', 'position', 'sorting_center_id', 'truck_trip_id', 'arrived_at', 'departed_at'];
 
     protected function casts(): array
     {
@@ -32,6 +33,11 @@ class ParcelHubStop extends Model
     public function parcel(): BelongsTo
     {
         return $this->belongsTo(Parcel::class);
+    }
+
+    public function truckTrip(): BelongsTo
+    {
+        return $this->belongsTo(TruckTrip::class);
     }
 
     public function hub(): BelongsTo

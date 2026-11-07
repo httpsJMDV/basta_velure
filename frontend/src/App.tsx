@@ -21,6 +21,7 @@ import LogisticsDispatchPage from './pages/logistics/LogisticsDispatchPage';
 import LogisticsHubOpsPage from './pages/logistics/LogisticsHubOpsPage';
 import LogisticsReturnsPage from './pages/logistics/LogisticsReturnsPage';
 import LogisticsCodPage from './pages/logistics/LogisticsCodPage';
+import LogisticsTrucksPage from './pages/logistics/LogisticsTrucksPage';
 import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
 import VerifyEmailPage from './pages/auth/VerifyEmailPage';
@@ -33,6 +34,10 @@ import RiderDeliveriesPage from './pages/rider/RiderDeliveriesPage';
 import RiderPickupsPage from './pages/rider/RiderPickupsPage';
 import RiderEarningsPage from './pages/rider/RiderEarningsPage';
 import RiderAccountPage from './pages/rider/RiderAccountPage';
+import RiderTripsPage from './pages/rider/RiderTripsPage';
+import RiderActivityPage from './pages/rider/RiderActivityPage';
+import HubActivityPage from './pages/hub/HubActivityPage';
+import LogisticsActivityPage from './pages/logistics/LogisticsActivityPage';
 import HubLayout from './pages/hub/HubLayout';
 import HubDashboardPage from './pages/hub/HubDashboardPage';
 import HubIntakePage from './pages/hub/HubIntakePage';
@@ -424,6 +429,8 @@ function AppRoutes() {
         <Route index element={<LogisticsDashboardPage />} />
         <Route path="hubs" element={<LogisticsHubsPage />} />
         <Route path="riders" element={<LogisticsRidersPage />} />
+        <Route path="trucks" element={<LogisticsTrucksPage />} />
+        <Route path="activity" element={<LogisticsActivityPage />} />
         <Route path="parcels" element={<LogisticsParcelsPage />} />
         <Route path="reports" element={<LogisticsReportsPage />} />
         <Route path="money" element={<LogisticsMoneyPage />} />
@@ -454,6 +461,7 @@ function AppRoutes() {
         <Route path="riders" element={<HubRidersPage />} />
         <Route path="reports" element={<HubReportsPage />} />
         <Route path="earnings" element={<HubEarningsPage />} />
+        <Route path="activity" element={<HubActivityPage />} />
         <Route path="messages" element={<HubMessagesPage />} />
         <Route path="settings" element={<HubSettingsPage />} />
       </Route>
@@ -473,6 +481,8 @@ function AppRoutes() {
         <Route path="deliveries" element={<RiderDeliveriesPage />} />
         <Route path="earnings" element={<RiderEarningsPage />} />
         <Route path="account" element={<RiderAccountPage />} />
+        <Route path="trips" element={<RiderTripsPage />} />
+        <Route path="activity" element={<RiderActivityPage />} />
       </Route>
 
       <Route path="/about"             element={<AboutUsPage />} />

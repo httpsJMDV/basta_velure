@@ -40,6 +40,10 @@ abstract final class LogisticsPaths {
   static const courierCod = '/logistics/courier/cod';
   static const courierChats = '/logistics/courier/messages';
   static const courierAddRider = '/logistics/courier/riders/add';
+  static const courierTrucks = '/logistics/courier/trucks';
+  static const courierActivity = '/logistics/courier/activity';
+  static const hubActivity = '/logistics/hub/activity';
+  static const hubReturnPickups = '/logistics/hub/return-pickups';
 
   /// Failed and returned parcels.
   static const courierProblems = '$courierParcels?problems=1';

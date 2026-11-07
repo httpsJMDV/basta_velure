@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
+use App\Services\Catalog\BrowsingHistory;
 use App\Services\Pricing\PriceBook;
 use App\Services\ProductSearch;
 use Illuminate\Http\JsonResponse;
@@ -70,6 +71,10 @@ class PublicProductController extends Controller
         if ($request->filled('q')) {
             $search = $searcher->search((string) $request->input('q'));
             $query->whereIn('id', $search['ids'] ?: [0]);
+            // A signed-in shopper's recent searches (the first page only, not every filter change or next page).
+            if (($viewer = auth('sanctum')->user()) && (int) $request->query('page', 1) <= 1) {
+                app(BrowsingHistory::class)->searched($viewer, (string) $request->input('q'));
+            }
         }
 
         // Category filters: a slug (what the web app sends) or an id; a parent category includes its subcategories.
@@ -208,8 +213,50 @@ class PublicProductController extends Controller
         abort_if($product->status !== 'active', 404);
 
         $product->load(['variants', 'images', 'seller.sellerProfile']);
+        if ($viewer = auth('sanctum')->user()) {
+            app(BrowsingHistory::class)->viewed($viewer, $product);
+        }
 
         return response()->json(['data' => $this->formatProductDetail($product)]);
+    }
+
+    /** GET /me/recently-viewed: the signed-in shopper's last opened products that can still be bought, newest first. */
+    public function recentlyViewed(Request $request, BrowsingHistory $history): JsonResponse
+    {
+        $ids = $history->viewedIds($request->user(), min(30, max(1, (int) $request->query('limit', 12))));
+        $products = Product::with(['variants', 'images', 'seller.sellerProfile'])
+            ->whereIn('id', $ids)
+            ->where('status', 'active')
+            ->whereHas('seller', fn ($q) => $q->where('status', 'active'))
+            ->whereHas('seller.sellerProfile', fn ($q) => $q->where('application_status', 'approved'))
+            ->get()
+            ->sortBy(fn (Product $p) => $ids->search($p->id))
+            ->values();
+        $this->book = PriceBook::for($products->pluck('id'));
+
+        return response()->json(['data' => $products->map(fn ($p) => $this->formatProduct($p))->values()]);
+    }
+
+    /** DELETE /me/recently-viewed */
+    public function clearRecentlyViewed(Request $request, BrowsingHistory $history): JsonResponse
+    {
+        $history->clearViews($request->user());
+
+        return response()->json(['message' => 'Recently viewed cleared.']);
+    }
+
+    /** GET /me/search-history */
+    public function searchHistory(Request $request, BrowsingHistory $history): JsonResponse
+    {
+        return response()->json(['data' => $history->searches($request->user())]);
+    }
+
+    /** DELETE /me/search-history and DELETE /me/search-history/{id} */
+    public function clearSearchHistory(Request $request, BrowsingHistory $history, ?int $id = null): JsonResponse
+    {
+        $history->clearSearches($request->user(), $id);
+
+        return response()->json(['message' => $id ? 'Search removed.' : 'Search history cleared.', 'data' => $history->searches($request->user())]);
     }
 
     /** GET /products/{product}/related */

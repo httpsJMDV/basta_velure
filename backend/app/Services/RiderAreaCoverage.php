@@ -26,7 +26,7 @@ class RiderAreaCoverage
 
         RiderAreaAssignment::where('is_active', true)
             ->whereHas('rider', fn ($q) => $q
-                ->where('status', Rider::STATUS_ACTIVE)
+                ->canWork()->carriesParcels()
                 ->where('sorting_center_id', $hub->id))
             ->orderBy('id')
             ->get(['rider_id', 'area_label', 'coverage_barangays'])

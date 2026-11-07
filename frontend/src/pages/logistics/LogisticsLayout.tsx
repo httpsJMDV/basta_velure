@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings, Container, History } from 'lucide-react';
 import { getCourierChatUnreadApi } from '../../api/courierChat';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
@@ -77,6 +77,7 @@ export default function LogisticsLayout() {
       items: [
         { icon: Warehouse, label: 'Hubs', to: '/logistics/hubs', badge: pendingHubs },
         { icon: Bike, label: 'Riders', to: '/logistics/riders' },
+        { icon: Container, label: 'Truck drivers', to: '/logistics/trucks' },
         { icon: MapPinned, label: 'Zones & rates', to: '/logistics/shipping' },
         { icon: MessageSquare, label: 'Messages', to: '/logistics/messages', badge: chatUnread },
       ],
@@ -90,7 +91,7 @@ export default function LogisticsLayout() {
         { icon: Undo2, label: 'Return to sender', to: '/logistics/returns' },
       ],
     },
-    { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/logistics/reports' }] },
+    { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/logistics/reports' }, { icon: History, label: 'Activity log', to: '/logistics/activity' }] },
     {
       heading: 'Money',
       items: [
@@ -105,6 +106,7 @@ export default function LogisticsLayout() {
     { label: 'Network overview', to: '/logistics', group: 'Overview', icon: Gauge },
     { label: 'Hubs and hub applications', to: '/logistics/hubs', group: 'Network', icon: Warehouse },
     { label: 'Riders across the network', to: '/logistics/riders', group: 'Network', icon: Bike },
+    { label: 'Truck drivers, trips between hubs and trip pay', to: '/logistics/trucks', group: 'Network', icon: Container },
     { label: 'Find a parcel', to: '/logistics/parcels', group: 'Network', icon: Package },
     { label: 'Delivery zones and shipping rates', to: '/logistics/shipping', group: 'Network', icon: MapPinned },
     { label: 'Dispatch: unassigned pickups, auto-assign', to: '/logistics/dispatch', group: 'Operations', icon: Navigation },
@@ -112,6 +114,7 @@ export default function LogisticsLayout() {
     { label: 'Return to sender queue', to: '/logistics/returns', group: 'Operations', icon: Undo2 },
     { label: 'COD reconciliation, remittances and exports', to: '/logistics/cod', group: 'Money', icon: Coins },
     { label: 'Network reports', to: '/logistics/reports', group: 'Insights', icon: BarChart2 },
+    { label: 'Activity log: every parcel step and team decision', to: '/logistics/activity', group: 'Insights', icon: History },
     { label: 'Shop statements, rider and hub pay', to: '/logistics/money', group: 'Money', icon: Banknote },
     { label: 'Messages with your hubs', to: '/logistics/messages', group: 'Network', icon: MessageSquare },
     { label: 'Settings: account, company and GCash', to: '/logistics/settings', group: 'Account', icon: Settings },

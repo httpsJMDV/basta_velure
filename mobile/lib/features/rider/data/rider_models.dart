@@ -45,10 +45,14 @@ class RiderOffer {
     this.shopPhone,
     this.codAmount,
     this.weightKg,
+    this.pickupSlot,
   });
 
   final int id;
   final String trackingNumber;
+
+  /// "Tomorrow, 9 AM – 12 NN" when the shop asked for a time; null for as soon as possible.
+  final String? pickupSlot;
   final DateTime expiresAt;
   final String shopName;
   final String? shopPhone;
@@ -87,6 +91,7 @@ class RiderOffer {
       codAmount: asDoubleOrNull(json['cod_amount']),
       weightKg: asDoubleOrNull(json['weight_kg']),
       pay: asString(json['pay']) ?? '0',
+      pickupSlot: asString(asJson(json['pickup_slot'])['label']),
     );
   }
 }
@@ -217,9 +222,13 @@ class PickupGroup {
     this.pickedUpAt,
     this.hub,
     this.hubRoutes = const [],
+    this.pickupSlot,
   });
 
   final int sellerId;
+
+  /// The earliest time the shop asked for, like "Today, 1 – 5 PM"; null for as soon as possible.
+  final String? pickupSlot;
   final String shopName;
   final String? shopPhone;
   final RiderPlace? pickupAddress;
@@ -246,6 +255,7 @@ class PickupGroup {
     parcelCount: asInt(json['parcel_count']),
     trackingNumbers: asStringList(json['tracking_numbers']),
     readySince: asDate(json['ready_since']),
+    pickupSlot: asString(asJson(json['pickup_slot'])['label']),
     areaLabel: asString(json['matched_area_label']),
     acceptedAt: asDate(json['pickup_accepted_at']),
     pickedUpAt: asDate(json['picked_up_at']),
@@ -318,7 +328,10 @@ class DeliveryStop {
     this.outForDeliveryAt,
     this.hubPath = const [],
     this.buyerContacted = false,
-    this.contactFirstReasons = const ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'],
+    this.contactFirstReasons = const [
+      'RECIPIENT_UNAVAILABLE',
+      'CANNOT_CONTACT',
+    ],
   });
 
   final String trackingNumber;

@@ -23,7 +23,8 @@ import ProductCard from '../components/ui/ProductCard';
 import CategoryArt from '../components/storefront/CategoryArt';
 import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
 import { useQuickAdd } from '../hooks/useQuickAdd';
-import { getProductsApi, getFeaturedShopsApi } from '../api/client';
+import { getProductsApi, getFeaturedShopsApi, getRecentlyViewedApi, clearRecentlyViewedApi } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
 import { pesoCompact, discountPercent } from '../utils/pricing';
 import type { Product, FeaturedShop } from '../types';
 
@@ -443,6 +444,45 @@ function FeaturedProductsSection() {
   );
 }
 
+// ─── Recently viewed (signed in) ──────────────────────────────────────────────
+
+/** The products the shopper opened last, on every device they sign in on. Hidden for guests and when empty. */
+function RecentlyViewedSection() {
+  const { user } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getRecentlyViewedApi(10).then((p) => { if (alive) setProducts(p); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [user]);
+
+  if (!user || products.length === 0) return null;
+
+  const clear = async () => {
+    setProducts([]);
+    try { await clearRecentlyViewedApi(); } catch { /* the row comes back on the next visit */ }
+  };
+
+  return (
+    <section className="max-w-[1536px] w-full mx-auto px-4 sm:px-8 lg:px-12 pt-10 sm:pt-14">
+      <div className="flex items-end justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E1B18] tracking-tight">Recently viewed</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">Pick up where you left off</p>
+        </div>
+        <button type="button" onClick={() => void clear()} className="text-xs font-semibold text-gray-500 hover:text-gray-900 shrink-0">
+          Clear history
+        </button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-3 sm:gap-x-4 gap-y-6">
+        {products.slice(0, 5).map((product) => <ProductCard key={product.id} product={product} />)}
+      </div>
+    </section>
+  );
+}
+
 // ─── Main HomePage Component ──────────────────────────────────────────────────
 export default function HomePage() {
   return (
@@ -456,6 +496,9 @@ export default function HomePage() {
       {/* ── Main Middle Content Area (Clean Pure White Background) ── */}
       <main className="flex-1 bg-white">
         <BuyingFactsBand />
+
+        {/* What this shopper opened last (signed in) */}
+        <RecentlyViewedSection />
 
         {/* Every main category, from the live catalog */}
         <CategoriesSection />

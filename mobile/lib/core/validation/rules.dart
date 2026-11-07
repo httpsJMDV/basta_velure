@@ -322,6 +322,9 @@ abstract final class Rules {
 
   static const vehicleTypes = ['Motorcycle', 'Tricycle', 'Car', 'Van'];
 
+  /// What a truck driver drives between hubs.
+  static const truckTypes = ['Truck', 'Van'];
+
   static String? vehicleType(String? value) =>
       vehicleTypes.contains(value) ? null : 'Choose the vehicle type.';
 

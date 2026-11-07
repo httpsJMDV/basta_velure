@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Parcel;
 use App\Models\ParcelHubStop;
+use App\Models\Rider;
 use App\Models\SortingCenter;
+use App\Models\TruckTrip;
 use App\Services\Courier\HubRouter;
+use App\Services\Courier\TruckTrips;
+use App\Support\PhMobile;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +25,7 @@ class HubTransferController extends Controller
 {
     protected const MAX_SEND_BATCH = 200;
 
-    public function __construct(protected HubRouter $router)
+    public function __construct(protected HubRouter $router, protected TruckTrips $trucks)
     {
     }
 
@@ -74,12 +78,23 @@ class HubTransferController extends Controller
         $validated = $request->validate([
             'tracking_numbers'   => ['required', 'array', 'min:1', 'max:' . self::MAX_SEND_BATCH],
             'tracking_numbers.*' => ['required', 'string', 'max:50', 'distinct'],
+            'driver_id'          => ['nullable', 'integer'],
         ]);
 
         $hub = $this->hub($request);
         $numbers = array_values($validated['tracking_numbers']);
 
-        return DB::transaction(function () use ($request, $hub, $numbers) {
+        // Once the courier has truck drivers, every transfer goes on a truck trip with one of them.
+        $driverId = $validated['driver_id'] ?? null;
+        if ($driverId === null && $this->trucks->driversFor($hub)->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Choose the truck driver taking these parcels.',
+                'errors'  => ['driver_id' => ['Choose the truck driver taking these parcels.']],
+            ], 422);
+        }
+        $driver = $driverId !== null ? $this->trucks->assertCanDrive($hub, (int) $driverId) : null;
+
+        return DB::transaction(function () use ($request, $hub, $numbers, $driver) {
             $parcels = Parcel::with('order')
                 ->where('sorting_center_id', $hub->id)
                 ->whereIn('tracking_number', $numbers)
@@ -100,17 +115,71 @@ class HubTransferController extends Controller
                 return response()->json(['message' => 'One or more parcels cannot be sent. Nothing was changed.', 'errors' => $errors], 422);
             }
 
+            $trip = null;
+            if ($driver) {
+                // A truck goes to one hub.
+                $destinations = $parcels->map(fn (Parcel $parcel) => $this->router->nextHub($parcel))->unique('id');
+                if ($destinations->count() > 1) {
+                    return response()->json([
+                        'message' => 'A truck goes to one hub. Send each hub\'s parcels on their own trip.',
+                        'errors'  => ['driver_id' => ['A truck goes to one hub. Send each hub\'s parcels on their own trip.']],
+                    ], 422);
+                }
+                $trip = $this->trucks->start($hub, $destinations->first(), $driver, $parcels->count(), $request->user());
+            }
+
             $going = [];
             foreach ($parcels as $parcel) {
-                $going[$this->router->send($parcel, $request->user())->hub_name] = true;
+                $going[$this->router->send($parcel, $request->user(), 'hub', $trip)->hub_name] = true;
             }
 
             return response()->json([
-                'message'    => $parcels->count() === 1 ? 'Parcel sent.' : "{$parcels->count()} parcels sent.",
+                'message'    => ($parcels->count() === 1 ? 'Parcel sent' : "{$parcels->count()} parcels sent")
+                    . ($trip ? ' with ' . $this->trucks->name($driver) . " (trip {$trip->code})." : '.'),
                 'sent_count' => $parcels->count(),
                 'to'         => array_keys($going),
+                'trip'       => $trip ? $this->trucks->payload($trip) : null,
             ]);
         });
+    }
+
+    /** GET /api/v1/hub/truck-drivers: the courier's active truck drivers, and whether each is free to drive now. */
+    public function drivers(Request $request): JsonResponse
+    {
+        $hub = $this->hub($request);
+        $drivers = $this->trucks->driversFor($hub);
+        $busy = TruckTrip::whereIn('driver_id', $drivers->pluck('id'))->where('status', TruckTrip::STATUS_ON_THE_WAY)
+            ->with('toHub:id,hub_name')->get()->keyBy('driver_id');
+
+        return response()->json(['data' => $drivers->map(fn (Rider $r) => [
+            'id'           => $r->id,
+            'name'         => $this->trucks->name($r),
+            'phone'        => PhMobile::local($r->user?->phone),
+            'vehicle_type' => $r->vehicle_type,
+            'plate_number' => $r->plate_number,
+            'home_hub'     => $r->sortingCenter?->hub_name,
+            'busy'         => $busy->has($r->id),
+            'on_trip_to'   => $busy->get($r->id)?->toHub?->hub_name,
+        ])->values()]);
+    }
+
+    /** GET /api/v1/hub/truck-trips?direction=out|in: trips that left this hub, or are coming to it. */
+    public function trips(Request $request): JsonResponse
+    {
+        $hub = $this->hub($request);
+        $incoming = $request->query('direction') === 'in';
+
+        $trips = TruckTrip::where($incoming ? 'to_hub_id' : 'from_hub_id', $hub->id)
+            ->orderByRaw("CASE status WHEN 'on_the_way' THEN 0 ELSE 1 END")
+            ->latest('departed_at')->latest('id')
+            ->limit(50)->get();
+
+        return response()->json([
+            'data' => $trips->map(fn (TruckTrip $t) => $this->trucks->payload($t, true))->values(),
+            'meta' => [
+                'on_the_way' => TruckTrip::where($incoming ? 'to_hub_id' : 'from_hub_id', $hub->id)->where('status', TruckTrip::STATUS_ON_THE_WAY)->count(),
+            ],
+        ]);
     }
 
     protected function hub(Request $request): SortingCenter

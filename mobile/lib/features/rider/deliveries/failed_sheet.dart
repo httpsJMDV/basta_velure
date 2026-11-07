@@ -40,7 +40,8 @@ class _FailedSheetState extends ConsumerState<FailedSheet> {
   bool _contacting = false;
 
   bool get _contactFirst =>
-      _reason != null && widget.stop.contactFirstReasons.contains(_reason!.code);
+      _reason != null &&
+      widget.stop.contactFirstReasons.contains(_reason!.code);
 
   Future<void> _contact({required bool sms}) async {
     setState(() {
@@ -50,7 +51,10 @@ class _FailedSheetState extends ConsumerState<FailedSheet> {
     try {
       await ref
           .read(riderApiProvider)
-          .contactBuyer(widget.stop.trackingNumber, method: sms ? 'sms' : 'call');
+          .contactBuyer(
+            widget.stop.trackingNumber,
+            method: sms ? 'sms' : 'call',
+          );
       if (!mounted) return;
       setState(() => _contacted = true);
       if (widget.stop.recipientPhone.isNotEmpty) {
@@ -142,7 +146,9 @@ class _FailedSheetState extends ConsumerState<FailedSheet> {
           busyLabel: 'Sending…',
           icon: LucideIcons.circleX,
           color: StatusTone.rose.foreground,
-          onPressed: reasons == null || (_contactFirst && !_contacted) ? null : _submit,
+          onPressed: reasons == null || (_contactFirst && !_contacted)
+              ? null
+              : _submit,
         ),
       ],
       child: Form(
@@ -233,14 +239,19 @@ class _FailedSheetState extends ConsumerState<FailedSheet> {
                           const SizedBox(height: 4),
                           const Text(
                             'They may be nearby. The buyer is told you are trying to reach them.',
-                            style: TextStyle(fontSize: 14, color: AppColors.ink),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.ink,
+                            ),
                           ),
                           const SizedBox(height: AppSpace.sm),
                           Row(
                             children: [
                               Expanded(
                                 child: FilledButton.icon(
-                                  onPressed: _contacting ? null : () => _contact(sms: false),
+                                  onPressed: _contacting
+                                      ? null
+                                      : () => _contact(sms: false),
                                   icon: const Icon(LucideIcons.phone, size: 18),
                                   label: const Text('Call'),
                                 ),
@@ -248,8 +259,13 @@ class _FailedSheetState extends ConsumerState<FailedSheet> {
                               const SizedBox(width: AppSpace.sm),
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: _contacting ? null : () => _contact(sms: true),
-                                  icon: const Icon(LucideIcons.messageSquare, size: 18),
+                                  onPressed: _contacting
+                                      ? null
+                                      : () => _contact(sms: true),
+                                  icon: const Icon(
+                                    LucideIcons.messageSquare,
+                                    size: 18,
+                                  ),
                                   label: const Text('Text'),
                                 ),
                               ),

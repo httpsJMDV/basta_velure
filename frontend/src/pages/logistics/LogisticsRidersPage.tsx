@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Bike, FileText, Plus, RotateCw, ShieldCheck, ShieldOff, UserCheck, UserX } from 'lucide-react';
 import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
@@ -32,6 +33,11 @@ const LABEL: Record<RiderStatus, string> = {
 /** An application from the public form reads "New application", not "Waiting for verification". */
 const statusLabel = (r: LogisticsRiderRow) => (r.applicant ? 'New application' : LABEL[r.status]);
 const VEHICLES = ['Motorcycle', 'Tricycle', 'Car', 'Van'].map((v) => ({ value: v, label: v }));
+const TRUCKS = ['Truck', 'Van'].map((v) => ({ value: v, label: v }));
+const DUTIES = [
+  { value: 'delivery', label: 'Rider: picks up from shops and delivers to buyers' },
+  { value: 'truck', label: 'Truck driver: carries parcels from one hub to another' },
+];
 const ACTION_LABEL: Record<string, string> = {
   'rider.added': 'Rider added', 'rider.activation_resent': 'Activation email resent', 'rider.approved': 'Approved',
   'rider.rejected': 'Rejected', 'rider.suspended': 'Suspended', 'rider.reactivated': 'Reactivated',
@@ -71,7 +77,10 @@ export default function LogisticsRidersPage() {
   const [filter, setFilter] = useState<Filter>('');
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState<number | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // /logistics/riders?add=truck opens Add rider for a truck driver (the Truck drivers page links here).
+  const [adding, setAdding] = useState(() => searchParams.get('add') !== null);
+  const addDuty = searchParams.get('add') === 'truck' ? 'truck' : 'delivery';
   const [company, setCompany] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => { getLogisticsMeApi().then((c) => setCompany({ id: c.id, name: c.name })).catch(() => setCompany(null)); }, []);
@@ -178,6 +187,7 @@ export default function LogisticsRidersPage() {
                     <td className={TD}>
                       <div className="flex flex-wrap gap-1">
                         <Pill tone={TONE[r.status]}>{statusLabel(r)}</Pill>
+                        {r.duty === 'truck' && <Pill tone="gray">Truck driver</Pill>}
                         {r.needs_reverification && r.status === 'ACTIVE' && <Pill tone="amber">Re-verify documents</Pill>}
                       </div>
                     </td>
@@ -197,7 +207,9 @@ export default function LogisticsRidersPage() {
         </ListCard>
       )}
 
-      <AddRiderPanel open={adding} onClose={() => setAdding(false)} onAdded={(msg) => { setAdding(false); showToast(msg); load(); }} />
+      <AddRiderPanel open={adding} initialDuty={addDuty}
+        onClose={() => { setAdding(false); if (searchParams.get('add') !== null) setSearchParams({}, { replace: true }); }}
+        onAdded={(msg) => { setAdding(false); setSearchParams({}, { replace: true }); showToast(msg); load(); }} />
       <RiderPanel id={openId} onClose={() => setOpenId(null)} onChanged={(msg) => { showToast(msg); load(); }} max={max} />
     </div>
   );
@@ -363,10 +375,11 @@ function RiderPanel({ id, onClose, onChanged, max }: { id: number | null; onClos
 
 // ─── Add rider ───────────────────────────────────────────────────────────────
 
-const EMPTY = { first_name: '', last_name: '', date_of_birth: '', email: '', phone: '', license_number: '', license_expiry: '', vehicle_type: '', plate_number: '', sorting_center_id: '' };
+const EMPTY = { duty: 'delivery', first_name: '', last_name: '', date_of_birth: '', email: '', phone: '', license_number: '', license_expiry: '', vehicle_type: '', plate_number: '', sorting_center_id: '' };
 
-function AddRiderPanel({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (msg: string) => void }) {
+function AddRiderPanel({ open, initialDuty, onClose, onAdded }: { open: boolean; initialDuty: string; onClose: () => void; onAdded: (msg: string) => void }) {
   const [form, setForm] = useState(EMPTY);
+  const truck = form.duty === 'truck';
   const [license, setLicense] = useState<File | null>(null);
   const [orCr, setOrCr] = useState<File | null>(null);
   const [hubs, setHubs] = useState<LogisticsHubRow[]>([]);
@@ -376,9 +389,9 @@ function AddRiderPanel({ open, onClose, onAdded }: { open: boolean; onClose: () 
 
   useEffect(() => {
     if (!open) return;
-    setForm(EMPTY); setLicense(null); setOrCr(null); setErrors({}); setServerError('');
+    setForm({ ...EMPTY, duty: initialDuty }); setLicense(null); setOrCr(null); setErrors({}); setServerError('');
     getLogisticsHubsApi({ status: 'APPROVED' }).then(setHubs).catch(() => setHubs([]));
-  }, [open]);
+  }, [open, initialDuty]);
 
   const set = (k: keyof typeof EMPTY, v: string) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -426,18 +439,22 @@ function AddRiderPanel({ open, onClose, onAdded }: { open: boolean; onClose: () 
   }
 
   return (
-    <SidePanel open={open} onClose={onClose} title="Add rider" subtitle="The rider gets an email to set their password. The link works for 24 hours."
+    <SidePanel open={open} onClose={onClose} title={truck ? 'Add truck driver' : 'Add rider'} subtitle={truck
+      ? 'Truck drivers carry parcels between your hubs and get no pickup or delivery jobs. You pay them per trip. They get an email to set their password.'
+      : 'The rider gets an email to set their password. The link works for 24 hours.'}
       footer={(
         <div className="flex justify-end gap-2">
           <button type="button" className={BUTTON.quiet} onClick={onClose} disabled={saving}>Cancel</button>
-          <button type="submit" form="add-rider-form" className={BUTTON.primary} disabled={saving}>{saving ? 'Saving…' : 'Save rider'}</button>
+          <button type="submit" form="add-rider-form" className={BUTTON.primary} disabled={saving}>{saving ? 'Saving…' : truck ? 'Save truck driver' : 'Save rider'}</button>
         </div>
       )}
     >
       <form id="add-rider-form" onSubmit={submit} noValidate className="space-y-5">
         {serverError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-800">{serverError}</p>}
+        <CustomSelect label="Job" value={form.duty} options={DUTIES}
+          onChange={(v) => { setForm((f) => ({ ...f, duty: v, vehicle_type: (v === 'truck' ? TRUCKS : VEHICLES).some((o) => o.value === f.vehicle_type) ? f.vehicle_type : '' })); }} />
         <fieldset className="grid sm:grid-cols-2 gap-3">
-          <legend className="sm:col-span-2 mb-1 text-[12px] font-semibold uppercase tracking-wide text-stone-500">Rider</legend>
+          <legend className="sm:col-span-2 mb-1 text-[12px] font-semibold uppercase tracking-wide text-stone-500">{truck ? 'Driver' : 'Rider'}</legend>
           <Input id="r-first" label="First name" value={form.first_name} onChange={(e) => set('first_name', e.target.value)} error={errors.first_name} />
           <Input id="r-last" label="Last name" value={form.last_name} onChange={(e) => set('last_name', e.target.value)} error={errors.last_name} />
           <Input id="r-dob" label="Date of birth" type="date" max={manilaToday()} value={form.date_of_birth} onChange={(e) => set('date_of_birth', e.target.value)} error={errors.date_of_birth} />
@@ -448,11 +465,11 @@ function AddRiderPanel({ open, onClose, onAdded }: { open: boolean; onClose: () 
           <legend className="sm:col-span-2 mb-1 text-[12px] font-semibold uppercase tracking-wide text-stone-500">License and vehicle</legend>
           <Input id="r-license" label="Driver's license no." placeholder="N01-23-456789" value={form.license_number} onChange={(e) => set('license_number', e.target.value.toUpperCase())} error={errors.license_number} />
           <Input id="r-expiry" label="License expiry date" type="date" min={manilaToday()} value={form.license_expiry} onChange={(e) => set('license_expiry', e.target.value)} error={errors.license_expiry} />
-          <CustomSelect label="Vehicle type" required value={form.vehicle_type} onChange={(v) => set('vehicle_type', v)} options={VEHICLES} placeholder="Choose" error={errors.vehicle_type} />
+          <CustomSelect label="Vehicle type" required value={form.vehicle_type} onChange={(v) => set('vehicle_type', v)} options={truck ? TRUCKS : VEHICLES} placeholder="Choose" error={errors.vehicle_type} />
           <Input id="r-plate" label="Plate number" placeholder="123ABC" value={form.plate_number} onChange={(e) => set('plate_number', e.target.value.toUpperCase())} error={errors.plate_number} />
           {hubs.length > 1 && (
             <div className="sm:col-span-2">
-              <CustomSelect label="Starts at hub (optional)" value={form.sorting_center_id} onChange={(v) => set('sorting_center_id', v)}
+              <CustomSelect label={truck ? 'Home hub (optional)' : 'Starts at hub (optional)'} value={form.sorting_center_id} onChange={(v) => set('sorting_center_id', v)}
                 options={[{ value: '', label: 'Your main hub' }, ...hubs.map((h) => ({ value: String(h.id), label: h.hub_name }))]} error={errors.sorting_center_id} />
             </div>
           )}

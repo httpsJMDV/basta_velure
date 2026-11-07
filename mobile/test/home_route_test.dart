@@ -30,7 +30,7 @@ void main() {
     test('a buyer, and a seller (who shops too), open the shop', () {
       expect(homesFor(user()), [AppHome.buyer]);
       final seller = user(seller: {'application_status': 'approved'});
-      expect(homesFor(seller), [AppHome.buyer]);
+      expect(homesFor(seller), [AppHome.buyer, AppHome.seller]);
       expect(seller.isSeller, isTrue);
     });
 

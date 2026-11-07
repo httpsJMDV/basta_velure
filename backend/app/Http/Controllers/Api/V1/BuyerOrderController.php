@@ -70,6 +70,41 @@ class BuyerOrderController extends Controller
         return response()->json(['data' => BuyerOrderPresenter::present($order, detail: true)]);
     }
 
+    /**
+     * POST /buyer/orders/{order}/buy-again: puts the order's items back in the cart, the same options and quantities,
+     * at today's price. Items that are gone, sold out or over a limit are listed with the reason instead.
+     */
+    public function buyAgain(Request $request, Order $order, \App\Services\Commerce\CartService $cart): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($order->buyer_id !== $user->id, 404, 'Order not found.');
+        $items = $order->items()->get(['product_variant_id', 'product_name', 'variant_label', 'quantity']);
+
+        $lines = $items->filter(fn ($i) => $i->product_variant_id)
+            ->map(fn ($i) => ['variant_id' => (int) $i->product_variant_id, 'quantity' => (int) $i->quantity])->values()->all();
+        $skipped = collect($cart->merge($user, $lines))->keyBy('variant_id');
+
+        $names = $items->keyBy('product_variant_id');
+        $notAdded = $skipped->map(fn ($s) => [
+            'name'    => trim(($names[$s['variant_id']]->product_name ?? 'An item') . (($label = $names[$s['variant_id']]->variant_label ?? null) && $label !== 'Default' ? " ({$label})" : '')),
+            'message' => $s['message'],
+        ])->values();
+        // Order lines from before variants were recorded cannot be found again.
+        foreach ($items->whereNull('product_variant_id') as $i) {
+            $notAdded->push(['name' => (string) $i->product_name, 'message' => 'This item is no longer available.']);
+        }
+        $added = count($lines) - $skipped->count();
+
+        return response()->json([
+            'message' => $added === 0
+                ? 'None of these items can be bought again right now.'
+                : ($notAdded->isEmpty() ? 'Added to your cart.' : "Added {$added} of {$items->count()} items to your cart."),
+            'added'   => $added,
+            'skipped' => $notAdded->all(),
+            'data'    => $cart->view($user),
+        ], $added === 0 ? 422 : 200);
+    }
+
     /** POST /buyer/orders/{order}/cancel {reason, details?}: until the seller marks it Ready for Pickup (A6). */
     public function cancel(Request $request, Order $order): JsonResponse
     {

@@ -445,6 +445,13 @@ export default function RiderPickupsPage() {
                       </span>
                     </div>
 
+                    {group.pickup_slot && (
+                      <div className="flex items-center gap-2 font-semibold text-violet-800">
+                        <Clock className="w-4 h-4 shrink-0" aria-hidden="true" />
+                        <span>Shop asks for {group.pickup_slot.label}</span>
+                      </div>
+                    )}
+
                     {/* Accepted At timestamp if in "mine" view */}
                     {group.pickup_accepted_at && (
                       <div className="flex items-center gap-2 text-emerald-700">

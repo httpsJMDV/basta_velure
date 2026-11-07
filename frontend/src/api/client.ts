@@ -153,6 +153,11 @@ import type {
   RiderLocationStatus,
   HubAwaitingRider,
   HubEarningsSummary,
+  TruckTrip,
+  HubTruckDriver,
+  RiderTripsResponse,
+  LogisticsTruckDriversResponse,
+  ActivityResponse,
 } from '../types';
 
 export const http = axios.create({
@@ -483,6 +488,22 @@ export const updateAdminFeedbackApi = (id: number, status: 'new' | 'read') =>
   http.patch<{ data: AdminFeedback }>(`/admin/feedback/${id}`, { status }).then((r) => r.data.data);
 
 // Products — public catalog
+// ─── Recently viewed and recent searches (signed in) ─────────────────────────
+
+export interface SearchHistoryEntry { id: number; query: string; searched_at: string }
+
+export const getRecentlyViewedApi = (limit = 12) =>
+  http.get<{ data: Product[] }>('/me/recently-viewed', { params: { limit } }).then((r) => r.data.data);
+
+export const clearRecentlyViewedApi = () => http.delete('/me/recently-viewed');
+
+export const getSearchHistoryApi = () =>
+  http.get<{ data: SearchHistoryEntry[] }>('/me/search-history').then((r) => r.data.data);
+
+/** One search, or all of them without an id. Answers the list that is left. */
+export const clearSearchHistoryApi = (id?: number) =>
+  http.delete<{ data: SearchHistoryEntry[] }>(id ? `/me/search-history/${id}` : '/me/search-history').then((r) => r.data.data);
+
 export const getProductsApi = (filters: ProductFilters = {}) => {
   const params: Record<string, string | number | boolean> = {};
   if (filters.q)                  params.q                  = filters.q;
@@ -838,8 +859,13 @@ export const confirmSellerOrderPaymentApi = (orderId: number) =>
 export const rejectSellerOrderPaymentApi = (orderId: number, reason: string) =>
   http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/reject-payment`, { reason }).then((r) => r.data);
 
-export const updateSellerOrderStatusApi = (orderId: number, status: string) =>
-  http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/status`, { status }).then((r) => r.data);
+/** For READY_FOR_PICKUP, `slot` asks for a pickup time; without one the rider comes as soon as possible. */
+export const updateSellerOrderStatusApi = (orderId: number, status: string, slot?: { pickup_date: string; pickup_window: string } | null) =>
+  http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/status`, { status, ...(slot ?? {}) }).then((r) => r.data);
+
+/** Change when the rider comes, until the rider has the parcel; null for as soon as possible. */
+export const updatePickupSlotApi = (orderId: number, slot: { pickup_date: string; pickup_window: string } | null) =>
+  http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/pickup-slot`, slot ?? {}).then((r) => r.data);
 
 // ─── Seller Earnings & Payouts ─────────────────────────────────────────────────
 
@@ -983,8 +1009,50 @@ export const sortHubParcelsApi = (trackingNumbers: string[]) =>
 export const getHubTransfersApi = () =>
   http.get<HubTransfersResponse>('/hub/transfers').then((r) => r.data);
 
-export const sendHubTransferApi = (trackingNumbers: string[]) =>
-  http.post<{ message: string; sent_count: number; to: string[] }>('/hub/transfers/send', { tracking_numbers: trackingNumbers }).then((r) => r.data);
+export const sendHubTransferApi = (trackingNumbers: string[], driverId?: number | null) =>
+  http
+    .post<{ message: string; sent_count: number; to: string[]; trip: TruckTrip | null }>('/hub/transfers/send', {
+      tracking_numbers: trackingNumbers,
+      ...(driverId ? { driver_id: driverId } : {}),
+    })
+    .then((r) => r.data);
+
+export const getHubTruckDriversApi = () =>
+  http.get<{ data: HubTruckDriver[] }>('/hub/truck-drivers').then((r) => r.data.data);
+
+export const getHubTruckTripsApi = (direction: 'out' | 'in') =>
+  http.get<{ data: TruckTrip[]; meta: { on_the_way: number } }>('/hub/truck-trips', { params: { direction } }).then((r) => r.data);
+
+// ─── Truck trips: the driver and the courier ─────────────────────────────────
+
+export const getRiderTripsApi = () => http.get<RiderTripsResponse>('/rider/trips').then((r) => r.data.data);
+
+export const reportTripArrivalApi = (tripId: number) =>
+  http.post<{ message: string; data: TruckTrip }>(`/rider/trips/${tripId}/arrived`).then((r) => r.data);
+
+export const getLogisticsTruckDriversApi = () =>
+  http.get<LogisticsTruckDriversResponse>('/logistics/truck-drivers').then((r) => r.data);
+
+export const getLogisticsTruckTripsApi = (params: { status?: string; driver_id?: number } = {}) =>
+  http.get<{ data: TruckTrip[] }>('/logistics/truck-trips', { params }).then((r) => r.data.data);
+
+export const payTruckDriverApi = (riderId: number, reference?: string) =>
+  http
+    .post<{ message: string; data: { trips: number; amount: number } }>(`/logistics/truck-drivers/${riderId}/pay`, reference ? { reference } : {})
+    .then((r) => r.data);
+
+export const closeTruckTripApi = (tripId: number, reason: string) =>
+  http.post<{ message: string; data: TruckTrip }>(`/logistics/truck-trips/${tripId}/close`, { reason }).then((r) => r.data);
+
+// ─── Activity logs ───────────────────────────────────────────────────────────
+
+export type ActivityScope = 'hub' | 'logistics' | 'rider';
+
+export const getActivityApi = (scope: ActivityScope, params: { category?: string; search?: string; before?: string } = {}) =>
+  http.get<ActivityResponse>(`/${scope}/activity`, { params }).then((r) => r.data);
+
+export const setTruckTripRateApi = (rate: number) =>
+  http.put<{ message: string; data: { rate: number } }>('/logistics/truck-rate', { rate }).then((r) => r.data);
 
 // ─── Rider Delivery Console (Feature 2.6) ────────────────────────────────────────
 

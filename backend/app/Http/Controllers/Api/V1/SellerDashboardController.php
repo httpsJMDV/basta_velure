@@ -100,7 +100,7 @@ class SellerDashboardController extends Controller
         // 1. Pending / new orders
         $newOrders = OrderItem::with('order')
             ->where('seller_id', $sellerId)
-            ->whereHas('order', fn ($q) => $q->whereIn('status', ['pending', 'paid']))
+            ->whereHas('order', fn ($q) => $q->whereIn('status', [\App\Enums\OrderStatus::PLACED->value, \App\Enums\OrderStatus::CONFIRMED->value]))
             ->latest()
             ->take(3)
             ->get();

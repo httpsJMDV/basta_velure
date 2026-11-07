@@ -122,6 +122,18 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpace.lg),
+                  const RiderSectionTitle('History'),
+                  _Tiles(
+                    children: [
+                      _Tile(
+                        icon: LucideIcons.history,
+                        title: 'Activity',
+                        subtitle: 'Your pickups, deliveries, returns, trips and account changes',
+                        onTap: () => _open(RiderPaths.activity),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.lg),
                   const RiderSectionTitle('Payouts'),
                   _Tiles(
                     children: [

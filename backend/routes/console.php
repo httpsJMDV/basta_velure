@@ -30,6 +30,9 @@ Schedule::command('refunds:process-deadlines')->everyFifteenMinutes()->withoutOv
 // expire offers on every read (the rider app checks every 5 seconds); this catches the rest.
 Schedule::command('dispatch:expire-offers')->everyMinute()->withoutOverlapping();
 
+// Pickups the shop scheduled for later are offered to riders from an hour before their window.
+Schedule::command('pickups:release-scheduled')->everyFiveMinutes()->withoutOverlapping();
+
 // Sign-in tokens past their 30 days are removed from the database.
 Schedule::command('sanctum:prune-expired --hours=24')->daily()->withoutOverlapping();
 

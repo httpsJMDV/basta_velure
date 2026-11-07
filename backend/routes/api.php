@@ -95,6 +95,9 @@ RateLimiter::for('forgot-password', function (Request $request) {
 Route::prefix('v1')->group(function () {
 
     // Public product catalog (no auth required)
+    // A GCash receipt, by a signed link that expires (Order::paymentProofUrl); the file is on the private disk
+    Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\Api\V1\PaymentProofController::class, 'show'])
+        ->name('orders.payment-proof')->middleware('signed')->whereNumber('order');
     Route::get('/products',                    [PublicProductController::class, 'index']);
     Route::get('/products/{product}',          [PublicProductController::class, 'show']);
     Route::get('/products/{product}/reviews',  [PublicProductController::class, 'reviews']);
@@ -150,6 +153,8 @@ Route::prefix('v1')->group(function () {
 
         // Delivery proof photo (Feature 2.7): rider, hub, seller, buyer and admin only; authorization is in the controller
         Route::get('/parcels/{tracking}/delivery-proof', [DeliveryProofController::class, 'show']);
+        // The rider's photo of a returned item collected from the buyer (buyer, shop, rider, hub, courier, admins)
+        Route::get('/return-pickups/{pickup}/photo', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'photo'])->whereNumber('pickup');
         // The GCash receipt of a weekly courier ↔ shop payment (the two sides and admins)
         Route::get('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\SettlementReceiptController::class, 'show'])->whereNumber('settlement');
         // The GCash receipt of a refund a shop sent (the buyer, the shop and admins)
@@ -191,6 +196,15 @@ Route::prefix('v1')->group(function () {
             $riders = \App\Http\Controllers\Api\V1\LogisticsRiderController::class;
             Route::get('/riders', [$riders, 'index']);
             Route::post('/riders', [$riders, 'store'])->middleware('throttle:upload');
+            // Truck drivers between hubs: their trips and the trip pay the company owes them
+            $trucks = \App\Http\Controllers\Api\V1\LogisticsTruckController::class;
+            Route::get('/truck-drivers', [$trucks, 'drivers']);
+            Route::post('/truck-drivers/{rider}/pay', [$trucks, 'pay'])->whereNumber('rider');
+            Route::get('/truck-trips', [$trucks, 'trips']);
+            Route::post('/truck-trips/{trip}/close', [$trucks, 'close'])->whereNumber('trip');
+            Route::put('/truck-rate', [$trucks, 'rate']);
+            // Activity log across the network: parcel steps and people's decisions, newest first
+            Route::get('/activity', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'company']);
             // Delivery zones and shipping rates (L8), every change audit-logged
             $shipping = \App\Http\Controllers\Api\V1\LogisticsShippingController::class;
             Route::get('/shipping', [$shipping, 'index']);
@@ -231,6 +245,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/parcels/{parcel}/reschedule', [$parcelOps, 'reschedule'])->whereNumber('parcel');
             Route::get('/returns', [$parcelOps, 'returns']);
             Route::post('/returns/{parcel}/assign', [$parcelOps, 'assignReturn'])->whereNumber('parcel');
+            // Return pickups: collect an approved return from the buyer and bring it to the shop
+            Route::get('/return-pickups', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'courierIndex']);
+            Route::post('/return-pickups/{pickup}/assign', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'courierAssign'])->whereNumber('pickup');
             // COD reconciliation and exports (L9); only the company confirms a rider's remittance
             $cod = \App\Http\Controllers\Api\V1\LogisticsCodController::class;
             Route::get('/cod', [$cod, 'index']);
@@ -284,6 +301,12 @@ Route::prefix('v1')->group(function () {
 
         // Cart on the server (B6): only the buyer's own lines
         $cart = \App\Http\Controllers\Api\V1\CartController::class;
+        // Recently viewed products and recent searches (written by GET /products/{id} and GET /products?q=)
+        Route::get('/me/recently-viewed', [PublicProductController::class, 'recentlyViewed']);
+        Route::delete('/me/recently-viewed', [PublicProductController::class, 'clearRecentlyViewed']);
+        Route::get('/me/search-history', [PublicProductController::class, 'searchHistory']);
+        Route::delete('/me/search-history', [PublicProductController::class, 'clearSearchHistory']);
+        Route::delete('/me/search-history/{id}', [PublicProductController::class, 'clearSearchHistory'])->whereNumber('id');
         Route::get('/cart', [$cart, 'index']);
         Route::post('/cart/items', [$cart, 'store']);
         Route::patch('/cart/items/{line}', [$cart, 'update'])->whereNumber('line');
@@ -330,6 +353,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/buyer/orders/{order}/refund/confirm', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerConfirm']);
         Route::post('/buyer/orders/{order}/refund/report', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerReport'])->middleware('throttle:10,1');
         Route::post('/buyer/orders/{order}/cancel', [BuyerOrderController::class, 'cancel']);
+        // Buy again: the order's items back in the cart at today's price
+        Route::post('/buyer/orders/{order}/buy-again', [BuyerOrderController::class, 'buyAgain'])->middleware('throttle:20,1');
         Route::post('/buyer/orders/{order}/pay-again', [BuyerOrderController::class, 'payAgain']);
         // Feature 2.8: only buyers (other roles get 403); another buyer's order is a 404 in the controller
         Route::post('/buyer/orders/{order}/confirm-receipt', [BuyerOrderController::class, 'confirmReceipt'])->middleware('role:buyer');
@@ -577,6 +602,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller/orders/{order}/cancel', [SellerOrderController::class, 'cancel']);
             // A13: a parcel back from a failed delivery; the stock returns only on this confirmation
             Route::post('/seller/orders/{order}/confirm-return-received', [SellerOrderController::class, 'confirmReturnReceived']);
+            // A return pickup: the rider handed the buyer's returned item to the shop
+            Route::post('/seller/orders/{order}/return-pickup/received', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'received']);
             // Refunds the shop sends by hand (GCash and COD orders)
             Route::get('/seller/refunds', [\App\Http\Controllers\Api\V1\RefundController::class, 'sellerIndex']);
             Route::post('/seller/orders/{order}/refund/sent', [\App\Http\Controllers\Api\V1\RefundController::class, 'sellerSent'])->middleware('throttle:upload');
@@ -587,6 +614,8 @@ Route::prefix('v1')->group(function () {
             Route::patch('/seller/vouchers/{voucher}', [$vouchers, 'update'])->whereNumber('voucher');
             Route::post('/seller/vouchers/{voucher}/end', [$vouchers, 'end'])->whereNumber('voucher');
             Route::patch('/seller/orders/{order}/status', [SellerOrderController::class, 'updateStatus']);
+            // When the rider should come for the parcel (until the rider has it)
+            Route::patch('/seller/orders/{order}/pickup-slot', [SellerOrderController::class, 'updatePickupSlot']);
 
             // Seller earnings & payouts
             Route::get('/seller/earnings', [SellerEarningsController::class, 'summary']);
@@ -655,6 +684,13 @@ Route::prefix('v1')->group(function () {
             // Hub-to-hub transfers
             Route::get('/transfers',       [\App\Http\Controllers\Api\V1\HubTransferController::class, 'index']);
             Route::post('/transfers/send', [\App\Http\Controllers\Api\V1\HubTransferController::class, 'send']);
+            Route::get('/truck-drivers',   [\App\Http\Controllers\Api\V1\HubTransferController::class, 'drivers']);
+            Route::get('/truck-trips',     [\App\Http\Controllers\Api\V1\HubTransferController::class, 'trips']);
+            // Activity log: everything that happened to this hub's parcels, riders and trucks
+            Route::get('/activity',        [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'hub']);
+            // Return pickups from buyers in this hub's area
+            Route::get('/return-pickups',  [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'hubIndex']);
+            Route::post('/return-pickups/{pickup}/assign', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'hubAssign'])->whereNumber('pickup');
 
             // Delivery monitoring and failure triage (Feature 1.9)
             Route::get('/deliveries/out',                               [HubDeliveryController::class, 'out']);
@@ -702,6 +738,17 @@ Route::prefix('v1')->group(function () {
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
             Route::get('/me', [RiderController::class, 'me']);
+            // Truck drivers: trips between hubs and trip pay
+            Route::get('/trips', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'index']);
+            Route::post('/trips/{trip}/arrived', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'arrived'])->whereNumber('trip');
+            // Activity log: what this rider did and what was decided about their account
+            Route::get('/activity', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'rider']);
+            // Return pickups: collect from the buyer (photo), or a failed visit, then hand it to the shop
+            $returnPickups = \App\Http\Controllers\Api\V1\ReturnPickupController::class;
+            Route::get('/return-pickups', [$returnPickups, 'riderIndex']);
+            Route::post('/return-pickups/{pickup}/collected', [$returnPickups, 'collected'])->whereNumber('pickup')->middleware('throttle:upload');
+            Route::post('/return-pickups/{pickup}/failed', [$returnPickups, 'failed'])->whereNumber('pickup');
+            Route::post('/return-pickups/{pickup}/delivered', [$returnPickups, 'delivered'])->whereNumber('pickup');
 
             // Online / Offline, job offers, returns to the seller and COD remittance (R3, R4, R7, R9)
             $jobs = \App\Http\Controllers\Api\V1\RiderJobController::class;

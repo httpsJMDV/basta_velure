@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'activity/activity_screen.dart';
 import 'chat/logistics_chat.dart';
 import 'courier/courier_add_rider_screen.dart';
 import 'courier/courier_cod_screen.dart';
@@ -12,6 +13,7 @@ import 'courier/courier_parcels_screen.dart';
 import 'courier/courier_riders_screen.dart';
 import 'courier/courier_scan_screen.dart';
 import 'courier/courier_shell.dart';
+import 'courier/courier_trucks_screen.dart';
 import 'data/logistics_api.dart';
 import 'data/logistics_models.dart';
 import 'data/logistics_state.dart';
@@ -20,6 +22,7 @@ import 'hub/hub_dispatch_screen.dart';
 import 'hub/hub_home_screen.dart';
 import 'hub/hub_intake_screen.dart';
 import 'hub/hub_more_screen.dart';
+import 'hub/hub_return_pickups_screen.dart';
 import 'hub/hub_rider_areas_screen.dart';
 import 'hub/hub_riders_screen.dart';
 import 'hub/hub_scan_screen.dart';
@@ -252,6 +255,22 @@ final logisticsRoutes = <RouteBase>[
   GoRoute(
     path: LogisticsPaths.courierAddRider,
     builder: (_, _) => _courier(const CourierAddRiderScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierTrucks,
+    builder: (_, _) => _courier(const CourierTrucksScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierActivity,
+    builder: (_, _) => _courier(const ActivityScreen(scope: 'logistics')),
+  ),
+  GoRoute(
+    path: LogisticsPaths.hubReturnPickups,
+    builder: (_, _) => _hub(const HubReturnPickupsScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.hubActivity,
+    builder: (_, _) => _hub(const ActivityScreen(scope: 'hub')),
   ),
   GoRoute(
     path: '${LogisticsPaths.courierRiders}/:id',

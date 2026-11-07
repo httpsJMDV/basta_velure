@@ -11,6 +11,7 @@ import 'features/buyer/buyer_routes.dart';
 import 'features/logistics/logistics_paths.dart';
 import 'features/logistics/logistics_routes.dart';
 import 'features/rider/rider_routes.dart';
+import 'features/seller/seller_routes.dart';
 
 /// Every screen of the app. Each part adds its screens in its own file, under its home's path:
 /// Part B in `features/buyer/buyer_routes.dart` (`/buyer/...`), Part C in `features/rider/rider_routes.dart`
@@ -35,7 +36,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       state.uri.path,
       next: state.uri.queryParameters['next'],
     ),
-    routes: [...authRoutes, ...buyerRoutes, ...riderRoutes, ...logisticsRoutes],
+    routes: [...authRoutes, ...buyerRoutes, ...riderRoutes, ...logisticsRoutes, ...sellerRoutes],
   );
   ref.onDispose(() {
     router.dispose();

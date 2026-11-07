@@ -165,6 +165,7 @@ class HubDeliveryController extends Controller
             $rider = Rider::with('user')
                 ->where('id', (int) $validated['rider_id'])
                 ->where('sorting_center_id', $hub->id)
+                ->carriesParcels()
                 ->lockForUpdate()
                 ->first();
 

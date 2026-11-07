@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/session/session.dart';
 import '../buyer/buyer_shell.dart';
 import 'data/rider_models.dart';
 import 'data/rider_state.dart';
@@ -32,6 +33,16 @@ class RiderShell extends ConsumerWidget {
         beacon == BeaconState.sharing ||
         beacon == BeaconState.starting;
     final offers = ref.watch(riderOffersProvider);
+    // A truck driver drives between hubs: Trips (the first branch shows them) and Account, nothing else.
+    final truck = ref.watch(
+      currentUserProvider.select((u) => u?.rider?.isTruckDriver ?? false),
+    );
+    const truckBranches = [0, 4];
+    final dockIndex = !truck
+        ? shell.currentIndex
+        : (truckBranches.contains(shell.currentIndex)
+              ? truckBranches.indexOf(shell.currentIndex)
+              : 0);
 
     return Stack(
       children: [
@@ -54,23 +65,29 @@ class RiderShell extends ConsumerWidget {
             ],
           ),
           bottomNavigationBar: BuyerDock(
-            index: shell.currentIndex,
+            index: dockIndex,
             onSelected: (index) {
-              if (index != shell.currentIndex) {
+              final branch = truck ? truckBranches[index] : index;
+              if (branch != shell.currentIndex) {
                 HapticFeedback.selectionClick();
               }
               shell.goBranch(
-                index,
-                initialLocation: index == shell.currentIndex,
+                branch,
+                initialLocation: branch == shell.currentIndex,
               );
             },
-            items: const [
-              DockItem(icon: LucideIcons.house, label: 'Home'),
-              DockItem(icon: LucideIcons.packageOpen, label: 'Pickups'),
-              DockItem(icon: LucideIcons.truck, label: 'Deliveries'),
-              DockItem(icon: LucideIcons.wallet, label: 'Earnings'),
-              DockItem(icon: LucideIcons.userRound, label: 'Account'),
-            ],
+            items: truck
+                ? const [
+                    DockItem(icon: LucideIcons.container, label: 'Trips'),
+                    DockItem(icon: LucideIcons.userRound, label: 'Account'),
+                  ]
+                : const [
+                    DockItem(icon: LucideIcons.house, label: 'Home'),
+                    DockItem(icon: LucideIcons.packageOpen, label: 'Pickups'),
+                    DockItem(icon: LucideIcons.truck, label: 'Deliveries'),
+                    DockItem(icon: LucideIcons.wallet, label: 'Earnings'),
+                    DockItem(icon: LucideIcons.userRound, label: 'Account'),
+                  ],
           ),
         ),
         if (offers.isNotEmpty)

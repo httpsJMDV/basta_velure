@@ -104,10 +104,14 @@ class ReturnService
         }
     }
 
-    /** The shop (or the 3-day rule, or Loved-IT) approves: the buyer is refunded and the order is Returned. */
-    public function approve(Order $order, string $actor, ?int $actorId, ?string $note = null): Dispute
+    /**
+     * The shop (or the 3-day rule, or Loved-IT) approves: the buyer is refunded and the order is Returned. With
+     * $collect (the default) a rider is booked to collect the item from the buyer and bring it back to the shop;
+     * the shop can let the buyer keep it instead.
+     */
+    public function approve(Order $order, string $actor, ?int $actorId, ?string $note = null, bool $collect = true): Dispute
     {
-        return DB::transaction(function () use ($order, $actor, $actorId, $note) {
+        return DB::transaction(function () use ($order, $actor, $actorId, $note, $collect) {
             $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $dispute = Dispute::where('order_id', $locked->id)->lockForUpdate()->firstOrFail();
             if (! in_array($dispute->status, ['pending', 'escalated', 'open', 'in_progress'], true)) {
@@ -121,6 +125,9 @@ class ReturnService
             ]);
             $this->machine->transition($locked, OrderStatus::RETURNED, $actor, $actorId, $auto ? 'Return approved automatically after 3 days' : 'Return approved');
             $this->refundReturn($locked->fresh());
+            if ($collect) {
+                app(\App\Services\Courier\ReturnPickups::class)->book($locked->fresh(), $dispute, $actor, $actorId);
+            }
             app(MailNotifier::class)->returnResolved($locked, 'accepted');
             // The shop approved it itself; otherwise it learns the 3-day rule or Loved-IT decided.
             if ($actor !== 'seller') {

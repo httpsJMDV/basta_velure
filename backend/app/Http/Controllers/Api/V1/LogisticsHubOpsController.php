@@ -150,7 +150,7 @@ class LogisticsHubOpsController extends Controller
     {
         $data = $request->validate(['tracking_number' => ['required', 'string', 'max:64'], 'rider_id' => ['required', 'integer']], ['rider_id.required' => 'Choose the delivery rider.']);
         $company = $this->company($request);
-        $rider = LogisticsRiderController::companyRiders($company)->with('user')->find($data['rider_id']);
+        $rider = LogisticsRiderController::companyRiders($company)->carriesParcels()->with('user')->find($data['rider_id']);
         abort_unless($rider, 422, 'This rider is not one of your riders.');
 
         $parcel = DB::transaction(function () use ($request, $company, $data, $rider) {

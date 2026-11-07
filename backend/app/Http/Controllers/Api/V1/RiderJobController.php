@@ -138,6 +138,8 @@ class RiderJobController extends Controller
             // Only the area: the full address and the recipient stay hidden until the delivery leg.
             'dropoff_area'    => trim(($to['barangay'] ?? $p->destination_barangay ?? '') . ', ' . ($to['city'] ?? ''), ', '),
             'cod_amount'      => $p->cod_amount !== null ? (float) $p->cod_amount : null,
+            // The time the shop wants the rider, or null for as soon as possible
+            'pickup_slot'     => $p->pickupSlot(),
             'weight_kg'       => $p->weight_kg !== null ? (float) $p->weight_kg : null,
             'pay'             => Money::fromCents(ShippingSplit::pickupPayCents()),
         ];
