@@ -103,6 +103,17 @@ class Order extends Model
     public function payment(): HasOne            { return $this->hasOne(Payment::class); }
     public function dispute(): HasOne            { return $this->hasOne(Dispute::class); }
     public function parcel(): HasOne             { return $this->hasOne(Parcel::class); }
+
+    /**
+     * A link to the buyer's GCash receipt that works for an hour without signing in, so an <img> can show it. Only
+     * put it in the payloads of the buyer, the shop and admins.
+     */
+    public function paymentProofUrl(): ?string
+    {
+        return $this->payment_proof_path
+            ? \Illuminate\Support\Facades\URL::temporarySignedRoute('orders.payment-proof', now()->addHour(), ['order' => $this->id])
+            : null;
+    }
     /** A refund the shop sends by hand (GCash and cash-on-delivery orders). */
     public function refund(): HasOne             { return $this->hasOne(Refund::class); }
     public function returnPickup(): HasOne       { return $this->hasOne(ReturnPickup::class); }

@@ -185,6 +185,18 @@ class Rider extends Model
         return $duty === self::DUTY_TRUCK ? self::TRUCK_VEHICLE_TYPES : self::VEHICLE_TYPES;
     }
 
+    /**
+     * Riders who may take jobs now: Active, with an account the admin has not suspended, at a hub that is not
+     * suspended. (A rider's own status stays Active when the admin suspends the account or the hub.)
+     */
+    public function scopeCanWork($query)
+    {
+        return $query->where('status', self::STATUS_ACTIVE)
+            ->whereHas('user', fn ($u) => $u->where('status', 'active'))
+            ->where(fn ($q) => $q->whereNull('sorting_center_id')
+                ->orWhereHas('sortingCenter', fn ($h) => $h->where('status', '!=', SortingCenter::STATUS_SUSPENDED)));
+    }
+
     /** Riders who pick up and deliver parcels: everyone but truck drivers. */
     public function scopeCarriesParcels($query)
     {

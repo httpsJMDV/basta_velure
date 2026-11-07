@@ -67,14 +67,7 @@ Unmerged elsewhere: nothing. Every other `origin/*` branch is fully contained in
 The Logistics and Rider task list is complete. Remaining ideas: buyer-submitted reviews and ratings (the admin side is built), downloadable Sales Summary and Commission reports (the ERP lists them; the reports page has the figures and a date picker but no export), a gap analysis refresh, and fixes for whatever the click-through of `docs/demo-walkthrough.md` turns up. The mobile app starts once the whole web app is finished.
 
 ## Parked issues
-- Payment proof images are stored on the public disk; move them to the private disk.
 - `velure.sql` is stale (missing newer tables); setup must run `php artisan migrate`.
-- A rider whose hub is suspended can still use rider routes.
-- A rider an admin suspends (`users.status`) keeps `riders.status = ACTIVE`, so `RiderAreaCoverage` still lists them as eligible for dispatch although they cannot sign in. Fix: also require an active user there.
-- `/admin/stats` `pending_payment_verifications` counts `payment_status = 'pending_verification'`, which the column cannot hold (see the GCash issue below), so it is always 0.
-- Sellers cannot request a pickup time slot (not built).
-- GCash checkout cannot save an order: `BuyerOrderController::placeOrder` writes `orders.payment_status = 'pending_verification'`, which the column's enum (`pending`, `paid`, `failed`) rejects in strict mode, and admin and buyer filters also look for it. Fix with a migration adding the value, then check those filters. The demo seeder stores unverified GCash orders as `pending`.
 - The 8% Food & Grocery commission never applies: `placeOrder` passes the numeric `category_id` to `PlatformSetting::getCommissionRateForCategory`, which matches slugs, so every item gets 10%. Money logic, left unchanged.
-- A vehicle edit (2.10) is not re-verified: no new OR/CR and no hub re-approval, and nothing flags the change for the hub.
 - A grouped pickup card opens its chat on the group's first parcel, so a seller with several parcels in one pickup can end up with one thread per parcel.
-- Two older chat routes point at controller methods that do not exist: `GET /my-conversation` (`ConversationController::mine`) and `GET /admin/conversations/seller/{seller}` (`openForSeller`).
+- Fixed on Nov 7 (branch jm/trucks-logs-returns): GCash receipts are on the private disk behind expiring signed links (receipts from before stay readable on the public disk); riders whose account or hub is suspended get no jobs, and a suspended hub's riders cannot act; the shop chooses a pickup time. Already fixed earlier: the GCash payment_status enum, the admin stats count, vehicle re-verification and the old chat routes.

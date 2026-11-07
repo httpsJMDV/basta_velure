@@ -76,12 +76,12 @@ class CheckoutController extends Controller
             ], $key !== '' ? $key : null, $gcash);
         } catch (\Throwable $e) {
             if ($gcash) {
-                Storage::disk('public')->delete(array_column($gcash, 'proof_path'));
+                Storage::disk('ids')->delete(array_column($gcash, 'proof_path'));
             }
             throw $e;
         }
         if ($result['repeated'] && $gcash) {
-            Storage::disk('public')->delete(array_column($gcash, 'proof_path'));
+            Storage::disk('ids')->delete(array_column($gcash, 'proof_path'));
         }
 
         $orders = $result['orders']->map(fn ($o) => BuyerOrderPresenter::present($o->fresh(['items.seller.sellerProfile', 'payment', 'statusHistories', 'parcel'])))->values();
@@ -275,6 +275,6 @@ class CheckoutController extends Controller
             throw ValidationException::withMessages($errors);
         }
 
-        return array_map(fn ($p) => ['reference' => $p['reference'], 'proof_path' => $p['proof']->store('orders/payment-proofs', 'public')], $found);
+        return array_map(fn ($p) => ['reference' => $p['reference'], 'proof_path' => $p['proof']->store('orders/payment-proofs', 'ids')], $found);
     }
 }

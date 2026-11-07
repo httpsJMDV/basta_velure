@@ -76,7 +76,7 @@ class BuyerOrderPresenter
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,
             'payment_reference'   => $o->payment_reference,
-            'payment_proof_url'   => $o->payment_proof_path ? asset('storage/' . $o->payment_proof_path) : null,
+            'payment_proof_url'   => $o->paymentProofUrl(),
             'payment_verified_at' => $o->payment_verified_at?->toIso8601String(),
             'payment_due_at'      => $o->payment_due_at?->toIso8601String(),
             'paid_at'             => $o->paid_at?->toIso8601String(),

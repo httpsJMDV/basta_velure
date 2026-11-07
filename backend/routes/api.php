@@ -95,6 +95,9 @@ RateLimiter::for('forgot-password', function (Request $request) {
 Route::prefix('v1')->group(function () {
 
     // Public product catalog (no auth required)
+    // A GCash receipt, by a signed link that expires (Order::paymentProofUrl); the file is on the private disk
+    Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\Api\V1\PaymentProofController::class, 'show'])
+        ->name('orders.payment-proof')->middleware('signed')->whereNumber('order');
     Route::get('/products',                    [PublicProductController::class, 'index']);
     Route::get('/products/{product}',          [PublicProductController::class, 'show']);
     Route::get('/products/{product}/reviews',  [PublicProductController::class, 'reviews']);

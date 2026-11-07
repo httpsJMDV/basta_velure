@@ -55,7 +55,7 @@ class Dispatcher
 
         $riders = LogisticsRiderController::companyRiders($company)->carriesParcels()
             ->with(['user', 'sortingCenter', 'areaAssignments' => fn ($q) => $q->where('is_active', true)])
-            ->where('status', Rider::STATUS_ACTIVE)
+            ->canWork()
             ->where('is_online', true)
             ->where('last_seen_at', '>', now()->subMinutes(Rider::PRESENCE_TIMEOUT_MINUTES))
             ->when($exclude !== [], fn ($q) => $q->whereNotIn('id', $exclude))
