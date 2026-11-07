@@ -1,381 +1,623 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { getAdminStatsApi, getAdminDashboardFeedApi } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
-import { useCountUp } from '../../hooks/useDashboardAnimations';
-import { useLiveRefresh } from '../../hooks/useLiveNotices';
-import type { AdminStats, DashboardFeed, DashboardChartPoint, DashboardAttentionItem } from '../../types';
+import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
+import type { AdminStats, DashboardFeed, DashboardChartPoint } from '../../types';
 import { NA, peso, whole, percent, reportsHref, percentChange } from '../../utils/adminReports';
-import { ChartEmptyState, HERO_BUTTON, LiveStamp } from '../../components/admin/dashboardKit';
-import type { AdminOutletContext } from './AdminLayout';
-import { adminQueues } from './adminQueues';
+import { StatCard, StatCardSkeleton, SectionHeader, ChartEmptyState } from '../../components/admin/dashboardKit';
 import {
-  ArrowRight, ArrowUpRight, ArrowDownRight, BarChart2, CheckCircle2, Clock, History, Minus,
+  UserPlus, Package,
+  Users, TrendingUp, TrendingDown,
+  ArrowRight, Activity, Minus,
+  ShieldAlert,
+  Gauge, PackageCheck, Wallet,
+  Coins, QrCode, Truck, Clock,
+  CheckCircle2, Store, ShieldCheck
 } from 'lucide-react';
-import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Area, AreaChart } from 'recharts';
-
-// The admin home: what happened in the last 30 days, and what is waiting for Loved-IT right now. Figures come from the
-// same service as Analytics & Reports (GET /admin/stats, /admin/dashboard-feed); the work queue reads the sidebar's
-// counts (GET /admin/nav-counts) so the two never disagree. The page refreshes itself once a minute.
-
-const TZ = 'Asia/Manila';
-const REFRESH_MS = 60_000;
+import {
+  ResponsiveContainer, XAxis, YAxis,
+  CartesianGrid, Tooltip, Area, AreaChart,
+} from 'recharts';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** A Manila calendar day as YYYY-MM-DD. */
-function manilaDay(d = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-}
-
-function shiftDay(day: string, days: number): string {
-  const d = new Date(`${day}T00:00:00+08:00`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return manilaDay(d);
-}
-
-/** Monday of the Manila week that holds `day`. */
-function weekStart(day: string): string {
-  const weekday = new Date(`${day}T12:00:00+08:00`).getUTCDay(); // 0 = Sunday
-  return shiftDay(day, -((weekday + 6) % 7));
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function chartDateLabel(iso: string) {
-  return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: TZ });
+  // The chart's dates are Asia/Manila calendar days (YYYY-MM-DD): format them as that day, in any browser timezone.
+  return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
 }
 
 function greeting() {
-  const h = Number(new Intl.DateTimeFormat('en-PH', { hour: 'numeric', hourCycle: 'h23', timeZone: TZ }).format(new Date()));
+  const h = new Date().getHours();
   if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
+  if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
 
-function ago(iso: string): string {
-  const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
-  if (Number.isNaN(mins)) return '';
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.floor(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
-}
+// ─── Compact Hero Band ────────────────────────────────────────────────────────
 
-/** "3 d 4 h" for how long something has waited. */
-function waited(iso: string): string {
-  const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
-  if (Number.isNaN(mins)) return '';
-  if (mins < 60) return `${mins} min`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} h`;
-  const days = Math.floor(hours / 24);
-  const rest = hours % 24;
-  return rest ? `${days} d ${rest} h` : `${days} d`;
-}
+function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: string }) {
+  const pendingTotal = stats
+    ? (stats.pending_seller_applications || 0) +
+      (stats.pending_buyer_applications || 0) +
+      (stats.pending_products || 0) +
+      (stats.open_disputes || 0) +
+      (stats.pending_payment_verifications || 0) +
+      (stats.pending_payout_requests || 0)
+    : 0;
+  const hasIssues = pendingTotal > 0;
+  const metrics = stats?.metrics;
+  const animatedGmv        = useCountUp(metrics?.gmv ?? 0);
+  const animatedCommission = useCountUp(metrics?.commission ?? 0);
+  const animatedOrders     = useCountUp(metrics?.orders ?? 0);
+  const animatedPending    = useCountUp(pendingTotal);
 
-function initials(name: string): string {
-  const parts = name.replace(/^Dispute on #/i, '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-// ─── Small pieces ─────────────────────────────────────────────────────────────
-
-function Card({ className = '', children }: { className?: string; children: React.ReactNode }) {
-  return <section className={`bg-white border border-gray-200/80 rounded-2xl shadow-xs flex flex-col min-w-0 ${className}`}>{children}</section>;
-}
-
-function CardHead({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4 pb-3 border-b border-gray-100">
-      <div className="min-w-0">
-        <h2 className="text-[11px] font-bold tracking-wider text-gray-800 uppercase">{title}</h2>
-        {sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+    <div
+      className="rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm border border-neutral-800 relative overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
+    >
+      {/* Left: Greeting + Status Pill + Action Chips inline */}
+      <div className="flex flex-wrap items-center min-w-0 gap-2 sm:gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold tracking-tight text-white sm:text-sm whitespace-nowrap">
+            {greeting()}, {userName || 'Administrator'}
+          </span>
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+            hasIssues ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${hasIssues ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+            {hasIssues ? `${animatedPending} Tasks Pending` : 'All Systems Healthy'}
+          </span>
+        </div>
+
+        {/* Inline Quick Action Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          <Link
+            to="/admin/seller-applications"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-red hover:bg-[#8e2424] text-white text-[11px] font-bold transition-all whitespace-nowrap active:scale-95 shadow-xs"
+          >
+            <Store className="w-3 h-3" />
+            Sellers ({stats?.pending_seller_applications ?? 0})
+          </Link>
+          <Link
+            to="/admin/buyer-applications"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
+          >
+            <UserPlus className="w-3 h-3" />
+            Buyer IDs ({stats?.pending_buyer_applications ?? 0})
+          </Link>
+          <Link
+            to="/admin/products"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
+          >
+            <Package className="w-3 h-3" />
+            Products ({stats?.pending_products ?? 0})
+          </Link>
+          <Link
+            to="/admin/disputes"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
+          >
+            <ShieldAlert className="w-3 h-3" />
+            Disputes ({stats?.open_disputes ?? 0})
+          </Link>
+        </div>
       </div>
-      {children && <div className="flex items-center gap-2 shrink-0">{children}</div>}
+
+      {/* Right: the last 30 days, each figure linking to the same section of the reports page */}
+      {stats && (
+        <div className="flex items-center self-end justify-between w-full gap-3 pt-1 text-xs border-t sm:gap-4 shrink-0 md:self-auto md:pt-0 md:border-t-0 border-neutral-800/80 md:w-auto md:justify-end">
+          <Link to={reportsHref(stats.window, 'sales')} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" title="Open in Analytics & Reports">
+            <span className="text-[10px] uppercase font-bold text-neutral-400">GMV · 30 days</span>
+            <span className="text-xs font-black text-white sm:text-sm">{metrics ? peso(animatedGmv) : NA}</span>
+          </Link>
+
+          <div className="w-px h-4 bg-neutral-800" />
+
+          <Link to={reportsHref(stats.window, 'commission')} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" title="Open in Analytics & Reports">
+            <span className="text-[10px] uppercase font-bold text-neutral-400">Net Commission</span>
+            <span className="text-xs font-bold text-emerald-400 sm:text-sm">{metrics ? peso(animatedCommission) : NA}</span>
+          </Link>
+
+          <div className="w-px h-4 bg-neutral-800" />
+
+          <Link to={reportsHref(stats.window, 'orders')} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" title="Open in Analytics & Reports">
+            <span className="text-[10px] uppercase font-bold text-neutral-400">Orders</span>
+            <span className="text-xs font-bold text-violet-300 sm:text-sm">{metrics ? whole(animatedOrders) : NA}</span>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
 
-function CardLink({ to, children }: { to: string; children: React.ReactNode }) {
-  return (
-    <Link to={to} className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-brand-red-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/40 rounded">
-      {children} <ArrowRight className="w-3 h-3" aria-hidden="true" />
-    </Link>
-  );
-}
+// ─── Trend Badge ──────────────────────────────────────────────────────────────
 
-function Change({ current, previous }: { current: number | null | undefined; previous: number | null | undefined }) {
-  // Nothing to compare against: say so instead of a made-up "+100%".
-  if (previous === 0 && (current ?? 0) > 0) return <span className="text-[11px] text-gray-400">None in the prior 30 days</span>;
+function TrendBadge({ current, previous, label }: { current: number | null | undefined; previous: number | null | undefined; label: string }) {
   const change = percentChange(current, previous);
-  if (!change) return <span className="text-[11px] text-gray-400">{NA} vs prior 30 days</span>;
-  if (change.dir === 'flat') {
-    return <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-500"><Minus className="w-3 h-3" aria-hidden="true" /> Same as prior 30 days</span>;
+  if (!change) return <span className="text-[10px] text-gray-400">{NA} vs {label}</span>;
+  const { pct, dir } = change;
+  if (dir === 'flat') {
+    return (
+      <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+        <Minus className="w-2.5 h-2.5" /> No change vs {label}
+      </span>
+    );
   }
-  const up = change.dir === 'up';
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
+  const up = dir === 'up';
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums ${up ? 'text-emerald-700' : 'text-rose-600'}`}>
-      <Icon className="w-3 h-3" aria-hidden="true" />
-      {up ? '+' : '−'}{change.pct}% <span className="font-normal text-gray-400">vs prior 30 days</span>
+    <span className={`text-[10px] flex items-center gap-0.5 font-bold ${up ? 'text-emerald-600' : 'text-rose-500'}`}>
+      {up ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+      {up ? '+' : '-'}{pct}% vs {label}
     </span>
   );
 }
 
-/** A 30-day line under a figure. Decorative: the figure and the chart below carry the numbers. */
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2 || values.every((v) => v === 0)) {
-    return <div className="h-7 border-b border-dashed border-gray-200" aria-hidden="true" />;
-  }
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const span = max - min || 1;
-  const w = 120;
-  const h = 28;
-  const points = values.map((v, i) => `${((i / (values.length - 1)) * w).toFixed(1)},${(h - 2 - ((v - min) / span) * (h - 4)).toFixed(1)}`);
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-7" aria-hidden="true">
-      <polygon points={`0,${h} ${points.join(' ')} ${w},${h}`} fill={color} opacity={0.08} />
-      <polyline points={points.join(' ')} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-    </svg>
-  );
-}
+// ─── Compact Action Queue Metric Card ─────────────────────────────────────────
 
-// ─── Header band ──────────────────────────────────────────────────────────────
-
-function Header({ name, waiting, queues, updatedAt }: { name: string; waiting: number | null; queues: number; updatedAt: Date | null }) {
-  // The day of the last refresh (shown once the figures are in).
-  const today = updatedAt ? updatedAt.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: TZ }) : '';
-  return (
-    <div
-      className="rounded-2xl px-4 py-4 sm:px-5 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm border border-neutral-800"
-      style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d1515 60%, #3d1a1a 100%)' }}
-    >
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/40">Admin console{today && ` · ${today}`}</p>
-        <h1 className="mt-1 text-base font-bold tracking-tight sm:text-lg">{greeting()}, {name || 'Administrator'}</h1>
-        <p className="text-[12px] text-neutral-400 mt-0.5">
-          {waiting === null
-            ? 'Checking what is waiting for you…'
-            : waiting === 0
-              ? 'Nothing is waiting for you. Every queue is clear.'
-              : `${whole(waiting)} item${waiting === 1 ? '' : 's'} waiting for you across ${queues} queue${queues === 1 ? '' : 's'}.`}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        <LiveStamp updatedAt={updatedAt} />
-        <Link to="/admin/reports" className={HERO_BUTTON}><BarChart2 className="w-4 h-4" aria-hidden="true" /> Reports</Link>
-        <Link to="/admin/activity-log" className={HERO_BUTTON}><History className="w-4 h-4" aria-hidden="true" /> Activity log</Link>
-      </div>
-    </div>
-  );
-}
-
-// ─── KPI strip ────────────────────────────────────────────────────────────────
-
-function Kpi({ className = '', label, value, money, to, change, spark, color, foot }: {
-  className?: string;
+interface ActionCardProps {
+  icon: React.ElementType;
   label: string;
-  value: number | null | undefined;
-  money?: boolean;
+  value: number;
   to: string;
-  change?: React.ReactNode;
-  spark?: number[];
-  color: string;
-  foot?: string;
-}) {
-  const animated = useCountUp(value ?? 0);
-  const shown = value === null || value === undefined ? NA : money ? peso(animated) : whole(animated);
+  badgeLabel: string;
+  iconBg: string;
+  iconColor: string;
+  accentBorder: string;
+  description: string;
+}
+
+function ActionCard({
+  icon: Icon, label, value, to, badgeLabel, iconBg, iconColor, accentBorder, description
+}: ActionCardProps) {
+  const animated = useCountUp(value);
+  const hasItems = value > 0;
+
   return (
-    <Link to={to} className={`group flex flex-col gap-1.5 p-4 min-w-0 border-gray-100 hover:bg-gray-50/70 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-red/40 ${className}`} title="Open in Analytics & Reports">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase truncate">{label}</span>
-        <ArrowUpRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-red transition-colors shrink-0" aria-hidden="true" />
+    <Link
+      to={to}
+      className={`group relative bg-white rounded-xl p-3.5 border transition-all duration-150 hover:shadow-sm hover:border-gray-300 flex flex-col justify-between ${
+        hasItems ? `${accentBorder} shadow-xs` : 'border-gray-200/80'
+      }`}
+    >
+      <div>
+        <div className="flex items-center justify-between gap-1.5 mb-2">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+            <Icon className="w-3.5 h-3.5" />
+          </div>
+          {hasItems ? (
+            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-50 text-brand-red border border-rose-100 animate-pulse">
+              {badgeLabel}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
+              <CheckCircle2 className="w-2.5 h-2.5" /> Clear
+            </span>
+          )}
+        </div>
+
+        <p className={`text-xl sm:text-2xl font-black tracking-tight leading-none ${hasItems ? 'text-gray-900' : 'text-gray-700'}`}>
+          {animated}
+        </p>
+        <p className="mt-1 text-xs font-bold text-gray-800">{label}</p>
+        <p className="text-[11px] text-gray-400 truncate mt-0.5">{description}</p>
       </div>
-      <p className="text-xl font-black leading-none tracking-tight text-gray-900 sm:text-2xl tabular-nums truncate">{shown}</p>
-      <div className="min-h-[16px]">{change}</div>
-      {spark ? <Sparkline values={spark} color={color} /> : <p className="h-7 flex items-end text-[11px] text-gray-400 truncate">{foot}</p>}
+
+      <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] font-bold text-brand-red group-hover:text-[#801f1f]">
+        <span>Review Queue</span>
+        <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+      </div>
     </Link>
   );
 }
 
-function KpiStrip({ stats, chart }: { stats: AdminStats; chart: DashboardChartPoint[] }) {
-  const m = stats.metrics;
-  const p = stats.previous;
-  const series = (key: 'gmv' | 'orders' | 'commission') => chart.map((d) => Number(d[key] ?? 0));
-  return (
-    <section aria-label="Last 30 days" className="grid grid-cols-1 sm:grid-cols-2 overflow-hidden bg-white border shadow-xs lg:grid-cols-4 border-gray-200/80 rounded-2xl">
-      <Kpi className="border-b sm:border-r lg:border-b-0" label="Gross sales (GMV)" value={m?.gmv} money to={reportsHref(stats.window, 'sales')} color="#C0001A"
-        change={<Change current={m?.gmv} previous={p?.gmv} />} spark={series('gmv')} />
-      <Kpi className="border-b lg:border-b-0 lg:border-r" label="Net commission" value={m?.commission} money to={reportsHref(stats.window, 'commission')} color="#059669"
-        change={<Change current={m?.commission} previous={p?.commission} />} spark={series('commission')} />
-      <Kpi className="border-b sm:border-b-0 sm:border-r" label="Orders" value={m?.orders} to={reportsHref(stats.window, 'orders')} color="#7C3AED"
-        change={<Change current={m?.orders} previous={p?.orders} />} spark={series('orders')} />
-      <Kpi label="Active buyers" value={m?.active_buyers} to={reportsHref(stats.window, 'activity')} color="#4F46E5"
-        change={<Change current={m?.active_buyers} previous={p?.active_buyers} />}
-        foot={m ? `${whole(m.active_sellers)} shops sold · ${whole(stats.total_buyers)} buyer accounts` : undefined} />
-    </section>
-  );
-}
+// ─── Compact Multi-Metric Analytics Chart ─────────────────────────────────────
 
-// ─── Sales trend ──────────────────────────────────────────────────────────────
-
-type ChartRange = 7 | 14 | 30;
+type ChartRange = '7d' | '14d' | '30d';
 type MetricView = 'gmv' | 'orders' | 'commission';
 
-const METRICS: Record<MetricView, { tab: string; title: string; color: string; format: (v: number) => string }> = {
-  gmv: { tab: 'GMV', title: 'Gross sales', color: '#C0001A', format: (v) => peso(v) },
-  orders: { tab: 'Orders', title: 'Orders', color: '#7C3AED', format: (v) => whole(v) },
-  commission: { tab: 'Commission', title: 'Net commission', color: '#059669', format: (v) => peso(v) },
-};
+function AnalyticsTrendChart({ data }: { data: DashboardChartPoint[] }) {
+  const [range, setRange] = useState<ChartRange>('30d');
+  const [metric, setMetric] = useState<MetricView>('gmv');
 
-function Segmented<T extends string | number>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void; label: string }) {
+  const sliced = useMemo(() => {
+    const n = range === '7d' ? 7 : range === '14d' ? 14 : 30;
+    return data.slice(-n).map((d) => ({ ...d, commission: d.commission ?? 0, label: chartDateLabel(d.date) }));
+  }, [data, range]);
+
+  // The reports page opens on exactly the days this chart shows.
+  const shownDays = sliced.length > 0 ? { from: sliced[0].date, to: sliced[sliced.length - 1].date } : null;
+
+  const metricConfig = {
+    gmv: {
+      label: 'Gross Sales (GMV ₱)',
+      sub: 'Daily platform sales volume',
+      color: '#A32D2D',
+      dataKey: 'gmv',
+      formatter: (v: number) => peso(Number(v || 0)),
+    },
+    orders: {
+      label: 'Orders',
+      sub: 'Daily orders, not counting cancelled or returned',
+      color: '#7C3AED',
+      dataKey: 'orders',
+      formatter: (v: number) => `${whole(Number(v || 0))} orders`,
+    },
+    commission: {
+      label: 'Net Commission (₱)',
+      sub: 'Daily platform fees from the same orders',
+      color: '#059669',
+      dataKey: 'commission',
+      formatter: (v: number) => peso(Number(v || 0)),
+    },
+  }[metric];
+
+  const totalPeriod = useMemo(() => {
+    return sliced.reduce((acc, curr) => acc + (Number(curr[metricConfig.dataKey as MetricView]) || 0), 0);
+  }, [sliced, metricConfig.dataKey]);
+
+  const isEmpty = sliced.length === 0 || sliced.every((d) => (d[metricConfig.dataKey as MetricView] ?? 0) === 0);
+
   return (
-    <div role="group" aria-label={label} className="flex p-0.5 text-[11px] font-bold border bg-gray-100/80 rounded-lg border-gray-200/60">
-      {options.map((o) => (
-        <button
-          key={String(o.value)}
-          type="button"
-          aria-pressed={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={`px-2.5 py-1 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/40 ${value === o.value ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'}`}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="flex flex-col h-full overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      {/* Header with Metric & Range Controls */}
+      <div className="flex flex-col justify-between gap-2.5 p-3.5 border-b border-gray-100 sm:p-4 sm:flex-row sm:items-center">
+        <div>
+          <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">{metricConfig.label}</h3>
+          <p className="text-[11px] text-gray-400">{metricConfig.sub}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Metric Selector */}
+          <div className="flex p-0.5 text-[11px] font-bold border bg-gray-100/80 rounded-lg border-gray-200/50">
+            <button
+              onClick={() => setMetric('gmv')}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                metric === 'gmv' ? 'bg-white text-brand-red shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              GMV (₱)
+            </button>
+            <button
+              onClick={() => setMetric('orders')}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                metric === 'orders' ? 'bg-white text-violet-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Orders
+            </button>
+            <button
+              onClick={() => setMetric('commission')}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                metric === 'commission' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Commission
+            </button>
+          </div>
+
+          {/* Timeframe Selector */}
+          <div className="flex p-0.5 text-[11px] font-bold border bg-gray-100/80 rounded-lg border-gray-200/50">
+            {(['7d', '14d', '30d'] as ChartRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`px-2 py-1 rounded-md transition-all ${
+                  range === r ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-400 hover:text-gray-800'
+                }`}
+              >
+                {r.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Chart Area */}
+      {isEmpty ? (
+        <ChartEmptyState message={`No ${metricConfig.label.toLowerCase()} recorded in this window`} />
+      ) : (
+        <div className="flex-1 min-h-[205px] p-3.5 [&_.recharts-surface]:outline-none [&_svg]:outline-none [&_.recharts-wrapper]:outline-none focus:outline-none select-none">
+          <ResponsiveContainer width="100%" height={205} style={{ outline: 'none' }}>
+            <AreaChart data={sliced} margin={{ top: 8, right: 8, left: -15, bottom: 0 }} style={{ outline: 'none' }}>
+              <defs>
+                <linearGradient id={`grad-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={metricConfig.color} stopOpacity={0.22} />
+                  <stop offset="100%" stopColor={metricConfig.color} stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+              <YAxis
+                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)}
+              />
+              <Tooltip
+                contentStyle={{
+                  fontSize: 11,
+                  borderRadius: 10,
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                  backgroundColor: '#ffffff',
+                }}
+                labelStyle={{ fontWeight: 700, color: '#111827' }}
+                formatter={(val) => [metricConfig.formatter(Number(val)), metricConfig.label]}
+              />
+              <Area
+                type="monotone"
+                dataKey={metricConfig.dataKey}
+                name={metricConfig.label}
+                stroke={metricConfig.color}
+                strokeWidth={2.5}
+                fill={`url(#grad-${metric})`}
+                dot={false}
+                activeDot={{ r: 5, fill: metricConfig.color, strokeWidth: 1.5, stroke: '#fff' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+
+          {/* Period Summary Footprint */}
+          <div className="flex items-center justify-between pt-2 mt-2 text-[11px] text-gray-500 border-t border-gray-100">
+            <span>Period total ({range}):</span>
+            <span className="font-bold text-gray-900">{metricConfig.formatter(totalPeriod)}</span>
+          </div>
+          <Link
+            to={reportsHref(shownDays, 'trend')}
+            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]"
+          >
+            Open these days in Reports <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
 
-function TrendCard({ data, className }: { data: DashboardChartPoint[]; className?: string }) {
-  const [range, setRange] = useState<ChartRange>(30);
-  const [metric, setMetric] = useState<MetricView>('gmv');
-  const cfg = METRICS[metric];
-
-  const sliced = useMemo(
-    () => data.slice(-range).map((d) => ({ date: d.date, value: Number(d[metric] ?? 0), label: chartDateLabel(d.date) })),
-    [data, range, metric],
-  );
-  const total = sliced.reduce((sum, d) => sum + d.value, 0);
-  const best = sliced.reduce<(typeof sliced)[number] | null>((top, d) => (!top || d.value > top.value ? d : top), null);
-  const shownDays = sliced.length > 0 ? { from: sliced[0].date, to: sliced[sliced.length - 1].date } : null;
-  const isEmpty = sliced.length === 0 || sliced.every((d) => d.value === 0);
-
-  return (
-    <Card className={className}>
-      <CardHead title="Sales trend" sub="Daily, in Manila days; cancelled and returned orders left out">
-        <Segmented label="Figure" value={metric} onChange={setMetric}
-          options={(Object.keys(METRICS) as MetricView[]).map((k) => ({ value: k, label: METRICS[k].tab }))} />
-      </CardHead>
-
-      <div className="flex flex-wrap items-end justify-between gap-3 px-4 pt-3">
-        <div className="flex items-end gap-6">
-          <div>
-            <p className="text-[11px] text-gray-500">{cfg.title}, last {range} days</p>
-            <p className="text-lg font-black tracking-tight text-gray-900 tabular-nums">{cfg.format(total)}</p>
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-[11px] text-gray-500">Best day</p>
-            <p className="text-sm font-bold text-gray-800 tabular-nums">{best && best.value > 0 ? `${best.label} · ${cfg.format(best.value)}` : NA}</p>
-          </div>
-        </div>
-        <Segmented label="Days shown" value={range} onChange={setRange}
-          options={[7, 14, 30].map((n) => ({ value: n as ChartRange, label: `${n} days` }))} />
-      </div>
-
-      {isEmpty ? (
-        <ChartEmptyState message={`No ${cfg.title.toLowerCase()} in the last ${range} days`} />
-      ) : (
-        <div className="flex-1 min-h-[240px] px-2 pt-2 select-none [&_.recharts-surface]:outline-none">
-          <ResponsiveContainer width="100%" height="100%" minHeight={240}>
-            <AreaChart data={sliced} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-              <defs>
-                <linearGradient id={`dash-${metric}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={cfg.color} stopOpacity={0.18} />
-                  <stop offset="100%" stopColor={cfg.color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f1f1" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} minTickGap={18} />
-              <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={44} allowDecimals={metric !== 'orders'}
-                tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} />
-              <Tooltip
-                contentStyle={{ fontSize: 11, borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
-                labelStyle={{ fontWeight: 700, color: '#111827' }}
-                formatter={(v) => [cfg.format(Number(v)), cfg.title]}
-              />
-              {/* No draw-in animation: the page refreshes every minute and the line should not replay each time. */}
-              <Area type="monotone" dataKey="value" name={cfg.title} stroke={cfg.color} strokeWidth={2} fill={`url(#dash-${metric})`} dot={false} isAnimationActive={false}
-                activeDot={{ r: 4, fill: cfg.color, strokeWidth: 1.5, stroke: '#fff' }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between px-4 py-3 mt-auto border-t border-gray-100">
-        <span className="text-[11px] text-gray-400">{shownDays ? `${chartDateLabel(shownDays.from)} to ${chartDateLabel(shownDays.to)}` : ''}</span>
-        <CardLink to={reportsHref(shownDays, 'trend')}>Open these days in Reports</CardLink>
-      </div>
-    </Card>
-  );
+function getInitials(name: string): string {
+  if (!name) return '??';
+  const clean = name.replace(/^(Dispute on #|Store App|Buyer ID)/i, '').trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// ─── Work queue ───────────────────────────────────────────────────────────────
+function formatWaitingTime(iso: string): string {
+  if (!iso) return 'Pending';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (isNaN(diffMs) || diffMs < 0) return 'Just now';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${mins}m waiting`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h waiting`;
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  if (remainingHours > 0) return `${days}d ${remainingHours}h waiting`;
+  return `${days}d waiting`;
+}
 
-function WorkQueue({ counts, className }: { counts: AdminOutletContext['navCounts']; className?: string }) {
-  const queues = adminQueues(counts);
-  const total = queues.reduce((sum, q) => sum + q.count, 0);
-  // Queues with work first, in the order the admin works them.
-  const ordered = [...queues.filter((q) => q.count > 0), ...queues.filter((q) => q.count === 0)];
+// ─── Compact Attention Feed Hub ────────────────────────────────────────────────
+
+function AttentionFeedHub({ items }: { items: DashboardFeed['attention_items'] }) {
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 p-6 text-center bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+        <div className="flex items-center justify-center border w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border-emerald-100">
+          <ShieldCheck className="w-5 h-5" />
+        </div>
+        <h3 className="text-xs font-bold text-gray-900">All Clear &amp; Processed</h3>
+        <p className="max-w-xs text-[11px] text-gray-400">No pending store applications, buyer ID checks, or customer dispute cases.</p>
+      </div>
+    );
+  }
+
+  const TYPE_META: Record<string, { label: string; bg: string; text: string; initialBg: string }> = {
+    seller_application: { label: 'Store App', bg: 'bg-rose-50', text: 'text-brand-red', initialBg: 'bg-rose-600 text-white' },
+    buyer_application:  { label: 'Buyer ID',  bg: 'bg-[#FFC107]/20 border border-[#FFC107]/40', text: 'text-[#854d0e]', initialBg: 'bg-[#d97706] text-white' }, // Mikado Gold
+    product_approval:   { label: 'Product',   bg: 'bg-amber-50', text: 'text-amber-700', initialBg: 'bg-amber-600 text-white' },
+    dispute:            { label: 'Dispute',   bg: 'bg-red-50',   text: 'text-red-600', initialBg: 'bg-red-600 text-white' },
+  };
 
   return (
-    <Card className={className}>
-      <CardHead title="Work queue" sub="What is waiting for Loved-IT right now">
-        {counts && (
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border tabular-nums ${total > 0 ? 'bg-rose-50 text-brand-red border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-            {total > 0 ? `${whole(total)} waiting` : 'All clear'}
-          </span>
-        )}
-      </CardHead>
-      {!counts ? (
-        <ul className="p-2 space-y-1 animate-pulse" aria-hidden="true">
-          {Array.from({ length: 8 }, (_, i) => <li key={i} className="h-11 rounded-xl bg-gray-50" />)}
-        </ul>
-      ) : (
-        <ul className="p-2">
-          {ordered.map(({ key, icon: Icon, title, detail, to, count }) => (
-            <li key={key}>
-              <Link
-                to={to}
-                className={`group flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/40 ${count === 0 ? 'opacity-60 hover:opacity-100' : ''}`}
+    <div className="flex flex-col justify-between h-full overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Priority Attention Queue</h3>
+        <span className="text-[10px] font-bold text-brand-red bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
+          {items.length} Action{items.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="divide-y divide-gray-100 overflow-y-auto max-h-[265px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((item) => {
+          const meta = TYPE_META[item.type] ?? { label: item.type, bg: 'bg-gray-50', text: 'text-gray-500', initialBg: 'bg-gray-600 text-white' };
+
+          return (
+            <Link
+              key={`${item.type}-${item.id}`}
+              to={item.link}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-gray-50/80 transition-colors group"
+            >
+              {item.avatar_url ? (
+                <img
+                  src={item.avatar_url}
+                  alt={item.label}
+                  className="w-7 h-7 rounded-lg object-cover shrink-0 border border-gray-200/80 shadow-2xs"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                    if (e.currentTarget.nextElementSibling) {
+                      (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                    }
+                  }}
+                />
+              ) : null}
+              <div
+                className={`w-7 h-7 rounded-lg items-center justify-center font-bold text-[10px] tracking-tight shrink-0 shadow-2xs ${
+                  item.avatar_url ? 'hidden' : 'flex'
+                } ${meta.initialBg}`}
               >
-                <Icon className={`w-4 h-4 shrink-0 ${count > 0 ? 'text-gray-700' : 'text-gray-400'}`} aria-hidden="true" />
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[12.5px] font-semibold text-gray-900 truncate group-hover:text-brand-red">{title}</span>
-                  <span className="block text-[11px] text-gray-400 truncate">{detail}</span>
-                </span>
-                {count > 0 ? (
-                  <span className="min-w-[26px] h-6 px-2 rounded-full bg-brand-red text-white text-[11px] font-bold flex items-center justify-center tabular-nums">
-                    {count > 99 ? '99+' : count}
+                {getInitials(item.label)}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${meta.bg} ${meta.text}`}>
+                    {meta.label}
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400">
-                    <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Clear
-                  </span>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+                  {item.urgent && (
+                    <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-100 flex items-center gap-0.5">
+                      <Clock className="w-2.5 h-2.5" /> {formatWaitingTime(item.waiting_since)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-bold leading-tight text-gray-900 truncate transition-colors group-hover:text-brand-red">
+                  {item.label}
+                </p>
+                <p className="text-[10px] text-gray-400 truncate mt-0.5">{item.sub} · {formatDate(item.waiting_since)}</p>
+              </div>
+
+              <div className="flex items-center justify-center w-6 h-6 text-gray-400 transition-all rounded-md bg-gray-50 group-hover:bg-brand-red group-hover:text-white shrink-0">
+                <ArrowRight className="w-3 h-3" />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="px-3.5 py-2 bg-gray-50/60 border-t border-gray-100 text-center">
+        <span className="text-[10px] text-gray-400">Respond within 24–48 hours to maintain marketplace SLA</span>
+      </div>
+    </div>
+  );
+}
+// ─── Compact Commission Revenue Breakdown Card ────────────────────────────────
+
+export function CommissionRevenueCard({ stats }: { stats: AdminStats }) {
+  const metrics = stats.metrics;
+  const animated = useCountUp(metrics?.commission ?? 0);
+
+  return (
+    <div className="flex flex-col justify-between h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex flex-col justify-between gap-2.5 pb-3 border-b border-gray-100 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center font-bold border rounded-lg text-emerald-600 border-emerald-100 w-7 h-7 bg-emerald-50 shrink-0">
+            <Coins className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Platform Commission Net</h3>
+            <p className="text-[11px] text-gray-400">Fees on the orders that count, last 30 days</p>
+          </div>
+        </div>
+        <Link
+          to={reportsHref(stats.window, 'commission')}
+          className="inline-flex items-center self-start gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f] sm:self-auto"
+        >
+          View in Reports <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      <div className="flex flex-col justify-between gap-3 pt-3 sm:flex-row sm:items-end">
+        <div>
+          <span className="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">Last 30 days</span>
+          <p className="mt-0.5 text-2xl font-black tracking-tight text-gray-900">
+            {metrics ? peso(animated) : NA}
+          </p>
+          <div className="mt-1">
+            <TrendBadge current={metrics?.commission} previous={stats.previous?.commission} label="previous 30 days" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 p-2 text-xs border border-gray-100 bg-gray-50/70 rounded-xl">
+          <div>
+            <span className="text-[9px] text-gray-400 block font-bold uppercase">Today</span>
+            <span className="text-xs font-bold text-gray-900">{peso(stats.commission_today)}</span>
+          </div>
+          <div>
+            <span className="text-[9px] text-gray-400 block font-bold uppercase">All time</span>
+            <Link to="/admin/reports?range=all#commission" className="text-xs font-bold text-brand-red hover:underline">
+              {peso(stats.commission_lifetime)}
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ─── Pipeline, payments, commission ───────────────────────────────────────────
+// ─── Compact Payment Split & Liquidity Card ───────────────────────────────────
+
+export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
+  const split = stats.payment_split;
+  const gcashVol   = split?.gcash.volume;
+  const codVol     = split?.cod.volume;
+  const totalVol   = split ? split.gcash.volume + split.cod.volume : null;
+  const totalCount = split?.total_orders ?? null;
+
+  const gcashPct = totalVol ? Math.round(((gcashVol ?? 0) / totalVol) * 100) : 0;
+  const codPct   = totalVol ? 100 - gcashPct : 0;
+
+  return (
+    <div className="flex flex-col justify-between h-full gap-3 p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center font-bold text-blue-600 border border-blue-100 rounded-lg w-7 h-7 bg-blue-50 shrink-0">
+            <QrCode className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Payment Breakdown</h3>
+            <p className="text-[11px] text-gray-400">GCash vs Cash on Delivery, last 30 days</p>
+          </div>
+        </div>
+        <span className="px-2 py-0.5 text-[10px] font-bold text-gray-500 bg-gray-100 rounded-md">
+          {totalCount === null ? NA : `${whole(totalCount)} Total`}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {/* Progress distribution bar */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-bold">
+            <span className="flex items-center gap-1 text-blue-600"><QrCode className="w-3 h-3" /> GCash ({totalVol ? percent(gcashPct) : NA})</span>
+            <span className="flex items-center gap-1 text-emerald-700"><Truck className="w-3 h-3" /> COD ({totalVol ? percent(codPct) : NA})</span>
+          </div>
+          <div className="flex w-full h-2 overflow-hidden bg-gray-100 rounded-full">
+            <div className="h-full transition-all duration-700 bg-blue-600" style={{ width: `${gcashPct}%` }} />
+            <div className="h-full transition-all duration-700 bg-emerald-500" style={{ width: `${codPct}%` }} />
+          </div>
+        </div>
+
+        {/* Breakdown Metric Pills */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100">
+            <div className="flex items-center justify-between mb-0.5 text-xs">
+              <span className="font-bold text-blue-700 text-[11px]">GCash</span>
+              <span className="text-[10px] text-gray-500">{split ? `${whole(split.gcash.count)} orders` : NA}</span>
+            </div>
+            <p className="text-sm font-black text-gray-900 sm:text-base">{peso(gcashVol)}</p>
+          </div>
+
+          <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
+            <div className="flex items-center justify-between mb-0.5 text-xs">
+              <span className="font-bold text-emerald-700 text-[11px]">Cash on Delivery</span>
+              <span className="text-[10px] text-gray-500">{split ? `${whole(split.cod.count)} orders` : NA}</span>
+            </div>
+            <p className="text-sm font-black text-gray-900 sm:text-base">{peso(codVol)}</p>
+          </div>
+        </div>
+
+        <Link to={reportsHref(stats.window, 'payments')} className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]">
+          View in Reports <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ─── Compact Orders Fulfillment Status Pipeline ───────────────────────────────
 
 const PIPELINE_COLORS: Record<string, string> = {
   awaiting_confirmation: '#F59E0B',
@@ -386,281 +628,312 @@ const PIPELINE_COLORS: Record<string, string> = {
   cancelled_problem:     '#EF4444',
 };
 
-function PipelineCard({ stats }: { stats: AdminStats }) {
+function OrdersBreakdownCard({ stats }: { stats: AdminStats }) {
   const pipeline = stats.pipeline;
   const groups = pipeline?.groups ?? [];
-  const total = pipeline?.total ?? 0;
+  const realTotal = pipeline?.total ?? 0;
+  const max = Math.max(...groups.map((g) => g.count), 1);
+  const animatedTotal = useCountUp(realTotal);
 
   return (
-    <Card>
-      <CardHead title="Order pipeline" sub="Orders placed in the last 30 days, by where they are now">
-        <span className="text-[11px] font-bold text-gray-700 tabular-nums">{pipeline ? whole(total) : NA}</span>
-      </CardHead>
-      <div className="flex-1 px-4 py-3">
-        {!pipeline ? (
-          <ChartEmptyState message={`Pipeline ${NA}`} />
-        ) : total === 0 ? (
-          <ChartEmptyState message="No orders placed in the last 30 days" />
-        ) : (
-          <>
-            <div className="flex w-full h-2.5 overflow-hidden rounded-full bg-gray-100" role="img"
-              aria-label={groups.map((g) => `${g.label}: ${g.count}`).join(', ')}>
-              {groups.filter((g) => g.count > 0).map((g) => (
-                <div key={g.key} className="h-full" style={{ width: `${(g.count / total) * 100}%`, background: PIPELINE_COLORS[g.key] ?? '#9CA3AF' }} />
-              ))}
-            </div>
-            <dl className="mt-3 divide-y divide-gray-50">
-              {groups.map((g) => (
-                <div key={g.key} className="flex items-center justify-between gap-3 py-1.5 text-[12px]">
-                  <dt className="flex items-center gap-2 min-w-0 text-gray-600">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIPELINE_COLORS[g.key] ?? '#9CA3AF' }} aria-hidden="true" />
-                    <span className="truncate">{g.label}</span>
-                  </dt>
-                  <dd className="flex items-center gap-2 tabular-nums">
-                    <span className="font-bold text-gray-900">{whole(g.count)}</span>
-                    <span className="w-9 text-right text-[11px] text-gray-400">{Math.round((g.count / total) * 100)}%</span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </>
-        )}
-      </div>
-      <div className="px-4 py-3 mt-auto border-t border-gray-100"><CardLink to={reportsHref(stats.window, 'pipeline')}>View in Reports</CardLink></div>
-    </Card>
-  );
-}
-
-function PaymentsCard({ stats }: { stats: AdminStats }) {
-  const split = stats.payment_split;
-  const rows = split ? [
-    { key: 'gcash', label: 'GCash', color: '#2563EB', ...split.gcash },
-    { key: 'cod', label: 'Cash on delivery', color: '#059669', ...split.cod },
-    ...(split.e_wallet_card && split.e_wallet_card.count > 0 ? [{ key: 'gateway', label: 'E-wallet or card', color: '#9CA3AF', ...split.e_wallet_card }] : []),
-  ] : [];
-  const volume = rows.reduce((sum, r) => sum + r.volume, 0);
-
-  return (
-    <Card>
-      <CardHead title="How buyers paid" sub="Orders that count, last 30 days">
-        <span className="text-[11px] font-bold text-gray-700 tabular-nums">{split ? `${whole(split.total_orders)} orders` : NA}</span>
-      </CardHead>
-      <div className="flex-1 px-4 py-3">
-        {!split || volume === 0 ? (
-          <ChartEmptyState message="No paid orders in the last 30 days" />
-        ) : (
-          <>
-            <div className="flex w-full h-2.5 overflow-hidden rounded-full bg-gray-100" role="img"
-              aria-label={rows.map((r) => `${r.label}: ${percent(Math.round((r.volume / volume) * 100))}`).join(', ')}>
-              {rows.map((r) => <div key={r.key} className="h-full" style={{ width: `${(r.volume / volume) * 100}%`, background: r.color }} />)}
-            </div>
-            <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: `repeat(${Math.min(rows.length, 2)}, minmax(0, 1fr))` }}>
-              {rows.map((r) => (
-                <div key={r.key} className="p-2.5 rounded-xl border border-gray-100 bg-gray-50/60 min-w-0">
-                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} aria-hidden="true" />
-                    <span className="truncate">{r.label}</span>
-                    <span className="ml-auto text-gray-400 tabular-nums">{Math.round((r.volume / volume) * 100)}%</span>
-                  </p>
-                  <p className="mt-1 text-sm font-black text-gray-900 tabular-nums truncate">{peso(r.volume)}</p>
-                  <p className="text-[11px] text-gray-400 tabular-nums">{whole(r.count)} order{r.count === 1 ? '' : 's'}</p>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-      <div className="px-4 py-3 mt-auto border-t border-gray-100"><CardLink to={reportsHref(stats.window, 'payments')}>View in Reports</CardLink></div>
-    </Card>
-  );
-}
-
-function CommissionCard({ stats }: { stats: AdminStats }) {
-  const today = manilaDay();
-  const monthStart = `${today.slice(0, 8)}01`;
-  const rows = [
-    { label: 'Today', value: stats.commission_today, to: reportsHref({ from: today, to: today }, 'commission') },
-    { label: 'This week', value: stats.commission_this_week, to: reportsHref({ from: weekStart(today), to: today }, 'commission') },
-    { label: 'This month', value: stats.commission_this_month, to: reportsHref({ from: monthStart, to: today }, 'commission') },
-    { label: 'Last 30 days', value: stats.metrics?.commission, to: reportsHref(stats.window, 'commission') },
-    { label: 'All time', value: stats.commission_lifetime, to: '/admin/reports?range=all#commission' },
-  ];
-  const rate = stats.metrics?.avg_commission_rate;
-
-  return (
-    <Card>
-      <CardHead title="Commission earned" sub="Stored fees on orders that count">
-        <span className="text-[11px] text-gray-500">Avg rate <span className="font-bold text-gray-800 tabular-nums">{rate === null || rate === undefined ? NA : percent(rate)}</span></span>
-      </CardHead>
-      <ul className="flex-1 px-2 py-2">
-        {rows.map((r) => (
-          <li key={r.label}>
-            <Link to={r.to} className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-lg text-[12.5px] hover:bg-gray-50 group focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/40">
-              <span className="text-gray-600 group-hover:text-gray-900">{r.label}</span>
-              <span className="font-bold text-gray-900 tabular-nums">{peso(r.value)}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <div className="px-4 py-3 mt-auto border-t border-gray-100"><CardLink to={reportsHref(stats.window, 'commission')}>View in Reports</CardLink></div>
-    </Card>
-  );
-}
-
-// ─── Waiting longest, recent activity ─────────────────────────────────────────
-
-const TYPE_LABEL: Record<string, string> = {
-  seller_application: 'Seller application',
-  buyer_application: 'Buyer ID check',
-  product_approval: 'Product on hold',
-  dispute: 'Dispute',
-};
-
-function WaitingCard({ items, className }: { items: DashboardAttentionItem[]; className?: string }) {
-  const oldest = [...items].sort((a, b) => new Date(a.waiting_since).getTime() - new Date(b.waiting_since).getTime()).slice(0, 8);
-  return (
-    <Card className={className}>
-      <CardHead title="Waiting longest" sub="Oldest first; over 48 hours is marked" />
-      {oldest.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1 gap-1.5 py-10 text-center">
-          <CheckCircle2 className="w-6 h-6 text-emerald-500" aria-hidden="true" />
-          <p className="text-xs font-semibold text-gray-700">Nothing is waiting</p>
-          <p className="text-[11px] text-gray-400">No applications, held products or disputes.</p>
+    <div className="flex flex-col justify-between h-full gap-3 p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Fulfillment Pipeline</h3>
+          <p className="text-[11px] text-gray-400">Orders placed in the last 30 days, by where they are now</p>
         </div>
-      ) : (
-        <ul className="divide-y divide-gray-50">
-          {oldest.map((item) => (
-            <li key={`${item.type}-${item.id}`}>
-              <Link to={item.link} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/80 transition-colors group focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-red/40">
-                <Avatar url={item.avatar_url} name={item.label} />
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[12.5px] font-semibold text-gray-900 truncate group-hover:text-brand-red">{item.label}</span>
-                  <span className="block text-[11px] text-gray-400 truncate">{TYPE_LABEL[item.type] ?? item.sub}{item.sub && TYPE_LABEL[item.type] ? ` · ${item.sub}` : ''}</span>
-                </span>
-                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums shrink-0 ${item.urgent ? 'text-rose-600' : 'text-gray-500'}`}>
-                  <Clock className="w-3 h-3" aria-hidden="true" /> {waited(item.waiting_since)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
+        <span className="px-2 py-0.5 text-[10px] font-bold text-gray-700 bg-gray-100 rounded-md">
+          {pipeline ? `${whole(animatedTotal)} Total` : NA}
+        </span>
+      </div>
 
-function Avatar({ url, name }: { url?: string | null; name: string }) {
-  const [broken, setBroken] = useState(false);
-  if (url && !broken) {
-    return <img src={url} alt="" onError={() => setBroken(true)} className="object-cover w-8 h-8 border rounded-lg border-gray-200/80 shrink-0" />;
-  }
-  return (
-    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-gray-600 text-[10px] font-bold shrink-0" aria-hidden="true">
-      {initials(name)}
-    </span>
-  );
-}
-
-function ActivityCard({ activities, className }: { activities: DashboardFeed['recent_activity']; className?: string }) {
-  return (
-    <Card className={className}>
-      <CardHead title="Recent admin activity"><CardLink to="/admin/activity-log">Full log</CardLink></CardHead>
-      {activities.length === 0 ? (
-        <ChartEmptyState message="No admin actions recorded yet" />
+      {!pipeline ? (
+        <ChartEmptyState message={`Pipeline ${NA}`} />
+      ) : realTotal === 0 ? (
+        <ChartEmptyState message="No orders placed in the last 30 days" />
       ) : (
-        <ol className="px-4 py-2">
-          {activities.map((a, i) => (
-            <li key={a.id} className="relative flex gap-3 py-2">
-              {i < activities.length - 1 && <span className="absolute left-[3px] top-5 bottom-[-8px] w-px bg-gray-100" aria-hidden="true" />}
-              <span className="w-[7px] h-[7px] mt-1.5 rounded-full bg-gray-300 shrink-0" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="text-[12.5px] text-gray-800 leading-snug">{a.description}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  <span className="font-semibold text-gray-500">{[a.admin.first_name, a.admin.last_name].filter(Boolean).join(' ') || 'System'}</span>
-                  {' · '}<time dateTime={a.created_at} title={new Date(a.created_at).toLocaleString('en-PH', { timeZone: TZ })}>{ago(a.created_at)}</time>
-                </p>
+        <div className="space-y-2">
+          {groups.map((g) => {
+            const pct = Math.round((g.count / realTotal) * 100);
+            return (
+              <div key={g.key} className="space-y-0.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-medium text-gray-700">{g.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-gray-900">{g.count}</span>
+                    <span className="text-[10px] text-gray-400 font-medium w-6 text-right">{pct}%</span>
+                  </div>
+                </div>
+                <div className="h-1.5 overflow-hidden bg-gray-100 rounded-full">
+                  <div
+                    className="h-full transition-all duration-700 rounded-full"
+                    style={{ width: `${(g.count / max) * 100}%`, background: PIPELINE_COLORS[g.key] ?? '#9CA3AF' }}
+                  />
+                </div>
               </div>
-            </li>
-          ))}
-        </ol>
+            );
+          })}
+        </div>
       )}
-    </Card>
+
+      <Link to={reportsHref(stats.window, 'pipeline')} className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]">
+        View in Reports <ArrowRight className="w-3 h-3" />
+      </Link>
+    </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Compact Recent Admin Activity Stream ─────────────────────────────────────
 
-function Skeleton({ className }: { className: string }) {
-  return <div className={`bg-white border border-gray-200/80 rounded-2xl animate-pulse ${className}`} aria-hidden="true" />;
+function RecentActivityStream({ activities }: { activities: DashboardFeed['recent_activity'] }) {
+  if (!activities || activities.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-1.5 p-6 text-center bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+        <Activity className="w-6 h-6 text-gray-300" />
+        <p className="text-[11px] text-gray-400">No activity logs registered yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col justify-between h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
+        <div>
+          <h3 className="text-xs font-bold tracking-wider text-gray-900 uppercase">Audit &amp; Activity Log</h3>
+          <p className="text-[11px] text-gray-400">Recent administrative operations</p>
+        </div>
+        <Link to="/admin/activity-log" className="flex items-center gap-1 text-[11px] font-bold text-brand-red hover:underline">
+          Full Log <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      <div className="divide-y divide-gray-100 overflow-y-auto max-h-[220px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {activities.map((act) => (
+          <div key={act.id} className="flex items-start gap-2.5 py-2">
+            <div className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-gray-600 shrink-0 mt-0.5">
+              <Activity className="w-3 h-3" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold leading-snug text-gray-900">{act.description}</p>
+              <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400">
+                <span className="font-semibold text-gray-600">{act.admin.first_name} {act.admin.last_name}</span>
+                <span>•</span>
+                <span>{formatDate(act.created_at)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
+
+// ─── Main Admin Dashboard Page Component ──────────────────────────────────────
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
-  const { navCounts } = useOutletContext<AdminOutletContext>();
-  const userName = user ? [user.first_name, user.last_name].filter(Boolean).join(' ') : '';
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [feed, setFeed] = useState<DashboardFeed | null>(null);
+  const userName = user ? `${user.first_name} ${user.last_name}` : '';
+  const [stats, setStats]     = useState<AdminStats | null>(null);
+  const [feed, setFeed]       = useState<DashboardFeed | null>(null);
   const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [failed, setFailed]   = useState(false);
 
-  // `quiet` is the live refresh: no skeletons, and a failed attempt keeps what is shown.
-  const load = useCallback((quiet = false) => {
-    if (!quiet) { setLoading(true); setFailed(false); }
+  const pageRef = useMountAnim();
+
+  function load() {
+    setLoading(true);
+    setFailed(false);
     Promise.all([getAdminStatsApi(), getAdminDashboardFeedApi()])
-      .then(([s, f]) => { setStats(s); setFeed(f); setUpdatedAt(new Date()); setFailed(false); })
-      .catch(() => { if (!quiet) setFailed(true); })
-      .finally(() => { if (!quiet) setLoading(false); });
-  }, []);
+      .then(([s, f]) => { setStats(s); setFeed(f); })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  }
 
-  useEffect(() => { load(); }, [load]);
-  useLiveRefresh(() => load(true), REFRESH_MS);
+  useEffect(load, []);
 
-  const queues = adminQueues(navCounts);
-  const waiting = navCounts ? queues.reduce((sum, q) => sum + q.count, 0) : null;
-  const openQueues = queues.filter((q) => q.count > 0).length;
+  const skeletonCard = (key: number) => <StatCardSkeleton key={key} />;
+
+  const metrics = stats?.metrics;
+  const previous = stats?.previous;
 
   return (
-    <div className="pb-8 space-y-4">
-      <Header name={userName} waiting={waiting} queues={openQueues} updatedAt={updatedAt} />
+    <div ref={pageRef} className="pb-8 space-y-4">
+
+      {/* ── 1. Compact Executive Hero Header ── */}
+      <HeroBand stats={stats} userName={userName} />
 
       {failed && (
         <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
           <span>The dashboard figures could not be loaded.</span>
-          <button type="button" onClick={() => load()} className="px-3 py-1 text-xs font-bold text-white rounded-lg bg-brand-red hover:bg-brand-red-dark">Try again</button>
+          <button onClick={load} className="px-3 py-1 text-xs font-bold text-white bg-brand-red rounded-lg hover:bg-[#8e2424]">Retry</button>
         </div>
       )}
 
-      {/* Last 30 days at a glance; each figure opens the same section of Analytics & Reports */}
-      {loading && !stats ? <Skeleton className="h-[148px]" /> : stats ? <KpiStrip stats={stats} chart={feed?.chart_data ?? []} /> : null}
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {loading && !feed ? <Skeleton className="lg:col-span-8 h-[360px]" /> : feed ? <TrendCard data={feed.chart_data} className="lg:col-span-8" /> : null}
-        <WorkQueue counts={navCounts} className="lg:col-span-4" />
+      {/* ── 2. Moderation Action Center (Top Priority) ── */}
+      <div>
+        <SectionHeader
+          title="Moderation &amp; Action Hub"
+          icon={Gauge}
+        />
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[1, 2, 3, 4].map(skeletonCard)}
+          </div>
+        ) : stats ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <ActionCard
+              icon={Store}
+              label="Seller Applications"
+              value={stats.pending_seller_applications}
+              to="/admin/seller-applications"
+              badgeLabel="Review"
+              iconBg="bg-rose-50"
+              iconColor="text-brand-red"
+              accentBorder="border-rose-200 shadow-rose-50"
+              description="Store approval &amp; permits"
+            />
+            <ActionCard
+              icon={UserPlus}
+              label="Buyer ID Verifications"
+              value={stats.pending_buyer_applications ?? 0}
+              to="/admin/buyer-applications"
+              badgeLabel="Verify"
+              iconBg="bg-blue-50"
+              iconColor="text-blue-600"
+              accentBorder="border-blue-200 shadow-blue-50"
+              description="Gov ID &amp; selfie checks"
+            />
+            <ActionCard
+              icon={Package}
+              label="Product Reviews"
+              value={stats.pending_products ?? 0}
+              to="/admin/products"
+              badgeLabel="Review"
+              iconBg="bg-amber-50"
+              iconColor="text-amber-600"
+              accentBorder="border-amber-200 shadow-amber-50"
+              description="FDA permit &amp; compliance"
+            />
+            <ActionCard
+              icon={ShieldAlert}
+              label="Open Disputes"
+              value={stats.open_disputes}
+              to="/admin/disputes"
+              badgeLabel="Mediate"
+              iconBg="bg-red-50"
+              iconColor="text-red-600"
+              accentBorder="border-red-200 shadow-red-50"
+              description="Returns &amp; refunds"
+            />
+          </div>
+        ) : null}
       </div>
 
-      {loading && !stats ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Skeleton className="h-72" /><Skeleton className="h-72" /><Skeleton className="h-72" />
+      {/* ── 3. Marketplace Velocity & Core Performance (last 30 days) ── */}
+      <div>
+        <SectionHeader
+          title="Marketplace Performance · Last 30 Days"
+          to={reportsHref(stats?.window, undefined)}
+          icon={Activity}
+        />
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[1, 2, 3, 4].map(skeletonCard)}
+          </div>
+        ) : stats ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              icon={Wallet}
+              label="Gross Sales (GMV)"
+              value={metrics?.gmv}
+              money
+              subtext="Orders that count, shipping included"
+              iconBg="bg-rose-50"
+              iconColor="text-brand-red"
+              trendEl={<TrendBadge current={metrics?.gmv} previous={previous?.gmv} label="prior 30 days" />}
+              to={reportsHref(stats.window, 'sales')}
+            actionLabel="View in Reports"
+            />
+            <StatCard
+              icon={Coins}
+              label="Platform Net Commission"
+              value={metrics?.commission}
+              money
+              subtext="Stored fees on those orders"
+              iconBg="bg-emerald-50"
+              iconColor="text-emerald-600"
+              trendEl={<TrendBadge current={metrics?.commission} previous={previous?.commission} label="prior 30 days" />}
+              to={reportsHref(stats.window, 'commission')}
+            actionLabel="View in Reports"
+            />
+            <StatCard
+              icon={PackageCheck}
+              label="Orders"
+              value={metrics?.orders}
+              subtext={metrics ? `${whole(metrics.orders_placed)} placed, ${whole(metrics.cancelled_orders)} cancelled, ${whole(metrics.returned_orders)} returned` : undefined}
+              iconBg="bg-violet-50"
+              iconColor="text-violet-600"
+              trendEl={<TrendBadge current={metrics?.orders} previous={previous?.orders} label="prior 30 days" />}
+              to={reportsHref(stats.window, 'orders')}
+            actionLabel="View in Reports"
+            />
+            <StatCard
+              icon={Users}
+              label="Active Buyers · Sellers"
+              value={metrics ? `${whole(metrics.active_buyers)} Buyers · ${whole(metrics.active_sellers)} Sellers` : null}
+              subtext={`Ordered or sold in 30 days · ${whole(stats.total_buyers)} buyer accounts, ${whole(stats.total_sellers)} shops`}
+              iconBg="bg-indigo-50"
+              iconColor="text-indigo-600"
+              to={reportsHref(stats.window, 'activity')}
+            actionLabel="View in Reports"
+            />
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── 4. Main Analytics Chart & Urgent Attention Feed (2-Column) ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 animate-pulse">
+          <div className="lg:col-span-7 bg-white border border-gray-200/80 rounded-2xl h-[310px]" />
+          <div className="lg:col-span-5 bg-white border border-gray-200/80 rounded-2xl h-[310px]" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <AnalyticsTrendChart data={feed?.chart_data ?? []} />
+          </div>
+          <div className="lg:col-span-5">
+            <AttentionFeedHub items={feed?.attention_items ?? []} />
+          </div>
+        </div>
+      )}
+
+      {/* ── 5. Revenue & Payment Liquidity (2-Column) ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 animate-pulse">
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
         </div>
       ) : stats ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <PipelineCard stats={stats} />
-          <PaymentsCard stats={stats} />
-          <CommissionCard stats={stats} />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <CommissionRevenueCard stats={stats} />
+          <PaymentSplitCard stats={stats} />
         </div>
       ) : null}
 
-      {loading && !feed ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <Skeleton className="lg:col-span-7 h-64" /><Skeleton className="lg:col-span-5 h-64" />
+      {/* ── 6. Order Fulfillment Pipeline & Admin Audit Stream (2-Column) ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 animate-pulse">
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
+          <div className="bg-white border border-gray-200/80 rounded-2xl h-52" />
         </div>
-      ) : feed ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <WaitingCard items={feed.attention_items} className="lg:col-span-7" />
-          <ActivityCard activities={feed.recent_activity} className="lg:col-span-5" />
+      ) : stats && feed ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <OrdersBreakdownCard stats={stats} />
+          <RecentActivityStream activities={feed.recent_activity} />
         </div>
       ) : null}
+
     </div>
   );
 }
