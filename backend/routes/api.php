@@ -298,6 +298,12 @@ Route::prefix('v1')->group(function () {
 
         // Cart on the server (B6): only the buyer's own lines
         $cart = \App\Http\Controllers\Api\V1\CartController::class;
+        // Recently viewed products and recent searches (written by GET /products/{id} and GET /products?q=)
+        Route::get('/me/recently-viewed', [PublicProductController::class, 'recentlyViewed']);
+        Route::delete('/me/recently-viewed', [PublicProductController::class, 'clearRecentlyViewed']);
+        Route::get('/me/search-history', [PublicProductController::class, 'searchHistory']);
+        Route::delete('/me/search-history', [PublicProductController::class, 'clearSearchHistory']);
+        Route::delete('/me/search-history/{id}', [PublicProductController::class, 'clearSearchHistory'])->whereNumber('id');
         Route::get('/cart', [$cart, 'index']);
         Route::post('/cart/items', [$cart, 'store']);
         Route::patch('/cart/items/{line}', [$cart, 'update'])->whereNumber('line');
