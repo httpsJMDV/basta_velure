@@ -168,7 +168,9 @@ export default function LogisticsTrucksPage() {
                         </td>
                         <td className={`${TD} text-gray-600 whitespace-nowrap`}>{d.vehicle_type} · <span className="font-mono text-[12px]">{d.plate_number}</span></td>
                         <td className={TD}>
-                          {d.status !== 'ACTIVE' ? <Pill tone="gray">{d.status === 'PENDING_ACTIVATION' ? 'Not activated yet' : d.status.toLowerCase()}</Pill>
+                          {d.status === 'PENDING' ? (
+                            <Link to="/logistics/riders" className="inline-flex"><Pill tone="amber">Application: review in Riders</Pill></Link>
+                          ) : d.status !== 'ACTIVE' ? <Pill tone="gray">{d.status === 'PENDING_ACTIVATION' ? 'Not activated yet' : d.status.toLowerCase()}</Pill>
                             : d.current_trip ? (
                               <span className="text-[12px] text-gray-700">To {d.current_trip.to_hub?.name} · {d.current_trip.received_count}/{d.current_trip.parcel_count}</span>
                             ) : <span className="text-[12px] text-gray-400">Free</span>}

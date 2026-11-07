@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowRight, ChevronDown, ChevronUp, Clock, RefreshCw, Truck } from 'lucide-react';
-import { getHubTransfersApi, getHubTruckDriversApi, getHubTruckTripsApi, sendHubTransferApi } from '../../api/client';
+import { getHubTransfersApi, getHubTruckDriversApi, getHubTruckTripsApi, receiveHubTruckTripApi, sendHubTransferApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import type { HubTransferGroup, HubTruckDriver, TruckTrip } from '../../types';
 
@@ -20,11 +20,34 @@ function clock(iso: string | null): string {
   return iso ? new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : '';
 }
 
-/** One truck on the road, to or from this hub: who drives it, and how many of its parcels the next hub has scanned. */
-function TripRow({ trip, incoming }: { trip: TruckTrip; incoming: boolean }) {
+/**
+ * One truck on the road, to or from this hub: who drives it, and how many of its parcels the next hub has scanned. A
+ * truck coming here can be received in one go, like scanning one sack: tick any parcel that was not on it.
+ */
+function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: boolean; onReceived?: () => void }) {
+  const { showToast } = useToast();
   const other = incoming ? trip.from_hub : trip.to_hub;
   const done = trip.received_count;
   const pct = trip.parcel_count > 0 ? Math.round((done / trip.parcel_count) * 100) : 0;
+  const waiting = (trip.parcels ?? []).filter((p) => !p.received && p.tracking_number);
+  const [open, setOpen] = useState(false);
+  const [missing, setMissing] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const receive = async () => {
+    setBusy(true);
+    try {
+      showToast((await receiveHubTruckTripApi(trip.id, missing)).message);
+      setOpen(false);
+      setMissing([]);
+      onReceived?.();
+    } catch (err: unknown) {
+      showToast(axios.isAxiosError(err) ? err.response?.data?.message ?? 'The truck could not be received.' : 'The truck could not be received.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <li className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
       <div className="min-w-0">
@@ -47,7 +70,41 @@ function TripRow({ trip, incoming }: { trip: TruckTrip; incoming: boolean }) {
         <span className="text-xs font-semibold text-gray-700 tabular-nums whitespace-nowrap">
           {done} of {trip.parcel_count} scanned in
         </span>
+        {incoming && waiting.length > 0 && !open && (
+          <button type="button" onClick={() => setOpen(true)} className="px-3 text-xs font-semibold text-white rounded-lg min-h-9 bg-gray-900 hover:bg-black whitespace-nowrap">
+            Receive all {waiting.length}
+          </button>
+        )}
       </div>
+      {open && (
+        <div className="p-3 border border-gray-200 sm:col-span-2 rounded-xl bg-gray-50">
+          <p className="text-xs text-gray-700">
+            Count the parcels off the truck. Tick any that is <span className="font-semibold">not</span> on it; it stays expected until someone scans it in.
+          </p>
+          <ul className="grid gap-1 mt-2 sm:grid-cols-2 lg:grid-cols-3">
+            {waiting.map((p) => {
+              const tn = p.tracking_number as string;
+              const off = missing.includes(tn);
+              return (
+                <li key={tn}>
+                  <label className="flex items-center gap-2 font-mono text-xs text-gray-800 cursor-pointer min-h-8">
+                    <input type="checkbox" checked={off} onChange={() => setMissing((m) => (off ? m.filter((x) => x !== tn) : [...m, tn]))} className="accent-brand-red" />
+                    <span className={off ? 'line-through text-gray-400' : ''}>{tn}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex justify-end gap-2 mt-3">
+            <button type="button" disabled={busy} onClick={() => { setOpen(false); setMissing([]); }} className="px-3 text-xs font-semibold text-gray-700 rounded-lg min-h-9 hover:bg-gray-100">Cancel</button>
+            <button type="button" disabled={busy || missing.length === waiting.length} onClick={() => void receive()}
+              className="inline-flex items-center gap-1.5 px-4 text-xs font-semibold text-white rounded-lg min-h-9 bg-brand-red hover:bg-brand-red-dark disabled:opacity-50">
+              {busy && <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
+              Receive {waiting.length - missing.length} parcel{waiting.length - missing.length === 1 ? '' : 's'}
+            </button>
+          </div>
+        </div>
+      )}
     </li>
   );
 }
@@ -148,7 +205,7 @@ export default function HubTransfersPanel() {
             </Link>
           </div>
           <ul className="divide-y divide-gray-100">
-            {incoming.map((trip) => <TripRow key={trip.id} trip={trip} incoming />)}
+            {incoming.map((trip) => <TripRow key={trip.id} trip={trip} incoming onReceived={() => void load()} />)}
           </ul>
         </div>
       )}

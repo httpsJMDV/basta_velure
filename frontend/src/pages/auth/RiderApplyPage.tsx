@@ -19,9 +19,20 @@ import {
 } from '../../utils/accountRules';
 
 const VEHICLES = ['Motorcycle', 'Tricycle', 'Car', 'Van'].map((v) => ({ value: v, label: v }));
+const TRUCKS = ['Truck', 'Van'].map((v) => ({ value: v, label: v }));
+
+type Duty = 'delivery' | 'truck';
+
+/** The two jobs: a rider picks up and delivers; a truck driver carries parcels between the courier's hubs. */
+const JOBS: { value: Duty; title: string; text: string }[] = [
+  { value: 'delivery', title: 'Rider', text: 'Pick up from shops and deliver to buyers. The hub reviews you.' },
+  { value: 'truck', title: 'Truck driver', text: 'Drive parcels from one hub to another. The courier company reviews you and pays per trip.' },
+];
 
 // Rider pay follows config/shipping.php (A33), the same figures the Partner page shows.
 const PAY = [{ label: 'Per completed pickup', value: '₱30' }, { label: 'Per successful delivery', value: '₱50' }];
+// Truck pay is set by each courier (docs/api/truck-trips.md); ₱800 unless it changed it.
+const TRUCK_PAY = [{ label: 'Per trip between hubs', value: 'Set by the courier' }, { label: 'Paid by', value: 'The courier' }];
 
 const FIELD_LABELS: Record<string, string> = {
   sorting_center_id: 'Hub', first_name: 'First name', last_name: 'Last name', date_of_birth: 'Date of birth', email: 'Email',
@@ -62,6 +73,8 @@ export default function RiderApplyPage() {
   const [browsing, setBrowsing] = useState(!linkedHub);
   const [query, setQuery] = useState('');
 
+  const [duty, setDuty] = useState<Duty>(params.get('job') === 'truck' ? 'truck' : 'delivery');
+  const truck = duty === 'truck';
   const [form, setForm] = useState(EMPTY);
   const [license, setLicense] = useState<File | null>(null);
   const [orCr, setOrCr] = useState<File | null>(null);
@@ -104,9 +117,9 @@ export default function RiderApplyPage() {
       <Shell>
         <PendingStatus
           title={`Sent to ${sent.data.hub}`}
-          note={`We emailed ${sent.data.email} a copy. The hub usually decides within 1 to 3 business days. You can't sign in until they approve you.`}
+          note={`We emailed ${sent.data.email} a copy. ${truck ? 'The courier company' : 'The hub'} usually decides within 1 to 3 business days. You can't sign in until they approve you.`}
           steps={[
-            { icon: ShieldCheck, label: 'The hub checks your papers', sub: "Driver's license, OR/CR and your vehicle" },
+            { icon: ShieldCheck, label: truck ? 'The courier company checks your papers' : 'The hub checks your papers', sub: "Driver's license, OR/CR and your vehicle" },
             { icon: Mail, label: 'Approval email', sub: 'It has a link to set your password (works for 24 hours)' },
             { icon: KeyRound, label: 'Set your password and go Online', sub: 'Sign in on the rider page and start taking jobs' },
           ]}
@@ -146,6 +159,7 @@ export default function RiderApplyPage() {
 
     const fd = new FormData();
     fd.append('sorting_center_id', String(hubId));
+    fd.append('duty', duty);
     Object.entries(form).forEach(([k, v]) => fd.append(k, k === 'email' ? v.trim().toLowerCase() : v.trim()));
     fd.append('drivers_license_image', license as File);
     fd.append('or_cr_image', orCr as File);
@@ -182,10 +196,12 @@ export default function RiderApplyPage() {
   const rail = (
     <ApplyRail
       checklist={checklist}
-      facts={PAY}
-      approver={hub
-        ? `${hub.hub_name}${hub.courier ? ` (${hub.courier.name})` : ''} checks your papers and emails you the decision. Their courier company can decide too.`
-        : 'The hub you choose checks your papers and emails you the decision. Their courier company can decide too.'}
+      facts={truck ? TRUCK_PAY : PAY}
+      approver={truck
+        ? `${hub?.courier?.name ?? 'The courier company of the hub you choose'} checks your papers and emails you the decision.`
+        : hub
+          ? `${hub.hub_name}${hub.courier ? ` (${hub.courier.name})` : ''} checks your papers and emails you the decision. Their courier company can decide too.`
+          : 'The hub you choose checks your papers and emails you the decision. Their courier company can decide too.'}
       footnote={<>Already approved? <Link to="/rider/login" className="font-semibold text-stone-700 underline underline-offset-2 hover:text-brand-red">Sign in as a rider</Link>.</>}
     />
   );
@@ -210,7 +226,22 @@ export default function RiderApplyPage() {
       <FormErrorSummary errors={errors} labels={FIELD_LABELS} />
 
       <form onSubmit={submit} noValidate className="space-y-4">
-        <ApplySection n={1} title="Your hub" hint="Where you pick up and drop off parcels. Choose the one closest to where you live."
+        <div role="radiogroup" aria-label="The job you are applying for" className="grid gap-2 sm:grid-cols-2">
+          {JOBS.map((j) => {
+            const on = duty === j.value;
+            return (
+              <button key={j.value} type="button" role="radio" aria-checked={on}
+                onClick={() => { setDuty(j.value); setForm((f) => ({ ...f, vehicle_type: (j.value === 'truck' ? TRUCKS : VEHICLES).some((v) => v.value === f.vehicle_type) ? f.vehicle_type : '' })); }}
+                className={`text-left p-4 rounded-2xl border transition-colors ${on ? 'border-stone-900 bg-white ring-1 ring-stone-900' : 'border-stone-200 bg-white hover:border-stone-400'}`}>
+                <span className="block text-[14px] font-bold text-stone-900">{j.title}</span>
+                <span className="block mt-0.5 text-[12.5px] leading-snug text-stone-600">{j.text}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <ApplySection n={1} title={truck ? 'Your home hub' : 'Your hub'}
+          hint={truck ? 'Where your truck starts and comes back to. You carry parcels between this courier\'s hubs.' : 'Where you pick up and drop off parcels. Choose the one closest to where you live.'}
           action={hub && !browsing ? (
             <button type="button" onClick={() => setBrowsing(true)} className="h-8 px-3 rounded-full border border-stone-300 text-[12px] font-semibold text-stone-700 hover:border-stone-900 shrink-0">Change</button>
           ) : undefined}>
@@ -258,7 +289,7 @@ export default function RiderApplyPage() {
           <div className="grid sm:grid-cols-2 gap-3">
             <Input id="ra-license" label="Driver's license no." placeholder="N01-23-456789" value={form.license_number} onChange={(e) => set('license_number', e.target.value.toUpperCase())} error={errors.license_number} />
             <Input id="ra-expiry" label="License expiry date" type="date" min={manilaToday()} value={form.license_expiry} onChange={(e) => set('license_expiry', e.target.value)} error={errors.license_expiry} />
-            <CustomSelect label="Vehicle type" required value={form.vehicle_type} onChange={(v) => set('vehicle_type', v)} options={VEHICLES} placeholder="Choose" error={errors.vehicle_type} />
+            <CustomSelect label="Vehicle type" required value={form.vehicle_type} onChange={(v) => set('vehicle_type', v)} options={truck ? TRUCKS : VEHICLES} placeholder="Choose" error={errors.vehicle_type} />
             <Input id="ra-plate" label="Plate number" placeholder="123ABC" value={form.plate_number} onChange={(e) => set('plate_number', e.target.value.toUpperCase())} error={errors.plate_number} />
           </div>
         </ApplySection>

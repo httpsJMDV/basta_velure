@@ -143,6 +143,51 @@ class HubTransferController extends Controller
         });
     }
 
+    /**
+     * POST /api/v1/hub/truck-trips/{trip}/receive {missing?: [tracking numbers]}: the next hub receives a whole truck at
+     * once, like scanning one sack instead of every parcel. Parcels named as missing stay expected (a scan finds them
+     * later, or the courier closes the trip). Only the hub the truck is going to, while it is on the way.
+     */
+    public function receiveTrip(Request $request, int $trip): JsonResponse
+    {
+        $hub = $this->hub($request);
+        $data = $request->validate([
+            'missing'   => ['nullable', 'array', 'max:' . self::MAX_SEND_BATCH],
+            'missing.*' => ['string', 'max:50'],
+        ]);
+        $missing = array_map(fn ($tn) => Str::upper(trim((string) $tn)), $data['missing'] ?? []);
+
+        return DB::transaction(function () use ($request, $hub, $trip, $missing) {
+            $row = TruckTrip::where('to_hub_id', $hub->id)->lockForUpdate()->find($trip);
+            abort_unless($row, 404, 'Trip not found.');
+            if ($row->status !== TruckTrip::STATUS_ON_THE_WAY) {
+                return response()->json(['message' => 'This trip is already finished.'], 409);
+            }
+
+            $parcels = Parcel::with('order')
+                ->whereIn('id', ParcelHubStop::where('truck_trip_id', $row->id)->whereNull('arrived_at')->select('parcel_id'))
+                ->where('sorting_center_id', $hub->id)->whereNotNull('transit_since')
+                ->lockForUpdate()->get();
+            $received = 0;
+            foreach ($parcels as $parcel) {
+                if (in_array(Str::upper((string) $parcel->tracking_number), $missing, true)) {
+                    continue;
+                }
+                $this->router->arrive($parcel, $hub, $request->user());
+                $received++;
+            }
+            $row->refresh();
+
+            return response()->json([
+                'message' => $row->status === TruckTrip::STATUS_COMPLETED
+                    ? "Received all {$row->parcel_count} parcels of trip {$row->code}. Sort them as usual."
+                    : "Received {$received} parcels. " . ($row->parcel_count - $row->received_count) . ' are still missing; scan them in when found, or ask the courier to close the trip.',
+                'received' => $received,
+                'data'     => $this->trucks->payload($row, true),
+            ]);
+        });
+    }
+
     /** GET /api/v1/hub/truck-drivers: the courier's active truck drivers, and whether each is free to drive now. */
     public function drivers(Request $request): JsonResponse
     {

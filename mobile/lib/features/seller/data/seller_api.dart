@@ -228,6 +228,24 @@ class SellerApi {
   );
 
   /// `active` to show it in the shop, `archived` to hide it.
+  // Vacation mode --------------------------------------------------------------------------------------------------
+
+  /// Whether the shop is on vacation (buyers can look but not buy).
+  Future<bool> onVacation() async => asBool(
+    asJson((await _call('GET', '/seller/shop-profile'))['data'])['on_vacation'],
+  );
+
+  /// Turn vacation mode on or off. Returns the new state.
+  Future<bool> setVacation(bool on) async => asBool(
+    asJson(
+      (await _call(
+        'POST',
+        '/seller/shop-profile',
+        data: {'on_vacation': on},
+      ))['data'],
+    )['on_vacation'],
+  );
+
   Future<String> setProductStatus(int productId, String status) async =>
       _message(
         await _call(

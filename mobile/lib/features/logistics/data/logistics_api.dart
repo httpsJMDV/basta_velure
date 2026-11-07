@@ -239,6 +239,18 @@ class HubApi extends _LogisticsApi {
           .map(HubTruckDriver.fromJson)
           .toList();
 
+  /// Receive a whole truck at once; [missing] names parcels that were not on it (they stay expected).
+  Future<String> receiveTruckTrip(
+    int tripId, {
+    List<String> missing = const [],
+  }) async {
+    final body = await _send(
+      '/hub/truck-trips/$tripId/receive',
+      data: {'missing': missing},
+    );
+    return asString(body['message']) ?? 'Truck received.';
+  }
+
   /// Trucks on the road to (`in`) or from (`out`) this hub.
   Future<List<TruckTrip>> truckTrips(String direction) async => asJsonList(
     (await _get('/hub/truck-trips', query: {'direction': direction}))['data'],

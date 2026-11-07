@@ -35,7 +35,9 @@ class RiderRegistrationController extends Controller
         $rider = $onboarding->apply($hub, $request->validated(), $request->file('drivers_license_image'), $request->file('or_cr_image'), $again);
 
         return response()->json([
-            'message' => "Application sent to {$hub->hub_name}. We will email {$rider->user->email} when they decide.",
+            'message' => $rider->isTruckDriver()
+                ? 'Application sent to ' . (\App\Models\LogisticsCompany::summaryFor($rider->companyId())['name'] ?? 'the courier company') . ". We will email {$rider->user->email} when they decide."
+                : "Application sent to {$hub->hub_name}. We will email {$rider->user->email} when they decide.",
             'data'    => [
                 'email'      => $rider->user->email,
                 'hub'        => $hub->hub_name,

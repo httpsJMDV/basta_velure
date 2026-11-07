@@ -1020,6 +1020,10 @@ export const sendHubTransferApi = (trackingNumbers: string[], driverId?: number 
 export const getHubTruckDriversApi = () =>
   http.get<{ data: HubTruckDriver[] }>('/hub/truck-drivers').then((r) => r.data.data);
 
+/** Receive a whole truck at once; `missing` names parcels that were not on it (they stay expected). */
+export const receiveHubTruckTripApi = (tripId: number, missing: string[] = []) =>
+  http.post<{ message: string; received: number; data: TruckTrip }>(`/hub/truck-trips/${tripId}/receive`, { missing }).then((r) => r.data);
+
 export const getHubTruckTripsApi = (direction: 'out' | 'in') =>
   http.get<{ data: TruckTrip[]; meta: { on_the_way: number } }>('/hub/truck-trips', { params: { direction } }).then((r) => r.data);
 
