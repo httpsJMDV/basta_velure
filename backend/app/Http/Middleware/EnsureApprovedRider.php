@@ -54,10 +54,12 @@ class EnsureApprovedRider
             abort(403, 'Rider account is not active.');
         }
 
-        // A suspended hub's riders can still see their screens (like a suspended rider) but cannot go Online or act.
-        if (! $request->isMethod('GET') && $rider->sorting_center_id
+        // A suspended hub's riders finish the parcels they already carry (deliveries, returns, chat), but cannot go
+        // Online or take new jobs.
+        if ($request->isMethod('POST') && $request->is('api/v1/rider/availability', 'api/v1/rider/offers/*/accept', 'api/v1/rider/pickups/sellers/*/accept')
+            && $rider->sorting_center_id
             && \App\Models\SortingCenter::whereKey($rider->sorting_center_id)->value('status') === \App\Models\SortingCenter::STATUS_SUSPENDED) {
-            abort(403, 'Your hub is suspended, so you cannot go Online or take jobs. Ask your courier company.');
+            abort(403, 'Your hub is suspended, so you cannot go Online or take new jobs. Finish the parcels you have, and ask your courier company.');
         }
 
         // Presence: at most one write every 30 seconds.
