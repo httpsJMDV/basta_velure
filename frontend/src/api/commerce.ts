@@ -204,6 +204,10 @@ export const getPaymentSessionApi = (token: string) =>
   http.get<{ data: PaymentSessionView }>(`/payments/sessions/${token}`).then((r) => r.data.data);
 export const completePaymentApi = (token: string, outcome: 'success' | 'decline' | 'cancel') =>
   http.post<{ data: PaymentSessionView; message: string }>(`/payments/sessions/${token}/complete`, { outcome }).then((r) => r.data);
+/** Buy again: the order's items back in the cart; `skipped` names the ones that cannot be bought now. */
+export const buyAgainApi = (orderId: number) =>
+  http.post<{ message: string; added: number; skipped: { name: string; message: string }[] }>(`/buyer/orders/${orderId}/buy-again`).then((r) => r.data);
+
 export const payAgainApi = (orderId: number) =>
   http.post<{ data: PaymentSessionView; message: string }>(`/buyer/orders/${orderId}/pay-again`).then((r) => r.data.data);
 

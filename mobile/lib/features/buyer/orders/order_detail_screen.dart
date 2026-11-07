@@ -14,6 +14,7 @@ import '../../../core/validation/rules.dart';
 import '../../../core/widgets/widgets.dart';
 import '../buyer_paths.dart';
 import '../data/buyer_api.dart';
+import '../data/cart.dart';
 import '../data/orders.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
@@ -573,6 +574,20 @@ class _Actions extends ConsumerWidget {
     }
   }
 
+  Future<void> _buyAgain(BuildContext context, WidgetRef ref) async {
+    try {
+      final message = await ref.read(buyerApiProvider).buyAgain(order.id);
+      ref.invalidate(cartProvider);
+      if (!context.mounted) return;
+      showSnack(context, message);
+      context.go(BuyerPaths.cart);
+    } catch (error) {
+      if (context.mounted) {
+        showSnack(context, ApiFailure.from(error).message, error: true);
+      }
+    }
+  }
+
   Future<void> _chat(BuildContext context, WidgetRef ref) async {
     if (order.sellerId == null) return;
     try {
@@ -618,6 +633,17 @@ class _Actions extends ConsumerWidget {
         OutlinedButton(
           onPressed: () => context.push(BuyerPaths.reviews),
           child: const Text('Review'),
+        ),
+      if (const {
+        OrderStatus.completed,
+        OrderStatus.delivered,
+        OrderStatus.cancelled,
+        OrderStatus.returned,
+      }.contains(order.status))
+        OutlinedButton.icon(
+          onPressed: () => _buyAgain(context, ref),
+          icon: const Icon(LucideIcons.repeat, size: 18),
+          label: const Text('Buy again'),
         ),
       if (order.canConfirmReceipt)
         FilledButton(

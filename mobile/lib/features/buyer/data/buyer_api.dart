@@ -396,6 +396,17 @@ class BuyerApi {
     return asString(body['message']) ?? 'Return requested.';
   }
 
+  /// Buy again: the order's items back in the cart at today's price. Returns the server's message, which also
+  /// names any item that can't be bought now; throws when none can.
+  Future<String> buyAgain(int id) async {
+    final body = await _send('POST', '/buyer/orders/$id/buy-again');
+    final skipped = asJsonList(body['skipped'])
+        .map((s) => '${asString(s['name']) ?? 'An item'}: ${asString(s['message']) ?? ''}')
+        .join(' ');
+    final message = asString(body['message']) ?? 'Added to your cart.';
+    return skipped.isEmpty ? message : '$message $skipped';
+  }
+
   Future<String> escalateReturn(int id) async =>
       asString(
         (await _send('POST', '/buyer/orders/$id/escalate-return'))['message'],

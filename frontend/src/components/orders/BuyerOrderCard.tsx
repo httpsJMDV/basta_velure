@@ -11,9 +11,10 @@ import ReturnPickupProgress from './ReturnPickupProgress';
 import { Dialog, BUTTON } from '../ui/Overlay';
 import { useToast } from '../ui/Toast';
 import {
-  BUYER_CANCEL_REASONS, NOT_RECEIVED_REASON, RETURN_REASONS, cancelBuyerOrderApi, escalateReturnApi, payAgainApi, requestReturnApi,
+  BUYER_CANCEL_REASONS, NOT_RECEIVED_REASON, RETURN_REASONS, buyAgainApi, cancelBuyerOrderApi, escalateReturnApi, payAgainApi, requestReturnApi,
 } from '../../api/commerce';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
+import { useCart } from '../../hooks/useCart';
 import { pesoCompact as peso } from '../../utils/pricing';
 
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
@@ -47,6 +48,20 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
       navigate(`/pay/${s.token}`);
     } catch (e) {
       showToast(apiErrorMessage(e, 'This order can no longer be paid.'), 'error');
+    } finally { setBusy(null); }
+  };
+
+  const { refresh: refreshCart } = useCart();
+  const buyAgain = async () => {
+    setBusy('again');
+    try {
+      const res = await buyAgainApi(order.id);
+      await refreshCart();
+      const left = res.skipped.map((s) => `${s.name}: ${s.message}`).join(' ');
+      showToast(left ? `${res.message} ${left}` : res.message, 'success');
+      navigate('/cart');
+    } catch (e) {
+      showToast(apiErrorMessage(e, 'These items cannot be bought again right now.'), 'error');
     } finally { setBusy(null); }
   };
 
@@ -173,6 +188,11 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
           {toPay && (
             <button type="button" onClick={pay} disabled={busy === 'pay'} className="h-8 px-4 rounded-full bg-brand-red hover:bg-brand-red-dark text-white text-[12.5px] font-semibold disabled:opacity-60">
               {order.payment_status === 'failed' ? 'Pay again' : 'Pay now'}
+            </button>
+          )}
+          {['COMPLETED', 'DELIVERED', 'CANCELLED', 'RETURNED'].includes(status) && (
+            <button type="button" onClick={() => void buyAgain()} disabled={busy === 'again'} className="h-8 px-3.5 rounded-full border border-stone-300 bg-white text-[12.5px] font-semibold text-stone-800 hover:border-stone-900 disabled:opacity-60">
+              {busy === 'again' ? 'Adding…' : 'Buy again'}
             </button>
           )}
           {status === 'COMPLETED' && (
