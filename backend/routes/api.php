@@ -686,6 +686,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/transfers/send', [\App\Http\Controllers\Api\V1\HubTransferController::class, 'send']);
             Route::get('/truck-drivers',   [\App\Http\Controllers\Api\V1\HubTransferController::class, 'drivers']);
             Route::get('/truck-trips',     [\App\Http\Controllers\Api\V1\HubTransferController::class, 'trips']);
+            // Receive a whole truck at once (like scanning one sack), naming any parcel that is not on it
+            Route::post('/truck-trips/{trip}/receive', [\App\Http\Controllers\Api\V1\HubTransferController::class, 'receiveTrip'])->whereNumber('trip');
             // Activity log: everything that happened to this hub's parcels, riders and trucks
             Route::get('/activity',        [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'hub']);
             // Return pickups from buyers in this hub's area

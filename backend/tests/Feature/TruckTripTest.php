@@ -223,6 +223,32 @@ class TruckTripTest extends TestCase
             ->assertJsonPath('data.pay.unpaid_trips', 1);
     }
 
+    public function test_the_next_hub_receives_a_whole_truck_at_once_and_names_what_is_missing(): void
+    {
+        $driver = $this->driver();
+        [$a, $b, $c] = [$this->parcel(), $this->parcel(), $this->parcel()];
+        $this->send([$a, $b, $c], $driver)->assertOk();
+        $trip = TruckTrip::firstOrFail();
+
+        // Only the hub the truck is going to.
+        Sanctum::actingAs($this->firstUser->fresh());
+        $this->postJson("/api/v1/hub/truck-trips/{$trip->id}/receive")->assertNotFound();
+
+        Sanctum::actingAs($this->secondUser->fresh());
+        $this->postJson("/api/v1/hub/truck-trips/{$trip->id}/receive", ['missing' => [$c->tracking_number]])->assertOk()
+            ->assertJsonPath('received', 2)
+            ->assertJsonPath('data.status', TruckTrip::STATUS_ON_THE_WAY)
+            ->assertJsonPath('data.received_count', 2);
+        $this->assertNull($a->fresh()->transit_since);
+        $this->assertNotNull($c->fresh()->transit_since);
+
+        // The missing one turns up and is scanned in as usual: the trip completes.
+        $this->postJson("/api/v1/hub/parcels/{$c->tracking_number}/receive")->assertOk();
+        $this->assertSame(TruckTrip::STATUS_COMPLETED, $trip->fresh()->status);
+        $this->postJson("/api/v1/hub/truck-trips/{$trip->id}/receive")->assertStatus(409);
+        $this->getJson('/api/v1/hub/sorting/groups')->assertOk()->assertJsonPath('meta.total_parcels', 3);
+    }
+
     public function test_the_courier_pays_the_driver_and_sets_the_rate(): void
     {
         $driver = $this->driver();

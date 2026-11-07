@@ -41,6 +41,8 @@ Hub (`approved_sorting_center`):
   `driver_id` when it is missing (truck drivers exist), not a free active truck driver of the courier, or the parcels
   go to more than one hub
 - `GET /hub/truck-trips?direction=out|in` → `data[]` (trip with `parcels[]`), `meta.on_the_way`
+- `POST /hub/truck-trips/{trip}/receive {missing?: [tracking]}`: the hub the truck goes to receives every parcel on it at
+  once (like scanning one sack), except the ones named missing, which stay expected; 404 for another hub, 409 once finished
 
 Truck driver (`approved_rider`):
 

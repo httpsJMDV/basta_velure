@@ -15,6 +15,7 @@ import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
 import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
+import 'hub_incoming_trucks.dart';
 import 'hub_kit.dart';
 
 enum _IntakeTab {
@@ -96,6 +97,10 @@ class _HubIntakeScreenState extends ConsumerState<HubIntakeScreen> {
                   : 'Scanned in today. Next, they go to Sorting.',
             ),
           ),
+          if (_tab == _IntakeTab.expected)
+            HubIncomingTrucks(
+              onReceived: () async => _list.currentState?.refresh(),
+            ),
           Expanded(
             child: PagedList<IntakeParcel>(
               key: _list,
