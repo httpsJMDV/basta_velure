@@ -19,6 +19,8 @@ export interface RiderOffer {
   /** Only the area: the recipient and full address come with the delivery leg. */
   dropoff_area: string;
   cod_amount: number | null;
+  /** When the shop wants the rider; null: as soon as possible. */
+  pickup_slot?: { date: string; window: 'morning' | 'afternoon'; label: string; starts_at: string } | null;
   weight_kg: number | null;
   /** The fixed pickup pay (A3). */
   pay: string;

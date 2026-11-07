@@ -1288,6 +1288,8 @@ export interface SellerOrder {
   checkout_orders_count?: number | null;
   order_number: string;
   tracking_number?: string | null;
+  /** When the shop asked the rider to come; null: as soon as possible. */
+  pickup_slot?: { date: string; window: 'morning' | 'afternoon'; label: string; starts_at: string } | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
@@ -2652,6 +2654,8 @@ export interface RiderPickupGroup {
   /** Only in the "mine" view. The "available" view never lists tracking numbers (docs/api/rider-pickups.md). */
   tracking_numbers?: string[];
   ready_since: string;
+  /** The earliest pickup time the shop asked for; null: as soon as possible. */
+  pickup_slot?: { date: string; window: 'morning' | 'afternoon'; label: string; starts_at: string } | null;
   matched_area_label?: string | null;
   pickup_accepted_at?: string | null;
 }

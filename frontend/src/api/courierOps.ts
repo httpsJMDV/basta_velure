@@ -5,7 +5,7 @@ import type { CodRemittanceRow } from './riderJobs';
 
 // ── Dispatch (L4) ─────────────────────────────────────────────────────────────
 
-export type DispatchState = 'unassigned' | 'offering' | 'assigned';
+export type DispatchState = 'unassigned' | 'offering' | 'scheduled' | 'assigned';
 
 export interface DispatchRow {
   id: number;
@@ -17,6 +17,8 @@ export interface DispatchRow {
   cod_amount: number | null;
   ready_at: string | null;
   state: DispatchState;
+  /** When the shop wants the rider; a scheduled one is offered from an hour before. */
+  pickup_slot?: { date: string; window: 'morning' | 'afternoon'; label: string; starts_at: string } | null;
   attempts: number;
   max_attempts: number;
   rider: { id: number; name: string } | null;

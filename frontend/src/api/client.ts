@@ -843,8 +843,13 @@ export const confirmSellerOrderPaymentApi = (orderId: number) =>
 export const rejectSellerOrderPaymentApi = (orderId: number, reason: string) =>
   http.post<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/reject-payment`, { reason }).then((r) => r.data);
 
-export const updateSellerOrderStatusApi = (orderId: number, status: string) =>
-  http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/status`, { status }).then((r) => r.data);
+/** For READY_FOR_PICKUP, `slot` asks for a pickup time; without one the rider comes as soon as possible. */
+export const updateSellerOrderStatusApi = (orderId: number, status: string, slot?: { pickup_date: string; pickup_window: string } | null) =>
+  http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/status`, { status, ...(slot ?? {}) }).then((r) => r.data);
+
+/** Change when the rider comes, until the rider has the parcel; null for as soon as possible. */
+export const updatePickupSlotApi = (orderId: number, slot: { pickup_date: string; pickup_window: string } | null) =>
+  http.patch<{ message: string; data: SellerOrder }>(`/seller/orders/${orderId}/pickup-slot`, slot ?? {}).then((r) => r.data);
 
 // ─── Seller Earnings & Payouts ─────────────────────────────────────────────────
 

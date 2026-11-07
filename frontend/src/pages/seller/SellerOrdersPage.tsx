@@ -27,6 +27,7 @@ import {
   confirmSellerOrderPaymentApi,
   rejectSellerOrderPaymentApi,
   updateSellerOrderStatusApi,
+  updatePickupSlotApi,
   startRiderChatApi,
 } from '../../api/client';
 import type { SellerOrder } from '../../types';
@@ -38,6 +39,7 @@ import PrintWaybillButton from '../../components/orders/PrintWaybillButton';
 import { Dialog, BUTTON } from '../../components/ui/Overlay';
 import { NOT_RECEIVED_REASON, SELLER_CANCEL_REASONS, cancelSellerOrderApi, respondReturnApi, confirmReturnReceivedApi, confirmReturnPickupReceivedApi } from '../../api/commerce';
 import ReturnPickupProgress from '../../components/orders/ReturnPickupProgress';
+import PickupTimePicker, { type PickupSlotChoice } from '../../components/orders/PickupTimePicker';
 import { apiErrorMessage, apiProblem } from '../../utils/apiError';
 import { useToast } from '../../components/ui/Toast';
 import { useLiveRefresh } from '../../hooks/useLiveNotices';
@@ -219,10 +221,31 @@ export default function SellerOrdersPage() {
     }
   };
 
-  const handleUpdateStatus = async (orderId: number, status: string) => {
+  // The pickup time chosen in the drawer before Ready for pickup, and when changing it afterwards.
+  const [pickupSlot, setPickupSlot] = useState<PickupSlotChoice | null>(null);
+  const [slotDraft, setSlotDraft] = useState<PickupSlotChoice | null | undefined>(undefined);
+
+  const savePickupSlot = async () => {
+    if (!selectedOrder || slotDraft === undefined) return;
     setActionLoading(true);
     try {
-      const res = await updateSellerOrderStatusApi(orderId, status);
+      const res = await updatePickupSlotApi(selectedOrder.id, slotDraft);
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.data : o)));
+      setSelectedOrder(res.data);
+      setSlotDraft(undefined);
+      showToast(res.message);
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'The pickup time was not saved.'), 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (orderId: number, status: string, slot: PickupSlotChoice | null = null) => {
+    setActionLoading(true);
+    try {
+      const res = await updateSellerOrderStatusApi(orderId, status, status === 'READY_FOR_PICKUP' ? slot : null);
+      if (status === 'READY_FOR_PICKUP') setPickupSlot(null);
       setOrders((prev) => prev.map((o) => (o.id === orderId ? res.data : o)));
       if (selectedOrder?.id === orderId) {
         setSelectedOrder(res.data);
@@ -959,14 +982,38 @@ export default function SellerOrdersPage() {
               <div className="p-3 bg-violet-50/70 border border-violet-200 rounded-xl space-y-1.5 text-xs">
                 <span className="font-bold text-violet-900 block">Fulfillment Next Step:</span>
                 <p className="text-[11px] text-violet-700">Package is prepared. Mark as ready for courier pickup.</p>
+                <PickupTimePicker id={`pickup-time-${selectedOrder.id}`} value={pickupSlot} onChange={setPickupSlot} />
                 <Button
                   variant="primary"
-                  onClick={() => handleUpdateStatus(selectedOrder.id, 'READY_FOR_PICKUP')}
+                  onClick={() => handleUpdateStatus(selectedOrder.id, 'READY_FOR_PICKUP', pickupSlot)}
                   disabled={actionLoading}
                   className="w-full py-1.5 text-xs font-bold bg-violet-600 hover:bg-violet-700"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Ready for Pickup
                 </Button>
+              </div>
+            )}
+
+            {normalizeOrderStatus(selectedOrder.status) === 'READY_FOR_PICKUP' && (
+              <div className="p-3 space-y-2 text-xs bg-white border border-gray-200 rounded-xl">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-gray-900">Pickup time</span>
+                  <span className="text-[11px] font-semibold text-gray-700">{selectedOrder.pickup_slot?.label ?? 'As soon as possible'}</span>
+                </div>
+                {slotDraft === undefined ? (
+                  <button type="button" onClick={() => setSlotDraft(selectedOrder.pickup_slot ? { pickup_date: selectedOrder.pickup_slot.date, pickup_window: selectedOrder.pickup_slot.window } : null)}
+                    className="text-[11px] font-semibold text-violet-700 underline underline-offset-2">
+                    Change the pickup time
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <PickupTimePicker id={`pickup-change-${selectedOrder.id}`} label="New pickup time" value={slotDraft} onChange={setSlotDraft} />
+                    <div className="flex gap-2">
+                      <Button variant="secondary" onClick={() => setSlotDraft(undefined)} disabled={actionLoading} className="flex-1 py-1.5 text-xs font-bold">Cancel</Button>
+                      <Button variant="primary" onClick={() => void savePickupSlot()} disabled={actionLoading} className="flex-1 py-1.5 text-xs font-bold bg-violet-600 hover:bg-violet-700">Save time</Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

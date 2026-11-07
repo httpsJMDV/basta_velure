@@ -170,6 +170,12 @@ export function JobOffers({ onAccepted }: { onAccepted?: () => void }) {
               <Store className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" aria-hidden="true" />
               <div><dt className="sr-only">Pickup</dt><dd className="text-gray-800"><b>Pickup:</b> {o.pickup.address}</dd></div>
             </div>
+            {o.pickup_slot && (
+              <div className="flex items-start gap-2">
+                <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" aria-hidden="true" />
+                <div><dt className="sr-only">Pickup time</dt><dd className="text-gray-800"><b>Shop asks for:</b> {o.pickup_slot.label}</dd></div>
+              </div>
+            )}
             <div className="flex items-start gap-2">
               <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" aria-hidden="true" />
               <div><dt className="sr-only">Drop-off area</dt><dd className="text-gray-800"><b>Drop-off area:</b> {o.dropoff_area || '—'}</dd></div>

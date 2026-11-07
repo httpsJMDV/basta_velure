@@ -34,7 +34,7 @@ function OfferClock({ expiresAt }: { expiresAt: string }) {
  */
 export default function LogisticsDispatchPage() {
   const [params, setParams] = useSearchParams();
-  const tab = (['unassigned', 'offering', 'assigned', 'all'] as Tab[]).find((t) => t === params.get('state')) ?? 'unassigned';
+  const tab = (['unassigned', 'offering', 'scheduled', 'assigned', 'all'] as Tab[]).find((t) => t === params.get('state')) ?? 'unassigned';
   const { showToast } = useToast();
 
   const [rows, setRows] = useState<DispatchRow[] | null>(null);
@@ -102,6 +102,7 @@ export default function LogisticsDispatchPage() {
           options={[
             { value: 'unassigned', label: 'Unassigned', count: counts ? counts.unassigned : null },
             { value: 'offering', label: 'Being offered', count: counts ? counts.offering : null },
+            { value: 'scheduled', label: 'Scheduled', count: counts ? counts.scheduled ?? 0 : null },
             { value: 'assigned', label: 'Assigned, not picked up', count: counts ? counts.assigned : null },
             { value: 'all', label: 'All' },
           ]}
@@ -160,10 +161,18 @@ export default function LogisticsDispatchPage() {
                       <p className="flex items-center gap-1.5 text-[12.5px] text-gray-800"><Store className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-hidden="true" /><span className="truncate max-w-[220px]">{r.shop_name ?? 'Shop'}{r.pickup_area ? `, ${r.pickup_area}` : ''}</span></p>
                       <p className="flex items-center gap-1.5 text-[12px] text-gray-500"><MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden="true" /><span className="truncate max-w-[220px]">{r.dropoff_area ?? '—'}</span></p>
                     </td>
-                    <td className={`${TD} hidden lg:table-cell text-gray-500 whitespace-nowrap`}>{relativeTime(r.ready_at)}</td>
+                    <td className={`${TD} hidden lg:table-cell text-gray-500 whitespace-nowrap`}>
+                      {relativeTime(r.ready_at)}
+                      {r.pickup_slot && <span className="block text-[11px] font-semibold text-violet-700">{r.pickup_slot.label}</span>}
+                    </td>
                     <td className={TD}>
                       {r.state === 'assigned' && r.rider ? (
                         <span className="inline-flex items-center gap-1.5 text-gray-800"><Bike className="w-3.5 h-3.5 text-emerald-600" /> {r.rider.name}</span>
+                      ) : r.state === 'scheduled' ? (
+                        <div>
+                          <Pill tone="violet">Scheduled</Pill>
+                          <p className="mt-1 text-[11px] text-gray-500">Offered to riders an hour before {r.pickup_slot?.label ?? 'the window'}</p>
+                        </div>
                       ) : r.state === 'offering' && r.offer ? (
                         <div>
                           <Pill tone="amber">Offered</Pill>
