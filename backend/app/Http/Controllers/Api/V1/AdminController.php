@@ -168,9 +168,9 @@ class AdminController extends Controller
                 'avatar_url'    => $p->primary_image_url ?? ($p->images[0] ?? null),
             ]);
 
-        // 4. Open Disputes
+        // 4. Disputes Loved-IT has to decide, escalated returns included (AdminDisputeController::NEEDS_DECISION)
         $openDisputes = Dispute::with(['buyer', 'order'])
-            ->whereIn('status', ['open', 'in_progress'])
+            ->whereIn('status', ['escalated', 'open', 'in_progress'])
             ->latest('created_at')
             ->take(6)
             ->get()

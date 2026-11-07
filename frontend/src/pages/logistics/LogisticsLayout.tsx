@@ -5,6 +5,8 @@ import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, N
 import { getCourierChatUnreadApi } from '../../api/courierChat';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
+import { getLogisticsNavCountsApi } from '../../api/navCounts';
+import { useNavCounts } from '../../hooks/useNavCounts';
 import type { LogisticsDashboard } from '../../types';
 import { ShellSidebar, ShellTopBar, SHELL_BG, type ShellAlert, type ShellNavGroup, type ShellSearchItem } from '../../components/shell/PortalChrome';
 
@@ -67,8 +69,14 @@ export default function LogisticsLayout() {
   }
 
   const company = user?.logistics_company;
-  const pendingHubs = dashboard?.hubs.pending ?? 0;
-  const failed = dashboard?.parcels_now.failed ?? 0;
+  // What waits for the company on each page, one light request (the dashboard figures stay for the pages).
+  const { counts } = useNavCounts(getLogisticsNavCountsApi);
+  const pendingHubs = counts?.hubs ?? dashboard?.hubs.pending ?? 0;
+  const failed = counts?.parcels ?? dashboard?.parcels_now.failed ?? 0;
+  const riderReviews = counts?.riders ?? 0;
+  const unassigned = counts?.dispatch ?? 0;
+  const returns = counts?.returns ?? 0;
+  const remittances = counts?.cod ?? 0;
 
   const nav: ShellNavGroup[] = useMemo(() => [
     { heading: 'Overview', items: [{ icon: Gauge, label: 'Dashboard', to: '/logistics' }] },
@@ -76,8 +84,8 @@ export default function LogisticsLayout() {
       heading: 'Network',
       items: [
         { icon: Warehouse, label: 'Hubs', to: '/logistics/hubs', badge: pendingHubs },
-        { icon: Bike, label: 'Riders', to: '/logistics/riders' },
-        { icon: Container, label: 'Truck drivers', to: '/logistics/trucks' },
+        { icon: Bike, label: 'Riders', to: '/logistics/riders', badge: riderReviews },
+        { icon: Container, label: 'Truck drivers', to: '/logistics/trucks', badge: counts?.trucks },
         { icon: MapPinned, label: 'Zones & rates', to: '/logistics/shipping' },
         { icon: MessageSquare, label: 'Messages', to: '/logistics/messages', badge: chatUnread },
       ],
@@ -85,22 +93,22 @@ export default function LogisticsLayout() {
     {
       heading: 'Operations',
       items: [
-        { icon: Navigation, label: 'Dispatch', to: '/logistics/dispatch' },
+        { icon: Navigation, label: 'Dispatch', to: '/logistics/dispatch', badge: unassigned },
         { icon: ScanLine, label: 'Hub scanning', to: '/logistics/hub-ops' },
         { icon: Package, label: 'Parcels', to: '/logistics/parcels', badge: failed },
-        { icon: Undo2, label: 'Return to sender', to: '/logistics/returns' },
+        { icon: Undo2, label: 'Return to sender', to: '/logistics/returns', badge: returns },
       ],
     },
     { heading: 'Insights', items: [{ icon: BarChart2, label: 'Reports', to: '/logistics/reports' }, { icon: History, label: 'Activity log', to: '/logistics/activity' }] },
     {
       heading: 'Money',
       items: [
-        { icon: Coins, label: 'COD & exports', to: '/logistics/cod' },
+        { icon: Coins, label: 'COD & exports', to: '/logistics/cod', badge: remittances },
         { icon: Banknote, label: 'Settlements & pay', to: '/logistics/money' },
       ],
     },
     { heading: 'Account', items: [{ icon: Settings, label: 'Settings', to: '/logistics/settings' }] },
-  ], [pendingHubs, failed, chatUnread]);
+  ], [pendingHubs, failed, chatUnread, riderReviews, unassigned, returns, remittances, counts?.trucks]);
 
   const searchItems: ShellSearchItem[] = [
     { label: 'Network overview', to: '/logistics', group: 'Overview', icon: Gauge },
@@ -122,7 +130,11 @@ export default function LogisticsLayout() {
 
   const alerts: ShellAlert[] = [];
   if (pendingHubs > 0) alerts.push({ icon: Warehouse, tone: 'bg-amber-500/20 text-amber-300', title: `${pendingHubs} hub application${pendingHubs > 1 ? 's' : ''}`, detail: 'Waiting for your review', to: '/logistics/hubs' });
+  if (riderReviews > 0) alerts.push({ icon: Bike, tone: 'bg-violet-500/20 text-violet-300', title: `${riderReviews} rider${riderReviews > 1 ? 's' : ''} to review`, detail: 'Applications and papers to check', to: '/logistics/riders' });
+  if (unassigned > 0) alerts.push({ icon: Navigation, tone: 'bg-sky-500/20 text-sky-300', title: `${unassigned} pickup${unassigned > 1 ? 's' : ''} with no rider`, detail: 'Assign them in Dispatch', to: '/logistics/dispatch' });
   if (failed > 0) alerts.push({ icon: AlertTriangle, tone: 'bg-rose-500/20 text-rose-300', title: `${failed} failed deliver${failed > 1 ? 'ies' : 'y'}`, detail: 'Across your hubs', to: '/logistics/parcels?problems=1' });
+  if (returns > 0) alerts.push({ icon: Undo2, tone: 'bg-amber-500/20 text-amber-300', title: `${returns} return${returns > 1 ? 's' : ''} waiting for a rider`, detail: 'Back to the shop, or picked up from the buyer', to: '/logistics/returns' });
+  if (remittances > 0) alerts.push({ icon: Coins, tone: 'bg-emerald-500/20 text-emerald-300', title: `${remittances} COD remittance${remittances > 1 ? 's' : ''} to confirm`, detail: 'Cash your riders handed in', to: '/logistics/cod' });
 
   const isActive = (to: string) => (to === '/logistics' ? location.pathname === '/logistics' : location.pathname.startsWith(to));
   const handleLogout = () => { clearAuth(); navigate('/login'); };

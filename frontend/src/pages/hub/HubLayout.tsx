@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
@@ -20,7 +20,8 @@ import HubSidebar from './HubSidebar';
 import './hub.css';
 import { useAuth } from '../../hooks/useAuth';
 import { useHubChatUnread } from '../../hooks/useHubChatUnread';
-import { getHubDashboardMetricsApi, getHubRidersApi } from '../../api/client';
+import { getHubNavCountsApi } from '../../api/navCounts';
+import { useNavCounts } from '../../hooks/useNavCounts';
 import {
   ShellTopBar,
   type ShellAlert,
@@ -56,7 +57,7 @@ const SIDEBAR_W_EXPANDED = 'w-[264px]';
 const SIDEBAR_W_COLLAPSED = 'w-[84px]';
 const ML_EXPANDED = 'lg:ml-[264px]';
 const ML_COLLAPSED = 'lg:ml-[84px]';
-const ALERTS_POLL_MS = 60000;
+
 
 export default function HubLayout() {
   const { user, clearAuth } = useAuth();
@@ -66,27 +67,11 @@ export default function HubLayout() {
   const reducedMotion = useReducedMotion();
   const chat = useHubChatUnread(true);
 
-  // What is waiting for the hub: riders to approve and failed deliveries to triage. Read on every page change and
-  // once a minute, so the badges stay close to the truth without a page asking for them.
-  const [pendingRiders, setPendingRiders] = useState(0);
-  const [failedDeliveries, setFailedDeliveries] = useState(0);
-
-  const loadAlerts = useCallback(async () => {
-    const [riders, metrics] = await Promise.allSettled([getHubRidersApi({ status: 'PENDING', per_page: 1 }), getHubDashboardMetricsApi()]);
-    if (riders.status === 'fulfilled') setPendingRiders(riders.value.counts.pending);
-    if (metrics.status === 'fulfilled') setFailedDeliveries(metrics.value.failed_deliveries);
-  }, []);
-
-  useEffect(() => {
-    void loadAlerts();
-  }, [loadAlerts, location.pathname]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') void loadAlerts();
-    }, ALERTS_POLL_MS);
-    return () => clearInterval(timer);
-  }, [loadAlerts]);
+  // What is waiting for the hub at each step (parcels coming in, to sort, to dispatch, failed deliveries, riders to
+  // approve): one light request on every page change and once a minute, so the badges stay close to the truth.
+  const { counts } = useNavCounts(getHubNavCountsApi);
+  const pendingRiders = counts?.riders ?? 0;
+  const failedDeliveries = counts?.deliveries ?? 0;
 
   // Persist the sidebar collapse state, as the admin console does.
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -110,9 +95,9 @@ export default function HubLayout() {
     {
       heading: 'Operations',
       items: [
-        { icon: PackagePlus, label: 'Parcel Intake', to: '/hub/intake' },
-        { icon: Layers, label: 'Sorting', to: '/hub/sorting' },
-        { icon: Send, label: 'Dispatch', to: '/hub/dispatch' },
+        { icon: PackagePlus, label: 'Parcel Intake', to: '/hub/intake', badge: counts?.intake },
+        { icon: Layers, label: 'Sorting', to: '/hub/sorting', badge: counts?.sorting },
+        { icon: Send, label: 'Dispatch', to: '/hub/dispatch', badge: counts?.dispatch },
         { icon: Truck, label: 'Deliveries', to: '/hub/deliveries', badge: failedDeliveries },
       ],
     },
@@ -132,7 +117,7 @@ export default function HubLayout() {
       ],
     },
     { heading: 'Settings', items: [{ icon: Settings, label: 'Settings', to: '/hub/settings' }] },
-  ], [failedDeliveries, pendingRiders, chat.total]);
+  ], [counts, failedDeliveries, pendingRiders, chat.total]);
 
   const searchItems: ShellSearchItem[] = [
     { label: 'Command Dashboard', to: '/hub/dashboard', group: 'Overview', icon: Gauge },
@@ -153,7 +138,7 @@ export default function HubLayout() {
     alerts.push({ icon: UserCheck, tone: 'bg-amber-50 text-amber-600', title: `${pendingRiders} rider application${pendingRiders > 1 ? 's' : ''}`, detail: 'Waiting for your approval', to: '/hub/riders' });
   }
   if (failedDeliveries > 0) {
-    alerts.push({ icon: AlertTriangle, tone: 'bg-rose-50 text-rose-600', title: `${failedDeliveries} failed deliver${failedDeliveries > 1 ? 'ies' : 'y'}`, detail: 'Reschedule or return to the seller', to: '/hub/deliveries' });
+    alerts.push({ icon: AlertTriangle, tone: 'bg-rose-50 text-rose-600', title: `${failedDeliveries} deliver${failedDeliveries > 1 ? 'ies' : 'y'} to handle`, detail: 'Failed deliveries and return pickups waiting for a rider', to: '/hub/deliveries' });
   }
   if (chat.total > 0) {
     alerts.push({ icon: MessageSquare, tone: 'bg-blue-50 text-blue-600', title: `${chat.total} unread message${chat.total > 1 ? 's' : ''}`, detail: 'From your riders', to: '/hub/messages' });

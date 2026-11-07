@@ -10,7 +10,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import LovedItLogo from '../../components/LovedItLogo';
 import NotificationBell from '../../components/notifications/NotificationBell';
-import { getSellerDashboardAttentionApi, getUnreadMessagesCountApi } from '../../api/client';
+import { getSellerDashboardAttentionApi } from '../../api/client';
+import { getSellerNavCountsApi } from '../../api/navCounts';
+import { useNavCounts } from '../../hooks/useNavCounts';
 import type { SellerAttentionItem } from '../../types';
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
@@ -19,7 +21,7 @@ interface NavAction { label: string; to: string; }
 interface NavItem  { icon: React.ElementType; label: string; to: string; badge?: number; action?: NavAction; }
 interface NavGroup { heading: string; items: NavItem[]; }
 
-function buildSellerNav(badges: { pendingReview: number; newOrders: number; unreadMessages: number }, approved: boolean): NavGroup[] {
+function buildSellerNav(badges: { products: number; orders: number; unreadMessages: number }, approved: boolean): NavGroup[] {
   // A waiting applicant prepares drafts; the rest of the seller centre opens once the store is approved (A18).
   if (!approved) {
     return [
@@ -39,13 +41,13 @@ function buildSellerNav(badges: { pendingReview: number; newOrders: number; unre
           icon: Package,
           label: 'Products',
           to: '/seller/products',
-          badge: badges.pendingReview,
+          badge: badges.products,
           action: { label: 'Add', to: '/seller/products/new' },
         },
         { icon: FolderTree, label: 'Store Categories', to: '/seller/store-categories' },
         { icon: BadgePercent, label: 'Promotions', to: '/seller/promotions' },
         { icon: Ticket, label: 'Vouchers', to: '/seller/vouchers' },
-        { icon: ShoppingCart, label: 'Orders', to: '/seller/orders', badge: badges.newOrders },
+        { icon: ShoppingCart, label: 'Orders', to: '/seller/orders', badge: badges.orders },
       ],
     },
     {
@@ -769,11 +771,13 @@ export default function SellerLayout() {
   });
 
   const [attentionItems, setAttentionItems] = useState<SellerAttentionItem[]>([]);
-  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const location = useLocation();
   const { user } = useAuth();
   const approved = user?.seller_profile?.application_status === 'approved';
+  // The sidebar numbers (an applicant has none yet): orders, returns and refunds waiting on the shop, listings to fix.
+  const { counts } = useNavCounts(getSellerNavCountsApi, approved);
+  const unreadMessages = counts?.messages ?? 0;
 
   const handleToggleSidebar = () => {
     setCollapsed((prev) => {
@@ -783,7 +787,7 @@ export default function SellerLayout() {
     });
   };
 
-  // Fetch real seller alerts and unread message count (an applicant has neither yet)
+  // The alerts list under the warning icon (an applicant has none yet)
   useEffect(() => {
     if (!approved) return;
     let mounted = true;
@@ -793,22 +797,15 @@ export default function SellerLayout() {
       })
       .catch(() => {});
 
-    getUnreadMessagesCountApi()
-      .then((count) => {
-        if (mounted && typeof count === 'number') setUnreadMessages(count);
-      })
-      .catch(() => {});
-
     return () => {
       mounted = false;
     };
   }, [location.pathname, approved]);
 
-  const newOrdersCount = attentionItems.filter((i) => i.type === 'new_order').length;
   const nav = buildSellerNav({
-    pendingReview: 0,
-    newOrders: newOrdersCount,
-    unreadMessages: unreadMessages,
+    products: (counts?.products_rejected ?? 0) + (counts?.products_low_stock ?? 0),
+    orders: (counts?.orders_new ?? 0) + (counts?.orders_to_prepare ?? 0) + (counts?.returns_to_answer ?? 0) + (counts?.refunds_to_send ?? 0),
+    unreadMessages,
   }, approved);
 
   const sidebarW = collapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;

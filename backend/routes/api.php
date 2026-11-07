@@ -185,6 +185,8 @@ Route::prefix('v1')->group(function () {
             $portal = \App\Http\Controllers\Api\V1\LogisticsPortalController::class;
             Route::get('/me', [$portal, 'me']);
             Route::get('/dashboard', [$portal, 'dashboard']);
+            // The numbers on the sidebar (docs/api/nav-counts.md)
+            Route::get('/nav-counts', [\App\Http\Controllers\Api\V1\NavCountsController::class, 'logistics']);
             Route::get('/network/hubs', [$portal, 'hubsIndex']);
             Route::get('/network/hubs/{hub}', [$portal, 'hubShow'])->whereNumber('hub');
             Route::get('/network/hubs/{hub}/documents/{doc}', [$portal, 'hubDocument'])->whereNumber('hub')->whereIn('doc', ['permit', 'id', 'id-back']);
@@ -384,6 +386,8 @@ Route::prefix('v1')->group(function () {
 
             // Dashboard stats
             Route::get('/stats', [AdminController::class, 'stats']);
+            // The numbers on the sidebar (docs/api/nav-counts.md)
+            Route::get('/nav-counts', [\App\Http\Controllers\Api\V1\NavCountsController::class, 'admin']);
             Route::get('/dashboard-feed', [AdminController::class, 'dashboardFeed']);
 
             // Users & Contacts Search
@@ -555,6 +559,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('approved_seller')->group(function () {
             // Seller dashboard
             Route::get('/seller/dashboard/stats', [SellerDashboardController::class, 'stats']);
+            Route::get('/seller/nav-counts', [\App\Http\Controllers\Api\V1\NavCountsController::class, 'seller']);
             Route::get('/seller/dashboard/chart', [SellerDashboardController::class, 'chart']);
             Route::get('/seller/dashboard/attention', [SellerDashboardController::class, 'attention']);
             Route::get('/seller/dashboard/top-products', [SellerDashboardController::class, 'topProducts']);
@@ -659,6 +664,7 @@ Route::prefix('v1')->group(function () {
         // Logistics / Sorting Center Hub (approved hubs only)
         Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
             Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
+            Route::get('/nav-counts', [\App\Http\Controllers\Api\V1\NavCountsController::class, 'hub']);
             Route::get('/profile', [SortingCenterDashboardController::class, 'profile']);
             // The hub's thread with its own courier company (Amaru task 2)
             $hubCourierChat = \App\Http\Controllers\Api\V1\HubCourierChatController::class;
@@ -740,6 +746,7 @@ Route::prefix('v1')->group(function () {
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
             Route::get('/me', [RiderController::class, 'me']);
+            Route::get('/nav-counts', [\App\Http\Controllers\Api\V1\NavCountsController::class, 'rider']);
             // Truck drivers: trips between hubs and trip pay
             Route::get('/trips', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'index']);
             Route::post('/trips/{trip}/arrived', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'arrived'])->whereNumber('trip');

@@ -1,6 +1,8 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { getAdminStatsApi, getBuyerApplicationsApi } from '../../api/client';
+import { getAdminNavCountsApi, type AdminNavCounts } from '../../api/navCounts';
+import { useNavCounts } from '../../hooks/useNavCounts';
+import { adminQueues } from './adminQueues';
 import {
   Users, Store, ShoppingBag,
   ShieldAlert, Star, Flag, Settings, ScrollText,
@@ -59,22 +61,22 @@ function useBreadcrumb() {
 interface NavItem  { icon: React.ElementType; label: string; to: string; badge?: number; }
 interface NavGroup { heading: string; items: NavItem[]; }
 
-function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
+function buildNav(c: AdminNavCounts | null): NavGroup[] {
   return [
     {
       heading: 'Overview',
       items: [
         { icon: Gauge, label: 'Dashboard', to: '/admin' },
-        { icon: MessageSquare, label: 'Messages', to: '/admin/messages' },
+        { icon: MessageSquare, label: 'Messages', to: '/admin/messages', badge: c?.messages },
       ],
     },
     {
       heading: 'People',
       items: [
-        { icon: UserCheck,   label: 'Buyer Applications',  to: '/admin/buyer-applications',  badge: pendingBuyers },
-        { icon: UserCheck,   label: 'Seller Applications', to: '/admin/seller-applications', badge: pendingSellers },
-        { icon: Truck,       label: 'Courier Applications', to: '/admin/courier-applications' },
-        { icon: Warehouse,   label: 'Hub Applications',    to: '/admin/sorting-center-applications' },
+        { icon: UserCheck,   label: 'Buyer Applications',  to: '/admin/buyer-applications',  badge: c?.buyer_applications },
+        { icon: UserCheck,   label: 'Seller Applications', to: '/admin/seller-applications', badge: c?.seller_applications },
+        { icon: Truck,       label: 'Courier Applications', to: '/admin/courier-applications', badge: c?.courier_applications },
+        { icon: Warehouse,   label: 'Hub Applications',    to: '/admin/sorting-center-applications', badge: c?.hub_applications },
         { icon: Store,       label: 'Sellers',             to: '/admin/sellers' },
         { icon: Users,       label: 'Buyers',              to: '/admin/buyers' },
         { icon: CircleUser,  label: 'Riders',              to: '/admin/riders' },
@@ -84,16 +86,16 @@ function buildNav(pendingSellers: number, pendingBuyers: number): NavGroup[] {
       heading: 'Catalog',
       items: [
         { icon: Tag,          label: 'Categories', to: '/admin/categories' },
-        { icon: ShoppingBag,  label: 'Products',   to: '/admin/products' },
+        { icon: ShoppingBag,  label: 'Products',   to: '/admin/products', badge: c?.products },
       ],
     },
     {
       heading: 'Commerce',
       items: [
         { icon: PackageCheck, label: 'Orders',             to: '/admin/orders' },
-        { icon: Wallet,       label: 'Payments & Payouts', to: '/admin/payments' },
+        { icon: Wallet,       label: 'Payments & Payouts', to: '/admin/payments', badge: c?.payments },
         { icon: Ticket,       label: 'Vouchers',           to: '/admin/vouchers' },
-        { icon: ShieldAlert,  label: 'Disputes / Returns', to: '/admin/disputes' },
+        { icon: ShieldAlert,  label: 'Disputes / Returns', to: '/admin/disputes', badge: c?.disputes },
         { icon: Flag,         label: 'Analytics & Reports',to: '/admin/reports' },
       ],
     },
@@ -159,8 +161,9 @@ function NavItems({
                 <Icon className="w-[17px] h-[17px] shrink-0" />
                 {!collapsed && <span className="flex-1 truncate">{label}</span>}
                 {!collapsed && badge !== undefined && badge > 0 && (
-                  <span className="min-w-[16px] h-[16px] px-1 bg-white text-brand-red text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {badge}
+                  <span className={`min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center leading-none tabular-nums ${active ? 'bg-white text-brand-red' : 'bg-brand-red text-white'}`}>
+                    <span aria-hidden="true">{badge > 99 ? '99+' : badge}</span>
+                    <span className="sr-only">{badge} waiting</span>
                   </span>
                 )}
                 {collapsed && badge !== undefined && badge > 0 && (
@@ -441,14 +444,12 @@ function TopBar({
   collapsed: _collapsed,
   onToggleSidebar,
   onOpenMobile,
-  pendingSellers,
-  pendingBuyers,
+  counts,
 }: {
   collapsed?: boolean;
   onToggleSidebar: () => void;
   onOpenMobile: () => void;
-  pendingSellers: number;
-  pendingBuyers: number;
+  counts: AdminNavCounts | null;
 }) {
   const { user, clearAuth } = useAuth();
   const navigate = useNavigate();
@@ -468,7 +469,8 @@ function TopBar({
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const totalAlerts = pendingSellers + pendingBuyers;
+  const waiting = adminQueues(counts).filter((q) => q.count > 0);
+  const totalAlerts = waiting.reduce((sum, q) => sum + q.count, 0);
 
   return (
     <>
@@ -510,24 +512,15 @@ function TopBar({
               <div className="border-t border-stone-100 px-3 py-2.5 bg-stone-50/60">
                 <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-stone-400">Waiting for review</p>
                 <div className="space-y-1">
-                  {pendingSellers > 0 && (
-                    <Link to="/admin/seller-applications" className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-white transition-colors">
-                      <div className="w-7 h-7 rounded-lg bg-rose-50 text-brand-red flex items-center justify-center shrink-0 mt-0.5"><Store className="w-3.5 h-3.5" aria-hidden="true" /></div>
+                  {waiting.map(({ key, icon: Icon, label, detail, to, count }) => (
+                    <Link key={key} to={to} className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-white transition-colors">
+                      <div className="w-7 h-7 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center shrink-0 mt-0.5"><Icon className="w-3.5 h-3.5" aria-hidden="true" /></div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold leading-tight text-stone-900">{pendingSellers} seller application{pendingSellers > 1 ? 's' : ''}</p>
-                        <p className="text-[11px] text-stone-500">Documents to verify</p>
+                        <p className="text-xs font-bold leading-tight text-stone-900"><span className="tabular-nums">{count}</span> {label}</p>
+                        <p className="text-[11px] text-stone-500">{detail}</p>
                       </div>
                     </Link>
-                  )}
-                  {pendingBuyers > 0 && (
-                    <Link to="/admin/buyer-applications" className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-white transition-colors">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5"><UserCheck className="w-3.5 h-3.5" aria-hidden="true" /></div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold leading-tight text-stone-900">{pendingBuyers} buyer verification{pendingBuyers > 1 ? 's' : ''}</p>
-                        <p className="text-[11px] text-stone-500">IDs to review</p>
-                      </div>
-                    </Link>
-                  )}
+                  ))}
                 </div>
               </div>
             ) : null}
@@ -601,7 +594,13 @@ function TopBar({
 
 // ─── Page transition ─────────────────────────────────────────────────────────
 
-function PageTransition() {
+/** What the admin pages can read from the layout: the sidebar's counts, so the dashboard need not ask again. */
+export interface AdminOutletContext {
+  navCounts: AdminNavCounts | null;
+  refreshNavCounts: () => void;
+}
+
+function PageTransition({ context }: { context: AdminOutletContext }) {
   const location = useLocation();
 
   return (
@@ -613,7 +612,7 @@ function PageTransition() {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15, ease: 'easeOut' }}
       >
-        <Outlet />
+        <Outlet context={context} />
       </motion.div>
     </AnimatePresence>
   );
@@ -628,10 +627,9 @@ const ML_COLLAPSED        = 'lg:ml-16';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingSellers, setPendingSellers] = useState(0);
-  const [pendingBuyers,  setPendingBuyers]  = useState(0);
+  // Every queue that waits for Loved-IT, one light request on each page change and once a minute.
+  const { counts, refresh: refreshNavCounts } = useNavCounts(getAdminNavCountsApi);
 
   // Persist sidebar collapse state
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -647,17 +645,7 @@ export default function AdminLayout() {
     });
   }
 
-  // Reload the badges on every page change, so an approval on one page is reflected when the admin moves on.
-  useEffect(() => {
-    getAdminStatsApi()
-      .then((s) => setPendingSellers(s.pending_seller_applications))
-      .catch(() => {});
-    getBuyerApplicationsApi({ status: 'pending', per_page: 1 })
-      .then((r) => setPendingBuyers(r.summary?.pending_total ?? 0))
-      .catch(() => {});
-  }, [pathname]);
-
-  const nav = buildNav(pendingSellers, pendingBuyers);
+  const nav = buildNav(counts);
 
   function openThread(c: Conversation) {
     navigate(`/admin/messages?seller=${c.seller_id}`);
@@ -689,16 +677,15 @@ export default function AdminLayout() {
         )}
 
         {/* ── Centre: top bar + main content ── */}
-        <div className={`flex-1 ${mainML} flex flex-col min-h-screen transition-all duration-200`}>
+        <div className={`flex-1 min-w-0 ${mainML} flex flex-col min-h-screen transition-all duration-200`}>
           <TopBar
             collapsed={collapsed}
             onToggleSidebar={toggleCollapse}
             onOpenMobile={() => setMobileOpen(true)}
-            pendingSellers={pendingSellers}
-            pendingBuyers={pendingBuyers}
+            counts={counts}
           />
           <main className="flex-1 p-4 lg:p-6">
-            <PageTransition />
+            <PageTransition context={{ navCounts: counts, refreshNavCounts }} />
           </main>
         </div>
 

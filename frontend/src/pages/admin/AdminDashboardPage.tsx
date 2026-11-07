@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { getAdminStatsApi, getAdminDashboardFeedApi } from '../../api/client';
+import type { AdminOutletContext } from './AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
 import type { AdminStats, DashboardFeed, DashboardChartPoint } from '../../types';
@@ -40,12 +41,12 @@ function greeting() {
 
 // ─── Compact Hero Band ────────────────────────────────────────────────────────
 
-function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: string }) {
+function HeroBand({ stats, userName, disputes }: { stats: AdminStats | null; userName: string; disputes: number }) {
   const pendingTotal = stats
     ? (stats.pending_seller_applications || 0) +
       (stats.pending_buyer_applications || 0) +
       (stats.pending_products || 0) +
-      (stats.open_disputes || 0) +
+      disputes +
       (stats.pending_payment_verifications || 0) +
       (stats.pending_payout_requests || 0)
     : 0;
@@ -103,7 +104,7 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-medium transition-all whitespace-nowrap active:scale-95 border border-neutral-700/60"
           >
             <ShieldAlert className="w-3 h-3" />
-            Disputes ({stats?.open_disputes ?? 0})
+            Disputes ({disputes})
           </Link>
         </div>
       </div>
@@ -138,6 +139,8 @@ function HeroBand({ stats, userName }: { stats: AdminStats | null; userName: str
 // ─── Trend Badge ──────────────────────────────────────────────────────────────
 
 function TrendBadge({ current, previous, label }: { current: number | null | undefined; previous: number | null | undefined; label: string }) {
+  // Nothing to compare against: say so instead of a made-up "+100%".
+  if (previous === 0 && (current ?? 0) > 0) return <span className="text-[10px] text-gray-400">None in the {label}</span>;
   const change = percentChange(current, previous);
   if (!change) return <span className="text-[10px] text-gray-400">{NA} vs {label}</span>;
   const { pct, dir } = change;
@@ -755,12 +758,16 @@ export default function AdminDashboardPage() {
 
   const metrics = stats?.metrics;
   const previous = stats?.previous;
+  // Disputes waiting for Loved-IT, escalated returns and refund reports included: the sidebar's count, so the card
+  // and the Disputes badge agree ("open_disputes" leaves escalated returns out).
+  const { navCounts } = useOutletContext<AdminOutletContext>();
+  const disputesToDecide = navCounts?.disputes ?? stats?.open_disputes ?? 0;
 
   return (
     <div ref={pageRef} className="pb-8 space-y-4">
 
       {/* ── 1. Compact Executive Hero Header ── */}
-      <HeroBand stats={stats} userName={userName} />
+      <HeroBand stats={stats} userName={userName} disputes={disputesToDecide} />
 
       {failed && (
         <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
@@ -812,12 +819,12 @@ export default function AdminDashboardPage() {
               iconBg="bg-amber-50"
               iconColor="text-amber-600"
               accentBorder="border-amber-200 shadow-amber-50"
-              description="FDA permit &amp; compliance"
+              description="Listings held before buyers see them"
             />
             <ActionCard
               icon={ShieldAlert}
               label="Open Disputes"
-              value={stats.open_disputes}
+              value={disputesToDecide}
               to="/admin/disputes"
               badgeLabel="Mediate"
               iconBg="bg-red-50"
