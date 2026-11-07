@@ -136,6 +136,8 @@ class BuyerOrderPresenter
                 'image_url'     => $i->image_url,
             ])->values(),
             'dispute'             => ReturnService::present($dispute),
+            // A rider collecting the returned item from the buyer
+            'return_pickup'       => \App\Services\Courier\ReturnPickups::present($o->returnPickup()->first(), 'buyer'),
             'status_history'      => ($detail || $o->relationLoaded('statusHistories')) ? $o->statusHistories->map(fn ($h) => [
                 'id'          => $h->id,
                 'from_status' => $h->from_status,

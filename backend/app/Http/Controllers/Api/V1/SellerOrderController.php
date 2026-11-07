@@ -321,6 +321,8 @@ class SellerOrderController extends Controller
         $data = $request->validate([
             'action' => ['required', 'in:approve,accept,reject'],
             'reason' => ['required_if:action,reject', 'nullable', 'string', 'min:10', 'max:300', 'regex:' . Validation::WORDS_REGEX],
+            // Approve only: true (the default) books a rider to bring the item back; false lets the buyer keep it.
+            'return_item' => ['nullable', 'boolean'],
         ], [
             'action.in'          => 'Choose Approve or Reject.',
             'reason.required_if' => 'Give the buyer a reason for rejecting (10 to 300 characters).',
@@ -340,8 +342,11 @@ class SellerOrderController extends Controller
             $this->returns->reject($order, $sellerId, trim(strip_tags($data['reason'])));
             $message = 'Return rejected. The buyer can escalate it to Loved-IT within 3 days.';
         } else {
-            $this->returns->approve($order, 'seller', $sellerId);
-            $message = 'Return approved. The buyer has been refunded and told how to send the item back.';
+            $collect = $request->boolean('return_item', true) && $dispute->reason !== \App\Models\Dispute::REASON_NOT_RECEIVED;
+            $this->returns->approve($order, 'seller', $sellerId, null, $collect);
+            $message = $collect
+                ? 'Return approved. The buyer has been refunded, and a rider will collect the item and bring it back to you.'
+                : 'Return approved. The buyer has been refunded and keeps the item.';
         }
 
         return response()->json([
@@ -603,6 +608,8 @@ class SellerOrderController extends Controller
                 'image_url'         => $i->image_url,
             ])->values(),
             'dispute'             => ReturnService::present($o->relationLoaded('dispute') ? $o->dispute : $o->dispute()->first()),
+            // A rider bringing the returned item back to the shop
+            'return_pickup'       => \App\Services\Courier\ReturnPickups::present($o->returnPickup()->first(), 'seller'),
             'status_history'      => ($detail || $o->relationLoaded('statusHistories')) ? $o->statusHistories->map(fn ($h) => [
                 'id'          => $h->id,
                 'from_status' => $h->from_status,

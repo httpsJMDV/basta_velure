@@ -150,6 +150,8 @@ Route::prefix('v1')->group(function () {
 
         // Delivery proof photo (Feature 2.7): rider, hub, seller, buyer and admin only; authorization is in the controller
         Route::get('/parcels/{tracking}/delivery-proof', [DeliveryProofController::class, 'show']);
+        // The rider's photo of a returned item collected from the buyer (buyer, shop, rider, hub, courier, admins)
+        Route::get('/return-pickups/{pickup}/photo', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'photo'])->whereNumber('pickup');
         // The GCash receipt of a weekly courier ↔ shop payment (the two sides and admins)
         Route::get('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\SettlementReceiptController::class, 'show'])->whereNumber('settlement');
         // The GCash receipt of a refund a shop sent (the buyer, the shop and admins)
@@ -240,6 +242,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/parcels/{parcel}/reschedule', [$parcelOps, 'reschedule'])->whereNumber('parcel');
             Route::get('/returns', [$parcelOps, 'returns']);
             Route::post('/returns/{parcel}/assign', [$parcelOps, 'assignReturn'])->whereNumber('parcel');
+            // Return pickups: collect an approved return from the buyer and bring it to the shop
+            Route::get('/return-pickups', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'courierIndex']);
+            Route::post('/return-pickups/{pickup}/assign', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'courierAssign'])->whereNumber('pickup');
             // COD reconciliation and exports (L9); only the company confirms a rider's remittance
             $cod = \App\Http\Controllers\Api\V1\LogisticsCodController::class;
             Route::get('/cod', [$cod, 'index']);
@@ -586,6 +591,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller/orders/{order}/cancel', [SellerOrderController::class, 'cancel']);
             // A13: a parcel back from a failed delivery; the stock returns only on this confirmation
             Route::post('/seller/orders/{order}/confirm-return-received', [SellerOrderController::class, 'confirmReturnReceived']);
+            // A return pickup: the rider handed the buyer's returned item to the shop
+            Route::post('/seller/orders/{order}/return-pickup/received', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'received']);
             // Refunds the shop sends by hand (GCash and COD orders)
             Route::get('/seller/refunds', [\App\Http\Controllers\Api\V1\RefundController::class, 'sellerIndex']);
             Route::post('/seller/orders/{order}/refund/sent', [\App\Http\Controllers\Api\V1\RefundController::class, 'sellerSent'])->middleware('throttle:upload');
@@ -668,6 +675,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/truck-trips',     [\App\Http\Controllers\Api\V1\HubTransferController::class, 'trips']);
             // Activity log: everything that happened to this hub's parcels, riders and trucks
             Route::get('/activity',        [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'hub']);
+            // Return pickups from buyers in this hub's area
+            Route::get('/return-pickups',  [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'hubIndex']);
+            Route::post('/return-pickups/{pickup}/assign', [\App\Http\Controllers\Api\V1\ReturnPickupController::class, 'hubAssign'])->whereNumber('pickup');
 
             // Delivery monitoring and failure triage (Feature 1.9)
             Route::get('/deliveries/out',                               [HubDeliveryController::class, 'out']);
@@ -720,6 +730,12 @@ Route::prefix('v1')->group(function () {
             Route::post('/trips/{trip}/arrived', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'arrived'])->whereNumber('trip');
             // Activity log: what this rider did and what was decided about their account
             Route::get('/activity', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'rider']);
+            // Return pickups: collect from the buyer (photo), or a failed visit, then hand it to the shop
+            $returnPickups = \App\Http\Controllers\Api\V1\ReturnPickupController::class;
+            Route::get('/return-pickups', [$returnPickups, 'riderIndex']);
+            Route::post('/return-pickups/{pickup}/collected', [$returnPickups, 'collected'])->whereNumber('pickup')->middleware('throttle:upload');
+            Route::post('/return-pickups/{pickup}/failed', [$returnPickups, 'failed'])->whereNumber('pickup');
+            Route::post('/return-pickups/{pickup}/delivered', [$returnPickups, 'delivered'])->whereNumber('pickup');
 
             // Online / Offline, job offers, returns to the seller and COD remittance (R3, R4, R7, R9)
             $jobs = \App\Http\Controllers\Api\V1\RiderJobController::class;

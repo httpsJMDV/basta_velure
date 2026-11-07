@@ -105,6 +105,7 @@ class Order extends Model
     public function parcel(): HasOne             { return $this->hasOne(Parcel::class); }
     /** A refund the shop sends by hand (GCash and cash-on-delivery orders). */
     public function refund(): HasOne             { return $this->hasOne(Refund::class); }
+    public function returnPickup(): HasOne       { return $this->hasOne(ReturnPickup::class); }
     /** The courier assigned at checkout by CourierAssigner (null reads as the default courier). */
     public function logisticsCompany(): BelongsTo { return $this->belongsTo(LogisticsCompany::class); }
     public function statusHistories(): HasMany   { return $this->hasMany(OrderStatusHistory::class)->orderBy('created_at', 'asc'); }
