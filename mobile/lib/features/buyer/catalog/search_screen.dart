@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../core/session/session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/validation/rules.dart';
@@ -216,10 +217,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         actions: const [SizedBox(width: AppSpace.lg)],
       ),
       body: !showResults
-          ? const EmptyState(
-              icon: LucideIcons.search,
-              title: 'What are you looking for?',
-              message: 'Search by product, shop or category.',
+          ? _RecentSearches(
+              onPick: (query) {
+                _box.text = query;
+                _submit(query);
+              },
             )
           : PagedList<ProductSummary>(
               key: ValueKey(Object.hash(_query, _filters)),
@@ -548,6 +550,97 @@ class _BarChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The signed-in shopper's recent searches before they type, with Clear all and a remove button on each. Guests, and
+/// shoppers with none, see the usual prompt.
+class _RecentSearches extends ConsumerStatefulWidget {
+  const _RecentSearches({required this.onPick});
+
+  final ValueChanged<String> onPick;
+
+  @override
+  ConsumerState<_RecentSearches> createState() => _RecentSearchesState();
+}
+
+class _RecentSearchesState extends ConsumerState<_RecentSearches> {
+  List<(int, String)> _rows = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (ref.read(currentUserProvider) != null) _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final rows = await ref.read(buyerApiProvider).searchHistory();
+      if (mounted) setState(() => _rows = rows);
+    } catch (_) {
+      // Leave the prompt; recent searches are a convenience.
+    }
+  }
+
+  Future<void> _clear({int? id}) async {
+    setState(
+      () => _rows = id == null
+          ? const []
+          : _rows.where((r) => r.$1 != id).toList(),
+    );
+    try {
+      await ref.read(buyerApiProvider).clearSearch(id: id);
+    } catch (_) {
+      await _load();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_rows.isEmpty) {
+      return const EmptyState(
+        icon: LucideIcons.search,
+        title: 'What are you looking for?',
+        message: 'Search by product, shop or category.',
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Recent searches',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                ),
+              ),
+              TextButton(
+                onPressed: () => _clear(),
+                child: const Text('Clear all'),
+              ),
+            ],
+          ),
+        ),
+        for (final (id, query) in _rows.take(10))
+          ListTile(
+            leading: const Icon(
+              LucideIcons.clock,
+              size: 18,
+              color: AppColors.stone400,
+            ),
+            title: Text(query),
+            onTap: () => widget.onPick(query),
+            trailing: IconButton(
+              tooltip: 'Remove',
+              icon: const Icon(LucideIcons.x, size: 18),
+              onPressed: () => _clear(id: id),
+            ),
+          ),
+      ],
     );
   }
 }

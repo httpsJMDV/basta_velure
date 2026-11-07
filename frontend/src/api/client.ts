@@ -488,6 +488,22 @@ export const updateAdminFeedbackApi = (id: number, status: 'new' | 'read') =>
   http.patch<{ data: AdminFeedback }>(`/admin/feedback/${id}`, { status }).then((r) => r.data.data);
 
 // Products — public catalog
+// ─── Recently viewed and recent searches (signed in) ─────────────────────────
+
+export interface SearchHistoryEntry { id: number; query: string; searched_at: string }
+
+export const getRecentlyViewedApi = (limit = 12) =>
+  http.get<{ data: Product[] }>('/me/recently-viewed', { params: { limit } }).then((r) => r.data.data);
+
+export const clearRecentlyViewedApi = () => http.delete('/me/recently-viewed');
+
+export const getSearchHistoryApi = () =>
+  http.get<{ data: SearchHistoryEntry[] }>('/me/search-history').then((r) => r.data.data);
+
+/** One search, or all of them without an id. Answers the list that is left. */
+export const clearSearchHistoryApi = (id?: number) =>
+  http.delete<{ data: SearchHistoryEntry[] }>(id ? `/me/search-history/${id}` : '/me/search-history').then((r) => r.data.data);
+
 export const getProductsApi = (filters: ProductFilters = {}) => {
   const params: Record<string, string | number | boolean> = {};
   if (filters.q)                  params.q                  = filters.q;

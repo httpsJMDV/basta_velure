@@ -103,6 +103,31 @@ class BuyerApi {
     return ApiPage.from(body, ProductSummary.fromJson);
   }
 
+  // Recently viewed and recent searches (signed in; written by product and search requests) ----------------------
+
+  Future<List<ProductSummary>> recentlyViewed({int limit = 10}) async =>
+      asJsonList(
+        (await _get('/me/recently-viewed', query: {'limit': limit}))['data'],
+      ).map(ProductSummary.fromJson).toList();
+
+  Future<void> clearRecentlyViewed() async {
+    await _send('DELETE', '/me/recently-viewed');
+  }
+
+  /// Newest first: (id, query).
+  Future<List<(int, String)>> searchHistory() async => [
+    for (final r in asJsonList((await _get('/me/search-history'))['data']))
+      (asInt(r['id']), asString(r['query']) ?? ''),
+  ];
+
+  /// One search, or every one without [id].
+  Future<void> clearSearch({int? id}) async {
+    await _send(
+      'DELETE',
+      id == null ? '/me/search-history' : '/me/search-history/$id',
+    );
+  }
+
   Future<ProductDetail> product(int id) async =>
       ProductDetail.fromJson(asJson((await _get('/products/$id'))['data']));
 
@@ -401,7 +426,10 @@ class BuyerApi {
   Future<String> buyAgain(int id) async {
     final body = await _send('POST', '/buyer/orders/$id/buy-again');
     final skipped = asJsonList(body['skipped'])
-        .map((s) => '${asString(s['name']) ?? 'An item'}: ${asString(s['message']) ?? ''}')
+        .map(
+          (s) =>
+              '${asString(s['name']) ?? 'An item'}: ${asString(s['message']) ?? ''}',
+        )
         .join(' ');
     final message = asString(body['message']) ?? 'Added to your cart.';
     return skipped.isEmpty ? message : '$message $skipped';
@@ -432,7 +460,10 @@ class BuyerApi {
 
   Future<String> confirmRefund(int orderId) async =>
       asString(
-        (await _send('POST', '/buyer/orders/$orderId/refund/confirm'))['message'],
+        (await _send(
+          'POST',
+          '/buyer/orders/$orderId/refund/confirm',
+        ))['message'],
       ) ??
       'The refund is marked as received.';
 

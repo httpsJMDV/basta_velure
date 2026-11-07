@@ -33,6 +33,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _seed = Random().nextInt(1 << 30);
 
   Future<void> _refreshSections() async {
+    ref.invalidate(_recentProvider);
     ref.invalidate(categoriesProvider);
     ref.invalidate(featuredShopsProvider);
     ref.invalidate(_trendingProvider);
@@ -92,6 +93,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             padding: EdgeInsets.only(top: AppSpace.md),
             sliver: SliverToBoxAdapter(child: _HeroCarousel()),
           ),
+          if (user != null) const SliverToBoxAdapter(child: _RecentlyViewed()),
           const SliverToBoxAdapter(child: _Categories()),
           const SliverToBoxAdapter(child: _Trending()),
           const SliverToBoxAdapter(child: _ShopsToKnow()),
@@ -1013,6 +1015,48 @@ class _CategoryCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// What the signed-in shopper opened last, on any device.
+final _recentProvider = FutureProvider.autoDispose<List<ProductSummary>>(
+  (ref) async => ref.watch(buyerApiProvider).recentlyViewed(),
+);
+
+/// A sideways row of the products the shopper opened last. Hidden when empty or on an error.
+class _RecentlyViewed extends ConsumerWidget {
+  const _RecentlyViewed();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recent = ref.watch(_recentProvider);
+    final items = recent.value ?? const <ProductSummary>[];
+    if (!recent.hasValue || items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        SectionHeader(
+          title: 'Recently viewed',
+          actionLabel: 'Clear',
+          onAction: () async {
+            await ref.read(buyerApiProvider).clearRecentlyViewed();
+            ref.invalidate(_recentProvider);
+          },
+        ),
+        SizedBox(
+          height: productRowHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpace.md),
+            itemBuilder: (context, index) => SizedBox(
+              width: productRowCardWidth,
+              child: ProductCard(product: items[index], heroScope: 'recent'),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
