@@ -22,6 +22,8 @@ import { useRiderLocationBeacon } from '../../hooks/useRiderLocationBeacon';
 import { useLiveRefresh } from '../../hooks/useLiveNotices';
 import { RiderLocationGate } from './RiderLocationGate';
 import { getRiderMeApi, logoutApi } from '../../api/client';
+import { getRiderNavCountsApi } from '../../api/navCounts';
+import { useNavCounts } from '../../hooks/useNavCounts';
 import type { RiderProfileData } from '../../types';
 import LovedItLogo from '../../components/LovedItLogo';
 import { useToast } from '../../components/ui/Toast';
@@ -71,6 +73,14 @@ const TRUCK_NAV: NavGroup[] = [
 /** Pages a truck driver has no use for; they open Trips instead. */
 const DELIVERY_ONLY = ['/rider/dashboard', '/rider/pickups', '/rider/deliveries', '/rider/earnings'];
 
+/** What a menu badge counts, for screen readers. */
+const BADGE_LABEL: Record<string, string> = {
+  '/rider/pickups': 'pickup stops waiting',
+  '/rider/deliveries': 'parcels to deliver',
+  '/rider/trips': 'trip on the road',
+  '/rider/account': 'unread messages',
+};
+
 const PAGE_LABELS: Record<string, string> = {
   '/rider/dashboard': 'Dashboard',
   '/rider/pickups': 'Pickups',
@@ -81,7 +91,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/rider/activity': 'Activity',
 };
 
-function UnreadBadge({ count, floating = false }: { count: number; floating?: boolean }) {
+function UnreadBadge({ count, floating = false, label = 'unread messages' }: { count: number; floating?: boolean; label?: string }) {
   return (
     <span
       className={`min-w-[18px] h-[18px] px-1 rounded-full bg-brand-red text-white text-[10px] font-bold leading-none flex items-center justify-center ${
@@ -89,7 +99,7 @@ function UnreadBadge({ count, floating = false }: { count: number; floating?: bo
       }`}
     >
       <span aria-hidden="true">{count > 9 ? '9+' : count}</span>
-      <span className="sr-only">{count} unread messages</span>
+      <span className="sr-only">{count} {label}</span>
     </span>
   );
 }
@@ -158,6 +168,18 @@ export default function RiderLayout() {
   const nav = isTruck ? TRUCK_NAV : NAV;
   // Activity stays in the menu and the account list: five tabs fit a phone.
   const bottomNav = nav.flatMap((g) => g.items).filter((i) => i.to !== '/rider/activity');
+
+  // The numbers on the menu: pickup stops, parcels to deliver, the truck trip on the road, unread messages.
+  const { counts } = useNavCounts(getRiderNavCountsApi, !statusRevokedMessage);
+  const badgeFor = (to: string): number => {
+    switch (to) {
+      case '/rider/pickups': return counts?.pickups ?? 0;
+      case '/rider/deliveries': return counts?.deliveries ?? 0;
+      case '/rider/trips': return counts?.trips ?? 0;
+      case '/rider/account': return chat.total;
+      default: return 0;
+    }
+  };
   useEffect(() => {
     if (isTruck && DELIVERY_ONLY.includes(location.pathname)) navigate('/rider/trips', { replace: true });
     if (!isTruck && riderData && location.pathname === '/rider/trips') navigate('/rider/dashboard', { replace: true });
@@ -275,7 +297,7 @@ export default function RiderLayout() {
                       />
                       <span className="truncate">{label}</span>
                     </span>
-                    {to === '/rider/account' && chat.total > 0 && <UnreadBadge count={chat.total} />}
+                    {badgeFor(to) > 0 && <UnreadBadge count={badgeFor(to)} label={BADGE_LABEL[to] ?? 'waiting'} />}
                   </Link>
                 );
               })}
@@ -384,7 +406,7 @@ export default function RiderLayout() {
               {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand-red" aria-hidden="true" />}
               <span className="relative">
                 <Icon className="w-5 h-5" aria-hidden="true" />
-                {to === '/rider/account' && chat.total > 0 && <UnreadBadge count={chat.total} floating />}
+                {badgeFor(to) > 0 && <UnreadBadge count={badgeFor(to)} label={BADGE_LABEL[to] ?? 'waiting'} floating />}
               </span>
               <span className="text-[10px] tracking-tight">{label}</span>
             </Link>

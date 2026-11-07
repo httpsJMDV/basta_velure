@@ -47,7 +47,8 @@ const SIDEBAR_THEMES = {
     itemOff: 'text-gray-400 hover:text-white hover:bg-white/[0.06]',
     iconOn: '',
     iconOff: '',
-    badge: 'bg-white text-brand-red',
+    badge: 'bg-brand-red text-white',
+    badgeOn: 'bg-white text-brand-red',
     userCard: 'hover:bg-white/[0.04]',
     userName: 'text-white',
     userEmail: 'text-white/40',
@@ -67,6 +68,7 @@ const SIDEBAR_THEMES = {
     iconOn: 'text-brand-red',
     iconOff: 'text-gray-500 group-hover:text-gray-700',
     badge: 'bg-brand-red text-white',
+    badgeOn: 'bg-brand-red text-white',
     userCard: 'hover:bg-gray-50',
     userName: 'text-gray-800',
     userEmail: 'text-gray-400',
@@ -154,7 +156,7 @@ export function ShellSidebar({
                   <Icon className={`w-[17px] h-[17px] shrink-0 transition-colors ${active ? t.iconOn : t.iconOff}`} aria-hidden="true" />
                   {!collapsed && <span className="flex-1 truncate">{label}</span>}
                   {!collapsed && badge !== undefined && badge > 0 && (
-                    <span className={`min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center leading-none ${t.badge}`}>
+                    <span className={`min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center leading-none tabular-nums ${active ? t.badgeOn : t.badge}`}>
                       <span aria-hidden="true">{badge > 99 ? '99+' : badge}</span>
                       <span className="sr-only">{badge} waiting</span>
                     </span>
