@@ -165,6 +165,13 @@ class _OfferOverlayState extends ConsumerState<OfferOverlay> {
                         detail: offer.pickupAddress,
                         connected: true,
                       ),
+                      if (offer.pickupSlot != null)
+                        _Line(
+                          icon: LucideIcons.calendarClock,
+                          label: 'Shop asks for',
+                          value: offer.pickupSlot!,
+                          connected: true,
+                        ),
                       _Line(
                         icon: LucideIcons.mapPin,
                         label: 'Deliver to area',

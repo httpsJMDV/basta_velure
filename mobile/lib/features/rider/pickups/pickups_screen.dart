@@ -345,6 +345,13 @@ class _AvailableCardState extends State<_AvailableCard> {
               text: 'Ready since ${Fmt.dateTime(group.readySince)}',
             ),
           ],
+          if (group.pickupSlot != null) ...[
+            const SizedBox(height: AppSpace.xs),
+            InfoRow(
+              icon: LucideIcons.calendarClock,
+              text: 'Shop asks for ${group.pickupSlot}',
+            ),
+          ],
           const SizedBox(height: AppSpace.lg),
           Row(
             children: [
