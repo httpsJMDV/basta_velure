@@ -14,6 +14,7 @@ class HomeSwitchList extends ConsumerWidget {
 
   static IconData iconFor(AppHome home) => switch (home) {
     AppHome.buyer => LucideIcons.shoppingBag,
+    AppHome.seller => LucideIcons.store,
     AppHome.rider => LucideIcons.bike,
     AppHome.logistics => LucideIcons.warehouse,
     AppHome.webOnly => LucideIcons.monitor,

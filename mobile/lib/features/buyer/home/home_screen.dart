@@ -7,10 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../core/session/home_route.dart';
 import '../../../core/session/session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/web_links.dart';
 import '../../../core/widgets/widgets.dart';
 import '../buyer_paths.dart';
 import '../data/badges.dart';
@@ -573,11 +573,11 @@ class _RowProgress extends StatelessWidget {
   }
 }
 
-class _SellerNote extends StatelessWidget {
+class _SellerNote extends ConsumerWidget {
   const _SellerNote();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpace.lg,
@@ -589,13 +589,15 @@ class _SellerNote extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const MessageBanner(
-            message: 'Your shop is run from the website. Use loved-it.shop on a computer for the Seller Centre.',
+            message: 'Orders, stock and prices for your shop are in the Seller Centre.',
             tone: StatusTone.blue,
             icon: LucideIcons.store,
           ),
           TextButton.icon(
-            onPressed: () => openWebsite('/seller'),
-            icon: const Icon(LucideIcons.externalLink, size: 18),
+            onPressed: () => ref
+                .read(sessionProvider.notifier)
+                .switchHome(AppHome.seller),
+            icon: const Icon(LucideIcons.store, size: 18),
             label: const Text('Open the Seller Centre'),
           ),
         ],

@@ -37,7 +37,8 @@ const APK_FALLBACK = '/download/loved-it.apk';
 const MIN_ANDROID = 'Android 7.0 or newer';
 
 // Every line below is something the app does today. Check it against mobile/lib before changing the wording: no push
-// notifications, and no seller screens. This page speaks to shoppers only, like a listing on an app store.
+// notifications yet. Sellers have a Seller Centre in the app (orders, stock, prices), but this page speaks to shoppers
+// only, like a listing on an app store.
 const FIGURES = [
   { value: '₱0', label: 'to download and use' },
   { value: '2', label: 'ways to pay: cash or GCash' },

@@ -15,6 +15,7 @@ class AppUser {
     this.avatarUrl,
     this.governmentIdType,
     this.sellerApplicationStatus,
+    this.shopName,
     this.sortingCenter,
     this.rider,
     this.logisticsCompany,
@@ -44,6 +45,9 @@ class AppUser {
   final String status;
   final String? governmentIdType;
   final String? sellerApplicationStatus;
+
+  /// The shop's name, for an account with a seller profile.
+  final String? shopName;
   final HubSummary? sortingCenter;
   final RiderSummary? rider;
   final CourierSummary? logisticsCompany;
@@ -85,6 +89,7 @@ class AppUser {
       status: json['status'] as String? ?? 'active',
       governmentIdType: json['government_id_type'] as String?,
       sellerApplicationStatus: seller?['application_status'] as String?,
+      shopName: seller?['shop_name'] as String?,
       sortingCenter: hub == null ? null : HubSummary.fromJson(hub),
       rider: rider == null ? null : RiderSummary.fromJson(rider),
       logisticsCompany: courier == null

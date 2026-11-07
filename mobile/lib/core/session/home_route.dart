@@ -1,8 +1,9 @@
 import 'app_user.dart';
 
-/// The home screens of the one app (amaru.md, task A6). Sellers and admins keep using the website.
+/// The home screens of the one app (amaru.md, task A6). Admins keep using the website.
 enum AppHome {
   buyer('/buyer', 'Shop'),
+  seller('/seller', 'Seller Centre'),
   rider('/rider', 'Rider'),
   logistics('/logistics', 'Logistics'),
   webOnly('/web-only', 'Website');
@@ -33,7 +34,11 @@ List<AppHome> homesFor(AppUser user) {
   if (work.isNotEmpty) return work;
   // A rider account made by a courier or the public rider form has the `rider` role, and the buyer endpoints are not
   // all open to it (confirm receipt needs `role:buyer`), so it gets no shop even before it is activated.
-  return user.role == 'rider' ? const [AppHome.rider] : const [AppHome.buyer];
+  if (user.role == 'rider') return const [AppHome.rider];
+  // A seller shops too: the app opens on the shop, and Account switches to the Seller Centre.
+  return user.isSeller
+      ? const [AppHome.buyer, AppHome.seller]
+      : const [AppHome.buyer];
 }
 
 AppHome defaultHomeFor(AppUser user) => homesFor(user).first;

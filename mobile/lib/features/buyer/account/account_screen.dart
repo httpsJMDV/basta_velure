@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../core/session/home_route.dart';
 import '../../../core/session/session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/web_links.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../auth/account_actions.dart';
 import '../buyer_paths.dart';
@@ -121,9 +121,11 @@ class AccountScreen extends ConsumerWidget {
                 ),
                 child: PressScale(
                   scale: 0.985,
-                  onTap: () => openWebsite('/seller'),
+                  onTap: () => ref
+                      .read(sessionProvider.notifier)
+                      .switchHome(AppHome.seller),
                   child: const MessageBanner(
-                    message: 'Your shop is run from the website. Tap to open the Seller Centre.',
+                    message: 'Run your shop from here: tap to open the Seller Centre.',
                     tone: StatusTone.blue,
                     icon: LucideIcons.store,
                   ),
