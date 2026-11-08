@@ -58,6 +58,7 @@ import SellerProductsPage from './pages/seller/SellerProductsPage';
 import SellerAddProductPage from './pages/seller/SellerAddProductPage';
 import SellerOrdersPage from './pages/seller/SellerOrdersPage';
 import WaybillPage from './pages/seller/WaybillPage';
+import SellerReportPrintPage from './pages/seller/SellerReportPrintPage';
 import SellerEarningsPage from './pages/seller/SellerEarningsPage';
 import SellerPaymentsPage from './pages/seller/SellerPaymentsPage';
 import SellerShopProfilePage from './pages/seller/SellerShopProfilePage';
@@ -377,6 +378,15 @@ function AppRoutes() {
         </Route>
       </Route>
 
+      {/* The seller's report as an A4 page, to save as a PDF */}
+      <Route
+        path="/seller/reports/print"
+        element={
+          <RequireSellerOrAdmin>
+            <SellerReportPrintPage />
+          </RequireSellerOrAdmin>
+        }
+      />
       {/* Standalone Printable Waybill for Seller & Admin */}
       <Route
         path="/seller/orders/:id/waybill"

@@ -9,6 +9,9 @@ import {
   Wallet,
   CreditCard,
   CalendarRange,
+  FileSpreadsheet,
+  FileText,
+  RefreshCw,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -25,7 +28,9 @@ import {
   getSellerRevenueChartApi,
   getSellerPaymentMethodsApi,
   getSellerReportTopProductsApi,
+  downloadSellerReportApi,
 } from '../../api/client';
+import { useToast } from '../../components/ui/Toast';
 import type {
   SellerReportSummary,
   SellerRevenueChartPoint,
@@ -68,6 +73,26 @@ export default function SellerReportsPage() {
   const [chartData, setChartData] = useState<SellerRevenueChartPoint[]>([]);
   const [paymentSplit, setPaymentSplit] = useState<PaymentMethodSplit | null>(null);
   const [topProducts, setTopProducts] = useState<SellerTopProduct[]>([]);
+  const { showToast } = useToast();
+  const [downloading, setDownloading] = useState(false);
+  // The window the page shows, for the downloads.
+  const windowParams = range === 'custom' && custom ? { from: custom.from, to: custom.to } : { range };
+
+  const downloadExcel = async () => {
+    setDownloading(true);
+    try {
+      showToast(`Saved ${await downloadSellerReportApi(windowParams)}`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'The report could not be downloaded.', 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const openPdf = () => {
+    const query = new URLSearchParams(custom && range === 'custom' ? { from: custom.from, to: custom.to, print: '1' } : { range, print: '1' }).toString();
+    window.open(`/seller/reports/print?${query}`, '_blank', 'noopener');
+  };
 
   const loadData = useCallback(async () => {
     if (range === 'custom' && !custom) return;
@@ -133,8 +158,9 @@ export default function SellerReportsPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center justify-end gap-2 self-end md:self-auto shrink-0">
         {/* Timeframe Selector inside Hero Bar */}
-        <div className="flex items-center gap-1 bg-gray-100/90 p-0.5 rounded-xl border border-gray-200/70 self-end md:self-auto shrink-0">
+        <div className="flex items-center gap-1 bg-gray-100/90 p-0.5 rounded-xl border border-gray-200/70">
           {TIMEFRAMES.map((t) => (
             <button
               key={t.value}
@@ -151,6 +177,23 @@ export default function SellerReportsPage() {
               {t.label}
             </button>
           ))}
+        </div>
+
+        {/* The same period as a file: Excel for the numbers, PDF to share or print */}
+        <div className="flex items-center rounded-xl border border-gray-200 bg-white divide-x divide-gray-200 overflow-hidden" role="group" aria-label="Download this report">
+          <button type="button" onClick={() => void downloadExcel()} disabled={downloading || (range === 'custom' && !custom)}
+            title="Download an Excel workbook: summary, sales by day, payment methods, products and every order"
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {downloading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />}
+            Excel
+          </button>
+          <button type="button" onClick={openPdf} disabled={range === 'custom' && !custom}
+            title="Open an A4 report to save as a PDF"
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            <FileText className="w-3.5 h-3.5 text-brand-red" aria-hidden="true" />
+            PDF
+          </button>
+        </div>
         </div>
       </div>
 
