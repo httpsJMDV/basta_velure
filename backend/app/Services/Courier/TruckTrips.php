@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\LogisticsCompany;
 use App\Models\Parcel;
 use App\Models\ParcelHubStop;
+use App\Models\ReturnPickupStop;
 use App\Models\Rider;
 use App\Models\SortingCenter;
 use App\Models\TruckTrip;
@@ -89,38 +90,47 @@ class TruckTrips
     /**
      * Opens the trip for parcels the hub is about to send to one hub. The caller then sends each parcel with it.
      */
-    public function start(SortingCenter $from, SortingCenter $to, Rider $driver, int $parcelCount, User $by): TruckTrip
+    public function start(SortingCenter $from, SortingCenter $to, ?Rider $driver, int $parcelCount, User $by, string $mode = TruckTrip::MODE_TRUCK,
+        ?string $carrier = null, ?string $reference = null, ?\DateTimeInterface $eta = null): TruckTrip
     {
         $company = $this->companyOf($from);
         $trip = TruckTrip::create([
-            'code'                 => $this->code(),
+            'code'                 => $this->code($mode),
+            'mode'                 => $mode,
             'logistics_company_id' => $company?->id,
             'from_hub_id'          => $from->id,
             'to_hub_id'            => $to->id,
-            'driver_id'            => $driver->id,
-            'plate_number'         => $driver->plate_number,
+            'driver_id'            => $driver?->id,
+            'plate_number'         => $driver?->plate_number,
+            'carrier_name'         => $carrier,
+            'carrier_reference'    => $reference,
             'status'               => TruckTrip::STATUS_ON_THE_WAY,
             'parcel_count'         => $parcelCount,
             'received_count'       => 0,
             'created_by'           => $by->id,
             'departed_at'          => now(),
-            'pay_amount'           => $this->rate($company),
+            'eta_at'               => $eta ?? ($mode === TruckTrip::MODE_TRUCK ? null : now()->addDays((int) config("logistics.cargo_days.{$mode}", 2))),
+            // A ship or a plane is paid to the carrier outside Loved-IT; only the courier's own drivers are paid per trip here.
+            'pay_amount'           => $driver ? $this->rate($company) : 0,
         ]);
 
-        AuditLog::record($by, 'truck_trip.departed', $trip, null, [
-            'code' => $trip->code, 'from' => $from->hub_name, 'to' => $to->hub_name, 'parcels' => $parcelCount,
-            'driver' => $this->name($driver), 'plate_number' => $trip->plate_number,
-        ], companyId: $company?->id, actorRole: 'hub');
+        AuditLog::record($by, 'truck_trip.departed', $trip, null, array_filter([
+            'code' => $trip->code, 'mode' => $mode, 'from' => $from->hub_name, 'to' => $to->hub_name, 'parcels' => $parcelCount,
+            'driver' => $driver ? $this->name($driver) : null, 'plate_number' => $trip->plate_number,
+            'carrier' => $carrier, 'reference' => $reference,
+        ], fn ($v) => $v !== null), companyId: $company?->id, actorRole: 'hub');
 
-        $this->notifier->send($driver->loadMissing('user')->user, 'rider.truck_trip', 'New truck trip',
-            "{$parcelCount} " . ($parcelCount === 1 ? 'parcel' : 'parcels') . " from {$from->hub_name} to {$to->hub_name}. Trip {$trip->code}.",
-            '/rider/trips', ['truck_trip_id' => $trip->id]);
+        if ($driver) {
+            $this->notifier->send($driver->loadMissing('user')->user, 'rider.truck_trip', 'New truck trip',
+                "{$parcelCount} " . ($parcelCount === 1 ? 'parcel' : 'parcels') . " from {$from->hub_name} to {$to->hub_name}. Trip {$trip->code}.",
+                '/rider/trips', ['truck_trip_id' => $trip->id]);
+        }
 
         return $trip;
     }
 
     /** The next hub scanned in a parcel this trip carried. The last one completes the trip. */
-    public function parcelArrived(ParcelHubStop $stop): void
+    public function parcelArrived(ParcelHubStop|ReturnPickupStop $stop): void
     {
         if (! $stop->truck_trip_id) {
             return;
@@ -130,7 +140,8 @@ class TruckTrips
             return;
         }
 
-        $received = ParcelHubStop::where('truck_trip_id', $trip->id)->whereNotNull('arrived_at')->count();
+        $received = ParcelHubStop::where('truck_trip_id', $trip->id)->whereNotNull('arrived_at')->count()
+            + ReturnPickupStop::where('truck_trip_id', $trip->id)->whereNotNull('arrived_at')->count();
         $trip->received_count = $received;
         if ($received >= $trip->parcel_count) {
             $trip->status = TruckTrip::STATUS_COMPLETED;
@@ -139,7 +150,7 @@ class TruckTrips
         }
         $trip->save();
 
-        if ($trip->status === TruckTrip::STATUS_COMPLETED) {
+        if ($trip->status === TruckTrip::STATUS_COMPLETED && $trip->driver_id) {
             $trip->loadMissing(['driver.user', 'toHub']);
             $this->notifier->send($trip->driver?->user, 'rider.truck_trip_completed', 'Trip complete',
                 "{$trip->toHub?->hub_name} received all {$trip->parcel_count} parcels of trip {$trip->code}. ₱" . number_format((float) $trip->pay_amount, 2) . ' is added to your trip pay.',
@@ -234,6 +245,10 @@ class TruckTrips
         $row = [
             'id'                => $trip->id,
             'code'              => $trip->code,
+            'mode'              => (string) ($trip->mode ?: TruckTrip::MODE_TRUCK),
+            'carrier_name'      => $trip->carrier_name,
+            'carrier_reference' => $trip->carrier_reference,
+            'eta_at'            => $trip->eta_at?->toIso8601String(),
             'status'            => $trip->status,
             'from_hub'          => $this->hub($trip->fromHub),
             'to_hub'            => $this->hub($trip->toHub),
@@ -259,9 +274,18 @@ class TruckTrips
                 ->where('truck_trip_id', $trip->id)->orderBy('id')->get()
                 ->map(fn (ParcelHubStop $s) => [
                     'tracking_number' => $s->parcel?->tracking_number,
+                    'kind'            => $s->direction === ParcelHubStop::DIRECTION_RETURN ? 'return_to_sender' : 'parcel',
                     'received'        => $s->arrived_at !== null,
                     'received_at'     => $s->arrived_at?->toIso8601String(),
-                ])->values()->all();
+                ])
+                ->concat(ReturnPickupStop::with('returnPickup:id,code')->where('truck_trip_id', $trip->id)->orderBy('id')->get()
+                    ->map(fn (ReturnPickupStop $s) => [
+                        'tracking_number' => $s->returnPickup?->code,
+                        'kind'            => 'buyer_return',
+                        'received'        => $s->arrived_at !== null,
+                        'received_at'     => $s->arrived_at?->toIso8601String(),
+                    ]))
+                ->values()->all();
         }
 
         return $row;
@@ -280,11 +304,12 @@ class TruckTrips
         return $hub ? ['id' => $hub->id, 'name' => (string) $hub->hub_name, 'city' => (string) $hub->address_city] : null;
     }
 
-    private function code(): string
+    private function code(string $mode = TruckTrip::MODE_TRUCK): string
     {
         $generator = app(TrackingNumberGenerator::class);
+        $prefix = ['sea' => 'SEA', 'air' => 'AIR'][$mode] ?? 'TRK';
         do {
-            $code = 'TRK-' . now('Asia/Manila')->format('ymd') . '-' . $generator->randomString(4);
+            $code = $prefix . '-' . now('Asia/Manila')->format('ymd') . '-' . $generator->randomString(4);
         } while (TruckTrip::where('code', $code)->exists());
 
         return $code;

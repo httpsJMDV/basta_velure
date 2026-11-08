@@ -39,7 +39,7 @@ class Order extends Model
         'shipping_province_code', 'shipping_city_code', 'shipping_barangay_code', 'notes', 'completed_at',
         'store_voucher_id', 'store_voucher_discount', 'platform_voucher_id', 'platform_voucher_discount',
         'shipping_voucher_id', 'shipping_voucher_discount', 'promo_discount', 'total_weight_grams', 'chargeable_weight_kg',
-        'shipping_route', 'payment_due_at', 'paid_at', 'cancel_reason', 'cancelled_by', 'cancelled_at', 'refund_status',
+        'shipping_route', 'eta_min_days', 'eta_max_days', 'payment_due_at', 'paid_at', 'cancel_reason', 'cancelled_by', 'cancelled_at', 'refund_status',
         'refund_amount', 'refunded_at',
     ];
 

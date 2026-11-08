@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\LogisticsCompany;
 use App\Models\Rider;
 use App\Models\TruckTrip;
+use App\Services\Courier\TruckPlanner;
 use App\Services\Courier\TruckTrips;
 use App\Support\PhMobile;
 use Illuminate\Http\JsonResponse;
@@ -117,6 +118,34 @@ class LogisticsTruckController extends Controller
 
             return response()->json(['message' => "Trip {$row->code} closed.", 'data' => $this->trucks->payload($row, true)]);
         });
+    }
+
+    /** GET /logistics/truck-planner: how many truck drivers this week's trips need, route by route. */
+    public function planner(Request $request): JsonResponse
+    {
+        return response()->json(['data' => app(TruckPlanner::class)->plan($this->company($request))]);
+    }
+
+    /** PUT /logistics/truck-planner {capacity, shift_hours}: what one truck carries and one driver's shift. */
+    public function plannerSettings(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'capacity'    => ['required', 'integer', 'min:10', 'max:5000'],
+            'shift_hours' => ['required', 'integer', 'min:1', 'max:16'],
+        ], [
+            'capacity.required'    => 'Enter how many parcels one truck carries.',
+            'capacity.min'         => 'A truck carries at least 10 parcels.',
+            'shift_hours.required' => 'Enter how many hours one driver works a day.',
+            'shift_hours.max'      => 'A shift is at most 16 hours.',
+        ]);
+        $company = $this->company($request);
+        $planner = app(TruckPlanner::class);
+        $old = ['capacity' => $planner->capacity($company), 'shift_hours' => $planner->shiftHours($company)];
+        $company->forceFill(['truck_capacity' => (int) $data['capacity'], 'truck_shift_hours' => (int) $data['shift_hours']])->save();
+        AuditLog::record($request->user(), 'truck_planner.settings_changed', $company, $old,
+            ['capacity' => (int) $data['capacity'], 'shift_hours' => (int) $data['shift_hours']], companyId: $company->id, actorRole: 'logistics');
+
+        return response()->json(['message' => 'Saved. The plan uses the new numbers.', 'data' => $planner->plan($company)]);
     }
 
     /** PUT /logistics/truck-rate {rate}: what one trip pays from now on. Trips already on the way keep their amount. */

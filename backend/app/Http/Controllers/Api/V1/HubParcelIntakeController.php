@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Parcel;
+use App\Models\ReturnPickup;
 use App\Models\SortingCenter;
 use App\Services\Courier\HubRouter;
+use App\Services\Courier\ReturnPickups;
 use App\Services\OrderStateMachine;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -53,6 +55,9 @@ class HubParcelIntakeController extends Controller
     public function receive(Request $request, string $tracking): JsonResponse
     {
         $hub = $this->hub($request);
+        if (self::isReturnCode($tracking)) {
+            return $this->receiveReturnItem($request, $hub, $tracking);
+        }
 
         return DB::transaction(function () use ($request, $hub, $tracking) {
             $parcel = $this->hubParcelQuery($hub, $tracking)->lockForUpdate()->first();
@@ -130,7 +135,57 @@ class HubParcelIntakeController extends Controller
             ->orderBy('id', 'asc')
             ->paginate($this->perPage($request));
 
-        return $this->paginatedResponse($paginated);
+        $body = $this->paginatedResponse($paginated)->getData(true);
+        // Buyers' returned items travelling back to a shop near (or beyond) this hub.
+        $returns = ReturnPickup::with('stops.hub')->where('current_hub_id', $hub->id)->whereNotNull('transit_since')->oldest('transit_since')->limit(100)->get();
+        $body['meta']['returns'] = $returns->map(fn (ReturnPickup $r) => $this->returnRow($r))->values()->all();
+
+        return response()->json($body);
+    }
+
+    /** RTN-… codes are buyers' returned items, scanned at the same desk as parcels. */
+    public static function isReturnCode(string $code): bool
+    {
+        return str_starts_with(Str::upper(trim($code)), 'RTN-');
+    }
+
+    /** A returned item travelling back to its shop arrived at this hub. */
+    protected function receiveReturnItem(Request $request, SortingCenter $hub, string $code): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $hub, $code) {
+            $item = ReturnPickup::where('code', Str::upper(trim($code)))->where('current_hub_id', $hub->id)->lockForUpdate()->first();
+            if (! $item) {
+                return response()->json(['message' => 'Returned item not found for this hub.'], 404);
+            }
+            if ($item->transit_since === null) {
+                return response()->json(['message' => 'This returned item has already been received.'], 409);
+            }
+            app(ReturnPickups::class)->arrive($item, $hub, $request->user());
+            $item->refresh();
+
+            return response()->json([
+                'message' => (int) $item->destination_hub_id === $hub->id
+                    ? 'Returned item received. Give it to a rider to bring to the shop.'
+                    : 'Returned item received. Send it on under Sorting, For other hubs.',
+                'data'    => $this->returnRow($item),
+            ]);
+        });
+    }
+
+    /** @return array<string, mixed> */
+    protected function returnRow(ReturnPickup $item): array
+    {
+        $from = $item->stops->last(fn ($s) => $s->departed_at !== null)?->hub;
+
+        return [
+            'kind'          => 'buyer_return',
+            'code'          => $item->code,
+            'shop_name'     => $item->shop_snapshot['shop_name'] ?? null,
+            'coming_from'   => $from?->hub_name,
+            'in_transit'    => $item->transit_since !== null,
+            'transit_since' => $item->transit_since?->toIso8601String(),
+            'at_shop_hub'   => (int) $item->current_hub_id === (int) $item->destination_hub_id,
+        ];
     }
 
     /**

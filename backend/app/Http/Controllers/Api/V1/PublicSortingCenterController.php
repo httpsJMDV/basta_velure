@@ -34,6 +34,10 @@ class PublicSortingCenterController extends Controller
         }
 
         $limit = min(max((int) ($request->input('limit', 100)), 1), 100);
+        // A rider sign-up link names its hub: that one always comes first, so it is found among thousands.
+        if ($request->filled('hub_id') && ! $request->filled('search')) {
+            $query->orderByRaw('id = ? DESC', [(int) $request->input('hub_id')]);
+        }
         $hubs = $query->orderBy('hub_name', 'asc')->take($limit)->get();
         $default = LogisticsCompany::defaultId() ? LogisticsCompany::find(LogisticsCompany::defaultId(), ['id', 'name', 'code']) : null;
 

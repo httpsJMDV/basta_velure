@@ -130,37 +130,37 @@ class LogisticsSettlementController extends Controller
     /** GET /logistics/payouts: what each rider and hub of the network is owed, and when they were last paid. */
     public function payouts(Request $request): JsonResponse
     {
-        $hubIds = LogisticsCompany::constrain(SortingCenter::query(), $this->company($request)->id)->pluck('id');
+        $hubIds = LogisticsCompany::constrain(SortingCenter::query(), $this->company($request)->id)->select('id');
+
+        // One grouped query per table: the network has thousands of hubs, and only those with earnings are listed.
+        $totals = fn ($query, string $key) => $query->selectRaw("{$key} as k, SUM(CASE WHEN paid_at IS NULL THEN amount ELSE 0 END) as unpaid,
+                SUM(CASE WHEN paid_at IS NULL THEN 1 ELSE 0 END) as unpaid_count, MAX(paid_at) as last_paid_at")
+            ->groupBy($key)->get()->keyBy('k');
+        $riderTotals = $totals(RiderEarning::query()->whereIn('rider_id', Rider::whereIn('sorting_center_id', $hubIds)->select('id')), 'rider_id');
+        $hubTotals = $totals(HubEarning::query()->whereIn('sorting_center_id', $hubIds), 'sorting_center_id');
+        $row = fn ($t) => [
+            'unpaid'       => (float) Money::fromCents(Money::toCents((string) ($t->unpaid ?? '0'))),
+            'unpaid_count' => (int) ($t->unpaid_count ?? 0),
+            'last_paid_at' => $t->last_paid_at ?? null,
+        ];
 
         $riders = Rider::with(['user:id,first_name,last_name,avatar_path', 'sortingCenter:id,hub_name'])
-            ->whereIn('sorting_center_id', $hubIds)->get()
-            ->map(function (Rider $r) {
-                $unpaid = RiderEarning::where('rider_id', $r->id)->whereNull('paid_at');
-                return [
-                    'id'           => $r->id,
-                    'name'         => $r->user ? trim($r->user->first_name . ' ' . $r->user->last_name) : 'Rider',
-                    'avatar_url'   => $r->user?->avatar_url,
-                    'hub_name'     => $r->sortingCenter?->hub_name,
-                    'gcash'        => $r->gcash_number ? ['name' => $r->gcash_name, 'number' => Gcash::format($r->gcash_number)] : null,
-                    'unpaid'       => (float) Money::fromCents(Money::toCents((string) (clone $unpaid)->sum('amount'))),
-                    'unpaid_count' => (clone $unpaid)->count(),
-                    'last_paid_at' => RiderEarning::where('rider_id', $r->id)->max('paid_at'),
-                ];
-            })
+            ->whereIn('id', $riderTotals->keys())->get()
+            ->map(fn (Rider $r) => [
+                'id'           => $r->id,
+                'name'         => $r->user ? trim($r->user->first_name . ' ' . $r->user->last_name) : 'Rider',
+                'avatar_url'   => $r->user?->avatar_url,
+                'hub_name'     => $r->sortingCenter?->hub_name,
+                'gcash'        => $r->gcash_number ? ['name' => $r->gcash_name, 'number' => Gcash::format($r->gcash_number)] : null,
+            ] + $row($riderTotals[$r->id]))
             ->filter(fn ($r) => $r['unpaid_count'] > 0 || $r['last_paid_at'])
             ->sortByDesc('unpaid')->values();
 
-        $hubs = SortingCenter::whereIn('id', $hubIds)->get()->map(function (SortingCenter $h) {
-            $unpaid = HubEarning::where('sorting_center_id', $h->id)->whereNull('paid_at');
-            return [
-                'id'           => $h->id,
-                'name'         => $h->hub_name,
-                'gcash'        => $h->gcash_number ? ['name' => $h->gcash_name, 'number' => Gcash::format($h->gcash_number)] : null,
-                'unpaid'       => (float) Money::fromCents(Money::toCents((string) (clone $unpaid)->sum('amount'))),
-                'unpaid_count' => (clone $unpaid)->count(),
-                'last_paid_at' => HubEarning::where('sorting_center_id', $h->id)->max('paid_at'),
-            ];
-        })->filter(fn ($h) => $h['unpaid_count'] > 0 || $h['last_paid_at'])->sortByDesc('unpaid')->values();
+        $hubs = SortingCenter::whereIn('id', $hubTotals->keys())->get()->map(fn (SortingCenter $h) => [
+            'id'           => $h->id,
+            'name'         => $h->hub_name,
+            'gcash'        => $h->gcash_number ? ['name' => $h->gcash_name, 'number' => Gcash::format($h->gcash_number)] : null,
+        ] + $row($hubTotals[$h->id]))->filter(fn ($h) => $h['unpaid_count'] > 0 || $h['last_paid_at'])->sortByDesc('unpaid')->values();
 
         return response()->json(['data' => ['riders' => $riders, 'hubs' => $hubs]]);
     }

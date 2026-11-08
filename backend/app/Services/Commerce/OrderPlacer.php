@@ -118,6 +118,8 @@ class OrderPlacer
                     'total_weight_grams'        => $store['shipping']['weight_grams'],
                     'chargeable_weight_kg'      => $store['shipping']['chargeable_kg'],
                     'shipping_route'            => $store['shipping']['route'],
+                    'eta_min_days'              => $store['shipping']['eta']['min'] ?? null,
+                    'eta_max_days'              => $store['shipping']['eta']['max'] ?? null,
                     'total'                     => $store['total'],
                     'payment_method'            => $method,
                     'payment_status'            => $method === 'gcash' ? 'pending_verification' : 'pending',

@@ -269,10 +269,14 @@ class Parcel extends Model
     /** At this hub and has to go on to another hub. Only call this once HubRouter::ready(). */
     public function scopeWaitingToSend($query)
     {
-        return $query->where('status', self::STATUS_AT_SORTING_CENTER)
-            ->whereNull('transit_since')
-            ->whereNotNull('destination_hub_id')
-            ->whereColumn('destination_hub_id', '!=', 'sorting_center_id');
+        return $query->where(fn ($q) => $q
+            ->where(fn ($q) => $q->where('status', self::STATUS_AT_SORTING_CENTER)
+                ->whereNotNull('destination_hub_id')
+                ->whereColumn('destination_hub_id', '!=', 'sorting_center_id'))
+            // Going back to the seller through the hubs (return to sender from far away).
+            ->orWhere(fn ($q) => $q->where('status', self::STATUS_RETURN_TO_SENDER)
+                ->whereHas('hubStops', fn ($s) => $s->where('direction', ParcelHubStop::DIRECTION_RETURN)->whereNull('arrived_at'))))
+            ->whereNull('transit_since');
     }
 
     /** A rider is bringing it here, or the hub before this one sent it. */

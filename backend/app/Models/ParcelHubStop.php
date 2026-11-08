@@ -19,7 +19,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ParcelHubStop extends Model
 {
-    protected $fillable = ['parcel_id', 'position', 'sorting_center_id', 'truck_trip_id', 'arrived_at', 'departed_at'];
+    public const DIRECTION_FORWARD = 'forward';
+    public const DIRECTION_RETURN = 'return';
+
+    protected $fillable = ['parcel_id', 'position', 'sorting_center_id', 'truck_trip_id', 'mode', 'direction', 'arrived_at', 'departed_at'];
 
     protected function casts(): array
     {

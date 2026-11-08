@@ -91,6 +91,8 @@ class BuyerOrderPresenter
             'shipping_fee'        => (float) $o->shipping_fee,
             'chargeable_weight_kg' => $o->chargeable_weight_kg,
             'shipping_route'      => $o->shipping_route,
+            // Days the delivery was expected to take when the order was placed, by how far the shop is.
+            'eta'                 => $o->eta_min_days !== null ? ['min' => (int) $o->eta_min_days, 'max' => (int) $o->eta_max_days] : null,
             'free_delivery'       => (bool) $o->free_delivery,
             'settlement'          => $o->settlement ?? Order::SETTLEMENT_PLATFORM,
             'total'               => (float) $o->total,

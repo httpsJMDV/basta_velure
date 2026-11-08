@@ -8,6 +8,7 @@ use App\Models\Voucher;
 use App\Services\CourierAssigner;
 use App\Services\Pricing\PriceBook;
 use App\Support\OrderLimits;
+use App\Support\PhPlaces;
 use App\Support\Validation;
 use Illuminate\Support\Str;
 
@@ -312,13 +313,19 @@ class CheckoutCalculator
     {
         $kg = ShippingCalculator::chargeableKg($grams);
         if (! $destination || empty($destination['barangay'] ?? null)) {
-            return ['fee' => 0.0, 'courier_fee' => 0.0, 'chargeable_kg' => $kg, 'weight_grams' => $grams, 'route' => null, 'serviceable' => true, 'message' => null, 'free_delivery' => false, 'company_id' => null];
+            return ['fee' => 0.0, 'courier_fee' => 0.0, 'chargeable_kg' => $kg, 'weight_grams' => $grams, 'route' => null, 'serviceable' => true, 'message' => null, 'free_delivery' => false, 'company_id' => null, 'eta' => null];
         }
         $origin = $profile ? [
             'region' => $profile->address_region_code ?? null, 'province' => $profile->address_province_code ?? null, 'city' => $profile->address_city_code ?? null,
         ] : null;
         $preferred = $assigner->forRoute($profile?->address_barangay_code, $destination['barangay'] ?? null);
         $q = $this->shipping->quote($origin, $destination, $grams, $preferred);
+        // One courier carries a parcel from the shop to the buyer, so it needs a hub at both ends.
+        if ($q['serviceable'] && ! $assigner->canDeliver($profile?->address_barangay_code, $destination['barangay'] ?? null)) {
+            $q = ['serviceable' => false, 'company_id' => null, 'fee' => 0.0, 'chargeable_kg' => $q['chargeable_kg'], 'route' => null,
+                'message' => 'No courier delivers from ' . ($profile?->shop_name ?: 'this shop') . ' to your barangay yet. Choose another address.'];
+        }
+        $eta = $q['serviceable'] ? PhPlaces::estimate($profile?->address_barangay_code, $destination['barangay'] ?? null) : null;
         $freeFrom = $profile?->free_delivery_min;
         $free = $q['serviceable'] && $freeFrom !== null && $merchandise >= (float) $freeFrom;
 
@@ -333,6 +340,8 @@ class CheckoutCalculator
             'free_delivery' => $free,
             // The courier that serves the route takes the parcel; its rate table, or the default one, sets the fee.
             'company_id'    => $preferred ?? $q['company_id'],
+            // How many days it takes, by how far the shop is (null without both addresses matched to barangays).
+            'eta'           => $eta,
         ];
     }
 
