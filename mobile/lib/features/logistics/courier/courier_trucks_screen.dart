@@ -102,6 +102,8 @@ class _CourierTrucksScreenState extends ConsumerState<CourierTrucksScreen> {
           padding: const EdgeInsets.all(AppSpace.lg),
           children: [
             _Summary(data: data),
+            const SizedBox(height: AppSpace.md),
+            const _PlanCard(),
             const SizedBox(height: AppSpace.lg),
             if (data.drivers.isEmpty)
               const EmptyState(
@@ -119,6 +121,57 @@ class _CourierTrucksScreenState extends ConsumerState<CourierTrucksScreen> {
       ),
     );
   }
+}
+
+/// "Do we need more truck drivers?": the answer worked out from a week of trips between the hubs.
+class _PlanCard extends ConsumerWidget {
+  const _PlanCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder(
+      future: ref.read(courierApiProvider).truckPlan(),
+      builder: (context, snap) {
+        final plan = snap.data;
+        if (plan == null) return const SizedBox.shrink();
+        final tone = switch (plan.verdict) {
+          'short' => StatusTone.rose,
+          'tight' => StatusTone.amber,
+          'ok' || 'more_than_needed' => StatusTone.emerald,
+          _ => StatusTone.gray,
+        };
+        return RiderCard(
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Do we need more truck drivers?', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.gray900)),
+              const SizedBox(height: AppSpace.sm),
+              Row(
+                children: [
+                  Expanded(child: _big('You need', '${plan.need}')),
+                  Expanded(child: _big('You have', '${plan.have}')),
+                  Expanded(child: _big('Trips a day', '${plan.tripsPerDay}')),
+                ],
+              ),
+              const SizedBox(height: AppSpace.sm),
+              Text(plan.message, style: TextStyle(fontSize: 14, height: 1.35, color: tone.foreground)),
+              if (plan.waiting > 0)
+                Text('${plan.waiting} parcels are waiting for a truck now.', style: const TextStyle(fontSize: 13, color: AppColors.stone600)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _big(String label, String value) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: const TextStyle(fontSize: 12, color: AppColors.stone500)),
+      Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.gray900)),
+    ],
+  );
 }
 
 class _Summary extends StatelessWidget {

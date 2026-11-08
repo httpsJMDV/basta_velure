@@ -44,7 +44,7 @@ class _ReturnPickupsScreenState extends ConsumerState<ReturnPickupsScreen> {
       if (!mounted) return;
       setState(() {
         _jobs = jobs
-            .where((j) => j.status == 'assigned' || j.status == 'collected')
+            .where((j) => (j.myStep ?? (j.status == 'assigned' || j.status == 'collected' ? j.status : null)) != null)
             .toList();
         _failure = null;
       });
@@ -157,6 +157,12 @@ class _ReturnPickupsScreenState extends ConsumerState<ReturnPickupsScreen> {
                                   .read(returnPickupApiProvider)
                                   .delivered(job.id),
                             ),
+                            onDropped: () => _run(
+                              job.id,
+                              () => ref
+                                  .read(returnPickupApiProvider)
+                                  .dropped(job.id),
+                            ),
                           ),
                           const SizedBox(height: AppSpace.md),
                         ],
@@ -174,6 +180,7 @@ class _JobCard extends StatelessWidget {
     required this.onCollect,
     required this.onMissed,
     required this.onDelivered,
+    required this.onDropped,
   });
 
   final ReturnPickup job;
@@ -181,10 +188,13 @@ class _JobCard extends StatelessWidget {
   final VoidCallback onCollect;
   final VoidCallback onMissed;
   final VoidCallback onDelivered;
+  final VoidCallback onDropped;
 
   @override
   Widget build(BuildContext context) {
-    final collected = job.status == 'collected';
+    final step = job.myStep ?? (job.status == 'assigned' ? 'collect' : 'deliver_to_shop');
+    final collected = step != 'collect';
+    final lastLeg = job.status == 'out_to_shop';
     return RiderCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -194,20 +204,40 @@ class _JobCard extends StatelessWidget {
             style: RiderText.label,
           ),
           const SizedBox(height: AppSpace.sm),
-          _Stop(
-            icon: LucideIcons.userRound,
-            title: job.buyerName ?? 'Buyer',
-            address: job.buyerAddress ?? '',
-            phone: collected ? null : job.buyerPhone,
-            dim: collected,
-          ),
-          const SizedBox(height: AppSpace.sm),
+          if (!lastLeg) ...[
+            _Stop(
+              icon: LucideIcons.userRound,
+              title: job.buyerName ?? 'Buyer',
+              address: job.buyerAddress ?? '',
+              phone: collected ? null : job.buyerPhone,
+              dim: collected,
+            ),
+            const SizedBox(height: AppSpace.sm),
+          ],
+          if (step == 'drop_at_hub') ...[
+            _Stop(
+              icon: LucideIcons.warehouse,
+              title: job.collectHub ?? 'Your hub',
+              address: 'The shop is far away. Drop the item here; the hub sends it back through ${job.shopHub ?? 'the hubs'}.',
+              dim: false,
+            ),
+            const SizedBox(height: AppSpace.sm),
+          ],
+          if (lastLeg) ...[
+            _Stop(
+              icon: LucideIcons.warehouse,
+              title: 'Take it from your hub',
+              address: 'It came back through the hubs. Bring it to the shop below.',
+              dim: false,
+            ),
+            const SizedBox(height: AppSpace.sm),
+          ],
           _Stop(
             icon: LucideIcons.store,
             title: job.shopName ?? 'Shop',
             address: job.shopAddress ?? '',
-            phone: collected ? job.shopPhone : null,
-            dim: !collected,
+            phone: collected && step != 'drop_at_hub' ? job.shopPhone : null,
+            dim: !collected || step == 'drop_at_hub',
           ),
           if (job.attempts > 0 && !collected) ...[
             const SizedBox(height: AppSpace.sm),
@@ -220,7 +250,16 @@ class _JobCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: AppSpace.lg),
-          if (collected)
+          if (step == 'drop_at_hub')
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
+              onPressed: busy ? null : onDropped,
+              icon: const Icon(LucideIcons.warehouse),
+              label: Text(busy ? 'Saving…' : 'Dropped at the hub'),
+            )
+          else if (collected)
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),

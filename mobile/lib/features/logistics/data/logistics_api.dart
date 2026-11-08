@@ -172,14 +172,23 @@ class HubApi extends _LogisticsApi {
       );
 
   /// A repeat is a 409 whose body has `scanned_in_at`; another hub's parcel is a 404.
-  Future<IntakeParcel> receive(String trackingNumber) async =>
-      IntakeParcel.fromJson(
-        asJson(
-          (await _send(
-            '/hub/parcels/${_LogisticsApi._tn(trackingNumber)}/receive',
-          ))['data'],
-        ),
+  Future<IntakeParcel> receive(String trackingNumber) async {
+    final data = asJson(
+      (await _send(
+        '/hub/parcels/${_LogisticsApi._tn(trackingNumber)}/receive',
+      ))['data'],
+    );
+    // A buyer's returned item (RTN code) answers with its own short record.
+    if (data['kind'] == 'buyer_return') {
+      return IntakeParcel(
+        trackingNumber: asString(data['code']) ?? trackingNumber,
+        shopName: asString(data['shop_name']),
+        comingFrom: asString(data['coming_from']),
+        status: 'RETURN',
       );
+    }
+    return IntakeParcel.fromJson(data);
+  }
 
   // Sorting (D3) --------------------------------------------------------------------------------------------------
 
@@ -222,13 +231,29 @@ class HubApi extends _LogisticsApi {
       HubTransfers.fromJson(await _get('/hub/transfers'));
 
   /// All or nothing, like sorting. Once the courier has truck drivers, [driverId] names the one taking them.
+  /// Sends a group on: by truck (with [driverId] once the courier has drivers), or at an island gateway by ship or
+  /// plane ([mode] sea or air) with the carrier, its reference and the day it is due ([eta], YYYY-MM-DD).
   Future<String> sendTransfer(
     List<String> trackingNumbers, {
     int? driverId,
+    List<String> returnCodes = const [],
+    String? mode,
+    String? carrierName,
+    String? carrierReference,
+    String? eta,
   }) async {
+    final cargo = mode == 'sea' || mode == 'air';
     final body = await _send(
       '/hub/transfers/send',
-      data: {'tracking_numbers': trackingNumbers, 'driver_id': ?driverId},
+      data: {
+        if (trackingNumbers.isNotEmpty) 'tracking_numbers': trackingNumbers,
+        if (returnCodes.isNotEmpty) 'return_codes': returnCodes,
+        'driver_id': ?driverId,
+        if (cargo) 'mode': mode,
+        if (cargo) 'carrier_name': carrierName,
+        if (cargo) 'carrier_reference': carrierReference,
+        if (cargo && eta != null) 'eta': eta,
+      },
     );
     return asString(body['message']) ?? 'Parcels sent.';
   }
@@ -475,6 +500,21 @@ class CourierApi extends _LogisticsApi {
   /// The truck drivers, the trip each is on and the trip pay owed.
   Future<CourierTrucks> truckDrivers() async =>
       CourierTrucks.fromJson(await _get('/logistics/truck-drivers'));
+
+  /// How many truck drivers this week's trips between hubs need (the website shows it route by route).
+  Future<({int need, int have, int tripsPerDay, double driverHours, int waiting, String verdict, String message})> truckPlan() async {
+    final data = asJson((await _get('/logistics/truck-planner'))['data']);
+    final needed = asJson(data['needed']);
+    return (
+      need: asInt(needed['recommended']),
+      have: asInt(asJson(data['drivers'])['active']),
+      tripsPerDay: asInt(needed['trips_per_day']),
+      driverHours: asDouble(needed['driver_hours_per_day']),
+      waiting: asInt(asJson(data['demand'])['waiting_now']),
+      verdict: asString(data['verdict']) ?? 'idle',
+      message: asString(data['message']) ?? '',
+    );
+  }
 
   /// Every finished, unpaid trip of this driver is paid. Returns the server's message.
   Future<String> payTruckDriver(int riderId, {String? reference}) async {
