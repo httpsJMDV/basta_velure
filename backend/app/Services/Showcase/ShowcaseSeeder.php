@@ -56,11 +56,11 @@ class ShowcaseSeeder
     private const STREETS = ['Rizal', 'Mabini', 'Bonifacio', 'Burgos', 'Luna', 'Del Pilar', 'Quezon', 'Aguinaldo', 'Gomez', 'Zamora', 'Sampaguita', 'Ilang-Ilang', 'Narra', 'Acacia', 'Molave', 'Kamagong', 'Mangga', 'Santol', 'Kalachuchi', 'Gumamela', 'Jasmin', 'Dama de Noche', 'P. Burgos', 'National Highway', 'Maharlika', 'San Roque', 'Sto. Niño', 'Bagong Silang', 'Malvar', 'Lakeshore'];
     private const PREFIXES = ['0917', '0918', '0919', '0927', '0935', '0939', '0945', '0947', '0956', '0961', '0966', '0975', '0977', '0995', '0998', '0999'];
 
-    /** Partner couriers (fictional names; none imitates a real courier). */
+    /** Partner couriers, named after the couriers Filipino buyers know (the team's choice for the demo, Nov 8). */
     private const COURIERS = [
-        ['Lakbay Express', 'LKX', 'Same-day and next-day parcel delivery across Laguna, from Santa Cruz to Santa Rosa.'],
-        ['Agos Logistics', 'AGS', 'Door-to-door delivery for online sellers in Laguna, with cash-on-delivery remitted every day.'],
-        ['Tulay Parcel Co.', 'TPC', 'Neighbourhood couriers who collect from your shop and bring it to your buyer anywhere in Laguna.'],
+        ['J&T Express', 'JNT', 'Same-day and next-day parcel delivery across Laguna, from Santa Cruz to Santa Rosa.'],
+        ['Flash Express', 'FLX', 'Door-to-door delivery for online sellers in Laguna, with cash-on-delivery remitted every day.'],
+        ['Ninja Van', 'NJV', 'Neighbourhood couriers who collect from your shop and bring it to your buyer anywhere in Laguna.'],
     ];
 
     /** The 40 shops: [name, product group, what they sell, short bio]. Products go to the shops of their group. */
