@@ -72,6 +72,9 @@ export default function RiderApplyPage() {
   const [hubId, setHubId] = useState<number | null>(linkedHub);
   const [browsing, setBrowsing] = useState(!linkedHub);
   const [query, setQuery] = useState('');
+  // Thousands of hubs: typing searches them all on the server; the picked one is kept while the results change.
+  const [found, setFound] = useState<PublicApprovedHub[] | null>(null);
+  const [picked, setPicked] = useState<PublicApprovedHub | null>(null);
 
   const [duty, setDuty] = useState<Duty>(params.get('job') === 'truck' ? 'truck' : 'delivery');
   const truck = duty === 'truck';
@@ -85,7 +88,7 @@ export default function RiderApplyPage() {
   const [sent, setSent] = useState<RiderApplicationResult | null>(null);
 
   useEffect(() => {
-    getPublicApprovedHubsApi({ limit: 100, ...(linkedCourier ? { courier_id: linkedCourier } : {}) })
+    getPublicApprovedHubsApi({ limit: 50, ...(linkedCourier ? { courier_id: linkedCourier } : {}), ...(linkedHub ? { hub_id: linkedHub } : {}) })
       .then((list) => {
         setHubs(list);
         // A link to a hub that is no longer taking riders falls back to the list.
@@ -95,11 +98,24 @@ export default function RiderApplyPage() {
       .catch(() => setHubs([]));
   }, [linkedHub, linkedCourier]);
 
-  const hub = hubs?.find((h) => h.id === hubId) ?? null;
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return;
+    let live = true;
+    const id = window.setTimeout(() => {
+      getPublicApprovedHubsApi({ search: q, limit: 50, ...(linkedCourier ? { courier_id: linkedCourier } : {}) })
+        .then((list) => { if (live) setFound(list); })
+        .catch(() => { if (live) setFound([]); });
+    }, 300);
+    return () => { live = false; window.clearTimeout(id); };
+  }, [query, linkedCourier]);
+
+  const hub = (picked && picked.id === hubId ? picked : null) ?? hubs?.find((h) => h.id === hubId) ?? null;
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
+    if (q.length >= 2) return found ?? [];
     return (hubs ?? []).filter((h) => !q || [h.hub_name, h.address_city, h.address_province, h.courier?.name ?? ''].some((v) => v.toLowerCase().includes(q)));
-  }, [hubs, query]);
+  }, [hubs, query, found]);
 
   const set = (k: keyof typeof EMPTY, v: string) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -257,16 +273,16 @@ export default function RiderApplyPage() {
                 <label className="relative block mb-3">
                   <span className="sr-only">Search hubs</span>
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" aria-hidden="true" />
-                  <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by hub, city or province"
+                  <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type your city or town, e.g. Davao City"
                     className="w-full h-11 pl-10 pr-4 rounded-xl border border-stone-300 bg-white text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent" />
                 </label>
               )}
               <div className="grid gap-2 max-h-[340px] overflow-y-auto pr-1" role="radiogroup" aria-label="Hub">
                 {shown.map((h) => (
                   <HubCard key={h.id} hub={h} on={h.id === hubId}
-                    onPick={() => { setHubId(h.id); setBrowsing(false); setQuery(''); clear('sorting_center_id'); }} />
+                    onPick={() => { setHubId(h.id); setPicked(h); setBrowsing(false); setQuery(''); clear('sorting_center_id'); }} />
                 ))}
-                {shown.length === 0 && <p className="p-4 rounded-2xl bg-stone-50 text-[13px] text-stone-600">No hub matches “{query}”.</p>}
+                {shown.length === 0 && <p className="p-4 rounded-2xl bg-stone-50 text-[13px] text-stone-600">{query.trim().length >= 2 && found === null ? 'Searching…' : `No hub matches “${query}”.`}</p>}
               </div>
             </>
           )}

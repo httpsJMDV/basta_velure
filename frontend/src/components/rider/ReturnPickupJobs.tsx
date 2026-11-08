@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Camera, MapPin, Package, Phone, RefreshCw, Store, UserRound, X } from 'lucide-react';
-import { collectReturnPickupApi, deliverReturnPickupApi, failReturnPickupApi, getReturnPickupsApi, type ReturnPickupView } from '../../api/commerce';
+import { Camera, MapPin, Package, Phone, RefreshCw, Store, UserRound, Warehouse, X } from 'lucide-react';
+import { collectReturnPickupApi, deliverReturnPickupApi, dropReturnPickupAtHubApi, failReturnPickupApi, getReturnPickupsApi, type ReturnPickupView } from '../../api/commerce';
 import { apiErrorMessage } from '../../utils/apiError';
 import { downscaleImage } from '../../utils/imageDownscale';
 import { useToast } from '../ui/Toast';
@@ -13,7 +13,9 @@ const MISSED = ['Nobody was home.', 'The buyer did not answer calls or texts.', 
 
 /**
  * Return pickups given to this rider: go to the buyer, take a photo of the item as you collect it (or record a missed
- * visit), then hand it to the shop. Three missed visits cancel the pickup. Hidden when there are none.
+ * visit), then hand it to the shop, or drop it at your hub when the shop is far (it travels back through the hubs).
+ * A rider of the hub near the shop gets the last leg: take it from the hub to the shop. Three missed visits cancel the
+ * pickup. Hidden when there are none.
  */
 export default function ReturnPickupJobs() {
   const { showToast } = useToast();
@@ -27,7 +29,7 @@ export default function ReturnPickupJobs() {
   // A failed refresh keeps the list: a blip must not hide an item the rider is carrying.
   const load = useCallback(() => {
     getReturnPickupsApi('rider')
-      .then((res) => setJobs(res.data.filter((j) => j.status === 'assigned' || j.status === 'collected')))
+      .then((res) => setJobs(res.data.filter((j) => (j.my_step ?? (j.status === 'assigned' ? 'collect' : j.status === 'collected' ? 'deliver_to_shop' : null)) !== null)))
       .catch(() => setJobs((prev) => prev ?? []));
   }, []);
   useEffect(() => {
@@ -70,13 +72,17 @@ export default function ReturnPickupJobs() {
       <input ref={input} type="file" accept="image/jpeg,image/png" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => void onPhoto(e)} />
       <ul className="space-y-3">
         {jobs.map((j) => {
-          const collected = j.status === 'collected';
+          const step = j.my_step ?? (j.status === 'assigned' ? 'collect' : 'deliver_to_shop');
+          // Collected, or the last leg from the hub near the shop: the buyer is done, the shop (or hub) is next.
+          const collected = step !== 'collect';
+          const lastLeg = j.status === 'out_to_shop';
           return (
             <li key={j.id} className="p-3 space-y-2 border rounded-xl border-sky-200 bg-sky-50/40">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-mono text-[11px] font-semibold text-gray-600">{j.code} · {j.order_number}</p>
-                <span className="text-[10px] font-bold uppercase text-sky-800">{collected ? 'Bring to the shop' : 'Collect from the buyer'}</span>
+                <span className="text-[10px] font-bold uppercase text-sky-800">{step === 'drop_at_hub' ? 'Drop at your hub' : lastLeg ? 'From your hub to the shop' : collected ? 'Bring to the shop' : 'Collect from the buyer'}</span>
               </div>
+              {!lastLeg && (
               <div className={`flex items-start gap-2 ${collected ? 'opacity-60' : ''}`}>
                 <UserRound className="w-4 h-4 mt-0.5 text-sky-700 shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
@@ -89,7 +95,17 @@ export default function ReturnPickupJobs() {
                   </a>
                 )}
               </div>
-              <div className={`flex items-start gap-2 ${collected ? '' : 'opacity-60'}`}>
+              )}
+              {step === 'drop_at_hub' && (
+                <div className="flex items-start gap-2">
+                  <Warehouse className="w-4 h-4 mt-0.5 text-sky-700 shrink-0" aria-hidden="true" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900">{j.collect_hub?.name ?? 'Your hub'}</p>
+                    <p className="text-xs text-gray-700">The shop is far away, in {j.shop?.city}. The hub sends the item back through {j.shop_hub?.name ?? 'the hubs'}.</p>
+                  </div>
+                </div>
+              )}
+              <div className={`flex items-start gap-2 ${collected && step !== 'drop_at_hub' ? '' : 'opacity-60'}`}>
                 <Store className="w-4 h-4 mt-0.5 text-sky-700 shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900">{j.shop?.shop_name ?? 'Shop'}</p>
@@ -105,7 +121,12 @@ export default function ReturnPickupJobs() {
                 <p className="text-[11px] text-amber-800">Missed visit {j.attempts} of {j.max_attempts}{j.last_failure ? `: ${j.last_failure}` : ''}</p>
               )}
 
-              {collected ? (
+              {step === 'drop_at_hub' ? (
+                <button type="button" className={`${BTN_PRIMARY} w-full`} disabled={busy !== null} onClick={() => void run(j.id, () => dropReturnPickupAtHubApi(j.id))}>
+                  {busy === j.id ? <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Warehouse className="w-4 h-4" aria-hidden="true" />}
+                  Dropped at the hub
+                </button>
+              ) : collected ? (
                 <button type="button" className={`${BTN_PRIMARY} w-full`} disabled={busy !== null} onClick={() => void run(j.id, () => deliverReturnPickupApi(j.id))}>
                   {busy === j.id ? <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Package className="w-4 h-4" aria-hidden="true" />}
                   Handed to the shop

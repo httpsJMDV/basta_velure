@@ -49,9 +49,9 @@ export default function LogisticsReturnsPage() {
     }
   };
 
-  const waiting = rows?.filter((r) => !r.rider).length ?? 0;
+  const waiting = rows?.filter((r) => !r.rider && !r.travelling_back).length ?? 0;
   const moving = (rows?.length ?? 0) - waiting;
-  const shown = useMemo(() => (rows ?? []).filter((r) => tab === 'all' || (tab === 'waiting' ? !r.rider : !!r.rider)), [rows, tab]);
+  const shown = useMemo(() => (rows ?? []).filter((r) => tab === 'all' || (tab === 'waiting' ? !r.rider && !r.travelling_back : !!r.rider || !!r.travelling_back)), [rows, tab]);
   const riderOptions = (r: ReturnRow) => [
     { value: '', label: riders?.available.length ? (r.rider ? 'Change the rider' : 'Choose a rider') : 'No rider can take a job' },
     ...(riders?.available ?? []).map((d) => ({ value: String(d.id), label: `${d.name} · ${d.active_jobs}/${riders?.max ?? 3} jobs` })),
@@ -98,7 +98,7 @@ export default function LogisticsReturnsPage() {
                       <p className="font-mono text-[14px] font-bold text-gray-900">{r.tracking_number}</p>
                       <p className="text-[11.5px] text-gray-400 font-mono">{r.order_number ?? '—'} · {relativeTime(r.since)}</p>
                     </div>
-                    {r.rider ? <Pill tone="amber">On the way back</Pill> : <Pill tone="red">Needs a rider</Pill>}
+                    {r.travelling_back ? <Pill tone="blue">Through the hubs</Pill> : r.rider ? <Pill tone="amber">On the way back</Pill> : <Pill tone="red">Needs a rider</Pill>}
                   </div>
 
                   <div className="grid gap-3 px-4 py-3 sm:grid-cols-2">
@@ -132,14 +132,22 @@ export default function LogisticsReturnsPage() {
                     ))}
                   </ol>
 
+                  {r.travelling_back && (
+                    <p className="mx-4 mb-3 rounded-xl bg-sky-50 px-3 py-2.5 text-[12px] leading-relaxed text-sky-900">
+                      The shop is far from where delivery failed, so the parcel goes back through your hubs first:
+                      {r.now_at ? <> {r.now_at.moving ? 'on its way to' : 'now at'} <span className="font-semibold">{r.now_at.name}</span>,</> : null} then to
+                      <span className="font-semibold"> {r.back_to_hub?.name ?? 'the hub near the shop'}</span>. Assign a rider from there once it arrives.
+                    </p>
+                  )}
+
                   <div className="mt-auto flex flex-wrap items-center gap-2 px-4 py-3 border-t border-gray-100 bg-gray-50/60 rounded-b-2xl">
                     {r.rider && (
                       <span className="inline-flex items-center gap-1.5 mr-auto text-[12.5px] font-semibold text-gray-800">
                         <Bike className="w-4 h-4 text-emerald-600" aria-hidden="true" /> {r.rider.name}
                       </span>
                     )}
-                    <CustomSelect className={r.rider ? 'w-48' : 'flex-1 min-w-[180px]'} value={pick[r.id] ?? ''} onChange={(v) => setPick((p) => ({ ...p, [r.id]: v }))} options={riderOptions(r)} />
-                    <button type="button" onClick={() => void assign(r)} disabled={!pick[r.id] || busy === r.id}
+                    <CustomSelect className={r.rider ? 'w-48' : 'flex-1 min-w-[180px]'} value={pick[r.id] ?? ''} onChange={(v) => setPick((p) => ({ ...p, [r.id]: v }))} options={riderOptions(r)} disabled={!!r.travelling_back} />
+                    <button type="button" onClick={() => void assign(r)} disabled={!pick[r.id] || busy === r.id || !!r.travelling_back}
                       className="h-10 px-3.5 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white text-[12px] font-bold disabled:opacity-40">
                       {busy === r.id ? 'Assigning…' : r.rider ? 'Reassign' : 'Assign'}
                     </button>

@@ -76,7 +76,10 @@ export default function LogisticsMessagesPage() {
   const onActivity = useCallback(() => { void load(true); refreshChatUnread(); }, [load, refreshChatUnread]);
   const selected = rows?.find((r) => r.hub.id === hubId) ?? null;
   const q = search.trim().toLowerCase();
-  const visible = (rows ?? []).filter((r) => !q || r.hub.name.toLowerCase().includes(q) || r.hub.place.toLowerCase().includes(q));
+  const matching = (rows ?? []).filter((r) => !q || r.hub.name.toLowerCase().includes(q) || r.hub.place.toLowerCase().includes(q));
+  // With a hub in every town, the list shows the conversations and the first 60 others; a search finds the rest.
+  const visible = q ? matching.slice(0, 100) : [...matching.filter((r) => r.thread_id || r.hub.id === hubId), ...matching.filter((r) => !r.thread_id && r.hub.id !== hubId).slice(0, 60)];
+  const hidden = matching.length - visible.length;
 
   return (
     <div className="pb-8 space-y-4">
@@ -101,6 +104,7 @@ export default function LogisticsMessagesPage() {
                 </div>
               ) : (
                 <ul className="divide-y divide-gray-100">
+                  {hidden > 0 && <li className="px-4 py-2 text-[11.5px] text-gray-500 bg-gray-50/60">{hidden.toLocaleString('en-PH')} more hubs. Search a hub or city to find one.</li>}
                   {visible.map((r) => (
                     <li key={r.hub.id}>
                       <button type="button" onClick={() => void open(r)} aria-current={r.hub.id === hubId ? 'true' : undefined}

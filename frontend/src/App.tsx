@@ -22,6 +22,7 @@ import LogisticsHubOpsPage from './pages/logistics/LogisticsHubOpsPage';
 import LogisticsReturnsPage from './pages/logistics/LogisticsReturnsPage';
 import LogisticsCodPage from './pages/logistics/LogisticsCodPage';
 import LogisticsTrucksPage from './pages/logistics/LogisticsTrucksPage';
+import LogisticsCoveragePage from './pages/logistics/LogisticsCoveragePage';
 import AdminCourierApplicationsPage from './pages/admin/AdminCourierApplicationsPage';
 import HubLoginPage from './pages/auth/HubLoginPage';
 import VerifyEmailPage from './pages/auth/VerifyEmailPage';
@@ -430,6 +431,7 @@ function AppRoutes() {
         <Route path="hubs" element={<LogisticsHubsPage />} />
         <Route path="riders" element={<LogisticsRidersPage />} />
         <Route path="trucks" element={<LogisticsTrucksPage />} />
+        <Route path="coverage" element={<LogisticsCoveragePage />} />
         <Route path="activity" element={<LogisticsActivityPage />} />
         <Route path="parcels" element={<LogisticsParcelsPage />} />
         <Route path="reports" element={<LogisticsReportsPage />} />

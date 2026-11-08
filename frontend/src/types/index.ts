@@ -647,6 +647,17 @@ export interface HubParcelLookupResponse {
   data: HubParcelRecord;
 }
 
+/** A buyer's returned item travelling back to its shop through the hubs (RTN-… code). */
+export interface HubReturnItem {
+  kind: 'buyer_return';
+  code: string;
+  shop_name: string | null;
+  coming_from: string | null;
+  in_transit: boolean;
+  transit_since: string | null;
+  at_shop_hub: boolean;
+}
+
 export interface HubParcelReceiveResponse {
   message: string;
   data: HubParcelRecord;
@@ -661,6 +672,8 @@ export interface HubParcelListResponse {
     total: number;
     from: number | null;
     to: number | null;
+    /** Expected list only: returned items on their way to this hub. */
+    returns?: HubReturnItem[];
   };
 }
 
@@ -701,16 +714,30 @@ export interface HubSortingParcelsResponse {
   };
 }
 
+/** How a leg between hubs travels: the courier's truck, or a ship or a plane between island groups. */
+export type LegMode = 'truck' | 'sea' | 'air';
+
 export interface HubTransferGroup {
-  hub: { id: number; name: string; city: string; province: string };
+  hub: { id: number; name: string; city: string; province: string; gateway?: string | null };
+  /** truck, or sea for a crossing to another island group (the island gateway may fly it instead). */
+  mode?: LegMode;
   parcel_count: number;
+  counts?: { parcels: number; return_to_sender: number; buyer_returns: number };
+  /** Where the parcels finally go after that hub (for a gateway, the delivering hubs beyond it). */
+  final_hubs?: string[];
+  final_hub_count?: number;
   oldest_scanned_in_at: string | null;
   tracking_numbers: string[];
+  return_codes?: string[];
 }
 
 export interface HubTransfersResponse {
   data: HubTransferGroup[];
-  meta: { total_parcels: number; on_the_way_here: number; sent_today: number };
+  meta: {
+    total_parcels: number; on_the_way_here: number; sent_today: number;
+    is_gateway?: boolean; gateway?: string | null;
+    carriers?: { sea: string[]; air: string[] }; cargo_days?: { sea: number; air: number };
+  };
 }
 
 // Truck trips between hubs (the courier's line-haul)
@@ -721,6 +748,11 @@ export interface TruckTripHub { id: number; name: string; city: string }
 export interface TruckTrip {
   id: number;
   code: string;
+  /** truck (the courier's driver), sea or air (a cargo carrier with a reference, no driver). */
+  mode?: LegMode;
+  carrier_name?: string | null;
+  carrier_reference?: string | null;
+  eta_at?: string | null;
   status: TruckTripStatus;
   from_hub: TruckTripHub | null;
   to_hub: TruckTripHub | null;
@@ -735,7 +767,67 @@ export interface TruckTrip {
   pay_amount: number;
   paid_at: string | null;
   paid_reference: string | null;
-  parcels?: { tracking_number: string | null; received: boolean; received_at: string | null }[];
+  parcels?: { tracking_number: string | null; kind?: 'parcel' | 'return_to_sender' | 'buyer_return'; received: boolean; received_at: string | null }[];
+}
+
+// The truck planner: how many drivers a courier needs (docs/api/courier-network.md)
+export interface TruckPlanRoute {
+  from: { id: number; name: string; city: string; gateway: string | null } | null;
+  to: { id: number; name: string; city: string; gateway: string | null } | null;
+  parcels_last_7_days: number;
+  parcels_per_day: number;
+  waiting_now: number;
+  oldest_waiting_at: string | null;
+  trips_per_day: number;
+  trip_hours: number;
+  driver_hours: number;
+}
+
+export interface TruckPlan {
+  settings: { capacity: number; shift_hours: number; trip_hours: number; long_wait_hours: number };
+  drivers: { active: number; on_the_way: number; free: number };
+  demand: {
+    parcels_last_7_days: number; parcels_per_day: number; waiting_now: number; average_wait_hours: number | null;
+    waited_too_long: number; by_sea_or_air_waiting: number; by_sea_or_air_last_7_days: number;
+  };
+  needed: { trips_per_day: number; driver_hours_per_day: number; drivers: number; spare: number; recommended: number };
+  verdict: 'idle' | 'short' | 'tight' | 'ok' | 'more_than_needed';
+  message: string;
+  routes: TruckPlanRoute[];
+  route_count: number;
+}
+
+// Where a courier delivers (coverage page)
+export interface CoverageHubRef { id: number; name: string; city: string }
+
+export interface CoverageRegion {
+  code: string;
+  name: string;
+  short: string;
+  hubs: number;
+  hubs_with_riders: number;
+  riders: number;
+  barangays: number;
+  barangays_covered: number;
+  gateway: CoverageHubRef | null;
+}
+
+export interface CoverageSummary {
+  islands: { key: 'luzon' | 'visayas' | 'mindanao'; name: string; gateway: CoverageHubRef | null; regions: CoverageRegion[] }[];
+  totals: { hubs: number; hubs_with_riders: number; riders: number; barangays: number; barangays_covered: number; gateways: number };
+  region?: { code: string; name: string; provinces: { code: string; name: string; cities: number; hubs: number; riders: number; hubs_with_riders: number }[] };
+}
+
+export interface CoverageHubRow {
+  id: number;
+  name: string;
+  city: string;
+  province: string;
+  region: string | null;
+  gateway: string | null;
+  riders: number;
+  barangays: number;
+  parcels_here: number;
 }
 
 export interface HubTruckDriver {
@@ -1244,6 +1336,7 @@ export interface Order {
   vouchers?: { scope: 'store' | 'platform' | 'shipping'; code: string | null; discount: number }[];
   chargeable_weight_kg?: number | null;
   shipping_route?: string | null;
+  eta?: { min: number; max: number } | null;
   cancel_reason?: string | null;
   cancelled_by?: string | null;
   cancelled_at?: string | null;
@@ -1327,6 +1420,8 @@ export interface SellerOrder {
   paid_at?: string | null;
   tab?: string | null;
   shipping_route?: string | null;
+  /** Days the delivery was expected to take when the order was placed. */
+  eta?: { min: number; max: number } | null;
   chargeable_weight_kg?: number | null;
   promo_discount?: number;
   store_voucher_discount?: number;
@@ -2982,8 +3077,25 @@ export interface TrackingEvent {
   proof: boolean;
 }
 
+/** One stop on a parcel's way: the shop, each hub (with its gateway role and how the parcel got there), the buyer. */
+export interface JourneyNode {
+  kind: 'shop' | 'hub' | 'buyer' | 'return';
+  title: string;
+  subtitle: string;
+  state: 'done' | 'current' | 'upcoming';
+  label: string;
+  at: string | null;
+  left_at?: string | null;
+  moving_here?: boolean;
+  gateway?: string | null;
+  arrives_by?: LegMode | null;
+  direction?: 'forward' | 'return';
+}
+
 export interface ParcelTracking {
   tracking_number: string;
+  /** Every stop on the way, gateways and ship or plane legs included. */
+  journey?: JourneyNode[];
   order_number: string | null;
   status: string;
   viewer_role: 'buyer' | 'seller' | 'hub' | 'rider' | 'courier' | 'admin';

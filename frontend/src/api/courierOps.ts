@@ -148,6 +148,10 @@ export interface ReturnRow {
   since: string | null;
   failures: ParcelFailure[];
   rider: { id: number; name: string } | null;
+  /** Far from the shop: still travelling back through the hubs; a rider takes it home from back_to_hub. */
+  travelling_back?: boolean;
+  back_to_hub?: { id: number; name: string; city: string } | null;
+  now_at?: { id: number; name: string; moving: boolean } | null;
 }
 
 export const getCourierReturnsApi = () => http.get<{ data: ReturnRow[] }>('/logistics/returns').then((r) => r.data.data);

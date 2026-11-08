@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 
 interface Option {
   value: string;
@@ -18,6 +18,8 @@ interface CustomSelectProps {
   label?: string;
   required?: boolean;
   disabled?: boolean;
+  /** Show a filter box above the options. On by default for long lists (more than 15 options). */
+  searchable?: boolean;
 }
 
 export default function CustomSelect({
@@ -30,8 +32,14 @@ export default function CustomSelect({
   label,
   required,
   disabled = false,
+  searchable,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const withSearch = searchable ?? options.length > 15;
+  const q = query.trim().toLowerCase();
+  // A long list shows the first 200 matches; typing narrows it down.
+  const shown = (q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options).slice(0, withSearch ? 200 : undefined);
   const [, setOpenUpward] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -45,7 +53,7 @@ export default function CustomSelect({
     const rect = triggerRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
-    const dropHeight = Math.min(240, options.length * 44);
+    const dropHeight = Math.min(240, options.length * 44) + (options.length > 15 ? 52 : 0);
     const openUpward = spaceBelow < dropHeight && spaceAbove > spaceBelow;
 
     setDropdownStyle({
@@ -64,6 +72,7 @@ export default function CustomSelect({
     if (disabled) return;
     if (isOpen) { setIsOpen(false); return; }
     updatePosition();
+    setQuery('');
     setIsOpen(true);
   };
 
@@ -133,8 +142,17 @@ export default function CustomSelect({
               transition={{ duration: 0.15 }}
               className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
             >
+              {withSearch && (
+                <label className="relative block border-b border-gray-100 p-2">
+                  <span className="sr-only">Filter the list</span>
+                  <Search className="absolute left-4.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" aria-hidden="true" />
+                  <input autoFocus type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type to filter"
+                    className="w-full h-9 pl-8 pr-3 rounded-lg border border-gray-200 bg-gray-50 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-red focus:bg-white" />
+                </label>
+              )}
               <div className="max-h-60 overflow-y-auto">
-                {options.map((option) => (
+                {shown.length === 0 && <p className="px-4 py-3 text-[13px] text-gray-500">Nothing matches “{query}”.</p>}
+                {shown.map((option) => (
                   <button
                     key={option.value}
                     type="button"
