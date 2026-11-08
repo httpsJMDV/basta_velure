@@ -621,6 +621,8 @@ class SellerOrderController extends Controller
             'order_total'           => (float) $o->total,
             'shipping_fee'          => (float) $o->shipping_fee,
             'shipping_route'        => $o->shipping_route,
+            // Days the delivery was expected to take when the order was placed, by how far the shop is.
+            'eta'                   => $o->eta_min_days !== null ? ['min' => (int) $o->eta_min_days, 'max' => (int) $o->eta_max_days] : null,
             'chargeable_weight_kg'  => $o->chargeable_weight_kg,
             // The shop's own discounts reduce its earnings; Loved-IT's platform and shipping vouchers do not (A8).
             'promo_discount'        => (float) $o->promo_discount,

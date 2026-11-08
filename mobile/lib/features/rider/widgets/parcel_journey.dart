@@ -269,6 +269,16 @@ class _JourneyRow extends StatelessWidget {
                           : AppColors.ink,
                     ),
                   ),
+                  if (node.gateway != null || node.goingBack)
+                    Text(
+                      [?node.gateway, if (node.goingBack) 'Way back'].join(' · ').toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                        color: Color(0xFF4338CA),
+                      ),
+                    ),
                   if (node.subtitle.isNotEmpty)
                     Text(
                       node.subtitle,
@@ -283,6 +293,22 @@ class _JourneyRow extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.stone500,
+                      ),
+                    ),
+                  // How the parcel goes on to the next stop, when it is a ship or a plane.
+                  if (following?.arrivesBy == 'sea' || following?.arrivesBy == 'air')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(following?.arrivesBy == 'sea' ? LucideIcons.ship : LucideIcons.plane, size: 15, color: const Color(0xFF0369A1)),
+                          const SizedBox(width: 4),
+                          Text(
+                            following?.arrivesBy == 'sea' ? 'Then by ship' : 'Then by plane',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0369A1)),
+                          ),
+                        ],
                       ),
                     ),
                 ],

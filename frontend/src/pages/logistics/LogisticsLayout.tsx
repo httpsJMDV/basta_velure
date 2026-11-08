@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings, Container, History } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings, Container, History, Map as MapIcon } from 'lucide-react';
 import { getCourierChatUnreadApi } from '../../api/courierChat';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
@@ -21,6 +21,8 @@ export interface LogisticsOutletContext {
 const ROUTE_TITLES: Record<string, string> = {
   '/logistics': 'Network Overview',
   '/logistics/hubs': 'Hubs & Applications',
+  '/logistics/coverage': 'Coverage',
+  '/logistics/trucks': 'Truck Drivers',
   '/logistics/riders': 'Riders',
   '/logistics/parcels': 'Parcels',
   '/logistics/reports': 'Network Reports',
@@ -84,6 +86,7 @@ export default function LogisticsLayout() {
       heading: 'Network',
       items: [
         { icon: Warehouse, label: 'Hubs', to: '/logistics/hubs', badge: pendingHubs },
+        { icon: MapIcon, label: 'Coverage', to: '/logistics/coverage' },
         { icon: Bike, label: 'Riders', to: '/logistics/riders', badge: riderReviews },
         { icon: Container, label: 'Truck drivers', to: '/logistics/trucks', badge: counts?.trucks },
         { icon: MapPinned, label: 'Zones & rates', to: '/logistics/shipping' },
@@ -113,6 +116,7 @@ export default function LogisticsLayout() {
   const searchItems: ShellSearchItem[] = [
     { label: 'Network overview', to: '/logistics', group: 'Overview', icon: Gauge },
     { label: 'Hubs and hub applications', to: '/logistics/hubs', group: 'Network', icon: Warehouse },
+    { label: 'Coverage: hubs, gateways and riders by region', to: '/logistics/coverage', group: 'Network', icon: MapIcon },
     { label: 'Riders across the network', to: '/logistics/riders', group: 'Network', icon: Bike },
     { label: 'Truck drivers, trips between hubs and trip pay', to: '/logistics/trucks', group: 'Network', icon: Container },
     { label: 'Find a parcel', to: '/logistics/parcels', group: 'Network', icon: Package },

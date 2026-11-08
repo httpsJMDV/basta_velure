@@ -57,4 +57,42 @@ return [
 
     'truck_trip_rate' => (float) env('LOGISTICS_TRUCK_TRIP_RATE', 800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Truck planner (courier Truck drivers page)
+    |--------------------------------------------------------------------------
+    |
+    | How many parcels one truck carries and how long one driver's shift is,
+    | until the courier sets its own. The planner turns a week of real trips
+    | into "how many drivers do we need" with these two numbers.
+    |
+    */
+
+    'truck_capacity'    => (int) env('LOGISTICS_TRUCK_CAPACITY', 300),
+    'truck_shift_hours' => (int) env('LOGISTICS_TRUCK_SHIFT_HOURS', 8),
+    // Hours a one-way trip takes when the courier has no finished trips to learn from yet.
+    'truck_trip_hours'  => (float) env('LOGISTICS_TRUCK_TRIP_HOURS', 3),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Delivery estimate (days), shown at checkout and kept on the order
+    |--------------------------------------------------------------------------
+    |
+    | By how far the shop is from the buyer. Between island groups (Luzon,
+    | Visayas, Mindanao) parcels cross by ship; a plane is faster but only the
+    | island gateway decides that when it sends them.
+    |
+    */
+
+    'eta_days' => [
+        'same_city'     => [1, 2],
+        'same_province' => [1, 3],
+        'same_region'   => [2, 4],
+        'same_island'   => [3, 5],
+        'other_island'  => [5, 8],
+    ],
+
+    // Days a ship and a plane take between island gateways, the default ETA the gateway can change when it sends.
+    'cargo_days' => ['sea' => 3, 'air' => 1],
+
 ];

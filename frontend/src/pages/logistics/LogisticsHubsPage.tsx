@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, Link } from 'react-router-dom';
 import { Warehouse, MapPin, Bike, Package, FileText, IdCard, X, Loader2, ArrowRight, Clock, CheckCircle, PauseCircle, XCircle } from 'lucide-react';
 import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
 import {
@@ -209,6 +209,9 @@ export default function LogisticsHubsPage() {
   const [tab, setTab] = useState<Tab>('PENDING');
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState<number | null>(null);
+  // A nationwide network has a hub in every city and town: the cards come 48 at a time.
+  const [more, setMore] = useState({ key: '', n: 48 });
+  const limit = more.key === `${tab}|${search}` ? more.n : 48;
 
   const load = useCallback(() => {
     setFailed(false);
@@ -278,7 +281,7 @@ export default function LogisticsHubsPage() {
               ) : (
                 <CardGrid>
                   {!hubs && <SkeletonTiles />}
-                  {shown.map((h) => (
+                  {shown.slice(0, limit).map((h) => (
                     <TileShell key={h.id} onOpen={() => setOpenId(h.id)}>
                       <div className="flex items-start gap-3 p-4">
                         <div className="relative shrink-0">
@@ -307,6 +310,12 @@ export default function LogisticsHubsPage() {
                     </TileShell>
                   ))}
                 </CardGrid>
+              )}
+              {shown.length > limit && (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-gray-100 text-[12px] text-gray-600">
+                  <span className="tabular-nums">Showing {limit.toLocaleString('en-PH')} of {shown.length.toLocaleString('en-PH')}. Search a city, or browse by region on <Link to="/logistics/coverage" className="font-semibold text-brand-red hover:underline">Coverage</Link>.</span>
+                  <button type="button" onClick={() => setMore({ key: `${tab}|${search}`, n: limit + 96 })} className="h-8 px-3 rounded-lg border border-gray-200 bg-white font-semibold hover:border-gray-400">Show more</button>
+                </div>
               )}
             </ListCard>
           )}

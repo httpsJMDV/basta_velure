@@ -202,7 +202,7 @@ class _HubSortingScreenState extends ConsumerState<HubSortingScreen> {
                           note: 'Another hub of your courier delivers to these barangays.',
                         ),
                         for (final group in transfers.groups) ...[
-                          _TransferCard(group: group, onSent: _reload),
+                          _TransferCard(group: group, transfers: transfers, onSent: _reload),
                           const SizedBox(height: AppSpace.sm),
                         ],
                         const SizedBox(height: AppSpace.md),
@@ -238,10 +238,21 @@ class _SortingData {
 }
 
 /// Parcels whose barangay another hub covers: this hub sends them on, and that hub sorts them.
+/// What an island gateway entered for a ship or a plane.
+class _Cargo {
+  const _Cargo(this.mode, this.carrier, this.reference, this.eta);
+
+  final String mode;
+  final String carrier;
+  final String reference;
+  final String eta;
+}
+
 class _TransferCard extends ConsumerStatefulWidget {
-  const _TransferCard({required this.group, required this.onSent});
+  const _TransferCard({required this.group, required this.transfers, required this.onSent});
 
   final HubTransferGroup group;
+  final HubTransfers transfers;
   final Future<void> Function() onSent;
 
   @override
@@ -265,7 +276,12 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
     setState(() => _sending = false);
 
     int? driverId;
-    if (drivers.isNotEmpty) {
+    _Cargo? cargo;
+    if (group.crossesSea) {
+      // An island gateway: this group crosses to another island group on a ship or a plane.
+      cargo = await _pickCargo(group);
+      if (cargo == null || !mounted) return;
+    } else if (drivers.isNotEmpty) {
       driverId = await _pickDriver(drivers, group);
       if (driverId == null || !mounted) return;
     } else {
@@ -284,6 +300,11 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
       final message = await api.sendTransfer(
         group.trackingNumbers,
         driverId: driverId,
+        returnCodes: group.returnCodes,
+        mode: cargo?.mode,
+        carrierName: cargo?.carrier,
+        carrierReference: cargo?.reference,
+        eta: cargo?.eta,
       );
       if (!mounted) return;
       showRiderMessage(context, message);
@@ -293,6 +314,84 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// The ship or plane taking parcels across to another island group: which one, its reference, the day it is due.
+  Future<_Cargo?> _pickCargo(HubTransferGroup group) {
+    final transfers = widget.transfers;
+    var mode = 'sea';
+    final carrier = TextEditingController();
+    final reference = TextEditingController();
+    String dueIn(int days) => DateTime.now().add(Duration(days: days)).toIso8601String().substring(0, 10);
+    var eta = dueIn(transfers.seaDays);
+    final word = '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'}';
+    return showModalBottomSheet<_Cargo>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) => Padding(
+          padding: EdgeInsets.fromLTRB(AppSpace.lg, 0, AppSpace.lg, AppSpace.lg + MediaQuery.of(sheet).viewInsets.bottom),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Across to ${group.hubName}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.gray900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('$word cross to another island group. ${group.hubName} receives them when they land.', style: HubText.small),
+                  const SizedBox(height: AppSpace.md),
+                  SegmentedButton<String>(
+                    segments: [
+                      ButtonSegment(value: 'sea', icon: const Icon(LucideIcons.ship), label: Text('Ship · ${transfers.seaDays} d')),
+                      ButtonSegment(value: 'air', icon: const Icon(LucideIcons.plane), label: Text('Plane · ${transfers.airDays} d')),
+                    ],
+                    selected: {mode},
+                    onSelectionChanged: (s) => setSheet(() {
+                      mode = s.first;
+                      eta = dueIn(mode == 'sea' ? transfers.seaDays : transfers.airDays);
+                    }),
+                  ),
+                  const SizedBox(height: AppSpace.md),
+                  TextField(
+                    controller: carrier,
+                    maxLength: 80,
+                    decoration: InputDecoration(
+                      labelText: mode == 'sea' ? 'Ship or sailing' : 'Flight or cargo service',
+                      hintText: mode == 'sea' ? 'Roll-on/roll-off ferry, 6 PM sailing' : 'Domestic air cargo, morning flight',
+                    ),
+                  ),
+                  TextField(
+                    controller: reference,
+                    maxLength: 40,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(labelText: mode == 'sea' ? 'Bill of lading no.' : 'Air waybill no.'),
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text('Due at the other gateway: $eta', style: HubText.small),
+                  const SizedBox(height: AppSpace.md),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: LogisticsLook.hubAction, minimumSize: const Size.fromHeight(48)),
+                    onPressed: () {
+                      if (carrier.text.trim().isEmpty || reference.text.trim().isEmpty) {
+                        showRiderMessage(sheet, 'Enter the ${mode == 'sea' ? 'ship' : 'flight'} and its reference number.', error: true);
+                        return;
+                      }
+                      Navigator.of(sheet).pop(_Cargo(mode, carrier.text.trim(), reference.text.trim().toUpperCase(), eta));
+                    },
+                    child: Text('Send $word by ${mode == 'sea' ? 'ship' : 'plane'}'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /// The truck driver taking this hub's parcels. A driver on another trip can't be picked.
@@ -393,10 +492,10 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
       padding: const EdgeInsets.all(AppSpace.md),
       child: Row(
         children: [
-          const RiderIconTile(
-            icon: LucideIcons.truck,
-            color: AppColors.gray900,
-            background: AppColors.gray100,
+          RiderIconTile(
+            icon: group.crossesSea ? LucideIcons.ship : LucideIcons.truck,
+            color: group.crossesSea ? const Color(0xFF0369A1) : AppColors.gray900,
+            background: group.crossesSea ? const Color(0xFFE0F2FE) : AppColors.gray100,
           ),
           const SizedBox(width: AppSpace.md),
           Expanded(
@@ -415,11 +514,21 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
                 Text(
                   [
                     if (group.city.isNotEmpty) group.city,
+                    ?group.gateway,
+                    if (group.crossesSea) 'by sea',
                     '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'}',
+                    if (group.goingBack > 0) '${group.goingBack} going back',
                     'Waiting ${Fmt.waited(group.oldestAt)}',
                   ].join(' · '),
                   style: HubText.small,
                 ),
+                if (group.finalHubs.isNotEmpty)
+                  Text(
+                    'Then on to ${group.finalHubs.join(', ')}${group.moreFinalHubs > 0 ? ' and ${group.moreFinalHubs} more' : ''}',
+                    style: HubText.small,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),

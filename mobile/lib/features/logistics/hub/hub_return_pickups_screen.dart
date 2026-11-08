@@ -116,7 +116,7 @@ class _HubReturnPickupsScreenState
                   message: 'When a shop approves a return in your area, it shows here for you to give to a rider.',
                 )
               else ...[
-                const HubSection(title: 'To collect from buyers'),
+                const HubSection(title: 'Returns to collect or bring back'),
                 for (final p in open) ...[
                   RiderCard(
                     padding: const EdgeInsets.all(AppSpace.md),
@@ -154,7 +154,21 @@ class _HubReturnPickupsScreenState
                         ),
                         if (p.assignedRider != null)
                           Text(
-                            'Rider: ${p.assignedRider}',
+                            'Collected by: ${p.assignedRider}',
+                            style: HubText.small,
+                          ),
+                        if (p.throughHubs)
+                          Text(
+                            [
+                              'Back through the hubs: ${p.collectHub ?? ''} → ${p.shopHub ?? ''}',
+                              if (p.status == 'at_hub' && p.currentHub != null)
+                                p.inTransit ? 'on the way to ${p.currentHub}' : 'at ${p.currentHub}',
+                            ].join(' · '),
+                            style: HubText.small,
+                          ),
+                        if (p.shopRider != null)
+                          Text(
+                            'Bringing it to the shop: ${p.shopRider}',
                             style: HubText.small,
                           ),
                         if (p.attempts > 0)
@@ -165,7 +179,7 @@ class _HubReturnPickupsScreenState
                               color: StatusTone.amber.foreground,
                             ),
                           ),
-                        if (p.status != 'collected') ...[
+                        if (p.status == 'requested' || p.status == 'assigned' || p.isShopLeg) ...[
                           const SizedBox(height: AppSpace.sm),
                           FilledButton(
                             style: FilledButton.styleFrom(
@@ -174,7 +188,9 @@ class _HubReturnPickupsScreenState
                             ),
                             onPressed: () => _assign(p, riders),
                             child: Text(
-                              p.assignedRider == null
+                              p.isShopLeg
+                                  ? (p.shopRider == null ? 'Send a rider to the shop' : 'Change the rider')
+                                  : p.assignedRider == null
                                   ? 'Give to a rider'
                                   : 'Change the rider',
                             ),

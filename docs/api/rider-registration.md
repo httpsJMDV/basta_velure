@@ -60,11 +60,11 @@ A rider account is separate from a shopping account: the email and mobile number
 
 ```json
 {
-  "message": "Application sent to Agos Logistics Biñan Hub. We will email pedro@example.com when they decide.",
+  "message": "Application sent to Flash Express Biñan Hub. We will email pedro@example.com when they decide.",
   "data": {
     "email": "pedro@example.com",
-    "hub": "Agos Logistics Biñan Hub",
-    "courier": "Agos Logistics",
+    "hub": "Flash Express Biñan Hub",
+    "courier": "Flash Express",
     "reapplied": false,
     "applied_at": "2026-10-25T07:30:00+00:00"
   }

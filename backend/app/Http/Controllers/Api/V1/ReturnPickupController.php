@@ -36,8 +36,21 @@ class ReturnPickupController extends Controller
     {
         $hub = $this->hub($request);
 
-        return $this->listing(ReturnPickup::where('sorting_center_id', $hub->id), 'hub',
+        return $this->listing($this->hubPickups($hub), 'hub',
             Rider::with('user')->where('sorting_center_id', $hub->id)->where('status', Rider::STATUS_ACTIVE)->carriesParcels()->get());
+    }
+
+    /**
+     * The returns a hub deals with: the ones its riders collect, and the ones coming back through it to a shop near it
+     * (its riders bring those to the shop).
+     *
+     * @return Builder<ReturnPickup>
+     */
+    private function hubPickups(SortingCenter $hub): Builder
+    {
+        return ReturnPickup::where(fn ($q) => $q->where('sorting_center_id', $hub->id)
+            ->orWhere(fn ($q) => $q->where('destination_hub_id', $hub->id)
+                ->whereIn('status', [ReturnPickup::STATUS_AT_HUB, ReturnPickup::STATUS_OUT_TO_SHOP, ReturnPickup::STATUS_DELIVERED, ReturnPickup::STATUS_RECEIVED])));
     }
 
     /** POST /hub/return-pickups/{pickup}/assign {rider_id} */
@@ -47,7 +60,11 @@ class ReturnPickupController extends Controller
         $riderId = (int) $request->validate(['rider_id' => ['required', 'integer']], ['rider_id.required' => 'Choose a rider.'])['rider_id'];
 
         return DB::transaction(function () use ($request, $hub, $pickup, $riderId) {
-            $row = ReturnPickup::where('sorting_center_id', $hub->id)->lockForUpdate()->findOrFail($pickup);
+            $row = $this->hubPickups($hub)->lockForUpdate()->findOrFail($pickup);
+            // The last leg is the shop's hub's job; collecting is the job of the hub that delivered the order.
+            $shopLeg = $this->pickups->readyForShopRider($row) || $row->status === ReturnPickup::STATUS_OUT_TO_SHOP;
+            abort_if($shopLeg ? (int) $row->destination_hub_id !== $hub->id : (int) $row->sorting_center_id !== $hub->id, 409,
+                $shopLeg ? 'The hub near the shop gives this one to a rider.' : 'This return is still on its way to the hub near the shop.');
             $rider = Rider::with('user')->where('sorting_center_id', $hub->id)->carriesParcels()->find($riderId);
             abort_unless($rider, 422, 'Choose one of your riders.');
             $this->pickups->assign($row, $rider, $request->user(), 'hub');
@@ -89,13 +106,24 @@ class ReturnPickupController extends Controller
     public function riderIndex(Request $request): JsonResponse
     {
         $rider = $this->rider($request);
-        $rows = ReturnPickup::where('rider_id', $rider->id)
-            ->orderByRaw("CASE status WHEN 'assigned' THEN 0 WHEN 'collected' THEN 1 ELSE 2 END")
+        // The ones this rider collects, and the ones this rider brings from the hub to a shop.
+        $rows = ReturnPickup::where(fn ($q) => $q->where('rider_id', $rider->id)->orWhere('shop_rider_id', $rider->id))
+            ->orderByRaw("CASE status WHEN 'assigned' THEN 0 WHEN 'collected' THEN 1 WHEN 'out_to_shop' THEN 1 ELSE 2 END")
             ->latest('updated_at')->limit(30)->get();
+        $mine = fn (ReturnPickup $p) => in_array($p->status, [ReturnPickup::STATUS_ASSIGNED, ReturnPickup::STATUS_COLLECTED], true) && (int) $p->rider_id === $rider->id
+            || ($p->status === ReturnPickup::STATUS_OUT_TO_SHOP && (int) $p->shop_rider_id === $rider->id);
 
         return response()->json([
-            'data' => $rows->map(fn (ReturnPickup $p) => ReturnPickups::present($p, 'rider'))->values(),
-            'meta' => ['open' => $rows->whereIn('status', [ReturnPickup::STATUS_ASSIGNED, ReturnPickup::STATUS_COLLECTED])->count()],
+            'data' => $rows->map(fn (ReturnPickup $p) => ReturnPickups::present($p, 'rider') + [
+                // What this rider does next: collect it, drop it at the hub, or hand it to the shop.
+                'my_step' => match (true) {
+                    $p->status === ReturnPickup::STATUS_ASSIGNED && (int) $p->rider_id === $rider->id => 'collect',
+                    $p->status === ReturnPickup::STATUS_COLLECTED && (int) $p->rider_id === $rider->id => $p->goesThroughHubs() ? 'drop_at_hub' : 'deliver_to_shop',
+                    $p->status === ReturnPickup::STATUS_OUT_TO_SHOP && (int) $p->shop_rider_id === $rider->id => 'deliver_to_shop',
+                    default => null,
+                },
+            ])->values(),
+            'meta' => ['open' => $rows->filter($mine)->count()],
         ]);
     }
 
@@ -129,6 +157,19 @@ class ReturnPickupController extends Controller
             return $this->one($row, 'rider', $row->status === ReturnPickup::STATUS_CANCELLED
                 ? 'Saved. That was the last visit, so the pickup is cancelled.'
                 : 'Saved. Try again on your next trip there.');
+        });
+    }
+
+    /** POST /rider/return-pickups/{pickup}/dropped: the item is at the rider's hub, to travel back to the shop's hub. */
+    public function dropped(Request $request, int $pickup): JsonResponse
+    {
+        $rider = $this->rider($request);
+
+        return DB::transaction(function () use ($rider, $pickup) {
+            $row = ReturnPickup::lockForUpdate()->findOrFail($pickup);
+            $this->pickups->dropped($row, $rider);
+
+            return $this->one($row, 'rider', 'Dropped at the hub. It travels back to the shop from here.');
         });
     }
 
@@ -181,7 +222,8 @@ class ReturnPickupController extends Controller
         if ($user->role === 'admin' || $row->order?->buyer_id === $user->id || $row->order?->items()->where('seller_id', $user->id)->exists()) {
             return true;
         }
-        if (Rider::where('user_id', $user->id)->value('id') === $row->rider_id && $row->rider_id !== null) {
+        $riderId = Rider::where('user_id', $user->id)->value('id');
+        if ($riderId !== null && in_array($riderId, [$row->rider_id, $row->shop_rider_id], true)) {
             return true;
         }
 

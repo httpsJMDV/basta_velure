@@ -29,12 +29,21 @@ class ReturnPickup {
     this.shopPhone,
     this.shopAddress,
     this.assignedRider,
+    this.throughHubs = false,
+    this.collectHub,
+    this.shopHub,
+    this.currentHub,
+    this.inTransit = false,
+    this.readyForShopRider = false,
+    this.shopRider,
+    this.myStep,
   });
 
   final int id;
   final String code;
 
-  /// `requested`, `assigned`, `collected`, `delivered`, `received` or `cancelled`.
+  /// `requested`, `assigned`, `collected`, `at_hub` (travelling back through the hubs), `out_to_shop`,
+  /// `delivered`, `received` or `cancelled`.
   final String status;
   final String statusLabel;
   final int attempts;
@@ -55,13 +64,31 @@ class ReturnPickup {
   final String? shopAddress;
   final String? assignedRider;
 
-  bool get isOpen =>
-      status == 'requested' || status == 'assigned' || status == 'collected';
+  /// Far from the shop: the rider drops it at [collectHub] and it travels back to [shopHub] through the hubs.
+  final bool throughHubs;
+  final String? collectHub;
+  final String? shopHub;
 
-  /// How far along: 0 booked, 1 rider assigned, 2 collected, 3 back with the shop.
+  /// While it travels back: the hub that has it (or that it is on its way to, when [inTransit]).
+  final String? currentHub;
+  final bool inTransit;
+
+  /// At the hub near the shop: a rider of that hub can take it to the shop.
+  final bool readyForShopRider;
+  final String? shopRider;
+
+  /// Rider view: `collect`, `drop_at_hub` or `deliver_to_shop` (null when this rider has nothing to do).
+  final String? myStep;
+
+  bool get isOpen => const ['requested', 'assigned', 'collected', 'at_hub', 'out_to_shop'].contains(status);
+
+  /// The last leg, from the hub near the shop to the shop.
+  bool get isShopLeg => readyForShopRider || status == 'out_to_shop';
+
+  /// How far along: 0 booked, 1 rider assigned, 2 collected (or on its way back), 3 back with the shop.
   int get step => switch (status) {
     'assigned' => 1,
-    'collected' => 2,
+    'collected' || 'at_hub' || 'out_to_shop' => 2,
     'delivered' || 'received' => 3,
     _ => 0,
   };
@@ -72,6 +99,7 @@ class ReturnPickup {
     final buyer = asJson(json['buyer']);
     final shop = asJson(json['shop']);
     final rider = asJson(json['rider']);
+    String? hubName(Object? value) => asString(asJson(value)['name']);
     return ReturnPickup(
       id: asInt(json['id']),
       code: asString(json['code']) ?? '',
@@ -92,6 +120,14 @@ class ReturnPickup {
       shopPhone: asString(shop['phone']),
       shopAddress: asString(shop['full_address']),
       assignedRider: asString(rider['name']),
+      throughHubs: json['through_hubs'] == true,
+      collectHub: hubName(json['collect_hub']),
+      shopHub: hubName(json['shop_hub']),
+      currentHub: hubName(json['current_hub']),
+      inTransit: json['in_transit'] == true,
+      readyForShopRider: json['ready_for_shop_rider'] == true,
+      shopRider: asString(asJson(json['shop_rider'])['name']),
+      myStep: asString(json['my_step']),
     );
   }
 }
@@ -172,6 +208,13 @@ class ReturnPickupApi {
         ))['message'],
       ) ??
       'Saved.';
+
+  /// Far from the shop: the collecting rider leaves the item at their hub, which sends it back through the hubs.
+  Future<String> dropped(int id) async =>
+      asString(
+        (await _call('POST', '/rider/return-pickups/$id/dropped'))['message'],
+      ) ??
+      'Dropped at the hub.';
 
   Future<String> delivered(int id) async =>
       asString(

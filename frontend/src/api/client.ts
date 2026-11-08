@@ -158,6 +158,10 @@ import type {
   RiderTripsResponse,
   LogisticsTruckDriversResponse,
   ActivityResponse,
+  LegMode,
+  TruckPlan,
+  CoverageSummary,
+  CoverageHubRow,
 } from '../types';
 
 export const http = axios.create({
@@ -264,7 +268,7 @@ export async function openAuthorizedFile(url: string): Promise<void> {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
-export const getPublicApprovedHubsApi = (params?: { search?: string; limit?: number; courier_id?: number }) =>
+export const getPublicApprovedHubsApi = (params?: { search?: string; limit?: number; courier_id?: number; hub_id?: number }) =>
   http.get<{ data: PublicApprovedHub[] }>('/logistics/hubs', { params }).then((r) => r.data.data);
 
 export const logoutApi = () => http.post('/auth/logout');
@@ -1009,13 +1013,28 @@ export const sortHubParcelsApi = (trackingNumbers: string[]) =>
 export const getHubTransfersApi = () =>
   http.get<HubTransfersResponse>('/hub/transfers').then((r) => r.data);
 
-export const sendHubTransferApi = (trackingNumbers: string[], driverId?: number | null) =>
-  http
+export interface SendTransferOptions {
+  driverId?: number | null;
+  returnCodes?: string[];
+  /** sea or air at an island gateway, with the carrier and its reference. */
+  mode?: LegMode;
+  carrierName?: string;
+  carrierReference?: string;
+  /** YYYY-MM-DD, the day the ship or plane is due. */
+  eta?: string;
+}
+
+export const sendHubTransferApi = (trackingNumbers: string[], options: SendTransferOptions | number | null = {}) => {
+  const o: SendTransferOptions = typeof options === 'number' || options === null ? { driverId: options } : options;
+  return http
     .post<{ message: string; sent_count: number; to: string[]; trip: TruckTrip | null }>('/hub/transfers/send', {
-      tracking_numbers: trackingNumbers,
-      ...(driverId ? { driver_id: driverId } : {}),
+      ...(trackingNumbers.length ? { tracking_numbers: trackingNumbers } : {}),
+      ...(o.returnCodes?.length ? { return_codes: o.returnCodes } : {}),
+      ...(o.driverId ? { driver_id: o.driverId } : {}),
+      ...(o.mode && o.mode !== 'truck' ? { mode: o.mode, carrier_name: o.carrierName, carrier_reference: o.carrierReference, ...(o.eta ? { eta: o.eta } : {}) } : {}),
     })
     .then((r) => r.data);
+};
 
 export const getHubTruckDriversApi = () =>
   http.get<{ data: HubTruckDriver[] }>('/hub/truck-drivers').then((r) => r.data.data);
@@ -1054,6 +1073,18 @@ export type ActivityScope = 'hub' | 'logistics' | 'rider';
 
 export const getActivityApi = (scope: ActivityScope, params: { category?: string; search?: string; before?: string } = {}) =>
   http.get<ActivityResponse>(`/${scope}/activity`, { params }).then((r) => r.data);
+
+export const getTruckPlanApi = () =>
+  http.get<{ data: TruckPlan }>('/logistics/truck-planner').then((r) => r.data.data);
+
+export const saveTruckPlanSettingsApi = (capacity: number, shiftHours: number) =>
+  http.put<{ message: string; data: TruckPlan }>('/logistics/truck-planner', { capacity, shift_hours: shiftHours }).then((r) => r.data);
+
+export const getCourierCoverageApi = (region?: string) =>
+  http.get<{ data: CoverageSummary }>('/logistics/coverage', { params: region ? { region } : {} }).then((r) => r.data.data);
+
+export const getCourierCoverageHubsApi = (params: { region?: string; province?: string; search?: string; show?: 'all' | 'no_riders' | 'gateways'; page?: number }) =>
+  http.get<{ data: CoverageHubRow[]; meta: { current_page: number; last_page: number; total: number; per_page: number } }>('/logistics/coverage/hubs', { params }).then((r) => r.data);
 
 export const setTruckTripRateApi = (rate: number) =>
   http.put<{ message: string; data: { rate: number } }>('/logistics/truck-rate', { rate }).then((r) => r.data);

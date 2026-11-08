@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Container, Plus, Wallet, XCircle } from 'lucide-react';
+import { Container, Plane, Plus, Ship, Wallet, XCircle } from 'lucide-react';
+import TruckPlanner from '../../components/logistics/TruckPlanner';
 import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 import { ListEmpty, ListError, Pill, StatusTabs, SkeletonRows, TH, TD, relativeTime } from '../../components/admin/listKit';
 import { HeroStats, Panel } from '../../components/logistics/CourierKit';
@@ -91,7 +92,7 @@ export default function LogisticsTrucksPage() {
   }, [load]);
 
   const shown = useMemo(() => (trips ?? []).filter((t) => tab === 'all'
-    || (tab === 'on_the_way' ? t.status === 'on_the_way' : t.status !== 'on_the_way' && !t.paid_at)), [trips, tab]);
+    || (tab === 'on_the_way' ? t.status === 'on_the_way' : t.status !== 'on_the_way' && !t.paid_at && t.mode !== 'sea' && t.mode !== 'air')), [trips, tab]);
   const s = drivers?.summary;
 
   const saveRate = async () => {
@@ -138,6 +139,8 @@ export default function LogisticsTrucksPage() {
           <Link to="/logistics/riders?add=truck" className={HERO_BUTTON}><Plus className="w-4 h-4" aria-hidden="true" /> Add truck driver</Link>
         </div>
       </PageHero>
+
+      <TruckPlanner />
 
       {failed ? <ListError message="The truck drivers could not be loaded." onRetry={load} /> : (
         <>
@@ -239,12 +242,21 @@ export default function LogisticsTrucksPage() {
                         {t.from_hub?.name} → {t.to_hub?.name}
                         {t.close_reason && <p className="text-[11px] text-gray-500">Closed: {t.close_reason}</p>}
                       </td>
-                      <td className={`${TD} text-gray-700 whitespace-nowrap`}>{t.driver?.name}<span className="block font-mono text-[11px] text-gray-400">{t.plate_number}</span></td>
+                      <td className={`${TD} text-gray-700 whitespace-nowrap`}>
+                        {t.mode === 'sea' || t.mode === 'air' ? (
+                          <span className="inline-flex items-start gap-1.5">
+                            {t.mode === 'sea' ? <Ship className="w-4 h-4 mt-0.5 text-sky-600" aria-hidden="true" /> : <Plane className="w-4 h-4 mt-0.5 text-sky-600" aria-hidden="true" />}
+                            <span>{t.carrier_name}<span className="block font-mono text-[11px] text-gray-400">{t.carrier_reference}</span></span>
+                          </span>
+                        ) : (<>{t.driver?.name}<span className="block font-mono text-[11px] text-gray-400">{t.plate_number}</span></>)}
+                      </td>
                       <td className={`${TD} text-right tabular-nums`}>{t.received_count}/{t.parcel_count}</td>
                       <td className={TD}><Pill tone={TRIP_TONE[t.status]}>{TRIP_LABEL[t.status]}</Pill></td>
                       <td className={`${TD} text-right whitespace-nowrap`}>
-                        <span className="font-semibold tabular-nums">{peso(t.pay_amount)}</span>
-                        <span className="block text-[11px] text-gray-400">{t.paid_at ? 'Paid' : t.status === 'on_the_way' ? 'After the trip' : 'Not paid'}</span>
+                        {t.mode === 'sea' || t.mode === 'air' ? <span className="text-[11px] text-gray-400">Cargo carrier</span> : (<>
+                          <span className="font-semibold tabular-nums">{peso(t.pay_amount)}</span>
+                          <span className="block text-[11px] text-gray-400">{t.paid_at ? 'Paid' : t.status === 'on_the_way' ? 'After the trip' : 'Not paid'}</span>
+                        </>)}
                       </td>
                       <td className={`${TD} text-right`}>
                         {t.status === 'on_the_way' && (

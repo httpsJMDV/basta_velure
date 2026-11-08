@@ -110,6 +110,8 @@ export interface QuoteStore {
   shipping: {
     fee: number; courier_fee: number; chargeable_kg: number; weight_grams: number; route: string | null;
     serviceable: boolean; message: string | null; free_delivery: boolean; company_id: number | null;
+    /** Days it takes, by how far the shop is (null until both addresses match a barangay). */
+    eta?: { min: number; max: number; kind: string; label: string } | null;
   };
   platform_discount: number;
   shipping_discount: number;
@@ -286,7 +288,9 @@ export const respondReturnApi = <O = unknown>(orderId: number, action: 'approve'
 
 // ─── Return pickups: a rider brings the returned item back (docs/api/return-pickups.md) ─
 
-export type ReturnPickupStatus = 'requested' | 'assigned' | 'collected' | 'delivered' | 'received' | 'cancelled';
+export type ReturnPickupStatus = 'requested' | 'assigned' | 'collected' | 'at_hub' | 'out_to_shop' | 'delivered' | 'received' | 'cancelled';
+
+type ReturnHubRef = { id: number; name: string; city: string };
 
 export interface ReturnPickupView {
   id: number;
@@ -306,11 +310,25 @@ export interface ReturnPickupView {
   has_photo: boolean;
   photo_url: string | null;
   created_at: string | null;
+  /** Far from the shop: the rider drops it at the hub and it travels back through the hubs. */
+  through_hubs?: boolean;
+  collect_hub?: ReturnHubRef | null;
+  shop_hub?: ReturnHubRef | null;
+  current_hub?: ReturnHubRef | null;
+  in_transit?: boolean;
+  next_hub?: (ReturnHubRef & { by: 'truck' | 'sea' | 'air' }) | null;
+  /** At the hub near the shop: a rider of that hub can bring it to the shop. */
+  ready_for_shop_rider?: boolean;
+  shop_rider_name?: string | null;
+  dropped_at?: string | null;
+  /** Rider view: what this rider does next. */
+  my_step?: 'collect' | 'drop_at_hub' | 'deliver_to_shop' | null;
   // Rider, hub and courier views only
   order_number?: string | null;
   buyer?: { name: string | null; phone: string | null; full_address: string | null; barangay: string | null; city: string | null };
   shop?: { shop_name: string | null; phone: string | null; full_address: string | null; barangay: string | null; city: string | null };
   rider?: { id: number; name: string; phone: string | null } | null;
+  shop_rider?: { id: number; name: string; phone: string | null } | null;
 }
 
 export interface ReturnPickupList {
@@ -337,6 +355,10 @@ export const collectReturnPickupApi = (id: number, photo: Blob) => {
 
 export const failReturnPickupApi = (id: number, reason: string) =>
   http.post<{ message: string; data: ReturnPickupView }>(`/rider/return-pickups/${id}/failed`, { reason }).then((r) => r.data);
+
+/** Far from the shop: the collecting rider leaves the item at their hub, which sends it back through the hubs. */
+export const dropReturnPickupAtHubApi = (id: number) =>
+  http.post<{ message: string; data: ReturnPickupView }>(`/rider/return-pickups/${id}/dropped`).then((r) => r.data);
 
 export const deliverReturnPickupApi = (id: number) =>
   http.post<{ message: string; data: ReturnPickupView }>(`/rider/return-pickups/${id}/delivered`).then((r) => r.data);

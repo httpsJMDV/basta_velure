@@ -269,6 +269,10 @@ class HubDeliveryController extends Controller
             if (! in_array($parcel->status, [Parcel::STATUS_DELIVERY_FAILED, Parcel::STATUS_RETURN_TO_SENDER], true)) {
                 return $this->conflict($parcel);
             }
+            // A far-away shop gets it back from the hub near the shop, once the parcel has travelled back there.
+            if (app(\App\Services\Courier\HubRouter::class)->returnStillTravelling($parcel)) {
+                return response()->json(['message' => 'This parcel goes back through the hubs first. Send it on under Sorting, For other hubs.'], 409);
+            }
             if (! $parcel->order || ! $this->stateMachine->canTransition($parcel->order, OrderStatus::CANCELLED, 'hub')) {
                 return $this->cannotUpdate();
             }

@@ -22,7 +22,7 @@ import {
   lookupHubParcelApi,
   receiveHubParcelApi,
 } from '../../api/client';
-import type { HubParcelRecord } from '../../types';
+import type { HubParcelRecord, HubReturnItem } from '../../types';
 import { PageHeader, StatCard } from './hubKit';
 import { useLivePolling } from '../../hooks/useLivePolling';
 
@@ -89,6 +89,7 @@ export default function HubIntakePage() {
   const [busy, setBusy] = useState(false);
   const [expected, setExpected] = useState<ListState>(EMPTY_LIST);
   const [received, setReceived] = useState<ListState>(EMPTY_LIST);
+  const [returnsComing, setReturnsComing] = useState<HubReturnItem[]>([]);
 
   const busyRef = useRef(false);
   const feedIdRef = useRef(0);
@@ -113,6 +114,7 @@ export default function HubIntakePage() {
         pagesRef.current[kind] = res.meta.last_page;
         res = await fetcher({ page: res.meta.last_page, per_page: 20 });
       }
+      if (kind === 'expected') setReturnsComing(res.meta.returns ?? []);
       setState({
         items: res.data,
         total: res.meta.total,
@@ -154,6 +156,15 @@ export default function HubIntakePage() {
       setBusy(true);
       try {
         const res = await receiveHubParcelApi(code);
+        // A buyer's returned item (RTN-…) answers with its own short record.
+        const item = res.data as unknown as Partial<HubReturnItem>;
+        if (item.kind === 'buyer_return') {
+          pushFeed({ kind: 'success', tracking: item.code ?? code, message: res.message });
+          setSessionCount((n) => n + 1);
+          setLookup(null);
+          refreshLists();
+          return;
+        }
         const parcel = res.data;
         pushFeed({
           kind: 'success',
@@ -196,7 +207,8 @@ export default function HubIntakePage() {
   const handleScan = useCallback(
     (code: string) => {
       if (busyRef.current) return;
-      if (autoReceive) void doReceive(code);
+      // A returned item has nothing to look up first: scanning it in is the only step.
+      if (autoReceive || code.trim().toUpperCase().startsWith('RTN-')) void doReceive(code);
       else void doLookup(code);
     },
     [autoReceive, doReceive, doLookup]
@@ -437,7 +449,22 @@ export default function HubIntakePage() {
       )}
 
       {tab === 'expected' && (
-        <div role="tabpanel" id="intake-panel-expected" aria-labelledby="intake-tab-expected">
+        <div role="tabpanel" id="intake-panel-expected" aria-labelledby="intake-tab-expected" className="space-y-3">
+          {returnsComing.length > 0 && (
+            <section aria-label="Returned items on the way" className="overflow-hidden bg-white border border-amber-200 rounded-2xl">
+              <h3 className="px-4 pt-3 text-sm font-bold text-gray-900">Returned items on the way</h3>
+              <p className="px-4 text-xs text-gray-500">Buyers' returns travelling back to their shops. Scan the RTN code on the bag, or receive the whole trip under Sorting.</p>
+              <ul className="mt-2 divide-y divide-gray-100">
+                {returnsComing.map((r) => (
+                  <li key={r.code} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                    <span className="font-mono text-xs font-semibold text-gray-800">{r.code}</span>
+                    <span className="text-xs text-gray-600">{r.shop_name}{r.coming_from ? ` · from ${r.coming_from}` : ''}</span>
+                    <span className="text-[11px] font-semibold text-amber-800">{r.at_shop_hub ? 'For a shop near you' : 'Passing through'}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <ParcelList
             state={expected}
             timeLabel="Picked up"

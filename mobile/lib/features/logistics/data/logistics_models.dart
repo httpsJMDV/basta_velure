@@ -321,6 +321,12 @@ class HubTransferGroup {
     required this.parcelCount,
     required this.trackingNumbers,
     this.oldestAt,
+    this.mode = 'truck',
+    this.gateway,
+    this.returnCodes = const [],
+    this.goingBack = 0,
+    this.finalHubs = const [],
+    this.moreFinalHubs = 0,
   });
 
   final String hubName;
@@ -329,28 +335,72 @@ class HubTransferGroup {
   final List<String> trackingNumbers;
   final DateTime? oldestAt;
 
+  /// truck, or sea for a crossing to another island group (an island gateway may fly it instead).
+  final String mode;
+
+  /// "Regional gateway" or "Island gateway" when the next hub is one.
+  final String? gateway;
+
+  /// Buyers' returned items (RTN codes) travelling with the parcels.
+  final List<String> returnCodes;
+
+  /// Parcels going back to their seller and buyers' returns in this group.
+  final int goingBack;
+
+  /// Where the parcels finally go after the next hub.
+  final List<String> finalHubs;
+  final int moreFinalHubs;
+
+  bool get crossesSea => mode == 'sea' || mode == 'air';
+
   factory HubTransferGroup.fromJson(Json json) {
     final hub = asJson(json['hub']);
+    final counts = asJson(json['counts']);
+    final finals = asStringList(json['final_hubs']);
     return HubTransferGroup(
       hubName: asString(hub['name']) ?? 'The next hub',
       city: asString(hub['city']) ?? '',
       parcelCount: asInt(json['parcel_count']),
       trackingNumbers: asStringList(json['tracking_numbers']),
       oldestAt: asDate(json['oldest_scanned_in_at']),
+      mode: asString(json['mode']) ?? 'truck',
+      gateway: asString(hub['gateway']),
+      returnCodes: asStringList(json['return_codes']),
+      goingBack: asInt(counts['return_to_sender']) + asInt(counts['buyer_returns']),
+      finalHubs: finals,
+      moreFinalHubs: asInt(json['final_hub_count']) - finals.length,
     );
   }
 }
 
 class HubTransfers {
-  const HubTransfers({this.groups = const [], this.onTheWayHere = 0});
+  const HubTransfers({
+    this.groups = const [],
+    this.onTheWayHere = 0,
+    this.isGateway = false,
+    this.seaDays = 3,
+    this.airDays = 1,
+  });
 
   final List<HubTransferGroup> groups;
   final int onTheWayHere;
+  final bool isGateway;
 
-  factory HubTransfers.fromJson(Json json) => HubTransfers(
-    groups: asJsonList(json['data']).map(HubTransferGroup.fromJson).toList(),
-    onTheWayHere: asInt(asJson(json['meta'])['on_the_way_here']),
-  );
+  /// Days a ship and a plane usually take between island gateways.
+  final int seaDays;
+  final int airDays;
+
+  factory HubTransfers.fromJson(Json json) {
+    final meta = asJson(json['meta']);
+    final days = asJson(meta['cargo_days']);
+    return HubTransfers(
+      groups: asJsonList(json['data']).map(HubTransferGroup.fromJson).toList(),
+      onTheWayHere: asInt(meta['on_the_way_here']),
+      isGateway: meta['is_gateway'] == true,
+      seaDays: days['sea'] == null ? 3 : asInt(days['sea']),
+      airDays: days['air'] == null ? 1 : asInt(days['air']),
+    );
+  }
 }
 
 class SortingGroup {

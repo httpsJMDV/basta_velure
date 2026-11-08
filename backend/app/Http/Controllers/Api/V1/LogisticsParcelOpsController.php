@@ -170,10 +170,15 @@ class LogisticsParcelOpsController extends Controller
     /** GET /logistics/returns : parcels going back to the seller, with every failure reason. */
     public function returns(Request $request): JsonResponse
     {
-        $parcels = LogisticsCompany::constrain(Parcel::query(), $this->company($request)->id)->with(['order:id,order_number,payment_method', 'rtsRider.user'])
+        $parcels = LogisticsCompany::constrain(Parcel::query(), $this->company($request)->id)->with(['order:id,order_number,payment_method', 'rtsRider.user', 'sortingCenter:id,hub_name,address_city', 'hubStops.hub:id,hub_name,address_city'])
             ->where('status', Parcel::STATUS_RETURN_TO_SENDER)->orderBy('rts_at')->get();
 
         return response()->json(['data' => $parcels->map(fn (Parcel $p) => [
+            // Far from the shop: it travels back through the hubs first; a rider takes it home from the last one.
+            'travelling_back' => ($back = $p->hubStops->where('direction', \App\Models\ParcelHubStop::DIRECTION_RETURN))->isNotEmpty()
+                && ($p->transit_since !== null || $back->contains(fn ($s) => $s->arrived_at === null)),
+            'back_to_hub'     => ($last = $back->sortByDesc('position')->first()?->hub) ? ['id' => $last->id, 'name' => $last->hub_name, 'city' => $last->address_city] : null,
+            'now_at'          => $p->sortingCenter ? ['id' => $p->sortingCenter->id, 'name' => $p->sortingCenter->hub_name, 'moving' => $p->transit_since !== null] : null,
             'id'              => $p->id,
             'tracking_number' => $p->tracking_number,
             'order_number'    => $p->order?->order_number,

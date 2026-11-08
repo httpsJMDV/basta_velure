@@ -54,6 +54,8 @@ class ReturnToSender
         }
 
         $parcel->forceFill(['status' => Parcel::STATUS_RETURN_TO_SENDER, 'rts_at' => now()])->save();
+        // Far from the shop: it goes back through the hubs to the one near the shop before a rider takes it home.
+        $backVia = app(HubRouter::class)->planReturn($parcel);
         $order = $parcel->order;
         if ($order) {
             $why = $reason === DeliveryFailureReason::REFUSED
@@ -67,7 +69,9 @@ class ReturnToSender
                 "Order {$order->order_number}: {$why}. The courier is bringing it back to your shop.", "/seller/orders?order={$order->id}", ['order_id' => $order->id]);
             app(\App\Services\MailNotifier::class)->sellerParcelReturning($parcel, $why);
             $notifier->send($notifier->companyMembers($parcel->logistics_company_id), 'shipment.rts', 'Return to sender',
-                "Parcel {$parcel->tracking_number}: {$why}. Assign a rider to take it back to the seller.", '/logistics/returns',
+                "Parcel {$parcel->tracking_number}: {$why}. " . ($backVia
+                    ? "It goes back through the hubs to {$backVia->hub_name} first; assign a rider there once it arrives."
+                    : 'Assign a rider to take it back to the seller.'), '/logistics/returns',
                 ['tracking_number' => $parcel->tracking_number]);
         }
 
@@ -100,6 +104,8 @@ class ReturnToSender
             $parcel = LogisticsCompany::constrain(Parcel::query(), $company->id)->with('order')->lockForUpdate()->find($parcelId);
             abort_unless($parcel, 404, 'Parcel not found in your network.');
             abort_unless($parcel->status === Parcel::STATUS_RETURN_TO_SENDER, 409, 'Only a parcel waiting to go back to the seller can be given a return rider.');
+            abort_if(app(HubRouter::class)->returnStillTravelling($parcel), 409,
+                'This parcel is still travelling back through the hubs. Assign a rider once it reaches the hub near the shop.');
             abort_if($parcel->rts_rider_id === $rider->id, 409, 'This rider already has this return.');
             if ($problem = $this->dispatcher->riderProblem($rider, $parcel)) {
                 abort(422, $problem);

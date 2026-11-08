@@ -205,6 +205,13 @@ Route::prefix('v1')->group(function () {
             Route::get('/truck-trips', [$trucks, 'trips']);
             Route::post('/truck-trips/{trip}/close', [$trucks, 'close'])->whereNumber('trip');
             Route::put('/truck-rate', [$trucks, 'rate']);
+            // How many truck drivers the courier needs, from a week of trips (docs/api/courier-network.md)
+            Route::get('/truck-planner', [$trucks, 'planner']);
+            Route::put('/truck-planner', [$trucks, 'plannerSettings']);
+            // Where the courier delivers: hubs, gateways and riders by island, region and province
+            $coverage = \App\Http\Controllers\Api\V1\LogisticsCoverageController::class;
+            Route::get('/coverage', [$coverage, 'summary']);
+            Route::get('/coverage/hubs', [$coverage, 'hubs']);
             // Activity log across the network: parcel steps and people's decisions, newest first
             Route::get('/activity', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'company']);
             // Delivery zones and shipping rates (L8), every change audit-logged
@@ -757,6 +764,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/return-pickups', [$returnPickups, 'riderIndex']);
             Route::post('/return-pickups/{pickup}/collected', [$returnPickups, 'collected'])->whereNumber('pickup')->middleware('throttle:upload');
             Route::post('/return-pickups/{pickup}/failed', [$returnPickups, 'failed'])->whereNumber('pickup');
+            Route::post('/return-pickups/{pickup}/dropped', [$returnPickups, 'dropped'])->whereNumber('pickup');
             Route::post('/return-pickups/{pickup}/delivered', [$returnPickups, 'delivered'])->whereNumber('pickup');
 
             // Online / Offline, job offers, returns to the seller and COD remittance (R3, R4, R7, R9)

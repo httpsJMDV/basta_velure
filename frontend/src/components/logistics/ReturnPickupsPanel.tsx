@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, Undo2 } from 'lucide-react';
+import { ArrowRight, Plane, RefreshCw, Ship, Truck, Undo2 } from 'lucide-react';
 import { assignReturnPickupApi, getReturnPickupsApi, type ReturnPickupList, type ReturnPickupView } from '../../api/commerce';
 import { apiErrorMessage } from '../../utils/apiError';
 import { useToast } from '../ui/Toast';
@@ -9,6 +9,8 @@ const TONE: Record<string, string> = {
   requested: 'bg-amber-50 text-amber-800 border-amber-200',
   assigned: 'bg-sky-50 text-sky-800 border-sky-200',
   collected: 'bg-violet-50 text-violet-800 border-violet-200',
+  at_hub: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+  out_to_shop: 'bg-sky-50 text-sky-800 border-sky-200',
   delivered: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   received: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   cancelled: 'bg-gray-100 text-gray-700 border-gray-200',
@@ -51,8 +53,12 @@ export default function ReturnPickupsPanel({ scope, hideWhenEmpty = false }: { s
   };
 
   const rows = list?.data ?? [];
-  const open = rows.filter((r) => ['requested', 'assigned', 'collected'].includes(r.status));
-  const done = rows.filter((r) => !['requested', 'assigned', 'collected'].includes(r.status));
+  const OPEN = ['requested', 'assigned', 'collected', 'at_hub', 'out_to_shop'];
+  const open = rows.filter((r) => OPEN.includes(r.status));
+  const done = rows.filter((r) => !OPEN.includes(r.status));
+  // Who can be given a rider now: one still to collect, or one at the hub near the shop for the last leg.
+  const canAssign = (r: ReturnPickupView) => ['requested', 'assigned', 'out_to_shop'].includes(r.status) || !!r.ready_for_shop_rider;
+  const shopLeg = (r: ReturnPickupView) => r.status === 'out_to_shop' || !!r.ready_for_shop_rider;
   if (hideWhenEmpty && list && open.length === 0) return null;
   const riders = list?.meta.riders ?? [];
 
@@ -63,7 +69,7 @@ export default function ReturnPickupsPanel({ scope, hideWhenEmpty = false }: { s
           <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-sky-50 text-sky-700 shrink-0"><Undo2 className="w-4 h-4" aria-hidden="true" /></span>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-gray-900">Return pickups</h2>
-            <p className="text-[11px] text-gray-500">Approved returns to collect from buyers and bring back to the shop.</p>
+            <p className="text-[11px] text-gray-500">Approved returns to collect from buyers and bring back to the shop. Far-away shops get theirs back through the hubs.</p>
           </div>
         </div>
         {list && (
@@ -90,9 +96,29 @@ export default function ReturnPickupsPanel({ scope, hideWhenEmpty = false }: { s
                 <span className="mx-1.5 text-gray-300">→</span>
                 <span className="font-semibold">To</span> {r.shop?.shop_name} · {r.shop?.city}
               </p>
-              <p className="text-[11px] text-gray-500">Order {r.order_number}{r.rider ? ` · Rider ${r.rider.name}` : ''}</p>
+              <p className="text-[11px] text-gray-500">
+                Order {r.order_number}{r.rider ? ` · Collected by ${r.rider.name}` : ''}{r.shop_rider ? ` · Bringing it to the shop: ${r.shop_rider.name}` : ''}
+              </p>
+              {r.through_hubs && (
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-indigo-900">
+                  <span className="font-semibold">Back through the hubs:</span>
+                  <span>{r.collect_hub?.city}</span>
+                  <ArrowRight className="w-3 h-3 text-indigo-400" aria-hidden="true" />
+                  <span>{r.shop_hub?.city}</span>
+                  {r.status === 'at_hub' && r.current_hub && (
+                    <span className="text-indigo-700">
+                      · {r.in_transit ? `on the way to ${r.current_hub.name}` : `at ${r.current_hub.name}`}
+                      {!r.in_transit && r.next_hub && (
+                        <span className="inline-flex items-center gap-1 ml-1">
+                          , next {r.next_hub.by === 'sea' ? <Ship className="w-3 h-3" aria-hidden="true" /> : r.next_hub.by === 'air' ? <Plane className="w-3 h-3" aria-hidden="true" /> : <Truck className="w-3 h-3" aria-hidden="true" />} {r.next_hub.name}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
-            {r.status !== 'collected' && (
+            {canAssign(r) && (
               <div className="flex items-center gap-2">
                 <select
                   value={pick[r.id] ?? ''}
@@ -100,7 +126,7 @@ export default function ReturnPickupsPanel({ scope, hideWhenEmpty = false }: { s
                   aria-label={`Rider for ${r.code}`}
                   className="px-3 text-sm bg-white border border-gray-300 rounded-xl min-h-10 min-w-[200px] focus:border-gray-900 focus:outline-none"
                 >
-                  <option value="">{riders.length ? (r.rider ? 'Change the rider' : 'Choose a rider') : 'No active rider'}</option>
+                  <option value="">{riders.length ? (shopLeg(r) ? (r.shop_rider ? 'Change the rider' : 'Rider to take it to the shop') : r.rider ? 'Change the rider' : 'Choose a rider') : 'No active rider'}</option>
                   {riders.map((d) => <option key={d.id} value={d.id}>{d.name}{d.online ? ' · online' : ''}</option>)}
                 </select>
                 <button
@@ -110,7 +136,7 @@ export default function ReturnPickupsPanel({ scope, hideWhenEmpty = false }: { s
                   className="inline-flex items-center gap-1.5 px-4 text-xs font-bold text-white rounded-xl min-h-10 bg-brand-red hover:bg-brand-red-dark disabled:opacity-50"
                 >
                   {busy === r.id && <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
-                  {r.rider ? 'Reassign' : 'Assign'}
+                  {(shopLeg(r) ? r.shop_rider : r.rider) ? 'Reassign' : shopLeg(r) ? 'Send to shop' : 'Assign'}
                 </button>
               </div>
             )}

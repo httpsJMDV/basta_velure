@@ -606,7 +606,16 @@ function StoreBlock({ store, index, count, wallet, onPickVoucher, onApplyVoucher
         <span className="flex items-start gap-2 text-stone-600 min-w-0">
           <Truck className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
           {ship.serviceable
-            ? <span>{ship.route ?? 'Standard delivery'} · {ship.chargeable_kg} kg charged{ship.weight_grams > 0 ? ` (${(ship.weight_grams / 1000).toLocaleString()} kg)` : ''}</span>
+            ? (
+              <span>
+                {ship.route ?? 'Standard delivery'} · {ship.chargeable_kg} kg charged{ship.weight_grams > 0 ? ` (${(ship.weight_grams / 1000).toLocaleString()} kg)` : ''}
+                {ship.eta && (
+                  <span className="block text-[12px] text-stone-500">
+                    Arrives in <span className="font-semibold text-stone-800">{ship.eta.min}–{ship.eta.max} days</span> · {ship.eta.label}
+                  </span>
+                )}
+              </span>
+            )
             : <span className="text-brand-red font-medium">{ship.message}</span>}
         </span>
         {ship.serviceable && (ship.free_delivery

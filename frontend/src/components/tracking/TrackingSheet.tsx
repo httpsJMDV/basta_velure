@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, Copy, Home, Loader2, MapPinOff, MessageCircle, Radio, Store, Warehouse, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Bike, Check, CheckCircle2, Copy, Home, Loader2, MapPinOff, MessageCircle, Plane, Radio, Ship, Store, Truck, Undo2, Warehouse, X } from 'lucide-react';
 import { getDeliveryProofBlobUrl, getParcelTrackingApi, startRiderChatApi } from '../../api/client';
 import { useChat } from '../../hooks/useChat';
 import { useLivePolling } from '../../hooks/useLivePolling';
-import type { ParcelTracking, TrackingEvent } from '../../types';
+import type { JourneyNode, ParcelTracking, TrackingEvent } from '../../types';
 import TrackingMap from './TrackingMap';
 
 const MAP_STATUSES = new Set([
@@ -422,8 +422,62 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`hidden sm:inline-flex shrink-0 px-2.5 py-1 rounded-full border text-[11px] font-bold capitalize ${tone}`}>{status.toLowerCase().replace(/_/g, ' ')}</span>;
 }
 
+const LEG: Record<string, { icon: React.ElementType; label: string }> = {
+  truck: { icon: Truck, label: 'By truck' },
+  sea: { icon: Ship, label: 'By ship' },
+  air: { icon: Plane, label: 'By plane' },
+  rider: { icon: Bike, label: 'By rider' },
+};
+
+/**
+ * Every stop of the trip: the shop, each hub with its gateway role, and the buyer, with how the parcel gets from one to
+ * the next (rider, truck, ship or plane). A parcel going back to its seller shows the way back too.
+ */
+function JourneyCard({ nodes }: { nodes: JourneyNode[] }) {
+  return (
+    <section className="rounded-2xl bg-white border border-gray-200/80 shadow-xs p-4 sm:p-5" aria-label="Route">
+      <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-3">Route</h3>
+      <ol>
+        {nodes.map((n, i) => {
+          const next = nodes[i + 1];
+          const leg = next ? (next.kind === 'hub' && next.arrives_by ? next.arrives_by : 'rider') : null;
+          const Icon = n.kind === 'shop' ? Store : n.kind === 'buyer' ? Home : n.kind === 'return' ? Undo2 : Warehouse;
+          const dot = n.state === 'done' ? 'bg-emerald-500 text-white' : n.state === 'current' ? 'bg-brand-red text-white ring-4 ring-rose-100' : 'bg-white text-gray-400 border-2 border-gray-200';
+          const Leg = leg ? LEG[leg].icon : null;
+          return (
+            <li key={`${n.kind}-${i}`} className="relative">
+              <div className="flex items-start gap-3">
+                <span className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${dot}`}><Icon className="w-4 h-4" aria-hidden="true" /></span>
+                <div className="min-w-0 pb-1">
+                  <p className="flex flex-wrap items-center gap-x-2 text-[13.5px] font-semibold text-gray-900">
+                    {n.title}
+                    {n.gateway && <span className="text-[10.5px] font-bold uppercase tracking-wide text-indigo-700">{n.gateway}</span>}
+                    {n.direction === 'return' && <span className="text-[10.5px] font-bold uppercase tracking-wide text-amber-700">Way back</span>}
+                  </p>
+                  {n.subtitle && <p className="text-[12px] text-gray-500">{n.subtitle}</p>}
+                  <p className={`text-[11.5px] ${n.state === 'current' || n.moving_here ? 'font-semibold text-brand-red' : 'text-gray-500'}`}>{n.label}</p>
+                </div>
+              </div>
+              {leg && Leg && (
+                <div className="flex items-center gap-2 py-1.5 pl-[15px]">
+                  <span className={`w-0.5 h-7 ${next?.state !== 'upcoming' || next?.moving_here ? 'bg-emerald-400' : 'bg-gray-200'}`} aria-hidden="true" />
+                  <span className={`inline-flex items-center gap-1 ml-3 text-[11px] font-semibold ${leg === 'sea' || leg === 'air' ? 'text-sky-700' : 'text-gray-500'}`}>
+                    <Leg className="w-3.5 h-3.5" aria-hidden="true" /> {LEG[leg].label}
+                  </span>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 /** From, through and to: the places of the trip. */
 function RouteCard({ tracking }: { tracking: ParcelTracking }) {
+  // With the hubs known (the whole way, gateways included), show each stop.
+  if (tracking.journey && tracking.journey.some((n) => n.kind === 'hub')) return <JourneyCard nodes={tracking.journey} />;
   const stops: { icon: React.ElementType; tone: string; label: string; place: ParcelTracking['origin'] }[] = [
     { icon: Store, tone: 'bg-amber-100 text-amber-700', label: 'From', place: tracking.origin },
     ...(tracking.hub ? [{ icon: Warehouse, tone: 'bg-blue-100 text-blue-700', label: 'Through', place: tracking.hub }] : []),

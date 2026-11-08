@@ -178,6 +178,9 @@ class JourneyNode {
     this.movingHere = false,
     this.at,
     this.leftAt,
+    this.gateway,
+    this.arrivesBy,
+    this.goingBack = false,
   });
 
   static const done = 'done';
@@ -196,6 +199,15 @@ class JourneyNode {
   final DateTime? at;
   final DateTime? leftAt;
 
+  /// "Regional gateway" or "Island gateway" for a hub that links regions or island groups.
+  final String? gateway;
+
+  /// How the parcel gets to this hub from the one before: truck, sea or air.
+  final String? arrivesBy;
+
+  /// On the way back to the seller.
+  final bool goingBack;
+
   factory JourneyNode.fromJson(Json json) => JourneyNode(
     kind: asString(json['kind']) ?? 'hub',
     title: asString(json['title']) ?? '',
@@ -205,6 +217,9 @@ class JourneyNode {
     movingHere: asBool(json['moving_here']),
     at: asDate(json['at']),
     leftAt: asDate(json['left_at']),
+    gateway: asString(json['gateway']),
+    arrivesBy: asString(json['arrives_by']),
+    goingBack: asString(json['direction']) == 'return',
   );
 }
 

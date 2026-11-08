@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowRight, ChevronDown, ChevronUp, Clock, RefreshCw, Truck } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Clock, Plane, RefreshCw, Ship, Truck, Undo2 } from 'lucide-react';
 import { getHubTransfersApi, getHubTruckDriversApi, getHubTruckTripsApi, receiveHubTruckTripApi, sendHubTransferApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
-import type { HubTransferGroup, HubTruckDriver, TruckTrip } from '../../types';
+import type { HubTransferGroup, HubTransfersResponse, HubTruckDriver, LegMode, TruckTrip } from '../../types';
 
 const POLL_MS = 30000;
 
@@ -20,9 +20,27 @@ function clock(iso: string | null): string {
   return iso ? new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : '';
 }
 
+function day(iso: string | null | undefined): string {
+  return iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '';
+}
+
+/** A YYYY-MM-DD date some days from today, in Manila. */
+function inDays(days: number): string {
+  const d = new Date(Date.now() + days * 86400000);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+}
+
+const isCargo = (mode?: LegMode | null) => mode === 'sea' || mode === 'air';
+
+function ModeIcon({ mode, className = 'w-5 h-5' }: { mode?: LegMode | null; className?: string }) {
+  if (mode === 'sea') return <Ship className={className} aria-hidden="true" />;
+  if (mode === 'air') return <Plane className={className} aria-hidden="true" />;
+  return <Truck className={className} aria-hidden="true" />;
+}
+
 /**
- * One truck on the road, to or from this hub: who drives it, and how many of its parcels the next hub has scanned. A
- * truck coming here can be received in one go, like scanning one sack: tick any parcel that was not on it.
+ * One truck, ship or plane on the way, to or from this hub: who carries it, and how many of its parcels the next hub
+ * has scanned. One coming here can be received in one go, like scanning one sack: tick any parcel that was not on it.
  */
 function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: boolean; onReceived?: () => void }) {
   const { showToast } = useToast();
@@ -33,6 +51,7 @@ function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: bo
   const [open, setOpen] = useState(false);
   const [missing, setMissing] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const cargo = isCargo(trip.mode);
 
   const receive = async () => {
     setBusy(true);
@@ -42,7 +61,7 @@ function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: bo
       setMissing([]);
       onReceived?.();
     } catch (err: unknown) {
-      showToast(axios.isAxiosError(err) ? err.response?.data?.message ?? 'The truck could not be received.' : 'The truck could not be received.', 'error');
+      showToast(axios.isAxiosError(err) ? err.response?.data?.message ?? 'The trip could not be received.' : 'The trip could not be received.', 'error');
     } finally {
       setBusy(false);
     }
@@ -50,18 +69,32 @@ function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: bo
 
   return (
     <li className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
-      <div className="min-w-0">
-        <p className="text-sm text-gray-900">
-          <span className="font-bold">{incoming ? 'From' : 'To'} {other?.name ?? 'another hub'}</span>
-          <span className="ml-2 font-mono text-xs text-gray-500">{trip.code}</span>
-        </p>
-        <p className="mt-0.5 text-xs text-gray-600">
-          {trip.driver?.name ?? 'Driver'}
-          {trip.plate_number && <span className="font-mono"> · {trip.plate_number}</span>}
-          {trip.driver?.phone && <span> · {trip.driver.phone}</span>}
-          <span> · left {clock(trip.departed_at)}</span>
-          {trip.driver_arrived_at && <span className="font-semibold text-emerald-700"> · at {incoming ? 'your' : 'their'} dock since {clock(trip.driver_arrived_at)}</span>}
-        </p>
+      <div className="flex items-start min-w-0 gap-3">
+        <span className={`mt-0.5 shrink-0 ${cargo ? 'text-sky-600' : 'text-gray-500'}`}><ModeIcon mode={trip.mode} className="w-4 h-4" /></span>
+        <div className="min-w-0">
+          <p className="text-sm text-gray-900">
+            <span className="font-bold">{incoming ? 'From' : 'To'} {other?.name ?? 'another hub'}</span>
+            <span className="ml-2 font-mono text-xs text-gray-500">{trip.code}</span>
+          </p>
+          <p className="mt-0.5 text-xs text-gray-600">
+            {cargo ? (
+              <>
+                {trip.carrier_name}
+                {trip.carrier_reference && <span className="font-mono"> · {trip.carrier_reference}</span>}
+                <span> · left {day(trip.departed_at)}</span>
+                {trip.eta_at && <span className="font-semibold text-sky-800"> · due {day(trip.eta_at)}</span>}
+              </>
+            ) : (
+              <>
+                {trip.driver?.name ?? 'Driver'}
+                {trip.plate_number && <span className="font-mono"> · {trip.plate_number}</span>}
+                {trip.driver?.phone && <span> · {trip.driver.phone}</span>}
+                <span> · left {clock(trip.departed_at)}</span>
+                {trip.driver_arrived_at && <span className="font-semibold text-emerald-700"> · at {incoming ? 'your' : 'their'} dock since {clock(trip.driver_arrived_at)}</span>}
+              </>
+            )}
+          </p>
+        </div>
       </div>
       <div className="flex items-center gap-3 sm:justify-end">
         <div className="w-28 h-1.5 overflow-hidden bg-gray-100 rounded-full" aria-hidden="true">
@@ -79,7 +112,7 @@ function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: bo
       {open && (
         <div className="p-3 border border-gray-200 sm:col-span-2 rounded-xl bg-gray-50">
           <p className="text-xs text-gray-700">
-            Count the parcels off the truck. Tick any that is <span className="font-semibold">not</span> on it; it stays expected until someone scans it in.
+            Count the parcels off the {cargo ? 'cargo' : 'truck'}. Tick any that is <span className="font-semibold">not</span> there; it stays expected until someone scans it in.
           </p>
           <ul className="grid gap-1 mt-2 sm:grid-cols-2 lg:grid-cols-3">
             {waiting.map((p) => {
@@ -90,6 +123,7 @@ function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: bo
                   <label className="flex items-center gap-2 font-mono text-xs text-gray-800 cursor-pointer min-h-8">
                     <input type="checkbox" checked={off} onChange={() => setMissing((m) => (off ? m.filter((x) => x !== tn) : [...m, tn]))} className="accent-brand-red" />
                     <span className={off ? 'line-through text-gray-400' : ''}>{tn}</span>
+                    {p.kind && p.kind !== 'parcel' && <span className="font-sans text-[10px] font-semibold text-amber-700">{p.kind === 'buyer_return' ? 'Return' : 'Back to seller'}</span>}
                   </label>
                 </li>
               );
@@ -109,21 +143,71 @@ function TripRow({ trip, incoming, onReceived }: { trip: TruckTrip; incoming: bo
   );
 }
 
+/** The ship or plane form at an island gateway: which carrier, its reference, and the day it is due. */
+function CargoFields({ mode, setMode, carrier, setCarrier, reference, setReference, eta, setEta, meta }: {
+  mode: 'sea' | 'air'; setMode: (m: 'sea' | 'air') => void; carrier: string; setCarrier: (v: string) => void;
+  reference: string; setReference: (v: string) => void; eta: string; setEta: (v: string) => void; meta: HubTransfersResponse['meta'] | null;
+}) {
+  const suggestions = meta?.carriers?.[mode] ?? [];
+  const field = 'block w-full px-3 mt-1 text-sm font-normal text-gray-900 bg-white border border-gray-300 rounded-xl min-h-11 focus:border-gray-900 focus:outline-none';
+
+  return (
+    <div className="grid flex-1 min-w-0 gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <span className="text-xs font-semibold text-gray-700">Send by</span>
+        <div className="grid grid-cols-2 gap-2 mt-1" role="radiogroup" aria-label="Send by">
+          {(['sea', 'air'] as const).map((m) => (
+            <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => { setMode(m); setCarrier(''); setEta(inDays(meta?.cargo_days?.[m] ?? (m === 'sea' ? 3 : 1))); }}
+              className={`flex items-center gap-2.5 px-3 text-left border rounded-xl min-h-12 ${mode === m ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-800 hover:border-gray-500'}`}>
+              <ModeIcon mode={m} className="w-4 h-4 shrink-0" />
+              <span>
+                <span className="block text-sm font-semibold">{m === 'sea' ? 'Ship' : 'Plane'}</span>
+                <span className={`block text-[11px] ${mode === m ? 'text-white/70' : 'text-gray-500'}`}>
+                  About {meta?.cargo_days?.[m] ?? (m === 'sea' ? 3 : 1)} {(meta?.cargo_days?.[m] ?? 1) === 1 ? 'day' : 'days'}{m === 'sea' ? ', for anything' : ', light parcels'}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className="text-xs font-semibold text-gray-700">
+        {mode === 'sea' ? 'Ship or sailing' : 'Flight or cargo service'}
+        <input list={`carriers-${mode}`} value={carrier} maxLength={80} onChange={(e) => setCarrier(e.target.value)}
+          placeholder={mode === 'sea' ? 'e.g. Roll-on/roll-off ferry, 6 PM sailing' : 'e.g. Domestic air cargo, morning flight'} className={field} />
+        <datalist id={`carriers-${mode}`}>{suggestions.map((s) => <option key={s} value={s} />)}</datalist>
+      </label>
+      <label className="text-xs font-semibold text-gray-700">
+        {mode === 'sea' ? 'Bill of lading no.' : 'Air waybill no.'}
+        <input value={reference} maxLength={40} onChange={(e) => setReference(e.target.value.toUpperCase())} placeholder={mode === 'sea' ? 'BL-2026-000123' : 'AWB 123-45678901'} className={`${field} font-mono`} />
+      </label>
+      <label className="text-xs font-semibold text-gray-700 sm:col-span-2 sm:max-w-[240px]">
+        Due at the other gateway
+        <input type="date" value={eta} min={inDays(0)} onChange={(e) => setEta(e.target.value)} className={field} />
+      </label>
+    </div>
+  );
+}
+
 /**
- * Hub to hub: parcels this hub received for a barangay another hub of the courier covers. This hub hands them to one
- * of the courier's truck drivers, and that hub scans them in on its Parcel Intake page and sorts them. Also lists the
- * trucks on the road to and from this hub. Shows nothing when there is nothing to do.
+ * Hub to hub: parcels this hub received for a barangay another hub of the courier covers, parcels going back to their
+ * seller, and buyers' returns on their way to a shop. A regular hub loads them on one of the courier's trucks; an
+ * island gateway puts the ones crossing to another island group on a ship or a plane. The next hub scans them in on
+ * its Parcel Intake page. Also lists what is on the way to and from this hub. Shows nothing when there is nothing to do.
  */
 export default function HubTransfersPanel() {
   const { showToast } = useToast();
   const [groups, setGroups] = useState<HubTransferGroup[]>([]);
-  const [onTheWayHere, setOnTheWayHere] = useState(0);
+  const [meta, setMeta] = useState<HubTransfersResponse['meta'] | null>(null);
   const [drivers, setDrivers] = useState<HubTruckDriver[]>([]);
   const [incoming, setIncoming] = useState<TruckTrip[]>([]);
   const [outgoing, setOutgoing] = useState<TruckTrip[]>([]);
-  const [open, setOpen] = useState<number | null>(null);
-  const [confirming, setConfirming] = useState<number | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [driverId, setDriverId] = useState<number | ''>('');
+  const [cargoMode, setCargoMode] = useState<'sea' | 'air'>('sea');
+  const [carrier, setCarrier] = useState('');
+  const [reference, setReference] = useState('');
+  const [eta, setEta] = useState(inDays(3));
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
@@ -135,7 +219,7 @@ export default function HubTransfersPanel() {
         getHubTruckDriversApi(),
       ]);
       setGroups(res.data);
-      setOnTheWayHere(res.meta.on_the_way_here);
+      setMeta(res.meta);
       setIncoming(ins.data.filter((t) => t.status === 'on_the_way'));
       setOutgoing(outs.data.filter((t) => t.status === 'on_the_way'));
       setDrivers(people);
@@ -153,19 +237,33 @@ export default function HubTransfersPanel() {
     };
   }, [load]);
 
-  const startConfirm = (id: number) => {
-    setConfirming(id);
+  const keyOf = (g: HubTransferGroup) => `${g.hub.id}-${isCargo(g.mode) ? 'cargo' : 'truck'}`;
+
+  const startConfirm = (group: HubTransferGroup) => {
+    setConfirming(keyOf(group));
     setDriverId(drivers.find((d) => !d.busy)?.id ?? '');
+    setCargoMode('sea');
+    setCarrier('');
+    setReference('');
+    setEta(inDays(meta?.cargo_days?.sea ?? 3));
   };
 
   const send = async (group: HubTransferGroup) => {
-    if (drivers.length > 0 && driverId === '') {
+    const cargo = isCargo(group.mode);
+    if (!cargo && drivers.length > 0 && driverId === '') {
       showToast('Choose the truck driver taking these parcels.', 'error');
+      return;
+    }
+    if (cargo && (!carrier.trim() || !reference.trim())) {
+      showToast(`Enter the ${cargoMode === 'sea' ? 'ship' : 'flight'} and its ${cargoMode === 'sea' ? 'bill of lading' : 'air waybill'} number.`, 'error');
       return;
     }
     setSending(true);
     try {
-      const res = await sendHubTransferApi(group.tracking_numbers, driverId === '' ? null : driverId);
+      const res = await sendHubTransferApi(group.tracking_numbers, {
+        returnCodes: group.return_codes ?? [],
+        ...(cargo ? { mode: cargoMode, carrierName: carrier.trim(), carrierReference: reference.trim(), eta } : { driverId: driverId === '' ? null : driverId }),
+      });
       showToast(`${res.message} ${group.hub.name} scans them in when they arrive.`);
       setConfirming(null);
       setOpen(null);
@@ -177,10 +275,12 @@ export default function HubTransfersPanel() {
     }
   };
 
-  // Trucks coming here are listed with their trip; the banner counts the parcels that came without one.
+  const onTheWayHere = meta?.on_the_way_here ?? 0;
+  // Trips coming here are listed with their trip; the banner counts the parcels that came without one.
   const looseHere = Math.max(0, onTheWayHere - incoming.reduce((n, t) => n + (t.parcel_count - t.received_count), 0));
   if (groups.length === 0 && onTheWayHere === 0 && incoming.length === 0 && outgoing.length === 0) return null;
   const freeDrivers = drivers.filter((d) => !d.busy);
+  const crossing = groups.some((g) => isCargo(g.mode));
 
   return (
     <section aria-label="Parcels for other hubs" className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
@@ -199,7 +299,7 @@ export default function HubTransfersPanel() {
       {incoming.length > 0 && (
         <div className="border-b border-gray-100">
           <div className="flex items-center justify-between gap-3 px-4 pt-4">
-            <h2 className="text-sm font-bold text-gray-900">Trucks coming here</h2>
+            <h2 className="text-sm font-bold text-gray-900">Coming here</h2>
             <Link to="/hub/intake" className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 underline underline-offset-2 min-h-11">
               Scan them in <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
             </Link>
@@ -213,32 +313,53 @@ export default function HubTransfersPanel() {
       {groups.length > 0 && (
         <>
           <div className="px-4 pt-4 pb-1">
-            <h2 className="text-sm font-bold text-gray-900">For other hubs</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-bold text-gray-900">For other hubs</h2>
+              {meta?.gateway && <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-indigo-50 text-indigo-700">{meta.gateway}</span>}
+            </div>
             <p className="mt-0.5 text-xs text-gray-500">
-              Another hub of your courier delivers to these barangays. Load them on a truck instead of sorting them here.
-              {drivers.length === 0 && ' Your courier has no truck drivers yet, so they go without one.'}
+              {crossing
+                ? 'This is an island gateway: the ones marked by sea cross to another island group. Put them on a ship, or a plane when they are urgent and light.'
+                : 'Another hub of your courier is next on their way. Load them on a truck instead of sorting them here.'}
+              {drivers.length === 0 && !crossing && ' Your courier has no truck drivers yet, so they go without one.'}
             </p>
           </div>
           <ul className="p-3 space-y-2">
             {groups.map((group) => {
-              const id = group.hub.id;
-              const isOpen = open === id;
+              const key = keyOf(group);
+              const cargo = isCargo(group.mode);
+              const isOpen = open === key;
               const count = group.parcel_count;
               const word = `${count} parcel${count === 1 ? '' : 's'}`;
+              const back = (group.counts?.return_to_sender ?? 0) + (group.counts?.buyer_returns ?? 0);
+              const finals = group.final_hubs ?? [];
+              const moreFinals = (group.final_hub_count ?? finals.length) - finals.length;
               return (
-                <li key={id} className="border border-gray-200 rounded-xl">
+                <li key={key} className={`border rounded-xl ${cargo ? 'border-sky-200' : 'border-gray-200'}`}>
                   <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
                     <div className="flex items-start flex-1 min-w-0 gap-3">
-                      <span className="flex items-center justify-center w-10 h-10 text-gray-700 bg-gray-100 rounded-xl shrink-0">
-                        <Truck className="w-5 h-5" aria-hidden="true" />
+                      <span className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 ${cargo ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-700'}`}>
+                        <ModeIcon mode={group.mode} />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-900 break-words">{group.hub.name}</p>
+                        <p className="flex flex-wrap items-center gap-x-2 text-sm font-bold text-gray-900 break-words">
+                          {group.hub.name}
+                          {group.hub.gateway && <span className="text-[11px] font-semibold text-indigo-700">{group.hub.gateway}</span>}
+                        </p>
                         <p className="text-xs text-gray-500">
                           {[group.hub.city, group.hub.province].filter(Boolean).join(', ')}
+                          {cargo && <span className="font-semibold text-sky-800"> · by sea</span>}
                         </p>
+                        {finals.length > 0 && (
+                          <p className="mt-0.5 text-xs text-gray-500">Then on to {finals.join(', ')}{moreFinals > 0 ? ` and ${moreFinals} more` : ''}</p>
+                        )}
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600">
                           <span className="font-semibold">{word}</span>
+                          {back > 0 && (
+                            <span className="inline-flex items-center gap-1 text-amber-800">
+                              <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {back} going back to {back === 1 ? 'a shop' : 'shops'}
+                            </span>
+                          )}
                           <span className="inline-flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" aria-hidden="true" /> Waiting {waited(group.oldest_scanned_in_at)}
                           </span>
@@ -246,33 +367,29 @@ export default function HubTransfersPanel() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setOpen(isOpen ? null : id)}
-                        aria-expanded={isOpen}
-                        className="inline-flex items-center gap-1 px-3 text-xs font-semibold text-gray-700 rounded-lg min-h-11 hover:bg-gray-100"
-                      >
+                      <button type="button" onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}
+                        className="inline-flex items-center gap-1 px-3 text-xs font-semibold text-gray-700 rounded-lg min-h-11 hover:bg-gray-100">
                         {isOpen ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
                         Parcels
                       </button>
-                      {confirming !== id && (
-                        <button type="button" onClick={() => startConfirm(id)} className="px-4 text-sm font-semibold text-white rounded-xl min-h-11 bg-brand-red hover:bg-brand-red-dark">
-                          {drivers.length > 0 ? 'Load on a truck' : 'Send'}
+                      {confirming !== key && (
+                        <button type="button" onClick={() => startConfirm(group)} className="px-4 text-sm font-semibold text-white rounded-xl min-h-11 bg-brand-red hover:bg-brand-red-dark">
+                          {cargo ? 'Load on a ship or plane' : drivers.length > 0 ? 'Load on a truck' : 'Send'}
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {confirming === id && (
+                  {confirming === key && (
                     <div className="flex flex-col gap-3 px-3 pb-3 sm:flex-row sm:items-end">
-                      {drivers.length > 0 && (
+                      {cargo ? (
+                        <CargoFields mode={cargoMode} setMode={setCargoMode} carrier={carrier} setCarrier={setCarrier}
+                          reference={reference} setReference={setReference} eta={eta} setEta={setEta} meta={meta} />
+                      ) : drivers.length > 0 && (
                         <label className="flex-1 min-w-0 text-xs font-semibold text-gray-700">
                           Truck driver
-                          <select
-                            value={driverId}
-                            onChange={(e) => setDriverId(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="block w-full px-3 mt-1 text-sm font-normal text-gray-900 bg-white border border-gray-300 rounded-xl min-h-11 focus:border-gray-900 focus:outline-none"
-                          >
+                          <select value={driverId} onChange={(e) => setDriverId(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="block w-full px-3 mt-1 text-sm font-normal text-gray-900 bg-white border border-gray-300 rounded-xl min-h-11 focus:border-gray-900 focus:outline-none">
                             {freeDrivers.length === 0 && <option value="">Every driver is on a trip</option>}
                             {drivers.map((d) => (
                               <option key={d.id} value={d.id} disabled={d.busy}>
@@ -287,12 +404,8 @@ export default function HubTransfersPanel() {
                         <button type="button" disabled={sending} onClick={() => setConfirming(null)} className="px-3 text-xs font-semibold text-gray-700 rounded-lg min-h-11 hover:bg-gray-100 disabled:opacity-50">
                           Cancel
                         </button>
-                        <button
-                          type="button"
-                          disabled={sending || (drivers.length > 0 && driverId === '')}
-                          onClick={() => void send(group)}
-                          className="inline-flex items-center gap-1.5 px-4 text-sm font-semibold text-white rounded-xl min-h-11 bg-brand-red hover:bg-brand-red-dark disabled:opacity-60"
-                        >
+                        <button type="button" disabled={sending || (!cargo && drivers.length > 0 && driverId === '')} onClick={() => void send(group)}
+                          className="inline-flex items-center gap-1.5 px-4 text-sm font-semibold text-white rounded-xl min-h-11 bg-brand-red hover:bg-brand-red-dark disabled:opacity-60 whitespace-nowrap">
                           {sending && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
                           Yes, send {word}
                         </button>
@@ -305,6 +418,9 @@ export default function HubTransfersPanel() {
                       {group.tracking_numbers.map((number) => (
                         <li key={number} className="font-mono text-xs text-gray-700 break-all">{number}</li>
                       ))}
+                      {(group.return_codes ?? []).map((code) => (
+                        <li key={code} className="font-mono text-xs text-amber-800 break-all">{code} <span className="font-sans text-[10px] font-semibold">buyer return</span></li>
+                      ))}
                     </ul>
                   )}
                 </li>
@@ -316,7 +432,7 @@ export default function HubTransfersPanel() {
 
       {outgoing.length > 0 && (
         <div className="border-t border-gray-100">
-          <h2 className="px-4 pt-4 text-sm font-bold text-gray-900">Trucks that left here</h2>
+          <h2 className="px-4 pt-4 text-sm font-bold text-gray-900">Left here</h2>
           <ul className="divide-y divide-gray-100">
             {outgoing.map((trip) => <TripRow key={trip.id} trip={trip} incoming={false} />)}
           </ul>

@@ -39,10 +39,16 @@ class TruckTrip extends Model
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CLOSED = 'closed';
 
+    /** How a leg between hubs travels. Trucks are the courier's own drivers; ships and planes are cargo carriers. */
+    public const MODE_TRUCK = 'truck';
+    public const MODE_SEA = 'sea';
+    public const MODE_AIR = 'air';
+    public const MODES = [self::MODE_TRUCK, self::MODE_SEA, self::MODE_AIR];
+
     protected $fillable = [
         'code', 'logistics_company_id', 'from_hub_id', 'to_hub_id', 'driver_id', 'plate_number', 'status',
         'parcel_count', 'received_count', 'created_by', 'departed_at', 'driver_arrived_at', 'completed_at',
-        'close_reason', 'pay_amount', 'paid_at', 'paid_by', 'paid_reference',
+        'close_reason', 'pay_amount', 'paid_at', 'paid_by', 'paid_reference', 'mode', 'carrier_name', 'carrier_reference', 'eta_at',
     ];
 
     protected function casts(): array
@@ -51,6 +57,7 @@ class TruckTrip extends Model
             'parcel_count'      => 'integer',
             'received_count'    => 'integer',
             'departed_at'       => 'datetime',
+            'eta_at'            => 'datetime',
             'driver_arrived_at' => 'datetime',
             'completed_at'      => 'datetime',
             'paid_at'           => 'datetime',
@@ -78,14 +85,26 @@ class TruckTrip extends Model
         return $this->hasMany(ParcelHubStop::class);
     }
 
+    /** The returned items this trip carries back toward their shops. */
+    public function returnStops(): HasMany
+    {
+        return $this->hasMany(ReturnPickupStop::class);
+    }
+
+    /** A ship or a plane: a cargo carrier, not one of the courier's drivers. */
+    public function isCargo(): bool
+    {
+        return in_array($this->mode, [self::MODE_SEA, self::MODE_AIR], true);
+    }
+
     public function isFinished(): bool
     {
         return in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CLOSED], true);
     }
 
-    /** Finished and not yet paid: the courier owes the driver for it. */
+    /** Finished and not yet paid: the courier owes the driver for it. Ships and planes have no driver to pay. */
     public function scopeUnpaid(Builder $query): Builder
     {
-        return $query->whereIn('status', [self::STATUS_COMPLETED, self::STATUS_CLOSED])->whereNull('paid_at');
+        return $query->whereIn('status', [self::STATUS_COMPLETED, self::STATUS_CLOSED])->whereNull('paid_at')->whereNotNull('driver_id');
     }
 }

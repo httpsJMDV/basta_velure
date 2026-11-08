@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Parcel;
 use App\Models\ParcelHubStop;
+use App\Models\ReturnPickup;
 use App\Models\Rider;
 use App\Models\SortingCenter;
 use App\Models\TruckTrip;
 use App\Services\Courier\HubRouter;
+use App\Services\Courier\ReturnPickups;
 use App\Services\Courier\TruckTrips;
 use App\Support\PhMobile;
 use Carbon\Carbon;
@@ -29,31 +31,73 @@ class HubTransferController extends Controller
     {
     }
 
-    /** GET /api/v1/hub/transfers: what to send, by the hub it goes to, oldest first. */
+    /**
+     * GET /api/v1/hub/transfers: what to send on, grouped by the next hub and how it goes there (truck, or ship and
+     * plane at an island gateway), oldest first. Parcels for buyers, parcels going back to their seller, and buyers'
+     * returned items travel together.
+     */
     public function index(Request $request): JsonResponse
     {
         $hub = $this->hub($request);
         if (! HubRouter::ready()) {
-            return response()->json(['data' => [], 'meta' => ['total_parcels' => 0, 'on_the_way_here' => 0, 'sent_today' => 0]]);
+            return response()->json(['data' => [], 'meta' => ['total_parcels' => 0, 'on_the_way_here' => 0, 'sent_today' => 0, 'is_gateway' => false]]);
         }
 
-        $groups = Parcel::with('destinationHub')
+        $parcels = Parcel::with(['hubStops.hub', 'destinationHub'])
             ->where('sorting_center_id', $hub->id)
             ->waitingToSend()
-            ->orderBy('scanned_in_at')
-            ->orderBy('id')
-            ->get()
-            ->groupBy('destination_hub_id')
-            ->map(function ($parcels) {
-                $to = $parcels->first()->destinationHub;
+            ->orderBy('scanned_in_at')->orderBy('id')
+            ->get();
+        $items = $parcels->map(function (Parcel $p) {
+            $next = $p->hubStops->sortBy('position')->first(fn (ParcelHubStop $s) => $s->arrived_at === null);
+            $last = $p->hubStops->sortByDesc('position')->first();
+
+            return $next ? [
+                'kind' => $p->status === Parcel::STATUS_RETURN_TO_SENDER ? 'return_to_sender' : 'parcel', 'code' => (string) $p->tracking_number,
+                'next' => $next->hub, 'mode' => (string) ($next->mode ?: TruckTrip::MODE_TRUCK), 'final' => $last?->hub, 'since' => $p->scanned_in_at,
+            ] : null;
+        })->filter();
+
+        $returns = ReturnPickup::with(['stops.hub', 'destinationHub'])
+            ->where('current_hub_id', $hub->id)->where('status', ReturnPickup::STATUS_AT_HUB)->whereNull('transit_since')
+            ->oldest('dropped_at')->get()
+            ->map(function (ReturnPickup $r) {
+                $next = $r->stops->first(fn ($s) => $s->arrived_at === null);
+                $here = $r->stops->last(fn ($s) => $s->arrived_at !== null);
+
+                return $next ? [
+                    'kind' => 'buyer_return', 'code' => (string) $r->code, 'next' => $next->hub, 'mode' => (string) ($next->mode ?: TruckTrip::MODE_TRUCK),
+                    'final' => $r->destinationHub, 'since' => $here?->arrived_at ?? $r->dropped_at,
+                ] : null;
+            })->filter();
+
+        $groups = $items->concat($returns)
+            ->filter(fn (array $i) => $i['next'] !== null)
+            ->groupBy(fn (array $i) => $i['next']->id . '|' . ($i['mode'] === TruckTrip::MODE_TRUCK ? 'truck' : 'cargo'))
+            ->map(function ($rows) {
+                $to = $rows->first()['next'];
+                $finals = $rows->pluck('final')->filter()->unique('id')->reject(fn ($h) => $h->id === $to->id);
+                $oldest = $rows->pluck('since')->filter()->min();
 
                 return [
-                    'hub'                  => ['id' => $to?->id, 'name' => (string) $to?->hub_name, 'city' => (string) $to?->address_city, 'province' => (string) $to?->address_province],
-                    'parcel_count'         => $parcels->count(),
-                    'oldest_scanned_in_at' => $parcels->first()->scanned_in_at?->toIso8601String(),
-                    'tracking_numbers'     => $parcels->pluck('tracking_number')->values(),
+                    'hub'                  => ['id' => $to->id, 'name' => (string) $to->hub_name, 'city' => (string) $to->address_city, 'province' => (string) $to->address_province, 'gateway' => $to->gatewayLabel()],
+                    // truck, or sea for a crossing between island groups (the gateway may send it by air instead).
+                    'mode'                 => $rows->first()['mode'],
+                    'parcel_count'         => $rows->count(),
+                    'counts'               => [
+                        'parcels'          => $rows->where('kind', 'parcel')->count(),
+                        'return_to_sender' => $rows->where('kind', 'return_to_sender')->count(),
+                        'buyer_returns'    => $rows->where('kind', 'buyer_return')->count(),
+                    ],
+                    // Where the parcels finally go after that hub (for a gateway, the delivering hubs beyond it).
+                    'final_hubs'           => $finals->take(5)->map(fn ($h) => (string) $h->hub_name)->values(),
+                    'final_hub_count'      => $finals->count(),
+                    'oldest_scanned_in_at' => $oldest ? \Illuminate\Support\Carbon::parse($oldest)->toIso8601String() : null,
+                    'tracking_numbers'     => $rows->where('kind', '!=', 'buyer_return')->pluck('code')->values(),
+                    'return_codes'         => $rows->where('kind', 'buyer_return')->pluck('code')->values(),
                 ];
             })
+            ->sortBy('oldest_scanned_in_at')
             ->values();
 
         $startOfDay = Carbon::now('Asia/Manila')->startOfDay()->utc();
@@ -62,81 +106,157 @@ class HubTransferController extends Controller
             'data' => $groups,
             'meta' => [
                 'total_parcels'   => $groups->sum('parcel_count'),
-                'on_the_way_here' => Parcel::where('sorting_center_id', $hub->id)->whereNotNull('transit_since')->count(),
+                'on_the_way_here' => Parcel::where('sorting_center_id', $hub->id)->whereNotNull('transit_since')->count()
+                    + ReturnPickup::where('current_hub_id', $hub->id)->whereNotNull('transit_since')->count(),
                 'sent_today'      => ParcelHubStop::where('sorting_center_id', $hub->id)->where('departed_at', '>=', $startOfDay)->count(),
+                'is_gateway'      => $hub->isGateway(),
+                'gateway'         => $hub->gatewayLabel(),
+                'carriers'        => self::CARRIER_SUGGESTIONS,
+                'cargo_days'      => config('logistics.cargo_days'),
             ],
         ]);
     }
 
-    /** POST /api/v1/hub/transfers/send: all or nothing, like sorting. */
+    /** Names a gateway can pick from when it loads a ship or a plane (it can type any other). */
+    protected const CARRIER_SUGGESTIONS = [
+        'sea' => ['Roll-on/roll-off ferry', 'Container ship', 'Inter-island cargo vessel'],
+        'air' => ['Domestic air cargo', 'Passenger flight belly cargo'],
+    ];
+
+    /**
+     * POST /api/v1/hub/transfers/send {tracking_numbers?, return_codes?, mode?, driver_id?, carrier_name?,
+     * carrier_reference?, eta?}: all or nothing, like sorting. Everything on one trip goes to the same next hub.
+     * By truck (the default) the courier's driver takes it; across the sea the island gateway puts it on a ship or a
+     * plane with the carrier's reference.
+     */
     public function send(Request $request): JsonResponse
     {
-        $input = $request->input('tracking_numbers');
-        if (is_array($input)) {
-            $request->merge(['tracking_numbers' => array_map(fn ($tn) => is_string($tn) ? Str::upper(trim($tn)) : $tn, $input)]);
+        foreach (['tracking_numbers', 'return_codes'] as $key) {
+            $input = $request->input($key);
+            if (is_array($input)) {
+                $request->merge([$key => array_map(fn ($tn) => is_string($tn) ? Str::upper(trim($tn)) : $tn, $input)]);
+            }
         }
         $validated = $request->validate([
-            'tracking_numbers'   => ['required', 'array', 'min:1', 'max:' . self::MAX_SEND_BATCH],
+            'tracking_numbers'   => ['nullable', 'array', 'max:' . self::MAX_SEND_BATCH, 'required_without:return_codes'],
             'tracking_numbers.*' => ['required', 'string', 'max:50', 'distinct'],
+            'return_codes'       => ['nullable', 'array', 'max:' . self::MAX_SEND_BATCH],
+            'return_codes.*'     => ['required', 'string', 'max:30', 'distinct'],
+            'mode'               => ['nullable', 'in:' . implode(',', TruckTrip::MODES)],
             'driver_id'          => ['nullable', 'integer'],
+            'carrier_name'       => ['nullable', 'string', 'max:80'],
+            'carrier_reference'  => ['nullable', 'string', 'max:40'],
+            'eta'                => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
+        ], [
+            'tracking_numbers.required_without' => 'Choose the parcels to send.',
+            'eta.after_or_equal'                => 'The arrival date cannot be in the past.',
         ]);
 
         $hub = $this->hub($request);
-        $numbers = array_values($validated['tracking_numbers']);
+        $numbers = array_values($validated['tracking_numbers'] ?? []);
+        $codes = array_values($validated['return_codes'] ?? []);
+        $mode = $validated['mode'] ?? TruckTrip::MODE_TRUCK;
+        $cargo = $mode !== TruckTrip::MODE_TRUCK;
 
-        // Once the courier has truck drivers, every transfer goes on a truck trip with one of them.
-        $driverId = $validated['driver_id'] ?? null;
-        if ($driverId === null && $this->trucks->driversFor($hub)->isNotEmpty()) {
-            return response()->json([
-                'message' => 'Choose the truck driver taking these parcels.',
-                'errors'  => ['driver_id' => ['Choose the truck driver taking these parcels.']],
-            ], 422);
+        if ($cargo) {
+            if (! $hub->is_island_gateway) {
+                return $this->fail('mode', 'Only an island gateway sends parcels by ship or plane.');
+            }
+            if (trim((string) ($validated['carrier_name'] ?? '')) === '') {
+                return $this->fail('carrier_name', 'Say which ship or flight carries them.');
+            }
+            if (trim((string) ($validated['carrier_reference'] ?? '')) === '') {
+                return $this->fail('carrier_reference', $mode === TruckTrip::MODE_AIR ? 'Enter the air waybill number.' : 'Enter the bill of lading number.');
+            }
+        }
+
+        // Once the courier has truck drivers, every truck leg goes on a trip with one of them.
+        $driverId = $cargo ? null : ($validated['driver_id'] ?? null);
+        if (! $cargo && $driverId === null && $this->trucks->driversFor($hub)->isNotEmpty()) {
+            return $this->fail('driver_id', 'Choose the truck driver taking these parcels.');
         }
         $driver = $driverId !== null ? $this->trucks->assertCanDrive($hub, (int) $driverId) : null;
 
-        return DB::transaction(function () use ($request, $hub, $numbers, $driver) {
+        return DB::transaction(function () use ($request, $hub, $numbers, $codes, $driver, $mode, $cargo, $validated) {
             $parcels = Parcel::with('order')
                 ->where('sorting_center_id', $hub->id)
                 ->whereIn('tracking_number', $numbers)
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('tracking_number');
+            $returns = ReturnPickup::with('order')->where('current_hub_id', $hub->id)->whereIn('code', $codes)->lockForUpdate()->get()->keyBy('code');
 
             $errors = [];
+            $nextStops = [];
             foreach ($numbers as $index => $number) {
                 $parcel = $parcels->get($number);
+                $next = $parcel ? $this->router->nextStop($parcel) : null;
                 if (! $parcel) {
                     $errors["tracking_numbers.{$index}"] = ['Parcel not found for this hub.'];
-                } elseif ($parcel->status !== Parcel::STATUS_AT_SORTING_CENTER || ! $this->router->nextHub($parcel)) {
+                } elseif (! $next) {
                     $errors["tracking_numbers.{$index}"] = ['This parcel is not waiting to go to another hub.'];
+                } else {
+                    $nextStops[] = $next;
+                }
+            }
+            foreach ($codes as $index => $code) {
+                $item = $returns->get($code);
+                $next = $item ? app(ReturnPickups::class)->nextStop($item) : null;
+                if (! $next) {
+                    $errors["return_codes.{$index}"] = [$item ? 'This returned item is not waiting to go to another hub.' : 'Returned item not found at this hub.'];
+                } else {
+                    $nextStops[] = $next;
                 }
             }
             if ($errors !== []) {
                 return response()->json(['message' => 'One or more parcels cannot be sent. Nothing was changed.', 'errors' => $errors], 422);
             }
 
+            // A crossing between island groups goes by ship or plane, and only a crossing does.
+            $crossing = collect($nextStops)->contains(fn ($s) => in_array($s->mode, [TruckTrip::MODE_SEA, TruckTrip::MODE_AIR], true));
+            $byLand = collect($nextStops)->contains(fn ($s) => ! in_array($s->mode, [TruckTrip::MODE_SEA, TruckTrip::MODE_AIR], true));
+            if ($crossing && $byLand) {
+                return $this->fail('tracking_numbers', 'Some of these go by land and some across the sea. Send them separately.');
+            }
+            if ($crossing && ! $cargo) {
+                return $this->fail('mode', 'These parcels cross to another island group. Send them by ship or plane.');
+            }
+            if ($cargo && ! $crossing) {
+                return $this->fail('mode', 'These parcels stay on this island group. Send them by truck.');
+            }
+
             $trip = null;
-            if ($driver) {
-                // A truck goes to one hub.
-                $destinations = $parcels->map(fn (Parcel $parcel) => $this->router->nextHub($parcel))->unique('id');
+            $destinations = collect($nextStops)->map(fn ($s) => $s->sorting_center_id)->unique();
+            if ($driver || $cargo) {
+                // A truck, a ship or a plane goes to one hub.
                 if ($destinations->count() > 1) {
-                    return response()->json([
-                        'message' => 'A truck goes to one hub. Send each hub\'s parcels on their own trip.',
-                        'errors'  => ['driver_id' => ['A truck goes to one hub. Send each hub\'s parcels on their own trip.']],
-                    ], 422);
+                    return $this->fail($cargo ? 'mode' : 'driver_id', 'One trip goes to one hub. Send each hub\'s parcels on their own trip.');
                 }
-                $trip = $this->trucks->start($hub, $destinations->first(), $driver, $parcels->count(), $request->user());
+                $eta = isset($validated['eta']) ? Carbon::parse($validated['eta'], 'Asia/Manila')->endOfDay() : null;
+                $trip = $this->trucks->start($hub, SortingCenter::findOrFail($destinations->first()), $driver, count($nextStops), $request->user(), $mode,
+                    $cargo ? trim((string) $validated['carrier_name']) : null, $cargo ? trim((string) $validated['carrier_reference']) : null, $eta);
             }
 
             $going = [];
             foreach ($parcels as $parcel) {
                 $going[$this->router->send($parcel, $request->user(), 'hub', $trip)->hub_name] = true;
             }
+            foreach ($returns as $item) {
+                if ($to = app(ReturnPickups::class)->send($item, $request->user(), $trip)) {
+                    $going[$to->hub_name] = true;
+                }
+            }
+            $count = count($nextStops);
+            $how = match (true) {
+                $trip?->mode === TruckTrip::MODE_SEA => " on {$trip->carrier_name} (trip {$trip->code})",
+                $trip?->mode === TruckTrip::MODE_AIR => " on {$trip->carrier_name} (trip {$trip->code})",
+                $trip !== null                       => ' with ' . $this->trucks->name($driver) . " (trip {$trip->code})",
+                default                              => '',
+            };
 
             return response()->json([
-                'message'    => ($parcels->count() === 1 ? 'Parcel sent' : "{$parcels->count()} parcels sent")
-                    . ($trip ? ' with ' . $this->trucks->name($driver) . " (trip {$trip->code})." : '.'),
-                'sent_count' => $parcels->count(),
+                'message'    => ($count === 1 ? 'Parcel sent' : "{$count} parcels sent") . $how . '.',
+                'sent_count' => $count,
                 'to'         => array_keys($going),
                 'trip'       => $trip ? $this->trucks->payload($trip) : null,
             ]);
@@ -144,9 +264,9 @@ class HubTransferController extends Controller
     }
 
     /**
-     * POST /api/v1/hub/truck-trips/{trip}/receive {missing?: [tracking numbers]}: the next hub receives a whole truck at
-     * once, like scanning one sack instead of every parcel. Parcels named as missing stay expected (a scan finds them
-     * later, or the courier closes the trip). Only the hub the truck is going to, while it is on the way.
+     * POST /api/v1/hub/truck-trips/{trip}/receive {missing?: [tracking numbers]}: the next hub receives a whole truck (or
+     * ship or plane) at once, like scanning one sack instead of every parcel. Parcels named as missing stay expected (a
+     * scan finds them later, or the courier closes the trip). Only the hub the trip is going to, while it is on the way.
      */
     public function receiveTrip(Request $request, int $trip): JsonResponse
     {
@@ -176,6 +296,17 @@ class HubTransferController extends Controller
                 $this->router->arrive($parcel, $hub, $request->user());
                 $received++;
             }
+            $items = ReturnPickup::with('order')
+                ->whereIn('id', \App\Models\ReturnPickupStop::where('truck_trip_id', $row->id)->whereNull('arrived_at')->select('return_pickup_id'))
+                ->where('current_hub_id', $hub->id)->whereNotNull('transit_since')
+                ->lockForUpdate()->get();
+            foreach ($items as $item) {
+                if (in_array(Str::upper((string) $item->code), $missing, true)) {
+                    continue;
+                }
+                app(ReturnPickups::class)->arrive($item, $hub, $request->user());
+                $received++;
+            }
             $row->refresh();
 
             return response()->json([
@@ -186,6 +317,11 @@ class HubTransferController extends Controller
                 'data'     => $this->trucks->payload($row, true),
             ]);
         });
+    }
+
+    private function fail(string $field, string $message): JsonResponse
+    {
+        return response()->json(['message' => $message, 'errors' => [$field => [$message]]], 422);
     }
 
     /** GET /api/v1/hub/truck-drivers: the courier's active truck drivers, and whether each is free to drive now. */

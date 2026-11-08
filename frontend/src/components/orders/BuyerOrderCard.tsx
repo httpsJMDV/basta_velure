@@ -131,6 +131,12 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
             <Clock className="w-4 h-4 shrink-0" /> Pay by {when(order.payment_due_at)}, or the order is cancelled and its items released.
           </p>
         )}
+        {order.eta && ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'AT_SORTING_CENTER', 'SORTED', 'ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY'].includes(status) && (
+          <p className="flex items-center gap-2 rounded-xl bg-stone-50 px-3 py-2 text-[12.5px] text-stone-700">
+            <Clock className="w-4 h-4 shrink-0 text-stone-400" />
+            <span>Expected {order.eta.min}–{order.eta.max} days after you ordered{order.shipping_route ? ` · ${order.shipping_route}` : ''}.</span>
+          </p>
+        )}
         {order.returning_to_seller ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
             Delivery failed, so the parcel is going back to the shop. The order will be cancelled{order.payment_method === 'cod' ? '' : ' and your payment refunded in full'}.

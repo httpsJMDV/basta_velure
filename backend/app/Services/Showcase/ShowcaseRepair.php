@@ -110,10 +110,10 @@ class ShowcaseRepair
         return User::where('email', 'like', '%@' . config('showcase.email_domain'))->whereNotNull('username');
     }
 
-    /** buyer, seller, courier, hub, rider or admin, from the username (buyer12 → buyer). */
+    /** buyer, seller, courier, hub, rider or admin, from the username (buyer12 → buyer, hub-jnt-davao-city → hub). */
     public static function kind(User $user): string
     {
-        return preg_replace('/\d+$/', '', (string) $user->username);
+        return preg_match('/^[a-z]+/', (string) $user->username, $m) ? $m[0] : '';
     }
 
     // ── Accounts ─────────────────────────────────────────────────────────────

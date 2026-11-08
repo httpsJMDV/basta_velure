@@ -17,7 +17,7 @@ Written from the code on branch `king/rider-seller-fixes`, October 20, 2026. The
 | **Rider** | Picks up parcels from shops and delivers them to buyers | Applies online to a hub, which approves them (or their courier company does). The courier company can also add them directly. |
 | **Admin** | Runs Loved-IT: approvals, disputes, settings, reports | Created by the team |
 
-**Loved-IT does not run its own courier.** Every courier is a partner company. "Lakbay Express" is the default courier, used only for old orders and hubs that never had one.
+**Loved-IT does not run its own courier.** Every courier is a partner company. "J&T Express" is the default courier, used only for old orders and hubs that never had one.
 
 ### Can one person have more than one role?
 

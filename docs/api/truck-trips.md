@@ -64,3 +64,9 @@ paid_reference}`.
 
 Notifications: the driver on a new trip, when it completes and when paid; the next hub when the driver reports at the
 dock. Tests: `tests/Feature/TruckTripTest.php`.
+
+## Ships and planes (Nov 8)
+
+Between island groups a trip can be a ship or a plane: `mode` sea or air, `carrier_name`, `carrier_reference`,
+`eta_at`, no driver and no trip pay. Only island gateways send them. The courier's truck planner
+(`GET /logistics/truck-planner`) works out how many drivers the land trips need. See docs/api/courier-network.md.

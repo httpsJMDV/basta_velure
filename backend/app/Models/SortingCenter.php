@@ -69,6 +69,12 @@ class SortingCenter extends Model
         'rejection_reason',
         'reviewed_by',
         'reviewed_at',
+        'city_code',
+        'province_code',
+        'region_code',
+        'island_group',
+        'gateway_region_code',
+        'is_island_gateway',
     ];
 
     protected function casts(): array
@@ -77,7 +83,47 @@ class SortingCenter extends Model
             'gcash_number' => 'encrypted',
             'coverage_barangays' => 'array',
             'reviewed_at'        => 'datetime',
+            'is_island_gateway'  => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // hub_coverage is an index of coverage_barangays: rewrite it whenever the list changes.
+        static::saved(function (SortingCenter $hub) {
+            if (($hub->wasRecentlyCreated || $hub->wasChanged('coverage_barangays')) && self::coverageIndexReady()) {
+                HubCoverage::syncHub($hub);
+            }
+        });
+    }
+
+    private static ?bool $coverageIndex = null;
+
+    /** True once the hub_coverage table exists (it is created by a migration). */
+    public static function coverageIndexReady(): bool
+    {
+        return self::$coverageIndex ??= \Illuminate\Support\Facades\Schema::hasTable('hub_coverage');
+    }
+
+    public function coverage(): HasMany
+    {
+        return $this->hasMany(HubCoverage::class, 'sorting_center_id');
+    }
+
+    /** Gathers its region's parcels for the trucks to other regions, or is where ships and planes leave and land. */
+    public function isGateway(): bool
+    {
+        return $this->gateway_region_code !== null || $this->is_island_gateway;
+    }
+
+    /** "Island gateway", "Regional gateway" or null, for the screens. */
+    public function gatewayLabel(): ?string
+    {
+        return match (true) {
+            (bool) $this->is_island_gateway       => 'Island gateway',
+            $this->gateway_region_code !== null   => 'Regional gateway',
+            default                               => null,
+        };
     }
 
     public function getNameAttribute(): ?string
