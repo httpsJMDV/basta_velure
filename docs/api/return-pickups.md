@@ -33,3 +33,10 @@ the rider, hub and courier also get `buyer`, `shop` (name, phone, address) and `
 
 Statuses: `requested`, `assigned`, `collected`, `delivered`, `received`, `cancelled`. Table `return_pickups`, migration
 `2026_11_06_000003`. Tests: `tests/Feature/ReturnPickupTest.php`.
+
+## Far from the shop (Nov 8)
+
+When the shop is near another hub (the parcel came through the hubs), the rider drops the item at their hub
+(`POST /rider/return-pickups/{id}/dropped`, status `at_hub`) and it travels back through the hubs with the parcels. At
+the hub near the shop, the hub or courier gives the last leg to a rider with the same assign endpoint (status
+`out_to_shop`), who marks it delivered. See docs/api/courier-network.md.
