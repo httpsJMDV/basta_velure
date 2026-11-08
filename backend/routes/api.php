@@ -650,6 +650,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/seller/reports/revenue-chart', [SellerReportController::class, 'revenueChart']);
             Route::get('/seller/reports/payment-methods', [SellerReportController::class, 'paymentMethods']);
             Route::get('/seller/reports/top-products', [SellerReportController::class, 'topProducts']);
+            // The same report as an Excel workbook (docs/api/seller-reports.md)
+            Route::get('/seller/reports/export', [SellerReportController::class, 'export'])->middleware('throttle:20,1');
 
             Route::get('/my-conversation', [ConversationController::class, 'mine']);
             Route::get('/my-conversation/messages', function (\Illuminate\Http\Request $req) {
