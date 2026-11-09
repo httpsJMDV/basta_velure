@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AccountRegistrar;
 use App\Services\EmailOtpService;
 use App\Services\SellerRegistrationService;
+use App\Support\GoogleAvatar;
 use App\Support\PhMobile;
 use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +39,15 @@ class AuthController extends Controller
      */
     public function registerBuyer(BuyerRegisterRequest $request): JsonResponse
     {
-        $user = DB::transaction(fn () => $this->registrar->createUnverified($request->validated()));
+        $data = $request->validated();
+        $user = DB::transaction(function () use ($data) {
+            $user = $this->registrar->createUnverified($data);
+            if (! empty($data['address'])) {
+                $this->registrar->addSignUpAddress($user, $data['address'], $user->phone);
+            }
+
+            return $user;
+        });
 
         $this->otp->issue($user, EmailOtp::PURPOSE_REGISTER);
 
@@ -262,6 +271,13 @@ class AuthController extends Controller
             'city_municipality'    => ['required', 'string', 'max:100'],
             'barangay'             => ['required', 'string', 'max:100'],
             'street_address'       => ['required', 'string', 'max:255'],
+            // The places' PSGC codes, from the pickers. Optional, so a form that sends only names keeps working; with
+            // them the address is ready for checkout instead of asking to be picked again.
+            'region'               => ['nullable', 'string', 'max:100'],
+            'region_code'          => ['nullable', 'string', 'regex:/^\d{9,10}$/'],
+            'province_code'        => ['nullable', 'string', 'regex:/^\d{9,10}$/'],
+            'city_code'            => ['nullable', 'string', 'regex:/^\d{9,10}$/'],
+            'barangay_code'        => ['nullable', 'string', 'regex:/^\d{9,10}$/'],
             'government_id_type'   => ['required', 'in:national_id,drivers_license,passport,umid,sss_id,philhealth_id,voters_id,postal_id'],
             'government_id_image'  => Validation::document(),
             'government_id_image_back' => Validation::document(BuyerRegisterRequest::requiresBack($request->input('government_id_type'))),
@@ -282,19 +298,17 @@ class AuthController extends Controller
                 ? $request->file('government_id_image_back')->store('buyer-ids', 'local')
                 : null;
 
+            // A photo chosen here replaces the current one. Otherwise the Google picture (saved at sign-in) stays; the
+            // link the form sends back is used only when there is none, and only from Google's photo hosts.
             $avatarPath = null;
+            $oldAvatar = $user->avatar_path;
             if ($request->hasFile('avatar')) {
                 $avatarPath = $request->file('avatar')->store('avatars', 'public');
-            } elseif (! empty($validated['google_avatar_url'])) {
-                // Download the Google profile picture and store it locally
-                try {
-                    $imgContents = \Illuminate\Support\Facades\Http::timeout(10)->get($validated['google_avatar_url'])->body();
-                    $name = 'avatars/' . \Illuminate\Support\Str::uuid() . '.jpg';
-                    Storage::disk('public')->put($name, $imgContents);
-                    $avatarPath = $name;
-                } catch (\Throwable) {
-                    // Non-fatal — user just won't have an avatar
-                }
+            } elseif (! $oldAvatar && ! empty($validated['google_avatar_url'])) {
+                $avatarPath = GoogleAvatar::store($validated['google_avatar_url']);
+            }
+            if ($avatarPath && $oldAvatar) {
+                DB::afterCommit(fn () => Storage::disk('public')->delete($oldAvatar));
             }
 
             $user->update([
@@ -308,19 +322,10 @@ class AuthController extends Controller
                 'buyer_application_status'       => 'pending',
             ]);
 
-            $user->addresses()->create([
-                'full_name'  => $user->first_name . ' ' . $user->last_name,
-                'phone'      => $validated['phone'],
-                'address'    => $validated['street_address'],
-                'province'   => $validated['province'],
-                'district'   => $validated['city_municipality'],
-                'ward'       => $validated['barangay'],
-                'label'      => 'home',
-                'is_default' => ! $user->addresses()->where('is_default', true)->exists(),
-            ]);
+            $this->registrar->addSignUpAddress($user, $validated, $validated['phone']);
         });
 
-        return response()->json(['data' => new UserResource($user->fresh()->load('sellerProfile'))]);
+        return response()->json(['data' => new UserResource($user->fresh()->load(self::USER_RELATIONS))]);
     }
 
     /**

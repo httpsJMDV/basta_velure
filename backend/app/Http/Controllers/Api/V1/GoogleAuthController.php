@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Mail\WelcomeMail;
 use App\Models\User;
+use App\Support\GoogleAvatar;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class GoogleAuthController extends Controller
@@ -50,6 +50,8 @@ class GoogleAuthController extends Controller
             ]);
             // email_verified_at is not mass-assignable, so create() above drops it: Google confirmed the address.
             $user->forceFill(['role' => 'buyer', 'email_verified_at' => now()])->save();
+            // The Google picture is the profile photo from the start, so Complete profile and the account show it.
+            $this->keepGooglePicture($user, $googleAvatar);
 
             Mail::to($user->email)->queue(new WelcomeMail($user));
 
@@ -88,6 +90,7 @@ class GoogleAuthController extends Controller
         $profileIncomplete = empty($user->date_of_birth) || empty($user->sex) || empty($user->government_id_type);
         if ($profileIncomplete) {
             $user->update(['last_login_at' => now()]);
+            $this->keepGooglePicture($user, $googleAvatar);
             $token = $user->createToken('auth_token')->plainTextToken;
             return response()->json([
                 'data'               => new UserResource($user->load(['sellerProfile', 'addresses'])),
@@ -103,23 +106,23 @@ class GoogleAuthController extends Controller
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // Save Google avatar if user doesn't have one yet
-        if (! $user->avatar_path && $googleAvatar) {
-            try {
-                $client2 = app()->environment('local') ? Http::withoutVerifying() : Http::withOptions([]);
-                $imgContents = $client2->timeout(10)->get($googleAvatar)->body();
-                $name = 'avatars/' . \Illuminate\Support\Str::uuid() . '.jpg';
-                \Illuminate\Support\Facades\Storage::disk('public')->put($name, $imgContents);
-                $user->update(['avatar_path' => $name]);
-            } catch (\Throwable) {
-                // Non-fatal
-            }
-        }
+        $this->keepGooglePicture($user, $googleAvatar);
 
         return response()->json([
             'data'  => new UserResource($user->load(['sellerProfile', 'addresses'])),
             'token' => $token,
         ], 200);
+    }
+
+    /** Copies the Google picture onto the account when it has no profile photo yet. A failed download is fine. */
+    private function keepGooglePicture(User $user, ?string $googleAvatar): void
+    {
+        if ($user->avatar_path) {
+            return;
+        }
+        if ($path = GoogleAvatar::store($googleAvatar)) {
+            $user->update(['avatar_path' => $path]);
+        }
     }
 
     /**

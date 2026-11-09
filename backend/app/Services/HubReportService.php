@@ -267,6 +267,112 @@ class HubReportService
 
     // ── Query helpers ────────────────────────────────────────────────────────
 
+    // ── A courier's network ──────────────────────────────────────────────────
+
+    /**
+     * The summary totals of many hubs at once, in a handful of grouped queries (a courier has a hub in every city, so
+     * one summary() per hub would be thousands of queries). Only hubs with activity in the range have a row.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<SortingCenter>|\Illuminate\Database\Query\Builder  $hubIds  a query selecting hub ids
+     * @param  array{start: string, end: string}  $range
+     * @return array<int, array<string, mixed>> hub id => totals (the keys summary() uses)
+     */
+    public function totalsByHub($hubIds, array $range): array
+    {
+        $parcels = fn () => DB::table('parcels')->whereIn('sorting_center_id', $hubIds)->whereNull('deleted_at');
+        $count = fn (string $column) => $this->between($parcels(), $column, $range)
+            ->groupBy('sorting_center_id')
+            ->selectRaw('sorting_center_id as hub, COUNT(*) as n')
+            ->pluck('n', 'hub')
+            ->map(fn ($n) => (int) $n)
+            ->all();
+
+        $received = $count('scanned_in_at');
+        $sorted = $count('sorted_at');
+        $dispatched = $count('assigned_at');
+        $returned = $count('returned_at');
+        $failed = $this->between(
+            DB::table('delivery_logs as l')->join('parcels as p', 'p.id', '=', 'l.parcel_id')
+                ->whereIn('p.sorting_center_id', $hubIds)->whereNull('p.deleted_at')->whereNull('l.deleted_at')
+                ->where('l.outcome', DeliveryLog::OUTCOME_DELIVERY_FAILED),
+            'l.logged_at',
+            $range
+        )->groupBy('p.sorting_center_id')->selectRaw('p.sorting_center_id as hub, COUNT(*) as n')->pluck('n', 'hub')->all();
+        $delivery = $this->between($parcels(), 'delivered_at', $range)
+            ->groupBy('sorting_center_id')
+            ->selectRaw(
+                'sorting_center_id as hub, COUNT(*) as delivered, '
+                . 'COALESCE(SUM(CASE WHEN scanned_in_at IS NOT NULL AND TIMESTAMPDIFF(SECOND, scanned_in_at, delivered_at) <= ? THEN 1 ELSE 0 END), 0) as on_time, '
+                . 'COALESCE(SUM(CASE WHEN out_for_delivery_at IS NOT NULL THEN TIMESTAMPDIFF(SECOND, out_for_delivery_at, delivered_at) END), 0) as seconds, '
+                . 'COALESCE(SUM(CASE WHEN out_for_delivery_at IS NOT NULL THEN 1 ELSE 0 END), 0) as timed',
+                [$this->slaHours() * 3600]
+            )
+            ->get()
+            ->keyBy('hub');
+
+        $ids = array_unique([...array_keys($received), ...array_keys($sorted), ...array_keys($dispatched), ...array_keys($returned), ...array_keys($failed), ...$delivery->keys()->all()]);
+        $rows = [];
+        foreach ($ids as $id) {
+            $d = $delivery[$id] ?? null;
+            $delivered = (int) ($d->delivered ?? 0);
+            $onTime = (int) ($d->on_time ?? 0);
+            $fails = (int) ($failed[$id] ?? 0);
+            $rows[(int) $id] = [
+                'received'           => $received[$id] ?? 0,
+                'sorted'             => $sorted[$id] ?? 0,
+                'dispatched'         => $dispatched[$id] ?? 0,
+                'delivered'          => $delivered,
+                'failed_attempts'    => $fails,
+                'returned'           => $returned[$id] ?? 0,
+                'on_time_deliveries' => $onTime,
+                'on_time_rate'       => $this->ratio($onTime, $delivered),
+                'success_rate'       => $this->ratio($delivered, $delivered + $fails),
+                'avg_delivery_hours' => ($d && (int) $d->timed > 0) ? $this->hours((float) $d->seconds / (int) $d->timed) : null,
+                'delivery_seconds'   => (float) ($d->seconds ?? 0),
+                'timed_deliveries'   => (int) ($d->timed ?? 0),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * One row per Manila day for many hubs together, like daily().
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<SortingCenter>|\Illuminate\Database\Query\Builder  $hubIds
+     * @param  array{from: string, days: int, start: string, end: string}  $range
+     * @return array<int, array{date: string, received: int, delivered: int, failed: int, returned: int}>
+     */
+    public function dailyForHubs($hubIds, array $range): array
+    {
+        $parcels = fn () => DB::table('parcels')->whereIn('sorting_center_id', $hubIds)->whereNull('deleted_at');
+        $received = $this->dailyCounts($this->between($parcels(), 'scanned_in_at', $range), 'scanned_in_at');
+        $delivered = $this->dailyCounts($this->between($parcels(), 'delivered_at', $range), 'delivered_at');
+        $returned = $this->dailyCounts($this->between($parcels(), 'returned_at', $range), 'returned_at');
+        $failed = $this->dailyCounts($this->between(
+            DB::table('delivery_logs as l')->join('parcels as p', 'p.id', '=', 'l.parcel_id')
+                ->whereIn('p.sorting_center_id', $hubIds)->whereNull('p.deleted_at')->whereNull('l.deleted_at')
+                ->where('l.outcome', DeliveryLog::OUTCOME_DELIVERY_FAILED),
+            'l.logged_at',
+            $range
+        ), 'l.logged_at');
+
+        $rows = [];
+        $day = CarbonImmutable::createFromFormat('Y-m-d', $range['from'], self::TIMEZONE);
+        for ($i = 0; $i < $range['days']; $i++) {
+            $date = $day->addDays($i)->toDateString();
+            $rows[] = ['date' => $date, 'received' => $received[$date] ?? 0, 'delivered' => $delivered[$date] ?? 0, 'failed' => $failed[$date] ?? 0, 'returned' => $returned[$date] ?? 0];
+        }
+
+        return $rows;
+    }
+
+    /** numerator / denominator for callers outside this class. */
+    public function rate(int $numerator, int $denominator): ?float
+    {
+        return $this->ratio($numerator, $denominator);
+    }
+
     public function slaHours(): int
     {
         return max(1, (int) config('logistics.delivery_sla_hours', 48));

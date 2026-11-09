@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Services\Commerce\CartService;
+use App\Support\OrderLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,9 +26,19 @@ class CartController extends Controller
             'variant_id.required' => 'Choose the options first.',
             'quantity.required'   => 'Enter a quantity.',
         ]);
-        $this->cart->add($request->user(), (int) $data['variant_id'], $data['quantity']);
+        $added = $this->cart->add($request->user(), (int) $data['variant_id'], $data['quantity']);
+        $view = $this->cart->view($request->user());
 
-        return response()->json(['message' => 'Added to your cart.', 'data' => $this->cart->view($request->user())], 201);
+        // A big purchase is said once, when this add makes it one (OrderLimits::cartNotice).
+        $store = collect($view['stores'])->first(fn ($s) => collect($s['lines'])->contains('variant_id', (int) $data['variant_id']));
+        $notice = OrderLimits::cartNotice(
+            (float) $view['summary']['total'],
+            $store ? (float) $store['selected_subtotal'] - (float) $store['promo_discount'] : $added,
+            $added,
+            (string) ($store['seller']['shop_name'] ?? 'this shop'),
+        );
+
+        return response()->json(['message' => 'Added to your cart.', 'data' => $view, 'notice' => $notice], 201);
     }
 
     /** PATCH /cart/items/{line} {quantity?, selected?} */

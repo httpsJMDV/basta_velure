@@ -130,11 +130,15 @@ class CartService
         ];
     }
 
-    /** Adds units of a variant, keeping the line within stock and the purchase limit. */
-    public function add(User $user, int $variantId, mixed $quantity): void
+    /**
+     * Adds units of a variant, keeping the line within stock and the purchase limit. Returns what the add put in
+     * (today's unit price × the units added), for the big-purchase notice.
+     */
+    public function add(User $user, int $variantId, mixed $quantity): float
     {
         $qty = $this->quantity($quantity);
-        DB::transaction(function () use ($user, $variantId, $qty) {
+
+        return DB::transaction(function () use ($user, $variantId, $qty) {
             $variant = ProductVariant::with(['product.seller.sellerProfile'])->find($variantId);
             $this->assertBuyable($variant);
             $line = CartItem::where('user_id', $user->id)->where('product_variant_id', $variantId)->lockForUpdate()->first();
@@ -152,6 +156,8 @@ class CartService
                     'quantity' => $qty, 'selected' => true, 'price_seen' => $price,
                 ]);
             }
+
+            return round((float) $price * $qty, 2);
         });
     }
 

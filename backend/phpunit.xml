@@ -18,6 +18,9 @@
         </include>
     </source>
     <php>
+        <!-- The whole suite (880+ tests in one process) outgrows PHP's 128 MB default partway through the demo
+             seeder test, which then ends the process. -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <!-- Pinned to the workbook rules so a demo .env cannot change what the tests assume: earnings are
              available when an order completes (A15), and delivered orders complete after 7 days (A11). -->
