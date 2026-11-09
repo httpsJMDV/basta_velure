@@ -348,6 +348,12 @@ class HubRouter
             'at'       => $parcel->picked_up_at?->toIso8601String(),
         ]];
 
+        // The short rides are the riders' own vehicles (motorcycle, tricycle...); trucks, ships and planes do the long part.
+        $vehicles = \App\Models\Rider::whereIn('id', array_filter([$parcel->pickup_rider_id, $parcel->assigned_rider_id]))->pluck('vehicle_type', 'id');
+        $pickupVehicle = $parcel->pickup_rider_id ? ($vehicles[$parcel->pickup_rider_id] ?? null) : null;
+        $deliveryVehicle = $parcel->assigned_rider_id ? ($vehicles[$parcel->assigned_rider_id] ?? null) : null;
+        $point = $parcel->order?->delivery_point;
+
         $way = $this->wayOf($parcel, $riderHub);
         $forward = array_values(array_filter($way, fn (array $w) => $w['direction'] === ParcelHubStop::DIRECTION_FORWARD));
         $arrivedAnywhere = false;
@@ -374,6 +380,8 @@ class HubRouter
                 },
                 'at'          => $arrived?->toIso8601String(),
                 'left_at'     => $departed?->toIso8601String(),
+                // How the parcel reached the first hub: the pickup rider's vehicle.
+                'rider_vehicle' => $index === 0 ? $pickupVehicle : null,
             ]);
         }
 
@@ -406,12 +414,21 @@ class HubRouter
             'at'       => $parcel->returned_at?->toIso8601String(),
         ] : [
             'kind'        => 'buyer',
-            'title'       => 'Delivery to ' . ($recipient['barangay'] ?? $parcel->destination_barangay ?? 'the buyer'),
+            'title'       => match ($point) {
+                \App\Support\RemoteDelivery::BARANGAY_HALL => 'Barangay hall of ' . ($recipient['barangay'] ?? $parcel->destination_barangay ?? 'the buyer'),
+                \App\Support\RemoteDelivery::BRANCH        => 'Pick up at the branch',
+                default                                    => 'Delivery to ' . ($recipient['barangay'] ?? $parcel->destination_barangay ?? 'the buyer'),
+            },
+            'delivery_point' => $point,
+            // The delivery rider's vehicle (null for a pickup at the branch counter).
+            'rider_vehicle' => $point === \App\Support\RemoteDelivery::BRANCH ? null : $deliveryVehicle,
             'subtitle'    => $this->place($recipient['city'] ?? null, $recipient['province'] ?? null),
             'state'       => $delivered ? 'done' : 'upcoming',
             'moving_here' => $status === Parcel::STATUS_OUT_FOR_DELIVERY,
             'label'       => match (true) {
+                $delivered && $point === \App\Support\RemoteDelivery::BRANCH => 'Picked up',
                 $delivered => 'Delivered',
+                $point === \App\Support\RemoteDelivery::BRANCH && $status === Parcel::STATUS_SORTED => 'Ready for you at the branch',
                 $status === Parcel::STATUS_OUT_FOR_DELIVERY => 'Out for delivery',
                 $status === Parcel::STATUS_DELIVERY_FAILED  => 'Delivery failed',
                 default    => 'Last stop',

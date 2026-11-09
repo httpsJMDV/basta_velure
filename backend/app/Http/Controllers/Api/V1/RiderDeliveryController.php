@@ -521,6 +521,11 @@ class RiderDeliveryController extends Controller
                 ],
             ],
             'cod_amount'          => $parcel->cod_amount !== null ? (float) $parcel->cod_amount : null,
+            // A very remote town: deliver to the barangay hall instead of the door (null otherwise).
+            'delivery_point'      => $parcel->order?->delivery_point,
+            'delivery_note'       => \App\Support\RemoteDelivery::riderNote($parcel->order?->delivery_point, $recipient['barangay'] ?? $parcel->destination_barangay),
+            // The rider's own vehicle makes this short last ride; trucks did the long part between hubs.
+            'vehicle'             => $parcel->assignedRider?->vehicle_type,
             // "Attempt 2 of 3" (R7): the attempt this trip is, and how many are allowed.
             'attempt'             => (int) $parcel->delivery_attempts + 1,
             'max_attempts'        => ReturnToSender::maxAttempts(),

@@ -93,6 +93,10 @@ class BuyerOrderPresenter
             'shipping_route'      => $o->shipping_route,
             // Days the delivery was expected to take when the order was placed, by how far the shop is.
             'eta'                 => $o->eta_min_days !== null ? ['min' => (int) $o->eta_min_days, 'max' => (int) $o->eta_max_days] : null,
+            // A very remote town: barangay_hall or branch (pick up at the courier branch); null is to the door.
+            'delivery_point'       => $o->delivery_point,
+            'delivery_point_label' => \App\Support\RemoteDelivery::label($o->delivery_point),
+            'delivery_point_note'  => \App\Support\RemoteDelivery::buyerNote($o->delivery_point, $o->shipping_barangay),
             'free_delivery'       => (bool) $o->free_delivery,
             'settlement'          => $o->settlement ?? Order::SETTLEMENT_PLATFORM,
             'total'               => (float) $o->total,

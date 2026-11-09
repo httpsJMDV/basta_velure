@@ -313,7 +313,7 @@ class CheckoutCalculator
     {
         $kg = ShippingCalculator::chargeableKg($grams);
         if (! $destination || empty($destination['barangay'] ?? null)) {
-            return ['fee' => 0.0, 'courier_fee' => 0.0, 'chargeable_kg' => $kg, 'weight_grams' => $grams, 'route' => null, 'serviceable' => true, 'message' => null, 'free_delivery' => false, 'company_id' => null, 'eta' => null];
+            return ['fee' => 0.0, 'courier_fee' => 0.0, 'chargeable_kg' => $kg, 'weight_grams' => $grams, 'route' => null, 'serviceable' => true, 'message' => null, 'free_delivery' => false, 'company_id' => null, 'eta' => null, 'remote' => false];
         }
         $origin = $profile ? [
             'region' => $profile->address_region_code ?? null, 'province' => $profile->address_province_code ?? null, 'city' => $profile->address_city_code ?? null,
@@ -342,6 +342,8 @@ class CheckoutCalculator
             'company_id'    => $preferred ?? $q['company_id'],
             // How many days it takes, by how far the shop is (null without both addresses matched to barangays).
             'eta'           => $eta,
+            // A very remote town has no branch: the parcel goes to the barangay hall or waits at the nearest branch.
+            'remote'        => $q['serviceable'] && PhPlaces::isRemoteBarangay($destination['barangay'] ?? null),
         ];
     }
 

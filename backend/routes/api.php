@@ -729,6 +729,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
             Route::get('/dispatch/awaiting-pickup',                      [HubDispatchController::class, 'awaitingPickup']);
 
+            // Buyers in very remote towns who collect at this branch (docs/api/courier-network.md)
+            Route::get('/counter',                                       [\App\Http\Controllers\Api\V1\HubCounterController::class, 'index']);
+            Route::post('/counter/{tracking}/handed-over',               [\App\Http\Controllers\Api\V1\HubCounterController::class, 'handedOver'])->middleware('throttle:upload');
+
             // The hub's share of the delivery fee
             Route::get('/earnings', [HubEarningsController::class, 'summary']);
 
