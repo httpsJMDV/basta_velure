@@ -91,3 +91,52 @@ hub's For other hubs, returned items on hub intake, the route with gateways on T
 and on the buyer's order. Long hub lists search (dropdowns, rider sign-up by city, Messages, Hubs 48 at a time). App:
 ship or plane sheet on hub Sorting, drop-at-hub and last-leg return steps, gateways and sea legs on the rider's route,
 the plan card on courier Trucks.
+
+## Branches (network:consolidate, Nov 9)
+
+A hub in every town was more than couriers really run (Flash Express reported 28 sorting hubs and 736 delivery
+branches in 2024). `php artisan network:consolidate [--courier=ID ...] [--radius=KM] [--dry-run] [--force]` (refuses on
+`_test`; `NetworkBuilder::consolidate`) cuts each courier to **branches**:
+
+1. Every town has a location (`places.json` `lat`/`lng`, from Wikidata P988/P625 and OpenStreetMap Nominatim).
+2. Per province (Metro Manila and towns without a province: per region), every hub that must stay is a branch:
+   gateways, hubs not made by `network:build`, and hubs with riders, parcels, stops, transfers, trips, return pickups,
+   earnings or chats. Then the town that reaches the most towns still without a branch within `--radius`
+   (`logistics.branch_radius_km`, default 15 km between town centres, about 20 km of road) becomes one, until every
+   town is covered. Each town goes to its nearest branch.
+3. The other network hubs hand their barangays to their branch (`coverage_barangays`, so `hub_coverage` follows) and
+   are deleted with their accounts.
+4. Each branch gets 2 delivery riders (a motorcycle, and a tricycle in a town that is not a city) covering the whole
+   branch, and 1 truck driver (2 at a gateway), username `rider-<code>-<place>` / `truck-<code>-<place>`, the
+   showcase rider password. Network riders' areas grow to the whole branch.
+
+Result with the default reach: 594 branches per courier (from 1,624), every barangay still covered; 1,166 riders and
+611 truck drivers hired per courier. A second run changes nothing. Majayjay, for example, has no branch: the Cavinti
+branch (about 12 km away) covers it, a truck brings parcels there and a rider makes the short ride.
+
+## Very remote towns
+
+`PhPlaces::isRemoteTown` (`places.json` `remote`): not a city or capital, and no other town of its province within 40
+km. 14 towns: Calayan, Dinapigue, Alfonso Castaneda, Balabac, Cagayancillo, El Nido, Linapacan, Taytay, Kalayaan,
+Caluya, Sarangani, Tongkil, Mapun, Turtle Islands. They get no branch; the nearest one covers them.
+
+- Checkout: `shipping.remote` on each store of the quote. `POST /checkout/place-order` takes
+  `remote_delivery: barangay_hall|branch` (default `barangay_hall`), saved as `orders.delivery_point` (migration
+  `2026_11_09_000002`; null for every other order). Buyer and seller orders add `delivery_point`,
+  `delivery_point_label`; the buyer's adds `delivery_point_note` (`RemoteDelivery`).
+- Barangay hall: the rider's stop adds `delivery_point` and `delivery_note` ("take this parcel to the ... barangay hall;
+  the buyer meets you there, or a barangay official signs for it"). Delivery works as usual (photo, exact COD).
+- Branch: the sorted parcel skips the riders (`/hub/dispatch/batches` leaves it out, assign answers 422) and waits at
+  `GET /hub/counter`. `POST /hub/counter/{tracking}/handed-over` (multipart `proof_photo`, `received_by`, `cod_amount`
+  for COD, exact) marks it DELIVERED by the hub (`SORTED → DELIVERED` for `hub` in the state machine). No rider is
+  paid; the hub's share is recorded as usual.
+
+## Vehicles on the route
+
+Journey nodes add `rider_vehicle` (the pickup rider's on the first hub, the delivery rider's on the buyer stop) and, on
+the buyer stop, `delivery_point` with the title "Barangay hall of ..." or "Pick up at the branch" (label "Ready for you
+at the branch", then "Picked up"). Track package and the rider app say "By truck · long haul" between hubs and "By
+tricycle · short ride" (the rider's own vehicle) at both ends. Rider stops add `vehicle`.
+
+Website: Delivery guide at `/help/delivery` (footer: Customer service, and the Delivery note), the remote choice at
+checkout, the counter panel on hub Dispatch. App: the barangay hall note on rider stops and in checkout and orders.
