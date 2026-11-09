@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loved_it/app.dart';
@@ -6,6 +6,7 @@ import 'package:loved_it/core/widgets/widgets.dart';
 import 'package:loved_it/features/auth/auth_layout.dart';
 import 'package:loved_it/features/auth/auth_routes.dart';
 import 'package:loved_it/features/auth/google_button.dart';
+import 'package:loved_it/features/buyer/addresses/place_picker.dart';
 import 'package:loved_it/router.dart';
 
 import 'support/fakes.dart';
@@ -53,7 +54,18 @@ void main() {
     expect(find.text('Create your account'), findsOneWidget);
   }
 
-  /// Fills the first two steps, so the password step is open.
+  /// Picks [option] from the place list a [PlaceField] opens.
+  Future<void> pickPlace(
+    WidgetTester tester,
+    String label,
+    String option,
+  ) async {
+    await press(tester, find.widgetWithText(PlaceField, label));
+    await tester.tap(find.text(option).last);
+    await tester.pumpAndSettle();
+  }
+
+  /// Fills the first three steps (the address in Pasig, NCR), so the password step is open.
   Future<void> fillToPasswordStep(WidgetTester tester) async {
     await tester.enterText(field('First name'), 'Ana');
     await tester.enterText(field('Last name'), 'Cruz');
@@ -65,6 +77,18 @@ void main() {
 
     await tester.enterText(field('Email'), 'ana@example.com');
     await tester.enterText(field('Mobile number'), '09171234567');
+    await tester.pump();
+    await press(tester, next);
+
+    await pickPlace(tester, 'Region', 'National Capital Region (NCR)');
+    // NCR has no provinces.
+    expect(find.widgetWithText(PlaceField, 'Province'), findsNothing);
+    await pickPlace(tester, 'City or municipality', 'City of Pasig');
+    await pickPlace(tester, 'Barangay', 'Rosario');
+    await tester.enterText(
+      field('Street, house or building'),
+      '12 Ortigas Ave',
+    );
     await tester.pump();
     await press(tester, next);
     expect(field('Confirm password'), findsOneWidget);
@@ -184,7 +208,7 @@ void main() {
     testWidgets('the terms must be accepted before anything is sent', (
       tester,
     ) async {
-      final api = FakeApi({});
+      final api = FakeApi({...placeRoutes});
       await openSignUp(tester, api);
       await fillToPasswordStep(tester);
       await tester.enterText(field('Password'), 'Secret#12');
@@ -205,6 +229,7 @@ void main() {
       await openSignUp(
         tester,
         FakeApi({
+          ...placeRoutes,
           'POST /auth/register': (_) => jsonBody(422, {
             'message': 'The given data was invalid.',
             'errors': {
@@ -229,6 +254,7 @@ void main() {
       tester,
     ) async {
       final api = FakeApi({
+        ...placeRoutes,
         'POST /auth/register': (_) => jsonBody(201, {
           'message': 'Check your email.',
           'email': 'ana@example.com',
@@ -247,9 +273,87 @@ void main() {
       expect(sent.path, '/auth/register');
       expect((sent.data as Map)['email'], 'ana@example.com');
       expect((sent.data as Map)['accept_terms'], isTrue);
+      // The address goes with its PSGC codes, so it is ready for checkout.
+      expect((sent.data as Map)['address'], {
+        'region': 'National Capital Region (NCR)',
+        'region_code': '130000000',
+        'province': 'Metro Manila',
+        'province_code': '130000000',
+        'city_municipality': 'City of Pasig',
+        'city_code': '137403000',
+        'barangay': 'Rosario',
+        'barangay_code': '137403017',
+        'street_address': '12 Ortigas Ave',
+      });
       expect(find.text('Check your email'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets(
+      'the address step needs every place, and a search narrows the list',
+      (tester) async {
+        await openSignUp(tester, FakeApi({...placeRoutes}));
+        await tester.enterText(field('First name'), 'Ana');
+        await tester.enterText(field('Last name'), 'Cruz');
+        await tester.pump();
+        await press(tester, find.byType(DateOfBirthField));
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        await press(tester, next);
+        await tester.enterText(field('Email'), 'ana@example.com');
+        await tester.enterText(field('Mobile number'), '09171234567');
+        await tester.pump();
+        await press(tester, next);
+
+        await press(tester, next);
+        expect(find.text('Choose the region.'), findsOneWidget);
+        expect(field('Confirm password'), findsNothing);
+
+        await pickPlace(tester, 'Region', 'National Capital Region (NCR)');
+        await press(
+          tester,
+          find.widgetWithText(PlaceField, 'City or municipality'),
+        );
+        expect(find.text('Quezon City'), findsOneWidget);
+        await tester.enterText(find.byType(TextField).last, 'pasig');
+        await tester.pump();
+        expect(find.text('Quezon City'), findsNothing);
+        await tester.tap(find.text('City of Pasig'));
+        await tester.pumpAndSettle();
+
+        await press(tester, next);
+        expect(find.text('Choose the barangay.'), findsOneWidget);
+        expect(field('Confirm password'), findsNothing);
+      },
+    );
+
+    testWidgets("a problem with the address opens the address step", (
+      tester,
+    ) async {
+      await openSignUp(
+        tester,
+        FakeApi({
+          ...placeRoutes,
+          'POST /auth/register': (_) => jsonBody(422, {
+            'message': 'The given data was invalid.',
+            'errors': {
+              'address.street_address': [
+                'Enter the street, house or building.',
+              ],
+            },
+          }),
+        }),
+      );
+      await fillToPasswordStep(tester);
+      await tester.enterText(field('Password'), 'Secret#12');
+      await tester.enterText(field('Confirm password'), 'Secret#12');
+      await tester.pump();
+      await press(tester, find.byType(Checkbox));
+      await press(tester, find.widgetWithText(FilledButton, 'Create account'));
+
+      expect(field('Street, house or building'), findsOneWidget);
+      expect(find.text('Enter the street, house or building.'), findsOneWidget);
     });
   });
 

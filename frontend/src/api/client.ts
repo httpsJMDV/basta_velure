@@ -26,6 +26,7 @@ import type {
   LogisticsRiderRow,
   LogisticsParcelRow,
   LogisticsReport,
+  ReportDocumentData,
   AuthResponse,
   BuyerApplicationsResponse,
   PaginatedResponse,
@@ -950,9 +951,25 @@ export const getSellerReportTopProductsApi = (params?: SellerReportWindow) =>
  * API needs the bearer token, so the file is fetched as a blob and saved through a temporary link.
  */
 export async function downloadSellerReportApi(params: SellerReportWindow): Promise<string> {
+  return downloadReportFile('/seller/reports/export', params, 'sales-report.xlsx');
+}
+
+/**
+ * A hub, courier or rider report as an Excel workbook or a PDF (docs/api/logistics-rider-reports.md). [base] is
+ * '/hub/reports', '/logistics/reports' or '/rider/reports'. Resolves to the saved file's name.
+ */
+/** The rider report as JSON for the Reports page (the hub and courier pages keep their own figures). */
+export const getRiderReportDocumentApi = (range: { from: string; to: string }) =>
+  http.get<{ data: ReportDocumentData }>('/rider/reports/document', { params: range }).then((r) => r.data.data);
+
+export const downloadLogisticsReportApi = (base: '/hub/reports' | '/logistics/reports' | '/rider/reports', format: 'xlsx' | 'pdf', range: { from: string; to: string }) =>
+  downloadReportFile(`${base}/file`, { format, ...range }, `report.${format}`);
+
+/** Downloads a file from the API with the sign-in token and saves it; the API's message when it refuses. */
+async function downloadReportFile(path: string, params: object, fallback: string): Promise<string> {
   let res;
   try {
-    res = await http.get<Blob>('/seller/reports/export', { params, responseType: 'blob' });
+    res = await http.get<Blob>(path, { params, responseType: 'blob' });
   } catch (err: unknown) {
     // With responseType 'blob' an error body is a Blob too, so read the API's message out of it.
     if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
@@ -968,7 +985,7 @@ export async function downloadSellerReportApi(params: SellerReportWindow): Promi
     throw err;
   }
   const disposition = String(res.headers['content-disposition'] ?? '');
-  const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? 'sales-report.xlsx';
+  const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? fallback;
   const url = URL.createObjectURL(res.data);
   const link = document.createElement('a');
   link.href = url;

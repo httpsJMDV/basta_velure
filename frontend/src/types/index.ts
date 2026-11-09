@@ -365,6 +365,22 @@ export interface LogisticsReport {
   sla_hours: number;
   totals: { received: number; delivered: number; failed_attempts: number; returned: number; on_time_deliveries: number; on_time_rate: number | null; success_rate: number | null };
   hubs: Array<{ hub_id: number; hub_name: string; received: number; delivered: number; failed_attempts: number; returned: number; on_time_deliveries: number; on_time_rate: number | null; success_rate: number | null; avg_delivery_hours: number | null }>;
+  /** Hubs with parcels in the period (listed first), and all approved hubs. Up to 200 rows are listed. */
+  active_hubs?: number;
+  approved_hubs?: number;
+}
+
+/** A hub, courier network or rider report (backend ReportDocument::toArray). */
+export type ReportCellType = 'text' | 'int' | 'money' | 'percent' | 'hours' | 'date' | 'datetime';
+export interface ReportDocumentData {
+  kind: 'hub' | 'courier' | 'rider';
+  title: string;
+  owner: string;
+  range: { from: string; to: string; days: number; label: string; timezone: string };
+  made_at: string;
+  kpis: Array<{ label: string; type: ReportCellType; value: number | string | null; hint: string | null; display: string }>;
+  sections: Array<{ title: string; columns: Array<{ label: string; type: ReportCellType }>; rows: Array<Array<string | number | null>>; total_rows: number; total: Array<string | number | null> | null; note: string | null; empty: string }>;
+  notes: string[];
 }
 
 export type RiderStatus = 'PENDING' | 'ACTIVE' | 'DISAPPROVED' | 'PENDING_ACTIVATION' | 'SUSPENDED';

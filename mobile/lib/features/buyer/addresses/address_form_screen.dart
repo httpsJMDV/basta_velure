@@ -11,6 +11,7 @@ import '../../../core/widgets/widgets.dart';
 import '../data/account.dart';
 import '../data/buyer_api.dart';
 import '../widgets/buyer_widgets.dart';
+import 'place_picker.dart';
 import 'psgc.dart';
 
 /// Adds or edits an address (B7). Places come from pickers only, never typed, and both the names and the PSGC
@@ -87,12 +88,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
     required Future<List<PsgcPlace>> Function() load,
     required ValueChanged<PsgcPlace> onPicked,
   }) async {
-    final picked = await showModalBottomSheet<PsgcPlace>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _PlaceSheet(title: title, load: load),
-    );
+    final picked = await showPlaceSheet(context, title: title, load: load);
     if (picked != null && mounted) setState(() => onPicked(picked));
   }
 
@@ -232,8 +228,9 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                 serverError: _failure?.errorFor('phone'),
               ),
               const SizedBox(height: AppSpace.lg),
-              _PlaceField(
+              PlaceField(
                 label: 'Region',
+                icon: LucideIcons.map,
                 value: _region?.name,
                 error: _showPlaceErrors && _region == null
                     ? 'Choose the region.'
@@ -241,35 +238,35 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                 onTap: _pickRegion,
               ),
               if (!_isNcr)
-                _PlaceField(
+                PlaceField(
                   label: 'Province',
+                  icon: LucideIcons.mapPinned,
                   value: _province?.name,
-                  enabled: _region != null,
                   error:
                       _showPlaceErrors && _region != null && _province == null
                       ? 'Choose the province.'
                       : null,
-                  onTap: _pickProvince,
+                  onTap: _region == null ? null : _pickProvince,
                 ),
-              _PlaceField(
+              PlaceField(
                 label: 'City or municipality',
+                icon: LucideIcons.building2,
                 value: _city?.name,
-                enabled: _province != null,
                 error: _showPlaceErrors && _province != null && _city == null
                     ? 'Choose the city or municipality.'
                     : null,
-                onTap: _pickCity,
+                onTap: _province == null ? null : _pickCity,
               ),
-              _PlaceField(
+              PlaceField(
                 label: 'Barangay',
+                icon: LucideIcons.mapPin,
                 value: _barangay?.name,
-                enabled: _city != null,
                 error:
                     placeError ??
                     (_showPlaceErrors && _city != null && _barangay == null
                         ? 'Choose the barangay.'
                         : null),
-                onTap: _pickBarangay,
+                onTap: _city == null ? null : _pickBarangay,
               ),
               const SizedBox(height: AppSpace.sm),
               AppTextField(
@@ -324,131 +321,6 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Looks like a text box, opens a list to pick from. Disabled until the place above it is chosen.
-class _PlaceField extends StatelessWidget {
-  const _PlaceField({
-    required this.label,
-    required this.value,
-    required this.onTap,
-    this.enabled = true,
-    this.error,
-  });
-
-  final String label;
-  final String? value;
-  final VoidCallback onTap;
-  final bool enabled;
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.md),
-      child: InkWell(
-        borderRadius: AppRadius.cardAll,
-        onTap: enabled ? onTap : null,
-        child: InputDecorator(
-          isEmpty: value == null,
-          decoration: InputDecoration(
-            labelText: label,
-            enabled: enabled,
-            errorText: error,
-            suffixIcon: const Icon(LucideIcons.chevronDown, size: 18),
-          ),
-          child: Text(value ?? '', style: const TextStyle(fontSize: 16)),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceSheet extends StatefulWidget {
-  const _PlaceSheet({required this.title, required this.load});
-
-  final String title;
-  final Future<List<PsgcPlace>> Function() load;
-
-  @override
-  State<_PlaceSheet> createState() => _PlaceSheetState();
-}
-
-class _PlaceSheetState extends State<_PlaceSheet> {
-  late Future<List<PsgcPlace>> _places = widget.load();
-  String _filter = '';
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.8,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpace.lg,
-              0,
-              AppSpace.lg,
-              AppSpace.sm,
-            ),
-            child: TextField(
-              autofocus: false,
-              decoration: InputDecoration(
-                hintText: 'Search ${widget.title.toLowerCase()}',
-                prefixIcon: const Icon(LucideIcons.search, size: 18),
-              ),
-              onChanged: (value) =>
-                  setState(() => _filter = value.trim().toLowerCase()),
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<PsgcPlace>>(
-              future: _places,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return ErrorRetry(
-                    failure: ApiFailure.from(snapshot.error!),
-                    onRetry: () => setState(() => _places = widget.load()),
-                  );
-                }
-                if (!snapshot.hasData) return const SkeletonList();
-                final places = snapshot.data!
-                    .where(
-                      (place) =>
-                          _filter.isEmpty ||
-                          place.name.toLowerCase().contains(_filter),
-                    )
-                    .toList();
-                if (places.isEmpty) {
-                  return const EmptyState(
-                    icon: LucideIcons.mapPin,
-                    title: 'Nothing matches',
-                  );
-                }
-                return ListView.builder(
-                  itemCount: places.length,
-                  itemBuilder: (context, index) => ListTile(
-                    minTileHeight: 48,
-                    title: Text(places[index].name),
-                    onTap: () => Navigator.of(context).pop(places[index]),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: AppSpace.sm),
-          Text(
-            'Places from the Philippine Statistics Authority (PSGC).',
-            style: TextStyle(
-              fontSize: 11,
-              color: AppColors.stone500.withValues(alpha: 0.9),
-            ),
-          ),
-          const SizedBox(height: AppSpace.sm),
-        ],
       ),
     );
   }

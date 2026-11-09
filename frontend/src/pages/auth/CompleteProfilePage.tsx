@@ -407,8 +407,9 @@ export default function CompleteProfilePage() {
   const location = useLocation();
   const completedRef = useRef(false);
 
-  // Google avatar URL passed via navigation state (from GoogleSignInButton)
-  const googleAvatarUrl: string | null = (location.state as { googleAvatarUrl?: string | null } | null)?.googleAvatarUrl ?? null;
+  // The Google picture: passed from the Google button, or (after a reload, or coming back later) the photo the server
+  // already saved on the account at Google sign-in.
+  const googleAvatarUrl: string | null = (location.state as { googleAvatarUrl?: string | null } | null)?.googleAvatarUrl ?? user?.avatar_url ?? null;
 
   const [step, setStep] = useState(0);
   const [step1, setStep1] = useState<Step1Data>({ phone: '+63', date_of_birth: '', sex: '' });

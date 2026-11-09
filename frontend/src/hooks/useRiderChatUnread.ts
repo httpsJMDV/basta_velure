@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRiderChatUnreadApi } from '../api/client';
 import type { RiderChatCounterpart } from '../types';
+import { useSoundOnIncrease } from '../lib/notificationSound';
 
 const UNREAD_POLL_MS = 10000;
 
@@ -20,6 +21,7 @@ export interface RiderChatUnread {
  */
 export function useRiderChatUnread(enabled: boolean): RiderChatUnread {
   const [total, setTotal] = useState(0);
+  useSoundOnIncrease(total, enabled);
   const [byTracking, setByTracking] = useState<Record<string, number>>({});
   const [byTrackingCounterpart, setByTrackingCounterpart] = useState<RiderChatUnread['byTrackingCounterpart']>({});
   const inFlightRef = useRef(false);

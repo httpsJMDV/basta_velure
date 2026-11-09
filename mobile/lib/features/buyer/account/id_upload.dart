@@ -46,6 +46,7 @@ class IdUpload extends StatelessWidget {
     try {
       final photo = await PhotoPicker().pick(
         context,
+        kind: UploadKind.document,
         reason:
             'Take a clear photo of the $side of your ID. It is only used to check who you are.',
       );
@@ -57,17 +58,24 @@ class IdUpload extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasBack = type?.hasBack ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppSelectField<GovernmentId>(
           label: 'Government ID',
+          prefixIcon: LucideIcons.idCard,
           value: type,
           errorText:
               typeError ??
               (showErrors && type == null ? 'Choose your ID type.' : null),
           options: [
-            for (final id in GovernmentId.values) AppOption(id, id.label),
+            for (final id in GovernmentId.values)
+              AppOption(
+                id,
+                id.label,
+                subtitle: id.hasBack ? 'Front and back' : 'Front only',
+              ),
           ],
           onChanged: onType,
         ),
@@ -76,42 +84,42 @@ class IdUpload extends StatelessWidget {
           'Government IDs only. School IDs are not accepted.',
           style: TextStyle(fontSize: 12, color: AppColors.stone500),
         ),
-        const SizedBox(height: AppSpace.md),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _Side(
-                label: 'Front',
-                photo: front,
-                error:
-                    frontError ??
-                    (showErrors && front == null ? 'Add the front.' : null),
-                onTap: () => _pick(context, 'front', onFront),
-              ),
-            ),
-            if (type?.hasBack ?? false) ...[
-              const SizedBox(width: AppSpace.md),
-              Expanded(
-                child: _Side(
-                  label: 'Back',
-                  photo: back,
-                  error:
-                      backError ??
-                      (showErrors && back == null ? 'Add the back.' : null),
-                  onTap: () => _pick(context, 'back', onBack),
-                ),
-              ),
-            ],
-          ],
+        const SizedBox(height: AppSpace.lg),
+        IdSideTile(
+          label: 'Front of your ID',
+          photo: front,
+          error:
+              frontError ??
+              (showErrors && front == null
+                  ? 'Add a photo of the front.'
+                  : null),
+          onTap: () => _pick(context, 'front', onFront),
         ),
+        if (hasBack) ...[
+          const SizedBox(height: AppSpace.md),
+          IdSideTile(
+            label: 'Back of your ID',
+            photo: back,
+            error:
+                backError ??
+                (showErrors && back == null
+                    ? 'Add a photo of the back.'
+                    : null),
+            onTap: () => _pick(context, 'back', onBack),
+          ),
+        ],
+        const SizedBox(height: AppSpace.md),
+        const _PhotoTips(),
       ],
     );
   }
 }
 
-class _Side extends StatelessWidget {
-  const _Side({
+/// One side of the ID: an empty frame to tap, or the photo with a Retake label. Card-shaped (ID-1, 85.6 × 54 mm), so
+/// the preview looks like the card it shows.
+class IdSideTile extends StatelessWidget {
+  const IdSideTile({
+    super.key,
     required this.label,
     required this.photo,
     required this.onTap,
@@ -125,59 +133,239 @@ class _Side extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rose = StatusTone.rose.foreground;
+    final picked = photo;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: AspectRatio(
-            aspectRatio: 1.58,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: error == null
-                      ? AppColors.stone300
-                      : StatusTone.rose.foreground,
-                ),
-                color: AppColors.stone50,
+        Semantics(
+          button: true,
+          label: picked == null ? 'Add $label' : '$label added. Retake',
+          excludeSemantics: true,
+          child: Material(
+            color: picked == null ? AppColors.white : AppColors.stone900,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: error != null
+                    ? rose
+                    : picked == null
+                    ? AppColors.stone300
+                    : AppColors.stone900,
+                width: error != null ? 1.5 : 1,
               ),
-              clipBehavior: Clip.antiAlias,
-              child: photo == null
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          LucideIcons.camera,
-                          color: AppColors.stone500,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Add $label',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.stone600,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Image.memory(
-                      Uint8List.fromList(photo!.bytes),
-                      fit: BoxFit.cover,
-                    ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: AspectRatio(
+                aspectRatio: 1.586,
+                child: picked == null
+                    ? _Empty(label: label, error: error != null)
+                    : _Filled(label: label, photo: picked),
+              ),
             ),
           ),
         ),
         if (error != null)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              error!,
-              style: TextStyle(fontSize: 12, color: StatusTone.rose.foreground),
+            padding: const EdgeInsets.only(top: 6, left: 2),
+            child: Text(error!, style: TextStyle(fontSize: 12, color: rose)),
+          ),
+      ],
+    );
+  }
+}
+
+class _Empty extends StatelessWidget {
+  const _Empty({required this.label, required this.error});
+
+  final String label;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // The corners of a viewfinder, so it reads as "put the card here".
+        const Padding(
+          padding: EdgeInsets.all(14),
+          child: CustomPaint(painter: _CornerMarks(AppColors.stone300)),
+        ),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: error ? StatusTone.rose.background : AppColors.stone100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                LucideIcons.camera,
+                size: 20,
+                color: error ? StatusTone.rose.foreground : AppColors.stone600,
+              ),
+            ),
+            const SizedBox(height: AppSpace.sm),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.stone900,
+              ),
+            ),
+            const SizedBox(height: 2),
+            const Text(
+              'Take a photo or choose one',
+              style: TextStyle(fontSize: 12.5, color: AppColors.stone500),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _Filled extends StatelessWidget {
+  const _Filled({required this.label, required this.photo});
+
+  final String label;
+  final PickedPhoto photo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.memory(
+          Uint8List.fromList(photo.bytes),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            color: const Color(0xCC1C1917),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.md,
+              vertical: 9,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.circleCheck,
+                  size: 16,
+                  color: StatusTone.emerald.border,
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  LucideIcons.refreshCw,
+                  size: 14,
+                  color: AppColors.white,
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Retake',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhotoTips extends StatelessWidget {
+  const _PhotoTips();
+
+  @override
+  Widget build(BuildContext context) {
+    const tips = [
+      'The whole card fits in the photo',
+      'Name, photo and ID number are easy to read',
+      'No glare from a light or the flash',
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final tip in tips)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.check,
+                  size: 14,
+                  color: StatusTone.emerald.foreground,
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Text(
+                    tip,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.stone600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
     );
   }
+}
+
+class _CornerMarks extends CustomPainter {
+  const _CornerMarks(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const arm = 18.0;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final w = size.width;
+    final h = size.height;
+    for (final (corner, dx, dy) in [
+      (Offset.zero, 1.0, 1.0),
+      (Offset(w, 0), -1.0, 1.0),
+      (Offset(0, h), 1.0, -1.0),
+      (Offset(w, h), -1.0, -1.0),
+    ]) {
+      canvas.drawLine(corner, corner + Offset(arm * dx, 0), paint);
+      canvas.drawLine(corner, corner + Offset(0, arm * dy), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CornerMarks oldDelegate) => oldDelegate.color != color;
 }

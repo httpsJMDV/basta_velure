@@ -1333,8 +1333,11 @@ void main() {
       await tester.tap(find.text('More'));
       await tester.pumpAndSettle();
       expect(find.text('Santa Cruz Hub'), findsOneWidget);
+      // Reports open in the app now (with Excel and PDF); earnings stay on the website.
       await tester.scrollUntilVisible(find.text('Reports'), 300);
+      await tester.scrollUntilVisible(find.text('Earnings'), 300);
       expect(find.text('Earnings'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Notification sound'), 300);
       await tester.scrollUntilVisible(find.text('Sign out'), 300);
       expect(find.text('Sign out'), findsOneWidget);
       await closeApp(tester);

@@ -11,6 +11,9 @@ import '../../../core/validation/rules.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../auth/account_actions.dart';
 import '../../buyer/widgets/buyer_theme.dart';
+import '../../reports/report_data.dart';
+import '../../reports/report_screen.dart';
+import '../../settings/notification_sound_screen.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
 import '../rider_paths.dart';
@@ -131,6 +134,12 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
                         subtitle: 'Your pickups, deliveries, returns, trips and account changes',
                         onTap: () => _open(RiderPaths.activity),
                       ),
+                      _Tile(
+                        icon: LucideIcons.chartColumn,
+                        title: 'Reports',
+                        subtitle: 'Jobs and earnings by day, as Excel or PDF',
+                        onTap: () => openReport(context, ReportKind.rider),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppSpace.lg),
@@ -163,6 +172,12 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: AppSpace.lg),
+                  const RiderSectionTitle('On this phone'),
+                  const RiderCard(
+                    padding: EdgeInsets.zero,
+                    child: NotificationSoundTile(color: AppColors.gray900),
+                  ),
                   const SizedBox(height: AppSpace.lg),
                   const HomeSwitchList(),
                   const SizedBox(height: AppSpace.md),

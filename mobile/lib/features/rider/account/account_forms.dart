@@ -88,34 +88,103 @@ class DocumentPhotoField extends StatelessWidget {
       children: [
         Text(label, style: RiderText.label),
         const SizedBox(height: AppSpace.xs),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(56),
-            side: BorderSide(color: error != null ? rose : AppColors.stone300),
+        Material(
+          color: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: error != null ? rose : AppColors.stone300,
+              width: error != null ? 1.5 : 1,
+            ),
           ),
-          onPressed: () async {
-            try {
-              final picked = await PhotoPicker().pick(
-                context,
-                reason: reason,
-                kind: UploadKind.document,
-              );
-              if (picked != null) onPicked(picked);
-            } on PhotoRejected catch (e) {
-              if (context.mounted) {
-                showRiderMessage(context, e.message, error: true);
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () async {
+              try {
+                final picked = await PhotoPicker().pick(
+                  context,
+                  reason: reason,
+                  kind: UploadKind.document,
+                );
+                if (picked != null) onPicked(picked);
+              } on PhotoRejected catch (e) {
+                if (context.mounted) {
+                  showRiderMessage(context, e.message, error: true);
+                }
               }
-            }
-          },
-          icon: Icon(
-            photo == null ? LucideIcons.camera : LucideIcons.circleCheck,
-            color: photo == null ? null : kDeliveredGreen,
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpace.sm),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 72,
+                      height: 46,
+                      child: photo == null
+                          ? const ColoredBox(
+                              color: AppColors.stone100,
+                              child: Icon(
+                                LucideIcons.camera,
+                                size: 20,
+                                color: AppColors.stone500,
+                              ),
+                            )
+                          : Image.memory(
+                              Uint8List.fromList(photo!.bytes),
+                              fit: BoxFit.cover,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (photo != null) ...[
+                              const Icon(
+                                LucideIcons.circleCheck,
+                                size: 15,
+                                color: kDeliveredGreen,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              photo == null ? 'Add photo' : 'Photo added',
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.stone900,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Text(
+                          'Take a photo or choose one · JPG or PNG, up to 5 MB',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    photo == null ? '' : 'Retake',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone700,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.xs),
+                ],
+              ),
+            ),
           ),
-          label: Text(photo == null ? 'Add photo' : 'Photo added · change'),
-        ),
-        Text(
-          'JPG or PNG, up to 5 MB.',
-          style: Theme.of(context).textTheme.bodySmall,
         ),
         if (error != null)
           Text(error!, style: TextStyle(color: rose, fontSize: 13)),

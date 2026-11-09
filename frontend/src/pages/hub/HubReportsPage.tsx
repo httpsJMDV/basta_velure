@@ -32,6 +32,7 @@ import {
 } from './reports/reportFormat';
 import { PageHeader, HEADER_BUTTON } from './hubKit';
 import DateRangeBar from '../../components/admin/DateRangeBar';
+import ReportDownloads from '../../components/reports/ReportDownloads';
 
 interface Applied {
   from: string;
@@ -70,7 +71,7 @@ function defaultDirection(sort: HubReportRiderSort): HubReportSortDirection {
 }
 
 /**
- * Hub performance over a date range: throughput, on-time rate and per-rider efficiency, with CSV export.
+ * Hub performance over a date range: throughput, on-time rate and per-rider efficiency, with Excel, PDF and CSV downloads.
  * Every event is counted on the day it happened (Asia/Manila). The definitions are on the page itself.
  */
 export default function HubReportsPage() {
@@ -238,6 +239,7 @@ export default function HubReportsPage() {
           title="Hub reports"
           subtitle={<>Throughput, on-time delivery and rider efficiency for {rangeLabel}.</>}
         >
+          <ReportDownloads base="/hub/reports" from={applied.from} to={applied.to} disabled={loading && !summary} />
           <button type="button" onClick={() => window.print()} className={HEADER_BUTTON}>
             <Printer className="w-4 h-4" aria-hidden="true" />
             Print

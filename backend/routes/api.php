@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\V1\RiderChatController;
 use App\Http\Controllers\Api\V1\HubDeliveryController;
 use App\Http\Controllers\Api\V1\HubDispatchController;
 use App\Http\Controllers\Api\V1\HubReportController;
+use App\Http\Controllers\Api\V1\LogisticsReportFileController;
 use App\Http\Controllers\Api\V1\HubParcelIntakeController;
 use App\Http\Controllers\Api\V1\HubRiderController;
 use App\Http\Controllers\Api\V1\HubSortingController;
@@ -120,6 +121,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/logistics/hubs',              [PublicSortingCenterController::class, 'index']);
     // Approved courier companies: the choices at checkout and on the hub application
     Route::get('/logistics/couriers',          [PublicSortingCenterController::class, 'couriers']);
+    // A report file from a link the app asked for (LogisticsReportFileController::link): signed, 10 minutes
+    Route::get('/reports/files/{kind}', [LogisticsReportFileController::class, 'signed'])->name('reports.file')->middleware(['signed', 'throttle:20,1'])->whereIn('kind', ['hub', 'courier', 'rider']);
 
     // Public auth routes
     Route::middleware('throttle:register')->group(function () {
@@ -232,6 +235,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/riders/{rider}/reactivate', [$riders, 'reactivate'])->whereNumber('rider');
             Route::get('/parcels', [$portal, 'parcels']);
             Route::get('/reports', [$portal, 'reports']);
+            // The report as JSON, Excel or PDF, and a short-lived link for the app (docs/api/logistics-rider-reports.md)
+            Route::get('/reports/document', [LogisticsReportFileController::class, 'document'])->defaults('kind', 'courier');
+            Route::get('/reports/file', [LogisticsReportFileController::class, 'file'])->defaults('kind', 'courier')->middleware('throttle:20,1');
+            Route::post('/reports/link', [LogisticsReportFileController::class, 'link'])->defaults('kind', 'courier')->middleware('throttle:20,1');
             // Dispatch (L4): offers, the Unassigned queue, auto-assign, manual, bulk and reassign
             $dispatch = \App\Http\Controllers\Api\V1\LogisticsDispatchController::class;
             Route::get('/dispatch', [$dispatch, 'index']);
@@ -729,6 +736,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/reports/summary', [HubReportController::class, 'summary']);
             Route::get('/reports/riders',  [HubReportController::class, 'riders']);
             Route::get('/reports/export',  [HubReportController::class, 'export']);
+            // The report as JSON, Excel or PDF, and a short-lived link for the app (docs/api/logistics-rider-reports.md)
+            Route::get('/reports/document', [LogisticsReportFileController::class, 'document'])->defaults('kind', 'hub');
+            Route::get('/reports/file', [LogisticsReportFileController::class, 'file'])->defaults('kind', 'hub')->middleware('throttle:20,1');
+            Route::post('/reports/link', [LogisticsReportFileController::class, 'link'])->defaults('kind', 'hub')->middleware('throttle:20,1');
 
             // Rider delivery chat (Feature 2.10): riders start threads, the hub lists, reads and replies
             Route::get('/chat/threads',                              [HubChatController::class, 'index']);
@@ -801,6 +812,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/earnings/summary', [RiderEarningsController::class, 'summary']);
             Route::get('/earnings/deliveries', [RiderEarningsController::class, 'deliveries']);
             Route::get('/history', [RiderHistoryController::class, 'index']);
+            // The report as JSON, Excel or PDF, and a short-lived link for the app (docs/api/logistics-rider-reports.md)
+            Route::get('/reports/document', [LogisticsReportFileController::class, 'document'])->defaults('kind', 'rider');
+            Route::get('/reports/file', [LogisticsReportFileController::class, 'file'])->defaults('kind', 'rider')->middleware('throttle:20,1');
+            Route::post('/reports/link', [LogisticsReportFileController::class, 'link'])->defaults('kind', 'rider')->middleware('throttle:20,1');
 
             // Delivery outcomes (Feature 2.7)
             Route::get('/deliveries/failure-reasons', [RiderDeliveryController::class, 'failureReasons']);

@@ -9,7 +9,8 @@ use Illuminate\Foundation\Http\FormRequest;
 /**
  * Creating a Loved-IT account (Account Creation workbooks, A1 to A6): name, email, mobile number, date of birth and
  * password, with consent to the Terms of Use and Privacy Policy. The account starts unverified and is activated by the
- * 6-digit code emailed to it. Identity documents and addresses are added later from the account.
+ * 6-digit code emailed to it. Identity documents are added later from the account; the app's form also asks for the
+ * delivery address (optional here), which becomes the default address.
  */
 class BuyerRegisterRequest extends FormRequest
 {
@@ -25,12 +26,51 @@ class BuyerRegisterRequest extends FormRequest
 
     public function rules(): array
     {
-        return self::accountRules();
+        return [...self::accountRules(), ...self::addressRules()];
     }
 
     public function messages(): array
     {
-        return self::accountMessages();
+        return [...self::accountMessages(), ...self::addressMessages()];
+    }
+
+    /**
+     * The delivery address the app's sign-up form asks for (optional: the website adds it later). Places are picked
+     * from the PSGC lists, so the codes come with the names. Saved as the account's default Home address.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    public static function addressRules(): array
+    {
+        $code = ['required_with:address', 'string', 'regex:/^\d{9,10}$/'];
+
+        return [
+            'address'                   => ['nullable', 'array'],
+            'address.region'            => ['nullable', 'string', 'max:100'],
+            'address.region_code'       => ['nullable', 'string', 'regex:/^\d{9,10}$/'],
+            'address.province'          => ['required_with:address', 'string', 'max:100'],
+            'address.province_code'     => $code,
+            'address.city_municipality' => ['required_with:address', 'string', 'max:100'],
+            'address.city_code'         => $code,
+            'address.barangay'          => ['required_with:address', 'string', 'max:100'],
+            'address.barangay_code'     => $code,
+            'address.street_address'    => ['required_with:address', 'string', 'max:255'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function addressMessages(): array
+    {
+        return [
+            'address.province.required_with'          => 'Choose the province.',
+            'address.province_code.required_with'     => 'Choose the province.',
+            'address.city_municipality.required_with' => 'Choose the city or municipality.',
+            'address.city_code.required_with'         => 'Choose the city or municipality.',
+            'address.barangay.required_with'          => 'Choose the barangay.',
+            'address.barangay_code.required_with'     => 'Choose the barangay.',
+            'address.street_address.required_with'    => 'Enter the street, house or building.',
+            'address.street_address.max'              => 'The street can be at most 255 characters.',
+        ];
     }
 
     /**

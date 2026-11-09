@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getHubChatThreadsApi } from '../api/client';
 import { getHubCourierThreadApi } from '../api/courierChat';
+import { useSoundOnIncrease } from '../lib/notificationSound';
 
 const HUB_UNREAD_POLL_MS = 15000;
 
@@ -10,6 +11,7 @@ const HUB_UNREAD_POLL_MS = 15000;
  */
 export function useHubChatUnread(enabled: boolean): { total: number; refresh: () => void } {
   const [total, setTotal] = useState(0);
+  useSoundOnIncrease(total, enabled);
   const inFlightRef = useRef(false);
 
   const load = useCallback(async () => {

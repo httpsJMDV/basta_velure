@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Mail\SellerApplicationMail;
 use App\Mail\WelcomeMail;
+use App\Models\Address;
 use App\Models\LogisticsCompany;
 use App\Models\LogisticsCompanyMember;
 use App\Models\User;
@@ -35,6 +36,34 @@ class AccountRegistrar
         ])->save();
 
         return $user;
+    }
+
+    /**
+     * The address given while signing up (the app's sign-up form, or Complete profile), saved as a Home address in
+     * the address book like one added there. It becomes the default when the account has none. The PSGC codes are
+     * kept when the form sent them; without them the address asks to be picked again before checkout
+     * (`address_needs_update`), as it always did.
+     *
+     * @param array{street_address: string, province: string, city_municipality: string, barangay: string, region?: ?string,
+     *     region_code?: ?string, province_code?: ?string, city_code?: ?string, barangay_code?: ?string} $place
+     */
+    public function addSignUpAddress(User $user, array $place, ?string $phone): Address
+    {
+        return $user->addresses()->create([
+            'full_name'     => trim($user->first_name . ' ' . $user->last_name),
+            'phone'         => $phone ?? $user->phone,
+            'address'       => $place['street_address'],
+            'province'      => $place['province'],
+            'district'      => $place['city_municipality'],
+            'ward'          => $place['barangay'],
+            'region'        => $place['region'] ?? null,
+            'region_code'   => $place['region_code'] ?? null,
+            'province_code' => $place['province_code'] ?? null,
+            'city_code'     => $place['city_code'] ?? null,
+            'barangay_code' => $place['barangay_code'] ?? null,
+            'label'         => 'home',
+            'is_default'    => ! $user->addresses()->where('is_default', true)->exists(),
+        ]);
     }
 
     /**

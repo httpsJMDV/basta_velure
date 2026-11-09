@@ -6,6 +6,7 @@ import { getLogisticsReportsApi } from '../../api/client';
 import type { LogisticsReport } from '../../types';
 import { lastDays } from '../../utils/adminReports';
 import { HeroStats } from '../../components/logistics/CourierKit';
+import ReportDownloads from '../../components/reports/ReportDownloads';
 
 const PRESETS = [7, 30, 90] as const;
 
@@ -50,6 +51,7 @@ export default function LogisticsReportsPage() {
             { label: 'On time', value: pct(t.on_time_rate) },
           ]} />
         )}
+        <ReportDownloads base="/logistics/reports" tone="dark" from={report?.range.from ?? lastDays(days).from} to={report?.range.to ?? lastDays(days).to} disabled={!report} />
         <div className="inline-flex p-0.5 rounded-xl bg-white/10 border border-white/10" role="group" aria-label="Period">
           {PRESETS.map((p) => (
             <button key={p} type="button" onClick={() => setDays(p)} aria-pressed={days === p}
@@ -74,7 +76,7 @@ export default function LogisticsReportsPage() {
             )}
           </div>
 
-          <ListCard title="By hub" count={report?.hubs.length}>
+          <ListCard title="By hub" count={report?.active_hubs ?? report?.hubs.length}>
             <div className="overflow-auto">
               <table className="w-full text-[13px]">
                 <thead>
@@ -92,7 +94,7 @@ export default function LogisticsReportsPage() {
                 <tbody className="divide-y divide-gray-50">
                   {!report && <SkeletonRows cols={8} rows={4} />}
                   {report && report.hubs.length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-10 text-center text-[13px] text-gray-400">No active hubs yet.</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-10 text-center text-[13px] text-gray-400">No approved hubs yet.</td></tr>
                   )}
                   {report?.hubs.map((h) => (
                     <tr key={h.hub_id} className="hover:bg-gray-50/60">
@@ -123,6 +125,11 @@ export default function LogisticsReportsPage() {
                 )}
               </table>
             </div>
+            {report && report.approved_hubs !== undefined && report.approved_hubs > report.hubs.length && (
+              <p className="px-4 py-3 border-t border-gray-100 text-[12px] text-gray-500">
+                Busiest hubs first. {(report.approved_hubs - report.hubs.length).toLocaleString()} more approved hubs had no parcels in this period; the Excel and PDF downloads list every hub with parcels.
+              </p>
+            )}
           </ListCard>
         </>
       )}

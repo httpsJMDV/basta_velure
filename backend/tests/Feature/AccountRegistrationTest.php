@@ -232,6 +232,22 @@ class AccountRegistrationTest extends TestCase
         ]), ['Accept' => 'application/json'])->assertStatus(422)->assertJsonValidationErrors('government_id_image');
     }
 
+    public function test_a_visitor_opens_a_shop_with_the_websites_form_which_asks_no_birthday(): void
+    {
+        if (! \App\Models\Category::whereNull('parent_id')->exists()) {
+            \App\Models\Category::create(['slug' => 'home-living-' . Str::random(4), 'name' => 'Home & Living', 'is_active' => true]);
+        }
+        $payload = $this->sellerPayload(['email' => 'lorna.villanueva@example.com', 'seller_type' => 'individual']);
+        unset($payload['date_of_birth'], $payload['dti_certificate'], $payload['bir_2303']);
+
+        $this->post('/api/v1/auth/register-seller', $payload, ['Accept' => 'application/json'])
+            ->assertCreated()->assertJsonPath('verification_required', true);
+
+        $profile = SellerProfile::whereHas('user', fn ($q) => $q->where('email', 'lorna.villanueva@example.com'))->firstOrFail();
+        $this->assertNull($profile->date_of_birth);
+        $this->assertSame('individual', $profile->seller_type);
+    }
+
     public function test_a_school_id_is_no_longer_accepted_but_old_accounts_keep_theirs(): void
     {
         $message = 'Choose a government-issued ID. School IDs are not accepted.';

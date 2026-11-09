@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard,
   PackagePlus,
+  BarChart2,
   Truck,
   Wallet,
   User as UserIcon,
@@ -60,13 +61,14 @@ const NAV: NavGroup[] = [
       { icon: Truck, label: 'Deliveries', to: '/rider/deliveries' },
     ],
   },
-  { heading: 'Finance', items: [{ icon: Wallet, label: 'Earnings', to: '/rider/earnings' }] },
+  { heading: 'Finance', items: [{ icon: Wallet, label: 'Earnings', to: '/rider/earnings' }, { icon: BarChart2, label: 'Reports', to: '/rider/reports' }] },
   { heading: 'Settings', items: [{ icon: History, label: 'Activity', to: '/rider/activity' }, { icon: UserIcon, label: 'Account', to: '/rider/account' }] },
 ];
 
 // A truck driver carries parcels between hubs: no pickups or deliveries.
 const TRUCK_NAV: NavGroup[] = [
   { heading: 'Work', items: [{ icon: Container, label: 'Trips', to: '/rider/trips' }] },
+  { heading: 'Finance', items: [{ icon: BarChart2, label: 'Reports', to: '/rider/reports' }] },
   { heading: 'Settings', items: [{ icon: History, label: 'Activity', to: '/rider/activity' }, { icon: UserIcon, label: 'Account', to: '/rider/account' }] },
 ];
 
@@ -86,6 +88,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/rider/pickups': 'Pickups',
   '/rider/deliveries': 'Deliveries',
   '/rider/earnings': 'Earnings',
+  '/rider/reports': 'Reports',
   '/rider/account': 'Account',
   '/rider/trips': 'Trips',
   '/rider/activity': 'Activity',
@@ -212,8 +215,8 @@ export default function RiderLayout() {
   const initials = initialsOf(riderData?.first_name ?? user?.first_name, riderData?.last_name ?? user?.last_name);
   const hubName = riderData?.hub?.hub_name;
 
-  // Earnings and the account stay open so a rider can always sign out or check their pay.
-  const locationExempt = location.pathname.startsWith('/rider/earnings') || location.pathname.startsWith('/rider/account');
+  // Earnings, reports and the account stay open so a rider can always sign out or check their pay.
+  const locationExempt = ['/rider/earnings', '/rider/reports', '/rider/account'].some((p) => location.pathname.startsWith(p));
   const locationLocked = beacon.required && beacon.state !== 'sharing' && !locationExempt;
 
   if (statusRevokedMessage) {
@@ -329,12 +332,14 @@ export default function RiderLayout() {
           searchPlaceholder="Search courier pages..."
           searchItems={isTruck ? [
             { label: 'Trips', to: '/rider/trips', group: 'Work', icon: Container },
+            { label: 'Reports', to: '/rider/reports', group: 'Money', icon: BarChart2 },
             { label: 'My account', to: '/rider/account', group: 'Account', icon: UserIcon },
           ] : [
             { label: 'Dashboard', to: '/rider/dashboard', group: 'Overview', icon: LayoutDashboard },
             { label: 'Pickups', to: '/rider/pickups', group: 'Work', icon: PackagePlus },
             { label: 'Deliveries', to: '/rider/deliveries', group: 'Work', icon: Truck },
             { label: 'Earnings', to: '/rider/earnings', group: 'Money', icon: Wallet },
+            { label: 'Reports', to: '/rider/reports', group: 'Money', icon: BarChart2 },
             { label: 'My account', to: '/rider/account', group: 'Account', icon: UserIcon },
           ]}
           alerts={

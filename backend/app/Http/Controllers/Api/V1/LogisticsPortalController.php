@@ -262,26 +262,33 @@ class LogisticsPortalController extends Controller
         $to = $data['to'] ?? $this->reports->today();
         $from = $data['from'] ?? \Carbon\Carbon::parse($to)->subDays(29)->format('Y-m-d');
         $range = $this->reports->range($from, $to);
+        $company = $this->company($request);
 
-        $rows = [];
-        $keys = ['received', 'delivered', 'failed_attempts', 'returned', 'on_time_deliveries'];
-        $totals = array_fill_keys($keys, 0);
-        foreach ($this->hubs($this->company($request))->where('status', SortingCenter::STATUS_APPROVED)->orderBy('hub_name')->get() as $hub) {
-            $t = $this->reports->summary($hub, $range)['totals'];
-            $rows[] = ['hub_id' => $hub->id, 'hub_name' => $hub->hub_name] + $t;
-            foreach ($keys as $k) {
-                $totals[$k] += (int) $t[$k];
+        // Grouped queries over the whole network (a hub in every city: one summary per hub was thousands of queries).
+        // Hubs with parcels come first, busiest first; idle hubs fill the list up to SHOWN_HUBS, by name.
+        $network = app(\App\Services\Reports\LogisticsReports::class)->network($company, $range, false);
+        $shown = 200;
+        $rows = array_map(fn ($h) => array_diff_key($h, array_flip(['delivery_seconds', 'timed_deliveries', 'city'])), array_slice($network['hubs'], 0, $shown));
+        $room = $shown - count($rows);
+        if ($room > 0 && $network['idle_hubs'] > 0) {
+            $active = array_column($network['hubs'], 'hub_id');
+            $zero = ['received' => 0, 'sorted' => 0, 'dispatched' => 0, 'delivered' => 0, 'failed_attempts' => 0, 'returned' => 0,
+                'on_time_deliveries' => 0, 'on_time_rate' => null, 'success_rate' => null, 'avg_delivery_hours' => null];
+            $idle = $this->hubs($company)->where('status', SortingCenter::STATUS_APPROVED)->whereNotIn('id', $active)
+                ->orderBy('hub_name')->limit($room)->get(['id', 'hub_name']);
+            foreach ($idle as $hub) {
+                $rows[] = ['hub_id' => $hub->id, 'hub_name' => $hub->hub_name] + $zero;
             }
         }
-        $totals['on_time_rate'] = $totals['delivered'] > 0 ? round($totals['on_time_deliveries'] / $totals['delivered'], 4) : null;
-        $totals['success_rate'] = ($totals['delivered'] + $totals['failed_attempts']) > 0
-            ? round($totals['delivered'] / ($totals['delivered'] + $totals['failed_attempts']), 4) : null;
+        $totals = $network['totals'];
 
         return response()->json(['data' => [
-            'range'     => ['from' => $range['from'], 'to' => $range['to'], 'days' => $range['days']],
-            'sla_hours' => $this->reports->slaHours(),
-            'totals'    => $totals,
-            'hubs'      => $rows,
+            'range'         => ['from' => $range['from'], 'to' => $range['to'], 'days' => $range['days']],
+            'sla_hours'     => $this->reports->slaHours(),
+            'totals'        => $totals,
+            'hubs'          => $rows,
+            'active_hubs'   => count($network['hubs']),
+            'approved_hubs' => $network['approved_hubs'],
         ]]);
     }
 }

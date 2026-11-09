@@ -14,6 +14,7 @@ import { getSellerDashboardAttentionApi } from '../../api/client';
 import { getSellerNavCountsApi } from '../../api/navCounts';
 import { useNavCounts } from '../../hooks/useNavCounts';
 import type { SellerAttentionItem } from '../../types';
+import { useSoundOnIncrease } from '../../lib/notificationSound';
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
@@ -778,6 +779,7 @@ export default function SellerLayout() {
   // The sidebar numbers (an applicant has none yet): orders, returns and refunds waiting on the shop, listings to fix.
   const { counts } = useNavCounts(getSellerNavCountsApi, approved);
   const unreadMessages = counts?.messages ?? 0;
+  useSoundOnIncrease(unreadMessages, approved);
 
   const handleToggleSidebar = () => {
     setCollapsed((prev) => {

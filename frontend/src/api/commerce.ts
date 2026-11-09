@@ -56,8 +56,21 @@ export interface CartView {
 }
 
 export const getCartApi = () => http.get<{ data: CartView }>('/cart').then((r) => r.data.data);
+/** Said once, when an add to cart makes it a big purchase (backend OrderLimits::cartNotice). */
+export interface CartNotice {
+  kind: 'big_purchase';
+  title: string;
+  points: string[];
+  cart_total: number;
+  shop_total: number;
+  agreement_min: number;
+  cod_max: number;
+  agreement: boolean;
+  no_cod: boolean;
+}
+
 export const addCartItemApi = (variantId: number, quantity: number | string) =>
-  http.post<{ data: CartView; message: string }>('/cart/items', { variant_id: variantId, quantity }).then((r) => r.data);
+  http.post<{ data: CartView; message: string; notice?: CartNotice | null }>('/cart/items', { variant_id: variantId, quantity }).then((r) => r.data);
 export const updateCartItemApi = (id: number, changes: { quantity?: number | string; selected?: boolean }) =>
   http.patch<{ data: CartView }>(`/cart/items/${id}`, changes).then((r) => r.data.data);
 export const removeCartItemApi = (id: number) => http.delete<{ data: CartView }>(`/cart/items/${id}`).then((r) => r.data.data);

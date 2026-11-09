@@ -7,6 +7,9 @@ import '../../../core/session/session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/account_actions.dart';
+import '../../reports/report_data.dart';
+import '../../reports/report_screen.dart';
+import '../../settings/notification_sound_screen.dart';
 import '../../buyer/widgets/buyer_theme.dart';
 import '../data/logistics_api.dart';
 import '../data/logistics_models.dart';
@@ -15,8 +18,8 @@ import '../logistics_paths.dart';
 import '../widgets/logistics_widgets.dart';
 import 'courier_kit.dart';
 
-/// More: dispatch, hub scanning, COD, messages and the account. Office work (zones and rates, settlements, payouts,
-/// reports, exports, company settings) stays on the website, and these link there.
+/// More: dispatch, hub scanning, COD, messages, the network report and the account. Office work (zones and rates,
+/// settlements, payouts, exports, company settings) stays on the website, and these link there.
 class CourierMoreScreen extends ConsumerWidget {
   const CourierMoreScreen({super.key});
 
@@ -88,6 +91,17 @@ class CourierMoreScreen extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: AppSpace.sm),
+          LinkList(
+            children: [
+              LinkTile(
+                icon: LucideIcons.chartColumn,
+                title: 'Network report',
+                subtitle: 'Every hub with parcels, by day · Excel or PDF',
+                onTap: () => openReport(context, ReportKind.courier),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpace.xl),
           const HubSection(
             title: 'On the website',
@@ -121,6 +135,11 @@ class CourierMoreScreen extends ConsumerWidget {
                 path: LogisticsPaths.webCourierSettings,
               ),
             ],
+          ),
+          const SizedBox(height: AppSpace.xl),
+          const HubSection(title: 'On this phone'),
+          const LinkList(
+            children: [NotificationSoundTile(color: AppColors.gray900)],
           ),
           const SizedBox(height: AppSpace.lg),
           const HomeSwitchList(),

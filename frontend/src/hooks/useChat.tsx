@@ -18,6 +18,7 @@ import type {
   ProductContext,
   OrderContext,
 } from '../types';
+import { useSoundOnIncrease } from '../lib/notificationSound';
 
 interface ChatContextType {
   isChatOpen: boolean;
@@ -56,6 +57,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [unreadTotal, setUnreadTotal] = useState(0);
+  // A new chat message makes the chosen notification sound.
+  useSoundOnIncrease(unreadTotal, !!user);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
