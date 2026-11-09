@@ -11,12 +11,14 @@ import '../../core/theme/app_theme.dart';
 import '../../core/validation/rules.dart';
 import '../../core/web_links.dart';
 import '../../core/widgets/widgets.dart';
+import '../buyer/addresses/place_picker.dart';
 import 'auth_layout.dart';
 import 'auth_routes.dart';
 import 'google_button.dart';
 
-/// Sign up (B1, `POST /auth/register`) in three short steps. Every field follows the server's rules and messages;
-/// the email code screen opens next.
+/// Sign up (B1, `POST /auth/register`) in four short steps. Every field follows the server's rules and messages;
+/// the email code screen opens next. The address step's places come from the PSGC pickers, and the server saves
+/// them as the default Home address.
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
 
@@ -25,10 +27,11 @@ class SignUpScreen extends ConsumerStatefulWidget {
 }
 
 class _SignUpScreenState extends ConsumerState<SignUpScreen> {
-  static const _steps = ['About you', 'Contact', 'Password'];
+  static const _steps = ['About you', 'Contact', 'Address', 'Password'];
   static const _hints = [
     'We email you a 6-digit code to confirm it\'s you.',
     'Your code goes to this email. Your mobile number is for your deliveries.',
+    'Where should we deliver your orders? This becomes your default address.',
     'Choose a password only you know.',
   ];
 
@@ -40,12 +43,23 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     'date_of_birth': 0,
     'email': 1,
     'phone': 1,
-    'password': 2,
-    'password_confirmation': 2,
-    'accept_terms': 2,
+    'address': 2,
+    'address.region': 2,
+    'address.region_code': 2,
+    'address.province': 2,
+    'address.province_code': 2,
+    'address.city_municipality': 2,
+    'address.city_code': 2,
+    'address.barangay': 2,
+    'address.barangay_code': 2,
+    'address.street_address': 2,
+    'password': 3,
+    'password_confirmation': 3,
+    'accept_terms': 3,
   };
 
   final _forms = [
+    GlobalKey<FormState>(),
     GlobalKey<FormState>(),
     GlobalKey<FormState>(),
     GlobalKey<FormState>(),
@@ -58,6 +72,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _phone = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
+  final _street = TextEditingController();
+  PickedPlace _place = const PickedPlace();
+  bool _showPlaceErrors = false;
   int _step = 0;
   DateTime? _birthday;
   bool _terms = false;
@@ -79,6 +96,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       _phone,
       _password,
       _confirm,
+      _street,
     ]) {
       box.dispose();
     }
@@ -95,13 +113,20 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   void _back() => _step > 0 ? _goTo(_step - 1) : context.go(AuthPaths.signIn);
 
+  static const _addressStep = 2;
+
   Future<void> _continue() async {
     FocusScope.of(context).unfocus();
     final fieldsOk = _forms[_step].currentState!.validateAndReveal();
     if (_step == _steps.length - 1) setState(() => _showTermsError = !_terms);
+    if (_step == _addressStep && !_place.isComplete) {
+      setState(() => _showPlaceErrors = true);
+      return;
+    }
     if (!fieldsOk) return;
     if (_step < _steps.length - 1) return _goTo(_step + 1);
     if (!_terms) return;
+    if (!_place.isComplete) return _goTo(_addressStep);
 
     setState(() => _failure = null);
     try {
@@ -118,6 +143,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         'password': _password.text,
         'password_confirmation': _confirm.text,
         'accept_terms': true,
+        // Saved as the default Home address, ready for checkout.
+        'address': {
+          ..._place.toFields(),
+          'street_address': _street.text.trim(),
+        },
       });
     } on ApiFailure catch (failure) {
       if (!mounted) return;
@@ -247,7 +277,57 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               serverError: failure?.errorFor('phone'),
             ),
           ]),
-          _page(2, [
+          _page(_addressStep, [
+            PlaceFields(
+              value: _place,
+              showErrors: _showPlaceErrors,
+              serverError:
+                  failure?.errorFor('address.barangay_code') ??
+                  failure?.errorFor('address.city_code') ??
+                  failure?.errorFor('address.province_code') ??
+                  failure?.errorFor('address.barangay'),
+              onChanged: (place) => setState(() => _place = place),
+            ),
+            AppTextField(
+              label: 'Street, house or building',
+              controller: _street,
+              prefixIcon: LucideIcons.house,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.streetAddressLine1],
+              maxLength: 255,
+              validator: (value) => (value ?? '').trim().isEmpty
+                  ? 'Enter the street, house or building.'
+                  : null,
+              serverError: failure?.errorFor('address.street_address'),
+            ),
+            const SizedBox(height: AppSpace.xs),
+            const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(
+                    LucideIcons.bookMarked,
+                    size: 15,
+                    color: AppColors.stone500,
+                  ),
+                ),
+                SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Text(
+                    'Saved as your Home address. You can add more under Account › Addresses.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      color: AppColors.stone600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ]),
+          _page(3, [
             AppTextField(
               label: 'Password',
               controller: _password,

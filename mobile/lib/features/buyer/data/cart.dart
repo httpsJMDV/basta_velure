@@ -128,6 +128,46 @@ class CartStore {
   );
 }
 
+/// What `POST /cart/items` answered.
+class CartAdded {
+  const CartAdded(this.message, this.notice);
+
+  final String message;
+
+  /// Set once, on the add that made the cart a big purchase.
+  final BigPurchaseNotice? notice;
+}
+
+/// "This is a big purchase" (backend `OrderLimits::cartNotice`): the agreement checkout will ask for, and no cash on
+/// delivery above the limit for one shop. The website shows the same words.
+class BigPurchaseNotice {
+  const BigPurchaseNotice({
+    required this.title,
+    required this.points,
+    required this.cartTotal,
+    required this.agreement,
+    required this.noCod,
+  });
+
+  final String title;
+  final List<String> points;
+  final double cartTotal;
+
+  /// Checkout will ask the buyer to agree (the total reached the agreement amount).
+  final bool agreement;
+
+  /// This shop's order is above the cash-on-delivery limit: pay it by GCash.
+  final bool noCod;
+
+  factory BigPurchaseNotice.fromJson(Json json) => BigPurchaseNotice(
+    title: asString(json['title']) ?? 'This is a big purchase',
+    points: asStringList(json['points']),
+    cartTotal: asDouble(json['cart_total']).toDouble(),
+    agreement: asBool(json['agreement']),
+    noCod: asBool(json['no_cod']),
+  );
+}
+
 class CartView {
   const CartView({
     required this.stores,
@@ -201,15 +241,20 @@ class CartController extends AsyncNotifier<CartView> {
     state = await AsyncValue.guard(_fetch);
   }
 
-  /// `POST /cart/items`. Returns the server's message ("Added to cart"). Throws [ApiFailure].
-  Future<String> add(int variantId, int quantity) async {
+  /// `POST /cart/items`. Returns the server's message ("Added to cart") and, when this add made the cart a big
+  /// purchase, what to tell the buyer about it. Throws [ApiFailure].
+  Future<CartAdded> add(int variantId, int quantity) async {
     final response = await _call(
       () => _api.post<Json>(
         '/cart/items',
         data: {'variant_id': variantId, 'quantity': quantity},
       ),
     );
-    return asString(response?['message']) ?? 'Added to cart.';
+    final notice = response?['notice'];
+    return CartAdded(
+      asString(response?['message']) ?? 'Added to cart.',
+      notice is Map ? BigPurchaseNotice.fromJson(asJson(notice)) : null,
+    );
   }
 
   Future<void> setQuantity(int lineId, int quantity) => _call(

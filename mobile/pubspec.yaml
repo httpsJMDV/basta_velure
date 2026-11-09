@@ -52,6 +52,8 @@ flutter:
     - assets/hero/
     # The pictures on Home's two rows of shortcuts (see its CREDITS.md)
     - assets/home/
+    # Notification sounds, made from scratch by setup/make-notification-sounds.mjs (the website has the same files).
+    - assets/sounds/
 
   # Inter, the website's font, bundled so text looks the same with no internet (SIL OFL, assets/fonts/OFL.txt).
   fonts:

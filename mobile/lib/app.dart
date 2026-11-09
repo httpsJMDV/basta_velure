@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/realtime/realtime.dart';
 import 'core/theme/app_theme.dart';
 import 'router.dart';
+import 'sound_watcher.dart';
 
 class LovedItApp extends ConsumerWidget {
   const LovedItApp({super.key});
@@ -20,6 +21,9 @@ class LovedItApp extends ConsumerWidget {
       theme: buildAppTheme(),
       themeMode: ThemeMode.light,
       routerConfig: ref.watch(routerProvider),
+      // A new notification or message makes the chosen sound while the app is open.
+      builder: (context, child) =>
+          NotificationSoundWatcher(child: child ?? const SizedBox.shrink()),
     );
   }
 }

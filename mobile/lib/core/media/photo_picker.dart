@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -12,7 +14,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../theme/app_theme.dart';
 import 'permissions.dart';
 
-/// The server's limits for each kind of upload. Photos always leave the phone as JPEG, which every kind accepts.
+/// The server's limits for each kind of upload. Photos leave the phone as JPEG (PNG when the phone's JPEG encoder
+/// can't read one), which every kind accepts.
 enum UploadKind {
   /// Avatars, GCash receipts, review and return photos: JPG or PNG, 5 MB (`Validation::image`).
   image(5 * 1024 * 1024, 'JPG or PNG', '5 MB'),
@@ -34,17 +37,24 @@ enum UploadKind {
 /// A photo ready to upload: shrunk, re-encoded as JPEG and stripped of its hidden data (EXIF, GPS location).
 /// It lives in memory only, so nothing of an ID or receipt stays in the app's files after the upload.
 class PickedPhoto {
-  const PickedPhoto({required this.bytes, required this.filename});
+  const PickedPhoto({
+    required this.bytes,
+    required this.filename,
+    this.subtype = 'jpeg',
+  });
 
   final List<int> bytes;
   final String filename;
+
+  /// `jpeg`, or `png` when the phone's JPEG encoder failed and Flutter's own encoder made the file.
+  final String subtype;
 
   int get length => bytes.length;
 
   MultipartFile toMultipart() => MultipartFile.fromBytes(
     bytes,
     filename: filename,
-    contentType: DioMediaType('image', 'jpeg'),
+    contentType: DioMediaType('image', subtype),
   );
 }
 
@@ -83,9 +93,37 @@ class PhotoPicker {
   static const maxSide = 1600;
   static const quality = 80;
 
-  static const _readable = {'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'};
-
   final ImagePicker _picker;
+
+  /// One photo from the camera or the gallery. The picker's own errors (camera refused, no camera, a cloud photo
+  /// that couldn't be downloaded) become a [PhotoRejected] with words to act on, instead of failing silently.
+  Future<XFile?> _pickOne(ImageSource source) async {
+    try {
+      return await _picker.pickImage(
+        source: source,
+        requestFullMetadata: false,
+      );
+    } on PlatformException catch (error) {
+      throw PhotoRejected(pickerMessage(error.code, source));
+    }
+  }
+
+  /// What to say when the phone's picker refused, by its error code.
+  @visibleForTesting
+  static String pickerMessage(String code, ImageSource source) {
+    final camera = source == ImageSource.camera;
+    return switch (code) {
+      'camera_access_denied' => 'Loved-IT is not allowed to use the camera. Turn it on in Settings, or choose a photo from the gallery.',
+      'photo_access_denied' => 'Loved-IT is not allowed to open your photos. Turn it on in Settings, or take a photo instead.',
+      'no_available_camera' => 'No camera is available on this phone. Choose a photo from the gallery instead.',
+      'already_active' => 'The camera is already open. Try again.',
+      'missing_valid_image_uri' || 'invalid_image' => "That photo couldn't be opened. If it is only in the cloud, download it first, or take a new photo.",
+      _ =>
+        camera
+            ? "The camera couldn't be opened. Try again, or choose a photo from the gallery."
+            : "Your photos couldn't be opened. Try again, or take a photo instead.",
+    };
+  }
 
   /// Camera only, after saying why. Proof photos must come from here, never the gallery.
   Future<PickedPhoto?> takePhoto(
@@ -100,10 +138,7 @@ class PhotoPicker {
       reason: reason,
     );
     if (!allowed) return null;
-    final file = await _picker.pickImage(
-      source: ImageSource.camera,
-      requestFullMetadata: false,
-    );
+    final file = await _pickOne(ImageSource.camera);
     return file == null ? null : prepare(file, kind);
   }
 
@@ -111,10 +146,7 @@ class PhotoPicker {
   Future<PickedPhoto?> chooseFromGallery({
     UploadKind kind = UploadKind.image,
   }) async {
-    final file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      requestFullMetadata: false,
-    );
+    final file = await _pickOne(ImageSource.gallery);
     return file == null ? null : prepare(file, kind);
   }
 
@@ -125,14 +157,22 @@ class PhotoPicker {
     UploadKind kind = UploadKind.image,
   }) async {
     if (max <= 0) return const PickedPhotos([]);
-    final files = max == 1
-        ? [
-            ?await _picker.pickImage(
-              source: ImageSource.gallery,
+    final List<XFile> files;
+    try {
+      files = max == 1
+          ? [?await _pickOne(ImageSource.gallery)]
+          : await _picker.pickMultiImage(
+              limit: max,
               requestFullMetadata: false,
-            ),
-          ]
-        : await _picker.pickMultiImage(limit: max, requestFullMetadata: false);
+            );
+    } on PlatformException catch (error) {
+      return PickedPhotos(
+        const [],
+        rejected: pickerMessage(error.code, ImageSource.gallery),
+      );
+    } on PhotoRejected catch (error) {
+      return PickedPhotos(const [], rejected: error.message);
+    }
     final photos = <PickedPhoto>[];
     String? rejected;
     // Every picked file is prepared (and so deleted from the cache), even past the limit or after a refusal.
@@ -209,35 +249,39 @@ class PhotoPicker {
 
   /// Checks the type, shrinks the long side to [maxSide], re-encodes as JPEG at [quality] (which drops EXIF and GPS)
   /// and refuses anything still over the limit. The picked original is deleted from the app's cache.
+  ///
+  /// Some phones' JPEG encoder fails on some photos (HEIC from newer cameras, odd sizes). Then Flutter decodes and
+  /// re-draws the photo itself and sends a PNG, which also carries no hidden data. Only a photo neither can open is
+  /// refused, whatever its file name says.
   Future<PickedPhoto> prepare(XFile file, UploadKind kind) async {
     try {
-      final extension = file.path.split('.').last.toLowerCase();
-      if (!_readable.contains(extension)) {
-        throw PhotoRejected('Choose a photo (${kind.types}).');
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final jpeg = await _jpeg(file.path);
+      if (jpeg != null && jpeg.length <= kind.maxBytes) {
+        return PickedPhoto(bytes: jpeg, filename: 'photo-$stamp.jpg');
       }
-
-      final target = await _targetShortSide(file.path);
-      final bytes = await FlutterImageCompress.compressWithFile(
-        file.path,
-        minWidth: target,
-        minHeight: target,
-        quality: quality,
-        format: CompressFormat.jpeg,
-        keepExif: false,
+      final png = await redrawAsPng(
+        await File(file.path).readAsBytes(),
+        maxBytes: kind.maxBytes,
       );
-      if (bytes == null || bytes.isEmpty) {
-        throw const PhotoRejected(
-          "This photo couldn't be opened. Try another one.",
+      if (png != null) {
+        return PickedPhoto(
+          bytes: png,
+          filename: 'photo-$stamp.png',
+          subtype: 'png',
         );
       }
-      if (bytes.length > kind.maxBytes) {
+      if (jpeg != null) {
         throw PhotoRejected(
           'This photo is still larger than ${kind.limitLabel} after shrinking. Try another photo.',
         );
       }
-      return PickedPhoto(
-        bytes: bytes,
-        filename: 'photo-${DateTime.now().millisecondsSinceEpoch}.jpg',
+      throw PhotoRejected(
+        "This photo couldn't be opened. Choose a ${kind.types.replaceAll(', PDF', '')} photo, or take a new one.",
+      );
+    } on FileSystemException {
+      throw const PhotoRejected(
+        "This photo couldn't be read. Try again, or take a new photo.",
       );
     } finally {
       // image_picker copies the photo into the app's cache: don't keep it there.
@@ -247,6 +291,65 @@ class PhotoPicker {
         // Already gone.
       }
     }
+  }
+
+  /// The phone's own JPEG encoder, or null when it can't read this photo.
+  static Future<List<int>?> _jpeg(String path) async {
+    try {
+      final target = await _targetShortSide(path);
+      final bytes = await FlutterImageCompress.compressWithFile(
+        path,
+        minWidth: target,
+        minHeight: target,
+        quality: quality,
+        format: CompressFormat.jpeg,
+        keepExif: false,
+      );
+      return bytes == null || bytes.isEmpty ? null : bytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Decodes [bytes] with Flutter, scales the long side to [maxSide] (then smaller, until it fits [maxBytes]) and
+  /// encodes a PNG. Null when Flutter can't decode it either.
+  @visibleForTesting
+  static Future<Uint8List?> redrawAsPng(
+    Uint8List bytes, {
+    required int maxBytes,
+  }) async {
+    for (final side in const [maxSide, 1200, 900]) {
+      ui.Codec? codec;
+      ui.Image? image;
+      try {
+        final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+        codec = await ui.instantiateImageCodecWithSize(
+          buffer,
+          getTargetSize: (width, height) {
+            final long = math.max(width, height);
+            if (long <= side) {
+              return ui.TargetImageSize(width: width, height: height);
+            }
+            final scale = side / long;
+            return ui.TargetImageSize(
+              width: math.max((width * scale).round(), 1),
+              height: math.max((height * scale).round(), 1),
+            );
+          },
+        );
+        image = (await codec.getNextFrame()).image;
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (data == null) return null;
+        final png = data.buffer.asUint8List();
+        if (png.length <= maxBytes) return png;
+      } catch (_) {
+        return null;
+      } finally {
+        image?.dispose();
+        codec?.dispose();
+      }
+    }
+    return null;
   }
 
   /// flutter_image_compress scales by `min(width / minWidth, height / minHeight)` and never enlarges. Giving both the

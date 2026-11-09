@@ -451,10 +451,19 @@ class RiderApi {
 
   // Applying (C1, signed out) ----------------------------------------------------------
 
-  Future<List<PublicHub>> hubs() async =>
-      asJsonList((await _get('/logistics/hubs'))['data'])
-          .map(PublicHub.fromJson)
-          .toList();
+  /// Approved hubs for the "Become a rider" form. There is a hub in every city for each courier (thousands), so
+  /// the server returns at most [limit] and [search] matches the hub's name, city or province.
+  Future<List<PublicHub>> hubs({String? search, int limit = 50}) async =>
+      asJsonList(
+        (await _get(
+          '/logistics/hubs',
+          query: {
+            'limit': limit,
+            if (search != null && search.trim().isNotEmpty)
+              'search': search.trim(),
+          },
+        ))['data'],
+      ).map(PublicHub.fromJson).toList();
 
   /// The public "Become a rider" form. Returns the server's message ("Application sent to …").
   Future<String> apply(

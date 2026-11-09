@@ -15,6 +15,7 @@ import '../../auth/auth_routes.dart';
 import '../account/account_forms.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
+import 'hub_search.dart';
 
 /// "Become a rider" (C1): the public application, `POST /auth/register-rider`. It goes to one approved hub, which (or
 /// its courier company) approves it; the activation link in the email then opens the website to set a password. A
@@ -36,9 +37,7 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
   final _license = TextEditingController();
   final _plate = TextEditingController();
 
-  List<PublicHub>? _hubs;
-  ApiFailure? _hubsFailure;
-  int? _hubId;
+  PublicHub? _hub;
   DateTime? _birthday;
   DateTime? _expiry;
   String? _vehicle;
@@ -57,12 +56,6 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
   String? _sent;
 
   @override
-  void initState() {
-    super.initState();
-    _loadHubs();
-  }
-
-  @override
   void dispose() {
     for (final c in [
       _first,
@@ -78,13 +71,14 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
     super.dispose();
   }
 
-  Future<void> _loadHubs() async {
-    setState(() => _hubsFailure = null);
-    try {
-      final hubs = await ref.read(riderApiProvider).hubs();
-      if (mounted) setState(() => _hubs = hubs);
-    } catch (error) {
-      if (mounted) setState(() => _hubsFailure = ApiFailure.from(error));
+  Future<void> _pickHub() async {
+    FocusScope.of(context).unfocus();
+    final hub = await showHubSearch(context, selected: _hub);
+    if (hub != null && mounted) {
+      setState(() {
+        _hub = hub;
+        _hubError = null;
+      });
     }
   }
 
@@ -93,9 +87,7 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
     final ok = _form.currentState!.validate();
     setState(() {
       _failure = null;
-      _hubError = _hubId == null
-          ? 'Choose the hub you want to ride for.'
-          : null;
+      _hubError = _hub == null ? 'Choose the hub you want to ride for.' : null;
       _licensePhotoError = _licensePhoto == null
           ? "Add a photo of your driver's license."
           : null;
@@ -107,7 +99,7 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
           : 'You must accept the Terms of Use and Privacy Policy to apply.';
     });
     if (!ok ||
-        _hubId == null ||
+        _hub == null ||
         _licensePhoto == null ||
         _orCrPhoto == null ||
         !_terms) {
@@ -119,7 +111,7 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
           .read(riderApiProvider)
           .apply(
             {
-              'sorting_center_id': _hubId,
+              'sorting_center_id': _hub!.id,
               'first_name': Rules.squish(_first.text),
               'middle_name': Rules.squish(_middle.text),
               'last_name': Rules.squish(_last.text),
@@ -226,9 +218,7 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
                 style: const TextStyle(fontSize: 13, color: AppColors.stone600),
               ),
               const SizedBox(height: AppSpace.lg),
-              _hubPicker(),
-              if (_hubError != null)
-                Text(_hubError!, style: TextStyle(color: rose, fontSize: 13)),
+              HubField(hub: _hub, error: _hubError, onTap: _pickHub),
               const SizedBox(height: AppSpace.lg),
               AppTextField(
                 label: 'First name',
@@ -366,45 +356,6 @@ class _RiderApplyScreenState extends ConsumerState<RiderApplyScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _hubPicker() {
-    final hubs = _hubs;
-    if (_hubsFailure != null) {
-      return MessageBanner(
-        message:
-            "${_hubsFailure!.message} Pull down or tap Send again to retry.",
-      );
-    }
-    if (hubs == null) {
-      return const Skeleton(child: SkeletonBox(height: 56, radius: 12));
-    }
-    if (hubs.isEmpty) {
-      return const MessageBanner(
-        tone: StatusTone.amber,
-        message: 'No hub is taking riders right now. Try again later.',
-      );
-    }
-    return AppSelectField<int>(
-      label: 'Hub you want to ride for',
-      sheetTitle: 'Choose a hub',
-      value: _hubId,
-      options: [
-        for (final hub in hubs)
-          AppOption(
-            hub.id,
-            hub.name,
-            subtitle: [
-              if (hub.place.isNotEmpty) hub.place,
-              ?hub.courier,
-            ].join(' · '),
-          ),
-      ],
-      onChanged: (id) => setState(() {
-        _hubId = id;
-        _hubError = null;
-      }),
     );
   }
 }

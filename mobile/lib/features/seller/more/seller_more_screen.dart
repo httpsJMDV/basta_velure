@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/web_links.dart';
 import '../../auth/account_actions.dart';
+import '../../settings/notification_sound_screen.dart';
 import '../../buyer/widgets/buyer_theme.dart';
 import '../../buyer/widgets/buyer_widgets.dart';
 import '../data/seller_api.dart';
@@ -107,6 +108,13 @@ class SellerMoreScreen extends ConsumerWidget {
                 ],
               ],
             ),
+          ),
+          const SizedBox(height: AppSpace.lg),
+          const BlockTitle('On this phone'),
+          const SizedBox(height: AppSpace.sm),
+          const BlockCard(
+            padding: EdgeInsets.zero,
+            child: NotificationSoundTile(),
           ),
           const SizedBox(height: AppSpace.lg),
           const HomeSwitchList(),

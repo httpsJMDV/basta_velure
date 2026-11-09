@@ -7,6 +7,9 @@ import '../../../core/session/session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/account_actions.dart';
+import '../../reports/report_data.dart';
+import '../../reports/report_screen.dart';
+import '../../settings/notification_sound_screen.dart';
 import '../../buyer/widgets/buyer_theme.dart';
 import '../../rider/widgets/rider_widgets.dart';
 import '../data/logistics_api.dart';
@@ -59,6 +62,12 @@ class HubMoreScreen extends ConsumerWidget {
                 onTap: () => context.push(LogisticsPaths.hubReturnPickups),
               ),
               _WorkTile(
+                icon: LucideIcons.chartColumn,
+                title: 'Reports',
+                subtitle: 'By day and by rider, as Excel or PDF',
+                onTap: () => openReport(context, ReportKind.hub),
+              ),
+              _WorkTile(
                 icon: LucideIcons.history,
                 title: 'Activity log',
                 subtitle: 'Scans, trucks, returns, cancellations',
@@ -92,11 +101,6 @@ class HubMoreScreen extends ConsumerWidget {
           const LinkList(
             children: [
               WebsiteTile(
-                icon: LucideIcons.chartColumn,
-                title: 'Reports',
-                path: LogisticsPaths.webHubReports,
-              ),
-              WebsiteTile(
                 icon: LucideIcons.wallet,
                 title: 'Earnings',
                 path: LogisticsPaths.webHubEarnings,
@@ -107,6 +111,11 @@ class HubMoreScreen extends ConsumerWidget {
                 path: LogisticsPaths.webHubSettings,
               ),
             ],
+          ),
+          const SizedBox(height: AppSpace.xl),
+          const HubSection(title: 'On this phone'),
+          const LinkList(
+            children: [NotificationSoundTile(color: AppColors.gray900)],
           ),
           const SizedBox(height: AppSpace.lg),
           const HomeSwitchList(),

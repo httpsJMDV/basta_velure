@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:loved_it/core/api/api_client.dart';
 import 'package:loved_it/core/session/session.dart';
 import 'package:loved_it/core/session/token_store.dart';
+import 'package:loved_it/features/buyer/addresses/psgc.dart';
 import 'package:loved_it/features/rider/map/route_map_services.dart';
 
 /// The sign-in token kept in memory instead of the Android Keystore.
@@ -55,6 +56,26 @@ class FakeApi implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// The PSGC lists for Pasig (NCR has no provinces), labelled as a web page like the real service.
+final placeRoutes = <String, FakeHandler>{
+  'GET /regions/130000000/cities-municipalities/': (_) =>
+      ResponseBody.fromString(
+        '[{"code":"137403000","name":"City of Pasig"},{"code":"137404000","name":"Quezon City"}]',
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['text/html; charset=utf-8'],
+        },
+      ),
+  'GET /cities-municipalities/137403000/barangays/': (_) =>
+      ResponseBody.fromString(
+        '[{"code":"137403017","name":"Rosario"},{"code":"137403027","name":"Ugong"}]',
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['text/html; charset=utf-8'],
+        },
+      ),
+};
+
 ResponseBody jsonBody(int status, Object body) => ResponseBody.fromString(
   jsonEncode(body),
   status,
@@ -90,7 +111,8 @@ Map<String, dynamic> userJson({
   'logistics_company': logisticsCompany,
 };
 
-/// A container whose API answers from [api] and whose token lives in [store].
+/// A container whose API answers from [api] and whose token lives in [store]. The PSGC place lists answer from the
+/// same [api] (see [placeRoutes]), so no test reaches the real service.
 ProviderContainer containerWith(FakeApi api, MemoryTokenStore store) {
   final container = ProviderContainer(
     overrides: [
@@ -98,6 +120,11 @@ ProviderContainer containerWith(FakeApi api, MemoryTokenStore store) {
       // No map tiles or address lookups go out from a test.
       riderMapTilesProvider.overrideWithValue(null),
       routeMapServicesProvider.overrideWithValue(const NoRouteMapServices()),
+      psgcProvider.overrideWith((ref) {
+        final psgc = Psgc(adapter: api);
+        ref.onDispose(psgc.close);
+        return psgc;
+      }),
     ],
   );
   container.read(dioProvider).httpClientAdapter = api;

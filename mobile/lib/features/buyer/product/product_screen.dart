@@ -18,6 +18,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
 import '../buyer_paths.dart';
 import '../data/buyer_api.dart';
+import '../cart/big_purchase_sheet.dart';
 import '../data/cart.dart';
 import '../data/catalog.dart';
 import '../data/checkout.dart';
@@ -242,13 +243,23 @@ class _ProductViewState extends ConsumerState<_ProductView> {
       return;
     }
     try {
-      final message = await ref
+      final added = await ref
           .read(cartProvider.notifier)
           .add(choice.option.variantId, choice.quantity);
       if (!mounted) return;
-      HapticFeedback.mediumImpact();
       // The router, not this page's context: the message can outlast the page.
       final router = GoRouter.of(context);
+      // A big purchase is said first, like the website's dialog.
+      final notice = added.notice;
+      if (notice != null) {
+        if (await showBigPurchaseSheet(context, notice)) {
+          router.go(BuyerPaths.cart);
+        }
+        return;
+      }
+      final message = added.message;
+      HapticFeedback.mediumImpact();
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(

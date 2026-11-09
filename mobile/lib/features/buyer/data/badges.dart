@@ -52,6 +52,11 @@ class UnreadCount extends AsyncNotifier<int> {
     };
   }
 
+  /// The count a screen already knows (the Messages list adds up its chats), so the badge agrees with it at once.
+  void show(int count) {
+    if (state.value != count) state = AsyncData(count);
+  }
+
   /// Keeps the last count when a check fails (no internet), so the badge doesn't flicker away.
   Future<void> refresh() async {
     try {

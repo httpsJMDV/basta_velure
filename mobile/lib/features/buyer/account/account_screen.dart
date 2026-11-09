@@ -5,10 +5,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/session/home_route.dart';
 import '../../../core/session/session.dart';
+import '../../../core/sound/notification_sound.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../auth/account_actions.dart';
+import '../../settings/notification_sound_screen.dart';
 import '../buyer_paths.dart';
 import '../data/buyer_api.dart';
 import '../data/orders.dart';
@@ -256,6 +258,7 @@ class AccountScreen extends ConsumerWidget {
                   'Notifications',
                   BuyerPaths.notifications,
                 ),
+                _SoundLink(),
                 _Link(
                   LucideIcons.messageSquare,
                   'Send feedback',
@@ -356,10 +359,26 @@ class _Link extends StatelessWidget {
   }
 }
 
+/// Notification sound, with the one that plays now (Account › Notification sound).
+class _SoundLink extends ConsumerWidget {
+  const _SoundLink();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sound = NotificationSound.byId(ref.watch(notificationSoundProvider));
+    return MenuRow(
+      icon: sound.isOff ? LucideIcons.volumeX : LucideIcons.bellRing,
+      title: 'Notification sound',
+      subtitle: sound.name,
+      onTap: () => openNotificationSound(context),
+    );
+  }
+}
+
 class _Group extends StatelessWidget {
   const _Group({required this.rows});
 
-  final List<_Link> rows;
+  final List<Widget> rows;
 
   @override
   Widget build(BuildContext context) {
