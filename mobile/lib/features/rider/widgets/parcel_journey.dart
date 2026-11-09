@@ -295,18 +295,32 @@ class _JourneyRow extends StatelessWidget {
                         color: AppColors.stone500,
                       ),
                     ),
-                  // How the parcel goes on to the next stop, when it is a ship or a plane.
-                  if (following?.arrivesBy == 'sea' || following?.arrivesBy == 'air')
+                  // How the parcel goes on to the next stop: trucks, ships and planes for the long part, a
+                  // rider's own vehicle for the short rides.
+                  if (following != null && following.kind != 'return')
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(following?.arrivesBy == 'sea' ? LucideIcons.ship : LucideIcons.plane, size: 15, color: const Color(0xFF0369A1)),
+                          Icon(
+                            switch (following.arrivesBy) {
+                              'sea' => LucideIcons.ship,
+                              'air' => LucideIcons.plane,
+                              'truck' => LucideIcons.truck,
+                              _ => LucideIcons.bike,
+                            },
+                            size: 15,
+                            color: following.arrivesBy == null ? AppColors.stone500 : const Color(0xFF0369A1),
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            following?.arrivesBy == 'sea' ? 'Then by ship' : 'Then by plane',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0369A1)),
+                            'Then ${following.legLabel[0].toLowerCase()}${following.legLabel.substring(1)}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: following.arrivesBy == null ? AppColors.stone500 : const Color(0xFF0369A1),
+                            ),
                           ),
                         ],
                       ),

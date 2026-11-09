@@ -536,6 +536,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 message: store.shippingMessage ?? 'We cannot deliver to this address yet. Choose another address.',
               ),
             ),
+          if (store.serviceable && store.remote)
+            const Padding(
+              padding: EdgeInsets.only(top: AppSpace.sm),
+              child: MessageBanner(
+                tone: StatusTone.amber,
+                message: "Your town is far from the courier's branch, so the rider brings this parcel to your barangay hall. We'll tell you when it's there. To pick it up at the branch instead, order on the website.",
+              ),
+            ),
           InfoRow('Order total', formatPeso(store.total), strong: true),
           if (_payment == 'gcash') _gcashFor(store),
         ],

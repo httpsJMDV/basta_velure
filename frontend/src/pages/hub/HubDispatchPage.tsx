@@ -27,6 +27,7 @@ import type { HubDispatchBatch, HubDispatchParcel, HubDispatchRider, HubSortingS
 import { PageHeader, StatCard } from './hubKit';
 import CustomSelect from '../../components/ui/CustomSelect';
 import AwaitingPickupPanel from './AwaitingPickupPanel';
+import CounterPickupPanel from './CounterPickupPanel';
 
 const POLL_MS = 30000;
 const PARCEL_PAGE_SIZE = 100;
@@ -363,6 +364,7 @@ export default function HubDispatchPage() {
         <StatCard icon={Users} label="No eligible rider" value={loading ? null : batches.filter((b) => b.eligible_riders === 0).length} subtext="Barangays nobody can take" iconBg="bg-rose-50" iconColor="text-rose-600" />
       </section>
       <AwaitingPickupPanel />
+      <CounterPickupPanel />
       {/* Controls and the list, in one card */}
       <section className="overflow-hidden bg-white border shadow-xs border-gray-200/80 rounded-2xl">
       <div className="flex flex-col gap-2 p-3 border-b border-gray-100 bg-gray-50/40 sm:flex-row sm:items-center">

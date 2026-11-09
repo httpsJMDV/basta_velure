@@ -287,6 +287,8 @@ class HubDispatchController extends Controller
                     $errors[$key] = ['Parcel not found for this hub.'];
                 } elseif ($parcel->status !== Parcel::STATUS_SORTED) {
                     $errors[$key] = ['This parcel is not waiting for dispatch.'];
+                } elseif ($parcel->order?->delivery_point === \App\Support\RemoteDelivery::BRANCH) {
+                    $errors[$key] = ['The buyer picks this parcel up at your counter, so it needs no rider.'];
                 } elseif (trim((string) $parcel->destination_barangay_code) === '') {
                     $errors[$key] = ['This parcel has no destination barangay code, so it cannot be dispatched.'];
                 } elseif ((string) $parcel->destination_barangay_code !== $referenceCode) {
@@ -379,6 +381,8 @@ class HubDispatchController extends Controller
         return Parcel::where('sorting_center_id', $hub->id)
             ->where('status', Parcel::STATUS_SORTED)
             ->whereNotNull('destination_barangay_code')
-            ->where('destination_barangay_code', '!=', '');
+            ->where('destination_barangay_code', '!=', '')
+            // A buyer who collects at the branch counter needs no rider (HubCounterController).
+            ->whereDoesntHave('order', fn ($q) => $q->where('delivery_point', \App\Support\RemoteDelivery::BRANCH));
     }
 }

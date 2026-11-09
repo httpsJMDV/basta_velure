@@ -314,6 +314,348 @@ class NetworkBuilder
         return $gateways->count();
     }
 
+    // ── Branches (network:consolidate) ──────────────────────────────────────
+
+    /**
+     * Cuts a hub-in-every-town network down to branches, the way couriers really work: a branch serves the towns
+     * around it (a motorcycle or tricycle rider's short ride), trucks carry parcels between branches and gateways.
+     *
+     * Per courier and province: every hub that must stay (gateways, hubs not made by network:build, hubs with parcels,
+     * riders, trips or chats) is a branch; then the town that reaches the most towns still without a branch within
+     * $radiusKm becomes one, until every town is covered. Each town goes to its nearest branch. Very remote towns
+     * (PhPlaces::isRemoteTown) get no branch and go to the nearest one too. The other network hubs hand their
+     * barangays to their branch and are deleted with their accounts. Then each branch gets 2 delivery riders and 1
+     * truck driver (2 at a gateway). A second run changes nothing.
+     *
+     * @return array<string, array<string, int>>
+     */
+    public function consolidate(array $companyIds = [], bool $dryRun = false, ?\Closure $say = null, float $radiusKm = 15.0): array
+    {
+        $this->say = $say ?? fn (string $line) => null;
+        if (! $dryRun) {
+            $this->usedPhones = array_fill_keys(User::withTrashed()->whereNotNull('phone')->pluck('phone')->all(), true);
+            $this->usedUsernames = array_fill_keys(User::withTrashed()->whereNotNull('username')->pluck('username')->all(), true);
+            $this->usedPlates = array_fill_keys(Rider::withTrashed()->whereNotNull('plate_number')->pluck('plate_number')->all(), true);
+            $this->usedLicenses = array_fill_keys(Rider::withTrashed()->whereNotNull('license_number')->pluck('license_number')->all(), true);
+        }
+
+        $companies = LogisticsCompany::where('status', LogisticsCompany::STATUS_APPROVED)
+            ->when($companyIds !== [], fn ($q) => $q->whereIn('id', $companyIds))
+            ->orderBy('id')->get();
+
+        $stats = [];
+        foreach ($companies as $company) {
+            ($this->say)("{$company->name} ({$company->code})...");
+            $stats[$company->name] = DB::transaction(fn () => $this->consolidateCompany($company, $dryRun, $radiusKm));
+        }
+
+        return $stats;
+    }
+
+    /** @var array<string, true> */
+    private array $usedLicenses = [];
+
+    /** @return array<string, int> */
+    private function consolidateCompany(LogisticsCompany $company, bool $dryRun, float $radiusKm): array
+    {
+        $hubs = $this->hubsOf($company)->where('status', SortingCenter::STATUS_APPROVED)->orderBy('id')
+            ->get(['id', 'user_id', 'hub_name', 'city_code', 'address_city', 'gateway_region_code', 'is_island_gateway', 'coverage_barangays', 'dti_permit_path']);
+        $networkPermit = trim((string) config('showcase.storage_prefix'), '/') . '/documents/network-hub-permit.png';
+        $busy = $this->busyHubIds($hubs->pluck('id')->all());
+        $mustStay = fn (SortingCenter $h) => $h->dti_permit_path !== $networkPermit || $h->isGateway() || isset($busy[$h->id]) || ! $h->city_code;
+
+        // The hub that stands for each town: one that must stay first, then the oldest.
+        $hubOfTown = [];
+        foreach ($hubs as $hub) {
+            $current = $hubOfTown[$hub->city_code] ?? null;
+            if ($hub->city_code && (! $current || (! $mustStay($current) && $mustStay($hub)))) {
+                $hubOfTown[$hub->city_code] = $hub;
+            }
+        }
+
+        // Towns by province (or region, where a town has no province), then the branch towns of each.
+        $groups = [];
+        foreach (PhPlaces::cities() as $city) {
+            $groups[$city['province'] ?: $city['region']][] = $city;
+        }
+        $branchOfTown = [];
+        foreach ($groups as $towns) {
+            $branches = [];
+            foreach ($towns as $town) {
+                $hub = $hubOfTown[$town['code']] ?? null;
+                if ($hub && $mustStay($hub)) {
+                    $branches[$town['code']] = true;
+                }
+            }
+            $near = fn (string $a, string $b) => (PhPlaces::distanceKm($a, $b) ?? INF) <= $radiusKm;
+            $open = array_values(array_filter($towns, fn ($t) => empty($t['remote']) && ! array_filter(array_map('strval', array_keys($branches)), fn ($b) => $near($b, $t['code']))));
+            while ($open !== []) {
+                $best = null;
+                $bestReach = -1;
+                $bestRank = -1;
+                foreach ($towns as $candidate) {
+                    if (! empty($candidate['remote']) || ! isset($hubOfTown[$candidate['code']])) {
+                        continue;
+                    }
+                    $reach = count(array_filter($open, fn ($t) => $near($candidate['code'], $t['code'])));
+                    $rank = ($candidate['capital'] ? 2 : 0) + ($candidate['city'] ? 1 : 0);
+                    if ($reach > $bestReach || ($reach === $bestReach && $rank > $bestRank)) {
+                        [$best, $bestReach, $bestRank] = [$candidate, $reach, $rank];
+                    }
+                }
+                if (! $best || $bestReach === 0) {
+                    // A town no hub can reach within the radius: it is its own branch when it has a hub.
+                    $first = array_shift($open);
+                    if (isset($hubOfTown[$first['code']])) {
+                        $branches[$first['code']] = true;
+                    }
+
+                    continue;
+                }
+                $branches[$best['code']] = true;
+                $open = array_values(array_filter($open, fn ($t) => ! $near($best['code'], $t['code'])));
+            }
+            if ($branches === []) {
+                foreach ($towns as $town) {
+                    if (isset($hubOfTown[$town['code']])) {
+                        $branches[$town['code']] = true;
+                        break;
+                    }
+                }
+            }
+            foreach ($towns as $town) {
+                $nearest = null;
+                $nearestKm = INF;
+                foreach (array_map('strval', array_keys($branches)) as $b) {
+                    $km = $b === $town['code'] ? 0.0 : (PhPlaces::distanceKm($b, $town['code']) ?? INF);
+                    if ($km < $nearestKm) {
+                        [$nearest, $nearestKm] = [$b, $km];
+                    }
+                }
+                $branchOfTown[$town['code']] = $nearest ?? $town['code'];
+            }
+        }
+
+        // Which hub each hub's barangays go to; who stays.
+        $target = [];
+        $removed = [];
+        foreach ($hubs as $hub) {
+            if ($mustStay($hub)) {
+                continue;
+            }
+            $branchHub = $hubOfTown[$branchOfTown[$hub->city_code] ?? ''] ?? null;
+            if (! $branchHub || $branchHub->id === $hub->id) {
+                continue;
+            }
+            $target[$branchHub->id] = array_merge($target[$branchHub->id] ?? [], array_map('strval', (array) $hub->coverage_barangays));
+            $removed[] = $hub;
+        }
+        $staying = $hubs->reject(fn ($h) => in_array($h->id, array_map(fn ($r) => $r->id, $removed), true))->values();
+        $remoteTowns = count(array_filter(PhPlaces::cities(), fn ($c) => ! empty($c['remote'])));
+
+        if ($dryRun) {
+            [$riders, $trucks] = $this->staffNeeded($staying);
+
+            return ['hubs_before' => $hubs->count(), 'branches' => $staying->count(), 'hubs_removed' => count($removed),
+                'remote_towns' => $remoteTowns, 'riders_created' => $riders, 'truck_drivers_created' => $trucks];
+        }
+
+        ($this->say)('  ' . count($removed) . ' hubs hand their barangays to ' . count($target) . ' branches...');
+        foreach ($target as $hubId => $codes) {
+            $hub = $staying->firstWhere('id', $hubId);
+            $hub->coverage_barangays = array_values(array_unique(array_merge(array_map('strval', (array) $hub->coverage_barangays), $codes)));
+            $hub->save(); // rewrites its hub_coverage rows
+        }
+        foreach (array_chunk($removed, 500) as $chunk) {
+            $ids = array_map(fn ($h) => $h->id, $chunk);
+            $users = array_values(array_filter(array_map(fn ($h) => $h->user_id, $chunk)));
+            DB::table('sorting_centers')->whereIn('id', $ids)->delete(); // coverage and empty rider areas go with them
+            DB::table('personal_access_tokens')->where('tokenable_type', User::class)->whereIn('tokenable_id', $users)->delete();
+            DB::table('users')->whereIn('id', $users)->delete();
+        }
+
+        // Network riders cover their whole branch now.
+        $riderLicense = trim((string) config('showcase.storage_prefix'), '/') . '/documents/network-rider-license.png';
+        foreach ($staying as $hub) {
+            RiderAreaAssignment::where('sorting_center_id', $hub->id)->where('is_active', true)
+                ->whereIn('rider_id', Rider::where('drivers_license_path', $riderLicense)->select('id'))
+                ->get()->each(fn ($a) => $a->forceFill(['coverage_barangays' => array_values((array) $hub->coverage_barangays)])->save());
+        }
+
+        [$riders, $trucks] = $this->staffBranches($company, $staying);
+
+        return ['hubs_before' => $hubs->count(), 'branches' => $staying->count(), 'hubs_removed' => count($removed),
+            'remote_towns' => $remoteTowns, 'riders_created' => $riders, 'truck_drivers_created' => $trucks];
+    }
+
+    /**
+     * Hubs that have anything on them: riders, parcels, stops, transfers, trips, return pickups, earnings or chats.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, true>
+     */
+    private function busyHubIds(array $ids): array
+    {
+        $busy = [];
+        $checks = [
+            ['riders', 'sorting_center_id'], ['parcels', 'sorting_center_id'], ['parcel_hub_stops', 'sorting_center_id'],
+            ['hub_transfers', 'sorting_center_id'], ['hub_transfers', 'destination_hub_id'], ['truck_trips', 'from_hub_id'],
+            ['truck_trips', 'to_hub_id'], ['return_pickups', 'sorting_center_id'], ['return_pickups', 'destination_hub_id'],
+            ['return_pickups', 'current_hub_id'], ['return_pickup_stops', 'sorting_center_id'], ['hub_earnings', 'sorting_center_id'],
+            ['conversations', 'sorting_center_id'],
+        ];
+        foreach ($checks as [$table, $column]) {
+            if (! \Illuminate\Support\Facades\Schema::hasColumn($table, $column)) {
+                continue;
+            }
+            foreach (array_chunk($ids, 2000) as $chunk) {
+                foreach (DB::table($table)->whereIn($column, $chunk)->distinct()->pluck($column) as $id) {
+                    $busy[(int) $id] = true;
+                }
+            }
+        }
+
+        return $busy;
+    }
+
+    /**
+     * How many delivery riders and truck drivers the branches still need: 2 riders each, 1 truck driver (2 at a
+     * gateway).
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function staffNeeded(Collection $branches): array
+    {
+        $riders = 0;
+        $trucks = 0;
+        $have = $this->staffCounts($branches->pluck('id')->all());
+        foreach ($branches as $hub) {
+            $riders += max(0, 2 - ($have[$hub->id][Rider::DUTY_DELIVERY] ?? 0));
+            $trucks += max(0, ($hub->isGateway() ? 2 : 1) - ($have[$hub->id][Rider::DUTY_TRUCK] ?? 0));
+        }
+
+        return [$riders, $trucks];
+    }
+
+    /** @return array<int, array<string, int>> active riders per hub and duty */
+    private function staffCounts(array $hubIds): array
+    {
+        $have = [];
+        foreach (array_chunk($hubIds, 2000) as $chunk) {
+            foreach (Rider::whereIn('sorting_center_id', $chunk)->where('status', Rider::STATUS_ACTIVE)
+                ->selectRaw('sorting_center_id, duty, count(*) as n')->groupBy('sorting_center_id', 'duty')->get() as $row) {
+                $have[(int) $row->sorting_center_id][(string) $row->duty] = (int) $row->n;
+            }
+        }
+
+        return $have;
+    }
+
+    /**
+     * Hires what each branch is missing, in bulk: delivery riders (a motorcycle, and a tricycle in a town that is not
+     * a city) covering the whole branch, and truck drivers.
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function staffBranches(LogisticsCompany $company, Collection $branches): array
+    {
+        $have = $this->staffCounts($branches->pluck('id')->all());
+        $hash = $this->riderHash ??= Hash::make((string) config('showcase.passwords.rider'));
+        $idPhoto = $this->placeholder('local', 'network-account-id');
+        $license = $this->placeholder('ids', 'network-rider-license');
+        $orcr = $this->placeholder('ids', 'network-rider-orcr');
+        $prefix = strtolower((string) $company->code);
+        $now = now();
+
+        $plans = [];
+        foreach ($branches as $hub) {
+            $town = PhPlaces::city($hub->city_code);
+            $slug = Str::slug((string) $hub->address_city);
+            $needRiders = max(0, 2 - ($have[$hub->id][Rider::DUTY_DELIVERY] ?? 0));
+            for ($i = 0; $i < $needRiders; $i++) {
+                $vehicle = $i === 1 && $town && ! $town['city'] ? Rider::VEHICLE_TRICYCLE : Rider::VEHICLE_MOTORCYCLE;
+                $plans[] = ['hub' => $hub, 'duty' => Rider::DUTY_DELIVERY, 'vehicle' => $vehicle,
+                    'username' => $this->username("rider-{$prefix}-{$slug}", "rider-{$prefix}-{$hub->id}")];
+            }
+            $needTrucks = max(0, ($hub->isGateway() ? 2 : 1) - ($have[$hub->id][Rider::DUTY_TRUCK] ?? 0));
+            for ($i = 0; $i < $needTrucks; $i++) {
+                $plans[] = ['hub' => $hub, 'duty' => Rider::DUTY_TRUCK, 'vehicle' => Rider::VEHICLE_TRUCK,
+                    'username' => $this->username("truck-{$prefix}-{$slug}", "truck-{$prefix}-{$hub->id}")];
+            }
+        }
+        if ($plans === []) {
+            return [0, 0];
+        }
+        ($this->say)('  hiring ' . count($plans) . ' riders and truck drivers...');
+
+        foreach (array_chunk($plans, 400) as $chunk) {
+            foreach ($chunk as &$p) {
+                $p['person'] = $this->person(mt_rand(0, 4) ? 'male' : 'female');
+                $p['phone'] = $this->phone();
+            }
+            unset($p);
+            DB::table('users')->insert(array_map(fn ($p) => $this->userRow($p['username'], $p['person'], $p['phone'], $hash, $idPhoto, $now), $chunk));
+            $ids = User::whereIn('username', array_column($chunk, 'username'))->pluck('id', 'username');
+
+            DB::table('riders')->insert(array_map(fn ($p) => [
+                'user_id'              => $ids[$p['username']],
+                'sorting_center_id'    => $p['hub']->id,
+                'logistics_company_id' => $company->id,
+                'vehicle_type'         => $p['vehicle'],
+                'duty'                 => $p['duty'],
+                'plate_number'         => $this->plate(),
+                'license_number'       => $this->bulkLicense(),
+                'license_expiry'       => $now->copy()->addYears(3)->toDateString(),
+                'or_cr_path'           => $orcr,
+                'drivers_license_path' => $license,
+                'status'               => Rider::STATUS_ACTIVE,
+                'activated_at'         => $now,
+                'reviewed_by'          => $p['hub']->user_id,
+                'reviewed_at'          => $now,
+                'submitted_at'         => $now,
+                'gcash_number'         => Crypt::encryptString((string) Gcash::normalize($p['phone'])),
+                'gcash_name'           => "{$p['person']['first']} {$p['person']['last']}",
+                'created_at'           => $now,
+                'updated_at'           => $now,
+            ], $chunk));
+
+            $riderIds = Rider::whereIn('user_id', $ids->values())->pluck('id', 'user_id');
+            $areas = [];
+            foreach ($chunk as $p) {
+                if ($p['duty'] !== Rider::DUTY_DELIVERY) {
+                    continue;
+                }
+                $areas[] = [
+                    'rider_id'           => $riderIds[$ids[$p['username']]],
+                    'sorting_center_id'  => $p['hub']->id,
+                    'area_label'         => Str::limit((string) $p['hub']->address_city . ' branch', 100, ''),
+                    'coverage_barangays' => json_encode(array_values((array) $p['hub']->coverage_barangays)),
+                    'is_active'          => true,
+                    'created_at'         => $now,
+                    'updated_at'         => $now,
+                ];
+            }
+            if ($areas !== []) {
+                DB::table('rider_area_assignments')->insert($areas);
+            }
+        }
+
+        $riders = count(array_filter($plans, fn ($p) => $p['duty'] === Rider::DUTY_DELIVERY));
+
+        return [$riders, count($plans) - $riders];
+    }
+
+    /** An LTO-style licence number no rider uses, checked in memory (for bulk hiring). */
+    private function bulkLicense(): string
+    {
+        do {
+            $number = sprintf('N%02d-%02d-%06d', mt_rand(1, 30), mt_rand(15, 24), mt_rand(0, 999999));
+        } while (isset($this->usedLicenses[$number]));
+        $this->usedLicenses[$number] = true;
+
+        return $number;
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /** @return \Illuminate\Database\Eloquent\Builder<SortingCenter> */

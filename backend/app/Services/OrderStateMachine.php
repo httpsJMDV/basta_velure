@@ -62,6 +62,8 @@ class OrderStateMachine
         ],
         OrderStatus::SORTED->value => [
             OrderStatus::ASSIGNED_TO_RIDER->value => ['hub', 'admin', 'logistics'],
+            // A buyer in a very remote town collects the parcel at the branch counter (HubCounterController).
+            OrderStatus::DELIVERED->value         => ['hub'],
             OrderStatus::CANCELLED->value         => ['admin', 'logistics'],
             OrderStatus::DISPUTED->value          => ['buyer', 'admin'],
         ],

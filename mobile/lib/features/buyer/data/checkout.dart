@@ -79,6 +79,7 @@ class QuoteStore {
     required this.total,
     this.storeVoucher,
     this.shippingMessage,
+    this.remote = false,
   });
 
   final StoreRef seller;
@@ -92,6 +93,9 @@ class QuoteStore {
   /// False when no courier delivers from this shop to the address ("We cannot deliver to this address yet").
   final bool serviceable;
   final String? shippingMessage;
+
+  /// A very remote town with no courier branch: the parcel goes to the barangay hall.
+  final bool remote;
   final bool freeDelivery;
   final num platformDiscount;
   final num shippingDiscount;
@@ -110,6 +114,7 @@ class QuoteStore {
       serviceable:
           shipping['serviceable'] == null || asBool(shipping['serviceable']),
       shippingMessage: asString(shipping['message']),
+      remote: asBool(shipping['remote']),
       freeDelivery: asBool(shipping['free_delivery']),
       platformDiscount: asDouble(json['platform_discount']),
       shippingDiscount: asDouble(json['shipping_discount']),

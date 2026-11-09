@@ -88,6 +88,46 @@ final class PhPlaces
         return array_values(array_filter(explode(',', (string) ($city['barangays'] ?? ''))));
     }
 
+    /** The town centre of a city or municipality code, as [lat, lng], when known. */
+    public static function coords(?string $cityCode): ?array
+    {
+        $city = self::city($cityCode);
+
+        return isset($city['lat'], $city['lng']) ? [(float) $city['lat'], (float) $city['lng']] : null;
+    }
+
+    /** Straight-line kilometres between two town centres, or null when either is unknown. */
+    public static function distanceKm(?string $fromCity, ?string $toCity): ?float
+    {
+        $a = self::coords($fromCity);
+        $b = self::coords($toCity);
+        if (! $a || ! $b) {
+            return null;
+        }
+        $r = M_PI / 180;
+        $h = sin(($b[0] - $a[0]) * $r / 2) ** 2 + cos($a[0] * $r) * cos($b[0] * $r) * sin(($b[1] - $a[1]) * $r / 2) ** 2;
+
+        return 12742 * asin(min(1.0, sqrt($h)));
+    }
+
+    /**
+     * A very remote town: not a city or capital, and no other town of its province within 40 km (far islands like
+     * Kalayaan, Cagayancillo, Mapun). It has no courier branch; parcels for it go to the barangay hall or wait at the
+     * nearest branch for the buyer (places.json `remote`, docs/api/courier-network.md).
+     */
+    public static function isRemoteTown(?string $cityCode): bool
+    {
+        return (bool) (self::city($cityCode)['remote'] ?? false);
+    }
+
+    /** True when a barangay is in a very remote town. */
+    public static function isRemoteBarangay(?string $barangayCode): bool
+    {
+        $code = trim((string) $barangayCode);
+
+        return preg_match('/^\d{9,10}$/', $code) === 1 && self::isRemoteTown(HubCoverage::cityOf($code));
+    }
+
     /** "Region XI (Davao Region)", or with $short "Region XI" (NCR, CAR and BARMM go by their letters). */
     public static function regionName(?string $code, bool $short = false): ?string
     {

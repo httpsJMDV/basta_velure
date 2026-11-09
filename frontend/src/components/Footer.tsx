@@ -92,6 +92,7 @@ const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
     title: 'Customer service',
     links: [
       { label: 'Track an order', to: '/settings/orders' },
+      { label: 'How delivery works', to: '/help/delivery' },
       { label: 'Returns and refunds', to: '/settings/returns' },
       { label: 'Cancellations', to: '/settings/cancellations' },
       { label: 'Your messages', to: '/settings/messages' },
@@ -196,6 +197,9 @@ export const Footer: React.FC = () => {
             <div>
               <h2 className="text-[14px] font-semibold text-white">Delivery</h2>
               <p className="mt-1 text-[13px] leading-relaxed text-white/55">One parcel per shop, priced by route and weight, carried by partner couriers matched to your area. Every parcel has a tracking number.</p>
+              <Link to="/help/delivery" className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold text-white/85 hover:text-white">
+                Delivery guide <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </Link>
             </div>
           </div>
         </div>

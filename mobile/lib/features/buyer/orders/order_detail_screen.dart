@@ -211,6 +211,40 @@ class _TrackingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final remote = order.deliveryPointNote;
+    final done = order.deliveredAt != null;
+    if (remote != null && !done) {
+      // A very remote town: where to collect the parcel, above the tracking row.
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: AppSpace.sm),
+            padding: const EdgeInsets.all(AppSpace.md),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+              borderRadius: AppRadius.cardAll,
+            ),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '${order.deliveryPointLabel ?? 'Remote town'}. ', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(text: remote),
+                ],
+              ),
+              style: const TextStyle(fontSize: 14, height: 1.4, color: Color(0xFF78350F)),
+            ),
+          ),
+          _row(context),
+        ],
+      );
+    }
+
+    return _row(context);
+  }
+
+  Widget _row(BuildContext context) {
     return BlockCard(
       padding: EdgeInsets.zero,
       child: MenuRow(

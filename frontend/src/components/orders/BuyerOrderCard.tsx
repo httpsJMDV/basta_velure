@@ -137,6 +137,11 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
             <span>Expected {order.eta.min}–{order.eta.max} days after you ordered{order.shipping_route ? ` · ${order.shipping_route}` : ''}.</span>
           </p>
         )}
+        {order.delivery_point && order.delivery_point_note && !['DELIVERED', 'COMPLETED', 'CANCELLED', 'RETURNED'].includes(status) && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
+            <span className="font-semibold">{order.delivery_point_label}.</span> {order.delivery_point_note}
+          </p>
+        )}
         {order.returning_to_seller ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
             Delivery failed, so the parcel is going back to the shop. The order will be cancelled{order.payment_method === 'cod' ? '' : ' and your payment refunded in full'}.

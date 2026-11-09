@@ -75,6 +75,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Branches: how far a courier branch reaches (network:consolidate)
+    |--------------------------------------------------------------------------
+    |
+    | Kilometres between town centres, in a straight line (about 20 km of road
+    | at 15). Riders ride only that short part on a motorcycle or tricycle;
+    | trucks carry parcels between branches and gateways.
+    |
+    */
+
+    'branch_radius_km' => (float) env('LOGISTICS_BRANCH_RADIUS_KM', 15),
+
+    /*
+    |--------------------------------------------------------------------------
     | Delivery estimate (days), shown at checkout and kept on the order
     |--------------------------------------------------------------------------
     |

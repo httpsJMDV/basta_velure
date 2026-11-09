@@ -623,6 +623,9 @@ class SellerOrderController extends Controller
             'shipping_route'        => $o->shipping_route,
             // Days the delivery was expected to take when the order was placed, by how far the shop is.
             'eta'                   => $o->eta_min_days !== null ? ['min' => (int) $o->eta_min_days, 'max' => (int) $o->eta_max_days] : null,
+            // A very remote town: the parcel ends at the barangay hall or the courier branch, not the door.
+            'delivery_point'        => $o->delivery_point,
+            'delivery_point_label'  => \App\Support\RemoteDelivery::label($o->delivery_point),
             'chargeable_weight_kg'  => $o->chargeable_weight_kg,
             // The shop's own discounts reduce its earnings; Loved-IT's platform and shipping vouchers do not (A8).
             'promo_discount'        => (float) $o->promo_discount,

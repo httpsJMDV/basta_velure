@@ -422,12 +422,18 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`hidden sm:inline-flex shrink-0 px-2.5 py-1 rounded-full border text-[11px] font-bold capitalize ${tone}`}>{status.toLowerCase().replace(/_/g, ' ')}</span>;
 }
 
+// Trucks, ships and planes carry the long part between hubs; a rider's own vehicle makes the short rides.
 const LEG: Record<string, { icon: React.ElementType; label: string }> = {
-  truck: { icon: Truck, label: 'By truck' },
+  truck: { icon: Truck, label: 'By truck · long haul' },
   sea: { icon: Ship, label: 'By ship' },
   air: { icon: Plane, label: 'By plane' },
-  rider: { icon: Bike, label: 'By rider' },
+  rider: { icon: Bike, label: 'By rider · short ride' },
 };
+
+/** "By tricycle · short ride" when the rider's vehicle is known. */
+function riderLeg(vehicle?: string | null): string {
+  return vehicle ? `By ${vehicle.toLowerCase()} · short ride` : LEG.rider.label;
+}
 
 /**
  * Every stop of the trip: the shop, each hub with its gateway role, and the buyer, with how the parcel gets from one to
@@ -462,7 +468,7 @@ function JourneyCard({ nodes }: { nodes: JourneyNode[] }) {
                 <div className="flex items-center gap-2 py-1.5 pl-[15px]">
                   <span className={`w-0.5 h-7 ${next?.state !== 'upcoming' || next?.moving_here ? 'bg-emerald-400' : 'bg-gray-200'}`} aria-hidden="true" />
                   <span className={`inline-flex items-center gap-1 ml-3 text-[11px] font-semibold ${leg === 'sea' || leg === 'air' ? 'text-sky-700' : 'text-gray-500'}`}>
-                    <Leg className="w-3.5 h-3.5" aria-hidden="true" /> {LEG[leg].label}
+                    <Leg className="w-3.5 h-3.5" aria-hidden="true" /> {leg === 'rider' ? riderLeg(next?.rider_vehicle) : LEG[leg].label}
                   </span>
                 </div>
               )}

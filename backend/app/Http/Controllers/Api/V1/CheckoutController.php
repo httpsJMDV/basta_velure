@@ -55,6 +55,8 @@ class CheckoutController extends Controller
             'expected_total' => ['nullable', 'numeric', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:80'],
             'high_value_agreed' => ['nullable', 'boolean'],
+            // A very remote town: barangay hall (default) or pick up at the branch.
+            'remote_delivery' => ['nullable', 'in:barangay_hall,branch'],
         ], [
             'payment_method.required' => 'Choose how you will pay.',
             'payment_method.in'       => 'Choose cash on delivery, GCash, e-wallet or card.',
@@ -73,6 +75,7 @@ class CheckoutController extends Controller
                 'payment_method' => $method, 'notes' => $notes, 'source' => $source,
                 'expected_total' => $request->filled('expected_total') ? (float) $request->input('expected_total') : null,
                 'high_value_agreed' => $request->boolean('high_value_agreed'),
+                'remote_delivery' => $request->input('remote_delivery') ?: null,
             ], $key !== '' ? $key : null, $gcash);
         } catch (\Throwable $e) {
             if ($gcash) {

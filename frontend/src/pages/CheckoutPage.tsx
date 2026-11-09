@@ -55,6 +55,8 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [method, setMethod] = useState<Method>('cod');
   const [agreed, setAgreed] = useState(false);
+  // A very remote town: the parcel goes to the barangay hall (default) or waits at the courier branch.
+  const [remoteDelivery, setRemoteDelivery] = useState<'barangay_hall' | 'branch'>('barangay_hall');
   const [refs, setRefs] = useState<Record<number, string>>({});
   const [proofs, setProofs] = useState<Record<number, File>>({});
   const [payErrors, setPayErrors] = useState<Record<number, PayErrors>>({});
@@ -109,6 +111,7 @@ export default function CheckoutPage() {
   const wallet = quote?.wallet ?? [];
   const shopInfo = useShopPaymentInfo(stores.map((s) => s.seller.id), method === 'gcash', user?.id);
   const gcashBlockers = stores.filter((s) => !s.seller.accepts_gcash);
+  const isRemote = stores.some((s) => s.shipping.remote);
   const address = addresses.find((a) => a.id === addressId);
   const addressNeedsUpdate = !!address && (address.address_needs_update || !address.barangay_code);
   const proofPreviews = useMemo(() => Object.fromEntries(Object.entries(proofs).map(([id, f]) => [id, URL.createObjectURL(f)])), [proofs]);
@@ -206,6 +209,7 @@ export default function CheckoutPage() {
 
     const fields: Record<string, unknown> = {
       ...input, payment_method: method, expected_total: quote.totals.total, high_value_agreed: agreed,
+      ...(isRemote ? { remote_delivery: remoteDelivery } : {}),
       notes: Object.fromEntries(Object.entries(notes).filter(([, n]) => n.trim() !== '')),
     };
     let body: Record<string, unknown> | FormData = fields;
@@ -221,6 +225,7 @@ export default function CheckoutPage() {
       fd.append('payment_method', 'gcash');
       fd.append('expected_total', String(quote.totals.total));
       if (agreed) fd.append('high_value_agreed', '1');
+      if (isRemote) fd.append('remote_delivery', remoteDelivery);
       for (const s of stores) {
         fd.append(`gcash[${s.seller.id}][reference]`, refs[s.seller.id] ?? '');
         const proof = proofs[s.seller.id];
@@ -332,6 +337,32 @@ export default function CheckoutPage() {
                   onApplyVoucher={(code) => tryVoucher({ kind: 'store', sellerId: s.seller.id }, code)}
                   note={notes[s.seller.id] ?? ''} onNote={(n) => setNotes((x) => ({ ...x, [s.seller.id]: n }))} noteError={noteError(s.seller.id)} />
               ))}
+
+              {/* A very remote town has no courier branch: choose the barangay hall or the branch counter */}
+              {isRemote && (
+                <section className="rounded-2xl bg-white border border-amber-200 p-4 sm:p-5" aria-label="Delivery to a remote town">
+                  <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-900"><MapPin className="w-4 h-4 text-amber-600" /> Your town is far from the courier</h2>
+                  <p className="mt-0.5 text-[12.5px] text-stone-500">
+                    No courier has a branch near you, so riders can't come to your door. Choose where to get your parcel.{' '}
+                    <Link to="/help/delivery#remote" className="font-semibold text-stone-700 underline underline-offset-2 hover:text-stone-900">How this works</Link>
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Where to get your parcel">
+                    {([
+                      { key: 'barangay_hall', title: 'At my barangay hall', text: 'The rider brings it to your barangay hall. We tell you when it arrives.' },
+                      { key: 'branch', title: 'At the courier branch', text: 'Pick it up at the nearest branch counter with a valid ID.' },
+                    ] as const).map((o) => (
+                      <button key={o.key} type="button" role="radio" aria-checked={remoteDelivery === o.key} onClick={() => setRemoteDelivery(o.key)}
+                        className={`text-left rounded-xl border p-3 transition-colors ${remoteDelivery === o.key ? 'border-stone-900 bg-stone-50 ring-1 ring-stone-900' : 'border-stone-200 hover:border-stone-400'}`}>
+                        <span className="flex items-center justify-between gap-2 text-[13px] font-semibold text-stone-900">
+                          {o.title}
+                          {remoteDelivery === o.key && <Check className="w-4 h-4 text-stone-900" aria-hidden="true" />}
+                        </span>
+                        <span className="mt-0.5 block text-[12px] leading-snug text-stone-500">{o.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* GCash: pay each shop, then attach the receipt */}
               {method === 'gcash' && stores.length > 0 && (
