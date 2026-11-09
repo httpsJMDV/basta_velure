@@ -593,6 +593,22 @@ class StopCard extends StatelessWidget {
               ),
             ),
           ],
+          if (stop.deliveryNote != null) ...[
+            const SizedBox(height: AppSpace.sm),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpace.md),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F9FF),
+                border: Border.all(color: const Color(0xFFBAE6FD)),
+                borderRadius: AppRadius.cardAll,
+              ),
+              child: Text(
+                stop.deliveryNote!,
+                style: const TextStyle(fontSize: 15, height: 1.35, fontWeight: FontWeight.w600, color: Color(0xFF0C4A6E)),
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpace.md),
           if (stop.isCod) ...[
             CodBlock(amount: stop.codAmount!),

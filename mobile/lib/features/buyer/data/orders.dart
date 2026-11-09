@@ -298,6 +298,8 @@ class Order {
     this.refund,
     this.returnRequest,
     this.returnPickup,
+    this.deliveryPointLabel,
+    this.deliveryPointNote,
     this.returnUnavailableReason,
     this.returnWindowEndsAt,
     this.failedAttempts,
@@ -347,6 +349,10 @@ class Order {
 
   /// A rider collecting the returned item from the buyer; null when the buyer keeps it.
   final ReturnPickup? returnPickup;
+
+  /// A very remote town: "Barangay hall" or "Pick up at the branch", and what the buyer should do. Null for the door.
+  final String? deliveryPointLabel;
+  final String? deliveryPointNote;
   final String? returnUnavailableReason;
   final DateTime? returnWindowEndsAt;
   final int deliveryProofCount;
@@ -417,6 +423,8 @@ class Order {
       canReturn: asBool(json['can_return']),
       returnRequest: ReturnRequest.fromJson(json['dispute']),
       returnPickup: ReturnPickup.fromJson(json['return_pickup']),
+      deliveryPointLabel: asString(json['delivery_point_label']),
+      deliveryPointNote: asString(json['delivery_point_note']),
       returnUnavailableReason: asString(json['return_unavailable_reason']),
       returnWindowEndsAt: asDate(json['return_window_ends_at']),
       deliveryProofCount: asInt(

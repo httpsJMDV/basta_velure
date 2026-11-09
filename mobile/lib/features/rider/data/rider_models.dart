@@ -181,6 +181,7 @@ class JourneyNode {
     this.gateway,
     this.arrivesBy,
     this.goingBack = false,
+    this.riderVehicle,
   });
 
   static const done = 'done';
@@ -208,6 +209,17 @@ class JourneyNode {
   /// On the way back to the seller.
   final bool goingBack;
 
+  /// The rider's own vehicle for the short ride into this stop (Motorcycle, Tricycle...), when known.
+  final String? riderVehicle;
+
+  /// How the parcel reaches this stop, for the line before it: "By truck · long haul", "By tricycle · short ride".
+  String get legLabel => switch (arrivesBy) {
+    'truck' => 'By truck · long haul',
+    'sea' => 'By ship',
+    'air' => 'By plane',
+    _ => riderVehicle != null ? 'By ${riderVehicle!.toLowerCase()} · short ride' : 'By rider · short ride',
+  };
+
   factory JourneyNode.fromJson(Json json) => JourneyNode(
     kind: asString(json['kind']) ?? 'hub',
     title: asString(json['title']) ?? '',
@@ -220,6 +232,7 @@ class JourneyNode {
     gateway: asString(json['gateway']),
     arrivesBy: asString(json['arrives_by']),
     goingBack: asString(json['direction']) == 'return',
+    riderVehicle: asString(json['rider_vehicle']),
   );
 }
 
@@ -347,7 +360,11 @@ class DeliveryStop {
       'RECIPIENT_UNAVAILABLE',
       'CANNOT_CONTACT',
     ],
+    this.deliveryNote,
   });
+
+  /// A very remote town: what to do instead of going to the door (the barangay hall). Null for a normal stop.
+  final String? deliveryNote;
 
   final String trackingNumber;
   final String? orderNumber;
@@ -399,6 +416,7 @@ class DeliveryStop {
       contactFirstReasons: json['contact_first_reasons'] is List
           ? asStringList(json['contact_first_reasons'])
           : const ['RECIPIENT_UNAVAILABLE', 'CANNOT_CONTACT'],
+      deliveryNote: asString(json['delivery_note']),
     );
   }
 }
