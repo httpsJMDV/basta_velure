@@ -22,6 +22,22 @@ Signed-in buyers have a server cart (`GET /cart`, `POST /cart/items`, `PATCH|DEL
 line checkbox; quantity is checked against stock, purchase limits and flash-sale caps, and a price change since the
 item was added is shown on the line.
 
+**Big purchase notice (Nov 9, 2026).** `POST /cart/items` also answers `notice`: null, or a "This is a big purchase"
+message (`OrderLimits::cartNotice`) that the website shows in a dialog and the app in a sheet, with Keep shopping and
+View cart. It appears on the add that makes the selected cart total reach `ORDER_HIGH_VALUE_MIN` (checkout will ask
+for the agreement) or the added item's shop go above `ORDER_COD_MAX` (no cash on delivery: pay by GCash), and on
+every add of an item that alone is over the limit; not on later small adds.
+
+```json
+"notice": { "kind": "big_purchase", "title": "This is a big purchase", "points": ["Your cart is now ₱55,000. ...",
+  "Cash on delivery is only for up to ₱50,000 per shop, ... Pay Big Ticket's order of ₱55,000 by GCash.",
+  "You can still ask for a return within 7 days of delivery if something is wrong."],
+  "cart_total": 55000, "shop_total": 55000, "agreement_min": 50000, "cod_max": 50000, "agreement": true, "no_cod": true }
+```
+
+A guest's cart lives in the browser, so the website works the same notice out there (`utils/cartNotice.ts`) at the
+default ₱50,000. Tests: `tests/Feature/CartBigPurchaseNoticeTest.php`.
+
 ## Vouchers
 
 - Buyer: `GET /shops/{seller}/vouchers`, `GET /products/{product}/vouchers`, `GET /vouchers/platform`,
