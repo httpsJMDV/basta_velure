@@ -1461,6 +1461,24 @@ export const postRiderLocationApi = (point: { latitude: number; longitude: numbe
 export const getHubAwaitingPickupApi = () =>
   http.get<{ data: HubAwaitingRider[]; meta: { parcel_count: number } }>('/hub/dispatch/awaiting-pickup').then((r) => r.data);
 
+/** Parcels whose buyer (in a very remote town) collects them at this branch counter. */
+export interface HubCounterParcel {
+  tracking_number: string;
+  order_number: string | null;
+  recipient: { name: string; phone: string; barangay: string; city: string };
+  cod_amount: number | null;
+  weight_kg: number | null;
+  waiting_since: string | null;
+}
+
+export const getHubCounterApi = () =>
+  http.get<{ data: HubCounterParcel[]; meta: { count: number } }>('/hub/counter').then((r) => r.data);
+
+export const handOverAtCounterApi = (tracking: string, form: FormData) =>
+  http.post<{ message: string }>(`/hub/counter/${encodeURIComponent(tracking)}/handed-over`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+
 export const getHubEarningsApi = () => http.get<{ data: HubEarningsSummary }>('/hub/earnings').then((r) => r.data.data);
 
 /** The hub's own details and its courier company, for the Settings page. */

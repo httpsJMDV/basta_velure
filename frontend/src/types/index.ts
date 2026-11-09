@@ -948,6 +948,11 @@ export interface RiderDeliveryParcel {
   buyer_contacted?: boolean;
   /** Failure reasons that need that contact first. */
   contact_first_reasons?: string[];
+  /** A very remote town: deliver to the barangay hall (with what to do), null for the door. */
+  delivery_point?: DeliveryPoint | null;
+  delivery_note?: string | null;
+  /** The rider's own vehicle for this short ride. */
+  vehicle?: string | null;
 }
 
 export interface RiderDeliveryGroup {
@@ -1353,6 +1358,10 @@ export interface Order {
   chargeable_weight_kg?: number | null;
   shipping_route?: string | null;
   eta?: { min: number; max: number } | null;
+  /** A very remote town: the parcel ends at the barangay hall or the branch counter. */
+  delivery_point?: DeliveryPoint | null;
+  delivery_point_label?: string | null;
+  delivery_point_note?: string | null;
   cancel_reason?: string | null;
   cancelled_by?: string | null;
   cancelled_at?: string | null;
@@ -3106,7 +3115,14 @@ export interface JourneyNode {
   gateway?: string | null;
   arrives_by?: LegMode | null;
   direction?: 'forward' | 'return';
+  /** The rider's own vehicle for the short ride into this stop (first hub, or the buyer): Motorcycle, Tricycle, Car, Van. */
+  rider_vehicle?: string | null;
+  /** On the buyer stop: barangay_hall or branch for a very remote town, null for the door. */
+  delivery_point?: DeliveryPoint | null;
 }
+
+/** Where a parcel to a very remote town ends: the barangay hall, or the courier branch counter. */
+export type DeliveryPoint = 'barangay_hall' | 'branch';
 
 export interface ParcelTracking {
   tracking_number: string;

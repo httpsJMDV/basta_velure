@@ -330,6 +330,12 @@ export default function RiderDeliveriesPage() {
                       </div>
                     </div>
 
+                    {p.delivery_note && (
+                      <p role="note" className="rounded-xl bg-sky-50 border border-sky-200 px-3 py-2.5 text-[13px] font-semibold leading-snug text-sky-950">
+                        {p.delivery_note}
+                      </p>
+                    )}
+
                     {p.cod_amount !== null ? (
                       <div
                         role="status"

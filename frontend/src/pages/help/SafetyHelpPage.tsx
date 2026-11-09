@@ -112,6 +112,9 @@ export default function SafetyHelpPage() {
               <Fact title="Message your rider">While your parcel is out for delivery, Track package has a Message rider button for gate codes or directions.</Fact>
               <Fact title="If no one is home">A parcel gets up to 3 delivery tries. After that, or if you refuse it, it goes back to the shop and a prepaid order is refunded.</Fact>
             </ul>
+            <Link to="/help/delivery" className="mt-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-brand-red hover:underline">
+              The full delivery guide: fees, times, trucks and remote towns <ArrowRight className="w-4 h-4" />
+            </Link>
           </Section>
 
           <Section id="sellers" n={4} title="Who sells here">

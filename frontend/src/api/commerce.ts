@@ -125,6 +125,8 @@ export interface QuoteStore {
     serviceable: boolean; message: string | null; free_delivery: boolean; company_id: number | null;
     /** Days it takes, by how far the shop is (null until both addresses match a barangay). */
     eta?: { min: number; max: number; kind: string; label: string } | null;
+    /** A very remote town with no courier branch: barangay hall or pick up at the branch. */
+    remote?: boolean;
   };
   platform_discount: number;
   shipping_discount: number;

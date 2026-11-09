@@ -103,6 +103,7 @@ import PrivacyPolicyPage from './pages/legal/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/legal/TermsOfServicePage';
 import CookiePolicyPage from './pages/legal/CookiePolicyPage';
 import SafetyHelpPage from './pages/help/SafetyHelpPage';
+import DeliveryHelpPage from './pages/help/DeliveryHelpPage';
 import AboutUsPage from './pages/AboutUsPage';
 import DownloadPage from './pages/DownloadPage';
 import PartnerPage from './pages/PartnerPage';
@@ -506,6 +507,7 @@ function AppRoutes() {
       <Route path="/terms-of-service"  element={<TermsOfServicePage />} />
       <Route path="/cookie-policy"     element={<CookiePolicyPage />} />
       <Route path="/help/safety"       element={<SafetyHelpPage />} />
+      <Route path="/help/delivery"     element={<DeliveryHelpPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
