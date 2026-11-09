@@ -9,6 +9,7 @@ import { getLogisticsNavCountsApi } from '../../api/navCounts';
 import { useNavCounts } from '../../hooks/useNavCounts';
 import type { LogisticsDashboard } from '../../types';
 import { ShellSidebar, ShellTopBar, SHELL_BG, type ShellAlert, type ShellNavGroup, type ShellSearchItem } from '../../components/shell/PortalChrome';
+import { useSoundOnIncrease } from '../../lib/notificationSound';
 
 /** What the courier portal pages can read from the layout. */
 export interface LogisticsOutletContext {
@@ -53,6 +54,7 @@ export default function LogisticsLayout() {
     getLogisticsDashboardApi().then(setDashboard).catch(() => {});
   }, []);
   const [chatUnread, setChatUnread] = useState(0);
+  useSoundOnIncrease(chatUnread);
   const loadChatUnread = useCallback(() => {
     getCourierChatUnreadApi().then(setChatUnread).catch(() => {});
   }, []);

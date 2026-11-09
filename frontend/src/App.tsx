@@ -34,6 +34,7 @@ import RiderDashboardPage from './pages/rider/RiderDashboardPage';
 import RiderDeliveriesPage from './pages/rider/RiderDeliveriesPage';
 import RiderPickupsPage from './pages/rider/RiderPickupsPage';
 import RiderEarningsPage from './pages/rider/RiderEarningsPage';
+import RiderReportsPage from './pages/rider/RiderReportsPage';
 import RiderAccountPage from './pages/rider/RiderAccountPage';
 import RiderTripsPage from './pages/rider/RiderTripsPage';
 import RiderActivityPage from './pages/rider/RiderActivityPage';
@@ -492,6 +493,7 @@ function AppRoutes() {
         <Route path="pickups" element={<RiderPickupsPage />} />
         <Route path="deliveries" element={<RiderDeliveriesPage />} />
         <Route path="earnings" element={<RiderEarningsPage />} />
+        <Route path="reports" element={<RiderReportsPage />} />
         <Route path="account" element={<RiderAccountPage />} />
         <Route path="trips" element={<RiderTripsPage />} />
         <Route path="activity" element={<RiderActivityPage />} />

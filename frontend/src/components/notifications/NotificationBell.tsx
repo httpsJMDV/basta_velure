@@ -6,10 +6,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell, CheckCheck, Package, Truck, Bike, BadgeCheck, Ban, Inbox, ShoppingBag, AlertTriangle, Star, Wallet, Scale, Undo2,
+  Bell, CheckCheck, Package, Truck, Bike, BadgeCheck, Ban, Inbox, ShoppingBag, AlertTriangle, Star, Wallet, Scale, Undo2, Volume2, VolumeX, Play,
 } from 'lucide-react';
 import { useNotifications, timeAgo } from '../../hooks/useNotifications';
 import type { AppNotificationItem } from '../../api/notifications';
+import { SOUNDS, getSound, onSoundChange, playSound, setSound, useSoundOnIncrease } from '../../lib/notificationSound';
+import type { SoundId } from '../../lib/notificationSound';
 
 export type BellVariant = 'storefront' | 'dark' | 'light';
 
@@ -85,9 +87,33 @@ export function NotificationRows({ items, onOpen, empty }: { items: AppNotificat
   );
 }
 
+/** The sound a new notification makes, chosen here for this browser, with a button to hear it first. */
+function SoundPicker() {
+  const [sound, setChoice] = useState<SoundId>(getSound);
+  useEffect(() => onSoundChange(setChoice), []);
+  const off = sound === 'off';
+  return (
+    <div className="flex items-center gap-2 px-3.5 py-2.5 border-t border-stone-100 bg-stone-50/70">
+      {off ? <VolumeX className="w-4 h-4 text-stone-400 shrink-0" aria-hidden="true" /> : <Volume2 className="w-4 h-4 text-stone-500 shrink-0" aria-hidden="true" />}
+      <label htmlFor="notification-sound" className="text-[12.5px] font-medium text-stone-700">Sound</label>
+      <select id="notification-sound" value={sound}
+        onChange={(e) => { const id = e.target.value as SoundId; setSound(id); playSound(id, true); }}
+        className="ml-auto h-8 min-w-0 max-w-[11rem] rounded-full border border-stone-200 bg-white pl-3 pr-7 text-[12.5px] font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-red/30">
+        {SOUNDS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <button type="button" onClick={() => playSound(sound, true)} disabled={off} aria-label="Play the notification sound" title="Play"
+        className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-stone-200 bg-white text-stone-700 hover:border-stone-400 disabled:opacity-40">
+        <Play className="w-3.5 h-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export default function NotificationBell({ variant = 'storefront', extra, attention = 0 }: { variant?: BellVariant; extra?: ReactNode; attention?: number }) {
   const navigate = useNavigate();
   const { unread, items, loading, arrived, load, markRead, markAllRead } = useNotifications(true);
+  // A new notification makes the chosen sound (lib/notificationSound).
+  useSoundOnIncrease(unread);
   const [open, setOpen] = useState(false);
   const [ringing, setRinging] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -159,6 +185,7 @@ export default function NotificationBell({ variant = 'storefront', extra, attent
             {loading && !items ? <p className="py-8 text-center text-[13px] text-stone-400">Loading…</p> : <NotificationRows items={items ?? []} onOpen={openItem} />}
             {extra}
           </div>
+          <SoundPicker />
         </div>
       )}
     </div>

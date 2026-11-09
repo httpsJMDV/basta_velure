@@ -4,7 +4,9 @@ import { useAuth } from './useAuth';
 import {
   addCartItemApi, getCartApi, mergeCartApi, removeCartItemApi, selectCartApi, updateCartItemApi,
 } from '../api/commerce';
-import type { CartLine, CartView } from '../api/commerce';
+import type { CartLine, CartNotice, CartView } from '../api/commerce';
+import BigPurchaseNotice from '../components/cart/BigPurchaseNotice';
+import { guestNotice } from '../utils/cartNotice';
 import { apiErrorMessage } from '../utils/apiError';
 
 /** A cart line as the header, drawer and product pages use it. */
@@ -90,6 +92,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [guest, setGuest] = useState<CartItem[]>(readGuest);
   const [loading, setLoading] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  /** A big purchase, said once right after the add that made it one. */
+  const [notice, setNotice] = useState<CartNotice | null>(null);
   const merging = useRef(false);
 
   useEffect(() => { if (!signedIn) writeGuest(guest); }, [guest, signedIn]);
@@ -131,23 +135,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback(async (item: Omit<CartItem, 'quantity'> & { quantity?: number }, opts?: { open?: boolean }) => {
     const qty = item.quantity ?? 1;
+    let said: CartNotice | null = null;
     if (signedIn) {
       try {
         const res = await addCartItemApi(item.variantId, qty);
         setView(res.data);
+        said = res.notice ?? null;
       } catch (e) {
         throw new Error(apiErrorMessage(e, 'Could not add to cart. Please try again.'));
       }
     } else {
-      setGuest((prev) => {
-        const existing = prev.find((i) => i.variantId === item.variantId);
-        return existing
-          ? prev.map((i) => (i.variantId === item.variantId ? { ...i, quantity: i.quantity + qty } : i))
-          : [...prev, { ...item, quantity: qty }];
-      });
+      const existing = guest.find((i) => i.variantId === item.variantId);
+      const next = existing
+        ? guest.map((i) => (i.variantId === item.variantId ? { ...i, quantity: i.quantity + qty } : i))
+        : [...guest, { ...item, quantity: qty }];
+      setGuest(next);
+      const total = next.reduce((sum, i) => sum + i.price * i.quantity, 0);
+      const shop = next.filter((i) => i.sellerId === item.sellerId).reduce((sum, i) => sum + i.price * i.quantity, 0);
+      said = guestNotice(total, shop, item.price * qty, item.shopName ?? 'this shop');
     }
-    if (opts?.open !== false) setCartOpen(true);
-  }, [signedIn]);
+    // A big purchase is said first; its View cart button opens the cart.
+    if (said) setNotice(said);
+    else if (opts?.open !== false) setCartOpen(true);
+  }, [signedIn, guest]);
 
   const removeItem = useCallback(async (variantId: number) => {
     if (!signedIn) { setGuest((prev) => prev.filter((i) => i.variantId !== variantId)); return; }
@@ -197,6 +207,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItem, removeItem, updateQty, setSelected, selectAll, refresh, clearCart,
     }}>
       {children}
+      <BigPurchaseNotice notice={notice} onClose={() => setNotice(null)} onViewCart={() => { setNotice(null); setCartOpen(true); }} />
     </CartContext.Provider>
   );
 }
