@@ -288,6 +288,7 @@ class BuyerApi {
     Map<int, String> gcashReferences = const {},
     Map<int, PickedPhoto> gcashProofs = const {},
     bool highValueAgreed = false,
+    String? remoteDelivery,
     ProgressCallback? onSendProgress,
   }) async {
     final fields = <String, dynamic>{
@@ -296,6 +297,8 @@ class BuyerApi {
       'address_id': addressId,
       'expected_total': expectedTotal,
       'high_value_agreed': highValueAgreed ? 1 : 0,
+      // A very remote town: barangay_hall or branch (pick up at the courier branch).
+      'remote_delivery': ?remoteDelivery,
       'vouchers': _vouchers(storeVouchers, platformVoucher, shippingVoucher),
     };
     final Object data;

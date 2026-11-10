@@ -1527,6 +1527,43 @@ void main() {
       expect(problems, isEmpty);
       await closeApp(tester);
     });
+
+    testWidgets('Counter pickups: a remote buyer\'s parcel, and the handover needs a photo first', (
+      tester,
+    ) async {
+      final server = hubServer();
+      server.routes['GET /hub/counter'] = (_) => jsonBody(200, {
+        'data': [
+          {
+            'tracking_number': 'LIT-261110-KAL001',
+            'order_number': 'VEL-KAL',
+            'recipient': {'name': 'Ana Santos', 'phone': '09171234567', 'barangay': 'Pag-asa', 'city': 'Kalayaan'},
+            'cod_amount': 250,
+            'weight_kg': 1,
+            'waiting_since': '2026-11-10T08:00:00+08:00',
+          },
+        ],
+        'meta': {'count': 1},
+      });
+      await openApp(tester, server);
+      await tester.tap(find.text('More').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Counter pickups'), findsOneWidget);
+      await tester.tap(find.text('Counter pickups'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ana Santos'), findsOneWidget);
+      expect(find.text('Pag-asa, Kalayaan'), findsOneWidget);
+      expect(find.textContaining('COD'), findsOneWidget);
+
+      await tester.tap(find.text('Hand over'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Handed to the buyer'));
+      await tester.pumpAndSettle();
+      expect(find.text('Take a photo of the parcel being handed over.'), findsOneWidget);
+      expect(find.textContaining('Collect exactly'), findsOneWidget);
+      expect(sent('POST', '/hub/counter/LIT-261110-KAL001/handed-over'), isEmpty);
+      await closeApp(tester);
+    });
   });
 
   group('courier team', () {

@@ -2090,3 +2090,42 @@ class HubThreadRow {
     );
   }
 }
+
+/// A parcel whose buyer, in a very remote town, collects it at this branch counter (`GET /hub/counter`).
+class CounterParcel {
+  const CounterParcel({
+    required this.trackingNumber,
+    required this.recipientName,
+    required this.recipientPhone,
+    required this.barangay,
+    required this.city,
+    this.orderNumber,
+    this.codAmount,
+    this.waitingSince,
+  });
+
+  final String trackingNumber;
+  final String? orderNumber;
+  final String recipientName;
+  final String recipientPhone;
+  final String barangay;
+  final String city;
+
+  /// Cash to collect at the counter; null when paid by GCash.
+  final double? codAmount;
+  final DateTime? waitingSince;
+
+  factory CounterParcel.fromJson(Json json) {
+    final recipient = asJson(json['recipient']);
+    return CounterParcel(
+      trackingNumber: asString(json['tracking_number']) ?? '',
+      orderNumber: asString(json['order_number']),
+      recipientName: asString(recipient['name']) ?? 'Buyer',
+      recipientPhone: asString(recipient['phone']) ?? '',
+      barangay: asString(recipient['barangay']) ?? '',
+      city: asString(recipient['city']) ?? '',
+      codAmount: asDoubleOrNull(json['cod_amount']),
+      waitingSince: asDate(json['waiting_since']),
+    );
+  }
+}
