@@ -139,4 +139,4 @@ at the branch", then "Picked up"). Track package and the rider app say "By truck
 tricycle · short ride" (the rider's own vehicle) at both ends. Rider stops add `vehicle`.
 
 Website: Delivery guide at `/help/delivery` (footer: Customer service, and the Delivery note), the remote choice at
-checkout, the counter panel on hub Dispatch. App: the barangay hall note on rider stops and in checkout and orders.
+checkout, the counter panel on hub Dispatch. App: the same choice at checkout (Where to get your parcel, sent as `remote_delivery`), the note on orders and on rider stops, and hub More > Counter pickups (list, Call, Hand over with photo, name and exact COD).
