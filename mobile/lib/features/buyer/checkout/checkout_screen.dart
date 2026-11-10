@@ -44,6 +44,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   String _payment = 'cod';
   bool _agreed = false;
+
+  /// A very remote town: the barangay hall (default) or the courier branch counter.
+  String _remoteDelivery = 'barangay_hall';
   final _storeVouchers = <int, String>{};
   String? _platformVoucher;
   String? _shippingVoucher;
@@ -245,6 +248,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         addressId: address.id,
         expectedTotal: quote.total,
         highValueAgreed: _agreed,
+        remoteDelivery: quote.stores.any((s) => s.serviceable && s.remote) ? _remoteDelivery : null,
         storeVouchers: _storeVouchers,
         platformVoucher: _platformVoucher,
         shippingVoucher: _shippingVoucher,
@@ -341,6 +345,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                     for (final store in quote.stores) _storeBlock(quote, store),
                     _platformVouchers(quote),
+                    if (quote.stores.any((s) => s.serviceable && s.remote))
+                      _remoteBlock(),
                     _paymentBlock(quote),
                     _totals(quote),
                     if (quote.agreementRequired)
@@ -536,14 +542,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 message: store.shippingMessage ?? 'We cannot deliver to this address yet. Choose another address.',
               ),
             ),
-          if (store.serviceable && store.remote)
-            const Padding(
-              padding: EdgeInsets.only(top: AppSpace.sm),
-              child: MessageBanner(
-                tone: StatusTone.amber,
-                message: "Your town is far from the courier's branch, so the rider brings this parcel to your barangay hall. We'll tell you when it's there. To pick it up at the branch instead, order on the website.",
-              ),
-            ),
           InfoRow('Order total', formatPeso(store.total), strong: true),
           if (_payment == 'gcash') _gcashFor(store),
         ],
@@ -659,6 +657,40 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               setState(() => _shippingVoucher = code);
               _requote();
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A very remote town has no courier branch near it, so a rider can't come to the door: the buyer picks the
+  /// barangay hall or the branch counter (docs/api/courier-network.md, Very remote towns).
+  Widget _remoteBlock() {
+    return BlockCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BlockTitle('Where to get your parcel'),
+          const SizedBox(height: AppSpace.xs),
+          const Text(
+            "Your town is far from the courier's branches, so a rider can't come to your door.",
+            style: TextStyle(fontSize: 14, height: 1.35, color: AppColors.stone600),
+          ),
+          const SizedBox(height: AppSpace.md),
+          _PayOption(
+            icon: LucideIcons.landmark,
+            title: 'At my barangay hall',
+            subtitle: 'The rider brings it to your barangay hall. We tell you when it arrives.',
+            selected: _remoteDelivery == 'barangay_hall',
+            onTap: () => setState(() => _remoteDelivery = 'barangay_hall'),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          _PayOption(
+            icon: LucideIcons.packageCheck,
+            title: 'At the courier branch',
+            subtitle: 'Pick it up at the nearest branch counter with a valid ID.',
+            selected: _remoteDelivery == 'branch',
+            onTap: () => setState(() => _remoteDelivery = 'branch'),
           ),
         ],
       ),

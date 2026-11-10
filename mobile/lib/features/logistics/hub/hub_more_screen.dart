@@ -62,6 +62,12 @@ class HubMoreScreen extends ConsumerWidget {
                 onTap: () => context.push(LogisticsPaths.hubReturnPickups),
               ),
               _WorkTile(
+                icon: LucideIcons.packageCheck,
+                title: 'Counter pickups',
+                subtitle: 'Buyers from remote towns collecting here',
+                onTap: () => context.push(LogisticsPaths.hubCounter),
+              ),
+              _WorkTile(
                 icon: LucideIcons.chartColumn,
                 title: 'Reports',
                 subtitle: 'By day and by rider, as Excel or PDF',

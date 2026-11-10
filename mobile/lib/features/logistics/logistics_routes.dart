@@ -23,6 +23,7 @@ import 'hub/hub_home_screen.dart';
 import 'hub/hub_intake_screen.dart';
 import 'hub/hub_more_screen.dart';
 import 'hub/hub_return_pickups_screen.dart';
+import 'hub/hub_counter_screen.dart';
 import 'hub/hub_rider_areas_screen.dart';
 import 'hub/hub_riders_screen.dart';
 import 'hub/hub_scan_screen.dart';
@@ -267,6 +268,10 @@ final logisticsRoutes = <RouteBase>[
   GoRoute(
     path: LogisticsPaths.hubReturnPickups,
     builder: (_, _) => _hub(const HubReturnPickupsScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.hubCounter,
+    builder: (_, _) => _hub(const HubCounterScreen()),
   ),
   GoRoute(
     path: LogisticsPaths.hubActivity,

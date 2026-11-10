@@ -316,6 +316,30 @@ class HubApi extends _LogisticsApi {
     fallback: 'Parcels assigned.',
   );
 
+  /// Buyers from very remote towns who collect their parcel at this branch counter; they need no rider.
+  Future<List<CounterParcel>> counter() async =>
+      asJsonList((await _get('/hub/counter'))['data'])
+          .map(CounterParcel.fromJson)
+          .toList();
+
+  /// The handover at the counter: a photo, who took it, and for cash on delivery the exact amount.
+  Future<String> handOver(
+    String trackingNumber, {
+    required PickedPhoto photo,
+    required String receivedBy,
+    String? codAmount,
+    ProgressCallback? onSendProgress,
+  }) => _message(
+    '/hub/counter/${_LogisticsApi._tn(trackingNumber)}/handed-over',
+    data: FormData.fromMap({
+      'proof_photo': photo.toMultipart(),
+      'received_by': receivedBy,
+      'cod_amount': ?codAmount,
+    }),
+    fallback: 'Handed over to the buyer.',
+    onSendProgress: onSendProgress,
+  );
+
   Future<List<AwaitingRider>> awaitingPickup() async =>
       asJsonList((await _get('/hub/dispatch/awaiting-pickup'))['data'])
           .map(AwaitingRider.fromJson)

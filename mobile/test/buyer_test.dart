@@ -276,6 +276,38 @@ void main() {
       },
     );
 
+    test('a very remote town: the quote says so and the order sends where to get it', () async {
+      final quote = CheckoutQuote.fromJson({
+        'stores': [
+          {
+            'seller': {'id': 1, 'shop_name': 'Shop', 'accepts_gcash': true},
+            'shipping': {'fee': 120, 'serviceable': true, 'remote': true},
+          },
+        ],
+        'totals': {'total': 220},
+        'can_place': true,
+      });
+      expect(quote.stores.single.remote, isTrue);
+
+      await buyer.placeOrder(
+        const CheckoutRequest.cart(),
+        idempotencyKey: 'key-3',
+        paymentMethod: 'cod',
+        addressId: 19,
+        expectedTotal: 220,
+        remoteDelivery: 'branch',
+      );
+      await buyer.placeOrder(
+        const CheckoutRequest.cart(),
+        idempotencyKey: 'key-4',
+        paymentMethod: 'cod',
+        addressId: 19,
+        expectedTotal: 220,
+      );
+      expect((api.requests.first.data as Map<String, dynamic>)['remote_delivery'], 'branch');
+      expect((api.requests.last.data as Map<String, dynamic>).containsKey('remote_delivery'), isFalse, reason: 'A normal address sends nothing: the door, as always.');
+    });
+
     test('a 403 id_not_verified comes back as its own kind', () async {
       api.routes['POST /checkout/place-order'] = (_) => jsonBody(403, {
         'code': 'id_not_verified',

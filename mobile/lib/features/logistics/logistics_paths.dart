@@ -45,6 +45,9 @@ abstract final class LogisticsPaths {
   static const hubActivity = '/logistics/hub/activity';
   static const hubReturnPickups = '/logistics/hub/return-pickups';
 
+  /// Buyers from very remote towns who collect their parcel at the hub counter.
+  static const hubCounter = '/logistics/hub/counter';
+
   /// Failed and returned parcels.
   static const courierProblems = '$courierParcels?problems=1';
 
