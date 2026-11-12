@@ -10,6 +10,7 @@ import VoucherTicket from '../components/vouchers/VoucherTicket';
 import ProductCard from '../components/ui/ProductCard';
 import CustomSelect from '../components/ui/CustomSelect';
 import { useToast } from '../components/ui/Toast';
+import ReportShopDialog from '../components/reviews/ReportShopDialog';
 import { Stars, ShopReviewSummaryBlock, ShopReviewList, ShopReviewDialog, SeeAllShopReviews } from '../components/reviews/ShopReviewKit';
 import { claimVoucherApi, getShopVouchersApi } from '../api/commerce';
 import type { WalletVoucher } from '../api/commerce';
@@ -113,6 +114,8 @@ export default function ShopProfilePage() {
   const [followerCount, setFollowerCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const { showToast } = useToast();
 
   // Products
   const [products, setProducts] = useState<Product[]>([]);
@@ -226,11 +229,23 @@ export default function ShopProfilePage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // A report goes to Loved-IT Support in chat, where a person reads it.
+  // A report first asks why and for a confirmation (ReportShopDialog), then goes to Loved-IT Support in chat, where a
+  // person reads it.
   function report() {
     if (!profile) return;
     if (!user) { navigate('/login'); return; }
-    void openChatWithSupport(undefined, `I want to report the shop "${profile.shop_name}" (${shopUrl(profile.shop_slug)}). Reason: `);
+    setReporting(true);
+  }
+
+  async function sendReport(reasonLabel: string, details: string): Promise<boolean> {
+    if (!profile) return false;
+    const conv = await openChatWithSupport(undefined, [
+      `Shop report: "${profile.shop_name}" (${shopUrl(profile.shop_slug)})`,
+      `Reason: ${reasonLabel}`,
+      `What happened: ${details}`,
+    ].join('\n'));
+    if (conv) showToast('Report sent. A Loved-IT team member will reply in your Support chat.', 'success');
+    return conv !== null;
   }
 
   if (loading) {
@@ -539,6 +554,7 @@ export default function ShopProfilePage() {
               <button type="button" onClick={report} className="mt-6 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-stone-500 hover:text-brand-red">
                 <Flag className="w-3.5 h-3.5" /> Report this shop to Loved-IT
               </button>
+              {reporting && <ReportShopDialog open shopName={profile.shop_name} onClose={() => setReporting(false)} onSend={sendReport} />}
             </section>
           </div>
         )}

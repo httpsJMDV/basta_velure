@@ -48,5 +48,6 @@ class ShowcaseFillTest extends TestCase
     {
         $this->artisan('showcase:fill-catalog', ['--force' => true])->assertFailed();
         $this->artisan('showcase:orders', ['--force' => true])->assertFailed();
+        $this->artisan('showcase:shop-banners', ['--force' => true])->assertFailed();
     }
 }
