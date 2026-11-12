@@ -60,7 +60,11 @@ class ShowcaseRepair
     private array $postal = [];
 
     /** @return array{fixed: array<string, int>, written: array<string, array<int, string>>} */
-    public function run(): array
+    /**
+     * @param array<int, int>|null $onlyUserIds just these showcase accounts (the shops a later seeder added), so a run
+     *                                          does not re-check the thousands of network riders and hubs
+     */
+    public function run(?array $onlyUserIds = null): array
     {
         $this->places = json_decode((string) file_get_contents(database_path('data/showcase/places.json')), true);
         foreach ($this->places['clusters'] as $cluster) {
@@ -73,7 +77,7 @@ class ShowcaseRepair
             }
         }
 
-        $users = self::accounts()->get();
+        $users = self::accounts()->when($onlyUserIds !== null, fn ($q) => $q->whereIn('id', $onlyUserIds))->get();
         $ids = $users->pluck('id');
 
         DB::transaction(function () use ($users, $ids) {

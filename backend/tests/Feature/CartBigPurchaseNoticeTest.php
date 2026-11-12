@@ -84,4 +84,17 @@ class CartBigPurchaseNoticeTest extends TestCase
         $this->assertCount(2, $notice['points']);
         $this->assertStringContainsString('₱10,000', $notice['points'][0]);
     }
+
+    public function test_one_line_never_holds_more_pieces_than_one_checkout_takes(): void
+    {
+        config(['orders.max_units' => 200]);
+        [, $variants] = $this->product($this->shop, 'Pencil ' . uniqid(), ['Default' => [10, 5000]], 0.01);
+        $pencil = $variants['Default'];
+
+        $this->postJson('/api/v1/cart/items', ['variant_id' => $pencil->id, 'quantity' => 201])
+            ->assertStatus(422)->assertJsonPath('errors.quantity.0', 'One checkout takes at most 200 pieces. For a bigger order, message the shop first.');
+        $this->postJson('/api/v1/cart/items', ['variant_id' => $pencil->id, 'quantity' => 150])->assertCreated();
+        $this->postJson('/api/v1/cart/items', ['variant_id' => $pencil->id, 'quantity' => 60])->assertStatus(422);
+        $this->postJson('/api/v1/cart/items', ['variant_id' => $pencil->id, 'quantity' => 50])->assertCreated();
+    }
 }

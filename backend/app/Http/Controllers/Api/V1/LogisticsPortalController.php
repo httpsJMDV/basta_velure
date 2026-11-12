@@ -119,6 +119,9 @@ class LogisticsPortalController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $hubs = $this->hubs($company)->with('user')
+            // A hub registered by a visitor reaches the courier once its email is confirmed.
+            ->where(fn ($q) => $q->where('status', '!=', SortingCenter::STATUS_PENDING)
+                ->orWhereHas('user', fn ($u) => $u->where('status', '!=', 'unverified')))
             ->withCount(['parcels as active_parcels' => fn ($q) => $q->whereNotIn('status', [Parcel::STATUS_DELIVERED, Parcel::STATUS_RETURNED])])
             ->when($status !== 'ALL', fn ($q) => $q->where('status', $status))
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w

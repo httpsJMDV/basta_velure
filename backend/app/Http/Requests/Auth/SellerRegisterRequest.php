@@ -117,6 +117,10 @@ class SellerRegisterRequest extends FormRequest
         return [
             function (Validator $validator) {
                 $user = $this->user('sanctum');
+                if ($user?->isWorkAccount()) {
+                    $validator->errors()->add('account', 'A hub, courier or rider account cannot open a shop. Register the shop with its own email.');
+                    return;
+                }
                 $existing = $user?->sellerProfile;
                 if ($existing && in_array($existing->application_status, ['pending', 'approved'], true)) {
                     $validator->errors()->add('account', $existing->application_status === 'approved'

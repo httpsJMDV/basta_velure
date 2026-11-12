@@ -140,6 +140,17 @@ class ApplyCourierCompanyRequest extends FormRequest
                     $validator->errors()->add('account', 'Only a buyer account can apply to run a courier company.');
                     return;
                 }
+                // Only a seller switches between selling and buying; a courier account does deliveries only.
+                if ($user->isSellerAccount()) {
+                    $validator->errors()->add('account', 'A seller account cannot also run a courier company. Register the company with its own email.');
+                    return;
+                }
+                $hub = $user->sortingCenter;
+                $rider = $user->rider;
+                if (($hub && $hub->status !== \App\Models\SortingCenter::STATUS_REJECTED) || ($rider && $rider->status !== \App\Models\Rider::STATUS_DISAPPROVED)) {
+                    $validator->errors()->add('account', 'A hub or rider account cannot also run a courier company.');
+                    return;
+                }
                 $membership = LogisticsCompanyMember::with('company')->where('user_id', $user->id)->first();
                 if ($membership && $membership->company && $membership->company->status !== LogisticsCompany::STATUS_REJECTED) {
                     $validator->errors()->add('account', match ($membership->company->status) {

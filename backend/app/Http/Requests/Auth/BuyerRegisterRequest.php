@@ -117,10 +117,20 @@ class BuyerRegisterRequest extends FormRequest
         ];
     }
 
-    /** A5: at least 8 characters with an uppercase letter, a lowercase letter, a number and a special character. */
+    /**
+     * A5: at least 8 characters with an uppercase letter, a lowercase letter, a number and a special character, and no
+     * spaces. Laravel counts a space as a "symbol", so "        1Ba" used to pass: spaces are refused outright instead
+     * (passwords are never trimmed, so a space typed by mistake at either end would also lock the person out).
+     */
     public static function passwordRule(): \Illuminate\Validation\Rules\Password
     {
-        return \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()->symbols();
+        return \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()->symbols()->rules([
+            function (string $attribute, mixed $value, \Closure $fail) {
+                if (is_string($value) && preg_match('/\s/u', $value)) {
+                    $fail('The password cannot contain spaces.');
+                }
+            },
+        ]);
     }
 
     /** @return array<string, string> */
