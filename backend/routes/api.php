@@ -414,6 +414,14 @@ Route::prefix('v1')->group(function () {
 
             // Activity log
             Route::get('/activity-log', [AdminController::class, 'activityLog']);
+            // Database backups (docs/api/admin-backups.md): made in short steps, private, downloadable by admins only
+            $backup = \App\Http\Controllers\Api\V1\AdminBackupController::class;
+            $backupId = '\d{8}-\d{6}-[a-z0-9]{4}';
+            Route::get('/backups', [$backup, 'index']);
+            Route::post('/backups', [$backup, 'store'])->middleware('throttle:10,1');
+            Route::post('/backups/{id}/continue', [$backup, 'continue'])->where('id', $backupId)->middleware('throttle:120,1');
+            Route::get('/backups/{id}/download', [$backup, 'download'])->where('id', $backupId)->middleware('throttle:20,1');
+            Route::delete('/backups/{id}', [$backup, 'destroy'])->where('id', $backupId);
 
             // Buyer applications
             Route::get('/buyer-applications', [AdminBuyerApplicationController::class, 'index']);

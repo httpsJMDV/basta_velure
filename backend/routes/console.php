@@ -36,6 +36,10 @@ Schedule::command('pickups:release-scheduled')->everyFiveMinutes()->withoutOverl
 // Sign-in tokens past their 30 days are removed from the database.
 Schedule::command('sanctum:prune-expired --hours=24')->daily()->withoutOverlapping();
 
+// A full database backup every night at 2:00 AM Manila time, then old backups past their keep date are removed
+// (DatabaseBackups, the admin Backups page).
+Schedule::command('backups:run')->dailyAt('02:00')->timezone('Asia/Manila')->withoutOverlapping();
+
 // A heartbeat so `php artisan scheduler:check` can tell whether the scheduler is running at all.
 Schedule::call(fn () => Cache::put(
     \App\Console\Commands\CheckSchedulerRunning::HEARTBEAT_KEY,
