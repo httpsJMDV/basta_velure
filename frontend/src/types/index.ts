@@ -127,7 +127,7 @@ export interface ActivityLogEntry {
   admin: { id: number | null; first_name: string | null; last_name: string | null };
 }
 
-export type ActivityArea = 'applications' | 'accounts' | 'catalog' | 'money' | 'disputes' | 'other';
+export type ActivityArea = 'applications' | 'accounts' | 'catalog' | 'money' | 'disputes' | 'backups' | 'other';
 
 /** Figures for the whole activity log (not only the page shown). */
 export interface ActivityLogSummary {

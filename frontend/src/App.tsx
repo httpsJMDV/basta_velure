@@ -86,6 +86,7 @@ import AdminMessagesPage from './pages/admin/AdminMessagesPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import AdminPlatformSettingsPage from './pages/admin/AdminPlatformSettingsPage';
 import AdminCategoriesPage from './pages/admin/AdminCategoriesPage';
+import AdminBackupsPage from './pages/admin/AdminBackupsPage';
 import SellerReportsPage from './pages/seller/SellerReportsPage';
 import SellerMessagesPage from './pages/seller/SellerMessagesPage';
 import BuyerMessagesPage from './pages/buyer/BuyerMessagesPage';
@@ -439,6 +440,7 @@ function AppRoutes() {
         <Route path="reports"             element={<AdminReportsPage />} />
         <Route path="settings"            element={<AdminPlatformSettingsPage />} />
         <Route path="activity-log"        element={<AdminActivityLogPage />} />
+        <Route path="backups"             element={<AdminBackupsPage />} />
       </Route>
 
       {/* Courier company portal (J&T, Flash, the default courier): its own hubs, riders and parcels */}
