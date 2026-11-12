@@ -261,6 +261,27 @@ export function RejectedStatus({ reason, onReapply, who }: { reason: string | nu
   );
 }
 
+/**
+ * A signed-in shopping account opened a delivery partner's sign-up. Hubs, couriers and riders use an account of their
+ * own (it does deliveries and never shops), so this asks the person to sign out and register with another email.
+ */
+export function SeparateAccount({ what, user, onSignOut }: { what: string; user: User; onSignOut: () => void }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <StatusCard tone="gray" icon={UserCircle2} title={`A ${what} needs its own account`}
+        text={`You're signed in as ${user.email}, a shopping account. A ${what} account only handles deliveries and can't buy on Loved-IT, so it is registered with a different email.`} />
+      <ul className="px-4 py-3 space-y-1.5 rounded-2xl bg-white border border-stone-200 text-[13px] leading-relaxed text-stone-600">
+        <li>Your shopping account, orders and vouchers stay as they are.</li>
+        <li>Only a seller account can switch between selling and buying.</li>
+      </ul>
+      <div className="flex flex-col gap-2">
+        <button type="button" onClick={onSignOut} className={PRIMARY}><LogIn className="w-4 h-4" /> Sign out and register the {what}</button>
+        <Link to="/" className={QUIET}>Back to shopping</Link>
+      </div>
+    </div>
+  );
+}
+
 /** The account cannot apply (wrong account type, missing ID, already a hub or a courier). */
 export function BlockedStatus({ title, text, action }: { title: string; text: string; action?: { to: string; label: string } }) {
   return (

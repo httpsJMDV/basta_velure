@@ -35,6 +35,12 @@ List<AppHome> homesFor(AppUser user) {
   // A rider account made by a courier or the public rider form has the `rider` role, and the buyer endpoints are not
   // all open to it (confirm receipt needs `role:buyer`), so it gets no shop even before it is activated.
   if (user.role == 'rider') return const [AppHome.rider];
+  // A rider application in review opens Rider (it shows the wait); a hub or courier application in review waits on
+  // the website's status page. Either way a work account never shops.
+  if (user.rider != null && user.rider!.status != 'DISAPPROVED') {
+    return const [AppHome.rider];
+  }
+  if (user.isWorkAccount) return const [AppHome.webOnly];
   // A seller shops too: the app opens on the shop, and Account switches to the Seller Centre.
   return user.isSeller
       ? const [AppHome.buyer, AppHome.seller]

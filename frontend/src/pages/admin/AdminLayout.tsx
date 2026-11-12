@@ -8,7 +8,7 @@ import {
   ShieldAlert, Star, Flag, Settings, ScrollText,
   Menu, UserCheck, Bike, Tag, LogOut, MessageSquare, ChevronRight,
   CircleUser, PanelLeft, PackageCheck, Wallet, Gauge, Search, X, Ticket,
-  Warehouse, Truck,
+  Warehouse, Truck, DatabaseBackup,
 } from 'lucide-react';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
@@ -44,6 +44,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/admin/reports':                'Reports',
   '/admin/settings':               'Platform Settings',
   '/admin/activity-log':           'Activity Log',
+  '/admin/backups':                'Backups',
 };
 
 function useBreadcrumb() {
@@ -110,6 +111,7 @@ function buildNav(c: AdminNavCounts | null): NavGroup[] {
       items: [
         { icon: Settings,   label: 'Platform Settings', to: '/admin/settings' },
         { icon: ScrollText, label: 'Activity Log',      to: '/admin/activity-log' },
+        { icon: DatabaseBackup, label: 'Backups',       to: '/admin/backups' },
       ],
     },
   ];
@@ -289,6 +291,7 @@ function AdminSearchBar() {
     { label: 'Customer Reviews Moderation', to: '/admin/reviews', group: 'Trust & Safety', icon: Star },
     { label: 'Platform & Return Policy Settings', to: '/admin/settings', group: 'Settings', icon: Settings },
     { label: 'System Activity Logs', to: '/admin/activity-log', group: 'Settings', icon: ScrollText },
+    { label: 'Database Backups and Restore Plan', to: '/admin/backups', group: 'Settings', icon: DatabaseBackup },
   ], []);
 
   const filtered = useMemo(() => {

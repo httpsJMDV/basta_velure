@@ -11,6 +11,7 @@ import ProductCard from '../components/ui/ProductCard';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import CategoryArt from '../components/storefront/CategoryArt';
+import ChipScroller from '../components/ui/ChipScroller';
 import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
 import type { Product, ProductFilters, CatalogFacets, CatalogMeta, RelatedShop, StorefrontCategory } from '../types';
 
@@ -521,10 +522,11 @@ export default function CatalogPage() {
             const chipsRow = parent ? parent.children ?? [] : !filters.q ? categories ?? [] : [];
             if (chipsRow.length === 0) return null;
             return (
-              <div className="mt-4 -mx-1 px-1 flex gap-2 overflow-x-auto no-scrollbar">
+              <ChipScroller className="mt-4" label={parent ? `${parent.name} categories` : 'Categories'} activeKey={filters.category_id ?? 'all'}>
                 {parent && (
-                  <button type="button" onClick={() => setFilter({ category_id: undefined })}
-                    className={`shrink-0 h-10 px-4 rounded-full border text-[13px] transition-colors ${!filters.category_id ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 text-stone-700 hover:border-stone-400'}`}>
+                  <button type="button" onClick={() => setFilter({ category_id: undefined })} data-active={!filters.category_id}
+                    aria-pressed={!filters.category_id}
+                    className={`snap-start shrink-0 h-10 px-4 rounded-full border text-[13px] font-medium transition-colors ${!filters.category_id ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-400'}`}>
                     All
                   </button>
                 )}
@@ -534,14 +536,17 @@ export default function CatalogPage() {
                     <>
                       <span className="w-7 h-7 rounded-full overflow-hidden bg-stone-50 shrink-0"><CategoryArt category={c} variant="circle" /></span>
                       <span className="whitespace-nowrap">{c.name}</span>
+                      {c.product_count > 0 && (
+                        <span className={`tabular-nums text-[11.5px] ${on ? 'text-white/60' : 'text-stone-400'}`}>{c.product_count}</span>
+                      )}
                     </>
                   );
-                  const cls = `shrink-0 h-10 pl-1.5 pr-4 rounded-full border flex items-center gap-2 text-[13px] transition-colors ${on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 text-stone-700 hover:border-stone-400'}`;
+                  const cls = `snap-start shrink-0 h-10 pl-1.5 pr-4 rounded-full border flex items-center gap-2 text-[13px] transition-colors ${on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-400'}`;
                   return parent
-                    ? <button key={c.id} type="button" onClick={() => setFilter({ category_id: c.slug })} className={cls}>{inner}</button>
+                    ? <button key={c.id} type="button" onClick={() => setFilter({ category_id: c.slug })} data-active={on} aria-pressed={on} className={cls}>{inner}</button>
                     : <Link key={c.id} to={`/category/${c.slug}`} className={cls}>{inner}</Link>;
                 })}
-              </div>
+              </ChipScroller>
             );
           })()}
         </div>

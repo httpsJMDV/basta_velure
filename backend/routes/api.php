@@ -130,6 +130,8 @@ Route::prefix('v1')->group(function () {
         // A visitor applies as a seller or a courier company in one form (account + application), then verifies the email
         Route::post('/auth/register-seller', [AuthController::class, 'applyAsSeller']);
         Route::post('/auth/register-courier', [\App\Http\Controllers\Api\V1\CourierCompanyApplicationController::class, 'store']);
+        // A visitor registers a hub the same way: its own account (never a shopping account) and the hub application
+        Route::post('/auth/register-hub', [SortingCenterRegistrationController::class, 'register'])->middleware('throttle:upload');
         // A visitor applies to ride for a hub; the hub or its courier approves, then the rider gets the activation link
         Route::post('/auth/register-rider', [RiderRegistrationController::class, 'apply'])->middleware('throttle:upload');
         Route::post('/auth/verify-email', [AuthController::class, 'verifyEmail']);
@@ -302,11 +304,11 @@ Route::prefix('v1')->group(function () {
 
         // Wishlist
         Route::get('/wishlist', [WishlistController::class, 'index']);
-        Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
+        Route::post('/wishlist/toggle', [WishlistController::class, 'toggle'])->middleware('shopper');
 
         // Store follows
         Route::get('/store-follows', [WishlistController::class, 'followedStores']);
-        Route::post('/store-follows/toggle', [WishlistController::class, 'toggleFollow']);
+        Route::post('/store-follows/toggle', [WishlistController::class, 'toggleFollow'])->middleware('shopper');
 
         // Addresses
         Route::get('/addresses', [AddressController::class, 'index']);
@@ -324,23 +326,23 @@ Route::prefix('v1')->group(function () {
         Route::delete('/me/search-history', [PublicProductController::class, 'clearSearchHistory']);
         Route::delete('/me/search-history/{id}', [PublicProductController::class, 'clearSearchHistory'])->whereNumber('id');
         Route::get('/cart', [$cart, 'index']);
-        Route::post('/cart/items', [$cart, 'store']);
-        Route::patch('/cart/items/{line}', [$cart, 'update'])->whereNumber('line');
+        Route::post('/cart/items', [$cart, 'store'])->middleware('shopper');
+        Route::patch('/cart/items/{line}', [$cart, 'update'])->whereNumber('line')->middleware('shopper');
         Route::delete('/cart/items/{line}', [$cart, 'destroy'])->whereNumber('line');
-        Route::post('/cart/select', [$cart, 'select']);
-        Route::post('/cart/merge', [$cart, 'merge']);
+        Route::post('/cart/select', [$cart, 'select'])->middleware('shopper');
+        Route::post('/cart/merge', [$cart, 'merge'])->middleware('shopper');
 
         // Vouchers in the wallet (B7)
         Route::get('/buyer/vouchers', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'wallet']);
-        Route::post('/buyer/vouchers/claim', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'claim']);
+        Route::post('/buyer/vouchers/claim', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'claim'])->middleware('shopper');
 
         // A buyer's government ID: approved by an admin before they can place orders
         Route::get('/account/id-verification', [\App\Http\Controllers\Api\V1\BuyerIdVerificationController::class, 'show']);
         Route::post('/account/id-verification', [\App\Http\Controllers\Api\V1\BuyerIdVerificationController::class, 'submit'])->middleware('throttle:upload');
 
-        // Buyer checkout & orders (B8, B9)
-        Route::post('/checkout/quote', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'quote']);
-        Route::post('/checkout/place-order', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'place'])->middleware('throttle:upload');
+        // Buyer checkout & orders (B8, B9). Hub, courier and rider accounts never buy ('shopper', EnsureShopper).
+        Route::post('/checkout/quote', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'quote'])->middleware('shopper');
+        Route::post('/checkout/place-order', [\App\Http\Controllers\Api\V1\CheckoutController::class, 'place'])->middleware(['shopper', 'throttle:upload']);
         Route::get('/payments/sessions/{token}', [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'show']);
         Route::post('/payments/sessions/{token}/complete', [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'complete']);
         // Product reviews: once per product per delivered order, with up to five photos
@@ -370,7 +372,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/buyer/orders/{order}/refund/report', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerReport'])->middleware('throttle:10,1');
         Route::post('/buyer/orders/{order}/cancel', [BuyerOrderController::class, 'cancel']);
         // Buy again: the order's items back in the cart at today's price
-        Route::post('/buyer/orders/{order}/buy-again', [BuyerOrderController::class, 'buyAgain'])->middleware('throttle:20,1');
+        Route::post('/buyer/orders/{order}/buy-again', [BuyerOrderController::class, 'buyAgain'])->middleware(['shopper', 'throttle:20,1']);
         Route::post('/buyer/orders/{order}/pay-again', [BuyerOrderController::class, 'payAgain']);
         // Feature 2.8: only buyers (other roles get 403); another buyer's order is a 404 in the controller
         Route::post('/buyer/orders/{order}/confirm-receipt', [BuyerOrderController::class, 'confirmReceipt'])->middleware('role:buyer');
@@ -412,6 +414,14 @@ Route::prefix('v1')->group(function () {
 
             // Activity log
             Route::get('/activity-log', [AdminController::class, 'activityLog']);
+            // Database backups (docs/api/admin-backups.md): made in short steps, private, downloadable by admins only
+            $backup = \App\Http\Controllers\Api\V1\AdminBackupController::class;
+            $backupId = '\d{8}-\d{6}-[a-z0-9]{4}';
+            Route::get('/backups', [$backup, 'index']);
+            Route::post('/backups', [$backup, 'store'])->middleware('throttle:10,1');
+            Route::post('/backups/{id}/continue', [$backup, 'continue'])->where('id', $backupId)->middleware('throttle:120,1');
+            Route::get('/backups/{id}/download', [$backup, 'download'])->where('id', $backupId)->middleware('throttle:20,1');
+            Route::delete('/backups/{id}', [$backup, 'destroy'])->where('id', $backupId);
 
             // Buyer applications
             Route::get('/buyer-applications', [AdminBuyerApplicationController::class, 'index']);

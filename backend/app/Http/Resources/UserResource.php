@@ -25,6 +25,12 @@ class UserResource extends JsonResource
             'buyer_application_status'   => $this->buyer_application_status,
             'buyer_rejection_reason'     => $this->buyer_rejection_reason,
             'role'                       => $this->role,
+            // A hub, courier or rider account: it does deliveries and never shops (only a seller switches to
+            // buying). Sent when the role relations are loaded, as on /auth/me and sign-in.
+            'work_account'               => $this->when(
+                $this->relationLoaded('rider') && $this->relationLoaded('sortingCenter') && $this->relationLoaded('logisticsMembership'),
+                fn () => $this->resource->isWorkAccount(),
+            ),
             'status'                     => $this->status,
             'email_verified_at'          => $this->email_verified_at?->toIso8601String(),
             'phone_local'                => \App\Support\PhMobile::local($this->phone),

@@ -15,12 +15,26 @@ below is enforced on the server, and the screens show the same messages.
 The worked example (two shops, MCH50, PLAT100, FREESHIP) totals ₱1,083.00; Seller 1 earns ₱616.55 after a ₱32.45
 commission and Seller 2 ₱379.05. `tests/Feature/CommerceCheckoutTest.php` checks it to the centavo.
 
+## Who may buy
+
+Buyer and seller accounts. A hub, courier company, rider or truck driver account (an application in review included;
+a refused one shops again) gets **403** `{"message": "Hub, courier and rider accounts are for deliveries only and cannot
+shop. Use a separate buyer account to buy.", "code": "work_account"}` from `POST/PATCH /cart/items`, `/cart/select`,
+`/cart/merge`, `/checkout/quote`, `/checkout/place-order`, `/buyer/orders/{order}/buy-again`, `/wishlist/toggle`,
+`/store-follows/toggle` and `/buyer/vouchers/claim` (middleware `shopper`). Reading stays open (`GET /cart`, old
+orders). The user payload carries `work_account: true|false` so clients hide the shop.
+
 ## Cart (`/cart`)
 
 Signed-in buyers have a server cart (`GET /cart`, `POST /cart/items`, `PATCH|DELETE /cart/items/{line}`,
 `POST /cart/select`, `POST /cart/merge` for the guest cart after login). Lines are grouped by shop with a store and a
 line checkbox; quantity is checked against stock, purchase limits and flash-sale caps, and a price change since the
 item was added is shown on the line.
+
+**Cart limits.** At most 100 different items in a cart (`CartItem::MAX_LINES`), no line heavier than one parcel
+(`SHIPPING_MAX_PARCEL_KG`), and since Nov 13, 2026 no line with more pieces than one checkout takes
+(`ORDER_MAX_UNITS`, 200): 422 on `quantity`, "One checkout takes at most 200 pieces. For a bigger order, message the
+shop first." Checkout still checks 50 items, 200 pieces and ₱1,000,000 per checkout.
 
 **Big purchase notice (Nov 9, 2026).** `POST /cart/items` also answers `notice`: null, or a "This is a big purchase"
 message (`OrderLimits::cartNotice`) that the website shows in a dialog and the app in a sheet, with Keep shopping and

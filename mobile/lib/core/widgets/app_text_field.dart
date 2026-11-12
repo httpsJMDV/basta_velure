@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../theme/app_colors.dart';
+import '../validation/rules.dart';
 
 /// Every text box in the app: a label, the right keyboard, the formatters that keep wrong characters out, the
 /// local check's message under the field, and the server's 422 message there too until the person edits the field.
@@ -116,6 +117,8 @@ class _AppTextFieldState extends State<AppTextField> {
       maxLines: widget.obscure ? 1 : widget.maxLines,
       maxLength: widget.showCounter ? limit : null,
       inputFormatters: [
+        // No box starts with a space (the server trims every text field too); a password is never changed.
+        if (!widget.obscure) Only.noLeadingSpace,
         ...widget.inputFormatters,
         if (limit != null && !widget.showCounter)
           LengthLimitingTextInputFormatter(limit),

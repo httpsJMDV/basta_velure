@@ -2,10 +2,20 @@
 
 ## Overview
 
-A logistics hub is run from a **buyer account**, like a seller shop. The signed-in buyer applies with
-`POST /api/v1/auth/apply-hub`; there is no separate hub account, email or password. The account's name, contact
-details and government ID are reused, so the request only carries the hub itself.
+**Since Nov 13, 2026 a hub has an account of its own**, like riders and courier companies. A hub, courier, rider or
+truck driver account does deliveries only and **never shops** (`User::isWorkAccount`, `work_account` on the user
+payload, 403 `work_account` from the buying endpoints, see `docs/api/commerce.md`). Only a seller switches between
+selling and buying.
 
+- **Visitor (the website's form):** `POST /api/v1/auth/register-hub` (guest, `throttle:register` + `throttle:upload`),
+  `multipart/form-data`: the account fields of `POST /auth/register` (`first_name`, `last_name`, `email`, `phone`,
+  `date_of_birth`, `password`, `password_confirmation`, `accept_terms`), the operator's ID (`government_id_type`,
+  `government_id_image`, and `government_id_image_back` for an ID with a back, as on Complete profile) and the hub
+  fields below. It answers `201 {message, verification_required: true, email}` and emails a 6-digit code; the account
+  is `unverified` and **the courier does not see the application until the code is entered** (`/auth/verify-email`,
+  which then sends the "hub application received" emails and answers with the token and the user).
+- **Signed in:** `POST /api/v1/auth/apply-hub` (`auth:sanctum`) still works for an account that is not a seller and does
+  no other deliveries, reusing its details and ID. The website only uses it to re-apply after a refusal.
 - Route: `POST /api/v1/auth/apply-hub` (`auth:sanctum`, `throttle:auth` + `throttle:upload`), `multipart/form-data`.
 - The guest endpoints `POST /auth/register-sorting-center` and `POST /auth/logistics/register` are **removed** (404).
 - The account keeps `users.role = "buyer"`. The `sorting_centers` row (status `PENDING`) is what makes it a hub.
@@ -19,6 +29,8 @@ details and government ID are reused, so the request only carries the hub itself
 | Situation | Message |
 |---|---|
 | The account is not a buyer (admin, older role "rider") | Only a buyer account can apply to run a logistics hub. |
+| A seller account (shop `pending` or `approved`) | A seller account cannot also run a logistics hub. Register the hub with its own email. |
+| A courier company account (not `REJECTED`) | A courier company account cannot also run a logistics hub. |
 | No government ID on the account | Add a government ID to your account before applying. The hub application uses the ID on your account. |
 | A hub that is `PENDING` | You already have a hub application waiting for review. |
 | A hub that is `APPROVED` | Your account already runs a logistics hub. |
@@ -33,7 +45,7 @@ permit, `rejection_reason`, `reviewed_by` and `reviewed_at` cleared) and the old
 | Field | Rules |
 |---|---|
 | `logistics_company_id` | required, an approved courier company (`GET /logistics/couriers`); its team reviews the application |
-| `hub_name` (alias `business_name`) | required, string, max 150 |
+| `hub_name` (alias `business_name`) | required, 3 to 150 characters with at least two letters (spaces squeezed) |
 | `address_province` (alias `province`) | required, string, max 100 |
 | `address_city` (aliases `city_municipality`, `city`) | required, string, max 100 |
 | `address_barangay` (alias `barangay`) | required, string, max 100 |

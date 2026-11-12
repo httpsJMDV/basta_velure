@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from './useAuth';
+import { isWorkAccount } from '../utils/roleHome';
 import {
   addCartItemApi, getCartApi, mergeCartApi, removeCartItemApi, selectCartApi, updateCartItemApi,
 } from '../api/commerce';
@@ -87,7 +88,8 @@ function flatten(view: CartView): CartItem[] {
  */
 export function CartProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const signedIn = !!user;
+  // A hub, courier or rider account has no cart (the API refuses it), so it never loads or merges one.
+  const signedIn = !!user && !isWorkAccount(user);
   const [view, setView] = useState<CartView | null>(null);
   const [guest, setGuest] = useState<CartItem[]>(readGuest);
   const [loading, setLoading] = useState(false);

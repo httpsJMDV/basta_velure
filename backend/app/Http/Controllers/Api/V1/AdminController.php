@@ -346,6 +346,7 @@ class AdminController extends Controller
         'catalog'      => ['create_category', 'update_category', 'delete_category'],
         'money'        => ['update_commission', 'update_return_policy', 'confirm_commission', 'resolve_settlement', 'remind_settlement', 'resolve_refund'],
         'disputes'     => ['resolve_dispute'],
+        'backups'      => ['create_backup', 'download_backup', 'delete_backup'],
     ];
 
     /**

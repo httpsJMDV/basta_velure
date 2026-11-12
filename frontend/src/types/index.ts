@@ -127,7 +127,7 @@ export interface ActivityLogEntry {
   admin: { id: number | null; first_name: string | null; last_name: string | null };
 }
 
-export type ActivityArea = 'applications' | 'accounts' | 'catalog' | 'money' | 'disputes' | 'other';
+export type ActivityArea = 'applications' | 'accounts' | 'catalog' | 'money' | 'disputes' | 'backups' | 'other';
 
 /** Figures for the whole activity log (not only the page shown). */
 export interface ActivityLogSummary {
@@ -186,6 +186,8 @@ export interface User {
     street_address: string | null;
   } | null;
   role: Role;
+  /** A hub, courier or rider account (sent by /auth/me and sign-in): it does deliveries and never shops. */
+  work_account?: boolean;
   status: UserStatus;
   avatar_url: string | null;
   has_password: boolean;

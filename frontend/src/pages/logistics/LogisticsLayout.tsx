@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, ShoppingBag, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings, Container, History, Map as MapIcon } from 'lucide-react';
+import { Gauge, Warehouse, Bike, Package, BarChart2, AlertTriangle, Building2, Network, Banknote, MapPinned, Navigation, ScanLine, Undo2, Coins, MessageSquare, Settings, Container, History, Map as MapIcon } from 'lucide-react';
 import { getCourierChatUnreadApi } from '../../api/courierChat';
 import { useAuth } from '../../hooks/useAuth';
 import { getLogisticsDashboardApi } from '../../api/client';
@@ -199,7 +199,7 @@ export default function LogisticsLayout() {
           alerts={alerts}
           menuLinks={[
             { icon: Network, label: 'Network overview', to: '/logistics' },
-            { icon: ShoppingBag, label: 'Back to shopping', to: '/' },
+            { icon: Settings, label: 'Settings', to: '/logistics/settings' },
           ]}
           onToggleSidebar={toggleCollapse}
           onOpenMobile={() => setMobileOpen(true)}

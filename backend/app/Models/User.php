@@ -130,6 +130,38 @@ class User extends Authenticatable
         return $this->sellerProfile?->application_status === 'approved';
     }
 
+    /** A seller, or someone whose shop application is waiting: the account also shops, so it cannot do deliveries. */
+    public function isSellerAccount(): bool
+    {
+        return in_array($this->sellerProfile?->application_status, ['pending', 'approved'], true);
+    }
+
+    /**
+     * A hub, courier company, rider or truck driver account. These run deliveries and never shop: only a seller
+     * switches to buying. An application still in review counts; a refused one does not, so the person can use the
+     * account as before (or apply again).
+     */
+    public function isWorkAccount(): bool
+    {
+        if ($this->role === 'rider') {
+            return true;
+        }
+        $rider = $this->rider;
+        if ($rider && $rider->status !== Rider::STATUS_DISAPPROVED) {
+            return true;
+        }
+        $hub = $this->sortingCenter;
+        if ($hub && $hub->status !== SortingCenter::STATUS_REJECTED) {
+            return true;
+        }
+        $company = $this->logisticsMembership?->company;
+
+        return $company !== null && $company->status !== LogisticsCompany::STATUS_REJECTED;
+    }
+
+    /** What a work account is told when it tries to buy, open a shop or apply for another role. */
+    public const WORK_ACCOUNT_MESSAGE = 'Hub, courier and rider accounts are for deliveries only and cannot shop. Use a separate buyer account to buy.';
+
     public function sellerApplicationStatus(): ?string
     {
         return $this->sellerProfile?->application_status;

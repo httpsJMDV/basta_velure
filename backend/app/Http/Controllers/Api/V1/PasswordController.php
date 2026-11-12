@@ -41,7 +41,7 @@ class PasswordController extends Controller
         $request->validate([
             'token'                 => ['required', 'string'],
             'email'                 => ['required', 'email'],
-            'password'              => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()->symbols()->uncompromised()],
+            'password'              => ['required', 'string', 'confirmed', \App\Http\Requests\Auth\BuyerRegisterRequest::passwordRule()->uncompromised()],
         ]);
 
         $user = User::where('email', $request->email)->first();

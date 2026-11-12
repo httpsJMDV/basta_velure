@@ -1,0 +1,2950 @@
+{
+  "about": "Showcase catalog fill (php artisan showcase:fill-catalog): misfiled products moved, new shops, and products for every empty sub-category. Photos from Wikimedia Commons and Openverse, credited in each description.",
+  "existing": {
+    "tech": "seller4",
+    "grocery": "seller19",
+    "grocery2": "seller23",
+    "womens": "seller33",
+    "womens2": "seller34",
+    "womens3": "seller35",
+    "mens": "seller31",
+    "mens2": "seller32",
+    "bags": "seller39",
+    "gems": "seller38",
+    "beauty": "seller8",
+    "beauty2": "seller9",
+    "sports": "seller29",
+    "sports2": "seller30"
+  },
+  "shops": [
+    {
+      "key": "appliance1",
+      "username": "seller41",
+      "name": "Lamig Appliance Center",
+      "category": "Home appliances",
+      "bio": "Fans, aircon, TVs and kitchen appliances with official warranty."
+    },
+    {
+      "key": "appliance2",
+      "username": "seller42",
+      "name": "Bahay Kuryente Appliances",
+      "category": "Home appliances",
+      "bio": "Refrigerators, washers and everyday appliances, delivered and checked."
+    },
+    {
+      "key": "hardware1",
+      "username": "seller43",
+      "name": "Pako't Martilyo Hardware",
+      "category": "Tools and hardware",
+      "bio": "Hand tools, power tools and hardware for every project at home."
+    },
+    {
+      "key": "hardware2",
+      "username": "seller44",
+      "name": "Tibay Builders Depot",
+      "category": "Building and electrical supplies",
+      "bio": "Plumbing, electrical, paint and safety supplies for builders and DIYers."
+    },
+    {
+      "key": "auto1",
+      "username": "seller45",
+      "name": "Moto Garahe Parts",
+      "category": "Motorcycle parts and gear",
+      "bio": "Parts, tires, helmets and riding gear for Filipino riders."
+    },
+    {
+      "key": "auto2",
+      "username": "seller46",
+      "name": "AutoKalinga Car Care",
+      "category": "Car accessories and care",
+      "bio": "Car care, electronics and parts that fit local cars."
+    },
+    {
+      "key": "baby",
+      "username": "seller47",
+      "name": "Munting Anghel Baby Shop",
+      "category": "Baby and kids",
+      "bio": "Safe, tested baby gear, clothes and toys for little ones."
+    },
+    {
+      "key": "toys",
+      "username": "seller48",
+      "name": "Laruan at Libro",
+      "category": "Toys, books and school supplies",
+      "bio": "Toys, books and school supplies for curious kids."
+    },
+    {
+      "key": "hobby",
+      "username": "seller49",
+      "name": "Hobby Haven PH",
+      "category": "Hobbies, games and music",
+      "bio": "Board games, instruments, collectibles and gaming gear."
+    },
+    {
+      "key": "pets",
+      "username": "seller50",
+      "name": "Paw Pantry Pet Shop",
+      "category": "Pet supplies",
+      "bio": "Food, treats, toys and care for dogs, cats, birds and fish."
+    },
+    {
+      "key": "others",
+      "username": "seller51",
+      "name": "Sari-Saring Bagay PH",
+      "category": "Gifts, party and seasonal items",
+      "bio": "Parol, party supplies, gifts and the little things that fit no other aisle."
+    },
+    {
+      "key": "active",
+      "username": "seller52",
+      "name": "Kalye Fit Activewear",
+      "category": "Activewear and sportswear",
+      "bio": "Breathable activewear for training, yoga and running in the heat."
+    },
+    {
+      "key": "linens",
+      "username": "seller53",
+      "name": "Higaan Home Linens",
+      "category": "Bedding, bath and cleaning",
+      "bio": "Bedding, towels, curtains and cleaning supplies for a fresh home."
+    }
+  ],
+  "recategorize": [
+    {
+      "name": "Basketball",
+      "from": "fitness-equipment",
+      "to": "basketball"
+    },
+    {
+      "name": "Basketball Rim",
+      "from": "fitness-equipment",
+      "to": "basketball"
+    },
+    {
+      "name": "Feather Shuttlecock",
+      "from": "fitness-equipment",
+      "to": "racket-sports"
+    },
+    {
+      "name": "Tennis Ball",
+      "from": "fitness-equipment",
+      "to": "racket-sports"
+    },
+    {
+      "name": "Tennis Racket",
+      "from": "fitness-equipment",
+      "to": "racket-sports"
+    },
+    {
+      "name": "Boxed Blender",
+      "from": "kitchenware",
+      "to": "rice-cookers-kitchen"
+    },
+    {
+      "name": "Electric Stove",
+      "from": "kitchenware",
+      "to": "rice-cookers-kitchen"
+    },
+    {
+      "name": "Hand Blender",
+      "from": "kitchenware",
+      "to": "rice-cookers-kitchen"
+    },
+    {
+      "name": "Microwave Oven",
+      "from": "kitchenware",
+      "to": "microwaves-ovens"
+    },
+    {
+      "name": "Dinner Fork",
+      "from": "kitchenware",
+      "to": "dinnerware"
+    },
+    {
+      "name": "Glass",
+      "from": "kitchenware",
+      "to": "dinnerware"
+    },
+    {
+      "name": "Plate",
+      "from": "kitchenware",
+      "to": "dinnerware"
+    },
+    {
+      "name": "Spoon",
+      "from": "kitchenware",
+      "to": "dinnerware"
+    },
+    {
+      "name": "Serving Tray",
+      "from": "kitchenware",
+      "to": "dinnerware"
+    },
+    {
+      "name": "Mug Tree Stand",
+      "from": "kitchenware",
+      "to": "storage-organization"
+    },
+    {
+      "name": "Spice Rack",
+      "from": "kitchenware",
+      "to": "storage-organization"
+    },
+    {
+      "name": "Lady's Choice Real Mayonnaise",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Mang Tomas All-Around Sarsa 325g",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Mang Tomas Hot & Spicy Sarsa 325g",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Datu Puti White Vinegar 385ml",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Datu Puti Soy Sauce 385ml",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Del Monte Original Blend Tomato Ketchup",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Del Monte Sweet Chili Sauce 330g",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Del Monte Carbonara Style Spaghetti Sauce",
+      "from": "pantry-staples",
+      "to": "condiments-sauces"
+    },
+    {
+      "name": "Del Monte Pineapple Tidbits 115g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "Young's Town Sardines in Tomato Sauce 155g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "Ligo Sardines in Tomato Sauce 155g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "Purefoods Corned Beef 150g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "Purefoods Chinese Style Luncheon Meat 165g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "San Marino Corned Tuna 180g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "Mega Tuna Flakes Hot & Spicy 155g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "Reno Liver Spread 85g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "RAM Green Peas 225g",
+      "from": "pantry-staples",
+      "to": "canned-goods"
+    },
+    {
+      "name": "Maya Original Hotcake Mix 500g",
+      "from": "pantry-staples",
+      "to": "baking-supplies"
+    },
+    {
+      "name": "Del Monte Quick 'n Easy Breading Mix 75g",
+      "from": "pantry-staples",
+      "to": "baking-supplies"
+    },
+    {
+      "name": "Ajinomoto Crispy Fry Breading Mix 62g",
+      "from": "pantry-staples",
+      "to": "baking-supplies"
+    },
+    {
+      "name": "Bear Brand Sterilized Milk 200ml",
+      "from": "beverages",
+      "to": "dairy-eggs"
+    },
+    {
+      "name": "Nestlé Fresh Milk 1L",
+      "from": "beverages",
+      "to": "dairy-eggs"
+    },
+    {
+      "name": "Alaska Fresh Milk 1L",
+      "from": "beverages",
+      "to": "dairy-eggs"
+    },
+    {
+      "name": "Eden Cheese 165g",
+      "from": "pantry-staples",
+      "to": "dairy-eggs"
+    },
+    {
+      "name": "Nestlé All Purpose Cream 250ml",
+      "from": "pantry-staples",
+      "to": "dairy-eggs"
+    },
+    {
+      "name": "Alaska Classic Evaporated Filled Milk 360ml",
+      "from": "pantry-staples",
+      "to": "dairy-eggs"
+    },
+    {
+      "name": "Great Taste Vanilla Latte Ready-to-Drink 200ml",
+      "from": "beverages",
+      "to": "coffee-tea"
+    },
+    {
+      "name": "Nescafé 3-in-1 Original Coffee Mix (10 x 28g)",
+      "from": "beverages",
+      "to": "coffee-tea"
+    },
+    {
+      "name": "Nestea Apple Iced Tea Powder 25g",
+      "from": "beverages",
+      "to": "coffee-tea"
+    },
+    {
+      "name": "Honey Jar",
+      "from": "snacks",
+      "to": "pantry-staples"
+    },
+    {
+      "name": "Calvin Klein CK One",
+      "from": "personal-care",
+      "to": "fragrances"
+    },
+    {
+      "name": "Chanel Coco Noir Eau De",
+      "from": "personal-care",
+      "to": "fragrances"
+    },
+    {
+      "name": "Dior J'adore",
+      "from": "personal-care",
+      "to": "fragrances"
+    },
+    {
+      "name": "Dolce Shine Eau de Parfum",
+      "from": "personal-care",
+      "to": "fragrances"
+    },
+    {
+      "name": "Gucci Bloom Eau de",
+      "from": "personal-care",
+      "to": "fragrances"
+    },
+    {
+      "name": "Apple Watch Series 4 Gold",
+      "from": "phone-accessories",
+      "to": "smartwatches-wearables"
+    },
+    {
+      "name": "Apple HomePod Mini Cosmic Grey",
+      "from": "phone-accessories",
+      "to": "earphones-audio"
+    },
+    {
+      "name": "TV Studio Camera Pedestal",
+      "from": "phone-accessories",
+      "to": "cameras"
+    },
+    {
+      "name": "WD 2TB Elements Portable External Hard Drive - USB 3.0",
+      "from": "laptops",
+      "to": "desktops-monitors"
+    },
+    {
+      "name": "SanDisk SSD PLUS 1TB Internal SSD - SATA III 6 Gb/s",
+      "from": "laptops",
+      "to": "desktops-monitors"
+    },
+    {
+      "name": "Silicon Power 256GB SSD 3D NAND A55 SLC Cache Performance Boost SATA III 2.5",
+      "from": "laptops",
+      "to": "desktops-monitors"
+    },
+    {
+      "name": "WD 4TB Gaming Drive Works with Playstation 4 Portable External Hard Drive",
+      "from": "laptops",
+      "to": "desktops-monitors"
+    },
+    {
+      "name": "Acer SB220Q bi 21.5 inches Full HD (1920 x 1080) IPS Ultra-Thin",
+      "from": "laptops",
+      "to": "desktops-monitors"
+    },
+    {
+      "name": "Samsung 49-Inch CHG90 144Hz Curved Gaming Monitor (LC49HG90DMNXZA) – Super Ultrawide Screen QLED",
+      "from": "laptops",
+      "to": "desktops-monitors"
+    },
+    {
+      "name": "iPad Mini 2021 Starlight",
+      "from": "smartphones",
+      "to": "tablets"
+    },
+    {
+      "name": "Samsung Galaxy Tab S8 Plus Grey",
+      "from": "smartphones",
+      "to": "tablets"
+    },
+    {
+      "name": "Samsung Galaxy Tab White",
+      "from": "smartphones",
+      "to": "tablets"
+    },
+    {
+      "name": "iPhone 12 Silicone Case with MagSafe Plum",
+      "from": "chargers-powerbanks",
+      "to": "phone-accessories"
+    },
+    {
+      "name": "Table Lamp",
+      "from": "home-decor",
+      "to": "lighting"
+    },
+    {
+      "name": "House Showpiece Plant",
+      "from": "home-decor",
+      "to": "plants-gardening"
+    },
+    {
+      "name": "Plant Pot",
+      "from": "home-decor",
+      "to": "plants-gardening"
+    },
+    {
+      "name": "White Faux Leather Backpack",
+      "from": "bags-wallets",
+      "to": "backpacks"
+    },
+    {
+      "name": "Fjallraven - Foldsack No. 1 Backpack, Fits 15 Laptops",
+      "from": "shirts",
+      "to": "backpacks"
+    },
+    {
+      "name": "Attitude Super Leaves Hand Soap",
+      "from": "skincare",
+      "to": "personal-care"
+    },
+    {
+      "name": "Olay Ultra Moisture Shea Butter Body Wash",
+      "from": "skincare",
+      "to": "bath-body"
+    },
+    {
+      "name": "Red Nail Polish",
+      "from": "makeup",
+      "to": "nail-care"
+    },
+    {
+      "name": "Blue Frock",
+      "from": "womens-tops",
+      "to": "dresses"
+    },
+    {
+      "name": "Girl Summer Dress",
+      "from": "womens-tops",
+      "to": "dresses"
+    },
+    {
+      "name": "Gray Dress",
+      "from": "womens-tops",
+      "to": "dresses"
+    },
+    {
+      "name": "Short Frock",
+      "from": "womens-tops",
+      "to": "dresses"
+    },
+    {
+      "name": "Tartan Dress",
+      "from": "womens-tops",
+      "to": "dresses"
+    }
+  ],
+  "products": [
+    {
+      "category": "keyboards-mice",
+      "shop": "tech",
+      "name": "Wireless Keyboard and Mouse Combo",
+      "price": 1199,
+      "original_price": 1499,
+      "weight_kg": 0.8,
+      "variants": [
+        "Black",
+        "White"
+      ],
+      "description": "Quiet full-size keyboard and a 1600 DPI mouse on one USB receiver. Works with Windows, macOS and Android.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/Wireless_computer_keyboard_with_mouse_an_USB_receiver.jpg/960px-Wireless_computer_keyboard_with_mouse_an_USB_receiver.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Andreas Schwarzkopf, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Wireless_computer_keyboard_with_mouse_an_USB_receiver.jpg"
+    },
+    {
+      "category": "keyboards-mice",
+      "shop": "tech",
+      "name": "Mechanical Keyboard, Blue Switches",
+      "price": 1899,
+      "original_price": 2299,
+      "weight_kg": 0.9,
+      "variants": [],
+      "description": "Tenkeyless mechanical keyboard with clicky blue switches, white backlight and a detachable USB-C cable.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/68/Lingbao_JIGUANSHI_Mechanical_Gaming_Keyboard.jpg/960px-Lingbao_JIGUANSHI_Mechanical_Gaming_Keyboard.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Morn, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Lingbao_JIGUANSHI_Mechanical_Gaming_Keyboard.jpg"
+    },
+    {
+      "category": "fresh-produce",
+      "shop": "grocery",
+      "name": "Carabao Mangoes (1 kg)",
+      "price": 189,
+      "original_price": 0,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "Sweet, ripe Guimaras-variety carabao mangoes, about 3 to 4 pieces per kilo. Picked ripe and packed in a ventilated box.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Mango_and_cross_section_edit.jpg/960px-Mango_and_cross_section_edit.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Fir0002, GFDL 1.2, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Mango_and_cross_section_edit.jpg"
+    },
+    {
+      "category": "fresh-produce",
+      "shop": "grocery2",
+      "name": "Red Onions (1 kg)",
+      "price": 159,
+      "original_price": 0,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "Local red onions, firm and dry-skinned. Store in a cool, airy place.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/94/Three_whole_red_onions.jpg/960px-Three_whole_red_onions.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Anja, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Three_whole_red_onions.jpg"
+    },
+    {
+      "category": "fresh-produce",
+      "shop": "grocery",
+      "name": "Lakatan Bananas (1 kg)",
+      "price": 99,
+      "original_price": 0,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "Lakatan bananas, about 6 to 8 pieces per kilo, sent slightly green so they ripen at home.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Bunch_of_bananas_on_sale.jpg/960px-Bunch_of_bananas_on_sale.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Wilfredor, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bunch_of_bananas_on_sale.jpg"
+    },
+    {
+      "category": "electric-fans",
+      "shop": "appliance1",
+      "name": "16-inch Stand Fan, 3 Speeds",
+      "price": 1450,
+      "original_price": 1795,
+      "weight_kg": 5.5,
+      "variants": [
+        "White",
+        "Black"
+      ],
+      "description": "Height-adjustable stand fan with 3 speeds, 90-degree oscillation and a tilting head. 55 W.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/27/Floor_fan.jpg/960px-Floor_fan.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Hans Olav Lien, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Floor_fan.jpg"
+    },
+    {
+      "category": "electric-fans",
+      "shop": "appliance1",
+      "name": "12-inch Desk Fan",
+      "price": 899,
+      "original_price": 1099,
+      "weight_kg": 2,
+      "variants": [],
+      "description": "Compact desk fan with 2 speeds and a quiet motor, for the study table or the office.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Table_fan_FT-1201_II_30_cm_9186.jpg/960px-Table_fan_FT-1201_II_30_cm_9186.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Gunnar Creutz, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Table_fan_FT-1201_II_30_cm_9186.jpg"
+    },
+    {
+      "category": "refrigerators",
+      "shop": "appliance2",
+      "name": "Two-Door Inverter Refrigerator, 8 cu. ft.",
+      "price": 21990,
+      "original_price": 24990,
+      "weight_kg": 42,
+      "variants": [
+        "Silver"
+      ],
+      "description": "No-frost two-door refrigerator with an inverter compressor that saves electricity. Freezer on top, tempered-glass shelves.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2e/US_Domestic_Refrigerator_-_Frigidaire.jpg/960px-US_Domestic_Refrigerator_-_Frigidaire.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Infrogmation of New Orleans, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:US_Domestic_Refrigerator_-_Frigidaire.jpg"
+    },
+    {
+      "category": "refrigerators",
+      "shop": "appliance2",
+      "name": "Single-Door Mini Refrigerator, 1.7 cu. ft.",
+      "price": 7495,
+      "original_price": 8290,
+      "weight_kg": 18,
+      "variants": [],
+      "description": "Personal refrigerator for a dorm, office or bedroom, with a small freezer box and an adjustable thermostat.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/Frigor%C3%ADfic_Iglo%2C_1933%2C_Col%C2%B7lecci%C3%B3_Alfaro_Hofmann%2C_Godella.jpg/960px-Frigor%C3%ADfic_Iglo%2C_1933%2C_Col%C2%B7lecci%C3%B3_Alfaro_Hofmann%2C_Godella.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Joanbanjo, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Frigor%C3%ADfic_Iglo,_1933,_Col%C2%B7lecci%C3%B3_Alfaro_Hofmann,_Godella.jpg"
+    },
+    {
+      "category": "air-conditioners",
+      "shop": "appliance1",
+      "name": "Window-Type Aircon 1.0 HP, Inverter",
+      "price": 18990,
+      "original_price": 21500,
+      "weight_kg": 28,
+      "variants": [],
+      "description": "Inverter window aircon for rooms up to 15 sq. m, with a remote, timer and washable filter. Installation not included.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Frigidaire_Window_Air_Conditioner_-_exterior%2C_Fort_Wayne_Indiana_2008.jpg/960px-Frigidaire_Window_Air_Conditioner_-_exterior%2C_Fort_Wayne_Indiana_2008.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by kristinafh, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Frigidaire_Window_Air_Conditioner_-_exterior,_Fort_Wayne_Indiana_2008.jpg"
+    },
+    {
+      "category": "air-conditioners",
+      "shop": "appliance1",
+      "name": "Portable Air Cooler with Ice Packs",
+      "price": 3299,
+      "original_price": 3990,
+      "weight_kg": 7,
+      "variants": [],
+      "description": "Evaporative air cooler with a 6 L water tank, 2 ice packs, 3 speeds and wheels.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/HK_TKO_%E5%B0%87%E8%BB%8D%E6%BE%B3_Tseung_Kwan_O_PopCorn_mall_heavy_duty_fan_night_June_2019_IX2_01.jpg/960px-HK_TKO_%E5%B0%87%E8%BB%8D%E6%BE%B3_Tseung_Kwan_O_PopCorn_mall_heavy_duty_fan_night_June_2019_IX2_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Hskyc, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:HK_TKO_%E5%B0%87%E8%BB%8D%E6%BE%B3_Tseung_Kwan_O_PopCorn_mall_heavy_duty_fan_night_June_2019_IX2_01.jpg"
+    },
+    {
+      "category": "washing-machines",
+      "shop": "appliance2",
+      "name": "Twin-Tub Washing Machine 7.5 kg",
+      "price": 6990,
+      "original_price": 7990,
+      "weight_kg": 22,
+      "variants": [],
+      "description": "Washer and spin dryer side by side, with a 15-minute wash timer and a lint filter.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/2/28/Hoovermatic_twin_tub_pulsator_washing_machine_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by National Museum of Finland, CC BY 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Hoovermatic_twin_tub_pulsator_washing_machine_(1).jpg"
+    },
+    {
+      "category": "washing-machines",
+      "shop": "appliance2",
+      "name": "Top-Load Automatic Washing Machine 6.5 kg",
+      "price": 12490,
+      "original_price": 13990,
+      "weight_kg": 30,
+      "variants": [],
+      "description": "Fully automatic top-load washer with 8 programs, quick wash and a child lock.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Water_entered_a_washing_machine%2C_Sanyo_ASW-B60V%28WG%29_20060514.jpg/960px-Water_entered_a_washing_machine%2C_Sanyo_ASW-B60V%28WG%29_20060514.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by jim212jim from Hyogo, Japan, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Water_entered_a_washing_machine,_Sanyo_ASW-B60V(WG)_20060514.jpg"
+    },
+    {
+      "category": "televisions",
+      "shop": "appliance1",
+      "name": "32-inch HD Smart TV",
+      "price": 8990,
+      "original_price": 10490,
+      "weight_kg": 5,
+      "variants": [],
+      "description": "HD smart TV with Wi-Fi, built-in apps, 2 HDMI ports and a wall mount bracket in the box.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/Techwood_flat_screen_television_from_2010.jpg/960px-Techwood_flat_screen_television_from_2010.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Percivalor, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Techwood_flat_screen_television_from_2010.jpg"
+    },
+    {
+      "category": "televisions",
+      "shop": "appliance1",
+      "name": "43-inch 4K UHD Smart TV",
+      "price": 17990,
+      "original_price": 19990,
+      "weight_kg": 9,
+      "variants": [],
+      "description": "4K UHD smart TV with HDR, screen mirroring and 3 HDMI ports.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c4/Mivar_32led1_100Hz.jpg/960px-Mivar_32led1_100Hz.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Enzo1, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Mivar_32led1_100Hz.jpg"
+    },
+    {
+      "category": "vacuum-cleaners",
+      "shop": "appliance2",
+      "name": "Bagless Canister Vacuum, 1600 W",
+      "price": 3490,
+      "original_price": 3990,
+      "weight_kg": 5,
+      "variants": [],
+      "description": "Strong suction with a washable HEPA filter, a 2 L dust cup and 3 nozzles.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5b/Siemens_vacuum_cleaner_Super_500.jpg/960px-Siemens_vacuum_cleaner_Super_500.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Smiley.toerist, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Siemens_vacuum_cleaner_Super_500.jpg"
+    },
+    {
+      "category": "vacuum-cleaners",
+      "shop": "appliance2",
+      "name": "Handheld Cordless Vacuum",
+      "price": 2199,
+      "original_price": 2599,
+      "weight_kg": 1.5,
+      "variants": [],
+      "description": "Rechargeable hand vacuum for the sofa, car and corners. 25 minutes per charge.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Handheld_cyclone_vacuum_cleaner_%28Fujitek_model_FT-VC301%29.jpg/960px-Handheld_cyclone_vacuum_cleaner_%28Fujitek_model_FT-VC301%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Mk2010, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Handheld_cyclone_vacuum_cleaner_(Fujitek_model_FT-VC301).jpg"
+    },
+    {
+      "category": "water-dispensers",
+      "shop": "appliance1",
+      "name": "Hot and Cold Water Dispenser",
+      "price": 5490,
+      "original_price": 6290,
+      "weight_kg": 13,
+      "variants": [],
+      "description": "Top-load dispenser for 5-gallon bottles with hot and cold taps and a child-safe hot lock.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Water_cooler_36TD.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by Rusliner, CC BY 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Water_cooler_36TD.jpg"
+    },
+    {
+      "category": "water-dispensers",
+      "shop": "appliance1",
+      "name": "Electric Kettle 1.7 L, Stainless",
+      "price": 899,
+      "original_price": 1099,
+      "weight_kg": 1.2,
+      "variants": [],
+      "description": "Boils water in about 5 minutes and turns off by itself. Cordless 360-degree base.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/55/2023_Czajnik_elektryczny_N%27OVEEN.jpg/960px-2023_Czajnik_elektryczny_N%27OVEEN.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Jacek Halicki, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:2023_Czajnik_elektryczny_N%27OVEEN.jpg"
+    },
+    {
+      "category": "irons-steamers",
+      "shop": "appliance2",
+      "name": "Steam Iron with Non-Stick Soleplate",
+      "price": 1095,
+      "original_price": 1290,
+      "weight_kg": 1.4,
+      "variants": [],
+      "description": "1200 W steam iron with spray, burst of steam and a self-clean setting.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9f/Electric_steam_iron.jpg/960px-Electric_steam_iron.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Colin, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Electric_steam_iron.jpg"
+    },
+    {
+      "category": "irons-steamers",
+      "shop": "appliance2",
+      "name": "Handheld Garment Steamer",
+      "price": 1690,
+      "original_price": 1990,
+      "weight_kg": 1.3,
+      "variants": [],
+      "description": "Ready in 30 seconds. Takes wrinkles out of polo shirts, dresses and curtains while they hang.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/VAG200.jpg/960px-VAG200.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Dakakeka, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:VAG200.jpg"
+    },
+    {
+      "category": "rice-cookers-kitchen",
+      "shop": "appliance1",
+      "name": "Rice Cooker 1.8 L with Steamer",
+      "price": 1495,
+      "original_price": 1790,
+      "weight_kg": 3,
+      "variants": [],
+      "description": "Cooks up to 10 cups of rice and keeps it warm. Comes with a steamer tray, cup and ladle.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Panasonic_RICE_COOKER_SR-DQ102-N.jpg/960px-Panasonic_RICE_COOKER_SR-DQ102-N.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Dinkun Chen, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Panasonic_RICE_COOKER_SR-DQ102-N.jpg"
+    },
+    {
+      "category": "bedding-linens",
+      "shop": "linens",
+      "name": "Cotton Bed Sheet Set, Queen (4 pcs)",
+      "price": 1290,
+      "original_price": 1590,
+      "weight_kg": 2,
+      "variants": [
+        "White",
+        "Gray",
+        "Blue"
+      ],
+      "description": "Fitted sheet, flat sheet and 2 pillowcases in breathable 200-thread-count cotton.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/Bed_in_Seattle_hotel.jpg/960px-Bed_in_Seattle_hotel.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Liz Lawley, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bed_in_Seattle_hotel.jpg"
+    },
+    {
+      "category": "bedding-linens",
+      "shop": "linens",
+      "name": "Hotel-Style Pillows (2 pcs)",
+      "price": 799,
+      "original_price": 999,
+      "weight_kg": 2,
+      "variants": [],
+      "description": "Soft microfiber-filled pillows, 20 x 30 inches, with a cotton cover.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ad/Pillows_on_a_hotel_bed.jpg/960px-Pillows_on_a_hotel_bed.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Amin, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Pillows_on_a_hotel_bed.jpg"
+    },
+    {
+      "category": "bath-essentials",
+      "shop": "linens",
+      "name": "Cotton Bath Towel Set (3 pcs)",
+      "price": 899,
+      "original_price": 1090,
+      "weight_kg": 1.5,
+      "variants": [
+        "White",
+        "Gray"
+      ],
+      "description": "Bath towel, hand towel and face towel in thick, absorbent cotton.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/57/Zusammengelegte_Handt%C3%BCcher.jpg/960px-Zusammengelegte_Handt%C3%BCcher.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by User:Mattes, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Zusammengelegte_Handt%C3%BCcher.jpg"
+    },
+    {
+      "category": "bath-essentials",
+      "shop": "linens",
+      "name": "Anti-Slip Bath Mat",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "Quick-dry bath mat with a rubber back that stays in place.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e2/Dormeo_tepih_za_kopalnico_02_bez.jpg/960px-Dormeo_tepih_za_kopalnico_02_bez.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Studio Moderna, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Dormeo_tepih_za_kopalnico_02_bez.jpg"
+    },
+    {
+      "category": "curtains-blinds",
+      "shop": "linens",
+      "name": "Blackout Curtains, 2 Panels",
+      "price": 1150,
+      "original_price": 1390,
+      "weight_kg": 1.6,
+      "variants": [
+        "Gray",
+        "Navy",
+        "Beige"
+      ],
+      "description": "Blocks most daylight and keeps the room cooler. 140 x 210 cm per panel, with grommets.",
+      "image": "https://live.staticflickr.com/5534/11148238105_972a6de478_b.jpg",
+      "fit": "cover",
+      "credit": "Photo by Wonderlane, CC0, via Openverse (flickr): https://www.flickr.com/photos/71401718@N00/11148238105"
+    },
+    {
+      "category": "curtains-blinds",
+      "shop": "linens",
+      "name": "Bamboo Roll-Up Blinds",
+      "price": 1450,
+      "original_price": 0,
+      "weight_kg": 3,
+      "variants": [],
+      "description": "Natural bamboo blinds, 120 x 180 cm, with a cord to roll them up.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e7/Tiny_lobby_with_bamboo_table_and_armchairs_in_Heuan_Chan_heritage_house_Luang_Prabang_Laos.jpg/960px-Tiny_lobby_with_bamboo_table_and_armchairs_in_Heuan_Chan_heritage_house_Luang_Prabang_Laos.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Basile Morin, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Tiny_lobby_with_bamboo_table_and_armchairs_in_Heuan_Chan_heritage_house_Luang_Prabang_Laos.jpg"
+    },
+    {
+      "category": "cleaning-supplies",
+      "shop": "linens",
+      "name": "Microfiber Cleaning Cloths (10 pcs)",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Lint-free cloths for glass, tables and cars. Washable and reusable.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d1/Microfiber_shammy_3.JPG/960px-Microfiber_shammy_3.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by HelenOnline, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Microfiber_shammy_3.JPG"
+    },
+    {
+      "category": "cleaning-supplies",
+      "shop": "linens",
+      "name": "Spin Mop and Bucket Set",
+      "price": 899,
+      "original_price": 1150,
+      "weight_kg": 2.5,
+      "variants": [],
+      "description": "Spin mop with 2 microfiber heads and a bucket that wrings the mop dry.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/63/Mop_and_bucket.jpg/960px-Mop_and_bucket.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by W.carter, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Mop_and_bucket.jpg"
+    },
+    {
+      "category": "hand-tools",
+      "shop": "hardware1",
+      "name": "Claw Hammer 16 oz",
+      "price": 395,
+      "original_price": 0,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Forged steel head and a fiberglass handle with a rubber grip.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/84/Claw-hammer.jpg/960px-Claw-hammer.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Evan-Amos, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Claw-hammer.jpg"
+    },
+    {
+      "category": "hand-tools",
+      "shop": "hardware1",
+      "name": "Screwdriver Set (6 pcs)",
+      "price": 349,
+      "original_price": 450,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "Flat and Phillips screwdrivers with magnetic tips and cushioned handles.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/92/Precision_Screwdriver_Set_1.jpg/960px-Precision_Screwdriver_Set_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by oomlout, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Precision_Screwdriver_Set_1.jpg"
+    },
+    {
+      "category": "power-tools",
+      "shop": "hardware1",
+      "name": "Cordless Drill Driver 12 V",
+      "price": 2890,
+      "original_price": 3390,
+      "weight_kg": 2,
+      "variants": [],
+      "description": "Drills wood and metal and drives screws. 2 batteries, charger and a carry case.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Cordless_electric_%28screw%29_drill.jpg/960px-Cordless_electric_%28screw%29_drill.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Fructibus, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Cordless_electric_(screw)_drill.jpg"
+    },
+    {
+      "category": "power-tools",
+      "shop": "hardware1",
+      "name": "Angle Grinder 4-inch, 710 W",
+      "price": 1690,
+      "original_price": 1990,
+      "weight_kg": 2.5,
+      "variants": [],
+      "description": "For cutting and grinding metal and tile, with a side handle and guard.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/AngleGrinder.jpg/960px-AngleGrinder.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:AngleGrinder.jpg"
+    },
+    {
+      "category": "hardware",
+      "shop": "hardware1",
+      "name": "Screws and Wall Plugs Kit (300 pcs)",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "Wood screws and plastic wall plugs in common sizes, in a sorted box.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/03/Dornbirn-A4_Screws_assortment-01ASD.jpg/960px-Dornbirn-A4_Screws_assortment-01ASD.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Asurnipal, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Dornbirn-A4_Screws_assortment-01ASD.jpg"
+    },
+    {
+      "category": "hardware",
+      "shop": "hardware1",
+      "name": "Steel Padlock 50 mm",
+      "price": 289,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Hardened steel shackle and 3 keys, for gates and storage.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/4/48/Padlock_kl%C3%B3dka_ubt.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by Tomasz Sienicki [user: tsca, mail: tomasz.sienicki at gmail.com], CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Padlock_kl%C3%B3dka_ubt.JPG"
+    },
+    {
+      "category": "lighting",
+      "shop": "hardware2",
+      "name": "LED Bulb 9 W Daylight (4 pcs)",
+      "price": 399,
+      "original_price": 499,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "E27 LED bulbs that replace 60 W bulbs and use far less electricity.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d6/LED-E27-Light-Bulb-1134.jpg/960px-LED-E27-Light-Bulb-1134.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Loadmaster (David R. Tribble) This image was made by Loadmaster (David R. Tribbl, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:LED-E27-Light-Bulb-1134.jpg"
+    },
+    {
+      "category": "lighting",
+      "shop": "hardware2",
+      "name": "Rechargeable LED Emergency Light",
+      "price": 599,
+      "original_price": 699,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Turns on by itself during a brownout and lasts up to 6 hours.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Emergency_lights.jpg/960px-Emergency_lights.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Epolk, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Emergency_lights.jpg"
+    },
+    {
+      "category": "plumbing-supplies",
+      "shop": "hardware2",
+      "name": "Stainless Kitchen Faucet",
+      "price": 890,
+      "original_price": 1090,
+      "weight_kg": 1.2,
+      "variants": [],
+      "description": "Single-handle swivel faucet for the kitchen sink, with mounting parts.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/52/Kitchen_Faucet_1.jpg/960px-Kitchen_Faucet_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Stilfehler, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Kitchen_Faucet_1.jpg"
+    },
+    {
+      "category": "plumbing-supplies",
+      "shop": "hardware2",
+      "name": "Adjustable Pipe Wrench 14-inch",
+      "price": 650,
+      "original_price": 0,
+      "weight_kg": 1.5,
+      "variants": [],
+      "description": "Heavy-duty pipe wrench for GI and PVC fittings.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e6/Pipe_Wrench.jpg/960px-Pipe_Wrench.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Jayess, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Pipe_Wrench.jpg"
+    },
+    {
+      "category": "paint-supplies",
+      "shop": "hardware2",
+      "name": "Paint Roller and Tray Set",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "9-inch roller, tray and a 2-inch brush for walls and ceilings.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Paint_roller_4.jpg/960px-Paint_roller_4.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Michael Cory, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Paint_roller_4.jpg"
+    },
+    {
+      "category": "paint-supplies",
+      "shop": "hardware2",
+      "name": "Paint Brush Set (5 pcs)",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Brushes from 1 to 4 inches with wooden handles, for oil and latex paint.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/68/Brushes_2.jpg/960px-Brushes_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Hans Bernhard (Schnobby), CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Brushes_2.jpg"
+    },
+    {
+      "category": "electrical-supplies",
+      "shop": "hardware2",
+      "name": "Extension Cord, 4 Gang, 3 m",
+      "price": 450,
+      "original_price": 550,
+      "weight_kg": 0.7,
+      "variants": [],
+      "description": "Universal sockets with a switch and overload protection.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Surge_Guard_Power_Strip_%28UK%29.jpg/960px-Surge_Guard_Power_Strip_%28UK%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Dylan Myers, CC BY 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Surge_Guard_Power_Strip_(UK).jpg"
+    },
+    {
+      "category": "electrical-supplies",
+      "shop": "hardware2",
+      "name": "Electrical Tape (10 rolls)",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "PVC insulating tape in assorted colors, 19 mm x 10 m.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d0/Electrical-tape_black.jpg/960px-Electrical-tape_black.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Jonas Bergsten, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Electrical-tape_black.jpg"
+    },
+    {
+      "category": "safety-gear",
+      "shop": "hardware2",
+      "name": "Hard Hat Safety Helmet",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [
+        "Yellow",
+        "White"
+      ],
+      "description": "Adjustable safety helmet for construction and workshop use.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e8/Yellow_hard_hat.jpg/960px-Yellow_hard_hat.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by רנדום, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Yellow_hard_hat.jpg"
+    },
+    {
+      "category": "safety-gear",
+      "shop": "hardware2",
+      "name": "Nitrile-Coated Work Gloves (6 pairs)",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Good grip and cut resistance for carpentry, gardening and loading.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/Chainsaw_gloves.JPG/960px-Chainsaw_gloves.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Andy Dingley, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Chainsaw_gloves.JPG"
+    },
+    {
+      "category": "garden-tools",
+      "shop": "hardware1",
+      "name": "Garden Hand Tool Set (3 pcs)",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Trowel, transplanter and cultivator with comfortable handles.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/76/Steel_trowel.jpg/960px-Steel_trowel.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Qurren, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Steel_trowel.jpg"
+    },
+    {
+      "category": "garden-tools",
+      "shop": "hardware1",
+      "name": "Garden Hose 15 m with Spray Nozzle",
+      "price": 799,
+      "original_price": 950,
+      "weight_kg": 2.5,
+      "variants": [],
+      "description": "Flexible hose with 7 spray patterns for plants, cars and floors.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Garden_hose.jpg/960px-Garden_hose.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Nandhp, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Garden_hose.jpg"
+    },
+    {
+      "category": "ladders",
+      "shop": "hardware1",
+      "name": "Aluminum Step Ladder, 5 Steps",
+      "price": 2450,
+      "original_price": 2890,
+      "weight_kg": 6,
+      "variants": [],
+      "description": "Lightweight folding ladder with wide anti-slip steps. Holds up to 150 kg.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/00/Ladder_aluminum.jpg/960px-Ladder_aluminum.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Amin, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Ladder_aluminum.jpg"
+    },
+    {
+      "category": "ladders",
+      "shop": "hardware1",
+      "name": "Folding Step Stool, 2 Steps",
+      "price": 690,
+      "original_price": 0,
+      "weight_kg": 2.5,
+      "variants": [],
+      "description": "Folds flat. For the kitchen cabinets, the closet and changing bulbs.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/27/ESCABEL_-_panoramio.jpg/960px-ESCABEL_-_panoramio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Audolina Ines Menese…, CC BY 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:ESCABEL_-_panoramio.jpg"
+    },
+    {
+      "category": "womens-bottoms",
+      "shop": "womens",
+      "name": "High-Waist Wide-Leg Trousers",
+      "price": 599,
+      "original_price": 799,
+      "weight_kg": 0.4,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Flowy wide-leg trousers with a hidden side zip, for the office or weekends.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Trainingpants.jpg/960px-Trainingpants.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Kuha455405, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Trainingpants.jpg"
+    },
+    {
+      "category": "womens-bottoms",
+      "shop": "womens2",
+      "name": "Women's Straight-Cut Jeans",
+      "price": 799,
+      "original_price": 999,
+      "weight_kg": 0.6,
+      "variants": [
+        "26",
+        "28",
+        "30",
+        "32"
+      ],
+      "description": "Mid-rise stretch denim with a straight leg.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/2/2b/Jeans_Gul%26Bl%C3%A5_i_modellen_Dallas.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by Eriksson Elisabeth, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Jeans_Gul%26Bl%C3%A5_i_modellen_Dallas.jpg"
+    },
+    {
+      "category": "skirts",
+      "shop": "womens",
+      "name": "Denim Mini Skirt",
+      "price": 449,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [
+        "S",
+        "M",
+        "L"
+      ],
+      "description": "A-line denim skirt with front pockets.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a8/7_For_All_Mankind_Denim_Skirt_%283182146721%29.jpg/960px-7_For_All_Mankind_Denim_Skirt_%283182146721%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Housing Works Thrift Shops from New York, NY, USA, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:7_For_All_Mankind_Denim_Skirt_(3182146721).jpg"
+    },
+    {
+      "category": "womens-sleepwear",
+      "shop": "womens2",
+      "name": "Satin Pajama Set",
+      "price": 699,
+      "original_price": 899,
+      "weight_kg": 0.4,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Button-up long-sleeve top and pants in soft satin.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/5/58/Jessie_Franklin_Turner_lounging_pajamas_1934-5_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "cover",
+      "credit": "Photo by Photographer commissioned by Rhode Island School of Design, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Jessie_Franklin_Turner_lounging_pajamas_1934-5_2.jpg"
+    },
+    {
+      "category": "womens-sleepwear",
+      "shop": "womens3",
+      "name": "Cotton Sleep Dress",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "S",
+        "M",
+        "L"
+      ],
+      "description": "Loose, breathable sleep dress for hot nights.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Nightgown_%28AM_11683-1%29.jpg/960px-Nightgown_%28AM_11683-1%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo, CC BY 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Nightgown_(AM_11683-1).jpg"
+    },
+    {
+      "category": "womens-swimwear",
+      "shop": "womens3",
+      "name": "Rash Guard Long Sleeve",
+      "price": 699,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "S",
+        "M",
+        "L"
+      ],
+      "description": "Sun-protective rash guard for the beach and the pool.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/52/Wrestlig_rash_guard.jpg/960px-Wrestlig_rash_guard.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Catcat Gao, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Wrestlig_rash_guard.jpg"
+    },
+    {
+      "category": "womens-activewear",
+      "shop": "active",
+      "name": "Sports Bra, Medium Support",
+      "price": 449,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [
+        "S",
+        "M",
+        "L"
+      ],
+      "description": "Racerback sports bra with removable cups.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Sports_Bra_%28front%29.jpg/960px-Sports_Bra_%28front%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Breeze0715, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Sports_Bra_(front).jpg"
+    },
+    {
+      "category": "womens-coord-sets",
+      "shop": "womens3",
+      "name": "Knit Co-ord Pullover",
+      "price": 999,
+      "original_price": 1290,
+      "weight_kg": 0.5,
+      "variants": [
+        "S",
+        "M",
+        "L"
+      ],
+      "description": "Soft knit pullover from our co-ord line. Pair it with the matching knit skirt or trousers.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/e/ea/Jersei-coll-alt.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by Joan Rocaguinard, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Jersei-coll-alt.jpg"
+    },
+    {
+      "category": "pants",
+      "shop": "mens",
+      "name": "Chino Pants, Slim Fit",
+      "price": 799,
+      "original_price": 999,
+      "weight_kg": 0.6,
+      "variants": [
+        "30",
+        "32",
+        "34",
+        "36"
+      ],
+      "description": "Stretch cotton chinos for work and weekends.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Chino_pants.jpg/960px-Chino_pants.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Kuha455405, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Chino_pants.jpg"
+    },
+    {
+      "category": "pants",
+      "shop": "mens2",
+      "name": "Cargo Pants",
+      "price": 899,
+      "original_price": 1090,
+      "weight_kg": 0.7,
+      "variants": [
+        "30",
+        "32",
+        "34",
+        "36"
+      ],
+      "description": "Relaxed cargo pants with 6 pockets.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Cargo_pants_001.jpg/960px-Cargo_pants_001.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Ocdp, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Cargo_pants_001.jpg"
+    },
+    {
+      "category": "polo-shirts",
+      "shop": "mens2",
+      "name": "Cotton Piqué Polo Shirt",
+      "price": 599,
+      "original_price": 750,
+      "weight_kg": 0.3,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Classic polo shirt in breathable piqué cotton.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/Caldera_Systems_polo_shirt_and_T_shirt.jpg/960px-Caldera_Systems_polo_shirt_and_T_shirt.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Jonathan Schilling, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Caldera_Systems_polo_shirt_and_T_shirt.jpg"
+    },
+    {
+      "category": "polo-shirts",
+      "shop": "mens",
+      "name": "Striped Polo Shirt",
+      "price": 649,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Smart-casual striped polo with a two-button placket.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/SZ_Shenzhen_Futian_Shuiwei_cun_Ren_Ren_Le_Department_Store_clothing_shop_male_polo_shirt_%E6%A2%9D%E7%B4%8B%E8%A5%AF%E8%A1%AB_uncle_June_2017_IX1_01.jpg/960px-SZ_Shenzhen_Futian_Shuiwei_cun_Ren_Ren_Le_Department_Store_clothing_shop_male_polo_shirt_%E6%A2%9D%E7%B4%8B%E8%A5%AF%E8%A1%AB_uncle_June_2017_IX1_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Lmacaheuiso, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:SZ_Shenzhen_Futian_Shuiwei_cun_Ren_Ren_Le_Department_Store_clothing_shop_male_polo_shirt_%E6%A2%9D%E7%B4%8B%E8%A5%AF%E8%A1%AB_uncle_June_2017_IX1_01.jpg"
+    },
+    {
+      "category": "shorts",
+      "shop": "mens",
+      "name": "Board Shorts",
+      "price": 449,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Quick-dry board shorts for the beach.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f3/Sky_blue_board_shorts.jpg/960px-Sky_blue_board_shorts.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Geoffreyrabbit, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Sky_blue_board_shorts.jpg"
+    },
+    {
+      "category": "shorts",
+      "shop": "mens2",
+      "name": "Denim Shorts",
+      "price": 549,
+      "original_price": 690,
+      "weight_kg": 0.4,
+      "variants": [
+        "30",
+        "32",
+        "34"
+      ],
+      "description": "Cotton denim shorts with a regular fit.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/Jorts%2C_back_view.jpg/960px-Jorts%2C_back_view.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Collabratude, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Jorts,_back_view.jpg"
+    },
+    {
+      "category": "mens-underwear-socks",
+      "shop": "mens",
+      "name": "Cotton Crew Socks (6 pairs)",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "Free size"
+      ],
+      "description": "Cushioned cotton socks in black, white and gray.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/Bj%C3%B6rn_Borg_socks_3.jpg/960px-Bj%C3%B6rn_Borg_socks_3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by W.carter, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bj%C3%B6rn_Borg_socks_3.jpg"
+    },
+    {
+      "category": "mens-underwear-socks",
+      "shop": "mens2",
+      "name": "Cotton Boxer Shorts (3 pcs)",
+      "price": 499,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Breathable cotton boxers with a soft waistband.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b2/Boxer_002.jpg/960px-Boxer_002.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Luis2492, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Boxer_002.jpg"
+    },
+    {
+      "category": "mens-activewear",
+      "shop": "active",
+      "name": "Dri-Fit Training Shirt",
+      "price": 499,
+      "original_price": 650,
+      "weight_kg": 0.2,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Lightweight training shirt that dries quickly.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/9/9c/Young_North_Indian_man_with_beard_in_white_t-shirt.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by Singhjayreena, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Young_North_Indian_man_with_beard_in_white_t-shirt.jpg"
+    },
+    {
+      "category": "mens-activewear",
+      "shop": "active",
+      "name": "Running Shorts with Liner",
+      "price": 549,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "5-inch running shorts with a zip pocket.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/Soffe_Gym_Shorts.jpg/960px-Soffe_Gym_Shorts.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Scoty6776, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Soffe_Gym_Shorts.jpg"
+    },
+    {
+      "category": "barong-formal",
+      "shop": "mens2",
+      "name": "Barong Tagalog, Jusi",
+      "price": 2490,
+      "original_price": 2990,
+      "weight_kg": 0.4,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Embroidered jusi barong for weddings and formal events. Camisa de chino not included.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/81/Pi%C3%B1a_Barong_tagalog_AklanA.jpg/960px-Pi%C3%B1a_Barong_tagalog_AklanA.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Pi%C3%B1a_Barong_tagalog_AklanA.jpg"
+    },
+    {
+      "category": "barong-formal",
+      "shop": "mens2",
+      "name": "Men's Silk Necktie",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [
+        "Navy",
+        "Maroon",
+        "Black"
+      ],
+      "description": "Classic-width necktie for the office and events.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Knoten_003_2024_02_20.jpg/960px-Knoten_003_2024_02_20.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Friedrich Haag, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Knoten_003_2024_02_20.jpg"
+    },
+    {
+      "category": "caps-hats",
+      "shop": "mens",
+      "name": "Cotton Baseball Cap",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [
+        "Black",
+        "Navy",
+        "Khaki"
+      ],
+      "description": "Six-panel cap with an adjustable strap.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/e/eb/Baseball_cap.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by TexasRebel, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Baseball_cap.jpg"
+    },
+    {
+      "category": "caps-hats",
+      "shop": "mens",
+      "name": "Bucket Hat",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [
+        "Black",
+        "Beige"
+      ],
+      "description": "Cotton bucket hat that folds into a bag.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/94/Black_Barbour_bucket_hat.jpg/960px-Black_Barbour_bucket_hat.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by W.carter, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Black_Barbour_bucket_hat.jpg"
+    },
+    {
+      "category": "luggage-travel",
+      "shop": "bags",
+      "name": "Hard-Shell Carry-On Luggage, 20-inch",
+      "price": 2990,
+      "original_price": 3590,
+      "weight_kg": 3,
+      "variants": [
+        "Black",
+        "Silver",
+        "Blue"
+      ],
+      "description": "Fits most airline cabin limits. 4 spinner wheels and a TSA lock.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bc/Luggage_for_sale_at_Target.jpg/960px-Luggage_for_sale_at_Target.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Ser Amantio di Nicolao, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Luggage_for_sale_at_Target.jpg"
+    },
+    {
+      "category": "luggage-travel",
+      "shop": "bags",
+      "name": "Travel Toiletry Pouch",
+      "price": 599,
+      "original_price": 0,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "Zippered, water-resistant pouch for toiletries and small travel items.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/50/007Aa._Fabric_cosmetic_bag.jpg/960px-007Aa._Fabric_cosmetic_bag.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by GAlexandrova, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:007Aa._Fabric_cosmetic_bag.jpg"
+    },
+    {
+      "category": "belts",
+      "shop": "bags",
+      "name": "Leather Belt with Pin Buckle",
+      "price": 599,
+      "original_price": 750,
+      "weight_kg": 0.3,
+      "variants": [
+        "32",
+        "34",
+        "36",
+        "38"
+      ],
+      "description": "Full-grain leather belt with a brushed metal buckle.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/91/Belt-clothing.jpg/960px-Belt-clothing.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Evan-Amos, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Belt-clothing.jpg"
+    },
+    {
+      "category": "belts",
+      "shop": "gems",
+      "name": "Leather Belt with Brass Buckle",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [
+        "Free size"
+      ],
+      "description": "Genuine leather belt with a brass-tone buckle.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/19/Germany_Belt-and-Buckle-01.jpg/960px-Germany_Belt-and-Buckle-01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by CEphoto, Uwe Aranas, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Germany_Belt-and-Buckle-01.jpg"
+    },
+    {
+      "category": "hair-accessories",
+      "shop": "gems",
+      "name": "Claw Hair Clips (4 pcs)",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "Strong-grip claw clips in neutral colors.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/48/Haarspangen.jpg/960px-Haarspangen.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Gerd Fahrenhorst, CC BY 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Haarspangen.jpg"
+    },
+    {
+      "category": "hair-accessories",
+      "shop": "gems",
+      "name": "Velvet Scrunchies (6 pcs)",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "Gentle on hair, no creases.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/20221108_200350_resized.jpg/960px-20221108_200350_resized.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by SpiritedMichelle, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:20221108_200350_resized.jpg"
+    },
+    {
+      "category": "umbrellas",
+      "shop": "bags",
+      "name": "Automatic Folding Umbrella",
+      "price": 499,
+      "original_price": 650,
+      "weight_kg": 0.4,
+      "variants": [
+        "Black",
+        "Navy"
+      ],
+      "description": "Opens and closes with one button. Windproof frame.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/An_inside_view_of_an_Umbrella%2C_%E0%B4%95%E0%B5%81%E0%B4%9F%E0%B4%AF%E0%B5%81%E0%B4%9F%E0%B5%86_%E0%B4%89%E0%B5%BE%E0%B4%B5%E0%B4%B6%E0%B4%82.JPG/960px-An_inside_view_of_an_Umbrella%2C_%E0%B4%95%E0%B5%81%E0%B4%9F%E0%B4%AF%E0%B5%81%E0%B4%9F%E0%B5%86_%E0%B4%89%E0%B5%BE%E0%B4%B5%E0%B4%B6%E0%B4%82.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by കാക്കര, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:An_inside_view_of_an_Umbrella,_%E0%B4%95%E0%B5%81%E0%B4%9F%E0%B4%AF%E0%B5%81%E0%B4%9F%E0%B5%86_%E0%B4%89%E0%B5%BE%E0%B4%B5%E0%B4%B6%E0%B4%82.JPG"
+    },
+    {
+      "category": "sling-bags",
+      "shop": "bags",
+      "name": "Canvas Crossbody Sling Bag",
+      "price": 699,
+      "original_price": 890,
+      "weight_kg": 0.4,
+      "variants": [
+        "Black",
+        "Olive"
+      ],
+      "description": "Water-resistant sling bag for a phone, wallet and power bank.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/35/Timbuk2_custom-made_messenger_bag_%E2%80%9EDeeDog%E2%80%9C.JPG/960px-Timbuk2_custom-made_messenger_bag_%E2%80%9EDeeDog%E2%80%9C.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Christoph Hoffmann, CC BY-SA 2.0 de, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Timbuk2_custom-made_messenger_bag_%E2%80%9EDeeDog%E2%80%9C.JPG"
+    },
+    {
+      "category": "haircare",
+      "shop": "beauty2",
+      "name": "Paddle Hair Brush",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "Cushioned paddle brush that detangles without pulling.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Hairbrush_flat.JPG/960px-Hairbrush_flat.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by en:User:Musical Linguist, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Hairbrush_flat.JPG"
+    },
+    {
+      "category": "oral-care",
+      "shop": "beauty2",
+      "name": "Soft Bristle Toothbrushes (4 pcs)",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "Soft, tapered bristles that are gentle on gums.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/66/Toothbrush_x3_20050716_002.jpg/960px-Toothbrush_x3_20050716_002.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Jonas Bergsten, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Toothbrush_x3_20050716_002.jpg"
+    },
+    {
+      "category": "oral-care",
+      "shop": "beauty",
+      "name": "Rechargeable Electric Toothbrush",
+      "price": 1290,
+      "original_price": 1590,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "2-minute timer, 3 modes and 2 brush heads.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5f/2024_Szczoteczka_do_z%C4%99b%C3%B3w_Oral-B_Pro_3_3000_%282%29.jpg/960px-2024_Szczoteczka_do_z%C4%99b%C3%B3w_Oral-B_Pro_3_3000_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Jacek Halicki, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:2024_Szczoteczka_do_z%C4%99b%C3%B3w_Oral-B_Pro_3_3000_(2).jpg"
+    },
+    {
+      "category": "medical-supplies",
+      "shop": "beauty2",
+      "name": "Home First Aid Kit (100 pcs)",
+      "price": 699,
+      "original_price": 850,
+      "weight_kg": 0.7,
+      "variants": [],
+      "description": "Bandages, gauze, tape, scissors, gloves and a CPR mask in a carry case. No medicines included.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/30/First-aid_travel_kit_1.jpg/960px-First-aid_travel_kit_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Renée Kools, CC BY 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:First-aid_travel_kit_1.jpg"
+    },
+    {
+      "category": "medical-supplies",
+      "shop": "beauty",
+      "name": "Digital Thermometer",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "Reads in about 60 seconds, with a fever beep and a memory of the last reading.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d0/Digital_Thermometer.jpg/960px-Digital_Thermometer.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Srini297, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Digital_Thermometer.jpg"
+    },
+    {
+      "category": "sportswear",
+      "shop": "active",
+      "name": "Track Jacket",
+      "price": 999,
+      "original_price": 1290,
+      "weight_kg": 0.5,
+      "variants": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Zip-up track jacket with side pockets.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Tracksuit_jacket.jpg/960px-Tracksuit_jacket.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by RyanDiller, CC BY 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Tracksuit_jacket.jpg"
+    },
+    {
+      "category": "bicycles",
+      "shop": "sports",
+      "name": "Mountain Bike 27.5-inch, 21 Speed",
+      "price": 9990,
+      "original_price": 11990,
+      "weight_kg": 15,
+      "variants": [],
+      "description": "Alloy frame, front suspension and disc brakes. Shipped 85% assembled.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/Bulls_Wild_Cup_1_%28Modell_2010%29_20100814.jpg/960px-Bulls_Wild_Cup_1_%28Modell_2010%29_20100814.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by M 93, Attribution, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bulls_Wild_Cup_1_(Modell_2010)_20100814.jpg"
+    },
+    {
+      "category": "bicycles",
+      "shop": "sports",
+      "name": "Folding Bike 20-inch",
+      "price": 7490,
+      "original_price": 8490,
+      "weight_kg": 13,
+      "variants": [],
+      "description": "Folds in 10 seconds for the train or the car trunk. 7 speeds.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/Lulu_Bike_Sport_folding_bicycle_bikepacking.jpg/960px-Lulu_Bike_Sport_folding_bicycle_bikepacking.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Glurois, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Lulu_Bike_Sport_folding_bicycle_bikepacking.jpg"
+    },
+    {
+      "category": "running",
+      "shop": "sports2",
+      "name": "Lightweight Running Shoes",
+      "price": 1990,
+      "original_price": 2490,
+      "weight_kg": 0.8,
+      "variants": [
+        "39",
+        "40",
+        "41",
+        "42",
+        "43"
+      ],
+      "description": "Breathable mesh upper and a cushioned sole for daily runs.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8b/Asics_Gel-Cumulus_22.jpg/960px-Asics_Gel-Cumulus_22.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Petar Milošević, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Asics_Gel-Cumulus_22.jpg"
+    },
+    {
+      "category": "running",
+      "shop": "sports2",
+      "name": "Sports Water Bottle 750 ml",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "BPA-free squeeze bottle with a leak-proof cap.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/RapidRide_water_bottle_%285042358699%29.jpg/960px-RapidRide_water_bottle_%285042358699%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Atomic Taco from Seattle, WA, USA, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:RapidRide_water_bottle_(5042358699).jpg"
+    },
+    {
+      "category": "swimming",
+      "shop": "sports2",
+      "name": "Anti-Fog Swimming Goggles",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "UV-protected lenses and a soft silicone seal.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/42/Swimming_goggles.JPG/960px-Swimming_goggles.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Jpogi at Wikipedia, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Swimming_goggles.JPG"
+    },
+    {
+      "category": "swimming",
+      "shop": "sports2",
+      "name": "Silicone Swim Cap",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [
+        "Black",
+        "Blue"
+      ],
+      "description": "Durable cap that keeps hair dry and out of the eyes.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Bonnet_de_bain_de_Laure_Manaudou.jpg/960px-Bonnet_de_bain_de_Laure_Manaudou.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Lorevdoreb, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bonnet_de_bain_de_Laure_Manaudou.jpg"
+    },
+    {
+      "category": "fishing",
+      "shop": "sports",
+      "name": "Spinning Rod and Reel Combo",
+      "price": 1690,
+      "original_price": 1990,
+      "weight_kg": 1.2,
+      "variants": [],
+      "description": "6-foot rod with a ready-spooled reel, for river and pier fishing.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/Fishing_rod_%26_reel%2C_Mahamaya_Lake_%2801%29.jpg/960px-Fishing_rod_%26_reel%2C_Mahamaya_Lake_%2801%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Moheen Reeyad, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Fishing_rod_%26_reel,_Mahamaya_Lake_(01).jpg"
+    },
+    {
+      "category": "fishing",
+      "shop": "sports",
+      "name": "Tackle Box with Lures",
+      "price": 799,
+      "original_price": 0,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Box of lures, hooks, sinkers and swivels.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/64/Helin_Tackle_Company_Flatfish_fishing_lure.jpg/960px-Helin_Tackle_Company_Flatfish_fishing_lure.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Gotanero, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Helin_Tackle_Company_Flatfish_fishing_lure.jpg"
+    },
+    {
+      "category": "yoga",
+      "shop": "active",
+      "name": "Yoga Mat 6 mm, Non-Slip",
+      "price": 799,
+      "original_price": 990,
+      "weight_kg": 1,
+      "variants": [
+        "Purple",
+        "Teal",
+        "Black"
+      ],
+      "description": "Cushioned mat with a carry strap.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/Yoga_mat.jpg/960px-Yoga_mat.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Gausanchennai, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Yoga_mat.jpg"
+    },
+    {
+      "category": "yoga",
+      "shop": "active",
+      "name": "Yoga Blocks (2 pcs)",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "High-density foam blocks for support and balance.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c9/Cork_yoga_blocks.jpg/960px-Cork_yoga_blocks.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Ian Alexander, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Cork_yoga_blocks.jpg"
+    },
+    {
+      "category": "car-accessories",
+      "shop": "auto2",
+      "name": "Car Phone Holder, Vent Mount",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "One-hand mount that grips phones from 4.7 to 6.8 inches.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Car_universal_holder_for_smartphones_and_phablets%2C_Oude_Pekela_%282018%29_01.jpg/960px-Car_universal_holder_for_smartphones_and_phablets%2C_Oude_Pekela_%282018%29_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Donald Trung Quoc Don (Chữ Hán: 徵國單) - Wikimedia Commons.(Want to use this image, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Car_universal_holder_for_smartphones_and_phablets,_Oude_Pekela_(2018)_01.jpg"
+    },
+    {
+      "category": "car-accessories",
+      "shop": "auto2",
+      "name": "Leather Steering Wheel Cover",
+      "price": 499,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Anti-slip cover for 37 to 38 cm steering wheels.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/d/dc/Volvo_steering_wheel.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "cover",
+      "credit": "Photo by SamH, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Volvo_steering_wheel.jpg"
+    },
+    {
+      "category": "motorcycle-parts",
+      "shop": "auto1",
+      "name": "Motorcycle Chain and Sprocket Set",
+      "price": 1290,
+      "original_price": 1490,
+      "weight_kg": 1.5,
+      "variants": [],
+      "description": "428 chain with front and rear sprockets for 110 to 150 cc underbones.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/64/Day_46_Cy365_Geared_Up_%2861099044%29.jpeg/960px-Day_46_Cy365_Geared_Up_%2861099044%29.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Makia Minich, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Day_46_Cy365_Geared_Up_(61099044).jpeg"
+    },
+    {
+      "category": "motorcycle-parts",
+      "shop": "auto1",
+      "name": "Motorcycle Brake Pads (pair)",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "Semi-metallic disc brake pads for scooters and underbones.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/Shimano_L05A_RF_disc_brake_pads.jpg/960px-Shimano_L05A_RF_disc_brake_pads.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Hugo LUC, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Shimano_L05A_RF_disc_brake_pads.jpg"
+    },
+    {
+      "category": "helmets",
+      "shop": "auto1",
+      "name": "Full-Face Motorcycle Helmet",
+      "price": 2490,
+      "original_price": 2990,
+      "weight_kg": 1.5,
+      "variants": [
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "ICC-certified full-face helmet with a clear visor and removable lining.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Full-Face_Helmet_9274.jpg/960px-Full-Face_Helmet_9274.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Ashley Pomeroy, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Full-Face_Helmet_9274.jpg"
+    },
+    {
+      "category": "helmets",
+      "shop": "auto1",
+      "name": "Half-Face Helmet with Visor",
+      "price": 1290,
+      "original_price": 1490,
+      "weight_kg": 1,
+      "variants": [
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Light open-face helmet for city rides.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Open-face_helmet_kallerna.JPG/960px-Open-face_helmet_kallerna.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by kallerna, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Open-face_helmet_kallerna.JPG"
+    },
+    {
+      "category": "car-care",
+      "shop": "auto2",
+      "name": "Microfiber Car Drying Towel",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Large twisted-loop towel that dries a sedan in one pass.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/22/Mikrofaser-Handtuch_f%C3%BCr_Unterwegs.JPG/960px-Mikrofaser-Handtuch_f%C3%BCr_Unterwegs.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by User:Mattes, CC BY 2.0 de, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Mikrofaser-Handtuch_f%C3%BCr_Unterwegs.JPG"
+    },
+    {
+      "category": "car-electronics",
+      "shop": "auto2",
+      "name": "Dash Cam 1080p",
+      "price": 1890,
+      "original_price": 2290,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Records in loop, saves clips on impact, with night vision and a 32 GB card.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/%D0%92%D0%B8%D0%B4%D0%B5%D0%BE%D1%80%D0%B5%D0%B3%D0%B8%D1%81%D1%82%D1%80%D0%B0%D1%82%D0%BE%D1%80_%D0%B4%D0%B2%D1%83%D1%85%D1%81%D1%82%D0%BE%D1%80%D0%BE%D0%BD%D0%BD%D0%B8%D0%B9_%28%D1%81%D0%BD%D0%B8%D0%BC%D0%B0%D0%B5%D1%82_%D0%B2%D0%BD%D1%83%D1%82%D1%80%D0%B8_%D1%81%D0%B0%D0%BB%D0%BE%D0%BD%D0%B0_%D0%B8_%D1%82%D0%BE%2C_%D1%87%D1%82%D0%BE_%D0%BF%D1%80%D0%BE%D0%B8%D1%81%D1%85%D0%BE%D0%B4%D0%B8%D1%82_%D0%BF%D0%BE_%D0%BF%D1%83%D1%82%D0%B8_%D0%B4%D0%B2%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F_%D0%A2%D0%A1%29._%D0%A4%D0%BE%D1%82%D0%BE_%D0%90._%D0%A9%D0%B5%D0%BA%D0%B8%D0%BD%D0%BE%D0%B2%D0%B0.jpg/960px-thumbnail.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Schekinov Alexey Victorovich, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:%D0%92%D0%B8%D0%B4%D0%B5%D0%BE%D1%80%D0%B5%D0%B3%D0%B8%D1%81%D1%82%D1%80%D0%B0%D1%82%D0%BE%D1%80_%D0%B4%D0%B2%D1%83%D1%85%D1%81%D1%82%D0%BE%D1%80%D0%BE%D0%BD%D0%BD%D0%B8%D0%B9_(%D1%81%D0%BD%D0%B8%D0%BC%D0%B0%D0%B5%D1%82_%D0%B2%D0%BD%D1%83%D1%82%D1%80%D0%B8_%D1%81%D0%B0%D0%BB%D0%BE%D0%BD%D0%B0_%D0%B8_%D1%82%D0%BE,_%D1%87%D1%82%D0%BE_%D0%BF%D1%80%D0%BE%D0%B8%D1%81%D1%85%D0%BE%D0%B4%D0%B8%D1%82_%D0%BF%D0%BE_%D0%BF%D1%83%D1%82%D0%B8_%D0%B4%D0%B2%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F_%D0%A2%D0%A1)._%D0%A4%D0%BE%D1%82%D0%BE_%D0%90._%D0%A9%D0%B5%D0%BA%D0%B8%D0%BD%D0%BE%D0%B2%D0%B0.jpg"
+    },
+    {
+      "category": "car-electronics",
+      "shop": "auto2",
+      "name": "Dual USB Car Charger",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "Fast-charges two phones from the cigarette lighter socket.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/92/Ugreen_car_charger_USB-C_USB-A_30W_25845.jpg/960px-Ugreen_car_charger_USB-C_USB-A_30W_25845.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Qurren, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Ugreen_car_charger_USB-C_USB-A_30W_25845.jpg"
+    },
+    {
+      "category": "tires-wheels",
+      "shop": "auto1",
+      "name": "Motorcycle Tire 80/90-17, Tubeless",
+      "price": 1190,
+      "original_price": 1350,
+      "weight_kg": 3,
+      "variants": [],
+      "description": "All-weather tread for underbones and scooters.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/20/Motorcycle_tyre_stack.jpg/960px-Motorcycle_tyre_stack.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Robert, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Motorcycle_tyre_stack.jpg"
+    },
+    {
+      "category": "tires-wheels",
+      "shop": "auto2",
+      "name": "Car Tire 185/65 R15",
+      "price": 3290,
+      "original_price": 3690,
+      "weight_kg": 8,
+      "variants": [],
+      "description": "Quiet, all-season passenger car tire.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/14/Car_tires.jpg/960px-Car_tires.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Angie from Sawara, Chiba-ken, Japan, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Car_tires.jpg"
+    },
+    {
+      "category": "motorcycle-accessories",
+      "shop": "auto1",
+      "name": "Motorcycle Phone Holder",
+      "price": 499,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Handlebar mount with a locking cradle for phones up to 7 inches.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2e/Detailed_view_of_a_motorcycle_dashboard_and_handlebar_with_a_smartphone_mount.jpg/960px-Detailed_view_of_a_motorcycle_dashboard_and_handlebar_with_a_smartphone_mount.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Shixart1985, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Detailed_view_of_a_motorcycle_dashboard_and_handlebar_with_a_smartphone_mount.jpg"
+    },
+    {
+      "category": "motorcycle-accessories",
+      "shop": "auto1",
+      "name": "Waterproof Motorcycle Cover",
+      "price": 599,
+      "original_price": 0,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Dust and rain cover with a lock hole and reflective strips.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/85/Black_Vulture_-_Coragyps_atratus%2C_Everglades_National_Park%2C_Homestead%2C_Florida_-_15365464494.jpg/960px-Black_Vulture_-_Coragyps_atratus%2C_Everglades_National_Park%2C_Homestead%2C_Florida_-_15365464494.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Judy Gallagher, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Black_Vulture_-_Coragyps_atratus,_Everglades_National_Park,_Homestead,_Florida_-_15365464494.jpg"
+    },
+    {
+      "category": "oils-fluids",
+      "shop": "auto2",
+      "name": "Fully Synthetic Engine Oil 1 L",
+      "price": 450,
+      "original_price": 0,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "10W-40 oil for 4-stroke motorcycles.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/2/23/Motor_oil.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "cover",
+      "credit": "Photo by originally Interiot; retouched by Where next Columbus?; brand name removed by H , Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Motor_oil.JPG"
+    },
+    {
+      "category": "riding-gear",
+      "shop": "auto1",
+      "name": "Full-Finger Riding Gloves",
+      "price": 499,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Touch-screen fingertips and knuckle protection.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/64/Dainese_racing_gloves.jpg/960px-Dainese_racing_gloves.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by lmnop88a, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Dainese_racing_gloves.jpg"
+    },
+    {
+      "category": "riding-gear",
+      "shop": "auto1",
+      "name": "Leather Riding Jacket",
+      "price": 2490,
+      "original_price": 2990,
+      "weight_kg": 1.5,
+      "variants": [
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Mesh jacket with shoulder, elbow and back armor.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9f/Leather_jacket_golden_era.jpg/960px-Leather_jacket_golden_era.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by kreativgarasch, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Leather_jacket_golden_era.jpg"
+    },
+    {
+      "category": "car-parts",
+      "shop": "auto2",
+      "name": "Wiper Blades 22/18-inch (pair)",
+      "price": 499,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Frameless blades that fit most hook-type arms.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Used_Michelin_8019_windshield_wiper_blade_tip.jpg/960px-Used_Michelin_8019_windshield_wiper_blade_tip.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Jacek Rużyczka, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Used_Michelin_8019_windshield_wiper_blade_tip.jpg"
+    },
+    {
+      "category": "car-parts",
+      "shop": "auto2",
+      "name": "Car Battery 12 V NS40",
+      "price": 3690,
+      "original_price": 3990,
+      "weight_kg": 11,
+      "variants": [],
+      "description": "Maintenance-free battery for small cars.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Photo-CarBattery.jpg/960px-Photo-CarBattery.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by No machine-readable author provided. Shaddack assumed (based on copyright claims, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Photo-CarBattery.jpg"
+    },
+    {
+      "category": "baby-gear",
+      "shop": "baby",
+      "name": "Ergonomic Baby Carrier",
+      "price": 1290,
+      "original_price": 1590,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Front and back carry positions, for babies 3 to 36 months.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/Back_carrier%2C_baby_%28AM_2013.18.6-1%29.jpg/960px-Back_carrier%2C_baby_%28AM_2013.18.6-1%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Unknown authorUnknown author, CC BY 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Back_carrier,_baby_(AM_2013.18.6-1).jpg"
+    },
+    {
+      "category": "kids-clothing",
+      "shop": "baby",
+      "name": "Baby Onesies (5 pcs)",
+      "price": 599,
+      "original_price": 750,
+      "weight_kg": 0.3,
+      "variants": [
+        "0-3M",
+        "3-6M",
+        "6-12M"
+      ],
+      "description": "Short-sleeve cotton onesies with snap buttons.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e5/Baby_Onesie_%2849876451731%29.jpg/960px-Baby_Onesie_%2849876451731%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Ajay Suresh from New York, NY, USA, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Baby_Onesie_(49876451731).jpg"
+    },
+    {
+      "category": "feeding-nursing",
+      "shop": "baby",
+      "name": "Baby Feeding Bottles 8 oz (2 pcs)",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "BPA-free bottles with anti-colic nipples.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Baby_bottle.jpg/960px-Baby_bottle.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Fgnievinski, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Baby_bottle.jpg"
+    },
+    {
+      "category": "feeding-nursing",
+      "shop": "baby",
+      "name": "Silicone Bib and Spoon Set",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "Waterproof bib with a food catcher and 2 soft-tip spoons.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0d/Bib%2C_baby_%28AM_2002.64.16%29.jpg/960px-Bib%2C_baby_%28AM_2002.64.16%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Ina Sodersten, CC BY 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bib,_baby_(AM_2002.64.16).jpg"
+    },
+    {
+      "category": "diapers",
+      "shop": "baby",
+      "name": "Disposable Baby Diapers, Medium (64 pcs)",
+      "price": 699,
+      "original_price": 799,
+      "weight_kg": 2,
+      "variants": [
+        "Medium",
+        "Large"
+      ],
+      "description": "Breathable, up to 12 hours of dryness.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/33/Diapers_in_the_trash_%281119014023%29.jpg/960px-Diapers_in_the_trash_%281119014023%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Inga Munsinger Cotton from San Antonio, USA, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Diapers_in_the_trash_(1119014023).jpg"
+    },
+    {
+      "category": "diapers",
+      "shop": "baby",
+      "name": "Cloth Diapers with Inserts (3 pcs)",
+      "price": 599,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Washable, adjustable cloth diapers.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/21/AI2_Cloth_Diaper_w-Internal_Gussets_%288665109773%29.jpg/960px-AI2_Cloth_Diaper_w-Internal_Gussets_%288665109773%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by CatEyedKP, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:AI2_Cloth_Diaper_w-Internal_Gussets_(8665109773).jpg"
+    },
+    {
+      "category": "baby-toys",
+      "shop": "baby",
+      "name": "Baby Rattle Set (4 pcs)",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Easy-grip rattles in bright colors.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Assortment_of_five_baby_rattles.jpg/960px-Assortment_of_five_baby_rattles.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Zeromonk, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Assortment_of_five_baby_rattles.jpg"
+    },
+    {
+      "category": "baby-toys",
+      "shop": "baby",
+      "name": "Stacking Rings Toy",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Classic stacking toy that teaches colors and sizes.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/00/Baby_Playing_with_Stacking_Rings.JPG/960px-Baby_Playing_with_Stacking_Rings.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Barelyhere, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Baby_Playing_with_Stacking_Rings.JPG"
+    },
+    {
+      "category": "baby-bath-skincare",
+      "shop": "baby",
+      "name": "Baby Bath Tub with Support",
+      "price": 899,
+      "original_price": 1090,
+      "weight_kg": 1.5,
+      "variants": [],
+      "description": "Foldable tub with a newborn support and a temperature card.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/Standing_baby_bath_%28for_newborns%29%2C_Oude_Pekela_%282019%29_05.jpg/960px-Standing_baby_bath_%28for_newborns%29%2C_Oude_Pekela_%282019%29_05.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Donald Trung Quoc Don (Chữ Hán: 徵國單) - Wikimedia Commons - © CC BY-SA 4.0 Intern, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Standing_baby_bath_(for_newborns),_Oude_Pekela_(2019)_05.jpg"
+    },
+    {
+      "category": "nursery",
+      "shop": "baby",
+      "name": "Wooden Baby Crib",
+      "price": 6490,
+      "original_price": 7490,
+      "weight_kg": 25,
+      "variants": [],
+      "description": "Solid wood crib with 3 mattress heights. Mattress sold separately.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/Baby_Crib_%2849935766018%29.jpg/960px-Baby_Crib_%2849935766018%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Ajay Suresh from New York, NY, USA, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Baby_Crib_(49935766018).jpg"
+    },
+    {
+      "category": "kids-shoes",
+      "shop": "baby",
+      "name": "Kids' Velcro Sneakers",
+      "price": 699,
+      "original_price": 850,
+      "weight_kg": 0.5,
+      "variants": [
+        "24",
+        "26",
+        "28",
+        "30"
+      ],
+      "description": "Easy on and off, with a non-slip sole.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/48/Moz_kids_sneakers._%2851107416146%29.jpg/960px-Moz_kids_sneakers._%2851107416146%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by MIKI Yoshihito from Sapporo City,Hokkaido., JAPAN, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Moz_kids_sneakers._(51107416146).jpg"
+    },
+    {
+      "category": "kids-shoes",
+      "shop": "baby",
+      "name": "Toddler Sandals",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "20",
+        "22",
+        "24"
+      ],
+      "description": "Light sandals with a soft footbed.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Lost_and_abandoned_child%27s_sandal_in_Sandvik%2C_Lysekil_1.jpg/960px-Lost_and_abandoned_child%27s_sandal_in_Sandvik%2C_Lysekil_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by W.carter, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Lost_and_abandoned_child%27s_sandal_in_Sandvik,_Lysekil_1.jpg"
+    },
+    {
+      "category": "maternity",
+      "shop": "baby",
+      "name": "U-Shaped Pregnancy Pillow",
+      "price": 1290,
+      "original_price": 1590,
+      "weight_kg": 2,
+      "variants": [],
+      "description": "Supports the back, belly and legs for better sleep.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Pregnancy_pillow.jpg/960px-Pregnancy_pillow.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Panek, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Pregnancy_pillow.jpg"
+    },
+    {
+      "category": "maternity",
+      "shop": "baby",
+      "name": "Maternity Maxi Dress",
+      "price": 799,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [
+        "M",
+        "L",
+        "XL"
+      ],
+      "description": "Stretchy maxi dress that grows with the bump.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/Pregnant_woman_wearing_green_and_yellow_ombr%C3%A9_maternity_dress.jpg/960px-Pregnant_woman_wearing_green_and_yellow_ombr%C3%A9_maternity_dress.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Tata kurliana, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Pregnant_woman_wearing_green_and_yellow_ombr%C3%A9_maternity_dress.jpg"
+    },
+    {
+      "category": "baby-safety",
+      "shop": "baby",
+      "name": "Baby Safety Gate",
+      "price": 1990,
+      "original_price": 2390,
+      "weight_kg": 5,
+      "variants": [],
+      "description": "Pressure-mounted gate for stairs and doorways.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fb/Stair_gate.jpg/960px-Stair_gate.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Penguinpappa, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Stair_gate.jpg"
+    },
+    {
+      "category": "baby-safety",
+      "shop": "baby",
+      "name": "Outlet Covers and Corner Guards Set",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "Socket plugs and soft corner guards for a baby-proof home.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ec/Outlet_cover.jpg/960px-Outlet_cover.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Swpb, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Outlet_cover.jpg"
+    },
+    {
+      "category": "toys",
+      "shop": "toys",
+      "name": "Wooden Toy Car Set",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "Four smooth wooden cars with rolling wheels.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/ba/Wooden_toy_models.jpg/960px-Wooden_toy_models.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Gausanchennai, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Wooden_toy_models.jpg"
+    },
+    {
+      "category": "toys",
+      "shop": "toys",
+      "name": "Plush Teddy Bear 40 cm",
+      "price": 499,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Soft, huggable teddy bear.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/2023_Pluszowy_mi%C5%9B.jpg/960px-2023_Pluszowy_mi%C5%9B.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Jacek Halicki, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:2023_Pluszowy_mi%C5%9B.jpg"
+    },
+    {
+      "category": "collectibles-hobbies",
+      "shop": "hobby",
+      "name": "Die-Cast Model Car 1:24",
+      "price": 899,
+      "original_price": 1090,
+      "weight_kg": 0.7,
+      "variants": [],
+      "description": "Detailed metal model with opening doors.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b0/1955_Ford_Thunderbird_Die-cast_Model_in_Right_View_-_November_14%2C_2018.jpg/960px-1955_Ford_Thunderbird_Die-cast_Model_in_Right_View_-_November_14%2C_2018.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Accurend, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:1955_Ford_Thunderbird_Die-cast_Model_in_Right_View_-_November_14,_2018.jpg"
+    },
+    {
+      "category": "collectibles-hobbies",
+      "shop": "hobby",
+      "name": "Collector's Coin Album",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Album with clear pockets for 120 coins.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Various_antique_and_rare_coins_in_a_coin_album.jpg/960px-Various_antique_and_rare_coins_in_a_coin_album.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Billjones94, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Various_antique_and_rare_coins_in_a_coin_album.jpg"
+    },
+    {
+      "category": "books",
+      "shop": "toys",
+      "name": "Noli Me Tángere (Paperback)",
+      "price": 295,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "José Rizal's novel in English, unabridged, with notes for students.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/0/0e/Noli_Me_Tangere_Picture_3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by Dr. Jose P. Rizal, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Noli_Me_Tangere_Picture_3.jpg"
+    },
+    {
+      "category": "books",
+      "shop": "toys",
+      "name": "Children's Picture Books (5 books)",
+      "price": 499,
+      "original_price": 0,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Illustrated stories for ages 3 to 7.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ad/Children_Books_Tunisia.jpg/960px-Children_Books_Tunisia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Dennis G. Jarvis, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Children_Books_Tunisia.jpg"
+    },
+    {
+      "category": "stationery",
+      "shop": "toys",
+      "name": "Spiral Notebooks (5 pcs)",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "80-leaf notebooks with ruled pages.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/76/Spiral-bound_notebooks.JPG/960px-Spiral-bound_notebooks.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Mk2010, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Spiral-bound_notebooks.JPG"
+    },
+    {
+      "category": "stationery",
+      "shop": "toys",
+      "name": "Gel Pens (12 colors)",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "Smooth 0.5 mm gel pens.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bf/My_Hi-TEC-Cs_and_Erk%27s_Pens_%28498161156%29.jpg/960px-My_Hi-TEC-Cs_and_Erk%27s_Pens_%28498161156%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Kiyonobu Ito, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:My_Hi-TEC-Cs_and_Erk%27s_Pens_(498161156).jpg"
+    },
+    {
+      "category": "board-games-puzzles",
+      "shop": "hobby",
+      "name": "Wooden Folding Chess Set",
+      "price": 699,
+      "original_price": 850,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "Board folds into a box for the pieces.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Chess_game_Staunton_No._6_perfil_view_8.jpg/960px-Chess_game_Staunton_No._6_perfil_view_8.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Wilfredor, CC0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Chess_game_Staunton_No._6_perfil_view_8.jpg"
+    },
+    {
+      "category": "board-games-puzzles",
+      "shop": "hobby",
+      "name": "Jigsaw Puzzle 1000 pcs",
+      "price": 599,
+      "original_price": 0,
+      "weight_kg": 0.7,
+      "variants": [],
+      "description": "Landscape puzzle with a poster guide.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c4/Jigsaw_puzzle_solving_2.jpg/960px-Jigsaw_puzzle_solving_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by kallerna, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Jigsaw_puzzle_solving_2.jpg"
+    },
+    {
+      "category": "musical-instruments",
+      "shop": "hobby",
+      "name": "Acoustic Guitar 39-inch",
+      "price": 3490,
+      "original_price": 3990,
+      "weight_kg": 3,
+      "variants": [],
+      "description": "Full-size guitar with a gig bag, picks and a spare string set.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5d/00_Walden_Acoustic_Guitar_D310e_01.jpg/960px-00_Walden_Acoustic_Guitar_D310e_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Elmschrat, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:00_Walden_Acoustic_Guitar_D310e_01.jpg"
+    },
+    {
+      "category": "musical-instruments",
+      "shop": "hobby",
+      "name": "Soprano Ukulele",
+      "price": 1290,
+      "original_price": 1490,
+      "weight_kg": 0.8,
+      "variants": [],
+      "description": "Mahogany ukulele with Aquila strings and a bag.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/17_inch_pocket_ukulele_branded_%22ultnice%22.jpg/960px-17_inch_pocket_ukulele_branded_%22ultnice%22.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Zapyon, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:17_inch_pocket_ukulele_branded_%22ultnice%22.jpg"
+    },
+    {
+      "category": "arts-crafts",
+      "shop": "toys",
+      "name": "Watercolor Paint Set (24 colors)",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Pan watercolors with a brush and a mixing lid.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/Set_of_watercolor_paints_-_Ariel_Waldman.jpg/960px-Set_of_watercolor_paints_-_Ariel_Waldman.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Ariel Waldman from Muncie, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Set_of_watercolor_paints_-_Ariel_Waldman.jpg"
+    },
+    {
+      "category": "arts-crafts",
+      "shop": "toys",
+      "name": "Colored Pencils (48 pcs)",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Bright, smooth colored pencils in a tin.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/08/Colored_pencils_chevre.jpg/960px-Colored_pencils_chevre.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Chevre, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Colored_pencils_chevre.jpg"
+    },
+    {
+      "category": "video-games",
+      "shop": "hobby",
+      "name": "Wireless Game Controller",
+      "price": 1490,
+      "original_price": 1790,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Bluetooth controller for PC and Android, with vibration.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/Nintendo-Switch-Pro-Controller-FL.jpg/960px-Nintendo-Switch-Pro-Controller-FL.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Evan-Amos, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Nintendo-Switch-Pro-Controller-FL.jpg"
+    },
+    {
+      "category": "video-games",
+      "shop": "hobby",
+      "name": "Gaming Headset with Mic",
+      "price": 1290,
+      "original_price": 1590,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Over-ear headset with a flexible mic and volume control.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Headphones_with_Microphone.jpg/960px-Headphones_with_Microphone.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Zephyris at English Wikipedia, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Headphones_with_Microphone.jpg"
+    },
+    {
+      "category": "educational-toys",
+      "shop": "toys",
+      "name": "Wooden Alphabet Blocks",
+      "price": 449,
+      "original_price": 0,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "26 blocks with letters, numbers and pictures.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Alphabet_Blocks.jpg/960px-Alphabet_Blocks.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Mary Mark Ockerbloom, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Alphabet_Blocks.jpg"
+    },
+    {
+      "category": "educational-toys",
+      "shop": "toys",
+      "name": "Kids' Abacus",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "Wooden abacus for learning to count.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ed/L%C3%BCbeck%2C_Wissenschaftspfad%2C_Abakus_--_2017_--_0372.jpg/960px-L%C3%BCbeck%2C_Wissenschaftspfad%2C_Abakus_--_2017_--_0372.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Dietmar Rabich, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:L%C3%BCbeck,_Wissenschaftspfad,_Abakus_--_2017_--_0372.jpg"
+    },
+    {
+      "category": "outdoor-play",
+      "shop": "hobby",
+      "name": "Kids' Kick Scooter",
+      "price": 1490,
+      "original_price": 1790,
+      "weight_kg": 3,
+      "variants": [],
+      "description": "Three wheels, light-up wheels and an adjustable handlebar.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/53/Ex_scooter%2C_Frankfurt_am_Main_%28LRM_20210815_134347%29.jpg/960px-Ex_scooter%2C_Frankfurt_am_Main_%28LRM_20210815_134347%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Matti Blume, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Ex_scooter,_Frankfurt_am_Main_(LRM_20210815_134347).jpg"
+    },
+    {
+      "category": "outdoor-play",
+      "shop": "toys",
+      "name": "Kite with 50 m Line",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Easy-flying kite for the beach and the park.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/Kite_flying_over_Pasing_04.jpg/960px-Kite_flying_over_Pasing_04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Kritzolina, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Kite_flying_over_Pasing_04.jpg"
+    },
+    {
+      "category": "pet-accessories",
+      "shop": "pets",
+      "name": "Leather Dog Collar",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [
+        "S",
+        "M",
+        "L"
+      ],
+      "description": "Soft leather collar with a brass buckle, for small and medium dogs.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e4/Leather_dog_collar_made_by_Les_cuirs_d%27Agathe_%28DSC07529%29.jpg/960px-Leather_dog_collar_made_by_Les_cuirs_d%27Agathe_%28DSC07529%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Trougnouf (Benoit Brummer), Les cuirs d'Agathe, CC BY 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Leather_dog_collar_made_by_Les_cuirs_d%27Agathe_(DSC07529).jpg"
+    },
+    {
+      "category": "pet-accessories",
+      "shop": "pets",
+      "name": "Stainless Pet Bowls (2 pcs)",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Non-slip stainless bowls for food and water.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/7/7f/Dog_bowl_lemon_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "cover",
+      "credit": "Photo by LemonHistorian, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Dog_bowl_lemon_(2).jpg"
+    },
+    {
+      "category": "pet-health-grooming",
+      "shop": "pets",
+      "name": "Pet Grooming Brush",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "Self-cleaning slicker brush for dogs and cats.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/Providing_care_to_your_furry_family_140806-A-PP158-005.jpg/960px-Providing_care_to_your_furry_family_140806-A-PP158-005.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Sgt. Christopher Prows, Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Providing_care_to_your_furry_family_140806-A-PP158-005.jpg"
+    },
+    {
+      "category": "cat-litter",
+      "shop": "pets",
+      "name": "Bentonite Clumping Cat Litter 10 L",
+      "price": 399,
+      "original_price": 0,
+      "weight_kg": 8,
+      "variants": [],
+      "description": "Clumps fast and locks in odor.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fd/Fresh_cat_litter.JPG/960px-Fresh_cat_litter.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by CambridgeBayWeather, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Fresh_cat_litter.JPG"
+    },
+    {
+      "category": "cat-litter",
+      "shop": "pets",
+      "name": "Covered Cat Litter Box",
+      "price": 899,
+      "original_price": 1090,
+      "weight_kg": 2,
+      "variants": [],
+      "description": "Hooded box with a swinging door and a scoop.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/50/Litter_box_1_2017-12-27.jpg/960px-Litter_box_1_2017-12-27.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by FASTILY, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Litter_box_1_2017-12-27.jpg"
+    },
+    {
+      "category": "pet-toys",
+      "shop": "pets",
+      "name": "Rope Chew Toy for Dogs",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.2,
+      "variants": [],
+      "description": "Cotton rope toy for tug and chew.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Maltipoo_with_rope_toy_%2895554%29.jpg/960px-Maltipoo_with_rope_toy_%2895554%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Rhododendrites, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Maltipoo_with_rope_toy_(95554).jpg"
+    },
+    {
+      "category": "pet-toys",
+      "shop": "pets",
+      "name": "Feather Wand Cat Toy",
+      "price": 149,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "Teaser wand with feathers and a bell.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/MY_Birdie_%21_%284373453934%29.jpg/960px-MY_Birdie_%21_%284373453934%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Trish Hamme from Reno , Nevada, USA, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:MY_Birdie_!_(4373453934).jpg"
+    },
+    {
+      "category": "pet-beds",
+      "shop": "pets",
+      "name": "Round Plush Pet Bed",
+      "price": 799,
+      "original_price": 990,
+      "weight_kg": 1.2,
+      "variants": [
+        "S",
+        "M",
+        "L"
+      ],
+      "description": "Raised-rim donut bed for dogs and cats.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Small_dog_in_doggy_bed.jpg/960px-Small_dog_in_doggy_bed.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by KarinaHolosko, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Small_dog_in_doggy_bed.jpg"
+    },
+    {
+      "category": "pet-beds",
+      "shop": "pets",
+      "name": "Cat Scratching Post",
+      "price": 999,
+      "original_price": 1190,
+      "weight_kg": 3,
+      "variants": [],
+      "description": "Sisal post with a perch and a hanging toy.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Homemade_scratching_post.jpg/960px-Homemade_scratching_post.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Jess, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Homemade_scratching_post.jpg"
+    },
+    {
+      "category": "aquarium",
+      "shop": "pets",
+      "name": "Glass Aquarium, 10 Gallons",
+      "price": 1690,
+      "original_price": 1990,
+      "weight_kg": 8,
+      "variants": [],
+      "description": "Clear glass tank with a lid. Filter sold separately.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/Fish_Tank%2C_Blue_Reef_Aquarium.jpg/960px-Fish_Tank%2C_Blue_Reef_Aquarium.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Tim Sheerman-Chase, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Fish_Tank,_Blue_Reef_Aquarium.jpg"
+    },
+    {
+      "category": "aquarium",
+      "shop": "pets",
+      "name": "Aquarium Air Pump",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Quiet pump with tubing and an air stone.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/ba/Aquarium-air-pump.jpg/960px-Aquarium-air-pump.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by User:Corydoras-adolfoi, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Aquarium-air-pump.jpg"
+    },
+    {
+      "category": "bird-supplies",
+      "shop": "pets",
+      "name": "Bird Cage, Medium",
+      "price": 1290,
+      "original_price": 1490,
+      "weight_kg": 3,
+      "variants": [],
+      "description": "Wire cage with perches, feeders and a pull-out tray.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/Aratinga_canicularis_-_two_pets_in_small_cage-4a.jpg/960px-Aratinga_canicularis_-_two_pets_in_small_cage-4a.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Chris Murray, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Aratinga_canicularis_-_two_pets_in_small_cage-4a.jpg"
+    },
+    {
+      "category": "bird-supplies",
+      "shop": "pets",
+      "name": "Bird Seed Mix 1 kg",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 1,
+      "variants": [],
+      "description": "Seed mix for lovebirds, finches and parakeets.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Bird_seed_mixture_in_feeder.jpg/960px-Bird_seed_mixture_in_feeder.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Johntex, CC BY 2.5, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bird_seed_mixture_in_feeder.jpg"
+    },
+    {
+      "category": "pet-carriers",
+      "shop": "pets",
+      "name": "Pet Carrier, Hard Shell",
+      "price": 1290,
+      "original_price": 1490,
+      "weight_kg": 2.5,
+      "variants": [],
+      "description": "Ventilated carrier for cats and small dogs.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f4/Dogtainers_Pet_Transport_Clipper_Cat_Cage_Plastic_Travel_Crate_Labelled.jpg/960px-Dogtainers_Pet_Transport_Clipper_Cat_Cage_Plastic_Travel_Crate_Labelled.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Chachacha369, CC BY-SA 3.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Dogtainers_Pet_Transport_Clipper_Cat_Cage_Plastic_Travel_Crate_Labelled.jpg"
+    },
+    {
+      "category": "pet-carriers",
+      "shop": "pets",
+      "name": "Pet Backpack Carrier",
+      "price": 1490,
+      "original_price": 0,
+      "weight_kg": 1.2,
+      "variants": [],
+      "description": "Breathable backpack with a window for small pets.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/Ruffit_Dog_Carrier.jpg/960px-Ruffit_Dog_Carrier.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Edgar González, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Ruffit_Dog_Carrier.jpg"
+    },
+    {
+      "category": "pet-treats",
+      "shop": "pets",
+      "name": "Dog Biscuit Treats 500 g",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.5,
+      "variants": [],
+      "description": "Crunchy treats that help clean teeth.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/Bone_Dog_Treats_%2851049786016%29.jpg/960px-Bone_Dog_Treats_%2851049786016%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Megan Marrs, CC BY 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Bone_Dog_Treats_(51049786016).jpg"
+    },
+    {
+      "category": "pet-treats",
+      "shop": "pets",
+      "name": "Tuna Cat Treats (6 packs)",
+      "price": 299,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Soft treats cats love.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Nourriture_humide_pour_chats.jpg/960px-Nourriture_humide_pour_chats.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Tsaag Valren, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Nourriture_humide_pour_chats.jpg"
+    },
+    {
+      "category": "other-items",
+      "shop": "others",
+      "name": "Capiz Parol Christmas Lantern 18-inch",
+      "price": 1290,
+      "original_price": 1590,
+      "weight_kg": 1.2,
+      "variants": [],
+      "description": "Handmade in Pampanga from capiz shells, with warm LED lights.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Electronic_parol_covered_with_colored_plastic.jpg/960px-Electronic_parol_covered_with_colored_plastic.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Eugene Alvin Villar (seav), CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Electronic_parol_covered_with_colored_plastic.jpg"
+    },
+    {
+      "category": "other-items",
+      "shop": "others",
+      "name": "Ceramic Hen Coin Bank",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.6,
+      "variants": [],
+      "description": "A colourful hen-shaped coin bank for saving loose change.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/14/Colorful-plastic-chicken-piggy-bank-indonesia.jpg/960px-Colorful-plastic-chicken-piggy-bank-indonesia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "cover",
+      "credit": "Photo by Undeka 11, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Colorful-plastic-chicken-piggy-bank-indonesia.jpg"
+    },
+    {
+      "category": "other-items",
+      "shop": "others",
+      "name": "Party Balloons Set (50 pcs)",
+      "price": 249,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [],
+      "description": "Latex balloons in assorted colors, with ribbon.",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/5/50/Congrats_bqt.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "fit": "contain",
+      "credit": "Photo by Photographer: Warren Denning. Creative Director: Stan Weir. Marketing Director: , Public domain, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Congrats_bqt.jpg"
+    },
+    {
+      "category": "other-items",
+      "shop": "others",
+      "name": "Gift Wrapping Paper (10 sheets)",
+      "price": 199,
+      "original_price": 0,
+      "weight_kg": 0.3,
+      "variants": [],
+      "description": "Assorted printed wrapping paper, 50 x 70 cm.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b3/Gift_wrapping_in_a_jewellery_shop_6.jpg/960px-Gift_wrapping_in_a_jewellery_shop_6.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by W.carter, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Gift_wrapping_in_a_jewellery_shop_6.jpg"
+    },
+    {
+      "category": "other-items",
+      "shop": "others",
+      "name": "Scented Soy Candle",
+      "price": 349,
+      "original_price": 0,
+      "weight_kg": 0.4,
+      "variants": [
+        "Lavender",
+        "Vanilla"
+      ],
+      "description": "Hand-poured soy candle, about 40 hours of burn time.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3d/Candle_With_Gold_Stand.jpg/960px-Candle_With_Gold_Stand.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by Amicageniale01, CC BY-SA 4.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Candle_With_Gold_Stand.jpg"
+    },
+    {
+      "category": "other-items",
+      "shop": "others",
+      "name": "Wooden Rosary",
+      "price": 149,
+      "original_price": 0,
+      "weight_kg": 0.1,
+      "variants": [],
+      "description": "Hand-strung wooden beads.",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/R%C3%B3%C5%BCaniec_-_wooden_rosary_02.jpg/960px-R%C3%B3%C5%BCaniec_-_wooden_rosary_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "fit": "contain",
+      "credit": "Photo by FotoKatolik from Polska, CC BY-SA 2.0, via Wikimedia Commons: https://commons.wikimedia.org/wiki/File:R%C3%B3%C5%BCaniec_-_wooden_rosary_02.jpg"
+    }
+  ]
+}

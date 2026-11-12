@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity, ShieldAlert, UserCheck, UserX, Store, Truck, Warehouse, RotateCcw, FolderPlus, Tags, Trash2, Percent,
-  FileText, BadgeCheck, Scale, CalendarDays, CalendarClock, ClipboardCheck, ChevronRight, Braces, ArrowUpRight, BellRing,
+  FileText, BadgeCheck, Scale, CalendarDays, CalendarClock, ClipboardCheck, ChevronRight, Braces, ArrowUpRight, BellRing, DatabaseBackup, Download,
 } from 'lucide-react';
 import { getActivityLogApi } from '../../api/client';
 import type { ActivityArea, ActivityLogEntry, ActivityLogSummary } from '../../types';
@@ -52,6 +52,9 @@ const ACTIONS: Record<string, { label: string; icon: React.ElementType; tone: To
   resolve_settlement: { label: 'Courier–shop payment decided', icon: Scale, tone: 'blue' },
   remind_settlement: { label: 'Payment reminder sent', icon: BellRing, tone: 'amber' },
   resolve_dispute: { label: 'Dispute decided', icon: Scale, tone: 'blue' },
+  create_backup: { label: 'Backup made', icon: DatabaseBackup, tone: 'emerald' },
+  download_backup: { label: 'Backup downloaded', icon: Download, tone: 'blue' },
+  delete_backup: { label: 'Backup deleted', icon: Trash2, tone: 'rose' },
 };
 
 function actionInfo(action: string) {
@@ -65,6 +68,7 @@ const AREAS: { value: '' | ActivityArea; label: string }[] = [
   { value: 'catalog', label: 'Categories' },
   { value: 'money', label: 'Money & policy' },
   { value: 'disputes', label: 'Disputes' },
+  { value: 'backups', label: 'Backups' },
   { value: 'other', label: 'Other' },
 ];
 

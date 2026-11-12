@@ -7,6 +7,7 @@ use App\Mail\WelcomeMail;
 use App\Models\Address;
 use App\Models\LogisticsCompany;
 use App\Models\LogisticsCompanyMember;
+use App\Models\SortingCenter;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 
@@ -87,6 +88,14 @@ class AccountRegistrar
             app(MailNotifier::class)->courierApplicationReceived($membership->company);
 
             return 'Your email is verified. Your courier company application is now Pending Approval: an admin will review it and email you the result.';
+        }
+
+        $hub = SortingCenter::with(['user', 'logisticsCompany'])->where('user_id', $user->id)->latest('id')->first();
+        if ($hub && $hub->status === SortingCenter::STATUS_PENDING) {
+            app(MailNotifier::class)->hubApplicationReceived($hub);
+            app(MailNotifier::class)->courierNewHubApplication($hub);
+
+            return 'Your email is verified. Your hub application is now Pending Approval: the courier company will review it and email you the result.';
         }
 
         Mail::to($user->email)->queue(new WelcomeMail($user));

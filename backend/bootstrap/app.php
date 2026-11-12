@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'logistics_member'        => \App\Http\Middleware\EnsureLogisticsMember::class,
             'approved_rider'          => \App\Http\Middleware\EnsureApprovedRider::class,
             'active_account'          => \App\Http\Middleware\EnsureActiveAccount::class,
+            'shopper'                 => \App\Http\Middleware\EnsureShopper::class,
         ]);
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);

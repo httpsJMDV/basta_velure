@@ -86,6 +86,7 @@ import AdminMessagesPage from './pages/admin/AdminMessagesPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import AdminPlatformSettingsPage from './pages/admin/AdminPlatformSettingsPage';
 import AdminCategoriesPage from './pages/admin/AdminCategoriesPage';
+import AdminBackupsPage from './pages/admin/AdminBackupsPage';
 import SellerReportsPage from './pages/seller/SellerReportsPage';
 import SellerMessagesPage from './pages/seller/SellerMessagesPage';
 import BuyerMessagesPage from './pages/buyer/BuyerMessagesPage';
@@ -122,6 +123,7 @@ import {
 import type { ReactNode } from 'react';
 import type { Role } from './types';
 import ScrollToTop from './components/ScrollToTop';
+import { isWorkAccount, roleHomePath } from './utils/roleHome';
 import { ToastProvider } from './components/ui/Toast';
 
 /**
@@ -226,6 +228,16 @@ function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }
   return <>{children}</>;
 }
 
+/**
+ * The shop and the buyer's account pages are for buyers and sellers. A hub, courier company, rider or truck driver
+ * account does deliveries and never shops (the API refuses it too), so it goes back to its own portal.
+ */
+function ShopOnly({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (user && isWorkAccount(user)) return <Navigate to={roleHomePath(user)} replace />;
+  return <>{children}</>;
+}
+
 /** A shop's page needs a signed-in account (any role): a visitor signs in first and comes straight back to it. */
 function RequireSignIn({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -277,32 +289,32 @@ function AppRoutes() {
             ? <Navigate to="/complete-profile" replace />
             : user?.role === 'admin'
             ? <Navigate to="/admin" replace />
-            : <HomePage />
+            : <ShopOnly><HomePage /></ShopOnly>
         }
       />
-      <Route path="/cart" element={<CartPage />} />
+      <Route path="/cart" element={<ShopOnly><CartPage /></ShopOnly>} />
       <Route
         path="/checkout"
         element={
           !user ? (
             <Navigate to="/login" replace />
           ) : (
-            <CheckoutPage />
+            <ShopOnly><CheckoutPage /></ShopOnly>
           )
         }
       />
-      <Route path="/pay/:token" element={!user ? <Navigate to="/login" replace /> : <PaymentPage />} />
-      <Route path="/search" element={<CatalogPage />} />
-      <Route path="/category/:parentId" element={<CatalogPage />} />
-      <Route path="/products/:id" element={<ProductDetailPage />} />
+      <Route path="/pay/:token" element={!user ? <Navigate to="/login" replace /> : <ShopOnly><PaymentPage /></ShopOnly>} />
+      <Route path="/search" element={<ShopOnly><CatalogPage /></ShopOnly>} />
+      <Route path="/category/:parentId" element={<ShopOnly><CatalogPage /></ShopOnly>} />
+      <Route path="/products/:id" element={<ShopOnly><ProductDetailPage /></ShopOnly>} />
       {/* A shop's page, its comments and its product reviews: signed-in accounts only */}
-      <Route path="/shop/:slug" element={<RequireSignIn><ShopProfilePage /></RequireSignIn>} />
-      <Route path="/shop/:slug/reviews" element={<RequireSignIn><ShopReviewsPage /></RequireSignIn>} />
-      <Route path="/store/:id" element={<RequireSignIn><ShopProfilePage /></RequireSignIn>} />
+      <Route path="/shop/:slug" element={<RequireSignIn><ShopOnly><ShopProfilePage /></ShopOnly></RequireSignIn>} />
+      <Route path="/shop/:slug/reviews" element={<RequireSignIn><ShopOnly><ShopReviewsPage /></ShopOnly></RequireSignIn>} />
+      <Route path="/store/:id" element={<RequireSignIn><ShopOnly><ShopProfilePage /></ShopOnly></RequireSignIn>} />
 
       {/* Auth pages — redirect away if already logged in */}
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
+      <Route path="/login" element={user ? <Navigate to={roleHomePath(user)} replace /> : <LoginPage />} />
+      <Route path="/register" element={user ? <Navigate to={roleHomePath(user)} replace /> : <RegisterPage />} />
       <Route path="/register/seller" element={<SellerRegisterPage />} />
       <Route path="/register/hub" element={<HubRegisterPage />} />
       <Route path="/register/courier" element={<CourierRegisterPage />} />
@@ -334,7 +346,7 @@ function AppRoutes() {
         path="/settings"
         element={
           <RequireRole roles={['buyer', 'seller', 'admin', 'rider']}>
-            <SettingsLayout />
+            <ShopOnly><SettingsLayout /></ShopOnly>
           </RequireRole>
         }
       >
@@ -428,6 +440,7 @@ function AppRoutes() {
         <Route path="reports"             element={<AdminReportsPage />} />
         <Route path="settings"            element={<AdminPlatformSettingsPage />} />
         <Route path="activity-log"        element={<AdminActivityLogPage />} />
+        <Route path="backups"             element={<AdminBackupsPage />} />
       </Route>
 
       {/* Courier company portal (J&T, Flash, the default courier): its own hubs, riders and parcels */}

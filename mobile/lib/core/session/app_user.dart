@@ -19,6 +19,7 @@ class AppUser {
     this.sortingCenter,
     this.rider,
     this.logisticsCompany,
+    this.workAccount,
   });
 
   final int id;
@@ -51,6 +52,18 @@ class AppUser {
   final HubSummary? sortingCenter;
   final RiderSummary? rider;
   final CourierSummary? logisticsCompany;
+
+  /// `work_account` from the server (User::isWorkAccount), when it sends it.
+  final bool? workAccount;
+
+  /// A hub, courier company, rider or truck driver account, an application in review included: it does deliveries
+  /// and never shops. Only a seller switches between selling and buying.
+  bool get isWorkAccount =>
+      workAccount ??
+      (role == 'rider' ||
+          (rider != null && rider!.status != 'DISAPPROVED') ||
+          (sortingCenter != null && sortingCenter!.status != 'REJECTED') ||
+          (logisticsCompany != null && logisticsCompany!.status != 'REJECTED'));
 
   String get fullName => [
     firstName,
@@ -95,6 +108,7 @@ class AppUser {
       logisticsCompany: courier == null
           ? null
           : CourierSummary.fromJson(courier),
+      workAccount: json['work_account'] as bool?,
     );
   }
 }

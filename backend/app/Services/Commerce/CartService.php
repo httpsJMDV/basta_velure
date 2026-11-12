@@ -271,6 +271,11 @@ class CartService
         if ($heavy = OrderLimits::tooHeavyMessage((float) ($variant->product->weight_kg ?? 0), $quantity)) {
             $this->fail($field, $heavy);
         }
+        // One checkout takes at most this many pieces (orders.max_units), so a bigger line could never be bought.
+        $maxUnits = (int) config('orders.max_units', 200);
+        if ($quantity > $maxUnits) {
+            $this->fail($field, "One checkout takes at most {$maxUnits} pieces. For a bigger order, message the shop first.");
+        }
         if ($quantity > $variant->stock_quantity) {
             $this->fail($field, $variant->stock_quantity === 1 ? 'Only 1 is available.' : "Only {$variant->stock_quantity} are available.");
         }

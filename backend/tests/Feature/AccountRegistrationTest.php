@@ -319,6 +319,15 @@ class AccountRegistrationTest extends TestCase
             $this->postJson('/api/v1/auth/change-password', ['current_password' => 'Mamimili@2026', 'password' => $weak, 'password_confirmation' => $weak])
                 ->assertStatus(422)->assertJsonValidationErrors('password');
         }
+        // A space is not the special character, and spaces are refused anywhere in a password.
+        foreach (['        1Ba', 'Mamimili 2027', ' Mamimili@2027', 'Mamimili@2027 '] as $spaced) {
+            $this->postJson('/api/v1/auth/change-password', ['current_password' => 'Mamimili@2026', 'password' => $spaced, 'password_confirmation' => $spaced])
+                ->assertStatus(422)->assertJsonValidationErrors('password');
+        }
+        $this->postJson('/api/v1/auth/change-password', ['current_password' => 'Mamimili@2026', 'password' => 'Mamimili 2027', 'password_confirmation' => 'Mamimili 2027'])
+            ->assertJsonFragment(['The password cannot contain spaces.']);
+        $this->postJson('/api/v1/auth/register', $this->buyer(['password' => '        1Ba', 'password_confirmation' => '        1Ba']))
+            ->assertStatus(422)->assertJsonValidationErrors('password');
         $this->postJson('/api/v1/auth/change-password', ['current_password' => 'Mamimili@2026', 'password' => 'Mamimili@2027', 'password_confirmation' => 'Mamimili@2028'])
             ->assertStatus(422)->assertJsonValidationErrors('password');
         $this->postJson('/api/v1/auth/change-password', ['current_password' => 'Mamimili@2026', 'password' => 'Mamimili@2026', 'password_confirmation' => 'Mamimili@2026'])
