@@ -20,6 +20,10 @@ export const registerSellerApi = (form: FormData) =>
 export const registerCourierApi = (form: FormData) =>
   http.post<RegistrationResult>('/auth/register-courier', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
 
+/** A visitor's hub application: the hub's own account (never a shopping account), the operator's ID and the hub. */
+export const registerHubApi = (form: FormData) =>
+  http.post<RegistrationResult>('/auth/register-hub', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);
+
 /** A visitor's rider application for one hub. No account until the hub approves it; then the activation email. */
 export const registerRiderApi = (form: FormData) =>
   http.post<RiderApplicationResult>('/auth/register-rider', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data);

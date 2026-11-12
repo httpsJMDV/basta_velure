@@ -186,6 +186,8 @@ export interface User {
     street_address: string | null;
   } | null;
   role: Role;
+  /** A hub, courier or rider account (sent by /auth/me and sign-in): it does deliveries and never shops. */
+  work_account?: boolean;
   status: UserStatus;
   avatar_url: string | null;
   has_password: boolean;

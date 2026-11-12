@@ -45,19 +45,24 @@ export function emailError(value: string): string | undefined {
 
 export interface PasswordRule { key: string; label: string; ok: boolean }
 
-/** A5: 8+ characters with an uppercase letter, a lowercase letter, a number and a special character. */
+/**
+ * A5: 8+ characters with an uppercase letter, a lowercase letter, a number and a special character, and no spaces
+ * (BuyerRegisterRequest::passwordRule). A space is not a special character, so "        1Ba" fails twice.
+ */
 export function passwordRules(pw: string): PasswordRule[] {
   return [
     { key: 'length', label: 'At least 8 characters', ok: pw.length >= 8 },
     { key: 'upper', label: 'An uppercase letter', ok: /\p{Lu}/u.test(pw) },
     { key: 'lower', label: 'A lowercase letter', ok: /\p{Ll}/u.test(pw) },
     { key: 'number', label: 'A number', ok: /\d/.test(pw) },
-    { key: 'symbol', label: 'A special character', ok: /[^\p{L}\d]/u.test(pw) },
+    { key: 'symbol', label: 'A special character', ok: /[^\p{L}\d\s]/u.test(pw) },
+    { key: 'spaces', label: 'No spaces', ok: pw.length > 0 && !/\s/.test(pw) },
   ];
 }
 
 export function passwordError(pw: string): string | undefined {
   if (!pw) return 'Password is required.';
+  if (/\s/.test(pw)) return 'The password cannot contain spaces.';
   const missing = passwordRules(pw).filter((r) => !r.ok).map((r) => r.label.toLowerCase());
   return missing.length ? `Password needs ${missing.join(', ')}.` : undefined;
 }

@@ -78,12 +78,13 @@ const OPTIONS: PartnerOption[] = [
     pitch: 'Run a sorting center for a partner courier: receive parcels from pickup riders, sort them by barangay, and send your riders out for the last mile.',
     earn: { value: '15%', label: 'of the delivery fee of every parcel that goes through your hub' },
     requirements: [
-      'Owner’s valid government ID on your account',
+      'An email of its own for the hub account (it can’t shop)',
+      'Operator’s valid government ID',
       'DTI or business permit for the hub',
       'Hub name and full address',
       'The barangays your hub covers',
     ],
-    steps: ['Pick a courier company and apply', 'The courier checks your permit and area', 'Approve riders and start sorting'],
+    steps: ['Register the hub and confirm your email', 'The courier checks your permit, ID and area', 'Approve riders and start sorting'],
     registerTo: '/register/hub',
     registerLabel: 'Apply to run a hub',
     signInTo: '/hub/login',
@@ -101,6 +102,7 @@ const OPTIONS: PartnerOption[] = [
       'SEC certificate, BIR Form 2303 and Mayor’s / business permit',
       'A valid ID of the authorized representative',
       'Contact person, position, and head office address with postal code',
+      'An email of its own for the company account (it can’t shop)',
     ],
     steps: ['Apply and confirm your email with a code', 'Loved-IT checks the company', 'Add riders, set rates and approve hubs'],
     registerTo: '/register/courier',
@@ -146,7 +148,7 @@ export default function PartnerPage() {
             <h1 className="mt-2 text-[32px] sm:text-[42px] font-serif font-bold tracking-tight leading-[1.08] text-[#1E1B18]">Grow with Loved-IT</h1>
             <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-stone-600">
               Every order moves through a few hands before it reaches a buyer. Sell the products, carry the parcels, run the hub that sorts them,
-              or bring your whole courier network. Pick your part, see what you need, then apply from your Loved-IT account.
+              or bring your whole courier network. Pick your part, see what you need, then apply.
             </p>
           </div>
 
@@ -244,7 +246,7 @@ export default function PartnerPage() {
         </section>
 
         <p className="mt-6 flex items-center gap-2 text-[12.5px] text-stone-500">
-          <PackageCheck className="w-4 h-4 text-stone-400" /> Seller, hub and courier applications use your Loved-IT account, so your name, contact details and ID are already on file. Riders apply with an email of their own.
+          <PackageCheck className="w-4 h-4 text-stone-400" /> A seller account also shops, so you can apply to sell from your Loved-IT account. Hubs, couriers, riders and truck drivers handle deliveries only, so each registers with an email of its own and can’t shop.
         </p>
       </main>
 

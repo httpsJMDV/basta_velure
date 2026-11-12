@@ -10,7 +10,7 @@ import PhoneInput from '../../components/ui/PhoneInput';
 import FileUploadZone from '../../components/ui/FileUploadZone';
 import PsgcCascadingAddress from '../../components/logistics/PsgcCascadingAddress';
 import type { HubAddressValue } from '../../components/logistics/PsgcCascadingAddress';
-import { ApplyLayout, ApplySection, ApplyRail, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus } from '../../components/apply/ApplyKit';
+import { ApplyLayout, ApplySection, ApplyRail, ApplyingAs, PendingStatus, ApprovedStatus, RejectedStatus, BlockedStatus, SeparateAccount } from '../../components/apply/ApplyKit';
 import { FormErrorSummary, PasswordField, TermsConsent } from '../../components/auth/AuthFields';
 import { applyCourierApi } from '../../api/client';
 import { registerCourierApi } from '../../api/account';
@@ -43,7 +43,7 @@ function Shell({ children, aside }: { children: ReactNode; aside?: ReactNode }) 
       image={photo}
       imageAlt="Parcels stacked inside a delivery van"
       title="Bring your courier to Loved-IT"
-      intro="Deliver for Loved-IT shops with your own hubs and riders. Confirm your email, then the admin team reviews your company documents."
+      intro="Deliver for Loved-IT shops with your own hubs and riders. The company gets its own account for deliveries, separate from shopping. Confirm your email, then the admin team reviews your documents."
       aside={aside}
     >
       {children}
@@ -52,7 +52,7 @@ function Shell({ children, aside }: { children: ReactNode; aside?: ReactNode }) 
 }
 
 export default function CourierRegisterPage() {
-  const { user, setUser, loading } = useAuth();
+  const { user, setUser, loading, clearAuth } = useAuth();
   const navigate = useNavigate();
   const guest = !user;
   const [reapplying, setReapplying] = useState(false);
@@ -101,8 +101,9 @@ export default function CourierRegisterPage() {
     }
     return <Shell><BlockedStatus title="Courier company suspended" text="Your courier company has been suspended by platform administration. Please contact support." /></Shell>;
   }
-  if (user && user.role !== 'buyer') {
-    return <Shell><BlockedStatus title="This account can't apply" text="Courier companies are run from a buyer account. Sign out and apply with a new account." /></Shell>;
+  // A courier company has an account of its own (deliveries only, no shopping): a signed-in shopper signs out first.
+  if (user && !company) {
+    return <Shell><SeparateAccount what="courier company" user={user} onSignOut={() => { clearAuth(); navigate('/register/courier', { replace: true }); }} /></Shell>;
   }
 
   const clear = (...keys: string[]) => setErrors((prev) => {

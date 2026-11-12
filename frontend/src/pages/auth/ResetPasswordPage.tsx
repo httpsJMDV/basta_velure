@@ -6,10 +6,11 @@ import Button from '../../components/ui/Button';
 import AuthShell, { AuthNotice } from '../../components/auth/AuthShell';
 import { PasswordField } from '../../components/auth/AuthFields';
 import { resetPasswordApi } from '../../api/client';
+import { confirmError, passwordError } from '../../utils/accountRules';
 import photo from '../../assets/auth/buyer-login.jpg';
 
 const FACTS = [
-  { icon: KeyRound, text: 'At least 8 characters, with upper and lower case, a number and a symbol' },
+  { icon: KeyRound, text: 'At least 8 characters, with upper and lower case, a number and a symbol, and no spaces' },
   { icon: ShieldCheck, text: 'Every device signed in to your account is signed out' },
   { icon: Lock, text: 'Nobody at Loved-IT will ever ask for your password' },
 ];
@@ -28,7 +29,8 @@ export default function ResetPasswordPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    if (password !== confirmation) { setError('Passwords do not match.'); return; }
+    const problem = passwordError(password) ?? confirmError(password, confirmation);
+    if (problem) { setError(problem); return; }
     setLoading(true);
     try {
       await resetPasswordApi({ token, email: emailParam, password, password_confirmation: confirmation });
