@@ -100,10 +100,10 @@ void main() {
     });
 
     test(
-      'a pending or refused rider application keeps the person shopping',
+      'a pending rider application is a work account; a refused one keeps the person shopping',
       () {
         expect(homesFor(user(rider: {'id': 1, 'status': 'PENDING'})), [
-          AppHome.buyer,
+          AppHome.rider,
         ]);
         expect(homesFor(user(rider: {'id': 1, 'status': 'DISAPPROVED'})), [
           AppHome.buyer,
@@ -112,7 +112,7 @@ void main() {
     );
 
     test(
-      'an approved hub or courier team opens Logistics; a pending one does not',
+      'an approved hub or courier team opens Logistics; a pending one waits on the website, a refused one shops',
       () {
         expect(
           defaultHomeFor(
@@ -139,7 +139,13 @@ void main() {
           homesFor(
             user(hub: {'id': 3, 'hub_name': 'Hub', 'status': 'PENDING'}),
           ),
-          [AppHome.buyer],
+          [AppHome.webOnly],
+        );
+        expect(
+          homesFor(
+            user(courier: {'id': 2, 'name': 'DCC', 'status': 'PENDING'}),
+          ),
+          [AppHome.webOnly],
         );
         expect(
           homesFor(

@@ -81,9 +81,14 @@ abstract final class Rules {
       RegExp(r'\p{Ll}', unicode: true).hasMatch(password),
     ),
     PasswordCheck('A number', RegExp(r'\d').hasMatch(password)),
+    // A space is not a symbol: "        1Ba" passed before (BuyerRegisterRequest::passwordRule refuses spaces).
     PasswordCheck(
       'A symbol',
-      RegExp(r'[^\p{L}\d]', unicode: true).hasMatch(password),
+      RegExp(r'[^\p{L}\d\s]', unicode: true).hasMatch(password),
+    ),
+    PasswordCheck(
+      'No spaces',
+      password.isNotEmpty && !RegExp(r'\s').hasMatch(password),
     ),
   ];
 
@@ -91,6 +96,7 @@ abstract final class Rules {
   static String? password(String? value) {
     final s = value ?? '';
     if (s.isEmpty) return 'Password is required.';
+    if (RegExp(r'\s').hasMatch(s)) return 'The password cannot contain spaces.';
     if (passwordChecks(s).any((check) => !check.ok)) {
       return 'Use 8 or more characters with an uppercase letter, a lowercase letter, a number and a symbol.';
     }
@@ -422,6 +428,11 @@ abstract final class Only {
     RegExp(r'[0-9+]'),
   );
   static final noSpaces = FilteringTextInputFormatter.deny(RegExp(r'\s'));
+
+  /// Spaces typed before the first letter are dropped, so " Juan" becomes "Juan" as it is typed.
+  static final noLeadingSpace = FilteringTextInputFormatter.deny(
+    RegExp(r'^\s+'),
+  );
   static final trackingChars = FilteringTextInputFormatter.allow(
     RegExp(r'[A-Za-z0-9\-]'),
   );

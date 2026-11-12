@@ -104,11 +104,24 @@ void main() {
       final checks = Rules.passwordChecks('abc');
       expect(checks.where((c) => c.ok).map((c) => c.label), [
         'A lowercase letter',
+        'No spaces',
       ]);
     });
 
-    test('is never trimmed: a space counts as a symbol, and the confirmation must match exactly', () {
-      expect(Rules.password('Secret 12'), isNull);
+    test('a space is not a symbol, and spaces are refused anywhere', () {
+      expect(
+        Rules.password('        1Ba'),
+        'The password cannot contain spaces.',
+      );
+      expect(Rules.password('Secret 12'), 'The password cannot contain spaces.');
+      expect(Rules.password(' Secret#12'), 'The password cannot contain spaces.');
+      expect(
+        Rules.passwordChecks('Secret 12').firstWhere((c) => c.label == 'A symbol').ok,
+        isFalse,
+      );
+    });
+
+    test('is never trimmed: the confirmation must match exactly', () {
       expect(Rules.passwordConfirmation('Secret#12', 'Secret#12'), isNull);
       expect(
         Rules.passwordConfirmation('Secret#12', 'Secret#12 '),
