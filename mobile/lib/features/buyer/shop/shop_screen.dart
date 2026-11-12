@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/api/api_failure.dart';
+import '../../../core/env.dart';
 import '../../../core/format.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
@@ -16,9 +17,21 @@ import '../product/product_screen.dart' show VoucherTile;
 import '../product/reviews_sheet.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
+import 'report_shop_sheet.dart';
 
 final _shopProvider = FutureProvider.autoDispose.family<ShopProfile, String>(
   (ref, shopKey) => ref.watch(buyerApiProvider).shop(shopKey),
+);
+
+/// Opens the report sheet for a shop (reason, what happened, confirm), then the Support chat with the report.
+Future<void> _report(
+  BuildContext context,
+  ShopProfile profile,
+  String shopKey,
+) => showReportShopSheet(
+  context,
+  shopName: profile.shopName,
+  shopLink: '${Env.webUrl}/shop/${profile.shopSlug ?? shopKey}',
 );
 
 /// A shop's page (B5, signed-in only): its profile, follow, chat, vouchers, reviews and comments, and every product.
@@ -31,7 +44,37 @@ class ShopScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final shop = ref.watch(_shopProvider(shopKey));
     return Scaffold(
-      appBar: AppBar(title: Text(shop.value?.shopName ?? 'Shop')),
+      appBar: AppBar(
+        title: Text(shop.value?.shopName ?? 'Shop'),
+        actions: [
+          if (shop.value case final profile?)
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              icon: const Icon(LucideIcons.ellipsisVertical, size: 20),
+              position: PopupMenuPosition.under,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(BuyerRadius.field),
+              ),
+              onSelected: (_) => _report(context, profile, shopKey),
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.flag,
+                        size: 18,
+                        color: AppColors.brandRed,
+                      ),
+                      SizedBox(width: AppSpace.md),
+                      Text('Report this shop'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
       body: shop.when(
         loading: () => const SkeletonList(count: 4),
         error: (error, _) => ErrorRetry(
@@ -326,6 +369,23 @@ class _ShopHeaderState extends ConsumerState<_ShopHeader> {
                           ),
                   ),
                 ],
+                const SizedBox(height: AppSpace.xs),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _report(context, profile, widget.shopKey),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.stone500,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      textStyle: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    icon: const Icon(LucideIcons.flag, size: 14),
+                    label: const Text('Report this shop'),
+                  ),
+                ),
               ],
             ),
           ),
