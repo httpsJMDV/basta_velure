@@ -19,6 +19,30 @@ class BuyerVoucherController extends Controller
 {
     public function __construct(private readonly VoucherEngine $engine) {}
 
+    /** GET /vouchers/discover: public offers, including shop vouchers that are not saved yet. */
+    public function discover(Request $request): JsonResponse
+    {
+        $page = Voucher::with(['products:id', 'seller.sellerProfile'])
+            ->where('claimable', true)->running()
+            ->where(fn ($q) => $q->whereNull('total_limit')->orWhereColumn('used_count', '<', 'total_limit'))
+            ->where(function ($q) {
+                $q->where(fn ($p) => $p->whereNull('seller_id')->whereIn('scope', [Voucher::SCOPE_PLATFORM, Voucher::SCOPE_SHIPPING]))
+                    ->orWhere(fn ($s) => $s->where('scope', Voucher::SCOPE_STORE)
+                        ->whereHas('seller', fn ($u) => $u->where('status', 'active')
+                            ->whereHas('sellerProfile', fn ($p) => $p->where('application_status', 'approved')->where('on_vacation', false))
+                            ->whereHas('products', fn ($p) => $p->where('status', 'active')))
+                        ->where(fn ($p) => $p->where('applies_to', 'all')->orWhereHas('products', fn ($p) => $p->where('status', 'active'))));
+            })
+            ->orderBy('ends_at')->orderBy('id')->paginate(24);
+
+        $response = $this->listing($page->items());
+        $response->setData($response->getData(true) + ['meta' => [
+            'current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total(),
+        ]]);
+
+        return $response;
+    }
+
     /** GET /shops/{seller}/vouchers: the shop's claimable store vouchers running now. */
     public function forShop(Request $request, int $seller): JsonResponse
     {
