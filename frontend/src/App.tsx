@@ -77,6 +77,7 @@ import AdminSortingCenterApplicationsPage from './pages/admin/AdminSortingCenter
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminActivityLogPage from './pages/admin/AdminActivityLogPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
+import AdminBuyerRiskPage from './pages/admin/AdminBuyerRiskPage';
 import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
 import AdminDisputesPage from './pages/admin/AdminDisputesPage';
 import AdminReviewsPage from './pages/admin/AdminReviewsPage';
@@ -433,6 +434,7 @@ function AppRoutes() {
         <Route path="products/:id"        element={<AdminProductReviewPage />} />
         <Route path="products/:id/review" element={<AdminProductReviewPage />} />
         <Route path="orders"              element={<AdminOrdersPage />} />
+        <Route path="buyer-risk"          element={<AdminBuyerRiskPage />} />
         <Route path="payments"            element={<AdminPaymentsPage />} />
         <Route path="disputes"            element={<AdminDisputesPage />} />
         <Route path="vouchers"            element={<AdminVouchersPage />} />
