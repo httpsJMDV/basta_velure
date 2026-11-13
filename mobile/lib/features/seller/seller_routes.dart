@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/widgets/home_back_guard.dart';
 import '../buyer/buyer_shell.dart';
 import '../buyer/widgets/buyer_theme.dart';
 import 'home/seller_home_screen.dart';
@@ -82,21 +83,24 @@ class _SellerShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      body: shell,
-      bottomNavigationBar: BuyerDock(
-        index: shell.currentIndex,
-        onSelected: (index) {
-          if (index != shell.currentIndex) HapticFeedback.selectionClick();
-          shell.goBranch(index, initialLocation: index == shell.currentIndex);
-        },
-        items: const [
-          DockItem(icon: LucideIcons.layoutDashboard, label: 'Home'),
-          DockItem(icon: LucideIcons.receipt, label: 'Orders'),
-          DockItem(icon: LucideIcons.package, label: 'Products'),
-          DockItem(icon: LucideIcons.store, label: 'Shop'),
-        ],
+    return HomeBackGuard(
+      shell: shell,
+      child: Scaffold(
+        extendBody: true,
+        body: shell,
+        bottomNavigationBar: BuyerDock(
+          index: shell.currentIndex,
+          onSelected: (index) {
+            if (index != shell.currentIndex) HapticFeedback.selectionClick();
+            shell.goBranch(index, initialLocation: index == shell.currentIndex);
+          },
+          items: const [
+            DockItem(icon: LucideIcons.layoutDashboard, label: 'Home'),
+            DockItem(icon: LucideIcons.receipt, label: 'Orders'),
+            DockItem(icon: LucideIcons.package, label: 'Products'),
+            DockItem(icon: LucideIcons.store, label: 'Shop'),
+          ],
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/session/session.dart';
+import '../../core/widgets/home_back_guard.dart';
 import '../buyer/buyer_shell.dart';
 import 'data/rider_models.dart';
 import 'data/rider_state.dart';
@@ -44,55 +45,59 @@ class RiderShell extends ConsumerWidget {
               ? truckBranches.indexOf(shell.currentIndex)
               : 0);
 
-    return Stack(
-      children: [
-        Scaffold(
-          extendBody: true,
-          body: Column(
-            children: [
-              const LocationBar(),
-              // The bar already sits under the status bar, so the screen below it doesn't pad for it again.
-              // Its own context, from inside the Scaffold: that one knows how much of the bottom the dock covers.
-              Expanded(
-                child: Builder(
-                  builder: (inside) => MediaQuery.removePadding(
-                    context: inside,
-                    removeTop: barShown,
-                    child: shell,
+    // Branch 0 is Home, or Trips for a truck driver: back leads there either way.
+    return HomeBackGuard(
+      shell: shell,
+      child: Stack(
+        children: [
+          Scaffold(
+            extendBody: true,
+            body: Column(
+              children: [
+                const LocationBar(),
+                // The bar already sits under the status bar, so the screen below it doesn't pad for it again.
+                // Its own context, from inside the Scaffold: that one knows how much of the bottom the dock covers.
+                Expanded(
+                  child: Builder(
+                    builder: (inside) => MediaQuery.removePadding(
+                      context: inside,
+                      removeTop: barShown,
+                      child: shell,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
+            bottomNavigationBar: BuyerDock(
+              index: dockIndex,
+              onSelected: (index) {
+                final branch = truck ? truckBranches[index] : index;
+                if (branch != shell.currentIndex) {
+                  HapticFeedback.selectionClick();
+                }
+                shell.goBranch(
+                  branch,
+                  initialLocation: branch == shell.currentIndex,
+                );
+              },
+              items: truck
+                  ? const [
+                      DockItem(icon: LucideIcons.container, label: 'Trips'),
+                      DockItem(icon: LucideIcons.userRound, label: 'Account'),
+                    ]
+                  : const [
+                      DockItem(icon: LucideIcons.house, label: 'Home'),
+                      DockItem(icon: LucideIcons.packageOpen, label: 'Pickups'),
+                      DockItem(icon: LucideIcons.truck, label: 'Deliveries'),
+                      DockItem(icon: LucideIcons.wallet, label: 'Earnings'),
+                      DockItem(icon: LucideIcons.userRound, label: 'Account'),
+                    ],
+            ),
           ),
-          bottomNavigationBar: BuyerDock(
-            index: dockIndex,
-            onSelected: (index) {
-              final branch = truck ? truckBranches[index] : index;
-              if (branch != shell.currentIndex) {
-                HapticFeedback.selectionClick();
-              }
-              shell.goBranch(
-                branch,
-                initialLocation: branch == shell.currentIndex,
-              );
-            },
-            items: truck
-                ? const [
-                    DockItem(icon: LucideIcons.container, label: 'Trips'),
-                    DockItem(icon: LucideIcons.userRound, label: 'Account'),
-                  ]
-                : const [
-                    DockItem(icon: LucideIcons.house, label: 'Home'),
-                    DockItem(icon: LucideIcons.packageOpen, label: 'Pickups'),
-                    DockItem(icon: LucideIcons.truck, label: 'Deliveries'),
-                    DockItem(icon: LucideIcons.wallet, label: 'Earnings'),
-                    DockItem(icon: LucideIcons.userRound, label: 'Account'),
-                  ],
-          ),
-        ),
-        if (offers.isNotEmpty)
-          OfferOverlay(offer: offers.first, more: offers.length - 1),
-      ],
+          if (offers.isNotEmpty)
+            OfferOverlay(offer: offers.first, more: offers.length - 1),
+        ],
+      ),
     );
   }
 

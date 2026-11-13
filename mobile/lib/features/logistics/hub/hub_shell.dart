@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/home_back_guard.dart';
 import '../../buyer/widgets/buyer_theme.dart';
 import '../logistics_paths.dart';
 
@@ -22,60 +23,63 @@ class HubShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      body: shell,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.only(bottom: AppSpace.sm),
-        child: MediaQuery.withClampedTextScaling(
-          maxScaleFactor: 1.2,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-            child: Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                // Room for the Scan button to rise above the dock and still take taps.
-                const SizedBox(height: 84, width: double.infinity),
-                Container(
-                  height: 66,
-                  decoration: BoxDecoration(
-                    color: AppColors.gray900,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: BuyerShadow.floating,
+    return HomeBackGuard(
+      shell: shell,
+      child: Scaffold(
+        extendBody: true,
+        body: shell,
+        bottomNavigationBar: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.only(bottom: AppSpace.sm),
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  // Room for the Scan button to rise above the dock and still take taps.
+                  const SizedBox(height: 84, width: double.infinity),
+                  Container(
+                    height: 66,
+                    decoration: BoxDecoration(
+                      color: AppColors.gray900,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: BuyerShadow.floating,
+                    ),
+                    child: Row(
+                      children: [
+                        _BarItem(
+                          icon: LucideIcons.house,
+                          label: 'Home',
+                          selected: shell.currentIndex == 0,
+                          onTap: () => _go(0),
+                        ),
+                        _BarItem(
+                          icon: LucideIcons.layers,
+                          label: 'Sorting',
+                          selected: shell.currentIndex == 1,
+                          onTap: () => _go(1),
+                        ),
+                        const Expanded(child: _ScanLabel()),
+                        _BarItem(
+                          icon: LucideIcons.send,
+                          label: 'Dispatch',
+                          selected: shell.currentIndex == 2,
+                          onTap: () => _go(2),
+                        ),
+                        _BarItem(
+                          icon: LucideIcons.menu,
+                          label: 'More',
+                          selected: shell.currentIndex == 3,
+                          onTap: () => _go(3),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      _BarItem(
-                        icon: LucideIcons.house,
-                        label: 'Home',
-                        selected: shell.currentIndex == 0,
-                        onTap: () => _go(0),
-                      ),
-                      _BarItem(
-                        icon: LucideIcons.layers,
-                        label: 'Sorting',
-                        selected: shell.currentIndex == 1,
-                        onTap: () => _go(1),
-                      ),
-                      const Expanded(child: _ScanLabel()),
-                      _BarItem(
-                        icon: LucideIcons.send,
-                        label: 'Dispatch',
-                        selected: shell.currentIndex == 2,
-                        onTap: () => _go(2),
-                      ),
-                      _BarItem(
-                        icon: LucideIcons.menu,
-                        label: 'More',
-                        selected: shell.currentIndex == 3,
-                        onTap: () => _go(3),
-                      ),
-                    ],
-                  ),
-                ),
-                const Positioned(top: 0, child: _ScanButton()),
-              ],
+                  const Positioned(top: 0, child: _ScanButton()),
+                ],
+              ),
             ),
           ),
         ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loved_it/app.dart';
@@ -185,6 +186,49 @@ void main() {
       // Nothing of a person's own is asked for, so nothing comes back refused.
       const open = {'/categories', '/products', '/shops', '/vouchers/platform'};
       expect(api.requests.map((r) => r.path).toSet().difference(open), isEmpty);
+      await closeApp(tester);
+    });
+
+    testWidgets('back goes Categories to Home, then asks before leaving', (
+      tester,
+    ) async {
+      final calls = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          calls.add(call.method);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await openApp(tester, shopWindow());
+
+      await tester.tap(find.byTooltip('Categories'));
+      await tester.pumpAndSettle();
+      expect(where(), '/buyer/categories');
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(where(), '/buyer');
+      expect(find.text('Leave Loved-IT?'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Leave Loved-IT?'), findsOneWidget);
+      await tester.tap(find.text('Stay'));
+      await tester.pumpAndSettle();
+      expect(calls, isNot(contains('SystemNavigator.pop')));
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Leave'));
+      await tester.pumpAndSettle();
+      expect(calls, contains('SystemNavigator.pop'));
       await closeApp(tester);
     });
 

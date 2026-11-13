@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/home_back_guard.dart';
 import '../../buyer/widgets/buyer_theme.dart';
 
 /// The courier team's frame: Home, Hubs, Parcels, Riders and More, on a floating dark dock like the rest of the app.
@@ -28,34 +29,37 @@ class CourierShell extends StatelessWidget {
       (LucideIcons.bike, 'Riders'),
       (LucideIcons.menu, 'More'),
     ];
-    return Scaffold(
-      extendBody: true,
-      body: shell,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.only(bottom: AppSpace.sm),
-        child: MediaQuery.withClampedTextScaling(
-          maxScaleFactor: 1.2,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-            child: Container(
-              height: 68,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
-              decoration: BoxDecoration(
-                color: AppColors.gray900,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: BuyerShadow.floating,
-              ),
-              child: Row(
-                children: [
-                  for (var i = 0; i < items.length; i++)
-                    _DockItem(
-                      icon: items[i].$1,
-                      label: items[i].$2,
-                      selected: shell.currentIndex == i,
-                      onTap: () => _go(i),
-                    ),
-                ],
+    return HomeBackGuard(
+      shell: shell,
+      child: Scaffold(
+        extendBody: true,
+        body: shell,
+        bottomNavigationBar: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.only(bottom: AppSpace.sm),
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+              child: Container(
+                height: 68,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
+                decoration: BoxDecoration(
+                  color: AppColors.gray900,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: BuyerShadow.floating,
+                ),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < items.length; i++)
+                      _DockItem(
+                        icon: items[i].$1,
+                        label: items[i].$2,
+                        selected: shell.currentIndex == i,
+                        onTap: () => _go(i),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
