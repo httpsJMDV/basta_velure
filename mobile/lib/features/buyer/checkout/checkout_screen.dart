@@ -248,7 +248,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         addressId: address.id,
         expectedTotal: quote.total,
         highValueAgreed: _agreed,
-        remoteDelivery: quote.stores.any((s) => s.serviceable && s.remote) ? _remoteDelivery : null,
+        remoteDelivery: quote.stores.any((s) => s.serviceable && s.remote)
+            ? _remoteDelivery
+            : null,
         storeVouchers: _storeVouchers,
         platformVoucher: _platformVoucher,
         shippingVoucher: _shippingVoucher,
@@ -535,6 +537,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             'Delivery fee',
             store.freeDelivery ? 'Free' : formatPeso(store.shippingFee),
           ),
+          if (store.serviceable)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+              child: Container(
+                padding: const EdgeInsets.all(AppSpace.md),
+                decoration: BoxDecoration(
+                  color: AppColors.stone100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${store.shippingRoute ?? 'Standard delivery'}\n'
+                  '${(store.weightGrams / 1000).toStringAsFixed(2)} kg item weight · ${store.chargeableKg} kg charged\n'
+                  'Weight rounds up to the next kilogram. Each shop ships as a separate parcel.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.6,
+                    color: AppColors.stone600,
+                  ),
+                ),
+              ),
+            ),
           if (!store.serviceable)
             Padding(
               padding: const EdgeInsets.only(top: AppSpace.sm),
@@ -674,7 +697,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           const SizedBox(height: AppSpace.xs),
           const Text(
             "Your town is far from the courier's branches, so a rider can't come to your door.",
-            style: TextStyle(fontSize: 14, height: 1.35, color: AppColors.stone600),
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.35,
+              color: AppColors.stone600,
+            ),
           ),
           const SizedBox(height: AppSpace.md),
           _PayOption(
@@ -688,7 +715,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _PayOption(
             icon: LucideIcons.packageCheck,
             title: 'At the courier branch',
-            subtitle: 'Pick it up at the nearest branch counter with a valid ID.',
+            subtitle:
+                'Pick it up at the nearest branch counter with a valid ID.',
             selected: _remoteDelivery == 'branch',
             onTap: () => setState(() => _remoteDelivery = 'branch'),
           ),

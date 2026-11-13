@@ -252,6 +252,8 @@ class ProductDetail {
     this.avgRating,
     this.flashSale,
     this.upcomingFlashStartsAt,
+    this.upcomingFlashId,
+    this.flashReminderSet = false,
     this.purchaseLimit,
     this.categoryName,
     this.returnPolicy,
@@ -286,6 +288,8 @@ class ProductDetail {
   final int deliveryDaysMax;
   final FlashSale? flashSale;
   final DateTime? upcomingFlashStartsAt;
+  final int? upcomingFlashId;
+  final bool flashReminderSet;
 
   /// The most one buyer may buy over time, or null for no limit.
   final int? purchaseLimit;
@@ -370,6 +374,8 @@ class ProductDetail {
       deliveryDaysMax: asInt(json['estimated_delivery_days_max'], 7),
       flashSale: FlashSale.fromJson(json['flash_sale']),
       upcomingFlashStartsAt: asDate(upcoming['starts_at']),
+      upcomingFlashId: asIntOrNull(upcoming['id']),
+      flashReminderSet: asBool(upcoming['reminder_set']),
       purchaseLimit: asIntOrNull(json['purchase_limit']),
       categoryName: asString(category['name']),
       returnPolicy: asString(json['return_policy']),
@@ -461,6 +467,18 @@ class FeaturedShop {
 }
 
 /// `GET /shops/{shop}`, the public shop page (signed-in only).
+class ShopCategory {
+  const ShopCategory(this.id, this.name, this.children);
+  final int id;
+  final String name;
+  final List<ShopCategory> children;
+  factory ShopCategory.fromJson(Json json) => ShopCategory(
+    asInt(json['id']),
+    asString(json['name']) ?? 'Category',
+    asJsonList(json['children']).map(ShopCategory.fromJson).toList(),
+  );
+}
+
 class ShopProfile {
   const ShopProfile({
     required this.sellerId,
@@ -483,6 +501,7 @@ class ShopProfile {
     this.returnPolicy,
     this.shippingPolicy,
     this.businessHours,
+    this.storeCategories = const [],
   });
 
   final int sellerId;
@@ -507,6 +526,7 @@ class ShopProfile {
   final String? returnPolicy;
   final String? shippingPolicy;
   final String? businessHours;
+  final List<ShopCategory> storeCategories;
 
   String get shopKey => shopSlug ?? '$sellerId';
 
@@ -531,6 +551,7 @@ class ShopProfile {
     returnPolicy: returnPolicy,
     shippingPolicy: shippingPolicy,
     businessHours: businessHours,
+    storeCategories: storeCategories,
   );
 
   factory ShopProfile.fromJson(Json json) => ShopProfile(
@@ -555,6 +576,9 @@ class ShopProfile {
     returnPolicy: asString(json['return_policy']),
     shippingPolicy: asString(json['shipping_policy']),
     businessHours: asString(json['business_hours']),
+    storeCategories: asJsonList(json['store_categories'])
+        .map(ShopCategory.fromJson)
+        .toList(),
   );
 }
 

@@ -36,13 +36,22 @@ Future<void> _report(
 );
 
 /// A shop's page (B5, signed-in only): its profile, follow, chat, vouchers, reviews and comments, and every product.
-class ShopScreen extends ConsumerWidget {
+class ShopScreen extends ConsumerStatefulWidget {
   const ShopScreen({super.key, required this.shopKey});
 
   final String shopKey;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShopScreen> createState() => _ShopScreenState();
+}
+
+class _ShopScreenState extends ConsumerState<ShopScreen> {
+  String get shopKey => widget.shopKey;
+  int? _categoryId;
+  int? _parentId;
+
+  @override
+  Widget build(BuildContext context) {
     final shop = ref.watch(_shopProvider(shopKey));
     return Scaffold(
       appBar: AppBar(
@@ -83,6 +92,7 @@ class ShopScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(_shopProvider(shopKey)),
         ),
         data: (profile) => PagedList<ProductSummary>(
+          key: ValueKey('$shopKey:$_categoryId'),
           gridColumns: 2,
           gridAspectRatio: productGridAspectRatio,
           spacing: AppSpace.lg,
@@ -98,6 +108,7 @@ class ShopScreen extends ConsumerWidget {
               .products(
                 page: page,
                 sellerId: profile.sellerId,
+                storeCategoryId: _categoryId,
                 sort: 'best_selling',
               ),
           itemBuilder: (_, product) => ProductCard(product: product),
@@ -114,6 +125,81 @@ class ShopScreen extends ConsumerWidget {
               child: _ShopVouchers(sellerId: profile.sellerId),
             ),
             SliverToBoxAdapter(child: _ShopFeedback(profile: profile)),
+            if (profile.storeCategories.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.lg,
+                    vertical: AppSpace.md,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Shop categories',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpace.sm),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: const Text('All products'),
+                                selected: _parentId == null,
+                                onSelected: (_) => setState(() {
+                                  _parentId = null;
+                                  _categoryId = null;
+                                }),
+                              ),
+                            ),
+                            for (final category in profile.storeCategories)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(category.name),
+                                  selected: _parentId == category.id,
+                                  onSelected: (_) => setState(() {
+                                    _parentId = category.id;
+                                    _categoryId = category.id;
+                                  }),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      for (final parent in profile.storeCategories.where(
+                        (c) => c.id == _parentId && c.children.isNotEmpty,
+                      ))
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              for (final child in parent.children)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: FilterChip(
+                                    label: Text(child.name),
+                                    selected: _categoryId == child.id,
+                                    onSelected: (on) => setState(
+                                      () => _categoryId = on
+                                          ? child.id
+                                          : parent.id,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             SliverToBoxAdapter(
               child: SectionHeader(
                 title: 'Products (${profile.totalProducts})',

@@ -687,7 +687,7 @@ class _CourierInsightsState extends ConsumerState<_CourierInsights> {
           const SizedBox(height: AppSpace.xl),
           const HubSection(
             title: 'Money still open',
-            note: 'Paying and settling stay on the website.',
+            note: 'Review balances and record verified payments in the app.',
           ),
           _MoneyCard(settlements: _settlements, payouts: _payouts),
         ],
@@ -999,10 +999,11 @@ class _MoneyCard extends StatelessWidget {
             ],
           ],
           const Divider(height: 1),
-          const WebsiteTile(
-            icon: LucideIcons.banknote,
-            title: 'Open pay on the website',
-            path: LogisticsPaths.webCourierMoney,
+          ListTile(
+            leading: const Icon(LucideIcons.banknote),
+            title: const Text('Review payments'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(LogisticsPaths.courierMoney),
           ),
         ],
       ),

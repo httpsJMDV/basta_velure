@@ -80,7 +80,13 @@ class ReturnPickup {
   /// Rider view: `collect`, `drop_at_hub` or `deliver_to_shop` (null when this rider has nothing to do).
   final String? myStep;
 
-  bool get isOpen => const ['requested', 'assigned', 'collected', 'at_hub', 'out_to_shop'].contains(status);
+  bool get isOpen => const [
+    'requested',
+    'assigned',
+    'collected',
+    'at_hub',
+    'out_to_shop',
+  ].contains(status);
 
   /// The last leg, from the hub near the shop to the shop.
   bool get isShopLeg => readyForShopRider || status == 'out_to_shop';
@@ -177,11 +183,11 @@ class ReturnPickupApi {
     );
   }
 
-  Future<String> assign(int id, int riderId) async =>
+  Future<String> assign(int id, int riderId, {String scope = 'hub'}) async =>
       asString(
         (await _call(
           'POST',
-          '/hub/return-pickups/$id/assign',
+          '/$scope/return-pickups/$id/assign',
           data: {'rider_id': riderId},
         ))['message'],
       ) ??

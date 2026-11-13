@@ -101,20 +101,20 @@ class HubMoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpace.xl),
           const HubSection(
-            title: 'On the website',
-            note: 'Office work, where a bigger screen helps.',
+            title: 'Your hub',
+            note: 'Earnings, account and payout details.',
           ),
-          const LinkList(
+          LinkList(
             children: [
-              WebsiteTile(
+              LinkTile(
                 icon: LucideIcons.wallet,
                 title: 'Earnings',
-                path: LogisticsPaths.webHubEarnings,
+                onTap: () => context.push(LogisticsPaths.hubEarnings),
               ),
-              WebsiteTile(
+              LinkTile(
                 icon: LucideIcons.settings,
                 title: 'Settings',
-                path: LogisticsPaths.webHubSettings,
+                onTap: () => context.push(LogisticsPaths.hubSettings),
               ),
             ],
           ),

@@ -104,35 +104,45 @@ class CourierMoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpace.xl),
           const HubSection(
-            title: 'On the website',
-            note: 'Office work stays there, where it has a bigger screen.',
+            title: 'Manage your network',
+            note: 'Operations, money and settings, all in one place.',
           ),
-          const LinkList(
+          LinkList(
             children: [
-              WebsiteTile(
+              LinkTile(
                 icon: LucideIcons.map,
                 title: 'Zones and rates',
-                path: LogisticsPaths.webCourierShipping,
+                onTap: () => context.push(LogisticsPaths.courierShipping),
               ),
-              WebsiteTile(
+              LinkTile(
                 icon: LucideIcons.banknote,
                 title: 'Settlements and pay',
-                path: LogisticsPaths.webCourierMoney,
+                onTap: () => context.push(LogisticsPaths.courierMoney),
               ),
-              WebsiteTile(
+              LinkTile(
                 icon: LucideIcons.undo2,
                 title: 'Return to sender',
-                path: LogisticsPaths.webCourierReturns,
+                onTap: () => context.push(LogisticsPaths.courierReturns),
               ),
-              WebsiteTile(
+              LinkTile(
                 icon: LucideIcons.chartColumn,
                 title: 'Reports and exports',
-                path: LogisticsPaths.webCourierReports,
+                onTap: () => openReport(context, ReportKind.courier),
               ),
-              WebsiteTile(
+              LinkTile(
                 icon: LucideIcons.settings,
                 title: 'Company settings',
-                path: LogisticsPaths.webCourierSettings,
+                onTap: () => context.push(LogisticsPaths.courierSettings),
+              ),
+              LinkTile(
+                icon: LucideIcons.mapPin,
+                title: 'Network coverage',
+                onTap: () => context.push(LogisticsPaths.courierCoverage),
+              ),
+              LinkTile(
+                icon: LucideIcons.truck,
+                title: 'Truck planning',
+                onTap: () => context.push(LogisticsPaths.courierPlanning),
               ),
             ],
           ),
