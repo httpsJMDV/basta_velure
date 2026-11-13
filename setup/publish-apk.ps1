@@ -1,6 +1,6 @@
-# Builds the signed release APK and puts it on https://loved-it.shop/download. Run from anywhere:
+# Builds the signed release APK and prepares the local download files. Run from anywhere:
 #   powershell -ExecutionPolicy Bypass -File C:\Projects\basta_velure\setup\publish-apk.ps1
-# The live site doesn't need restarting, and the download link stays the same. See setup/mobile.md.
+# Upload these files to the active download host separately. See setup/mobile.md.
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 $mobile = Join-Path $repo 'mobile'
@@ -54,4 +54,5 @@ foreach ($folder in @((Join-Path $frontend 'public'), (Join-Path $frontend 'dist
     Copy-Item $apk (Join-Path $download 'loved-it.apk') -Force
     [IO.File]::WriteAllText((Join-Path $download 'version.json'), $release, (New-Object Text.UTF8Encoding($false)))
 }
-Write-Output "Done. Version $build ($sizeMb MB) is live at https://loved-it.shop/download"
+Write-Output "Prepared version $build ($sizeMb MB) in frontend/public/download and frontend/dist/download (if present)."
+Write-Output 'Upload the APK and version.json to the active download host, then verify its version and SHA-256 before calling the release live.'

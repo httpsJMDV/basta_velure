@@ -2,6 +2,8 @@
 
 Everything you need, in order. No need to look anything up elsewhere.
 
+> **Cloud hosting note (November 13, 2026):** the API is now deployed on Laravel Cloud. The local-terminal instructions below describe the earlier tunnel setup. A backend deployment does not rebuild or publish the Android APK. `setup/publish-apk.ps1` builds and copies the APK and `version.json` locally; upload both to the active download host separately, then verify the live metadata and APK hash. Its local success message is not proof that the public download was updated.
+
 ## Put the app on a phone (the easy way)
 
 On the phone, open this in Chrome:
@@ -34,13 +36,13 @@ Check it worked: open https://loved-it.shop on your phone. If you changed anythi
 
 ## Release a new version of the app
 
-After changing the app, one command builds it and updates the download page's button, version and size. It takes about 5 minutes. You don't need Android Studio or the emulator for this. The website doesn't need restarting or rebuilding, and the link stays the same.
+After changing the app, this command builds a signed APK and prepares its download metadata locally. It takes about 5 minutes. You don't need Android Studio or the emulator for this. On the current Cloud setup, publishing requires uploading the prepared APK and `version.json` to the active download host as a separate step.
 
 ```
 powershell -ExecutionPolicy Bypass -File C:\Projects\basta_velure\setup\publish-apk.ps1
 ```
 
-Then install from https://loved-it.shop/download again.
+After uploading both files, verify `https://loved-it.shop/download/version.json` and the APK's SHA-256 against the prepared files. Then install from https://loved-it.shop/download again.
 
 ## If the download page won't open
 
