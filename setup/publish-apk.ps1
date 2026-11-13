@@ -33,6 +33,18 @@ if ($built -ne 0) {
 }
 $apk = Join-Path $mobile 'build\app\outputs\flutter-apk\app-release.apk'
 $sizeMb = [math]::Round((Get-Item $apk).Length / 1MB)
+# Use immutable object names: the storage CDN can retain an older canonical version.json or APK.
+$redirectFile = Join-Path $frontend 'public\_redirects'
+$redirectText = [IO.File]::ReadAllText($redirectFile)
+$bucketMatch = [regex]::Match($redirectText, 'https://[^/\s]+\.laravel\.cloud')
+$releaseLink = "/download/loved-it.apk?v=$build"
+if ($bucketMatch.Success) {
+    $bucketBase = $bucketMatch.Value
+    $releaseLink = "$bucketBase/download/loved-it-$build.apk"
+    $redirectText = [regex]::Replace($redirectText, '(?m)^/download/version\.json\s+\S+\s+302\r?$', "/download/version.json $bucketBase/download/releases/$build/version.json 302")
+    $redirectText = [regex]::Replace($redirectText, '(?m)^/download/loved-it\.apk\s+\S+\s+302\r?$', "/download/loved-it.apk $releaseLink 302")
+    [IO.File]::WriteAllText($redirectFile, $redirectText, (New-Object Text.UTF8Encoding($false)))
+}
 # What the download page shows (frontend/src/pages/DownloadPage.tsx). Cloudflare keeps the APK for hours, so every
 # publish needs its own link. To the minute: Android's build number can't hold that many digits, and two publishes in
 # one hour would otherwise share a link.
@@ -40,7 +52,7 @@ $versionName = ((Select-String -Path (Join-Path $mobile 'pubspec.yaml') -Pattern
 $release = [ordered]@{
     version   = $versionName
     build     = $build
-    link      = "/download/loved-it.apk?v=$(Get-Date -Format 'yyMMddHHmm')"
+    link      = $releaseLink
     size_mb   = $sizeMb
     published = Get-Date -Format 'yyyy-MM-dd'
     sha256    = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLower()
@@ -56,3 +68,4 @@ foreach ($folder in @((Join-Path $frontend 'public'), (Join-Path $frontend 'dist
 }
 Write-Output "Prepared version $build ($sizeMb MB) in frontend/public/download and frontend/dist/download (if present)."
 Write-Output 'Upload the APK and version.json to the active download host, then verify its version and SHA-256 before calling the release live.'
+Write-Output "Object names: download/loved-it-$build.apk and download/releases/$build/version.json. Publish the updated frontend redirects after uploading and verifying those objects."
