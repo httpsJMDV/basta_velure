@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/session/session.dart';
+import '../../core/widgets/home_back_guard.dart';
 import '../../core/widgets/motion.dart';
 import 'buyer_paths.dart';
 import 'data/badges.dart';
@@ -62,34 +63,40 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
     final unread = ref.watch(unreadMessagesProvider).value ?? 0;
 
     return BuyerThemed(
-      child: Scaffold(
-        extendBody: true,
-        body: NotificationListener<UserScrollNotification>(
-          onNotification: _onScroll,
-          child: widget.shell,
-        ),
-        bottomNavigationBar: AnimatedSlide(
-          offset: _dockHidden ? const Offset(0, 1.3) : Offset.zero,
-          duration: Motion.medium,
-          curve: Motion.glide,
-          child: BuyerDock(
-            index: widget.shell.currentIndex,
-            onSelected: _select,
-            items: [
-              const DockItem(icon: LucideIcons.house, label: 'Home'),
-              const DockItem(icon: LucideIcons.layoutGrid, label: 'Categories'),
-              DockItem(
-                icon: LucideIcons.messageCircle,
-                label: 'Messages',
-                count: unread,
-              ),
-              DockItem(
-                icon: LucideIcons.shoppingBag,
-                label: 'Cart',
-                count: cartLines,
-              ),
-              const DockItem(icon: LucideIcons.userRound, label: 'Account'),
-            ],
+      child: HomeBackGuard(
+        shell: widget.shell,
+        child: Scaffold(
+          extendBody: true,
+          body: NotificationListener<UserScrollNotification>(
+            onNotification: _onScroll,
+            child: widget.shell,
+          ),
+          bottomNavigationBar: AnimatedSlide(
+            offset: _dockHidden ? const Offset(0, 1.3) : Offset.zero,
+            duration: Motion.medium,
+            curve: Motion.glide,
+            child: BuyerDock(
+              index: widget.shell.currentIndex,
+              onSelected: _select,
+              items: [
+                const DockItem(icon: LucideIcons.house, label: 'Home'),
+                const DockItem(
+                  icon: LucideIcons.layoutGrid,
+                  label: 'Categories',
+                ),
+                DockItem(
+                  icon: LucideIcons.messageCircle,
+                  label: 'Messages',
+                  count: unread,
+                ),
+                DockItem(
+                  icon: LucideIcons.shoppingBag,
+                  label: 'Cart',
+                  count: cartLines,
+                ),
+                const DockItem(icon: LucideIcons.userRound, label: 'Account'),
+              ],
+            ),
           ),
         ),
       ),
