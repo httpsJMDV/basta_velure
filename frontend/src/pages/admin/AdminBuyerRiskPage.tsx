@@ -6,6 +6,7 @@ import { analyzeBuyerRiskApi, cancelRiskOrderApi, getBuyerRiskApi, getBuyerRiskD
 import type { RiskAnalysis, RiskDetail, RiskList, RiskOrder } from '../../api/buyerRisk';
 import { HERO_BUTTON, HEADER_BUTTON, HEADER_BUTTON_PRIMARY, PageHero, StatCard } from '../../components/admin/dashboardKit';
 import { getStatusLabel } from '../../utils/orderStatus';
+import CustomSelect from '../../components/ui/CustomSelect';
 
 const tone = { high: 'bg-rose-50 text-rose-700 border-rose-200', medium: 'bg-amber-50 text-amber-800 border-amber-200', low: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
 const money = (n: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n);
@@ -95,11 +96,13 @@ export default function AdminBuyerRiskPage() {
         <div className="p-4 border-b border-gray-100 space-y-3">
           <div className="flex justify-between items-center"><h2 className="font-bold text-gray-900 text-sm">Review queue</h2><span className="text-xs text-gray-500">{list?.meta.total ?? '—'} {list?.meta.total === 1 ? 'buyer' : 'buyers'}</span></div>
           <label className="flex gap-2 items-center rounded-xl bg-gray-50 border border-gray-200 px-3 py-2.5"><Search className="w-4 h-4 text-gray-400" /><input aria-label="Search buyer name or email" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or email" className="w-full min-w-0 text-xs bg-transparent outline-none" /></label>
-          <label className="flex items-center gap-3 text-xs text-gray-600">Priority
-            <select value={level} onChange={e => { setLevel(e.target.value); setPage(1); }} className="flex-1 min-h-10 border border-gray-200 rounded-lg px-2 bg-white text-gray-900">
-              <option value="flagged">Needs review</option><option value="high">High priority</option><option value="medium">Medium priority</option><option value="low">Low priority</option><option value="all">All active buyers</option>
-            </select>
-          </label>
+          <CustomSelect label="Priority" value={level} onChange={value => { setLevel(value); setPage(1); }} options={[
+            { value: 'flagged', label: 'Needs review' },
+            { value: 'high', label: 'High priority' },
+            { value: 'medium', label: 'Medium priority' },
+            { value: 'low', label: 'Low priority' },
+            { value: 'all', label: 'All active buyers' },
+          ]} />
         </div>
         {error ? <div role="alert" className="p-5 text-sm text-rose-700">{error}<button className={`${HEADER_BUTTON} mt-3`} onClick={() => setRefresh(v => v + 1)}>Try again</button></div>
           : loading ? <div role="status" className="p-8 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Checking activity…</div>
