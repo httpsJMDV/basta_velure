@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AdminController;
+use App\Http\Controllers\Api\V1\AdminBuyerRiskController;
 use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\AdminDisputeController;
 use App\Http\Controllers\Api\V1\AdminOrderController;
@@ -393,6 +394,11 @@ Route::prefix('v1')->group(function () {
 
         // Admin-only routes
         Route::middleware('role:admin')->prefix('admin')->group(function () {
+            $buyerRisk = AdminBuyerRiskController::class;
+            Route::get('/buyer-risk', [$buyerRisk, 'index']);
+            Route::get('/buyer-risk/{buyer}', [$buyerRisk, 'show']);
+            Route::post('/buyer-risk/{buyer}/analyze', [$buyerRisk, 'analyze'])->middleware('throttle:5,1');
+            Route::post('/buyer-risk/{buyer}/orders/{order}/cancel', [$buyerRisk, 'cancel'])->middleware('throttle:10,1');
             // Platform and shipping vouchers (Loved-IT funded, A8)
             $vouchers = \App\Http\Controllers\Api\V1\VoucherManagementController::class;
             Route::get('/vouchers', [$vouchers, 'index']);
