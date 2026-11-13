@@ -18,6 +18,7 @@ import '../data/buyer_api.dart';
 import '../data/catalog.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
+import '../widgets/buyer_offers.dart';
 
 /// The Home tab (B0, B3): the red header with search, shortcuts into the catalog and the account, then in the website's
 /// order the hero banner, the categories, Trending now, the shops to know and every product.
@@ -37,6 +38,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.invalidate(categoriesProvider);
     ref.invalidate(featuredShopsProvider);
     ref.invalidate(_trendingProvider);
+    ref.invalidate(availableVouchersProvider);
+    ref.invalidate(saleProductsProvider);
   }
 
   @override
@@ -87,6 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SliverToBoxAdapter(child: _QuickCard()),
           const SliverToBoxAdapter(child: _Shortcuts()),
+          const SliverToBoxAdapter(child: BuyerVoucherSection()),
           if (user?.isSeller ?? false)
             const SliverToBoxAdapter(child: _SellerNote()),
           const SliverPadding(
@@ -94,6 +98,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             sliver: SliverToBoxAdapter(child: _HeroCarousel()),
           ),
           if (user != null) const SliverToBoxAdapter(child: _RecentlyViewed()),
+          const SliverToBoxAdapter(child: BuyerSaleSection()),
           const SliverToBoxAdapter(child: _Categories()),
           const SliverToBoxAdapter(child: _Trending()),
           const SliverToBoxAdapter(child: _ShopsToKnow()),
@@ -594,9 +599,8 @@ class _SellerNote extends ConsumerWidget {
             icon: LucideIcons.store,
           ),
           TextButton.icon(
-            onPressed: () => ref
-                .read(sessionProvider.notifier)
-                .switchHome(AppHome.seller),
+            onPressed: () =>
+                ref.read(sessionProvider.notifier).switchHome(AppHome.seller),
             icon: const Icon(LucideIcons.store, size: 18),
             label: const Text('Open the Seller Centre'),
           ),

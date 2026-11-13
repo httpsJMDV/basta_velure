@@ -17,6 +17,7 @@ import '../product/product_screen.dart' show VoucherTile;
 import '../product/reviews_sheet.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
+import '../widgets/guest.dart';
 import 'report_shop_sheet.dart';
 
 final _shopProvider = FutureProvider.autoDispose.family<ShopProfile, String>(
@@ -441,6 +442,7 @@ class _ShopVouchersState extends ConsumerState<_ShopVouchers> {
   final _claiming = <int>{};
 
   Future<void> _claim(Voucher voucher) async {
+    if (sendGuestToSignIn(context, ref)) return;
     setState(() => _claiming.add(voucher.id));
     try {
       final message = await ref
@@ -448,11 +450,9 @@ class _ShopVouchersState extends ConsumerState<_ShopVouchers> {
           .claimVoucher(id: voucher.id);
       if (!mounted) return;
       showSnack(context, message);
-      setState(
-        () => _vouchers = ref
-            .read(buyerApiProvider)
-            .shopVouchers(widget.sellerId),
-      );
+      setState(() {
+        _vouchers = ref.read(buyerApiProvider).shopVouchers(widget.sellerId);
+      });
     } catch (error) {
       if (mounted) {
         showSnack(context, ApiFailure.from(error).message, error: true);
@@ -467,10 +467,34 @@ class _ShopVouchersState extends ConsumerState<_ShopVouchers> {
     return FutureBuilder<List<Voucher>>(
       future: _vouchers,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return BlockCard(
+            child: TextButton(
+              onPressed: () => setState(() {
+                _vouchers = ref
+                    .read(buyerApiProvider)
+                    .shopVouchers(widget.sellerId);
+              }),
+              child: const Text('Could not load shop vouchers. Try again'),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const BlockCard(child: LinearProgressIndicator());
+        }
         final vouchers = (snapshot.data ?? const <Voucher>[])
             .where((voucher) => voucher.status != 'ended')
             .toList();
-        if (vouchers.isEmpty) return const SizedBox.shrink();
+        if (vouchers.isEmpty) {
+          return BlockCard(
+            child: TextButton(
+              onPressed: () => context.push(BuyerPaths.vouchers),
+              child: const Text(
+                'No shop vouchers right now. Browse available vouchers',
+              ),
+            ),
+          );
+        }
         return BlockCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

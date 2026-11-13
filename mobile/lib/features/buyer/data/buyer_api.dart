@@ -727,6 +727,12 @@ class BuyerApi {
           .map(Voucher.fromJson)
           .toList();
 
+  Future<ApiPage<Voucher>> discoverVouchers({int page = 1}) async =>
+      ApiPage.from(
+        await _get('/vouchers/discover', query: {'page': page}),
+        Voucher.fromJson,
+      );
+
   /// Saves a voucher to the wallet by id (from a list) or by the code the buyer typed. Returns the message.
   Future<String> claimVoucher({int? id, String? code}) async =>
       asString(

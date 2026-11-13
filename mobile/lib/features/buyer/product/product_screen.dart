@@ -1460,8 +1460,32 @@ class _VouchersState extends ConsumerState<_Vouchers> {
     return FutureBuilder<List<Voucher>>(
       future: _vouchers,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _Section(
+            child: TextButton(
+              onPressed: () => setState(() {
+                _vouchers = ref
+                    .read(buyerApiProvider)
+                    .productVouchers(widget.productId);
+              }),
+              child: const Text('Could not load shop vouchers. Try again'),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return _Section(child: const LinearProgressIndicator());
+        }
         final vouchers = snapshot.data ?? const <Voucher>[];
-        if (vouchers.isEmpty) return const SizedBox.shrink();
+        if (vouchers.isEmpty) {
+          return _Section(
+            child: TextButton(
+              onPressed: () => context.push(BuyerPaths.vouchers),
+              child: const Text(
+                'No shop vouchers right now. Browse available vouchers',
+              ),
+            ),
+          );
+        }
         return _Section(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1526,6 +1550,13 @@ class VoucherTile extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: StatusTone.amber.foreground,
+                  ),
+                ),
+                Text(
+                  voucher.code,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),

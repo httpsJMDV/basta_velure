@@ -77,6 +77,7 @@ void main() {
     'GET /shops': (_) => jsonBody(200, {'data': <Object>[]}),
     'GET /products/1': (_) => jsonBody(200, {'data': item ?? product()}),
     'GET /products/1/vouchers': (_) => jsonBody(200, {'data': <Object>[]}),
+    'GET /vouchers/discover': (_) => jsonBody(200, {'data': <Object>[]}),
     'GET /products/1/related': (_) => jsonBody(200, {
       'data': [
         {'id': 2, 'name': 'Phone Case', 'base_price': 249},
@@ -184,7 +185,13 @@ void main() {
       expect(find.text('Search Loved-IT'), findsOneWidget);
       expect(find.text('Welcome back'), findsNothing);
       // Nothing of a person's own is asked for, so nothing comes back refused.
-      const open = {'/categories', '/products', '/shops', '/vouchers/platform'};
+      const open = {
+        '/categories',
+        '/products',
+        '/shops',
+        '/vouchers/platform',
+        '/vouchers/discover',
+      };
       expect(api.requests.map((r) => r.path).toSet().difference(open), isEmpty);
       await closeApp(tester);
     });
@@ -381,6 +388,84 @@ void main() {
   });
 
   group('the product page', () {
+    testWidgets(
+      'the shop page shows its voucher after retrying a failed request',
+      (tester) async {
+        var fails = true;
+        await openApp(tester, {
+          ...shopWindow(),
+          ...signedInToo(),
+          'GET /shops/9': (_) => jsonBody(200, {
+            'data': {'seller_id': 9, 'shop_name': 'Maria Audio'},
+          }),
+          'GET /shops/9/vouchers': (_) => fails
+              ? jsonBody(503, {'message': 'Offers unavailable'})
+              : jsonBody(200, {
+                  'data': [
+                    {
+                      'id': 12,
+                      'code': 'SHOPPAGE50',
+                      'name': 'Shop savings',
+                      'scope': 'store',
+                      'label': '₱50 off',
+                      'min_spend': 100,
+                      'status': 'ongoing',
+                    },
+                  ],
+                }),
+        }, token: 'buyer-token');
+        push('/buyer/shop/9');
+        await tester.pumpAndSettle();
+        await scrollTo(
+          tester,
+          find.text('Could not load shop vouchers. Try again'),
+        );
+        fails = false;
+        await tester.tap(find.text('Could not load shop vouchers. Try again'));
+        await tester.pumpAndSettle();
+        expect(find.text('SHOPPAGE50'), findsOneWidget);
+        expect(find.text('Shop vouchers'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await closeApp(tester);
+      },
+    );
+    testWidgets(
+      'shop vouchers load visibly and can recover from a failed request',
+      (tester) async {
+        var fails = true;
+        await openApp(tester, {
+          ...shopWindow(),
+          'GET /products/1/vouchers': (_) => fails
+              ? jsonBody(503, {'message': 'Offers unavailable'})
+              : jsonBody(200, {
+                  'data': [
+                    {
+                      'id': 11,
+                      'code': 'PRODUCT50',
+                      'name': 'Product savings',
+                      'scope': 'store',
+                      'label': '₱50 off',
+                      'min_spend': 100,
+                      'status': 'ongoing',
+                    },
+                  ],
+                }),
+        });
+        push('/buyer/product/1');
+        await tester.pumpAndSettle();
+        await scrollTo(
+          tester,
+          find.text('Could not load shop vouchers. Try again'),
+        );
+        fails = false;
+        await tester.tap(find.text('Could not load shop vouchers. Try again'));
+        await tester.pumpAndSettle();
+        expect(find.text('PRODUCT50'), findsOneWidget);
+        expect(find.text('₱50 off'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await closeApp(tester);
+      },
+    );
     testWidgets('shows what the server says, and only that', (tester) async {
       await openApp(tester, shopWindow());
       push('/buyer/product/1');
