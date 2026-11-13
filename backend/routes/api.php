@@ -280,6 +280,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/settlements/{settlement}/dispute', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'dispute'])->whereNumber('settlement');
             Route::post('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'receipt'])->whereNumber('settlement');
             Route::get('/payouts', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payouts']);
+            Route::get('/payouts/riders/{rider}/history', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'riderHistory'])->whereNumber('rider');
+            Route::get('/payouts/hubs/{hub}/history', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'hubHistory'])->whereNumber('hub');
             Route::post('/payouts/riders/{rider}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payRider'])->whereNumber('rider');
             Route::post('/payouts/hubs/{hub}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payHub'])->whereNumber('hub');
             Route::get('/gcash', [\App\Http\Controllers\Api\V1\PayoutAccountController::class, 'courier']);

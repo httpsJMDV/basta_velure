@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+
+import '../../../core/widgets/private_pdf_view.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -697,14 +700,7 @@ class _RiderDocumentScreenState extends ConsumerState<RiderDocumentScreen> {
                   )
                 : const Center(child: CircularProgressIndicator()))
           : _isPdf(bytes)
-          ? const ColoredBox(
-              color: AppColors.white,
-              child: EmptyState(
-                icon: LucideIcons.fileText,
-                title: 'This document is a PDF',
-                message: 'Open it on the rider website to view it.',
-              ),
-            )
+          ? PrivatePdfView(bytes: bytes)
           : InteractiveViewer(
               maxScale: 5,
               child: Center(

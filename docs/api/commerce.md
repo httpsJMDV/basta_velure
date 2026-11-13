@@ -1,5 +1,11 @@
 # Commerce: cart, vouchers, shipping rates, checkout, payment, cancellation, returns
 
+Courier payout history: `GET /logistics/payouts/riders/{rider}/history?page=1` and
+`GET /logistics/payouts/hubs/{hub}/history?page=1` return 30 earnings per page, newest first, with
+`meta.current_page`, `last_page`, `total`. Rows include `id`, `tracking_number`, `kind`, decimal-string `amount`,
+`earned_at`, `paid_at`, and `paid_reference`. Only a member of that rider/hub's courier company can read them;
+cross-company IDs return 404. Reading history never records a payment. Existing payout actions and rules are unchanged.
+
 Buyer workbook B5 to B12, Seller S8, S9, S12, S13, Logistics L8. All amounts are pesos with two decimals; every rule
 below is enforced on the server, and the screens show the same messages.
 

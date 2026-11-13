@@ -10,11 +10,13 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    private var privatePdf: PrivatePdfChannel? = null
     /** The notification sound playing now, released when it ends. */
     private var player: MediaPlayer? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        privatePdf = PrivatePdfChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         // Android's own share sheet for a line of text (lib/core/share.dart), so the app needs no share package.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "shop.lovedit/share")
             .setMethodCallHandler { call, result ->
@@ -92,6 +94,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        privatePdf?.dispose()
+        privatePdf = null
         player?.release()
         player = null
         super.onDestroy()

@@ -388,6 +388,49 @@ void main() {
   });
 
   group('the product page', () {
+    testWidgets('an upcoming flash sale reminder can be enabled and removed', (
+      tester,
+    ) async {
+      var enabled = false;
+      await openApp(tester, {
+        ...shopWindow(
+          item: {
+            ...product(),
+            'upcoming_flash_sale': {
+              'id': 8,
+              'starts_at': '2026-11-16T02:00:00Z',
+              'reminder_set': false,
+            },
+          },
+        ),
+        ...signedInToo(),
+        'POST /flash-sales/8/reminder': (_) {
+          enabled = true;
+          return jsonBody(200, {
+            'data': {'reminder_set': true},
+          });
+        },
+        'DELETE /flash-sales/8/reminder': (_) {
+          enabled = false;
+          return jsonBody(200, {
+            'data': {'reminder_set': false},
+          });
+        },
+      }, token: 'buyer-token');
+      push('/buyer/product/1');
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.text('Remind me'));
+      await tester.tap(find.text('Remind me'));
+      await tester.pumpAndSettle();
+      expect(enabled, isTrue);
+      expect(find.text('Reminder on'), findsOneWidget);
+      await tester.tap(find.text('Reminder on'));
+      await tester.pumpAndSettle();
+      expect(enabled, isFalse);
+      expect(find.text('Remind me'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await closeApp(tester);
+    });
     testWidgets(
       'the shop page shows its voucher after retrying a failed request',
       (tester) async {

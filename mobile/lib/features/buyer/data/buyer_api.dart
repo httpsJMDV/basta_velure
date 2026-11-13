@@ -80,6 +80,7 @@ class BuyerApi {
     bool onSale = false,
     bool newArrivals = false,
     int? sellerId,
+    int? storeCategoryId,
     int? seed,
   }) async {
     final body = await _get(
@@ -97,6 +98,7 @@ class BuyerApi {
         if (onSale) 'on_sale': 1,
         if (newArrivals) 'new_arrivals': 1,
         if (sellerId != null) 'seller_ids': '$sellerId',
+        'store_category_id': ?storeCategoryId,
         'seed': ?seed,
       },
     );
@@ -104,6 +106,15 @@ class BuyerApi {
   }
 
   // Recently viewed and recent searches (signed in; written by product and search requests) ----------------------
+
+  Future<bool> setFlashReminder(int id, bool enabled) async => asBool(
+    asJson(
+      (await _send(
+        enabled ? 'POST' : 'DELETE',
+        '/flash-sales/$id/reminder',
+      ))['data'],
+    )['reminder_set'],
+  );
 
   Future<List<ProductSummary>> recentlyViewed({int limit = 10}) async =>
       asJsonList(

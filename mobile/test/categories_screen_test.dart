@@ -57,6 +57,7 @@ class _FakeBuyerApi extends Fake implements BuyerApi {
     bool onSale = false,
     bool newArrivals = false,
     int? sellerId,
+    int? storeCategoryId,
     int? seed,
   }) async {
     this.parentCategoryId = parentCategoryId;

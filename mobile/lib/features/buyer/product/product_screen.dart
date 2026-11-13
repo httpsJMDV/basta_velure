@@ -807,6 +807,64 @@ class _GalleryState extends State<_Gallery> {
   }
 }
 
+class _FlashReminder extends ConsumerStatefulWidget {
+  const _FlashReminder({required this.id, required this.initiallySet});
+  final int id;
+  final bool initiallySet;
+  @override
+  ConsumerState<_FlashReminder> createState() => _FlashReminderState();
+}
+
+class _FlashReminderState extends ConsumerState<_FlashReminder> {
+  late bool _set = widget.initiallySet;
+  bool _busy = false;
+  @override
+  void didUpdateWidget(_FlashReminder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.id != widget.id) _set = widget.initiallySet;
+  }
+
+  Future<void> _toggle() async {
+    if (_busy || sendGuestToSignIn(context, ref)) return;
+    setState(() => _busy = true);
+    try {
+      final value = await ref
+          .read(buyerApiProvider)
+          .setFlashReminder(widget.id, !_set);
+      if (!mounted) return;
+      setState(() => _set = value);
+      showSnack(
+        context,
+        value
+            ? 'Reminder saved. We will notify you before the sale.'
+            : 'Reminder removed.',
+      );
+    } catch (error) {
+      if (mounted) {
+        showSnack(context, ApiFailure.from(error).message, error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerLeft,
+    child: OutlinedButton.icon(
+      onPressed: _busy ? null : _toggle,
+      icon: Icon(_set ? LucideIcons.bellRing : LucideIcons.bell, size: 18),
+      label: Text(
+        _busy
+            ? 'Saving…'
+            : _set
+            ? 'Reminder on'
+            : 'Remind me',
+      ),
+    ),
+  );
+}
+
 class _PriceBlock extends StatelessWidget {
   const _PriceBlock({
     required this.product,
@@ -975,6 +1033,11 @@ class _PriceBlock extends StatelessWidget {
                     tone: StatusTone.amber,
                     icon: LucideIcons.zap,
                   ),
+                  if (product.upcomingFlashId != null)
+                    _FlashReminder(
+                      id: product.upcomingFlashId!,
+                      initiallySet: product.flashReminderSet,
+                    ),
                 ],
                 if (product.onVacation) ...[
                   const SizedBox(height: AppSpace.md),

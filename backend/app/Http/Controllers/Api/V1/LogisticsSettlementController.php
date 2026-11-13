@@ -15,6 +15,7 @@ use App\Services\SettlementPayments;
 use App\Support\Gcash;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -163,6 +164,35 @@ class LogisticsSettlementController extends Controller
         ] + $row($hubTotals[$h->id]))->filter(fn ($h) => $h['unpaid_count'] > 0 || $h['last_paid_at'])->sortByDesc('unpaid')->values();
 
         return response()->json(['data' => ['riders' => $riders, 'hubs' => $hubs]]);
+    }
+
+    /** Read-only earning history, scoped to this courier's rider or hub. */
+    public function riderHistory(Request $request, Rider $rider): JsonResponse
+    {
+        $hubIds = LogisticsCompany::constrain(SortingCenter::query(), $this->company($request)->id)->pluck('id');
+        abort_unless($hubIds->contains($rider->sorting_center_id), 404);
+
+        return $this->earningHistory(RiderEarning::where('rider_id', $rider->id));
+    }
+
+    public function hubHistory(Request $request, SortingCenter $hub): JsonResponse
+    {
+        $hubIds = LogisticsCompany::constrain(SortingCenter::query(), $this->company($request)->id)->pluck('id');
+        abort_unless($hubIds->contains($hub->id), 404);
+
+        return $this->earningHistory(HubEarning::where('sorting_center_id', $hub->id));
+    }
+
+    private function earningHistory(Builder $query): JsonResponse
+    {
+        $page = $query->with('parcel:id,tracking_number')->orderByDesc('earned_at')->orderByDesc('id')->paginate(30);
+
+        return response()->json(['data' => $page->getCollection()->map(fn ($earning) => [
+            'id' => $earning->id, 'tracking_number' => $earning->parcel?->tracking_number,
+            'kind' => $earning->kind ?? 'hub_share', 'amount' => (string) $earning->amount,
+            'earned_at' => $earning->earned_at?->toIso8601String(), 'paid_at' => $earning->paid_at?->toIso8601String(),
+            'paid_reference' => $earning->paid_reference,
+        ]), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]]);
     }
 
     /** POST /logistics/payouts/riders/{rider}: everything the rider was owed is paid. */

@@ -80,6 +80,9 @@ class QuoteStore {
     this.storeVoucher,
     this.shippingMessage,
     this.remote = false,
+    this.shippingRoute,
+    this.weightGrams = 0,
+    this.chargeableKg = 1,
   });
 
   final StoreRef seller;
@@ -89,6 +92,9 @@ class QuoteStore {
   final QuoteVoucher? storeVoucher;
   final num storeDiscount;
   final num shippingFee;
+  final String? shippingRoute;
+  final int weightGrams;
+  final int chargeableKg;
 
   /// False when no courier delivers from this shop to the address ("We cannot deliver to this address yet").
   final bool serviceable;
@@ -111,6 +117,9 @@ class QuoteStore {
       storeVoucher: QuoteVoucher.fromJson(json['store_voucher']),
       storeDiscount: asDouble(json['store_discount']),
       shippingFee: asDouble(shipping['fee']),
+      shippingRoute: asString(shipping['route']),
+      weightGrams: asInt(shipping['weight_grams']),
+      chargeableKg: asInt(shipping['chargeable_kg'], 1),
       serviceable:
           shipping['serviceable'] == null || asBool(shipping['serviceable']),
       shippingMessage: asString(shipping['message']),

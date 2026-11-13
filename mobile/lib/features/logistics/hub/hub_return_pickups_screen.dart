@@ -14,7 +14,13 @@ import 'hub_kit.dart';
 /// Return pickups in this hub's area: approved returns a rider collects from the buyer and takes to the shop. Give
 /// each waiting one to a rider; one not collected yet can go to another rider.
 class HubReturnPickupsScreen extends ConsumerStatefulWidget {
-  const HubReturnPickupsScreen({super.key});
+  const HubReturnPickupsScreen({
+    super.key,
+    this.scope = 'hub',
+    this.embedded = false,
+  });
+  final String scope;
+  final bool embedded;
 
   @override
   ConsumerState<HubReturnPickupsScreen> createState() =>
@@ -85,7 +91,7 @@ class _HubReturnPickupsScreenState
     try {
       final message = await ref
           .read(returnPickupApiProvider)
-          .assign(pickup.id, riderId);
+          .assign(pickup.id, riderId, scope: widget.scope);
       if (!mounted) return;
       showRiderMessage(context, message);
       await _view.currentState?.reload();
@@ -98,10 +104,12 @@ class _HubReturnPickupsScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.gray50,
-      appBar: AppBar(title: const Text('Return pickups')),
+      appBar: widget.embedded
+          ? null
+          : AppBar(title: const Text('Return pickups')),
       body: LoadView<(List<ReturnPickup>, List<PickupRider>)>(
         key: _view,
-        load: () => ref.read(returnPickupApiProvider).list('hub'),
+        load: () => ref.read(returnPickupApiProvider).list(widget.scope),
         refreshEvery: const Duration(seconds: 30),
         builder: (context, data) {
           final (pickups, riders) = data;
@@ -162,7 +170,9 @@ class _HubReturnPickupsScreenState
                             [
                               'Back through the hubs: ${p.collectHub ?? ''} → ${p.shopHub ?? ''}',
                               if (p.status == 'at_hub' && p.currentHub != null)
-                                p.inTransit ? 'on the way to ${p.currentHub}' : 'at ${p.currentHub}',
+                                p.inTransit
+                                    ? 'on the way to ${p.currentHub}'
+                                    : 'at ${p.currentHub}',
                             ].join(' · '),
                             style: HubText.small,
                           ),
@@ -179,7 +189,9 @@ class _HubReturnPickupsScreenState
                               color: StatusTone.amber.foreground,
                             ),
                           ),
-                        if (p.status == 'requested' || p.status == 'assigned' || p.isShopLeg) ...[
+                        if (p.status == 'requested' ||
+                            p.status == 'assigned' ||
+                            p.isShopLeg) ...[
                           const SizedBox(height: AppSpace.sm),
                           FilledButton(
                             style: FilledButton.styleFrom(
@@ -189,7 +201,9 @@ class _HubReturnPickupsScreenState
                             onPressed: () => _assign(p, riders),
                             child: Text(
                               p.isShopLeg
-                                  ? (p.shopRider == null ? 'Send a rider to the shop' : 'Change the rider')
+                                  ? (p.shopRider == null
+                                        ? 'Send a rider to the shop'
+                                        : 'Change the rider')
                                   : p.assignedRider == null
                                   ? 'Give to a rider'
                                   : 'Change the rider',

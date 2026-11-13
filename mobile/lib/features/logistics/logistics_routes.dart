@@ -2,6 +2,10 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'activity/activity_screen.dart';
+import 'operations/money_screens.dart';
+import 'operations/returns_screen.dart';
+import 'operations/settings_screens.dart';
+import 'operations/shipping_screen.dart';
 import 'chat/logistics_chat.dart';
 import 'courier/courier_add_rider_screen.dart';
 import 'courier/courier_cod_screen.dart';
@@ -41,6 +45,38 @@ Widget _courier(Widget screen) => CourierThemed(child: screen);
 /// Part D (Liam): every hub and courier-team screen lives under `/logistics`. A courier team member opens the courier
 /// screens and hub staff the hub screens (a courier member can't also run a hub, so an account is only ever one).
 final logisticsRoutes = <RouteBase>[
+  GoRoute(
+    path: LogisticsPaths.courierReturns,
+    builder: (_, _) => _courier(const CourierReturnsScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierMoney,
+    builder: (_, _) => _courier(const CourierMoneyScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierShipping,
+    builder: (_, _) => _courier(const ShippingScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierSettings,
+    builder: (_, _) => _courier(const PortalSettingsScreen(courier: true)),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierCoverage,
+    builder: (_, _) => _courier(const CoverageScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierPlanning,
+    builder: (_, _) => _courier(const TruckPlanningScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.hubEarnings,
+    builder: (_, _) => _hub(const HubEarningsScreen()),
+  ),
+  GoRoute(
+    path: LogisticsPaths.hubSettings,
+    builder: (_, _) => _hub(const PortalSettingsScreen()),
+  ),
   GoRoute(
     path: LogisticsPaths.root,
     // redirectFor in router.dart sends each account to its own screens before this is reached.
