@@ -27,6 +27,8 @@ class CheckoutCalculator
 {
     public const NOTE_MAX = 200;
 
+    public const SELF_PURCHASE_MESSAGE = 'You cannot buy products from your own shop.';
+
     public function __construct(
         private readonly ShippingCalculator $shipping,
         private readonly VoucherEngine $vouchers,
@@ -86,7 +88,7 @@ class CheckoutCalculator
             }
             $p = $v->product;
             $profile = $p->seller?->sellerProfile;
-            [$status, $message] = $this->lineStatus($v, $qty, $bought[$p->id] ?? 0, $perProduct[$p->id] ?? $qty);
+            [$status, $message] = $this->lineStatus($v, $qty, $bought[$p->id] ?? 0, $perProduct[$p->id] ?? $qty, (int) $buyer->id);
             if ($status !== 'available') {
                 $problems[] = ['type' => $status, 'variant_id' => $vid, 'product_id' => $p->id, 'message' => "{$p->name}: {$message}"];
             }
@@ -286,12 +288,15 @@ class CheckoutCalculator
     }
 
     /** @return array{0: string, 1: ?string} the line's status and, when it blocks, why */
-    private function lineStatus(ProductVariant $v, int $qty, int $alreadyBought, int $productQty): array
+    private function lineStatus(ProductVariant $v, int $qty, int $alreadyBought, int $productQty, int $buyerId): array
     {
         $p = $v->product;
         $profile = $p->seller?->sellerProfile;
         if ($p->trashed() || $v->trashed() || $p->status !== 'active' || $p->seller?->status !== 'active' || $profile?->application_status !== 'approved') {
             return ['unavailable', 'This item is no longer available.'];
+        }
+        if ((int) $p->seller_id === $buyerId) {
+            return ['unavailable', self::SELF_PURCHASE_MESSAGE];
         }
         if ($profile?->on_vacation) {
             return ['on_vacation', 'The shop is on vacation, so this item cannot be ordered right now.'];

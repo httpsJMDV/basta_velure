@@ -17,6 +17,8 @@ commission and Seller 2 ₱379.05. `tests/Feature/CommerceCheckoutTest.php` chec
 
 ## Who may buy
 
+Sellers may buy from other shops, but cannot buy their own listings. The backend compares the authenticated user ID with the product's actual seller ID, including for accounts whose role is still `buyer` and which own an approved shop. Add-to-cart and cart quantity/selection changes return 422 with `You cannot buy products from your own shop.` Guest-cart merge and Buy Again skip such items. Existing own-product cart lines are `unavailable`, with that message, and cannot be selected. Checkout quotes report `can_place: false`; placing a direct Buy Now, mixed-shop or saved-cart order is rejected before stock, orders or voucher usage change. This applies equally to web, Flutter and direct API requests; removing/deselecting an old line remains allowed.
+
 Buyer and seller accounts. A hub, courier company, rider or truck driver account (an application in review included;
 a refused one shops again) gets **403** `{"message": "Hub, courier and rider accounts are for deliveries only and cannot
 shop. Use a separate buyer account to buy.", "code": "work_account"}` from `POST/PATCH /cart/items`, `/cart/select`,

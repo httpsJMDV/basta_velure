@@ -140,7 +140,7 @@ class CartService
 
         return DB::transaction(function () use ($user, $variantId, $qty) {
             $variant = ProductVariant::with(['product.seller.sellerProfile'])->find($variantId);
-            $this->assertBuyable($variant);
+            $this->assertBuyable($user, $variant);
             $line = CartItem::where('user_id', $user->id)->where('product_variant_id', $variantId)->lockForUpdate()->first();
             if (! $line && CartItem::where('user_id', $user->id)->count() >= CartItem::MAX_LINES) {
                 $this->fail('quantity', 'Your cart is full (' . CartItem::MAX_LINES . ' items). Remove something first.');
@@ -176,14 +176,14 @@ class CartService
                     $this->fail('quantity', 'The quantity must be at least 1. Remove the item to take it out of your cart.');
                 }
                 $qty = $this->quantity($raw);
-                $this->assertBuyable($variant);
+                $this->assertBuyable($user, $variant);
                 $this->assertWithinLimits($user, $variant, $qty, $line->id);
                 $changes['quantity'] = $qty;
             }
             if (array_key_exists('selected', $data)) {
                 $on = filter_var($data['selected'], FILTER_VALIDATE_BOOLEAN);
                 if ($on) {
-                    $this->assertBuyable($variant, 'selected');
+                    $this->assertBuyable($user, $variant, 'selected');
                     $this->assertWithinLimits($user, $variant, $changes['quantity'] ?? $line->quantity, $line->id, 'selected');
                 }
                 $changes['selected'] = $on;
@@ -251,12 +251,15 @@ class CartService
         return (int) $raw;
     }
 
-    private function assertBuyable(?ProductVariant $variant, string $field = 'variant_id'): void
+    private function assertBuyable(User $user, ?ProductVariant $variant, string $field = 'variant_id'): void
     {
         $p = $variant?->product;
         $profile = $p?->seller?->sellerProfile;
         if (! $variant || ! $p || $variant->trashed() || $p->trashed() || $p->status !== 'active' || $p->seller?->status !== 'active' || $profile?->application_status !== 'approved') {
             $this->fail($field, 'This item is no longer available.');
+        }
+        if ((int) $p->seller_id === (int) $user->id) {
+            $this->fail($field, CheckoutCalculator::SELF_PURCHASE_MESSAGE);
         }
         if ($profile?->on_vacation) {
             $this->fail($field, 'This shop is on vacation, so its items cannot be added or checked out right now.');
