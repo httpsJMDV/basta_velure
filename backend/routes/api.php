@@ -107,6 +107,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/products/{product}/vouchers', [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'forProduct']);
     Route::get('/shops/{seller}/vouchers',     [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'forShop'])->whereNumber('seller');
     Route::get('/vouchers/platform',           [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'platform']);
+    Route::get('/vouchers/discover',           [\App\Http\Controllers\Api\V1\BuyerVoucherController::class, 'discover']);
     // The sandbox gateway's server-to-server callback, signed with config('payments.sandbox_secret').
     Route::post('/payments/sandbox/callback',  [\App\Http\Controllers\Api\V1\SandboxPaymentController::class, 'callback']);
     Route::get('/products/{product}/related',  [PublicProductController::class, 'related']);

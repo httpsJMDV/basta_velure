@@ -58,6 +58,13 @@ default ₱50,000. Tests: `tests/Feature/CartBigPurchaseNoticeTest.php`.
 
 - Buyer: `GET /shops/{seller}/vouchers`, `GET /products/{product}/vouchers`, `GET /vouchers/platform`,
   `GET /buyer/vouchers` (wallet), `POST /buyer/vouchers/claim {code}`.
+
+`GET /vouchers/discover?page=1` lists ongoing, claimable shop, platform and shipping offers, including vouchers the
+buyer has not saved. It is public and returns `data` plus `meta.current_page`, `last_page`, `total` (24 per page,
+ordered by expiry then id). Hidden-code, upcoming, ended and exhausted offers are excluded. Shop offers require an
+active seller, an approved shop that is not on vacation, and active products; product-limited offers must include
+an active product. Entries use the existing voucher shape, including shop attribution and authenticated claim/use
+flags. This only discovers existing offers; it does not create discounts or change eligibility at checkout.
 - Shop: `GET|POST /seller/vouchers`, `PATCH /seller/vouchers/{id}`, `POST /seller/vouchers/{id}/end`.
 - Loved-IT: the same under `/admin/vouchers` for platform and shipping vouchers.
 
