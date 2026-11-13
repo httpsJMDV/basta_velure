@@ -39,4 +39,6 @@ No live customer transaction was cancelled, account blocked, message sent, or pr
 
 The APK publishing helper now correctly reports that it prepares local files. It previously claimed a release was live after only copying files to `frontend/public/download` and `frontend/dist/download`.
 
-A refreshed signed APK is prepared separately from the source PR. Before publication, verify its Android version code and signer against the old APK, upload the APK and matching metadata, and check the public download's SHA-256. Before enabling real-time push, configure an active WebSocket service, the production broadcaster and matching web/mobile connection settings, then test an authenticated private channel between accounts.
+A refreshed signed APK was built successfully from the current mobile source: version `1.0.0`, Android version code `26111321`, package `shop.lovedit.loved_it`. Its SHA-256 is `fd55bf4fc1efb06ca6cd4c2ae928140231eaef161bd22800ccb10a727ee561b7`. Android signature verification passed, and its signing certificate matches the current downloadable APK (certificate SHA-256 `79ac6af5b7a6b4842c010e68704cb617d808ea2f5fc922eb378a1524ec2656e3`). It is prepared locally, not published or tested on a physical phone.
+
+Before publication, upload the APK and matching metadata and check the public download's SHA-256. Before enabling real-time push, configure an active WebSocket service, the production broadcaster and matching web/mobile connection settings, then test an authenticated private channel between accounts.
