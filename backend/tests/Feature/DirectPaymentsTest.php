@@ -172,6 +172,31 @@ class DirectPaymentsTest extends TestCase
 
     // ── Settlements ──
 
+    public function test_payout_history_is_company_scoped_paginated_and_read_only(): void
+    {
+        [$company, $owner, $hub] = $this->courier();
+        [, $otherOwner] = $this->courier();
+        $rider = Rider::create([
+            'user_id' => $this->user('buyer')->id, 'sorting_center_id' => $hub->id,
+            'vehicle_type' => Rider::VEHICLE_MOTORCYCLE, 'plate_number' => 'AB-1234',
+            'or_cr_path' => 'rider_or_cr/x.pdf', 'drivers_license_path' => 'rider_licenses/x.pdf',
+            'status' => Rider::STATUS_ACTIVE, 'submitted_at' => now(),
+        ]);
+        $order = $this->deliveredOrder($company, $this->seller(), 'cod', 500, CarbonImmutable::now()->subWeek());
+        RiderEarning::create(['rider_id' => $rider->id, 'parcel_id' => $order->parcel->id, 'kind' => 'delivery', 'amount' => '50.00', 'earned_at' => now()]);
+        HubEarning::create(['sorting_center_id' => $hub->id, 'parcel_id' => $order->parcel->id, 'amount' => '7.50', 'earned_at' => now()]);
+        Sanctum::actingAs($owner);
+        $this->getJson("/api/v1/logistics/payouts/riders/{$rider->id}/history")->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.amount', '50.00')->assertJsonPath('data.0.paid_at', null);
+        $this->getJson("/api/v1/logistics/payouts/hubs/{$hub->id}/history")->assertOk()->assertJsonPath('data.0.kind', 'hub_share');
+        $this->assertDatabaseHas('rider_earnings', ['rider_id' => $rider->id, 'paid_at' => null]);
+        Sanctum::actingAs($otherOwner);
+        $this->getJson("/api/v1/logistics/payouts/riders/{$rider->id}/history")->assertNotFound();
+        $this->getJson("/api/v1/logistics/payouts/hubs/{$hub->id}/history")->assertNotFound();
+        Sanctum::actingAs($this->buyer);
+        $this->getJson("/api/v1/logistics/payouts/riders/{$rider->id}/history")->assertForbidden();
+    }
+
     private function courier(): array
     {
         $owner = $this->user('buyer');
