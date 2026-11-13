@@ -342,7 +342,7 @@ class AdminController extends Controller
     /** The admin actions by area, for the activity log's filters and figures. */
     public const LOG_AREAS = [
         'applications' => ['approve_buyer', 'reject_buyer', 'approve_seller', 'reject_seller', 'approve_courier', 'reject_courier', 'approve_sorting_center', 'reject_sorting_center'],
-        'accounts'     => ['suspend_user', 'reactivate_user', 'suspend_courier', 'reactivate_courier', 'suspend_sorting_center', 'reactivate_sorting_center', 'restore_cod'],
+        'accounts'     => ['suspend_user', 'reactivate_user', 'suspend_courier', 'reactivate_courier', 'suspend_sorting_center', 'reactivate_sorting_center', 'restore_cod', 'buyer_risk.cancel_order'],
         'catalog'      => ['create_category', 'update_category', 'delete_category'],
         'money'        => ['update_commission', 'update_return_policy', 'confirm_commission', 'resolve_settlement', 'remind_settlement', 'resolve_refund'],
         'disputes'     => ['resolve_dispute'],

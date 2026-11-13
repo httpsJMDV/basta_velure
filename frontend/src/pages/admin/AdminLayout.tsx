@@ -25,6 +25,7 @@ export const useMessenger = () => useContext(MessengerContext);
 // ─── Breadcrumb map ───────────────────────────────────────────────────────────
 
 const ROUTE_LABELS: Record<string, string> = {
+  '/admin/buyer-risk':                 'Buyer Risk Review',
   '/admin':                             'Dashboard',
   '/admin/messages':                    'Messages',
   '/admin/buyer-applications':          'Buyer Applications',
@@ -103,6 +104,7 @@ function buildNav(c: AdminNavCounts | null): NavGroup[] {
     {
       heading: 'Trust & Safety',
       items: [
+        { icon: ShieldAlert, label: 'Buyer Risk Review', to: '/admin/buyer-risk' },
         { icon: Star, label: 'Reviews & Feedback', to: '/admin/reviews' },
       ],
     },
@@ -274,6 +276,7 @@ function AdminSearchBar() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const searchItems = useMemo(() => [
+    { label: 'Buyer Risk Review & AI', to: '/admin/buyer-risk', group: 'Trust & Safety', icon: ShieldAlert },
     { label: 'Dashboard Overview', to: '/admin', group: 'Navigation', icon: Gauge },
     { label: 'Messages & Inquiries', to: '/admin/messages', group: 'Navigation', icon: MessageSquare },
     { label: 'Buyer Verification Applications', to: '/admin/buyer-applications', group: 'People', icon: UserCheck },

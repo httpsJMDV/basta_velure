@@ -29,6 +29,7 @@ const TONE: Record<Tone, string> = {
 
 /** Every action the admin pages record, in words. */
 const ACTIONS: Record<string, { label: string; icon: React.ElementType; tone: Tone }> = {
+  'buyer_risk.cancel_order': { label: 'Order cancelled after risk review', icon: ShieldAlert, tone: 'rose' },
   approve_buyer: { label: 'Buyer approved', icon: UserCheck, tone: 'emerald' },
   reject_buyer: { label: 'Buyer rejected', icon: UserX, tone: 'rose' },
   approve_seller: { label: 'Seller approved', icon: Store, tone: 'emerald' },
@@ -81,6 +82,7 @@ const PERIODS = [
 
 /** What a log entry points at, and where the admin manages it. */
 const TARGETS: Record<string, { label: string; to: string }> = {
+  order: { label: 'Order', to: '/admin/orders' },
   user: { label: 'Account', to: '/admin/buyers' },
   seller_profile: { label: 'Seller', to: '/admin/sellers' },
   logistics_company: { label: 'Courier', to: '/admin/courier-applications' },
