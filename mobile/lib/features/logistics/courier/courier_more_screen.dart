@@ -48,6 +48,12 @@ class CourierMoreScreen extends ConsumerWidget {
           StatGrid(
             children: [
               CourierWorkTile(
+                icon: LucideIcons.settings2,
+                title: 'Pickup control',
+                subtitle: 'Automatic or manual assignment',
+                onTap: () => context.push(LogisticsPaths.courierPickupControl),
+              ),
+              CourierWorkTile(
                 icon: LucideIcons.navigation,
                 title: 'Dispatch',
                 subtitle: 'Unassigned and offered pickups',

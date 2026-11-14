@@ -59,7 +59,7 @@ class AppUser {
   /// A hub, courier company, rider or truck driver account, an application in review included: it does deliveries
   /// and never shops. Only a seller switches between selling and buying.
   bool get isWorkAccount =>
-      workAccount ??
+      workAccount == true ||
       (role == 'rider' ||
           (rider != null && rider!.status != 'DISAPPROVED') ||
           (sortingCenter != null && sortingCenter!.status != 'REJECTED') ||

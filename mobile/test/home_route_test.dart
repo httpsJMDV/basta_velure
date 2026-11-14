@@ -27,6 +27,31 @@ void main() {
   );
 
   group('homesFor', () {
+    test(
+      'a stale false work flag cannot unlock shopping for work profiles',
+      () {
+        for (final profile in [
+          {
+            'rider': {'id': 1, 'status': 'ACTIVE'},
+          },
+          {
+            'sorting_center': {'id': 2, 'status': 'APPROVED'},
+          },
+          {
+            'logistics_company': {'id': 3, 'status': 'APPROVED'},
+          },
+        ]) {
+          final work = AppUser.fromJson({
+            ...userJson(),
+            ...profile,
+            'work_account': false,
+          });
+          expect(work.isWorkAccount, isTrue);
+          expect(homesFor(work), isNot(contains(AppHome.buyer)));
+          expect(homesFor(work), isNot(contains(AppHome.seller)));
+        }
+      },
+    );
     test('a buyer, and a seller (who shops too), open the shop', () {
       expect(homesFor(user()), [AppHome.buyer]);
       final seller = user(seller: {'application_status': 'approved'});
@@ -99,62 +124,50 @@ void main() {
       );
     });
 
-    test(
-      'a pending rider application is a work account; a refused one keeps the person shopping',
-      () {
-        expect(homesFor(user(rider: {'id': 1, 'status': 'PENDING'})), [
-          AppHome.rider,
-        ]);
-        expect(homesFor(user(rider: {'id': 1, 'status': 'DISAPPROVED'})), [
-          AppHome.buyer,
-        ]);
-      },
-    );
+    test('a pending rider application is a work account; a refused one keeps the person shopping', () {
+      expect(homesFor(user(rider: {'id': 1, 'status': 'PENDING'})), [
+        AppHome.rider,
+      ]);
+      expect(homesFor(user(rider: {'id': 1, 'status': 'DISAPPROVED'})), [
+        AppHome.buyer,
+      ]);
+    });
 
-    test(
-      'an approved hub or courier team opens Logistics; a pending one waits on the website, a refused one shops',
-      () {
-        expect(
-          defaultHomeFor(
-            user(
-              hub: {'id': 3, 'hub_name': 'Sta. Cruz Hub', 'status': 'APPROVED'},
-            ),
+    test('an approved hub or courier team opens Logistics; a pending one waits on the website, a refused one shops', () {
+      expect(
+        defaultHomeFor(
+          user(
+            hub: {'id': 3, 'hub_name': 'Sta. Cruz Hub', 'status': 'APPROVED'},
           ),
-          AppHome.logistics,
-        );
-        expect(
-          defaultHomeFor(
-            user(
-              courier: {
-                'id': 2,
-                'name': 'DCC',
-                'status': 'APPROVED',
-                'role': 'owner',
-              },
-            ),
+        ),
+        AppHome.logistics,
+      );
+      expect(
+        defaultHomeFor(
+          user(
+            courier: {
+              'id': 2,
+              'name': 'DCC',
+              'status': 'APPROVED',
+              'role': 'owner',
+            },
           ),
-          AppHome.logistics,
-        );
-        expect(
-          homesFor(
-            user(hub: {'id': 3, 'hub_name': 'Hub', 'status': 'PENDING'}),
-          ),
-          [AppHome.webOnly],
-        );
-        expect(
-          homesFor(
-            user(courier: {'id': 2, 'name': 'DCC', 'status': 'PENDING'}),
-          ),
-          [AppHome.webOnly],
-        );
-        expect(
-          homesFor(
-            user(courier: {'id': 2, 'name': 'DCC', 'status': 'REJECTED'}),
-          ),
-          [AppHome.buyer],
-        );
-      },
-    );
+        ),
+        AppHome.logistics,
+      );
+      expect(
+        homesFor(user(hub: {'id': 3, 'hub_name': 'Hub', 'status': 'PENDING'})),
+        [AppHome.webOnly],
+      );
+      expect(
+        homesFor(user(courier: {'id': 2, 'name': 'DCC', 'status': 'PENDING'})),
+        [AppHome.webOnly],
+      );
+      expect(
+        homesFor(user(courier: {'id': 2, 'name': 'DCC', 'status': 'REJECTED'})),
+        [AppHome.buyer],
+      );
+    });
   });
 
   group('redirectFor', () {

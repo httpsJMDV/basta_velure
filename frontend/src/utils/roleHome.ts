@@ -7,7 +7,7 @@ import type { User } from '../types';
  */
 export function isWorkAccount(user: User | null | undefined): boolean {
   if (!user) return false;
-  if (typeof user.work_account === 'boolean') return user.work_account;
+  if (user.work_account === true) return true;
   if (user.role === 'rider') return true;
   if (user.rider && user.rider.status !== 'DISAPPROVED') return true;
   if (user.sorting_center && user.sorting_center.status !== 'REJECTED') return true;
@@ -23,7 +23,6 @@ export function isWorkAccount(user: User | null | undefined): boolean {
  */
 export function roleHomePath(user: User): string {
   if (user.role === 'admin') return '/admin';
-  if (user.role === 'seller' || user.seller_profile?.application_status === 'approved') return '/seller';
   if (user.logistics_company?.status === 'APPROVED') return '/logistics';
   if (user.sorting_center?.status === 'APPROVED') return '/hub/dashboard';
   // A suspended rider still signs in and sees why on the dashboard (RID-PROF-006).
@@ -33,5 +32,6 @@ export function roleHomePath(user: User): string {
     if (user.sorting_center) return user.sorting_center.status === 'SUSPENDED' ? '/hub/dashboard' : '/register/hub';
     return '/rider/login';
   }
+  if (user.role === 'seller' || user.seller_profile?.application_status === 'approved') return '/seller';
   return '/';
 }

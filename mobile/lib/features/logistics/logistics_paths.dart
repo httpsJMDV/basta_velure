@@ -1,6 +1,8 @@
 /// Every logistics address. Hub staff work under `/logistics/hub`, the courier team under `/logistics/courier`; the
 /// router sends `/logistics` to the right one.
 abstract final class LogisticsPaths {
+  static const hubPickupControl = '/logistics/hub/pickup-control';
+  static const courierPickupControl = '/logistics/courier/pickup-control';
   static const root = '/logistics';
 
   // Hub staff: the tabs

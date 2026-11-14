@@ -367,10 +367,18 @@ function BuyPanel({ product, onGalleryIndex }: { product: ProductDetail; onGalle
           )}
         </div>
         {!showRange && off > 0 && (
-          <p className="mt-1.5 text-[12px] text-emerald-700">
-            You save {peso(Math.round((original! - price) * 100) / 100)}
-            {flashApplies ? ' with the flash sale' : sale ? ` · sale ends ${manilaTime(sale.ends_at)}` : ''}
-          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border border-brand-red/10 bg-brand-red/[0.035] px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-brand-red shadow-sm"><Check className="h-4 w-4" /></span>
+              <div><p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Your savings</p>
+                <p className="text-base font-bold tabular-nums text-brand-red">{peso(Math.round((original! - price) * 100) / 100)} <span className="text-[12px] font-medium">({off}% off)</span></p>
+              </div>
+            </div>
+            {(flashApplies || sale) && <div className="text-[12px] text-stone-600 sm:border-l sm:border-brand-red/15 sm:pl-5">
+              <p className="font-semibold text-stone-800">{flashApplies ? 'Flash sale offer' : 'Sale ends'}</p>
+              <p>{flashApplies ? 'Available while the flash allocation lasts' : `${manilaTime(sale!.ends_at)} · Manila time`}</p>
+            </div>}
+          </div>
         )}
         {flashApplies && flash && qty > flash.remaining && flash.remaining > 0 && (
           <p className="mt-1 text-[12px] text-stone-500">The flash price covers the first {flash.remaining}; the rest are at the {sale ? 'sale' : 'regular'} price.</p>

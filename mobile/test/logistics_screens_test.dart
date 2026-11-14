@@ -1549,6 +1549,8 @@ void main() {
       await tester.tap(find.text('More').last);
       await tester.pumpAndSettle();
       expect(find.text('Counter pickups'), findsOneWidget);
+      await tester.ensureVisible(find.text('Counter pickups'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Counter pickups'));
       await tester.pumpAndSettle();
       expect(find.text('Ana Santos'), findsOneWidget);

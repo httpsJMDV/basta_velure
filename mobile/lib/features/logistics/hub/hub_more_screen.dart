@@ -44,6 +44,12 @@ class HubMoreScreen extends ConsumerWidget {
           LinkList(
             children: [
               _WorkTile(
+                icon: LucideIcons.settings2,
+                title: 'Pickup control',
+                subtitle: 'Automatic preferences and manual rider assignment',
+                onTap: () => context.push(LogisticsPaths.hubPickupControl),
+              ),
+              _WorkTile(
                 icon: LucideIcons.packagePlus,
                 title: 'Parcel intake',
                 subtitle: 'Expected and received today',
