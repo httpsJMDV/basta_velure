@@ -19,6 +19,7 @@ import LogisticsMoneyPage from './pages/logistics/LogisticsMoneyPage';
 import LogisticsShippingPage from './pages/logistics/LogisticsShippingPage';
 import LogisticsDispatchPage from './pages/logistics/LogisticsDispatchPage';
 import PickupControlPage from './pages/logistics/PickupControlPage';
+import CargoPage from './pages/logistics/CargoPage';
 import LogisticsHubOpsPage from './pages/logistics/LogisticsHubOpsPage';
 import LogisticsReturnsPage from './pages/logistics/LogisticsReturnsPage';
 import LogisticsCodPage from './pages/logistics/LogisticsCodPage';
@@ -468,6 +469,7 @@ function AppRoutes() {
         <Route path="shipping" element={<LogisticsShippingPage />} />
         <Route path="dispatch" element={<LogisticsDispatchPage />} />
         <Route path="pickup-control" element={<PickupControlPage />} />
+        <Route path="cargo" element={<CargoPage />} />
         <Route path="hub-ops" element={<LogisticsHubOpsPage />} />
         <Route path="returns" element={<LogisticsReturnsPage />} />
         <Route path="cod" element={<LogisticsCodPage />} />
@@ -490,6 +492,7 @@ function AppRoutes() {
         <Route path="sorting" element={<HubSortingPage />} />
         <Route path="dispatch" element={<HubDispatchPage />} />
         <Route path="pickup-control" element={<PickupControlPage hub />} />
+        <Route path="cargo" element={<CargoPage scope="hub" />} />
         <Route path="deliveries" element={<HubDeliveriesPage />} />
         <Route path="riders" element={<HubRidersPage />} />
         <Route path="reports" element={<HubReportsPage />} />
@@ -515,6 +518,7 @@ function AppRoutes() {
         <Route path="earnings" element={<RiderEarningsPage />} />
         <Route path="reports" element={<RiderReportsPage />} />
         <Route path="account" element={<RiderAccountPage />} />
+        <Route path="cargo" element={<CargoPage scope="rider" />} />
         <Route path="trips" element={<RiderTripsPage />} />
         <Route path="activity" element={<RiderActivityPage />} />
       </Route>

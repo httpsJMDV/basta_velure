@@ -306,6 +306,7 @@ class HubDispatchController extends Controller
             }
 
             $barangayName = (string) ($parcels->first()->destination_barangay ?? '');
+            app(\App\Services\RiderCargo::class)->assertFits($rider, $parcels->values()->all());
             $now = now();
 
             foreach ($parcels as $parcel) {

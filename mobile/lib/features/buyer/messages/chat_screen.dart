@@ -19,6 +19,7 @@ import '../buyer_paths.dart';
 import '../data/account.dart';
 import '../data/buyer_api.dart';
 import '../widgets/buyer_theme.dart';
+import 'order_confirmation_card.dart';
 import '../widgets/buyer_widgets.dart';
 import '../widgets/photo_viewer.dart';
 
@@ -239,6 +240,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             final bubble = _Bubble(
                               message: _messages[index],
                               mine: _messages[index].senderId == me,
+                              onConfirmAddress: () async {
+                                final message = _messages[index];
+                                final updates = await ref
+                                    .read(buyerApiProvider)
+                                    .confirmOrderAddress(
+                                      widget.conversationId,
+                                      message.id,
+                                      asInt(
+                                        message.attachment['address_revision'],
+                                        1,
+                                      ),
+                                    );
+                                if (!mounted) return;
+                                setState(() {
+                                  final byId = {
+                                    for (final update in updates)
+                                      update.id: update,
+                                  };
+                                  _messages = [
+                                    for (final old in _messages)
+                                      byId[old.id] ?? old,
+                                    ...updates.where(
+                                      (update) => !_messages.any(
+                                        (old) => old.id == update.id,
+                                      ),
+                                    ),
+                                  ];
+                                });
+                              },
                             );
                             // The newest message rises in; the rest stay put.
                             return index == _messages.length - 1
@@ -335,10 +365,15 @@ class _SupportBar extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message, required this.mine});
+  const _Bubble({
+    required this.message,
+    required this.mine,
+    this.onConfirmAddress,
+  });
 
   final ChatMessage message;
   final bool mine;
+  final Future<void> Function()? onConfirmAddress;
 
   @override
   Widget build(BuildContext context) {
@@ -445,6 +480,11 @@ class _Bubble extends StatelessWidget {
           subtitle:
               '${asString(data['items_summary']) ?? ''} · ${formatPeso(data['total'])}',
           onTap: id == null ? null : () => context.push(BuyerPaths.order(id)),
+        );
+      case 'order_confirmation':
+        return OrderConfirmationCard(
+          message: message,
+          onConfirm: mine ? null : onConfirmAddress,
         );
       default:
         return null;

@@ -804,7 +804,8 @@ Future<List<PickableRider>> _pickableRiders(
       PickableRider(
         id: rider.id,
         name: rider.name,
-        detail: '${rider.activeJobs}/${riders.maxActiveJobs} jobs',
+        detail:
+            '${rider.activeJobs} active parcels · server checks cargo eligibility',
         problem: rider.assignable ? null : rider.problem ?? 'Can\'t take a job',
       ),
   ];

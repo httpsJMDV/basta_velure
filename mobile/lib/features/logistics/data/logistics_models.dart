@@ -366,7 +366,8 @@ class HubTransferGroup {
       mode: asString(json['mode']) ?? 'truck',
       gateway: asString(hub['gateway']),
       returnCodes: asStringList(json['return_codes']),
-      goingBack: asInt(counts['return_to_sender']) + asInt(counts['buyer_returns']),
+      goingBack:
+          asInt(counts['return_to_sender']) + asInt(counts['buyer_returns']),
       finalHubs: finals,
       moreFinalHubs: asInt(json['final_hub_count']) - finals.length,
     );
@@ -1311,6 +1312,8 @@ class CourierRider {
     this.joinedAt,
     this.documents = const [],
     this.audit = const [],
+    this.cargoReviewed = false,
+    this.cargoCapacityKg,
   });
 
   final int id;
@@ -1318,6 +1321,8 @@ class CourierRider {
   final String status;
   final bool online;
   final int activeJobs;
+  final bool cargoReviewed;
+  final double? cargoCapacityKg;
   final int deliveredToday;
   final bool applicant;
   final bool needsReverification;
@@ -1355,6 +1360,8 @@ class CourierRider {
     status: asString(json['status']) ?? '',
     online: asBool(json['online']),
     activeJobs: asInt(json['active_jobs']),
+    cargoReviewed: asBool(json['cargo_reviewed']),
+    cargoCapacityKg: asDoubleOrNull(json['cargo_capacity_kg']),
     deliveredToday: asInt(json['delivered_today']),
     applicant: asBool(json['applicant']),
     needsReverification: asBool(json['needs_reverification']),

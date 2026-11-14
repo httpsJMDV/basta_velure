@@ -156,6 +156,7 @@ class LogisticsParcelOpsController extends Controller
             if ($problem = app(Dispatcher::class)->riderProblem($rider, $p)) {
                 abort(422, $problem);
             }
+            app(\App\Services\RiderCargo::class)->assertFits($rider, [$p]);
             app(OrderStateMachine::class)->transition($p->order, OrderStatus::ASSIGNED_TO_RIDER, 'logistics', $request->user()->id,
                 'Rescheduled for another delivery attempt.', ['tracking_number' => $p->tracking_number, 'rider_id' => $rider->id, 'attempts_so_far' => $p->delivery_attempts]);
             Parcel::whereKey($p->id)->update(['assigned_rider_id' => $rider->id, 'assigned_at' => now()]);

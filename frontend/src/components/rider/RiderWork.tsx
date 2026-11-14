@@ -57,7 +57,7 @@ export function AvailabilityToggle({ onChange }: { onChange?: (s: RiderWorkState
       <div className="flex-1 min-w-0">
         <p className="text-sm font-black text-gray-900">{state ? (online ? 'You are Online' : 'You are Offline') : 'Checking your status…'}</p>
         <p className="text-[11px] text-gray-500">
-          {state ? `${state.active_jobs} of ${state.max_active_jobs} job slots in use · ${online ? 'new offers come to you' : 'no new offers'}` : ' '}
+          {state ? `${state.capacity?.mode === 'weight' ? `${state.capacity.reserved_kg} / ${state.capacity.capacity_kg} kg reserved · ${state.active_jobs} parcels` : `${state.active_jobs} active parcels · vehicle review needed for kg-based loads`} · ${online ? 'available for eligible offers' : 'no new offers'}` : ' '}
         </p>
       </div>
       <button

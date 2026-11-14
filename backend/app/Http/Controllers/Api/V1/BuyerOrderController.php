@@ -70,10 +70,29 @@ class BuyerOrderController extends Controller
         return response()->json(['data' => BuyerOrderPresenter::present($order, detail: true)]);
     }
 
-    /**
-     * POST /buyer/orders/{order}/buy-again: puts the order's items back in the cart, the same options and quantities,
-     * at today's price. Items that are gone, sold out or over a limit are listed with the reason instead.
-     */
+    /** PATCH /buyer/orders/{order}/delivery-address: local corrections before the waybill is created. */
+    public function updateDeliveryAddress(Request $request, Order $order, \App\Services\Commerce\OrderDeliveryAddress $addresses): JsonResponse
+    {
+        abort_if($order->buyer_id !== $request->user()->id, 404, 'Order not found.');
+        $request->merge(['shipping_phone' => \App\Support\PhMobile::prepare($request->input('shipping_phone'))]);
+        $values = $request->validate([
+            'shipping_name' => ['required', 'string', 'min:2', 'max:150'],
+            'shipping_phone' => ['required', ...\App\Support\PhMobile::rules()],
+            'shipping_address' => ['required', 'string', 'min:5', 'max:500'],
+            'address_revision' => ['required', 'integer', 'min:1'],
+            'shipping_barangay' => ['prohibited'], 'shipping_city' => ['prohibited'], 'shipping_province' => ['prohibited'],
+            'shipping_barangay_code' => ['prohibited'], 'shipping_city_code' => ['prohibited'], 'shipping_province_code' => ['prohibited'],
+        ]);
+        foreach (['shipping_name', 'shipping_address'] as $field) {
+            $values[$field] = trim(strip_tags($values[$field]));
+            abort_if(mb_strlen($values[$field]) < ($field === 'shipping_name' ? 2 : 5), 422, 'Enter complete delivery details.');
+        }
+        $fresh = $addresses->update($order, $request->user(), $values);
+
+        return response()->json(['message' => 'Delivery details updated. Your saved addresses and delivery fee are unchanged.',
+            'data' => BuyerOrderPresenter::present($fresh->load([...self::WITH, 'statusHistories']), detail: true)]);
+    }
+
     public function buyAgain(Request $request, Order $order, \App\Services\Commerce\CartService $cart): JsonResponse
     {
         $user = $request->user();

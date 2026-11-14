@@ -269,7 +269,7 @@ export default function BuyerMessagesPage() {
                           <div className={`flex flex-col min-w-0 max-w-[min(78%,480px)] ${mine ? 'items-end' : 'items-start'}`}>
                             {activeWho.kind === 'support' && !mine && !joinsPrev && <SupportSenderLabel role={m.sender_role} />}
                             {m.attachment_type && m.attachment_data && m.sender_role !== 'assistant' && <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={mine} orderHref={buyerOrderHref}
-                              onConfirmAddress={!mine && m.attachment_type === 'order_confirmation' ? () => confirmOrderAddress(m.id) : undefined} />}
+                              onConfirmAddress={!mine && m.attachment_type === 'order_confirmation' ? () => confirmOrderAddress(m.id, Number(m.attachment_data?.address_revision ?? 1)) : undefined} />}
                             {m.body && !isAutoAttachmentBody(m) && (
                               <div className={`px-3.5 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap break-words ${mine
                                 ? `bg-brand-red text-white rounded-[18px] ${endsGroup ? 'rounded-br-md' : ''}`

@@ -197,6 +197,7 @@ class HubDeliveryController extends Controller
             }
 
             // The state machine also syncs parcels.status and writes the history row.
+            app(\App\Services\RiderCargo::class)->assertFits($rider, [$parcel]);
             $this->stateMachine->transition(
                 $parcel->order,
                 OrderStatus::ASSIGNED_TO_RIDER,

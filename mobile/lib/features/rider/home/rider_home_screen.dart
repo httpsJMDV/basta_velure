@@ -688,11 +688,24 @@ class _Jobs extends StatelessWidget {
             child: _JobTile(
               value: jobs == null
                   ? '—'
+                  : jobs.usesWeight
+                  ? '${jobs.capacity['reserved_kg']} / ${jobs.capacity['capacity_kg']} kg'
                   : '${jobs.activeJobs} of ${jobs.maxActiveJobs}',
-              label: 'Job slots used',
+              label: jobs?.usesWeight == true
+                  ? 'Reserved cargo'
+                  : 'Pickup slots · review needed',
               footer: jobs == null
                   ? null
-                  : _SlotBar(used: jobs.activeJobs, total: jobs.maxActiveJobs),
+                  : _SlotBar(
+                      used: jobs.usesWeight
+                          ? (asDouble(jobs.capacity['reserved_kg']) * 1000)
+                                .round()
+                          : jobs.activeJobs,
+                      total: jobs.usesWeight
+                          ? (asDouble(jobs.capacity['capacity_kg']) * 1000)
+                                .round()
+                          : jobs.maxActiveJobs,
+                    ),
             ),
           ),
           const SizedBox(width: AppSpace.sm),

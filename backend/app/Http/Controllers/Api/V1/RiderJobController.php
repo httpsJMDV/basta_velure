@@ -81,11 +81,13 @@ class RiderJobController extends Controller
 
     private function state(Rider $rider): array
     {
+        $capacity = app(\App\Services\RiderCargo::class)->profile($rider);
         return [
             'online'          => $rider->isAvailable(),
             'status'          => $rider->status,
-            'active_jobs'     => $this->workload->activeJobs($rider),
+            'active_jobs'     => $capacity['mode'] === 'weight' ? $capacity['active_jobs'] : $this->workload->activeJobs($rider),
             'max_active_jobs' => Rider::MAX_ACTIVE_JOBS,
+            'capacity' => $capacity,
             'online_since'    => $rider->isAvailable() ? $rider->online_at?->toIso8601String() : null,
         ];
     }

@@ -22,6 +22,7 @@ interface AttachmentData {
   phone?: string | null;
   address?: string | null;
   confirmed_at?: string | null;
+  address_revision?: number;
   /** order_list: the orders the Loved-IT Assistant talked about. */
   orders?: OrderCardData[];
 }
@@ -171,6 +172,7 @@ function OrderConfirmationCard({ data, href, onConfirm }: { data: AttachmentData
       </dl>
 
       <div className="p-3 pt-2 space-y-1.5">
+        {onConfirm && <p className="pb-1 text-[11px] leading-4 text-stone-500">Optional check. Your order continues using the checkout address even if you do not confirm.</p>}
         {confirmed ? (
           <p className="flex items-center justify-center gap-1.5 h-9 rounded-xl bg-emerald-50 text-[12.5px] font-semibold text-emerald-700"><Check className="w-4 h-4" /> Address confirmed</p>
         ) : onConfirm ? (
@@ -182,7 +184,7 @@ function OrderConfirmationCard({ data, href, onConfirm }: { data: AttachmentData
           <p className="flex items-center justify-center gap-1.5 h-9 rounded-xl bg-stone-50 text-[12px] text-stone-500"><Clock className="w-3.5 h-3.5" /> Waiting for the buyer to confirm</p>
         )}
         {href && (
-          <Link to={href} className="w-full h-9 rounded-xl bg-stone-100 hover:bg-stone-200 text-[12.5px] font-semibold text-stone-800 flex items-center justify-center transition-colors">View details</Link>
+          <Link to={href} className="w-full h-9 rounded-xl bg-stone-100 hover:bg-stone-200 text-[12.5px] font-semibold text-stone-800 flex items-center justify-center transition-colors">{onConfirm ? 'View or correct delivery details' : 'View details'}</Link>
         )}
         {error && <p role="alert" className="text-[11.5px] font-medium text-brand-red text-center">{error}</p>}
       </div>

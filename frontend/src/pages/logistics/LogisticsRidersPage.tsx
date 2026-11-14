@@ -192,7 +192,7 @@ export default function LogisticsRidersPage() {
                       </div>
                     </td>
                     <td className={TD}><Availability r={r} /></td>
-                    <td className={TD}>{r.status === 'ACTIVE' || r.active_jobs > 0 ? <Jobs n={r.active_jobs} max={max} /> : <span className="text-stone-400">—</span>}</td>
+                    <td className={TD}>{r.cargo_reviewed ? <span className="text-xs">{r.active_jobs} parcels · {r.cargo_capacity_kg} kg allowance</span> : r.status === 'ACTIVE' || r.active_jobs > 0 ? <Jobs n={r.active_jobs} max={max} /> : <span className="text-stone-400">—</span>}</td>
                     <td className={`${TD} text-right tabular-nums font-semibold text-stone-800`}>{r.delivered_today}</td>
                     <td className={`${TD} hidden md:table-cell text-gray-600`}>{r.vehicle_type} · <span className="font-mono text-[12px]">{r.plate_number}</span></td>
                     <td className={`${TD} hidden xl:table-cell text-gray-600`}>
@@ -311,7 +311,7 @@ function RiderPanel({ id, onClose, onChanged, max }: { id: number | null; onClos
             ].map(([k, v]) => (
               <div key={k}><dt className="text-[11px] uppercase tracking-wide text-stone-400">{k}</dt><dd className="mt-0.5 font-medium text-stone-900 break-words">{v || '—'}</dd></div>
             ))}
-            <div className="col-span-2"><dt className="text-[11px] uppercase tracking-wide text-stone-400">Active jobs</dt><dd className="mt-1"><Jobs n={rider.active_jobs} max={max} /></dd></div>
+            <div className="col-span-2"><dt className="text-[11px] uppercase tracking-wide text-stone-400">Active jobs</dt><dd className="mt-1">{rider.cargo_reviewed ? `${rider.active_jobs} parcels · ${rider.cargo_capacity_kg} kg reviewed allowance` : <Jobs n={rider.active_jobs} max={max} />}</dd></div>
           </dl>
 
           <section>

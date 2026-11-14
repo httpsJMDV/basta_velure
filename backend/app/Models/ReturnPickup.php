@@ -33,6 +33,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ReturnPickup extends Model
 {
+    protected $casts = ['load_measurements' => 'array', 'load_measured_at' => 'datetime'];
     public const STATUS_REQUESTED = 'requested';
     public const STATUS_ASSIGNED = 'assigned';
     public const STATUS_COLLECTED = 'collected';

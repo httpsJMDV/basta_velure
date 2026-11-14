@@ -134,7 +134,7 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                 _Fact(
                   icon: LucideIcons.weight,
                   text:
-                      'One shop\'s parcel can weigh at most ${rates == null ? '50' : _kg(rates.maxParcelKg)} kg. Each stop shows its weight. '
+                      'The order limit is ${rates == null ? '50' : _kg(rates.maxParcelKg)} kg per shop parcel. This is not a motorcycle carrying allowance. Check Account → Cargo allowance for your courier-reviewed weight and space limit. Each stop shows its declared weight. '
                       'If a parcel is not safe on your vehicle, message the hub before you leave.',
                 ),
                 const SizedBox(height: AppSpace.md),

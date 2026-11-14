@@ -599,7 +599,8 @@ class ConversationController extends Controller
             && $message->attachment_type === OrderConfirmationMessenger::TYPE, 404, 'Message not found.');
         abort_unless((int) $conversation->buyer_id === (int) $request->user()->id, 403, 'Only the buyer can confirm the address.');
 
-        $result = app(OrderConfirmationMessenger::class)->confirm($conversation, $message);
+        $values = $request->validate(['address_revision' => ['nullable', 'integer', 'min:1']]);
+        $result = app(OrderConfirmationMessenger::class)->confirm($conversation, $message, $values['address_revision'] ?? null);
 
         return response()->json([
             'data' => array_values(array_filter([

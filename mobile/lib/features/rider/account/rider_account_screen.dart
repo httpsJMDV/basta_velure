@@ -126,6 +126,15 @@ class _RiderAccountScreenState extends ConsumerState<RiderAccountScreen> {
                   ),
                   const SizedBox(height: AppSpace.lg),
                   const RiderSectionTitle('History'),
+                  ListTile(
+                    leading: const Icon(LucideIcons.scale),
+                    title: const Text('Cargo allowance'),
+                    subtitle: const Text(
+                      'Reviewed kg allowance and assigned load',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(RiderPaths.cargo),
+                  ),
                   _Tiles(
                     children: [
                       _Tile(

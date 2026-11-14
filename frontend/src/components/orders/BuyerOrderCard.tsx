@@ -8,6 +8,7 @@ import BuyerReceiptConfirm from './BuyerReceiptConfirm';
 import TrackPackageButton from '../tracking/TrackPackageButton';
 import BuyerRefundPanel from './BuyerRefundPanel';
 import ReturnPickupProgress from './ReturnPickupProgress';
+import OrderDeliveryAddress from './OrderDeliveryAddress';
 import { Dialog, BUTTON } from '../ui/Overlay';
 import { useToast } from '../ui/Toast';
 import {
@@ -167,6 +168,7 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
         {status === 'DELIVERED' && <BuyerReceiptConfirm order={order} onUpdated={onUpdated} />}
       </div>
 
+      <OrderDeliveryAddress order={order} onUpdated={onUpdated} />
       <footer className="px-4 py-3 bg-stone-50/70 border-t border-stone-100">
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
           <div className="min-w-0 text-[12px] text-stone-500 space-y-0.5">

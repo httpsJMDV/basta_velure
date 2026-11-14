@@ -91,7 +91,7 @@ class _PickupControlScreenState extends ConsumerState<PickupControlScreen> {
                           leading: const Icon(Icons.two_wheeler),
                           title: Text(text(rider, 'name')),
                           subtitle: Text(
-                            '${rider['jobs']}/3 jobs · ${text(rider, 'distance')}',
+                            '${rider['jobs']} active parcels · ${text(rider, 'distance')}',
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => Navigator.pop(sheet, rider),
@@ -312,7 +312,7 @@ class _PickupControlScreenState extends ConsumerState<PickupControlScreen> {
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    'Staff can assign manually in either mode. Seller pickup riders must be active, online, and below the three-job limit. Hubs assign their own riders; courier staff manage their network. The rider confirms physical collection in the app.\n\nBuyer returns start at the hub that delivered the order. Distant returns travel through hubs; the shop’s hub assigns the final rider. Regular delivery dispatch and truck trips remain staff-managed.',
+                    'Staff can assign manually in either mode. Seller pickup riders must be active, online, and eligible under the reviewed cargo allowance (or the existing three-job restriction while awaiting review). Hubs assign their own riders; courier staff manage their network. The rider confirms physical collection in the app.\n\nBuyer returns start at the hub that delivered the order. Distant returns travel through hubs; the shop’s hub assigns the final rider. Regular delivery dispatch and truck trips remain staff-managed.',
                     style: TextStyle(height: 1.6),
                   ),
                   TextButton.icon(

@@ -286,6 +286,8 @@ export interface LogisticsHubRow {
 }
 
 export interface LogisticsRiderRow {
+  cargo_reviewed?: boolean;
+  cargo_capacity_kg?: number | null;
   id: number;
   name: string;
   first_name: string | null;
@@ -1302,6 +1304,9 @@ export interface OrderItem {
 export type BuyerOrderTab = 'to_pay' | 'to_ship' | 'to_receive' | 'completed' | 'cancelled' | 'return_refund';
 
 export interface Order {
+  can_edit_delivery_address?: boolean;
+  address_revision?: number;
+  address_confirmed_at?: string | null;
   id: number;
   checkout_group_id?: string | null;
   order_number: string;

@@ -128,6 +128,92 @@ class CourierOpsTest extends TestCase
         return $this;
     }
 
+    private function cargoReview(): array
+    {
+        return ['registered_payload_kg' => 150, 'manufacturer_payload_kg' => 150, 'rider_gear_kg' => 80,
+            'carrier_rating_kg' => 25, 'empty_carrier_kg' => 5, 'length_cm' => 50, 'width_cm' => 40, 'height_cm' => 40,
+            'carrier_type' => 'manufacturer', 'source_note' => 'Fixture registration and manufacturer/rack documents reviewed; not a real-world vehicle rating.', 'reviewed_documents_and_mounting' => true];
+    }
+
+    public function test_failed_deliveries_still_reserve_cargo_and_rescheduling_does_not_double_count(): void
+    {
+        $this->company->forceFill(['auto_seller_pickups' => false])->save();
+        [$user, $rider] = $this->rider('Reserved', [$this->qc[3]]);
+        $this->as($this->ops)->patchJson('/api/v1/logistics/cargo/riders/' . $rider->id, $this->cargoReview())->assertOk();
+        $parcel = $this->ready();
+        $parcel->forceFill(['load_measurements' => ['weight_kg' => 10, 'length_cm' => 10, 'width_cm' => 10, 'height_cm' => 10]])->save();
+        $parcel = $this->outForDelivery($parcel, $user, $rider);
+        $this->failAttempt($user, $parcel)->assertOk();
+        $cargo = app(\App\Services\RiderCargo::class);
+        $this->assertEquals(10, $cargo->profile($rider->fresh())['reserved_kg']);
+        $another = $this->ready();
+        $another->forceFill(['load_measurements' => ['weight_kg' => 11, 'length_cm' => 10, 'width_cm' => 10, 'height_cm' => 10]])->save();
+        $this->as($this->ops)->postJson('/api/v1/logistics/dispatch/assign', ['parcel_ids' => [$another->id], 'rider_id' => $rider->id])->assertUnprocessable();
+        $this->postJson('/api/v1/logistics/parcels/' . $parcel->id . '/reschedule', ['rider_id' => $rider->id])->assertOk();
+        $this->assertEquals(10, $cargo->profile($rider->fresh())['reserved_kg']);
+    }
+
+    public function test_reviewed_cargo_allows_more_than_three_jobs_but_rejects_extra_weight_and_unknown_packages(): void
+    {
+        $this->company->forceFill(['auto_seller_pickups' => false])->save();
+        [, $rider] = $this->rider('Cargo', [$this->qc[3]]);
+        $this->as($this->ops)->patchJson('/api/v1/logistics/cargo/riders/' . $rider->id, $this->cargoReview())
+            ->assertOk()->assertJsonPath('data.capacity_kg', 20);
+        $this->getJson('/api/v1/logistics/cargo/riders?search=Cargo')->assertOk()->assertJsonPath('data.0.id', $rider->id);
+        $this->getJson('/api/v1/logistics/cargo/riders?search=unmatched-rider-name')->assertOk()->assertJsonCount(0, 'data');
+        for ($i = 0; $i < 6; $i++) {
+            $p = $this->ready();
+            $assign = ['parcel_ids' => [$p->id], 'rider_id' => $rider->id];
+            $this->postJson('/api/v1/logistics/dispatch/assign', $assign)->assertUnprocessable();
+            $this->postJson('/api/v1/logistics/cargo/measurements', ['kind' => 'parcel', 'code' => $p->tracking_number,
+                'weight_kg' => 4, 'length_cm' => 10, 'width_cm' => 10, 'height_cm' => 10])->assertOk();
+            $response = $this->postJson('/api/v1/logistics/dispatch/assign', $assign);
+            if ($i < 5) {
+                $response->assertOk();
+            } else {
+                $response->assertUnprocessable();
+                $this->assertNull($p->fresh()->pickup_rider_id);
+            }
+        }
+        $this->assertSame(5, app(\App\Services\RiderWorkload::class)->activeJobs($rider));
+        $profile = app(\App\Services\RiderCargo::class)->profile($rider->fresh());
+        $this->assertEquals(20, $profile['reserved_kg']);
+        $this->assertEquals(0, $profile['remaining_kg']);
+    }
+
+    public function test_cargo_review_rejects_invalid_ratings_and_custom_motorcycle_box_dimensions(): void
+    {
+        [, $rider] = $this->rider('Rated', [$this->qc[3]]);
+        $url = '/api/v1/logistics/cargo/riders/' . $rider->id;
+        $this->as($this->ops)->patchJson($url, [...$this->cargoReview(), 'reviewed_documents_and_mounting' => false])->assertUnprocessable();
+        $this->patchJson($url, [...$this->cargoReview(), 'carrier_type' => 'custom', 'length_cm' => 61])->assertUnprocessable();
+        $this->patchJson($url, [...$this->cargoReview(), 'rider_gear_kg' => 150])->assertUnprocessable();
+        $this->patchJson($url, $this->cargoReview())->assertOk();
+        $service = app(\App\Services\RiderCargo::class);
+        $this->assertTrue($service->reviewed($rider->fresh()));
+        $rider->forceFill(['plate_number' => 'NEW1234'])->save();
+        $this->assertFalse($service->reviewed($rider->fresh()));
+        $this->as($this->customer)->patchJson($url, $this->cargoReview())->assertForbidden();
+        $this->as($this->hub->user)->patchJson('/api/v1/hub/cargo/riders/' . $rider->id, $this->cargoReview())->assertForbidden();
+    }
+
+    public function test_reviewed_cargo_checks_dimensions_volume_and_ownership(): void
+    {
+        $this->company->forceFill(['auto_seller_pickups' => false])->save();
+        [, $rider] = $this->rider('Size', [$this->qc[3]]);
+        $this->as($this->ops)->patchJson('/api/v1/logistics/cargo/riders/' . $rider->id, $this->cargoReview())->assertOk();
+        $p = $this->ready();
+        $p->forceFill(['load_measurements' => ['weight_kg' => 1, 'length_cm' => 51, 'width_cm' => 10, 'height_cm' => 10]])->save();
+        $this->postJson('/api/v1/logistics/dispatch/assign', ['parcel_ids' => [$p->id], 'rider_id' => $rider->id])->assertUnprocessable();
+        $p->forceFill(['load_measurements' => ['weight_kg' => 1, 'length_cm' => 50, 'width_cm' => 40, 'height_cm' => 40]])->save();
+        $other = $this->ready();
+        $other->forceFill(['load_measurements' => ['weight_kg' => 1, 'length_cm' => 1, 'width_cm' => 1, 'height_cm' => 1]])->save();
+        $this->assertStringContainsString('volume', app(\App\Services\RiderCargo::class)->problem($rider->fresh(), [$p->fresh(), $other->fresh()]));
+        $p->forceFill(['logistics_company_id' => LogisticsCompany::defaultId()])->save();
+        $this->postJson('/api/v1/logistics/cargo/measurements', ['kind' => 'parcel', 'code' => $p->tracking_number,
+            'weight_kg' => 4, 'length_cm' => 10, 'width_cm' => 10, 'height_cm' => 10])->assertNotFound();
+    }
+
     public function test_manual_pickup_mode_cancels_open_offers_but_preserves_assigned_jobs(): void
     {
         [$user, $rider] = $this->rider('Manual', [$this->qc[3]]);

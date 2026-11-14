@@ -266,13 +266,13 @@ function AssignDialog({ parcels, onClose, onDone }: { parcels: DispatchRow[]; on
       ) : (
         <div className="space-y-3">
           <p className="text-[12.5px] text-stone-600">
-            Only Active, Online riders with fewer than {riders?.max ?? 3} jobs can take a pickup. {parcels.length > 1 ? 'A rider gets as many as they can hold; the rest are skipped.' : 'Nearest first.'}
+            Only active, online riders whose reviewed cargo allowance can fit the package can take it. Unreviewed vehicles retain the three-job restriction. {parcels.length > 1 ? 'A rider gets as many as they can hold; the rest are skipped.' : 'Nearest first.'}
           </p>
           {!riders && !error && <div className="h-32 rounded-xl bg-stone-100 animate-pulse" />}
           {riders && riders.data.length === 0 && (
             <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-[12.5px] text-amber-900">
               <WifiOff className="w-4 h-4 mt-px shrink-0" aria-hidden="true" />
-              No rider can take a job right now. A rider must be Active, Online in the rider app, and under {riders.max} jobs.
+              No rider can take a job right now. A rider must be active, online and eligible for the package’s weight and space.
             </p>
           )}
           {riders && riders.data.length > 0 && (
@@ -286,7 +286,7 @@ function AssignDialog({ parcels, onClose, onDone }: { parcels: DispatchRow[]; on
                       <span className="block text-[13px] font-semibold text-stone-900 truncate">{r.name}</span>
                       <span className="block text-[11.5px] text-stone-500">{r.distance ?? 'Online'}</span>
                     </span>
-                    <span className="text-[11.5px] font-semibold text-stone-600 tabular-nums">{r.active_jobs}/{riders.max} jobs</span>
+                    <span className="text-[11.5px] font-semibold text-stone-600 tabular-nums">{r.active_jobs} active parcels</span>
                   </button>
                 </li>
               ))}

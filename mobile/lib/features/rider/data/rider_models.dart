@@ -11,6 +11,7 @@ class RiderWorkState {
     required this.activeJobs,
     required this.maxActiveJobs,
     this.onlineSince,
+    this.capacity = const {},
   });
 
   final bool online;
@@ -20,8 +21,13 @@ class RiderWorkState {
   final int activeJobs;
   final int maxActiveJobs;
   final DateTime? onlineSince;
+  final Json capacity;
+  bool get usesWeight => capacity['mode'] == 'weight';
 
-  bool get isFull => activeJobs >= maxActiveJobs;
+  bool get isFull => usesWeight
+      ? asInt(capacity['unmeasured_jobs']) > 0 ||
+            asDouble(capacity['remaining_kg']) <= 0
+      : activeJobs >= maxActiveJobs;
 
   factory RiderWorkState.fromJson(Json json) => RiderWorkState(
     online: asBool(json['online']),
@@ -29,6 +35,7 @@ class RiderWorkState {
     activeJobs: asInt(json['active_jobs']),
     maxActiveJobs: asInt(json['max_active_jobs'], 3),
     onlineSince: asDate(json['online_since']),
+    capacity: asJson(json['capacity']),
   );
 }
 
@@ -217,7 +224,10 @@ class JourneyNode {
     'truck' => 'By truck · long haul',
     'sea' => 'By ship',
     'air' => 'By plane',
-    _ => riderVehicle != null ? 'By ${riderVehicle!.toLowerCase()} · short ride' : 'By rider · short ride',
+    _ =>
+      riderVehicle != null
+          ? 'By ${riderVehicle!.toLowerCase()} · short ride'
+          : 'By rider · short ride',
   };
 
   factory JourneyNode.fromJson(Json json) => JourneyNode(

@@ -246,6 +246,11 @@ Route::prefix('v1')->group(function () {
             // Dispatch (L4): offers, the Unassigned queue, auto-assign, manual, bulk and reassign
             $dispatch = \App\Http\Controllers\Api\V1\LogisticsDispatchController::class;
             Route::get('/dispatch', [$dispatch, 'index']);
+            $cargo = \App\Http\Controllers\Api\V1\RiderCargoController::class;
+            Route::get('/cargo/riders', [$cargo, 'index']);
+            Route::get('/cargo/riders/{rider}', [$cargo, 'show'])->whereNumber('rider');
+            Route::patch('/cargo/riders/{rider}', [$cargo, 'review'])->whereNumber('rider');
+            Route::post('/cargo/measurements', [$cargo, 'measure']);
             $pickupControl = \App\Http\Controllers\Api\V1\PickupControlController::class;
             Route::get('/pickup-control', [$pickupControl, 'show']);
             Route::patch('/pickup-control', [$pickupControl, 'update']);
@@ -374,6 +379,7 @@ Route::prefix('v1')->group(function () {
         Route::patch('/shops/{shop}/my-shop-review', [ShopReviewController::class, 'update'])->middleware('throttle:20,1');
         Route::get('/buyer/orders', [BuyerOrderController::class, 'index']);
         Route::get('/buyer/orders/{order}', [BuyerOrderController::class, 'show']);
+        Route::patch('/buyer/orders/{order}/delivery-address', [BuyerOrderController::class, 'updateDeliveryAddress'])->middleware('shopper');
         Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn'])->middleware('throttle:upload');
         Route::post('/buyer/orders/{order}/escalate-return', [BuyerOrderController::class, 'escalateReturn']);
         // A refund the shop sends by hand: where to send it, then "it arrived" or "it did not"
@@ -749,6 +755,11 @@ Route::prefix('v1')->group(function () {
 
             // Dispatch (Feature 1.8)
             Route::get('/dispatch/batches',                              [HubDispatchController::class, 'batches']);
+            $cargo = \App\Http\Controllers\Api\V1\RiderCargoController::class;
+            Route::get('/cargo/riders', [$cargo, 'index']);
+            Route::get('/cargo/riders/{rider}', [$cargo, 'show'])->whereNumber('rider');
+            Route::patch('/cargo/riders/{rider}', [$cargo, 'review'])->whereNumber('rider');
+            Route::post('/cargo/measurements', [$cargo, 'measure']);
             $pickupControl = \App\Http\Controllers\Api\V1\PickupControlController::class;
             Route::get('/pickup-control', [$pickupControl, 'show']);
             Route::patch('/pickup-control', [$pickupControl, 'update']);
@@ -810,6 +821,7 @@ Route::prefix('v1')->group(function () {
             // Return pickups: collect from the buyer (photo), or a failed visit, then hand it to the shop
             $returnPickups = \App\Http\Controllers\Api\V1\ReturnPickupController::class;
             Route::get('/return-pickups', [$returnPickups, 'riderIndex']);
+            Route::get('/cargo', [\App\Http\Controllers\Api\V1\RiderCargoController::class, 'mine']);
             Route::post('/return-pickups/{pickup}/collected', [$returnPickups, 'collected'])->whereNumber('pickup')->middleware('throttle:upload');
             Route::post('/return-pickups/{pickup}/failed', [$returnPickups, 'failed'])->whereNumber('pickup');
             Route::post('/return-pickups/{pickup}/dropped', [$returnPickups, 'dropped'])->whereNumber('pickup');

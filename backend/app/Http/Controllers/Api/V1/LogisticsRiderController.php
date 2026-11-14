@@ -290,6 +290,8 @@ class LogisticsRiderController extends Controller
             'online'                => $r->isAvailable(),
             'last_seen_at'          => $r->last_seen_at?->toIso8601String(),
             'active_jobs'           => $activeJobs,
+            'cargo_reviewed' => app(\App\Services\RiderCargo::class)->reviewed($r),
+            'cargo_capacity_kg' => $r->cargo_configuration['usable_cargo_kg'] ?? null,
             'delivered_today'       => $deliveredToday,
             'vehicle_type'          => $r->vehicle_type,
             'duty'                  => $r->duty ?? Rider::DUTY_DELIVERY,

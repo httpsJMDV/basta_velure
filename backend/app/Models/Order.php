@@ -65,6 +65,8 @@ class Order extends Model
     protected function casts(): array
     {
         return [
+            'address_confirmed_at' => 'datetime',
+            'address_revision' => 'integer',
             'courier_fee' => 'decimal:2',
             'free_delivery' => 'boolean',
             'status'              => OrderStatus::class,
