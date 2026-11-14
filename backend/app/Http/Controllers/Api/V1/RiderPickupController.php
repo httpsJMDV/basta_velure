@@ -98,8 +98,8 @@ class RiderPickupController extends Controller
         // Calculate count of available seller groups
         $availableCount = $hasAreas
             ? (int) Parcel::availableForRider($rider, $activeCodes)
-                ->distinct('seller_id')
-                ->count('seller_id')
+                ->get()->filter(fn ($p) => app(\App\Services\Courier\PickupPolicy::class)->sellerEnabled($p))
+                ->pluck('seller_id')->unique()->count()
             : 0;
 
         // Calculate count of rider's claimed seller groups
@@ -191,7 +191,7 @@ class RiderPickupController extends Controller
 
         $parcels = Parcel::availableForRider($rider, $activeCodes)
             ->orderBy('ready_at', 'asc')
-            ->get();
+            ->get()->filter(fn ($p) => app(\App\Services\Courier\PickupPolicy::class)->sellerEnabled($p));
 
         $groups = [];
         $grouped = $parcels->groupBy('seller_id');
@@ -270,7 +270,7 @@ class RiderPickupController extends Controller
                     $sub->where('rider_id', $rider->id);
                 })
                 ->lockForUpdate()
-                ->get();
+                ->get()->filter(fn ($p) => app(\App\Services\Courier\PickupPolicy::class)->sellerEnabled($p));
 
             // A14: a rider holds at most 3 active jobs; take only as many of this shop's parcels as fit.
             $room = Rider::MAX_ACTIVE_JOBS - app(RiderWorkload::class)->activeJobs($rider);

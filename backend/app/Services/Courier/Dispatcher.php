@@ -131,6 +131,11 @@ class Dispatcher
         if ($parcel->status !== Parcel::STATUS_READY_FOR_PICKUP || $parcel->pickup_rider_id) {
             return null;
         }
+        if (! app(PickupPolicy::class)->sellerEnabled($parcel)) {
+            $parcel->forceFill(['dispatch_state' => Parcel::DISPATCH_UNASSIGNED])->save();
+
+            return null;
+        }
         if ($parcel->dispatch_attempts >= DispatchOffer::MAX_ATTEMPTS) {
             $parcel->forceFill(['dispatch_state' => Parcel::DISPATCH_UNASSIGNED])->save();
 

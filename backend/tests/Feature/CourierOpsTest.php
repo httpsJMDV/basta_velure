@@ -128,6 +128,55 @@ class CourierOpsTest extends TestCase
         return $this;
     }
 
+    public function test_manual_pickup_mode_cancels_open_offers_but_preserves_assigned_jobs(): void
+    {
+        [$user, $rider] = $this->rider('Manual', [$this->qc[3]]);
+        $parcel = $this->ready();
+        $offer = $this->openOffer($parcel);
+        $this->assertNotNull($offer);
+        $this->as($this->ops)->patchJson('/api/v1/logistics/pickup-control', [
+            'auto_seller_pickups' => false, 'auto_return_pickups' => false,
+        ])->assertOk()->assertJsonPath('data.settings.auto_seller_pickups.effective', false);
+        $this->assertSame(DispatchOffer::STATUS_CANCELLED, $offer->fresh()->status);
+        $this->as($user)->postJson('/api/v1/rider/offers/' . $offer->id . '/accept')->assertStatus(409);
+        $this->as($this->ops)->postJson('/api/v1/logistics/pickup-control/assign', [
+            'parcel_id' => $parcel->id, 'rider_id' => $rider->id,
+        ])->assertOk();
+        $this->assertSame($rider->id, $parcel->fresh()->pickup_rider_id);
+        $new = $this->ready();
+        $this->assertNull($this->openOffer($new));
+        $this->as($user)->postJson('/api/v1/rider/pickups/sellers/' . $new->seller_id . '/accept')->assertStatus(409);
+        $this->as($this->ops)->postJson('/api/v1/logistics/dispatch/auto-assign')->assertOk()->assertJsonPath('data.offered', 0);
+        $this->assertSame($rider->id, $parcel->fresh()->pickup_rider_id);
+    }
+
+    public function test_hub_overrides_company_and_can_assign_only_its_local_pickups(): void
+    {
+        [, $rider] = $this->rider('Local', [$this->qc[3]]);
+        $this->as($this->hub->user)->patchJson('/api/v1/hub/pickup-control', [
+            'auto_seller_pickups' => false, 'auto_return_pickups' => null,
+        ])->assertOk()->assertJsonPath('data.settings.auto_seller_pickups.effective', false);
+        $parcel = $this->ready();
+        $this->assertNull($this->openOffer($parcel));
+        $this->getJson('/api/v1/hub/pickup-control/jobs')->assertOk()->assertJsonPath('data.0.id', $parcel->id);
+        $this->postJson('/api/v1/hub/pickup-control/assign', ['parcel_id' => $parcel->id, 'rider_id' => $rider->id])->assertOk();
+        $this->hub->forceFill(['coverage_barangays' => []])->save();
+        $this->postJson('/api/v1/hub/pickup-control/assign', ['parcel_id' => $parcel->id, 'rider_id' => $rider->id])->assertNotFound();
+        $this->patchJson('/api/v1/hub/pickup-control', [
+            'auto_seller_pickups' => null, 'auto_return_pickups' => null,
+        ])->assertOk()->assertJsonPath('data.settings.auto_seller_pickups.effective', true);
+    }
+
+    public function test_buyers_cannot_change_dispatch_settings(): void
+    {
+        $this->as($this->customer)->patchJson('/api/v1/logistics/pickup-control', [
+            'auto_seller_pickups' => false, 'auto_return_pickups' => true,
+        ])->assertForbidden();
+        $this->patchJson('/api/v1/hub/pickup-control', [
+            'auto_seller_pickups' => false, 'auto_return_pickups' => true,
+        ])->assertForbidden();
+    }
+
     private function openOffer(Parcel $p): ?DispatchOffer
     {
         return DispatchOffer::where('parcel_id', $p->id)->where('status', DispatchOffer::STATUS_OFFERED)->first();

@@ -246,6 +246,12 @@ Route::prefix('v1')->group(function () {
             // Dispatch (L4): offers, the Unassigned queue, auto-assign, manual, bulk and reassign
             $dispatch = \App\Http\Controllers\Api\V1\LogisticsDispatchController::class;
             Route::get('/dispatch', [$dispatch, 'index']);
+            $pickupControl = \App\Http\Controllers\Api\V1\PickupControlController::class;
+            Route::get('/pickup-control', [$pickupControl, 'show']);
+            Route::patch('/pickup-control', [$pickupControl, 'update']);
+            Route::get('/pickup-control/jobs', [$pickupControl, 'jobs']);
+            Route::get('/pickup-control/riders', [$pickupControl, 'riders']);
+            Route::post('/pickup-control/assign', [$pickupControl, 'assign']);
             Route::get('/dispatch/riders', [$dispatch, 'riders']);
             Route::post('/dispatch/auto-assign', [$dispatch, 'autoAssign']);
             Route::post('/dispatch/assign', [$dispatch, 'assign']);
@@ -743,6 +749,12 @@ Route::prefix('v1')->group(function () {
 
             // Dispatch (Feature 1.8)
             Route::get('/dispatch/batches',                              [HubDispatchController::class, 'batches']);
+            $pickupControl = \App\Http\Controllers\Api\V1\PickupControlController::class;
+            Route::get('/pickup-control', [$pickupControl, 'show']);
+            Route::patch('/pickup-control', [$pickupControl, 'update']);
+            Route::get('/pickup-control/jobs', [$pickupControl, 'jobs']);
+            Route::get('/pickup-control/riders', [$pickupControl, 'riders']);
+            Route::post('/pickup-control/assign', [$pickupControl, 'assign']);
             Route::get('/dispatch/batches/{barangay_code}/parcels',      [HubDispatchController::class, 'batchParcels']);
             Route::get('/dispatch/batches/{barangay_code}/riders',       [HubDispatchController::class, 'batchRiders']);
             Route::post('/dispatch/assign',                              [HubDispatchController::class, 'assign']);
