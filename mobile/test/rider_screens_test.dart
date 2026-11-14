@@ -481,6 +481,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('LIT-261029-FAIL01'), findsOneWidget);
     expect(find.text('Refused'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search tracking or order number'),
+      'LIT-261029-FAIL01',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(
+      api.requests
+          .lastWhere((r) => r.path == '/rider/history')
+          .queryParameters['search'],
+      'LIT-261029-FAIL01',
+    );
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(
+      api.requests
+          .lastWhere((r) => r.path == '/rider/history')
+          .queryParameters
+          .containsKey('search'),
+      isFalse,
+    );
     await closeApp(tester);
   });
 

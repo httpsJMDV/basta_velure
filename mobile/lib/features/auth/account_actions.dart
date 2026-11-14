@@ -7,7 +7,7 @@ import '../../core/session/session.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/widgets.dart';
 
-/// "Switch to Rider" and the like, for an account with more than one home (a buyer who is also a rider). Shows
+/// Switch between permitted portals. Work accounts never receive a shopping destination. Shows
 /// nothing for an account with one home. Put it on each part's Account screen.
 class HomeSwitchList extends ConsumerWidget {
   const HomeSwitchList({super.key});
@@ -24,7 +24,14 @@ class HomeSwitchList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     if (session is! SignedIn) return const SizedBox.shrink();
-    final others = session.homes.where((home) => home != session.home).toList();
+    final others = session.homes
+        .where(
+          (home) =>
+              home != session.home &&
+              !(session.user.isWorkAccount &&
+                  (home == AppHome.buyer || home == AppHome.seller)),
+        )
+        .toList();
     if (others.isEmpty) return const SizedBox.shrink();
 
     return Card(
@@ -63,7 +70,8 @@ class SignOutButton extends ConsumerWidget {
     final confirmed = await confirmAction(
       context,
       title: 'Sign out?',
-      message: 'You will need your email or username and password to sign in again.',
+      message:
+          'You will need your email or username and password to sign in again.',
       confirmLabel: 'Sign out',
     );
     if (confirmed) await ref.read(sessionProvider.notifier).signOut();
@@ -101,10 +109,7 @@ class SignOutButton extends ConsumerWidget {
                 'Signed in as $email',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.stone500,
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: AppColors.stone500, fontSize: 13),
               ),
         onTap: () => _signOut(context, ref),
       ),

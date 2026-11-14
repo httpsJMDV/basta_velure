@@ -94,7 +94,7 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
               ),
               (
                 'Answer a pickup offer',
-                'An offer lasts 60 seconds. If you decline or the time runs out, it goes to the next rider.',
+                'When your courier or hub enables automatic pickups, an offer lasts 60 seconds. If you decline or it expires, it goes to the next rider. In manual mode, staff assign the pickup and it appears in your jobs.',
               ),
               (
                 'Collect from the shop',

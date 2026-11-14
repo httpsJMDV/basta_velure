@@ -119,6 +119,51 @@ class ReturnPickupTest extends TestCase
         return UploadedFile::fake()->createWithContent($name, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
     }
 
+    public function test_auto_returns_are_opt_in_local_online_and_capacity_limited(): void
+    {
+        [$order] = $this->approvedReturn();
+        $pickup = ReturnPickup::where('order_id', $order->id)->firstOrFail();
+        $rider = $this->rider();
+        $policy = app(\App\Services\Courier\PickupPolicy::class);
+        $this->assertSame(0, $policy->assignReturns($this->company->id));
+        $this->company->forceFill(['auto_return_pickups' => true])->save();
+        $this->assertSame(0, $policy->assignReturns($this->company->id));
+        $rider->forceFill(['is_online' => true, 'online_at' => now(), 'last_seen_at' => now()])->save();
+        $this->assertSame(1, $policy->assignReturns($this->company->id));
+        $this->assertSame($rider->id, $pickup->fresh()->rider_id);
+        $this->assertSame(1, app(\App\Services\RiderWorkload::class)->activeJobs($rider));
+        $this->assertSame(0, $policy->assignReturns($this->company->id));
+        $this->hub->forceFill(['auto_return_pickups' => false])->save();
+        [$other] = $this->approvedReturn();
+        $this->assertSame(0, $policy->assignReturns($this->company->id));
+        $this->assertNull(ReturnPickup::where('order_id', $other->id)->firstOrFail()->rider_id);
+        $this->assertSame($rider->id, $pickup->fresh()->rider_id);
+    }
+
+    public function test_automatic_returns_never_overfill_a_rider_or_take_another_companys_return(): void
+    {
+        $this->company->forceFill(['auto_return_pickups' => true])->save();
+        $rider = $this->rider();
+        $rider->forceFill(['is_online' => true, 'online_at' => now(), 'last_seen_at' => now()])->save();
+        $orders = [];
+        for ($i = 0; $i < 4; $i++) {
+            [$orders[]] = $this->approvedReturn();
+        }
+        $policy = app(\App\Services\Courier\PickupPolicy::class);
+        $this->assertSame(3, $policy->assignReturns($this->company->id));
+        $this->assertSame(3, app(\App\Services\RiderWorkload::class)->activeJobs($rider));
+        $last = ReturnPickup::where('order_id', $orders[3]->id)->firstOrFail();
+        $this->assertNull($last->rider_id);
+        $other = LogisticsCompany::findOrFail(LogisticsCompany::defaultId());
+        $last->forceFill(['logistics_company_id' => $other->id])->save();
+        $rider->forceFill(['is_online' => false])->save();
+        $this->assertSame(0, $policy->assignReturns($other->id));
+        $this->assertNull($last->fresh()->rider_id);
+        $this->company->forceFill(['status' => LogisticsCompany::STATUS_SUSPENDED])->save();
+        $this->hub->forceFill(['auto_return_pickups' => true])->save();
+        $this->assertFalse($policy->enabled($this->company->id, $this->hub->fresh(), 'auto_return_pickups'));
+    }
+
     public function test_an_approved_return_books_a_pickup_for_the_hub_that_delivered_it(): void
     {
         [$order, $buyer] = $this->approvedReturn();

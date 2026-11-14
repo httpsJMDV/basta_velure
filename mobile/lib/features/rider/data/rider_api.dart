@@ -310,14 +310,25 @@ class RiderApi {
     EarnedJob.fromJson,
   );
 
-  Future<ApiPage<HistoryEntry>> history(HistoryFilter filter, int page) async =>
-      ApiPage.from(
-        await _get(
-          '/rider/history',
-          query: {'outcome': filter.key, 'page': page},
-        ),
-        HistoryEntry.fromJson,
-      );
+  Future<ApiPage<HistoryEntry>> history(
+    HistoryFilter filter,
+    int page, {
+    String? search,
+    String? from,
+    String? to,
+  }) async => ApiPage.from(
+    await _get(
+      '/rider/history',
+      query: {
+        'outcome': filter.key,
+        'page': page,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+        'from': ?from,
+        'to': ?to,
+      },
+    ),
+    HistoryEntry.fromJson,
+  );
 
   Future<GcashAccount> gcash() async =>
       GcashAccount.fromJson(asJson((await _get('/rider/gcash'))['data']));

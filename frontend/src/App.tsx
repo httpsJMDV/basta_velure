@@ -18,6 +18,7 @@ import LogisticsReportsPage from './pages/logistics/LogisticsReportsPage';
 import LogisticsMoneyPage from './pages/logistics/LogisticsMoneyPage';
 import LogisticsShippingPage from './pages/logistics/LogisticsShippingPage';
 import LogisticsDispatchPage from './pages/logistics/LogisticsDispatchPage';
+import PickupControlPage from './pages/logistics/PickupControlPage';
 import LogisticsHubOpsPage from './pages/logistics/LogisticsHubOpsPage';
 import LogisticsReturnsPage from './pages/logistics/LogisticsReturnsPage';
 import LogisticsCodPage from './pages/logistics/LogisticsCodPage';
@@ -143,6 +144,7 @@ function RequireSellerApplicant({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-400">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (isWorkAccount(user)) return <Navigate to={roleHomePath(user)} replace />;
   const status = user.seller_profile?.application_status;
   if (status !== 'approved' && status !== 'pending') return <Navigate to="/register/seller" replace />;
   return <>{children}</>;
@@ -465,6 +467,7 @@ function AppRoutes() {
         <Route path="money" element={<LogisticsMoneyPage />} />
         <Route path="shipping" element={<LogisticsShippingPage />} />
         <Route path="dispatch" element={<LogisticsDispatchPage />} />
+        <Route path="pickup-control" element={<PickupControlPage />} />
         <Route path="hub-ops" element={<LogisticsHubOpsPage />} />
         <Route path="returns" element={<LogisticsReturnsPage />} />
         <Route path="cod" element={<LogisticsCodPage />} />
@@ -486,6 +489,7 @@ function AppRoutes() {
         <Route path="intake" element={<HubIntakePage />} />
         <Route path="sorting" element={<HubSortingPage />} />
         <Route path="dispatch" element={<HubDispatchPage />} />
+        <Route path="pickup-control" element={<PickupControlPage hub />} />
         <Route path="deliveries" element={<HubDeliveriesPage />} />
         <Route path="riders" element={<HubRidersPage />} />
         <Route path="reports" element={<HubReportsPage />} />

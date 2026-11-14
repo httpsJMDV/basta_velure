@@ -401,12 +401,83 @@ class _HistoryTab extends ConsumerStatefulWidget {
 
 class _HistoryTabState extends ConsumerState<_HistoryTab> {
   HistoryFilter _filter = HistoryFilter.all;
+  final _searchInput = TextEditingController();
+  String _search = '';
+  DateTimeRange? _dates;
+
+  @override
+  void dispose() {
+    _searchInput.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDates() async {
+    final today = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(today.year, today.month, today.day),
+      initialDateRange: _dates,
+      helpText: 'Filter history · Manila dates',
+    );
+    if (range != null && mounted) setState(() => _dates = range);
+  }
+
+  String _ymd(DateTime day) => day.toIso8601String().split('T').first;
 
   @override
   Widget build(BuildContext context) {
     final api = ref.read(riderApiProvider);
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: TextField(
+            controller: _searchInput,
+            maxLength: 100,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (value) => setState(() => _search = value.trim()),
+            decoration: InputDecoration(
+              labelText: 'Search tracking or order number',
+              counterText: '',
+              prefixIcon: const Icon(LucideIcons.search, size: 18),
+              suffixIcon: IconButton(
+                tooltip: 'Search history',
+                icon: const Icon(Icons.arrow_forward),
+                onPressed: () =>
+                    setState(() => _search = _searchInput.text.trim()),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickDates,
+                  icon: const Icon(Icons.date_range, size: 18),
+                  label: Text(
+                    _dates == null
+                        ? 'All dates · Manila time'
+                        : '${_ymd(_dates!.start)} – ${_ymd(_dates!.end)}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+              if (_dates != null || _search.isNotEmpty)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _dates = null;
+                    _search = '';
+                    _searchInput.clear();
+                  }),
+                  child: const Text('Clear'),
+                ),
+            ],
+          ),
+        ),
         RiderTabs<HistoryFilter>(
           selectedColor: AppColors.ink,
           values: HistoryFilter.values,
@@ -416,8 +487,16 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
         ),
         Expanded(
           child: PagedList<HistoryEntry>(
-            key: ValueKey(_filter),
-            load: (page) => api.history(_filter, page),
+            key: ValueKey(
+              '${_filter.key}|$_search|${_dates?.start}|${_dates?.end}',
+            ),
+            load: (page) => api.history(
+              _filter,
+              page,
+              search: _search,
+              from: _dates == null ? null : _ymd(_dates!.start),
+              to: _dates == null ? null : _ymd(_dates!.end),
+            ),
             spacing: AppSpace.sm,
             empty: const EmptyState(
               icon: LucideIcons.history,

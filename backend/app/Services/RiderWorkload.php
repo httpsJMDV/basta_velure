@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Parcel;
 use App\Models\Rider;
+use App\Models\ReturnPickup;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +50,12 @@ class RiderWorkload
         $returns = Parcel::whereIn('rts_rider_id', $ids)->where('status', Parcel::STATUS_RETURN_TO_SENDER)
             ->selectRaw('rts_rider_id as rider_id, count(*) as n')->groupBy('rts_rider_id')->pluck('n', 'rider_id');
 
-        foreach ([$pickups, $deliveries, $returns] as $set) {
+        $buyerReturns = ReturnPickup::whereIn('rider_id', $ids)->whereIn('status', [ReturnPickup::STATUS_ASSIGNED, ReturnPickup::STATUS_COLLECTED])
+            ->selectRaw('rider_id, count(*) as n')->groupBy('rider_id')->pluck('n', 'rider_id');
+        $shopReturns = ReturnPickup::whereIn('shop_rider_id', $ids)->where('status', ReturnPickup::STATUS_OUT_TO_SHOP)
+            ->selectRaw('shop_rider_id as rider_id, count(*) as n')->groupBy('shop_rider_id')->pluck('n', 'rider_id');
+
+        foreach ([$pickups, $deliveries, $returns, $buyerReturns, $shopReturns] as $set) {
             foreach ($set as $riderId => $n) {
                 $counts[(int) $riderId] = ($counts[(int) $riderId] ?? 0) + (int) $n;
             }

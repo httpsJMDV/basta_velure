@@ -29,6 +29,8 @@ Schedule::command('refunds:process-deadlines')->everyFifteenMinutes()->withoutOv
 // A14: pickup offers last 60 seconds; an expired one goes to the next rider. The rider and company screens also
 // expire offers on every read (the rider app checks every 5 seconds); this catches the rest.
 Schedule::command('dispatch:expire-offers')->everyMinute()->withoutOverlapping();
+Schedule::call(fn () => app(\App\Services\Courier\PickupPolicy::class)->assignReturns())
+    ->name('returns:auto-assign-pickups')->everyMinute()->withoutOverlapping();
 
 // Pickups the shop scheduled for later are offered to riders from an hour before their window.
 Schedule::command('pickups:release-scheduled')->everyFiveMinutes()->withoutOverlapping();

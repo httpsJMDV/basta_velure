@@ -2,5 +2,5 @@
 # Laravel Cloud public bucket. setup/publish-apk.ps1 still writes public/download/ for the PC.
 # Pin both redirects to versioned objects so storage caches cannot advertise an older release.
 # Update these targets when publishing a new APK and its release metadata.
-/download/version.json https://fls-a3256292-20b2-4e71-9420-0c178fc37586.laravel.cloud/download/releases/26111402/version.json 302
-/download/loved-it.apk https://fls-a3256292-20b2-4e71-9420-0c178fc37586.laravel.cloud/download/loved-it-26111402.apk 302
+/download/version.json https://fls-a3256292-20b2-4e71-9420-0c178fc37586.laravel.cloud/download/releases/26111501/version.json 302
+/download/loved-it.apk https://fls-a3256292-20b2-4e71-9420-0c178fc37586.laravel.cloud/download/loved-it-26111501.apk 302

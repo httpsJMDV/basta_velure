@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Navigation, Wand2, Bike, Check, RefreshCw, Store, MapPin, Package, WifiOff } from 'lucide-react';
 import { PageHero, HERO_BUTTON } from '../../components/admin/dashboardKit';
 import { StatusTabs, ListCard, ListEmpty, ListError, Pill, SkeletonRows, TH, TD, relativeTime } from '../../components/admin/listKit';
@@ -77,7 +77,8 @@ export default function LogisticsDispatchPage() {
   return (
     <div className="w-full pb-8 space-y-4">
       <PageHero icon={Navigation} eyebrow="Operations" title="Dispatch"
-        subtitle="New pickups go to the nearest Online rider for 60 seconds, up to 3 riders. The rest wait here for you.">
+        subtitle="Manage seller pickup offers and manual assignments. Pickup control sets whether new jobs are offered automatically.">
+        <Link to="/logistics/pickup-control" className={HERO_BUTTON}>Pickup control</Link>
         {counts && (
           <HeroStats items={[
             { label: 'Unassigned', value: counts.unassigned, tone: counts.unassigned ? 'warn' : 'default' },

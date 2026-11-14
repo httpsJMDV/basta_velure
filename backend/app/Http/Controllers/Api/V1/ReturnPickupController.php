@@ -36,6 +36,8 @@ class ReturnPickupController extends Controller
     {
         $hub = $this->hub($request);
 
+        app(\App\Services\Courier\PickupPolicy::class)->assignReturns(LogisticsCompany::effectiveId($hub->logistics_company_id));
+
         return $this->listing($this->hubPickups($hub), 'hub',
             Rider::with('user')->where('sorting_center_id', $hub->id)->where('status', Rider::STATUS_ACTIVE)->carriesParcels()->get());
     }
@@ -79,6 +81,8 @@ class ReturnPickupController extends Controller
     public function courierIndex(Request $request): JsonResponse
     {
         $company = $this->company($request);
+
+        app(\App\Services\Courier\PickupPolicy::class)->assignReturns($company->id);
 
         return $this->listing(LogisticsCompany::constrain(ReturnPickup::query(), $company->id), 'logistics',
             LogisticsRiderController::companyRiders($company)->with('user')->where('status', Rider::STATUS_ACTIVE)->carriesParcels()->get());

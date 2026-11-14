@@ -30,6 +30,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/logistics/money': 'Settlements & Pay',
   '/logistics/shipping': 'Zones & Rates',
   '/logistics/dispatch': 'Dispatch',
+  '/logistics/pickup-control': 'Pickup control',
   '/logistics/hub-ops': 'Hub Scanning',
   '/logistics/returns': 'Return to Sender',
   '/logistics/cod': 'COD & Exports',
@@ -99,6 +100,7 @@ export default function LogisticsLayout() {
       heading: 'Operations',
       items: [
         { icon: Navigation, label: 'Dispatch', to: '/logistics/dispatch', badge: unassigned },
+        { icon: Navigation, label: 'Pickup control', to: '/logistics/pickup-control' },
         { icon: ScanLine, label: 'Hub scanning', to: '/logistics/hub-ops' },
         { icon: Package, label: 'Parcels', to: '/logistics/parcels', badge: failed },
         { icon: Undo2, label: 'Return to sender', to: '/logistics/returns', badge: returns },
@@ -124,6 +126,7 @@ export default function LogisticsLayout() {
     { label: 'Find a parcel', to: '/logistics/parcels', group: 'Network', icon: Package },
     { label: 'Delivery zones and shipping rates', to: '/logistics/shipping', group: 'Network', icon: MapPinned },
     { label: 'Dispatch: unassigned pickups, auto-assign', to: '/logistics/dispatch', group: 'Operations', icon: Navigation },
+    { label: 'Pickup control: automatic or manual assignment', to: '/logistics/pickup-control', group: 'Operations', icon: Navigation },
     { label: 'Hub scanning: inbound, sort, outbound', to: '/logistics/hub-ops', group: 'Operations', icon: ScanLine },
     { label: 'Return to sender queue', to: '/logistics/returns', group: 'Operations', icon: Undo2 },
     { label: 'COD reconciliation, remittances and exports', to: '/logistics/cod', group: 'Money', icon: Coins },

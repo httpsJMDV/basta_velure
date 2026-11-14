@@ -153,7 +153,7 @@ class _CourierDispatchScreenState extends ConsumerState<CourierDispatchScreen> {
                         ),
                         const SizedBox(height: AppSpace.sm),
                         const HubHint(
-                          text: 'New pickups go to the nearest Online rider for 60 seconds each, up to 3 riders. If nobody takes one, it waits here for you.',
+                          text: 'When automatic seller pickups are on, new jobs are offered to the nearest online rider for 60 seconds, up to 3 riders. Manual mode waits for staff assignment. Change modes in More → Pickup control.',
                         ),
                       ],
                     ),
