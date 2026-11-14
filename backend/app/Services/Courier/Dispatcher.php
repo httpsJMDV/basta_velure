@@ -63,7 +63,9 @@ class Dispatcher
         $jobs = $this->workload->activeJobCounts($riders->pluck('id'));
 
         return $riders
-            ->filter(fn (Rider $r) => ($jobs[$r->id] ?? 0) < Rider::MAX_ACTIVE_JOBS)
+            ->filter(fn (Rider $r) => app(\App\Services\RiderCargo::class)->reviewed($r)
+                ? app(\App\Services\RiderCargo::class)->problem($r, [$parcel]) === null
+                : ($jobs[$r->id] ?? 0) < Rider::MAX_ACTIVE_JOBS)
             ->map(function (Rider $r) use ($parcel, $jobs) {
                 $tier = $this->tier($r, (string) $parcel->pickup_barangay_code);
 
@@ -115,7 +117,7 @@ class Dispatcher
             $rider->status === Rider::STATUS_SUSPENDED => 'This rider is suspended.',
             $rider->status !== Rider::STATUS_ACTIVE    => 'This rider is not verified yet.',
             ! $rider->isAvailable()                    => 'This rider is Offline.',
-            $this->workload->activeJobs($rider) >= Rider::MAX_ACTIVE_JOBS => 'This rider already has ' . Rider::MAX_ACTIVE_JOBS . ' active jobs, the most a rider can hold.',
+            app(\App\Services\RiderCargo::class)->problem($rider, [$parcel]) !== null => app(\App\Services\RiderCargo::class)->problem($rider, [$parcel]),
             default => null,
         };
     }
@@ -250,9 +252,10 @@ class Dispatcher
             if (! $rider->isAvailable()) {
                 abort(409, 'Go Online to accept jobs.');
             }
-            if ($this->workload->activeJobs($rider) >= Rider::MAX_ACTIVE_JOBS) {
-                abort(409, 'You already have ' . Rider::MAX_ACTIVE_JOBS . ' active jobs. Finish one before accepting another.');
+            if ($problem = app(\App\Services\RiderCargo::class)->problem($rider, [$parcel])) {
+                abort(409, $problem);
             }
+            app(\App\Services\RiderCargo::class)->assertFits($rider, [$parcel]);
 
             $offer->update(['status' => DispatchOffer::STATUS_ACCEPTED, 'responded_at' => now()]);
             $this->give($parcel, $rider, null, 'Accepted the pickup offer');
@@ -333,6 +336,7 @@ class Dispatcher
             if ($problem = $this->riderProblem($rider, $parcel)) {
                 abort(422, $problem);
             }
+            app(\App\Services\RiderCargo::class)->assertFits($rider, [$parcel]);
 
             $previous = $parcel->pickup_rider_id ? Rider::with('user')->find($parcel->pickup_rider_id) : null;
             DispatchOffer::where('parcel_id', $parcel->id)->where('status', DispatchOffer::STATUS_OFFERED)

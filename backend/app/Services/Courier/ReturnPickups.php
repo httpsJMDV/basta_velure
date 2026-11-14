@@ -107,6 +107,7 @@ class ReturnPickups
             throw ValidationException::withMessages(['rider_id' => 'Choose an active delivery rider.']);
         }
         $previous = $pickup->rider_id;
+        app(\App\Services\RiderCargo::class)->assertFits($rider, [$pickup]);
         $pickup->forceFill(['rider_id' => $rider->id, 'status' => ReturnPickup::STATUS_ASSIGNED, 'assigned_at' => now()])->save();
         $rider->loadMissing('user');
         $order = $pickup->order;
@@ -143,6 +144,7 @@ class ReturnPickups
             throw ValidationException::withMessages(['rider_id' => 'Choose an active delivery rider.']);
         }
         $previous = $pickup->shop_rider_id;
+        app(\App\Services\RiderCargo::class)->assertFits($rider, [$pickup]);
         $pickup->forceFill(['shop_rider_id' => $rider->id, 'status' => ReturnPickup::STATUS_OUT_TO_SHOP, 'shop_assigned_at' => now()])->save();
         $rider->loadMissing('user');
         $order = $pickup->order;

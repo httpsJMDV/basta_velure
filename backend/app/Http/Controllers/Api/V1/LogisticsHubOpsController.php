@@ -167,6 +167,7 @@ class LogisticsHubOpsController extends Controller
             if ($problem = $this->dispatcher->riderProblem($rider, $parcel)) {
                 abort(422, $problem);
             }
+            app(\App\Services\RiderCargo::class)->assertFits($rider, [$parcel]);
             $this->machine->transition($parcel->order, OrderStatus::ASSIGNED_TO_RIDER, 'logistics', $request->user()->id,
                 'Handed to a delivery rider.', ['tracking_number' => $parcel->tracking_number, 'rider_id' => $rider->id]);
             Parcel::whereKey($parcel->id)->update(['assigned_rider_id' => $rider->id, 'assigned_at' => now()]);

@@ -43,6 +43,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Rider extends Model
 {
+    protected $casts = ['cargo_configuration' => 'array', 'cargo_verified_at' => 'datetime'];
     use HasFactory, SoftDeletes;
 
     public const STATUS_PENDING = 'PENDING';

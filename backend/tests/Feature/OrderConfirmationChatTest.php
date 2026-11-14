@@ -46,6 +46,46 @@ class OrderConfirmationChatTest extends TestCase
             ->firstOrFail(fn (Message $m) => (int) ($m->attachment_data['id'] ?? 0) === $orderId);
     }
 
+    public function test_delivery_details_can_be_corrected_without_changing_the_route_money_or_saved_address(): void
+    {
+        [$buyer, , $ids] = $this->placeTwoShopOrder();
+        $order = Order::findOrFail($ids[0]);
+        $oldCard = $this->cardFor($order->id);
+        $confirm = "/api/v1/conversations/{$oldCard->conversation_id}/messages/{$oldCard->id}/confirm-address";
+        $this->postJson($confirm)->assertOk();
+        $this->assertNotNull($order->fresh()->address_confirmed_at);
+        $money = $order->only(['total', 'shipping_fee', 'courier_fee', 'logistics_company_id', 'shipping_barangay_code']);
+        $saved = $buyer->addresses()->first()->toArray();
+        $values = ['shipping_name' => 'Ana Recipient', 'shipping_phone' => '09171234567', 'shipping_address' => '22 Correct Street, Unit 4', 'address_revision' => 1];
+        $this->patchJson('/api/v1/buyer/orders/' . $order->id . '/delivery-address', $values)
+            ->assertOk()->assertJsonPath('data.address_revision', 2)->assertJsonPath('data.address_confirmed_at', null)
+            ->assertJsonPath('data.shipping_phone', '+639171234567');
+        $this->assertSame($money, $order->fresh()->only(array_keys($money)));
+        $this->assertSame($saved, $buyer->addresses()->first()->toArray());
+        $this->postJson($confirm, ['address_revision' => 1])->assertStatus(409);
+        $this->patchJson('/api/v1/buyer/orders/' . $order->id . '/delivery-address', $values)->assertStatus(409);
+        $this->patchJson('/api/v1/buyer/orders/' . $order->id . '/delivery-address', $values + ['shipping_barangay_code' => '999999999'])->assertUnprocessable();
+        $this->getJson('/api/v1/buyer/orders/' . $order->id)->assertOk()->assertJsonPath('data.can_edit_delivery_address', true);
+    }
+
+    public function test_address_edits_require_the_owner_and_stop_before_the_waybill_is_created(): void
+    {
+        [$buyer, $sellers, $ids] = $this->placeTwoShopOrder();
+        $order = Order::with('items')->findOrFail($ids[0]);
+        $values = ['shipping_name' => 'Ana Recipient', 'shipping_phone' => '09171234567', 'shipping_address' => '22 Correct Street', 'address_revision' => 1];
+        Sanctum::actingAs($this->buyer());
+        $this->patchJson('/api/v1/buyer/orders/' . $order->id . '/delivery-address', $values)->assertNotFound();
+        Sanctum::actingAs($buyer);
+        $this->patchJson('/api/v1/buyer/orders/' . $order->id . '/delivery-address', [...$values, 'shipping_phone' => 'invalid'])->assertUnprocessable();
+        $seller = collect($sellers)->firstWhere('id', $order->items->first()->seller_id);
+        $machine = app(\App\Services\OrderStateMachine::class);
+        foreach ([OrderStatus::CONFIRMED, OrderStatus::PREPARING, OrderStatus::READY_FOR_PICKUP] as $next) {
+            $order = $machine->transition($order, $next, 'seller', $seller->id);
+        }
+        $this->getJson('/api/v1/buyer/orders/' . $order->id)->assertOk()->assertJsonPath('data.can_edit_delivery_address', false);
+        $this->patchJson('/api/v1/buyer/orders/' . $order->id . '/delivery-address', $values)->assertStatus(409);
+    }
+
     public function test_each_shop_sends_a_thank_you_and_an_address_card_when_the_order_is_placed(): void
     {
         [$buyer, $sellers, $ids] = $this->placeTwoShopOrder();

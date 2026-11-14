@@ -112,6 +112,7 @@ class ReturnToSender
             }
 
             $previous = $parcel->rts_rider_id ? Rider::with('user')->find($parcel->rts_rider_id) : null;
+            app(\App\Services\RiderCargo::class)->assertFits($rider, [$parcel]);
             $parcel->forceFill(['rts_rider_id' => $rider->id, 'rts_assigned_at' => now()])->save();
             if ($parcel->order) {
                 $this->machine->recordEvent($parcel->order, 'rts_assigned', 'logistics', $by->id,

@@ -273,7 +273,22 @@ class RiderPickupController extends Controller
                 ->get()->filter(fn ($p) => app(\App\Services\Courier\PickupPolicy::class)->sellerEnabled($p));
 
             // A14: a rider holds at most 3 active jobs; take only as many of this shop's parcels as fit.
-            $room = Rider::MAX_ACTIVE_JOBS - app(RiderWorkload::class)->activeJobs($rider);
+            $rider = Rider::lockForUpdate()->findOrFail($rider->id);
+            $cargo = app(\App\Services\RiderCargo::class);
+            $weighted = $cargo->reviewed($rider);
+            if ($weighted) {
+                $chosen = [];
+                foreach ($availableParcels as $parcel) {
+                    if ($cargo->problem($rider, [...$chosen, $parcel], false, true) === null) {
+                        $chosen[] = $parcel;
+                    }
+                }
+                if ($availableParcels->isNotEmpty() && $chosen === []) {
+                    return response()->json(['message' => $cargo->problem($rider, [$availableParcels->first()], false, true) ?? 'No measured package fits the remaining cargo allowance.'], 422);
+                }
+                $availableParcels = new \Illuminate\Database\Eloquent\Collection($chosen);
+            }
+            $room = $weighted ? $availableParcels->count() : Rider::MAX_ACTIVE_JOBS - app(RiderWorkload::class)->activeJobs($rider);
             if ($room <= 0 && $availableParcels->isNotEmpty()) {
                 return response()->json([
                     'message' => 'You already have ' . Rider::MAX_ACTIVE_JOBS . ' active jobs. Finish one before accepting another.',

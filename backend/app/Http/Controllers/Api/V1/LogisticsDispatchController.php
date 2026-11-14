@@ -70,8 +70,8 @@ class LogisticsDispatchController extends Controller
             $problem = match (true) {
                 $r->status === Rider::STATUS_SUSPENDED => 'Suspended',
                 ! $r->isAvailable()                    => 'Offline',
-                $active >= Rider::MAX_ACTIVE_JOBS      => 'At the ' . Rider::MAX_ACTIVE_JOBS . '-job limit',
-                default                                => null,
+                ! app(\App\Services\RiderCargo::class)->reviewed($r) && $active >= Rider::MAX_ACTIVE_JOBS => 'Awaiting cargo review; at the three-job pickup limit',
+                default => $parcel ? $this->dispatcher->riderProblem($r, $parcel) : null,
             };
 
             return [
@@ -80,6 +80,7 @@ class LogisticsDispatchController extends Controller
                 'online'      => $r->isAvailable(),
                 'status'      => $r->status,
                 'active_jobs' => $active,
+                'capacity' => ['mode' => app(\App\Services\RiderCargo::class)->reviewed($r) ? 'weight' : 'legacy', 'capacity_kg' => $r->cargo_configuration['usable_cargo_kg'] ?? null],
                 'assignable'  => $problem === null,
                 'problem'     => $problem,
                 'distance'    => $parcel && isset($ranked[$r->id]) ? $ranked[$r->id]['distance'] : null,

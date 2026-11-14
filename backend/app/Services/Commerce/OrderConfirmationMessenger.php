@@ -21,7 +21,7 @@ class OrderConfirmationMessenger
 {
     public const TYPE = 'order_confirmation';
 
-    public const GREETING = 'Thanks for your order! Please confirm that your shipping address is correct.';
+    public const GREETING = 'Thanks for your order! Please review your delivery details. Confirming here is optional; your order continues using the address entered at checkout.';
 
     public const THANKS = 'Thank you for confirming your address.';
 
@@ -77,31 +77,48 @@ class OrderConfirmationMessenger
      *
      * @return array{card: Message, reply: ?Message}
      */
-    public function confirm(Conversation $conversation, Message $card): array
+    public function confirm(Conversation $conversation, Message $card, ?int $expectedRevision = null): array
     {
-        $data = $card->attachment_data ?? [];
-        if (! empty($data['confirmed_at'])) {
-            return ['card' => $card, 'reply' => null];
-        }
-
-        $order = Order::where('id', $data['id'] ?? 0)->where('buyer_id', $conversation->buyer_id)->first();
-        if (! $order) {
-            abort(404, 'This order was not found.');
-        }
-        if (! in_array($order->status, self::CONFIRMABLE, true)) {
-            abort(409, $order->status === OrderStatus::CANCELLED
-                ? 'This order was cancelled, so there is no address to confirm.'
-                : 'This order has already left the shop, so the address can no longer be confirmed here.');
-        }
-
-        $reply = DB::transaction(function () use ($card, $data, $conversation) {
+        $result = DB::transaction(function () use ($card, $conversation, $expectedRevision) {
+            $order = Order::where('id', $card->attachment_data['id'] ?? 0)->where('buyer_id', $conversation->buyer_id)->lockForUpdate()->firstOrFail();
+            $card = Message::lockForUpdate()->findOrFail($card->id);
+            $data = $card->attachment_data ?? [];
+            $revision = (int) ($order->address_revision ?? 1);
+            abort_if(($expectedRevision ?? 1) !== $revision || (int) ($data['address_revision'] ?? 1) !== $revision, 409,
+                'The delivery details changed. Open the latest order confirmation before confirming.');
+            if (! empty($data['confirmed_at'])) {
+                return ['card' => $card, 'reply' => null];
+            }
+            abort_unless(in_array($order->status, self::CONFIRMABLE, true), 409,
+                'This order is already in transit or closed. Contact the shop or courier about its delivery address.');
             $card->update(['attachment_data' => [...$data, 'confirmed_at' => now()->toISOString()]]);
+            $order->forceFill(['address_confirmed_at' => now()])->save();
 
-            return $this->post($conversation, (int) $conversation->seller_id, self::THANKS);
+            return ['card' => $card->fresh(), 'reply' => $this->post($conversation, (int) $conversation->seller_id, self::THANKS)];
         });
-        $this->broadcast($conversation, [$reply]);
+        if ($result['reply']) {
+            $this->broadcast($conversation, [$result['reply']]);
+        }
 
-        return ['card' => $card->fresh(), 'reply' => $reply];
+        return $result;
+    }
+
+    public function addressUpdated(Order $order): void
+    {
+        $order->loadMissing('items');
+        $sellerId = (int) $order->items->first()?->seller_id;
+        if (! $sellerId) {
+            return;
+        }
+        $conversation = Conversation::firstOrCreate(
+            ['buyer_id' => $order->buyer_id, 'seller_id' => $sellerId, 'type' => 'buyer_seller'],
+            ['status' => 'open', 'order_id' => $order->id, 'last_message_at' => now()],
+        );
+        $sent = [
+            $this->post($conversation, $sellerId, 'Delivery details updated. Please use this latest address for your order.'),
+            $this->post($conversation, $sellerId, 'Updated delivery details · #' . $order->order_number, self::TYPE, $this->card($order)),
+        ];
+        $this->broadcast($conversation, $sent);
     }
 
     /** A snapshot of the order for the card: what was bought, the total and where it goes. */
@@ -123,6 +140,7 @@ class OrderConfirmationMessenger
             'address'       => implode(', ', $place),
             'payment_method' => $order->payment_method,
             'confirmed_at'  => null,
+            'address_revision' => (int) ($order->address_revision ?? 1),
             'auto'          => true,
         ];
     }

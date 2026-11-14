@@ -48,6 +48,7 @@ class RiderProfileResource extends JsonResource
             'rejection_reason'     => $this->rejection_reason,
             'active_jobs'  => app(\App\Services\RiderWorkload::class)->activeJobs($this->resource),
             'max_active_jobs' => \App\Models\Rider::MAX_ACTIVE_JOBS,
+            'capacity' => app(\App\Services\RiderCargo::class)->profile($this->resource),
             'documents'    => array_values(array_filter([
                 $this->drivers_license_path ? ['key' => 'license', 'label' => "Driver's license", 'url' => url('/api/v1/rider/documents/license')] : null,
                 $this->or_cr_path ? ['key' => 'or-cr', 'label' => 'Vehicle OR/CR', 'url' => url('/api/v1/rider/documents/or-cr')] : null,

@@ -95,13 +95,13 @@ class PickupPolicy
                     ->where('is_online', true)->where('last_seen_at', '>', now()->subMinutes(Rider::PRESENCE_TIMEOUT_MINUTES))
                     ->orderBy('id')->get();
                 $workload = app(RiderWorkload::class);
-                $rider = $riders->sortBy(fn ($r) => $workload->activeJobs($r))->first(fn ($r) => $workload->hasCapacity($r));
+                $rider = $riders->sortBy(fn ($r) => $workload->activeJobs($r))->first(fn ($r) => app(\App\Services\RiderCargo::class)->problem($r, [$pickup]) === null);
                 if (! $rider) {
                     return 0;
                 }
                 // Serialize capacity checks across simultaneous auto-return workers.
                 $rider = Rider::lockForUpdate()->find($rider->id);
-                if (! $rider || ! $rider->isAvailable() || ! $workload->hasCapacity($rider)) {
+                if (! $rider || ! $rider->isAvailable() || app(\App\Services\RiderCargo::class)->problem($rider, [$pickup]) !== null) {
                     return 0;
                 }
                 $service->assign($pickup, $rider, $actor, 'system');

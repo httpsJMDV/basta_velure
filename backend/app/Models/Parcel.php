@@ -165,6 +165,8 @@ class Parcel extends Model
             'recipient_snapshot'      => 'array',
             'cod_amount'              => 'decimal:2',
             'weight_kg'               => 'decimal:3',
+            'load_measurements' => 'array',
+            'load_measured_at' => 'datetime',
             'dispatch_attempts'       => 'integer',
             'cod_collected_amount'    => 'decimal:2',
             'rts_at'                  => 'datetime',
