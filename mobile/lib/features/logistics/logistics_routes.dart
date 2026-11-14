@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'activity/activity_screen.dart';
 import 'operations/money_screens.dart';
 import 'operations/pickup_control_screen.dart';
+import 'operations/cargo_screen.dart';
 import 'operations/returns_screen.dart';
 import 'operations/settings_screens.dart';
 import 'operations/shipping_screen.dart';
@@ -46,6 +47,14 @@ Widget _courier(Widget screen) => CourierThemed(child: screen);
 /// Part D (Liam): every hub and courier-team screen lives under `/logistics`. A courier team member opens the courier
 /// screens and hub staff the hub screens (a courier member can't also run a hub, so an account is only ever one).
 final logisticsRoutes = <RouteBase>[
+  GoRoute(
+    path: LogisticsPaths.hubCargo,
+    builder: (_, _) => _hub(const CargoScreen(scope: 'hub')),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierCargo,
+    builder: (_, _) => _courier(const CargoScreen()),
+  ),
   GoRoute(
     path: LogisticsPaths.hubPickupControl,
     builder: (_, _) => _hub(const PickupControlScreen()),

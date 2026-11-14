@@ -19,6 +19,7 @@ import '../data/orders.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 import 'refund_card.dart';
+import 'delivery_address_sheet.dart';
 
 final orderProvider = FutureProvider.autoDispose.family<Order, int>(
   (ref, id) => ref.watch(buyerApiProvider).order(id),
@@ -229,11 +230,18 @@ class _TrackingCard extends StatelessWidget {
             child: Text.rich(
               TextSpan(
                 children: [
-                  TextSpan(text: '${order.deliveryPointLabel ?? 'Remote town'}. ', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(
+                    text: '${order.deliveryPointLabel ?? 'Remote town'}. ',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   TextSpan(text: remote),
                 ],
               ),
-              style: const TextStyle(fontSize: 14, height: 1.4, color: Color(0xFF78350F)),
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.4,
+                color: Color(0xFF78350F),
+              ),
             ),
           ),
           _row(context),
@@ -441,27 +449,62 @@ class _ProofCardState extends ConsumerState<_ProofCard> {
   }
 }
 
-class _AddressCard extends StatelessWidget {
+class _AddressCard extends ConsumerWidget {
   const _AddressCard({required this.order});
 
   final Order order;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return BlockCard(
-      padding: EdgeInsets.zero,
-      child: MenuRow(
-        icon: LucideIcons.mapPin,
-        title: [
-          order.shippingName,
-          order.shippingPhone,
-        ].whereType<String>().join(' · '),
-        subtitle:
-            order.shippingAddress != null && order.shippingAddress!.isNotEmpty
-            ? order.shippingAddress
-            : null,
-        trailing: const SizedBox.shrink(),
-        onTap: null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Delivery details',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          MenuRow(
+            icon: LucideIcons.mapPin,
+            title: [
+              order.shippingName,
+              order.shippingPhone,
+            ].whereType<String>().join(' · '),
+            subtitle:
+                order.shippingAddress != null &&
+                    order.shippingAddress!.isNotEmpty
+                ? order.shippingAddress
+                : null,
+            trailing: order.canEditDeliveryAddress
+                ? const Icon(LucideIcons.pencil, size: 18)
+                : const SizedBox.shrink(),
+            onTap: !order.canEditDeliveryAddress
+                ? null
+                : () async {
+                    final updated = await showModalBottomSheet<bool>(
+                      context: context,
+                      isScrollControlled: true,
+                      showDragHandle: true,
+                      builder: (_) => DeliveryAddressSheet(order: order),
+                    );
+                    if (updated == true) {
+                      ref.invalidate(orderProvider(order.id));
+                    }
+                  },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            order.canEditDeliveryAddress
+                ? 'Tap to correct the recipient, mobile number or street before dispatch. Chat confirmation is optional; your order continues without it.'
+                : 'Delivery details are locked. Contact the shop or courier about a mistake. Editing a saved address does not reroute this order.',
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: AppColors.stone500,
+            ),
+          ),
+        ],
       ),
     );
   }

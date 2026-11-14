@@ -787,8 +787,8 @@ export const sendConversationMessageApi = (
 };
 
 /** The buyer confirms the address on a shop's order confirmation card: the updated card, then the shop's thank-you. */
-export const confirmOrderAddressApi = (conversationId: number, messageId: number) =>
-  http.post<{ data: ChatMessage[] }>(`/conversations/${conversationId}/messages/${messageId}/confirm-address`).then((r) => r.data.data);
+export const confirmOrderAddressApi = (conversationId: number, messageId: number, addressRevision = 1) =>
+  http.post<{ data: ChatMessage[] }>(`/conversations/${conversationId}/messages/${messageId}/confirm-address`, { address_revision: addressRevision }).then((r) => r.data.data);
 
 /** "Talk to a person" in the Loved-IT Support chat: the assistant stops and the Loved-IT team takes over. */
 export const handoffSupportChatApi = (conversationId: number) =>

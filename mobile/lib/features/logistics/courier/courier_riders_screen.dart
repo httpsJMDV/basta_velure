@@ -261,7 +261,7 @@ class _RiderRow extends StatelessWidget {
                     ),
                     if (rider.status == 'ACTIVE') ...[
                       Text(
-                        '${rider.online ? 'Online' : 'Offline'} · ${rider.activeJobs}/$maxJobs jobs · ${rider.deliveredToday} delivered today',
+                        '${rider.online ? 'Online' : 'Offline'} · ${rider.cargoReviewed ? '${rider.activeJobs} parcels · ${rider.cargoCapacityKg} kg allowance' : '${rider.activeJobs}/$maxJobs jobs'} · ${rider.deliveredToday} delivered today',
                         style: TextStyle(
                           fontSize: 13,
                           height: 1.35,
@@ -272,10 +272,11 @@ class _RiderRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      CourierMeter(
-                        value: maxJobs == 0 ? 0 : rider.activeJobs / maxJobs,
-                        label: '${rider.activeJobs} of $maxJobs jobs',
-                      ),
+                      if (!rider.cargoReviewed)
+                        CourierMeter(
+                          value: maxJobs == 0 ? 0 : rider.activeJobs / maxJobs,
+                          label: '${rider.activeJobs} of $maxJobs jobs',
+                        ),
                     ],
                     const SizedBox(height: AppSpace.sm),
                     // Chips wrap: "Waiting for verification" is too long to sit beside a name on a small phone.

@@ -59,6 +59,7 @@ const NAV: NavGroup[] = [
     items: [
       { icon: PackagePlus, label: 'Pickups', to: '/rider/pickups' },
       { icon: Truck, label: 'Deliveries', to: '/rider/deliveries' },
+      { icon: Truck, label: 'Cargo allowance', to: '/rider/cargo' },
     ],
   },
   { heading: 'Finance', items: [{ icon: Wallet, label: 'Earnings', to: '/rider/earnings' }, { icon: BarChart2, label: 'Reports', to: '/rider/reports' }] },

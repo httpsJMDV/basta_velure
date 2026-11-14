@@ -31,6 +31,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/logistics/shipping': 'Zones & Rates',
   '/logistics/dispatch': 'Dispatch',
   '/logistics/pickup-control': 'Pickup control',
+  '/logistics/cargo': 'Cargo allowance',
   '/logistics/hub-ops': 'Hub Scanning',
   '/logistics/returns': 'Return to Sender',
   '/logistics/cod': 'COD & Exports',
@@ -101,6 +102,7 @@ export default function LogisticsLayout() {
       items: [
         { icon: Navigation, label: 'Dispatch', to: '/logistics/dispatch', badge: unassigned },
         { icon: Navigation, label: 'Pickup control', to: '/logistics/pickup-control' },
+        { icon: Bike, label: 'Cargo allowance', to: '/logistics/cargo' },
         { icon: ScanLine, label: 'Hub scanning', to: '/logistics/hub-ops' },
         { icon: Package, label: 'Parcels', to: '/logistics/parcels', badge: failed },
         { icon: Undo2, label: 'Return to sender', to: '/logistics/returns', badge: returns },

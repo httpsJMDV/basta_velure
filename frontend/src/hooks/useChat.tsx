@@ -39,7 +39,7 @@ interface ChatContextType {
   openChatWithSupport: (order?: OrderContext, initialMessage?: string) => Promise<Conversation | null>;
   sendMessage: (body: string, attachmentType?: string, attachmentData?: any, imageFile?: File) => Promise<void>;
   /** Confirms the address on a shop's order confirmation card; resolves to an error message, or null. */
-  confirmOrderAddress: (messageId: number) => Promise<string | null>;
+  confirmOrderAddress: (messageId: number, addressRevision?: number) => Promise<string | null>;
   /** "Talk to a person" in the Loved-IT Support chat; resolves to an error message, or null. */
   talkToPerson: () => Promise<string | null>;
   /** After a handoff, "Ask the assistant instead"; resolves to an error message, or null. */
@@ -370,10 +370,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
 
   const confirmOrderAddress = useCallback(
-    async (messageId: number) => {
+    async (messageId: number, addressRevision = 1) => {
       if (!activeConversation) return null;
       try {
-        const updated = await confirmOrderAddressApi(activeConversation.id, messageId);
+        const updated = await confirmOrderAddressApi(activeConversation.id, messageId, addressRevision);
         setMessages((prev) => {
           const byId = new Map(updated.map((m) => [m.id, m]));
           const merged = prev.map((m) => byId.get(m.id) ?? m);

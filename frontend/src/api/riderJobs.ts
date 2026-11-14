@@ -7,6 +7,7 @@ export interface RiderWorkState {
   status: string;
   active_jobs: number;
   max_active_jobs: number;
+  capacity?: { mode: string; reserved_kg: number; capacity_kg: number | null; remaining_kg: number | null; unmeasured_jobs: number };
   online_since: string | null;
 }
 

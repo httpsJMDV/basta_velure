@@ -396,6 +396,39 @@ class BuyerApi {
   Future<Order> order(int id) async =>
       Order.fromJson(asJson((await _get('/buyer/orders/$id'))['data']));
 
+  Future<Order> correctDeliveryAddress(
+    int id, {
+    required String name,
+    required String phone,
+    required String street,
+    required int revision,
+  }) async => Order.fromJson(
+    asJson(
+      (await _send(
+        'PATCH',
+        '/buyer/orders/$id/delivery-address',
+        data: {
+          'shipping_name': name,
+          'shipping_phone': phone,
+          'shipping_address': street,
+          'address_revision': revision,
+        },
+      ))['data'],
+    ),
+  );
+
+  Future<List<ChatMessage>> confirmOrderAddress(
+    int conversationId,
+    int messageId,
+    int revision,
+  ) async => asJsonList(
+    (await _send(
+      'POST',
+      '/conversations/$conversationId/messages/$messageId/confirm-address',
+      data: {'address_revision': revision},
+    ))['data'],
+  ).map(ChatMessage.fromJson).toList();
+
   Future<String> cancelOrder(int id, String reason, String? details) async =>
       asString(
         (await _send(

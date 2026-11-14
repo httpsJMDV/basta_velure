@@ -290,6 +290,10 @@ class Order {
     this.shippingName,
     this.shippingPhone,
     this.shippingAddress,
+    this.shippingStreet,
+    this.shippingArea,
+    this.canEditDeliveryAddress = false,
+    this.addressRevision = 1,
     this.discount = 0,
     this.paymentReference,
     this.rejectionReason,
@@ -336,6 +340,9 @@ class Order {
   final String? shippingName;
   final String? shippingPhone;
   final String? shippingAddress;
+  final String? shippingStreet, shippingArea;
+  final bool canEditDeliveryAddress;
+  final int addressRevision;
   final String? paymentReference;
   final String? rejectionReason;
   final String? cancelReason;
@@ -407,6 +414,14 @@ class Order {
       autoCompleteAt: asDate(json['auto_complete_at']),
       completedAt: asDate(json['completed_at']),
       shippingName: asString(json['shipping_name']),
+      shippingStreet: asString(json['shipping_address']),
+      shippingArea: [
+        json['shipping_barangay'],
+        json['shipping_city'],
+        json['shipping_province'],
+      ].map(asString).whereType<String>().join(', '),
+      canEditDeliveryAddress: asBool(json['can_edit_delivery_address']),
+      addressRevision: asInt(json['address_revision'], 1),
       shippingPhone: asString(json['shipping_phone']),
       shippingAddress: [
         json['shipping_address'],

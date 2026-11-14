@@ -3,6 +3,7 @@ import '../auth/auth_routes.dart';
 /// Every rider screen's address. All of them sit under `/rider`, so the router keeps them in the rider home. The
 /// public "Become a rider" form is the exception: it opens signed out.
 abstract final class RiderPaths {
+  static const cargo = '/rider/cargo';
   // The five tabs of the bottom bar, the same places as the website's menu.
   static const home = '/rider';
   static const pickups = '/rider/pickups';

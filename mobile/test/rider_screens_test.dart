@@ -514,6 +514,7 @@ void main() {
     expect(find.text('King Ordona'), findsWidgets);
     expect(find.text('Motorcycle · NBC1234'), findsOneWidget);
     expect(find.text('N01-23-456789'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('GCash 0917 123 4567'), 120);
     expect(find.text('GCash 0917 123 4567'), findsOneWidget);
     expect(find.text('Pagsanjan', skipOffstage: false), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Sign out'), 300);

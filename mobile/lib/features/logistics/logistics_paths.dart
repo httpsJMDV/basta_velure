@@ -2,6 +2,8 @@
 /// router sends `/logistics` to the right one.
 abstract final class LogisticsPaths {
   static const hubPickupControl = '/logistics/hub/pickup-control';
+  static const hubCargo = '/logistics/hub/cargo';
+  static const courierCargo = '/logistics/courier/cargo';
   static const courierPickupControl = '/logistics/courier/pickup-control';
   static const root = '/logistics';
 

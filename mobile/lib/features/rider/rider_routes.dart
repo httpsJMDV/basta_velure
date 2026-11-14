@@ -7,6 +7,7 @@ import '../../core/session/session.dart';
 import '../buyer/widgets/buyer_theme.dart';
 
 import '../logistics/activity/activity_screen.dart';
+import '../logistics/operations/cargo_screen.dart';
 import 'account/account_forms.dart';
 import 'account/rider_account_screen.dart';
 import 'apply/rider_apply_screen.dart';
@@ -47,6 +48,10 @@ class _HomeOrTrips extends ConsumerWidget {
 /// Part C (King): every rider screen lives under `/rider`. The five tabs share the bottom bar; everything else opens
 /// over it. "Become a rider" opens signed out.
 final riderRoutes = <RouteBase>[
+  GoRoute(
+    path: RiderPaths.cargo,
+    builder: (_, _) => _themed(const CargoScreen(scope: 'rider')),
+  ),
   StatefulShellRoute.indexedStack(
     builder: (_, _, shell) => BuyerThemed(child: RiderShell(shell: shell)),
     branches: [

@@ -44,6 +44,12 @@ class HubMoreScreen extends ConsumerWidget {
           LinkList(
             children: [
               _WorkTile(
+                icon: LucideIcons.scale,
+                title: 'Cargo allowance',
+                subtitle: 'Vehicle allowances and packed measurements',
+                onTap: () => context.push(LogisticsPaths.hubCargo),
+              ),
+              _WorkTile(
                 icon: LucideIcons.settings2,
                 title: 'Pickup control',
                 subtitle: 'Automatic preferences and manual rider assignment',

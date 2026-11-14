@@ -435,7 +435,7 @@ export default function BuyerFloatingChat() {
                               {isSupportThread && !isMe && !grouped && <SupportSenderLabel role={m.sender_role} />}
                               {m.attachment_type && m.attachment_data && m.sender_role !== 'assistant' && (
                                 <ChatAttachmentBubble type={m.attachment_type} data={m.attachment_data} isMe={isMe} orderHref={buyerOrderHref}
-                                  onConfirmAddress={!isMe && m.attachment_type === 'order_confirmation' ? () => confirmOrderAddress(m.id) : undefined} />
+                                  onConfirmAddress={!isMe && m.attachment_type === 'order_confirmation' ? () => confirmOrderAddress(m.id, Number(m.attachment_data?.address_revision ?? 1)) : undefined} />
                               )}
                               {m.body && !isAutoAttachmentBody(m) && (
                                 <div
