@@ -90,6 +90,7 @@ class OrderItem {
     this.variantLabel,
     this.imageUrl,
     this.isGift = false,
+    this.warranty,
   });
 
   final int id;
@@ -101,6 +102,7 @@ class OrderItem {
   final num subtotal;
   final String? imageUrl;
   final bool isGift;
+  final String? warranty;
 
   factory OrderItem.fromJson(Json json) => OrderItem(
     id: asInt(json['id']),
@@ -112,6 +114,7 @@ class OrderItem {
     subtotal: asDouble(json['subtotal']),
     imageUrl: asString(json['image_url']),
     isGift: asBool(json['is_gift']),
+    warranty: asString(json['warranty']),
   );
 }
 
@@ -194,6 +197,7 @@ class Refund {
     this.receivedAt,
     this.resolutionNote,
     this.payerName = 'The shop',
+    this.payer = 'seller',
   });
 
   final int id;
@@ -216,6 +220,7 @@ class Refund {
   final DateTime? receivedAt;
   final String? resolutionNote;
   final String payerName;
+  final String payer;
 
   bool get done => status == 'received';
 
@@ -235,6 +240,7 @@ class Refund {
       id: asInt(json['id']),
       status: asString(json['status']) ?? 'awaiting_account',
       payerName: json['payer'] == 'platform' ? 'Loved-IT' : 'The shop',
+      payer: asString(json['payer']) ?? 'seller',
       amount: asDouble(json['amount']),
       overdue: asBool(json['overdue']),
       hasReceipt: asBool(json['has_receipt']),

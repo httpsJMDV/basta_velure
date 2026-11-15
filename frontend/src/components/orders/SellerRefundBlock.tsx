@@ -82,7 +82,7 @@ export default function SellerRefundBlock({ orderId, refund, onChanged, admin = 
     <section aria-label="Refund to send" className={`p-3 border rounded-xl text-xs space-y-2 ${tone}`}>
       <p className="font-bold inline-flex items-center gap-1.5"><Wallet className="w-4 h-4" /> Refund {peso(refund.amount)}</p>
 
-      {refund.status === 'awaiting_account' && <p>The buyer paid you directly, so you send this refund to their GCash. We are waiting for them to say which account; you will be told.</p>}
+      {refund.status === 'awaiting_account' && <p>{refund.payer === 'platform' ? 'Loved-IT sends this refund.' : 'The buyer paid you directly, so you send this refund.'} We are waiting for the buyer to provide their GCash account.</p>}
 
       {refund.status === 'awaiting_shop' && (
         <>
@@ -118,7 +118,7 @@ export default function SellerRefundBlock({ orderId, refund, onChanged, admin = 
         </>
       )}
 
-      {refund.status === 'sent' && <p>You sent it on {when(refund.sent_at)} (reference <span className="font-mono">{refund.reference}</span>). The buyer confirms it arrived; without a report by {when(refund.confirm_by)}, it counts as received.</p>}
+      {refund.status === 'sent' && <p>You sent it on {when(refund.sent_at)} (reference <span className="font-mono">{refund.reference}</span>). {refund.payer === 'platform' ? 'The buyer confirms receipt or reports a missing transfer. Keep this case open until receipt is confirmed or reviewed.' : <>The buyer confirms it arrived; without a report by {when(refund.confirm_by)}, it counts as received.</>}</p>}
       {refund.status === 'not_received' && <p>The buyer says it did not arrive: “{refund.report_note}”. Loved-IT is checking your receipt and will tell you if it has to be sent again.</p>}
       {refund.status === 'received' && <p>Done{refund.auto_confirmed ? ' (no problem was reported in time)' : ''}, {when(refund.received_at)}.</p>}
 

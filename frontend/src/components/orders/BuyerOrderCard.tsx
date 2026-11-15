@@ -123,6 +123,7 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
               {item.product_id
                 ? <Link to={`/products/${item.product_id}`} className="flex items-center gap-3 py-3">{inner}</Link>
                 : <div className="flex items-center gap-3 py-3">{inner}</div>}
+              {item.warranty && <details className="mt-1 text-xs text-stone-600"><summary className="cursor-pointer font-semibold">Warranty at purchase</summary><p className="mt-1 whitespace-pre-line">{item.warranty}</p><p className="mt-1">Contact the shop with this order number for warranty support. Loved-IT support can help with unresolved concerns.</p></details>}
             </li>
           );
         })}

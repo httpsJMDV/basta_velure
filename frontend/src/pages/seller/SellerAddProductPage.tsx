@@ -43,7 +43,7 @@ const VARIANT_TYPE_OPTIONS = [
 ];
 
 const EMPTY_FORM: AddProductFormState = {
-  name: '', description: '', images: [], existingImages: [], deletedImageIds: [],
+  name: '', description: '', warranty: '', images: [], existingImages: [], deletedImageIds: [],
   parentCategoryId: '', leafCategoryId: '',
   hasVariants: false,
   variantTypes: [], variantRows: [],
@@ -1431,6 +1431,7 @@ export default function SellerAddProductPage() {
           ...prev,
           name: p.name,
           description: p.description ?? '',
+          warranty: p.warranty ?? '',
           parentCategoryId: parentEntry?.id ?? '',
           leafCategoryId: p.category_id ?? '',
           hasVariants,
@@ -1551,6 +1552,7 @@ export default function SellerAddProductPage() {
       const fd = new FormData();
       fd.append('name', form.name.trim());
       fd.append('description', form.description);
+      fd.append('warranty', form.warranty.trim());
       fd.append('category_slug', form.leafCategoryId);
       fd.append('status', publish ? 'active' : 'draft');
       if (highValueAgreed) fd.append('high_value_agreed', '1');
@@ -1873,6 +1875,13 @@ export default function SellerAddProductPage() {
           </div>
         </FieldWrap>
       </SectionCard>
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
+        <h2 className="text-sm font-bold text-gray-900">Warranty and after-sales support</h2>
+        <p className="text-xs text-gray-500">State who provides the warranty, how long it lasts, what is covered, and how to claim. Buyers keep these terms on their order. Leaving this blank does not remove applicable consumer rights.</p>
+        <textarea aria-label="Warranty terms" rows={4} maxLength={2000} value={form.warranty} onChange={e => set('warranty', e.target.value)} placeholder="Example: 12-month seller warranty from delivery for manufacturing defects. Contact this shop with your order number and proof of the issue. Assessment and repair are handled by…" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-red outline-none" />
+        {errors.warranty && <p role="alert" className="text-xs text-red-700">{errors.warranty}</p>}
+      </section>
 
       {/* ── 5. FDA Compliance (conditional) ──────────────────────────────── */}
       {needsFda && (

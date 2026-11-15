@@ -78,11 +78,11 @@ export default function BuyerRefundPanel({ order, refund, onUpdated }: { order: 
       )}
       {refund.status === 'sent' && (
         <p className="mt-1">
-          The shop sent it to {refund.gcash_number} on {when(refund.sent_at)}, reference <span className="font-mono">{refund.reference}</span>.
-          Check your GCash. If you do not report a problem by {when(refund.confirm_by)}, it counts as received.
+          {refund.payer === 'platform' ? 'Loved-IT' : 'The shop'} sent it to {refund.gcash_number} on {when(refund.sent_at)}, reference <span className="font-mono">{refund.reference}</span>.
+          {refund.payer === 'platform' ? ' Check your GCash, then confirm receipt or report a missing transfer. This refund stays open until confirmed by you or reviewed by Loved-IT.' : <> Check your GCash. If you do not report a problem by {when(refund.confirm_by)}, it counts as received.</>}
         </p>
       )}
-      {refund.status === 'not_received' && <p className="mt-1">You said it did not arrive. Loved-IT is checking the shop's receipt and will tell you what happens next.</p>}
+      {refund.status === 'not_received' && <p className="mt-1">You said it did not arrive. Loved-IT is checking the transfer receipt and will tell you what happens next.</p>}
       {done && <p className="mt-1">{refund.auto_confirmed ? 'Counted as received: no problem was reported in time.' : `Received ${when(refund.received_at)}.`}</p>}
       {refund.resolution_note && !done && <p className="mt-1"><span className="font-semibold">From Loved-IT:</span> {refund.resolution_note}</p>}
 

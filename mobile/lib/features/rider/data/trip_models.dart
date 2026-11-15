@@ -25,6 +25,10 @@ class TruckTrip {
     this.paidAt,
     this.paidReference,
     this.closeReason,
+    this.etaAt,
+    this.toAddress,
+    this.toPhone,
+    this.issues = const [],
   });
 
   final int id;
@@ -47,9 +51,13 @@ class TruckTrip {
   final DateTime? paidAt;
   final String? paidReference;
   final String? closeReason;
+  final DateTime? etaAt;
+  final String? toAddress;
+  final String? toPhone;
+  final List<({String kind, String note})> issues;
 
   /// Only on the trip on the road now.
-  final List<({String trackingNumber, bool received})> parcels;
+  final List<({String trackingNumber, bool received, String kind})> parcels;
 
   bool get onTheWay => status == 'on_the_way';
 
@@ -83,11 +91,22 @@ class TruckTrip {
       paidAt: asDate(json['paid_at']),
       paidReference: asString(json['paid_reference']),
       closeReason: asString(json['close_reason']),
+      etaAt: asDate(json['eta_at']),
+      toAddress: asString(to['address']),
+      toPhone: asString(to['phone']),
+      issues: [
+        for (final issue in asJsonList(json['issues']))
+          (
+            kind: asString(issue['kind']) ?? 'other',
+            note: asString(issue['note']) ?? '',
+          ),
+      ],
       parcels: [
         for (final p in asJsonList(json['parcels']))
           (
             trackingNumber: asString(p['tracking_number']) ?? '',
             received: asBool(p['received']),
+            kind: asString(p['kind']) ?? 'parcel',
           ),
       ],
     );

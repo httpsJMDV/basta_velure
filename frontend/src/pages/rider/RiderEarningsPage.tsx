@@ -1,3 +1,4 @@
+import RiderPaymentRequests from '../../components/payments/RiderPaymentRequests';
 import ShippingPayPolicy from '../../components/logistics/ShippingPayPolicy';
 import { useState } from 'react';
 import { Wallet } from 'lucide-react';
@@ -23,6 +24,7 @@ export default function RiderEarningsPage() {
     <div className="pb-4 space-y-4">
       <PageHero icon={Wallet} title="Earnings" subtitle="New orders: 30% for pickup and 30% for delivery. Previous orders keep their agreed pay." />
 
+      <RiderPaymentRequests />
       <ShippingPayPolicy />
       <CodRemittanceCard />
 

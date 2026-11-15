@@ -65,6 +65,7 @@ class SellerOrderItem {
     required this.quantity,
     required this.subtotal,
     this.imageUrl,
+    this.warranty,
   });
 
   final String name;
@@ -72,6 +73,7 @@ class SellerOrderItem {
   final int quantity;
   final double subtotal;
   final String? imageUrl;
+  final String? warranty;
 
   factory SellerOrderItem.fromJson(Json json) => SellerOrderItem(
     name: asString(json['product_name']) ?? 'Item',
@@ -79,6 +81,7 @@ class SellerOrderItem {
     quantity: asInt(json['quantity'], 1),
     subtotal: asDouble(json['subtotal']),
     imageUrl: asString(json['image_url']),
+    warranty: asString(json['warranty']),
   );
 }
 
@@ -323,6 +326,7 @@ class SellerProduct {
     this.priceMin,
     this.priceMax,
     this.rejectionReason,
+    this.warranty,
   });
 
   final int id;
@@ -337,6 +341,7 @@ class SellerProduct {
   final double? priceMin;
   final double? priceMax;
   final String? rejectionReason;
+  final String? warranty;
 
   bool get isLive => status == 'active';
 
@@ -360,5 +365,6 @@ class SellerProduct {
     priceMin: asDoubleOrNull(asJson(json['price_range'])['min']),
     priceMax: asDoubleOrNull(asJson(json['price_range'])['max']),
     rejectionReason: asString(json['rejection_reason']),
+    warranty: asString(json['warranty']),
   );
 }

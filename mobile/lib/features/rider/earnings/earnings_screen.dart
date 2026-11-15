@@ -8,6 +8,7 @@ import '../../../core/format.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../payments/rider_payments.dart';
 import '../data/rider_api.dart';
 import '../data/rider_models.dart';
 import '../rider_paths.dart';
@@ -117,6 +118,12 @@ class _EarningsTabState extends ConsumerState<_EarningsTab> {
         AppSpace.lg,
       ),
       header: [
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: RiderPaymentPanel(),
+          ),
+        ),
         SliverToBoxAdapter(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -126,6 +133,17 @@ class _EarningsTabState extends ConsumerState<_EarningsTab> {
                 selected: _period,
                 labelOf: (p) => p.label,
                 onSelected: _select,
+              ),
+              const Padding(
+                padding: EdgeInsets.all(AppSpace.lg),
+                child: Text(
+                  'Your courier company pays earned pickup and delivery shares manually to your saved GCash, then records the transfer. Use Request payment to send a request to your hub or courier. Contact your courier about payment timing. These shares are separate from any salary agreement.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.5,
+                    color: AppColors.stone600,
+                  ),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(

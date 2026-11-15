@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
 import {
+  openPayoutReceiptApi,
   getSellerEarningsSummaryApi,
   getSellerOrderEarningsApi,
   getSellerPayoutsApi,
@@ -201,6 +202,7 @@ export default function SellerEarningsPage() {
         </div>
       </div>
 
+      {payoutError && !showPayoutModal && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{payoutError}</p>}
       {loadError && (
         <div role="alert" className="flex flex-wrap items-center gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-[13px] text-red-700 font-medium">
           <span className="flex-1">Your earnings could not be loaded, so the figures below are not your real balance. Check your connection.</span>
@@ -416,6 +418,7 @@ export default function SellerEarningsPage() {
 
                         <td className="px-4 py-3.5 text-right whitespace-nowrap">
                           {p.transfer_reference && <p className="font-mono text-xs text-gray-700">GCash {p.transfer_reference}</p>}
+                          {p.has_receipt && <button type="button" onClick={() => void openPayoutReceiptApi(p.id).catch(() => setPayoutError('The receipt could not be opened. Try again.'))} className="text-xs font-semibold underline">View transfer receipt</button>}
                           {p.admin_notes ? (
                             <span className="text-[11px] text-gray-600 font-medium truncate max-w-xs inline-block" title={p.admin_notes}>
                               {p.admin_notes}

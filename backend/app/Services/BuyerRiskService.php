@@ -11,10 +11,11 @@ use Illuminate\Support\Facades\DB;
 /** Observable order patterns for review, never a fraud verdict or an automatic enforcement action. */
 class BuyerRiskService
 {
-    private const SCORE = '(CASE WHEN buyer_cancellations >= 3 AND buyer_cancellations * 2 >= order_count THEN 35 ELSE 0 END
+    private const SCORE = 'LEAST(100, CASE WHEN buyer_cancellations >= 3 AND buyer_cancellations * 2 >= order_count THEN 35 ELSE 0 END
         + CASE WHEN COALESCE(refused_parcels, 0) >= 2 THEN 40 ELSE 0 END
         + CASE WHEN failed_payments >= 3 THEN 15 ELSE 0 END
-        + CASE WHEN hourly_checkouts >= 5 THEN 10 ELSE 0 END)';
+        + CASE WHEN hourly_checkouts >= 5 THEN 10 ELSE 0 END
+        + CASE WHEN high_value_orders >= 1 THEN 40 ELSE 0 END)';
 
     public function query(): Builder
     {
@@ -22,8 +23,10 @@ class BuyerRiskService
             ->selectRaw('buyer_id, COUNT(*) AS order_count,
                 SUM(CASE WHEN status = ? AND cancelled_by = ? THEN 1 ELSE 0 END) AS buyer_cancellations,
                 SUM(CASE WHEN payment_status = ? THEN 1 ELSE 0 END) AS failed_payments,
+                SUM(CASE WHEN total >= ? AND status NOT IN (\'CANCELLED\', \'RETURNED\') THEN 1 ELSE 0 END) AS high_value_orders,
+                MAX(CASE WHEN status NOT IN (\'CANCELLED\', \'RETURNED\') THEN total ELSE 0 END) AS largest_order_total,
                 COUNT(DISTINCT CASE WHEN created_at >= ? THEN COALESCE(checkout_group_id, CONCAT(?, id)) END) AS hourly_checkouts',
-                ['CANCELLED', 'buyer', 'failed', now()->subHour(), 'order:'])
+                ['CANCELLED', 'buyer', 'failed', config('orders.high_value_min', 50000), now()->subHour(), 'order:'])
             ->groupBy('buyer_id');
 
         // Count distinct parcels, not repeated attempts; respect COD restoration and soft deletions.
@@ -39,7 +42,8 @@ class BuyerRiskService
             ->leftJoinSub($refusals, 'refusals', 'refusals.buyer_id', '=', 'buyers.id')
             ->whereNull('buyers.deleted_at')->where('buyers.role', 'buyer')
             ->select('buyers.id', 'buyers.first_name', 'buyers.last_name', 'buyers.email', 'buyers.status',
-                'activity.order_count', 'activity.buyer_cancellations', 'activity.failed_payments', 'activity.hourly_checkouts')
+                'activity.order_count', 'activity.buyer_cancellations', 'activity.failed_payments', 'activity.hourly_checkouts',
+                'activity.high_value_orders', 'activity.largest_order_total')
             ->selectRaw('COALESCE(refused_parcels, 0) AS refused_parcels, '.self::SCORE.' AS score');
     }
 
@@ -57,6 +61,10 @@ class BuyerRiskService
     public function present(object $row): array
     {
         $facts = [];
+        if ($row->high_value_orders >= 1) {
+            $facts[] = ['code' => 'high_value_order', 'label' => 'High-value order',
+                'detail' => $row->high_value_orders.' order(s) of at least ₱'.number_format((float) config('orders.high_value_min', 50000), 2).'; largest non-cancelled/non-returned order: ₱'.number_format((float) $row->largest_order_total, 2).'. Verify payment and delivery arrangements with the buyer. Value alone is not evidence of abuse.'];
+        }
         if ($row->buyer_cancellations >= 3 && $row->buyer_cancellations * 2 >= $row->order_count) {
             $facts[] = ['code' => 'buyer_cancellations', 'label' => 'Repeated buyer cancellations',
                 'detail' => "{$row->buyer_cancellations} of {$row->order_count} orders were cancelled by the buyer."];
@@ -81,6 +89,7 @@ class BuyerRiskService
             'order_count' => (int) $row->order_count, 'buyer_cancellations' => (int) $row->buyer_cancellations,
             'failed_payments' => (int) $row->failed_payments, 'refused_parcels' => (int) $row->refused_parcels,
             'hourly_checkouts' => (int) $row->hourly_checkouts, 'signals' => $facts,
+            'high_value_orders' => (int) $row->high_value_orders, 'largest_order_total' => (float) $row->largest_order_total,
         ];
     }
 
@@ -92,6 +101,7 @@ class BuyerRiskService
             'id' => $buyer->id, 'name' => trim($buyer->first_name.' '.$buyer->last_name), 'email' => $buyer->email,
             'status' => $buyer->status, 'score' => 0, 'level' => 'low', 'order_count' => 0,
             'buyer_cancellations' => 0, 'failed_payments' => 0, 'refused_parcels' => 0, 'hourly_checkouts' => 0, 'signals' => [],
+            'high_value_orders' => 0, 'largest_order_total' => 0,
         ];
         $data['orders'] = Order::where('buyer_id', $buyer->id)->with('parcel')->latest('id')->limit(50)->get()->map(fn (Order $order) => [
             'id' => $order->id, 'order_number' => $order->order_number, 'status' => $order->status->value,

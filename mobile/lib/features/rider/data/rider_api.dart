@@ -73,6 +73,15 @@ class RiderApi {
       TruckTrips.fromJson(asJson((await _get('/rider/trips'))['data']));
 
   /// The truck is at the next hub's dock: the hub is told to scan the parcels in. Returns the server's message.
+  Future<String> reportTripIssue(int tripId, String kind, String note) async =>
+      asString(
+        (await _post(
+          '/rider/trips/$tripId/issue',
+          data: {'kind': kind, 'note': note},
+        ))['message'],
+      ) ??
+      'Issue recorded.';
+
   Future<String> tripArrived(int tripId) async =>
       asString((await _post('/rider/trips/$tripId/arrived'))['message']) ??
       'The hub was told you are there.';

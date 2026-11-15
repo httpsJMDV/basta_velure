@@ -135,6 +135,7 @@ class ManualRefunds
                 abort_unless($locked->status === Refund::STATUS_AWAITING_SHOP, 409, 'This refund was already sent.');
 
                 $path = $receipt->store(Refund::RECEIPT_DIR, Refund::RECEIPT_DISK);
+                abort_unless($path, 503, 'The refund receipt could not be stored. Try again.');
                 $locked->update([
                     'status'       => Refund::STATUS_SENT,
                     'reference'    => $reference,
@@ -246,10 +247,10 @@ class ManualRefunds
     public function processDeadlines(): array
     {
         $confirmed = 0;
-        foreach (Refund::where('status', Refund::STATUS_SENT)->where('confirm_by', '<=', now())->pluck('id') as $id) {
+        foreach (Refund::where('status', Refund::STATUS_SENT)->where('payer', '!=', 'platform')->where('confirm_by', '<=', now())->pluck('id') as $id) {
             DB::transaction(function () use ($id, &$confirmed) {
                 $locked = Refund::whereKey($id)->lockForUpdate()->first();
-                if ($locked && $locked->status === Refund::STATUS_SENT && $locked->confirm_by?->lte(now())) {
+                if ($locked && $locked->payer !== 'platform' && $locked->status === Refund::STATUS_SENT && $locked->confirm_by?->lte(now())) {
                     $this->finish($locked, auto: true);
                     $confirmed++;
                 }

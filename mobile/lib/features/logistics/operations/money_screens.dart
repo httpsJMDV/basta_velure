@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/json.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../payments/rider_payments.dart';
 import 'portal_api.dart';
 import 'portal_widgets.dart';
 
@@ -36,6 +37,7 @@ class _CourierMoneyScreenState extends ConsumerState<CourierMoneyScreen> {
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            const RiderPaymentPanel(role: 'logistics'),
             const PortalHeader(
               title: 'Every payment, accounted for',
               subtitle: 'Review team earnings and weekly shop statements. Record a transfer only after it has been sent.',
@@ -596,6 +598,7 @@ class HubEarningsScreen extends ConsumerWidget {
       builder: (_, data) => ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          const RiderPaymentPanel(role: 'hub'),
           PortalHeader(
             title: formatPeso(asDouble(data['unpaid_total'])),
             subtitle: 'Waiting for payment from your courier company. Amounts are recorded by the server.',

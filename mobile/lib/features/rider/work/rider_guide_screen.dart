@@ -10,7 +10,7 @@ import '../data/rider_models.dart';
 import '../widgets/rider_widgets.dart';
 
 /// How the job works, in one place. The pay and the limits come from the server, so a change there shows here. Check
-/// the wording against HOW_IT_WORKS.md before changing it: a rider plans their day around these lines.
+/// the wording against the current API and workflow implementation: older documentation can lag behind the app.
 class RiderGuideScreen extends ConsumerStatefulWidget {
   const RiderGuideScreen({super.key});
 
@@ -20,6 +20,8 @@ class RiderGuideScreen extends ConsumerStatefulWidget {
 
 class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
   RiderRates? _rates;
+  bool _loadFailed = false;
+  bool _loading = true;
 
   @override
   void initState() {
@@ -28,13 +30,31 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
   }
 
   Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _loadFailed = false;
+      });
+    }
     try {
       final summary = await ref
           .read(riderApiProvider)
           .earningsSummary(EarningsPeriod.day);
-      if (mounted) setState(() => _rates = summary.rates);
+      if (mounted) {
+        setState(() {
+          _rates = summary.rates;
+          _loadFailed = summary.rates == null;
+          _loading = false;
+        });
+      }
     } catch (_) {
-      // The rest of the guide does not depend on the pay.
+      if (mounted) {
+        setState(() {
+          _rates = null;
+          _loadFailed = true;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -81,24 +101,30 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                   ],
                 ),
                 const SizedBox(height: AppSpace.md),
-                const Text(
-                  'New orders share the courier fee: 30% pickup, 30% delivery, '
-                  '10% handling branch, 15% transport pool and 15% courier company. '
-                  'On a ₱50 courier fee you earn ₱15 per leg, or ₱30 for both. '
-                  'Previous orders keep their agreed pay; Earnings shows the actual amounts. '
-                  'A failed delivery attempt earns no delivery pay. Return transport reserves up to 10% from the company share, leaving at least 5% before other costs. Unused reserves stay with the company.',
+                Text(
+                  rates == null
+                      ? 'Check Earnings for the amounts recorded on your actual jobs. Current pay and limits are shown here only after they load from the server. A failed delivery attempt earns no delivery pay.'
+                      : rates.percentagePay
+                      ? 'New orders pay ${rates.pickupPercent}% of the courier fee for pickup and ${rates.deliveryPercent}% for successful delivery. One rider doing both legs earns both. Pickup pay is recorded when collection is completed; delivery pay when the parcel is marked delivered. Previous orders keep their saved pay; Earnings shows the actual amounts. A failed delivery attempt earns no delivery pay.'
+                      : 'The current pickup rate is ${formatPeso(rates.pickup)} and successful delivery rate is ${formatPeso(rates.delivery)}. One rider doing both legs earns both. Existing jobs keep their saved amounts. A failed delivery attempt earns no delivery pay.',
                   style: _body,
                 ),
+                if (_loadFailed)
+                  TextButton.icon(
+                    onPressed: _loading ? null : _load,
+                    icon: const Icon(LucideIcons.refreshCw, size: 16),
+                    label: const Text('Pay and limits could not load. Retry'),
+                  ),
               ],
             ),
           ),
           const SizedBox(height: AppSpace.lg),
-          const RiderSectionTitle('Your day, step by step'),
+          const RiderSectionTitle('Pickup and delivery work'),
           const _Steps(
             steps: [
               (
                 'Go online',
-                'Switch on at the top of Home when you are ready to work. Jobs only come while you are online.',
+                'Switch on at the top of Home when you are ready to work. Online status and available cargo capacity are checked for pickup offers and assignments. Keep your work screens open so your availability stays current.',
               ),
               (
                 'Answer a pickup offer',
@@ -106,15 +132,15 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
               ),
               (
                 'Collect from the shop',
-                'Scan or type each tracking number at the shop, then bring the parcels to your hub. Tap Hub route on a parcel to see its way, hub by hub.',
+                'Scan or type each tracking number at the shop and confirm collection, then bring the parcels to your hub. Pickup pay is recorded for completed collection, not just accepting an offer. Tap Hub route on a parcel to see its way, hub by hub.',
               ),
               (
                 'Collect at the hub',
-                'Parcels for far barangays go on from your hub to the next one on the courier\'s truck, not with you. When the hub gives you parcels to deliver, scan its QR code under Deliveries. Your stops then show on the route map.',
+                'Parcels for another hub travel through the courier network before local delivery. When your hub gives you a delivery batch, scan or enter its handover code under Deliveries and confirm collection. Your stops then show on the route map.',
               ),
               (
                 'Deliver',
-                'Take a photo at the door with the camera, and collect the exact cash if the order is cash on delivery.',
+                'Contact the buyer through the stop when needed. Take a proof photo with the camera at delivery; a second, different photo is optional. For cash on delivery, collect and enter exactly the COD amount shown. Do not collect COD for a prepaid GCash order.',
               ),
               (
                 'Hand in the cash',
@@ -123,14 +149,57 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
             ],
           ),
           const SizedBox(height: AppSpace.lg),
+          const RiderSectionTitle('Requesting your payment'),
+          const _Steps(
+            steps: [
+              (
+                'Check your account and balance',
+                'Save your GCash name and number under Account. Open Earnings, or Trips for truck drivers. Available to request includes unpaid earned pickup/delivery shares and finished trips in your courier network, excluding amounts already paid or reserved.',
+              ),
+              (
+                'Request payment',
+                'Tap Request payment and review the full available amount and GCash account. Only one request may be open at a time. New earnings stay separate while that request is being handled.',
+              ),
+              (
+                'Your hub or courier processes it',
+                'A staff member takes the request, sends the exact amount manually to your saved GCash, and records the receipt and 13-digit reference. Creating a request does not itself transfer money. A declined request shows a reason and releases the unpaid earnings so you can request again.',
+              ),
+              (
+                'Confirm only when money arrives',
+                'Open View receipt and check your GCash. Tap I received it only after the money arrives, or Payment not received to report a missing transfer. Reported payments stay open for review; they are not automatically marked received. COD cash you collected must still be remitted separately.',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
           const RiderSectionTitle('If you cannot deliver'),
           RiderCard(
             child: Text(
-              'Tap Delivery failed and choose the reason. The parcel can be tried '
-              '${rates == null ? 'a few' : '${rates.maxDeliveryAttempts}'} times. After '
-              'that it goes back to the seller, and the courier gives the return '
-              'trip to a rider.',
+              'Before choosing Recipient unavailable or Could not contact, call, text or message the buyer through that stop on this delivery attempt. Then tap Delivery failed and choose the accurate reason; Other needs a note. '
+              '${rates == null ? 'The attempt limit could not be loaded; follow the options shown on the parcel.' : 'The current maximum is ${rates.maxDeliveryAttempts} delivery attempts.'} '
+              'A refusal or the final failed attempt starts return to sender immediately. Otherwise the hub can arrange another attempt. Follow the return assignment and handover instructions; do not independently retry a parcel already returning.',
               style: _body,
+            ),
+          ),
+          const SizedBox(height: AppSpace.lg),
+          const RiderSectionTitle('Return jobs and truck trips'),
+          const RiderCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Buyer return pickups', style: RiderText.name),
+                SizedBox(height: AppSpace.sm),
+                Text(
+                  'For an approved buyer return, follow your assigned return pickup. Collect with a photo. Nearby returns may go straight to the shop; cross-hub returns must be dropped at the assigned hub, travel through the network, then go to the shop with a local rider. The shop confirms receipt. Do not assume a return earns the same pay as a new pickup or delivery; request only the earnings actually recorded.',
+                  style: _body,
+                ),
+                SizedBox(height: AppSpace.md),
+                Text('Truck drivers', style: RiderText.name),
+                SizedBox(height: AppSpace.sm),
+                Text(
+                  'Use Trips for hub-to-hub work instead of the pickup/delivery screens. Check the manifest, return-parcel labels, receiving-hub address and phone, any dispatch ETA, and the expected trip pay. At the receiving hub tap the arrival button, then hand over the parcels for hub scans. Arrival alone does not complete the trip: all parcels must be scanned, or the courier closes a trip with missing parcels after review. Report trip issue notifies both hubs and your courier without changing pay or completion. Finished unpaid trip pay can be requested from Trips. Use the amount shown; a transport pool shared across route legs does not mean every driver receives the full pool.',
+                  style: _body,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpace.lg),
@@ -142,15 +211,15 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                 _Fact(
                   icon: LucideIcons.weight,
                   text:
-                      'The order limit is ${rates == null ? '50' : _kg(rates.maxParcelKg)} kg per shop parcel. This is not a motorcycle carrying allowance. Check Account → Cargo allowance for your courier-reviewed weight and space limit. Each stop shows its declared weight. '
+                      '${rates == null ? 'Check the order and Account for the current parcel limits; they could not be loaded here.' : 'The order limit is ${_kg(rates.maxParcelKg)} kg per shop parcel.'} This is not a motorcycle carrying allowance. Check Account → Cargo allowance for your courier-reviewed weight and space limit. Each stop shows its declared weight. '
                       'If a parcel is not safe on your vehicle, message the hub before you leave.',
                 ),
                 const SizedBox(height: AppSpace.md),
                 _Fact(
                   icon: LucideIcons.banknote,
-                  text:
-                      'New cash on delivery orders stop at ${rates == null ? '₱50,000' : formatPeso(rates.codMax)} per shop. '
-                      'Above that the buyer pays by GCash, so you are not carrying it.',
+                  text: rates == null
+                      ? 'The current COD limit could not be loaded. Follow the payment method and exact COD amount shown on each order; do not collect cash for an order marked prepaid.'
+                      : 'New cash on delivery orders stop at ${formatPeso(rates.codMax)} per shop. Above that, checkout requires a supported prepaid method. Collect only the payment and exact COD amount shown on your assigned parcel.',
                 ),
               ],
             ),
@@ -168,12 +237,12 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                 SizedBox(height: AppSpace.md),
                 _Fact(
                   icon: LucideIcons.locateFixed,
-                  text: 'Your location is shared only while you have parcels to collect or carry. With none, nothing is sent.',
+                  text: 'For assigned pickup and delivery parcels, the app requests location sharing while you are on the way to collect or carrying them. Check the location bar; sharing stops when the server reports no matching parcels remain. Truck trips and return jobs do not start this location sharing by themselves.',
                 ),
                 SizedBox(height: AppSpace.md),
                 _Fact(
                   icon: LucideIcons.shieldAlert,
-                  text: 'Never share a buyer\'s name, phone or address with anyone. Use the chat in the app.',
+                  text: 'Use a buyer\'s name, phone and address only for your assigned work. Do not post these details or share them outside the job with unauthorized people. Use the chat in the app for job communication.',
                 ),
               ],
             ),

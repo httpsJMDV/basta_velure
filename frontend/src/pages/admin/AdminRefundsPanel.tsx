@@ -52,7 +52,7 @@ export default function AdminRefundsPanel() {
     setDecideError(undefined);
     try {
       await resolveRefundApi(deciding.row.id, deciding.decision, note);
-      showToast(deciding.decision === 'received' ? 'Closed as received.' : 'The shop was asked to send it again.');
+      showToast(deciding.decision === 'received' ? 'Closed as received.' : 'The refund payer was asked to send it again.');
       setDeciding(null);
       load();
     } catch (e) {
@@ -79,12 +79,12 @@ export default function AdminRefundsPanel() {
         { value: 'done', label: 'Done' },
       ]} />
 
-      <ListCard title="Refunds shops send by GCash" count={meta?.total}>
+      <ListCard title="GCash refunds and transfer confirmations" count={meta?.total}>
         {failed ? <div className="p-3"><ListError message="The refunds could not be loaded." onRetry={load} /></div>
           : rows === null ? <div className="p-3"><SkeletonCards count={3} /></div>
             : rows.length === 0 ? (
               <ListEmpty icon={Wallet} title={view === 'attention' ? 'Nothing needs you' : 'No refunds here'}
-                hint="When a GCash or cash-on-delivery order is refunded, the shop sends the money and the buyer confirms it. Problems show here." />
+                hint="Loved-IT sends refunds for platform GCash payments. Shops handle direct payments and COD refunds. Record the transfer, then confirm receipt." />
             ) : (
               <ul className="divide-y divide-gray-100">
                 {rows.map((r) => (
@@ -100,7 +100,7 @@ export default function AdminRefundsPanel() {
                           {r.gcash_number ? ` · to ${r.gcash_number} (${r.gcash_name})` : ''}
                         </p>
                       </div>
-                      <Pill tone={r.overdue ? 'red' : STATUS[r.status].tone}>{r.overdue ? 'The shop is late' : STATUS[r.status].label}</Pill>
+                      <Pill tone={r.overdue ? 'red' : STATUS[r.status].tone}>{r.overdue ? 'Transfer overdue' : r.status === 'awaiting_shop' && r.payer === 'platform' ? 'Loved-IT to send' : STATUS[r.status].label}</Pill>
                     </div>
                     <div className="mt-1.5 text-[12px] text-gray-700 space-y-0.5">
                       {r.status === 'awaiting_shop' && <p>Send by {when(r.send_by)}{r.times_sent_before ? ` · sent ${r.times_sent_before} time(s) before` : ''}.</p>}
@@ -119,7 +119,7 @@ export default function AdminRefundsPanel() {
                         <button type="button" onClick={() => setDeciding({ row: r, decision: 'received' })} className="h-8 px-3 rounded-full bg-gray-900 text-white text-[12px] font-semibold">Counts as received</button>
                       )}
                       {r.status === 'not_received' && (
-                        <button type="button" onClick={() => setDeciding({ row: r, decision: 'send_again' })} className="h-8 px-3 rounded-full bg-brand-red text-white text-[12px] font-semibold">Shop sends it again</button>
+                        <button type="button" onClick={() => setDeciding({ row: r, decision: 'send_again' })} className="h-8 px-3 rounded-full bg-brand-red text-white text-[12px] font-semibold">Request another transfer</button>
                       )}
                     </div>
                   </li>
@@ -136,11 +136,11 @@ export default function AdminRefundsPanel() {
       </ListCard>
 
       <ReasonDialog open={!!deciding} onClose={() => !saving && setDeciding(null)} onConfirm={decide} busy={saving} error={decideError} max={1000}
-        title={deciding?.decision === 'send_again' ? 'Ask the shop to send it again' : 'Close the refund as received'}
+        title={deciding?.decision === 'send_again' ? 'Request another refund transfer' : 'Close the refund as received'}
         confirmLabel={deciding?.decision === 'send_again' ? 'Ask to send again' : 'Close as received'} tone={deciding?.decision === 'send_again' ? 'primary' : 'dark'}
         label="Why (both sides see this)"
         intro={deciding?.decision === 'send_again'
-          ? 'The earlier transfer stays in the history. The shop gets 3 more days to send it and record a new receipt.'
+          ? 'The earlier transfer stays in the history. The refund payer gets 3 more days to send it and record a new receipt with a new reference.'
           : 'Use this when the receipt shows the money reached the buyer\'s number. The order shows the refund as done.'} />
     </div>
   );

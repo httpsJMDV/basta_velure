@@ -230,6 +230,7 @@ class OrderPlacer
                 'product_variant_id'  => $line['variant_id'],
                 'category_id'         => Product::withTrashed()->whereKey($line['product_id'])->value('category_id'),
                 'product_name'        => $line['name'],
+                'warranty'            => Product::withTrashed()->whereKey($line['product_id'])->value('warranty'),
                 'variant_label'       => $line['variant_label'],
                 'unit_price'          => $line['unit_price'],
                 'regular_unit_price'  => $line['regular_price'],

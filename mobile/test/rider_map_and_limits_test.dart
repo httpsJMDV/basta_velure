@@ -349,6 +349,113 @@ void main() {
   });
 
   group('The rider guide', () {
+    testWidgets(
+      'failed rate loading shows a retry and uses current percentages after recovery',
+      (tester) async {
+        var fails = true;
+        final api = FakeApi({
+          'GET /rider/earnings/summary': (_) => fails
+              ? jsonBody(503, {'message': 'Unavailable'})
+              : jsonBody(200, {
+                  'data': {
+                    'period': {},
+                    'previous': {},
+                    'rates': {
+                      'pay_model': 'shipping_percentage',
+                      'pickup_percent': 25,
+                      'delivery_percent': 35,
+                      'pickup': '30.00',
+                      'delivery': '50.00',
+                      'max_delivery_attempts': 4,
+                      'max_parcel_kg': 40,
+                      'cod_max': 25000,
+                    },
+                  },
+                }),
+        });
+        final container = containerWith(api, MemoryTokenStore('t'));
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(home: RiderGuideScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Pay and limits could not load. Retry'),
+          findsOneWidget,
+        );
+        expect(find.text('30%'), findsNothing);
+        fails = false;
+        await tester.tap(find.text('Pay and limits could not load. Retry'));
+        await tester.pumpAndSettle();
+        expect(find.text('25%'), findsOneWidget);
+        expect(find.text('35%'), findsOneWidget);
+        expect(find.textContaining('New orders pay 25%'), findsOneWidget);
+        expect(find.text('Pay and limits could not load. Retry'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'guide covers mobile payment requests, failed delivery contact and truck handover',
+      (tester) async {
+        final api = FakeApi({});
+        final container = containerWith(api, MemoryTokenStore('t'));
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(home: RiderGuideScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text('Requesting your payment'),
+          400,
+        );
+        expect(
+          find.textContaining('Tap Request payment and review'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Tap I received it only after'),
+          findsOneWidget,
+        );
+        await tester.scrollUntilVisible(
+          find.text('If you cannot deliver'),
+          400,
+        );
+        expect(
+          find.textContaining('Before choosing Recipient unavailable'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('A refusal or the final failed attempt'),
+          findsOneWidget,
+        );
+        await tester.scrollUntilVisible(
+          find.textContaining('Arrival alone does not complete the trip'),
+          150,
+          maxScrolls: 80,
+        );
+        expect(
+          find.textContaining('Arrival alone does not complete the trip'),
+          findsOneWidget,
+        );
+        await tester.scrollUntilVisible(
+          find.textContaining('The current COD limit could not be loaded'),
+          150,
+          maxScrolls: 80,
+        );
+        expect(
+          find.textContaining('The current COD limit could not be loaded'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('its pay comes from the server, not from the app', (
       tester,
     ) async {

@@ -39,6 +39,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.invalidate(featuredShopsProvider);
     ref.invalidate(_trendingProvider);
     ref.invalidate(availableVouchersProvider);
+    ref.invalidate(platformOffersProvider);
     ref.invalidate(saleProductsProvider);
   }
 

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Copy, Check, X, ChevronLeft, ChevronRight, Wallet, ReceiptText, ArrowUpRight, ExternalLink, ImageOff, Percent, Scale } from 'lucide-react';
-import { getAdminPaymentListApi, getAdminPayoutsApi, markAdminPayoutSentApi, completeAdminPayoutApi, rejectAdminPayoutApi, getAdminSettlementsApi } from '../../api/client';
+import { openPayoutReceiptApi, getAdminPaymentListApi, getAdminPayoutsApi, markAdminPayoutSentApi, completeAdminPayoutApi, rejectAdminPayoutApi, getAdminSettlementsApi } from '../../api/client';
 import type { AdminPaymentListItem, PayoutRequest } from '../../types';
 import { PageHero } from '../../components/admin/dashboardKit';
 import { SearchField, ListError, Pill, type PillTone, TH, TD, ROW, rowKeys, relativeTime, RowAction } from '../../components/admin/listKit';
@@ -228,8 +228,9 @@ function PaymentSheet({ payment, onClose, onDone }: { payment: AdminPaymentListI
 
 type PayoutAction = { kind: 'send' | 'complete' | 'reject'; payout: PayoutRequest };
 
-function PayoutDialog({ action, busy, error, onConfirm, onCancel }: { action: PayoutAction; busy: boolean; error: string; onConfirm: (text: string) => void; onCancel: () => void }) {
+function PayoutDialog({ action, busy, error, onConfirm, onCancel }: { action: PayoutAction; busy: boolean; error: string; onConfirm: (text: string, receipt?: File) => void; onCancel: () => void }) {
   const [text, setText] = useState('');
+  const [receipt, setReceipt] = useState<File>();
   const { kind, payout } = action;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
@@ -248,7 +249,7 @@ function PayoutDialog({ action, busy, error, onConfirm, onCancel }: { action: Pa
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={copy.title}>
       <div className="absolute inset-0 bg-gray-950/50" onClick={onCancel} />
       <form
-        onSubmit={(e) => { e.preventDefault(); if (!needsText || text.trim()) onConfirm(text.trim()); }}
+        onSubmit={(e) => { e.preventDefault(); if (!busy && (!needsText || text.trim()) && (kind !== 'send' || receipt)) onConfirm(text.trim(), receipt); }}
         className="relative w-full max-w-md p-5 bg-white border border-gray-100 shadow-2xl rounded-2xl"
       >
         <div className="flex items-start justify-between gap-3">
@@ -267,10 +268,13 @@ function PayoutDialog({ action, busy, error, onConfirm, onCancel }: { action: Pa
           <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={copy.placeholder}
             className="w-full h-10 mt-1 px-3 text-[13px] border border-gray-200 rounded-xl outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10" />
         )}
+        {kind === 'send' && <label className="block mt-4 text-xs font-semibold text-gray-700">Transfer receipt (JPG, PNG or WebP, up to 8 MB)
+          <input type="file" required accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e => setReceipt(e.target.files?.[0])} className="block w-full mt-2 text-xs" />
+        </label>}
         {error && <p role="alert" className="mt-2 text-[12px] text-red-700">{error}</p>}
         <div className="flex gap-2 mt-4">
           <button type="button" onClick={onCancel} className="flex-1 h-10 rounded-xl border border-gray-200 text-[13px] font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
-          <button type="submit" disabled={busy || (needsText && !text.trim())}
+          <button type="submit" disabled={busy || (needsText && !text.trim()) || (kind === 'send' && (!receipt || !/^\d{13}$/.test(text.replace(/\D/g, ''))))}
             className={`flex-1 h-10 rounded-xl text-white text-[13px] font-bold disabled:opacity-50 ${kind === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-red hover:bg-brand-red-dark'}`}>
             {busy ? 'Saving…' : copy.confirm}
           </button>
@@ -357,13 +361,13 @@ export default function AdminPaymentsPage() {
     getAdminSettlementsApi('reported').then((r) => setSettlementIssues(r.counts.reported + r.counts.overdue)).catch(() => {});
   }, []);
 
-  const runAction = async (text: string) => {
+  const runAction = async (text: string, receipt?: File) => {
     if (!action) return;
     setActionBusy(true);
     setActionError('');
     const { kind, payout } = action;
     try {
-      if (kind === 'send') await markAdminPayoutSentApi(payout.id, 'Manual GCash transfer recorded', text.replace(/\D/g, ''));
+      if (kind === 'send') await markAdminPayoutSentApi(payout.id, 'Manual GCash transfer recorded', text.replace(/\D/g, ''), receipt!);
       else if (kind === 'complete') await completeAdminPayoutApi(payout.id, text || 'Completed via GCash transfer');
       else await rejectAdminPayoutApi(payout.id, text);
       setAction(null);
@@ -382,6 +386,7 @@ export default function AdminPaymentsPage() {
 
   return (
     <div className="pb-8 space-y-3">
+      {actionError && !action && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       <PageHero icon={Wallet} eyebrow="Admin / Money" title="Payments & Payouts"
         subtitle="Verify Loved-IT GCash collections, record seller payouts, and reconcile courier funding. Bank transfers are sent manually; earnings are calculated automatically." />
 
@@ -527,6 +532,8 @@ export default function AdminPaymentsPage() {
                             <td className={`${TD} text-right font-bold text-gray-900 tabular-nums whitespace-nowrap`}>{peso(p.amount)}</td>
                             <td className={TD}>
                               <Pill tone={s.tone}>{s.label}</Pill>
+                              {p.transfer_reference && <p className="mt-1 font-mono text-xs">GCash {p.transfer_reference}</p>}
+                              {p.has_receipt && <button type="button" onClick={() => void openPayoutReceiptApi(p.id).catch(() => setActionError('Receipt could not be opened.'))} className="mt-1 text-xs underline">View transfer receipt</button>}
                               {p.rejection_reason && <p className="mt-1 text-[11px] text-red-700 max-w-[180px] truncate" title={p.rejection_reason}>{p.rejection_reason}</p>}
                               {p.admin_notes && p.status !== 'rejected' && <p className="mt-1 text-[11px] text-gray-400 max-w-[180px] truncate" title={p.admin_notes}>{p.admin_notes}</p>}
                             </td>

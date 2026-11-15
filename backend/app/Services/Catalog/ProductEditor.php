@@ -39,6 +39,7 @@ class ProductEditor
 
         return [
             'name'                 => Validation::displayName(5, 120),
+            'warranty'             => ['nullable', 'string', 'max:2000'],
             'description'          => [$required, 'string', 'max:20000', function ($attr, $value, $fail) use ($publish) {
                 $length = mb_strlen(self::visibleText($value));
                 if ($publish && $length < 20) {
@@ -288,6 +289,7 @@ class ProductEditor
                     'category_id'          => $categoryId,
                     'name'                 => trim($data['name']),
                     'description'          => $data['description'] ?? $product?->description,
+                    'warranty'             => array_key_exists('warranty', $data) ? (trim((string) $data['warranty']) ?: null) : $product?->warranty,
                     'status'               => $status,
                     'weight_kg'            => $data['weight_kg'] ?? null,
                     'dimension_l_cm'       => $data['dimension_l_cm'] ?? null,

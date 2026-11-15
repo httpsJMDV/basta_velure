@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'activity/activity_screen.dart';
+import '../payments/rider_payments.dart';
 import 'operations/money_screens.dart';
 import 'operations/pickup_control_screen.dart';
 import 'operations/cargo_screen.dart';
@@ -136,6 +137,15 @@ final logisticsRoutes = <RouteBase>[
         ],
       ),
     ],
+  ),
+  GoRoute(
+    path: LogisticsPaths.hubRiderPayments,
+    builder: (_, _) => _hub(const RiderPaymentQueueScreen(role: 'hub')),
+  ),
+  GoRoute(
+    path: LogisticsPaths.courierRiderPayments,
+    builder: (_, _) =>
+        _courier(const RiderPaymentQueueScreen(role: 'logistics')),
   ),
   GoRoute(
     path: LogisticsPaths.hubScan,

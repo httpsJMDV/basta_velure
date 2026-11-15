@@ -199,6 +199,17 @@ class SellerApi {
           .map(SellerProduct.fromJson)
           .toList();
 
+  Future<SellerProduct> setWarranty(int productId, String warranty) async =>
+      SellerProduct.fromJson(
+        asJson(
+          (await _call(
+            'PATCH',
+            '/seller/products/$productId/warranty',
+            data: {'warranty': warranty},
+          ))['data'],
+        ),
+      );
+
   Future<SellerProduct> setStock(
     int productId,
     int variantId,

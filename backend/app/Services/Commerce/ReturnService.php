@@ -9,10 +9,13 @@ use App\Models\Order;
 use App\Models\PlatformSetting;
 use App\Models\Refund;
 use App\Models\User;
+use App\Services\Courier\ReturnPickups;
 use App\Services\MailNotifier;
 use App\Services\Notifier;
 use App\Services\OrderStateMachine;
+use Carbon\CarbonInterface;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -35,10 +38,10 @@ class ReturnService
     ) {}
 
     /** When the order was delivered (the parcel's time, else the items'). */
-    public static function deliveredAt(Order $order): ?\Carbon\CarbonInterface
+    public static function deliveredAt(Order $order): ?CarbonInterface
     {
-        return $order->parcel()->value('delivered_at') ? \Illuminate\Support\Carbon::parse($order->parcel()->value('delivered_at'))
-            : ($order->items()->max('delivered_at') ? \Illuminate\Support\Carbon::parse($order->items()->max('delivered_at')) : null);
+        return $order->parcel()->value('delivered_at') ? Carbon::parse($order->parcel()->value('delivered_at'))
+            : ($order->items()->max('delivered_at') ? Carbon::parse($order->items()->max('delivered_at')) : null);
     }
 
     /** Why a return cannot be requested now, or null. */
@@ -46,7 +49,7 @@ class ReturnService
     {
         $status = $order->status instanceof OrderStatus ? $order->status : OrderStatus::tryFrom((string) $order->status);
         if ($status === OrderStatus::COMPLETED) {
-            return 'This order is completed, so a return can no longer be requested.';
+            return 'This order is completed, so the standard in-app return/refund request is closed. For warranty or defective-product concerns, contact the seller or Loved-IT support.';
         }
         if ($status !== OrderStatus::DELIVERED) {
             return $status === OrderStatus::DISPUTED
@@ -126,7 +129,7 @@ class ReturnService
             $this->machine->transition($locked, OrderStatus::RETURNED, $actor, $actorId, $auto ? 'Return approved automatically after 3 days' : 'Return approved');
             $this->refundReturn($locked->fresh());
             if ($collect) {
-                app(\App\Services\Courier\ReturnPickups::class)->book($locked->fresh(), $dispute, $actor, $actorId);
+                app(ReturnPickups::class)->book($locked->fresh(), $dispute, $actor, $actorId);
             }
             app(MailNotifier::class)->returnResolved($locked, 'accepted');
             // The shop approved it itself; otherwise it learns the 3-day rule or Loved-IT decided.
@@ -161,7 +164,7 @@ class ReturnService
 
     public function reject(Order $order, int $sellerId, string $reason): Dispute
     {
-        return DB::transaction(function () use ($order, $sellerId, $reason) {
+        return DB::transaction(function () use ($order, $reason) {
             $dispute = Dispute::where('order_id', $order->id)->lockForUpdate()->firstOrFail();
             if (! in_array($dispute->status, ['pending', 'open'], true)) {
                 abort(409, 'This return request has already been answered.');
@@ -251,22 +254,22 @@ class ReturnService
         }
 
         return [
-            'id'                  => $d->id,
-            'reason'              => $d->reason,
-            'description'         => $d->description,
-            'status'              => $d->status,
-            'photos'              => $d->relationLoaded('photos') ? $d->photos->map(fn ($p) => $p->url())->values() : $d->photos()->get()->map(fn ($p) => $p->url())->values(),
-            'respond_by'          => $d->respond_by?->toIso8601String(),
-            'seller_reason'       => $d->seller_reason,
+            'id' => $d->id,
+            'reason' => $d->reason,
+            'description' => $d->description,
+            'status' => $d->status,
+            'photos' => $d->relationLoaded('photos') ? $d->photos->map(fn ($p) => $p->url())->values() : $d->photos()->get()->map(fn ($p) => $p->url())->values(),
+            'respond_by' => $d->respond_by?->toIso8601String(),
+            'seller_reason' => $d->seller_reason,
             'seller_responded_at' => $d->seller_responded_at?->toIso8601String(),
-            'escalate_by'         => $d->escalate_by?->toIso8601String(),
-            'escalated_at'        => $d->escalated_at?->toIso8601String(),
-            'can_escalate'        => $d->status === 'rejected' && ! $d->escalated_at && (! $d->escalate_by || $d->escalate_by->gte(now())),
-            'auto_approved'       => (bool) $d->auto_approved,
-            'refund_amount'       => $d->refund_amount !== null ? (float) $d->refund_amount : null,
-            'resolution_note'     => $d->resolution_note,
-            'resolved_at'         => $d->resolved_at?->toIso8601String(),
-            'created_at'          => $d->created_at?->toIso8601String(),
+            'escalate_by' => $d->escalate_by?->toIso8601String(),
+            'escalated_at' => $d->escalated_at?->toIso8601String(),
+            'can_escalate' => $d->status === 'rejected' && ! $d->escalated_at && (! $d->escalate_by || $d->escalate_by->gte(now())),
+            'auto_approved' => (bool) $d->auto_approved,
+            'refund_amount' => $d->refund_amount !== null ? (float) $d->refund_amount : null,
+            'resolution_note' => $d->resolution_note,
+            'resolved_at' => $d->resolved_at?->toIso8601String(),
+            'created_at' => $d->created_at?->toIso8601String(),
         ];
     }
 }

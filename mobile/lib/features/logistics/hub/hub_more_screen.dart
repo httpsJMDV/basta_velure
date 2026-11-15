@@ -44,6 +44,13 @@ class HubMoreScreen extends ConsumerWidget {
           LinkList(
             children: [
               _WorkTile(
+                icon: LucideIcons.banknote,
+                title: 'Rider payment requests',
+                subtitle:
+                    'Review requests, record GCash transfers and receipts',
+                onTap: () => context.push(LogisticsPaths.hubRiderPayments),
+              ),
+              _WorkTile(
                 icon: LucideIcons.scale,
                 title: 'Cargo allowance',
                 subtitle: 'Vehicle allowances and packed measurements',

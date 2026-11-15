@@ -3,15 +3,23 @@
 namespace Tests\Feature;
 
 use App\Enums\OrderStatus;
+use App\Models\LogisticsCompany;
+use App\Models\LogisticsCompanyMember;
 use App\Models\Order;
+use App\Models\Parcel;
+use App\Models\PayoutRequest;
 use App\Models\PlatformSetting;
 use App\Models\User;
+use App\Services\Commerce\ManualRefunds;
+use App\Services\Commerce\OrderCanceller;
+use App\Services\OrderStateMachine;
 use App\Services\Payments\GcashReview;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsCommerce;
 use Tests\TestCase;
 
@@ -41,13 +49,17 @@ class PlatformGcashCollectionTest extends TestCase
             $items[] = ['variant_id' => $v2['Default']->id, 'quantity' => 1];
         }
         Sanctum::actingAs($buyer);
+
         return [$buyer, $seller, ['address_id' => $address->id, 'items' => $items, 'payment_method' => 'gcash',
             'gcash' => [0 => ['reference' => '1234567890123']], 'gcash_proof' => [0 => UploadedFile::fake()->image('receipt.png')]]];
     }
 
     private function admin(): User
     {
-        $admin = $this->buyer(); $admin->forceFill(['role' => 'admin'])->save(); Sanctum::actingAs($admin);
+        $admin = $this->buyer();
+        $admin->forceFill(['role' => 'admin'])->save();
+        Sanctum::actingAs($admin);
+
         return $admin;
     }
 
@@ -63,7 +75,8 @@ class PlatformGcashCollectionTest extends TestCase
             $this->assertSame('09171234567', $o->collection_payee['number']);
             $this->assertSame('pending_release', $o->items()->first()->payout_status);
         }
-        $o = $rows->first(fn ($r) => (int) $r->items()->value('seller_id') === $seller->id); Sanctum::actingAs($seller);
+        $o = $rows->first(fn ($r) => (int) $r->items()->value('seller_id') === $seller->id);
+        Sanctum::actingAs($seller);
         $this->postJson("/api/v1/seller/orders/{$o->id}/confirm-payment")->assertUnprocessable();
         $this->postJson("/api/v1/seller/orders/{$o->id}/reject-payment", ['reason' => 'Not received in the account'])->assertForbidden();
         $this->assertSame('pending_verification', $o->fresh()->payment_status);
@@ -72,7 +85,9 @@ class PlatformGcashCollectionTest extends TestCase
         $url = "/api/v1/admin/payments/orders/{$o->id}/confirm-gcash";
         $this->postJson($url, ['reference' => '1234567890123', 'received_amount' => $o->total, 'received_in_gcash' => true])->assertUnprocessable();
         $this->postJson($url, ['reference' => '1234567890123', 'received_amount' => $total, 'received_in_gcash' => true])->assertOk();
-        foreach ($rows as $r) $this->assertSame('paid', $r->fresh()->payment_status);
+        foreach ($rows as $r) {
+            $this->assertSame('paid', $r->fresh()->payment_status);
+        }
         $stamp = $o->fresh()->payment_verified_at->toIso8601String();
         $this->postJson($url, ['reference' => '1234567890123', 'received_amount' => $total, 'received_in_gcash' => true])->assertOk();
         $this->assertSame($stamp, $o->fresh()->payment_verified_at->toIso8601String());
@@ -95,13 +110,13 @@ class PlatformGcashCollectionTest extends TestCase
         [, , $payload] = $this->checkout(false);
         $id = $this->postJson('/api/v1/checkout/place-order', $payload)->assertCreated()->json('data.id');
         $o = Order::findOrFail($id);
-        app(\App\Services\Commerce\OrderCanceller::class)->cancel($o, 'buyer', $o->buyer_id, 'No longer needed');
+        app(OrderCanceller::class)->cancel($o, 'buyer', $o->buyer_id, 'No longer needed');
         app(GcashReview::class)->confirm($o->fresh(), $this->admin(), '1234567890123', $o->total);
         $o->refresh();
         $this->assertSame(OrderStatus::CANCELLED, $o->status);
         $this->assertSame('platform', $o->refund->payer);
         $this->assertSame('pending', $o->refund_status);
-        $this->assertFalse(\App\Services\Commerce\ManualRefunds::present($o->refund, 'seller')['can_send']);
+        $this->assertFalse(ManualRefunds::present($o->refund, 'seller')['can_send']);
     }
 
     public function test_reference_cannot_credit_two_independent_checkouts(): void
@@ -122,8 +137,12 @@ class PlatformGcashCollectionTest extends TestCase
         $o = Order::findOrFail($this->postJson('/api/v1/checkout/place-order', $payload)->assertCreated()->json('data.id'));
         $this->admin();
         $this->patchJson('/api/v1/admin/payments/'.$o->payment->id.'/mark-paid')->assertUnprocessable();
-        try { app(\App\Services\OrderStateMachine::class)->transition($o, OrderStatus::CONFIRMED, 'admin'); $this->fail('Unverified funds were accepted'); }
-        catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) { $this->assertSame(422, $e->getStatusCode()); }
+        try {
+            app(OrderStateMachine::class)->transition($o, OrderStatus::CONFIRMED, 'admin');
+            $this->fail('Unverified funds were accepted');
+        } catch (HttpException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
         $this->assertSame(OrderStatus::PLACED, $o->fresh()->status);
     }
 
@@ -131,7 +150,8 @@ class PlatformGcashCollectionTest extends TestCase
     {
         [$buyer, , $payload] = $this->checkout();
         $id = $this->postJson('/api/v1/checkout/place-order', $payload)->assertCreated()->json('data.id');
-        $o = Order::findOrFail($id); $admin = $this->admin();
+        $o = Order::findOrFail($id);
+        $admin = $this->admin();
         app(GcashReview::class)->reject($o, $admin, '1234567890123', 'Please correct the reference on your receipt');
         Sanctum::actingAs($buyer);
         $this->postJson("/api/v1/buyer/orders/{$id}/gcash-receipt", ['reference' => '2234567890123', 'receipt' => UploadedFile::fake()->image('correct.png')])->assertOk();
@@ -145,13 +165,25 @@ class PlatformGcashCollectionTest extends TestCase
     public function test_manual_payout_cannot_complete_without_reference_or_be_rejected_after_sent(): void
     {
         [, $seller] = $this->checkout(false);
-        $p = \App\Models\PayoutRequest::create(['seller_id' => $seller->id, 'reference_code' => 'PO-'.uniqid(), 'amount' => 100,
+        $p = PayoutRequest::create(['seller_id' => $seller->id, 'reference_code' => 'PO-'.uniqid(), 'amount' => 100,
             'gcash_number' => '09171111111', 'gcash_name' => 'Seller Test', 'status' => 'pending', 'manual_reference_required' => true]);
-        $this->admin(); $url = '/api/v1/admin/payouts/'.$p->id;
+        $this->admin();
+        $url = '/api/v1/admin/payouts/'.$p->id;
         $this->postJson($url.'/complete')->assertConflict();
         $this->postJson($url.'/mark-sent')->assertUnprocessable();
-        $this->postJson($url.'/mark-sent', ['transfer_reference' => '3334567890123'])->assertOk();
-        $this->postJson($url.'/mark-sent', ['transfer_reference' => '3334567890123'])->assertOk();
+        $this->postJson($url.'/mark-sent', ['transfer_reference' => '3334567890123'])->assertUnprocessable();
+        $send = ['transfer_reference' => '3334567890123', 'receipt' => UploadedFile::fake()->image('payout.png')];
+        $this->postJson($url.'/mark-sent', $send)->assertOk();
+        $path = $p->fresh()->receipt_path;
+        Storage::disk('ids')->assertExists($path);
+        $this->postJson($url.'/mark-sent', $send)->assertOk();
+        $this->assertSame($path, $p->fresh()->receipt_path);
+        $this->get('/api/v1/payouts/'.$p->id.'/receipt')->assertOk();
+        Sanctum::actingAs($seller);
+        $this->get('/api/v1/payouts/'.$p->id.'/receipt')->assertOk();
+        Sanctum::actingAs($this->buyer());
+        $this->get('/api/v1/payouts/'.$p->id.'/receipt')->assertNotFound();
+        $this->admin();
         $this->postJson($url.'/reject', ['reason' => 'This must not restore an already sent balance'])->assertConflict();
         $this->assertSame('processing', $p->fresh()->status);
         $this->postJson($url.'/complete')->assertOk();
@@ -163,10 +195,11 @@ class PlatformGcashCollectionTest extends TestCase
     {
         [, $seller, $payload] = $this->checkout(false);
         $o = Order::findOrFail($this->postJson('/api/v1/checkout/place-order', $payload)->assertCreated()->json('data.id'));
-        $admin = $this->admin(); app(GcashReview::class)->confirm($o, $admin, '1234567890123', $o->total);
-        $company = \App\Models\LogisticsCompany::findOrFail($o->logistics_company_id);
+        $admin = $this->admin();
+        app(GcashReview::class)->confirm($o, $admin, '1234567890123', $o->total);
+        $company = LogisticsCompany::findOrFail($o->logistics_company_id);
         $company->update(['gcash_number' => '09175555555', 'gcash_name' => 'Courier Test']);
-        \App\Models\Parcel::create(['tracking_number' => 'LIT-'.uniqid(), 'order_id' => $o->id, 'seller_id' => $seller->id,
+        Parcel::create(['tracking_number' => 'LIT-'.uniqid(), 'order_id' => $o->id, 'seller_id' => $seller->id,
             'logistics_company_id' => $company->id, 'status' => 'DELIVERED', 'delivered_at' => now()]);
         $url = '/api/v1/admin/platform-funding/companies/'.$company->id;
         $send = ['reference' => '4444567890123', 'amount' => $o->courierFeeAmount(), 'order_ids' => [$o->id], 'receipt' => UploadedFile::fake()->image('funding.png')];
@@ -174,7 +207,7 @@ class PlatformGcashCollectionTest extends TestCase
         $this->postJson($url, $send)->assertConflict();
         $this->assertSame(1, DB::table('platform_courier_funding_orders')->where('order_id', $o->id)->count());
         $courier = $this->buyer();
-        \App\Models\LogisticsCompanyMember::create(['logistics_company_id' => $company->id, 'user_id' => $courier->id, 'role' => 'owner']);
+        LogisticsCompanyMember::create(['logistics_company_id' => $company->id, 'user_id' => $courier->id, 'role' => 'owner']);
         Sanctum::actingAs($courier);
         $this->postJson("/api/v1/logistics/platform-funding/{$id}/confirm", ['received_in_gcash' => true])->assertOk();
         $this->assertNotNull(DB::table('platform_courier_fundings')->where('id', $id)->value('confirmed_at'));
@@ -199,8 +232,9 @@ class PlatformGcashCollectionTest extends TestCase
     {
         [$buyer, $seller, $payload] = $this->checkout(false);
         $o = Order::findOrFail($this->postJson('/api/v1/checkout/place-order', $payload)->assertCreated()->json('data.id'));
-        $admin = $this->admin(); app(GcashReview::class)->confirm($o, $admin, '1234567890123', $o->total);
-        app(\App\Services\Commerce\OrderCanceller::class)->cancel($o->fresh(), 'admin', $admin->id, 'Requested cancellation');
+        $admin = $this->admin();
+        app(GcashReview::class)->confirm($o, $admin, '1234567890123', $o->total);
+        app(OrderCanceller::class)->cancel($o->fresh(), 'admin', $admin->id, 'Requested cancellation');
         $refund = $o->fresh()->refund;
         Sanctum::actingAs($buyer);
         $this->putJson("/api/v1/buyer/orders/{$o->id}/refund/account", ['gcash_number' => '09176666666', 'gcash_name' => 'Juan Dela Cruz'])->assertOk();
@@ -209,11 +243,23 @@ class PlatformGcashCollectionTest extends TestCase
         $this->postJson("/api/v1/seller/orders/{$o->id}/refund/sent", $send)->assertNotFound();
         Sanctum::actingAs($admin);
         $this->postJson("/api/v1/admin/refunds/{$refund->id}/resolve", ['decision' => 'received', 'note' => 'Cannot mark a transfer that was never sent'])->assertConflict();
+        $this->getJson('/api/v1/admin/refunds?status=attention')->assertOk()
+            ->assertJsonFragment(['id' => $refund->id, 'payer' => 'platform']);
         $this->postJson("/api/v1/admin/refunds/{$refund->id}/sent", $send)->assertOk();
         Sanctum::actingAs($buyer);
         $this->postJson("/api/v1/buyer/orders/{$o->id}/refund/report", ['note' => 'Nothing arrived in my GCash account'])->assertOk();
         Sanctum::actingAs($admin);
         $this->postJson("/api/v1/admin/refunds/{$refund->id}/resolve", ['decision' => 'send_again', 'note' => 'Verified missing transfer and agreed to resend'])->assertOk();
         $this->postJson("/api/v1/admin/refunds/{$refund->id}/sent", $send)->assertUnprocessable();
+        $send['reference'] = '5554567890124';
+        $this->postJson("/api/v1/admin/refunds/{$refund->id}/sent", $send)->assertOk();
+        $this->travel(4)->days();
+        app(\App\Services\Commerce\ManualRefunds::class)->processDeadlines();
+        $this->assertSame('sent', $refund->fresh()->status);
+        $this->assertSame('pending', $o->fresh()->refund_status);
+        Sanctum::actingAs($buyer);
+        $this->postJson("/api/v1/buyer/orders/{$o->id}/refund/confirm")->assertOk();
+        $this->assertSame('received', $refund->fresh()->status);
+        $this->assertSame('refunded', $o->fresh()->refund_status);
     }
 }

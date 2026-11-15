@@ -1,6 +1,8 @@
 # Builds the signed release APK and prepares the local download files. Run from anywhere:
 #   powershell -ExecutionPolicy Bypass -File C:\Projects\basta_velure\setup\publish-apk.ps1
 # Upload these files to the active download host separately. See setup/mobile.md.
+param([ValidatePattern('^[1-9][0-9]{0,9}$')][string]$BuildNumber)
+
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 $mobile = Join-Path $repo 'mobile'
@@ -16,7 +18,11 @@ if (-not (Test-Path (Join-Path $mobile 'dart_defines\prod.json'))) {
 }
 
 # Each build gets a higher number than the last, so it installs over the old one.
-$build = Get-Date -Format 'yyMMddHH'
+$build = if ($BuildNumber) { $BuildNumber } else { Get-Date -Format 'yyMMddHH' }
+if ([long]$build -gt 2147483647) {
+    Write-Output 'Stopped: the Android build number must be at most 2147483647.'
+    exit 1
+}
 Set-Location $mobile
 Write-Output "Building version $build. This takes about 5 minutes..."
 # This PC also runs the live site, and the project's default lets Gradle take 8 GB of its 16. Only phones get this APK,

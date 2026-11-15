@@ -271,6 +271,7 @@ export default function EarningsTab() {
               </div>
             )}
           </section>
+          <p className="rounded-2xl border border-gray-200 bg-stone-50 p-4 text-xs text-stone-600">Your courier company pays these earned delivery and pickup shares manually to your saved GCash, then records the transfer. Use Request payment to ask your hub or courier to send your available earnings. Contact your courier for the payment schedule; these shares are separate from any salary agreement.</p>
           {/* Chart */}
           <section aria-label="Earnings chart" className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs space-y-3">
             <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wider">

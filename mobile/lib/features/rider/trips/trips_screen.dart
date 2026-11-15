@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/api_failure.dart';
 import '../../../core/format.dart';
@@ -10,6 +11,7 @@ import '../../../core/realtime/realtime.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../payments/rider_payments.dart';
 import '../data/rider_api.dart';
 import '../data/trip_models.dart';
 import '../widgets/rider_widgets.dart';
@@ -58,9 +60,97 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
         });
       }
     } catch (error) {
-      if (mounted && _data == null) {
+      if (mounted) {
         setState(() => _failure = ApiFailure.from(error));
       }
+    }
+  }
+
+  bool _sendingIssue = false;
+  Future<void> _reportIssue(TruckTrip trip) async {
+    if (_sendingIssue) return;
+    final controller = TextEditingController();
+    var kind = 'delay';
+    String? error;
+    final result = await showDialog<(String, String)>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Report trip issue'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: kind,
+                  decoration: const InputDecoration(labelText: 'Issue type'),
+                  items: const [
+                    DropdownMenuItem(value: 'delay', child: Text('Delay')),
+                    DropdownMenuItem(
+                      value: 'vehicle_issue',
+                      child: Text('Vehicle issue'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'parcel_issue',
+                      child: Text('Parcel / handover issue'),
+                    ),
+                    DropdownMenuItem(value: 'other', child: Text('Other')),
+                  ],
+                  onChanged: (value) => kind = value ?? 'delay',
+                ),
+                TextField(
+                  controller: controller,
+                  minLines: 3,
+                  maxLines: 5,
+                  maxLength: 1000,
+                  decoration: InputDecoration(
+                    labelText: 'What happened?',
+                    errorText: error,
+                  ),
+                ),
+                const Text(
+                  'Your courier and both hubs will be notified. Trip and pay status stay unchanged.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (controller.text.trim().length < 10) {
+                  setDialogState(
+                    () =>
+                        error = 'Describe the issue in at least 10 characters.',
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, (kind, controller.text.trim()));
+              },
+              child: const Text('Report issue'),
+            ),
+          ],
+        ),
+      ),
+    );
+    // The dialog route may still be animating while its text field unmounts.
+    Future<void>.delayed(const Duration(milliseconds: 300), controller.dispose);
+    if (result == null || !mounted) return;
+    _sendingIssue = true;
+    try {
+      final message = await ref
+          .read(riderApiProvider)
+          .reportTripIssue(trip.id, result.$1, result.$2);
+      if (mounted) showRiderMessage(context, message);
+      await _load();
+    } catch (error) {
+      if (mounted) showRiderMessage(context, ApiFailure.from(error).message);
+    } finally {
+      _sendingIssue = false;
     }
   }
 
@@ -94,10 +184,22 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                   120,
                 ),
                 children: [
+                  const RiderPaymentPanel(),
+                  if (_failure != null)
+                    MessageBanner(
+                      message: 'Refresh failed. This trip may be out of date. Pull down to retry.',
+                    ),
+                  const RiderCard(
+                    child: Text(
+                      'Your courier pays earned trip shares manually to your saved GCash and records a transfer reference. Use Request payment above to ask your hub or courier for your available earnings. Hubs confirm handover; contact your courier about payment timing and any separate salary agreement.',
+                      style: TextStyle(fontSize: 12, height: 1.5),
+                    ),
+                  ),
                   if (data.current != null)
                     _CurrentTrip(
                       trip: data.current!,
                       onArrived: () => _arrived(data.current!),
+                      onIssue: () => _reportIssue(data.current!),
                     )
                   else
                     const RiderCard(
@@ -146,10 +248,15 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
 }
 
 class _CurrentTrip extends StatelessWidget {
-  const _CurrentTrip({required this.trip, required this.onArrived});
+  const _CurrentTrip({
+    required this.trip,
+    required this.onArrived,
+    required this.onIssue,
+  });
 
   final TruckTrip trip;
   final Future<void> Function() onArrived;
+  final Future<void> Function() onIssue;
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +288,45 @@ class _CurrentTrip extends StatelessWidget {
             style: RiderText.body,
           ),
           const SizedBox(height: AppSpace.lg),
+          if (trip.toAddress != null)
+            Text('Receiving hub: ${trip.toAddress}', style: RiderText.body),
+          Text(
+            'ETA: ${trip.etaAt == null ? 'Not set by dispatch' : Fmt.dayTime(trip.etaAt)} · Expected trip pay: ${formatPeso(trip.payAmount)}',
+            style: RiderText.label,
+          ),
+          if (trip.toPhone != null)
+            TextButton.icon(
+              onPressed: () async {
+                final launched = await launchUrl(
+                  Uri(scheme: 'tel', path: trip.toPhone),
+                );
+                if (!launched && context.mounted) {
+                  showRiderMessage(
+                    context,
+                    'Could not open phone. Hub: ${trip.toPhone}',
+                  );
+                }
+              },
+              icon: const Icon(LucideIcons.phone, size: 16),
+              label: Text('Call hub · ${trip.toPhone}'),
+            ),
+          OutlinedButton.icon(
+            onPressed: onIssue,
+            icon: const Icon(LucideIcons.triangleAlert, size: 16),
+            label: const Text('Report trip issue'),
+          ),
+          for (final issue in trip.issues)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpace.sm),
+              child: MessageBanner(
+                message: '${issue.kind.replaceAll('_', ' ')}: ${issue.note}',
+              ),
+            ),
+          const Text(
+            'Arrival notifies the hub. The trip completes when the receiving hub scans every parcel. Missing parcels require courier review.',
+            style: TextStyle(fontSize: 12, color: AppColors.stone600),
+          ),
+          const SizedBox(height: AppSpace.md),
           if (trip.driverArrivedAt != null)
             MessageBanner(
               tone: StatusTone.emerald,
@@ -210,7 +356,14 @@ class _CurrentTrip extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSpace.sm),
                     Expanded(
-                      child: Text(p.trackingNumber, style: RiderText.mono),
+                      child: SelectableText(
+                        '${p.trackingNumber} · ${p.kind == 'buyer_return'
+                            ? 'Buyer return'
+                            : p.kind == 'return_to_sender'
+                            ? 'Return to sender'
+                            : 'Delivery'}',
+                        style: RiderText.mono,
+                      ),
                     ),
                   ],
                 ),

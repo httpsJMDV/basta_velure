@@ -41,8 +41,8 @@ class RefundCard extends ConsumerWidget {
           '${refund.overdue ? ' It is late, and Loved-IT has been told.' : ''}',
     'sent' =>
       '${refund.payerName} sent it to ${refund.gcashNumber}, reference ${refund.reference}. Check your GCash. '
-          'If you do not report a problem by ${Fmt.dateTime(refund.confirmBy)}, it counts as received.',
-    'not_received' => 'You said it did not arrive. Loved-IT is checking the shop\'s receipt and will tell you what happens next.',
+          '${refund.payer == 'platform' ? 'Confirm receipt or report a missing transfer. The case stays open until confirmed or reviewed by Loved-IT.' : 'If you do not report a problem by ${Fmt.dateTime(refund.confirmBy)}, it counts as received.'}',
+    'not_received' => 'You said it did not arrive. Loved-IT is checking the transfer receipt and will tell you what happens next.',
     'received' =>
       refund.autoConfirmed
           ? 'Counted as received: no problem was reported in time.'

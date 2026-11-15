@@ -60,4 +60,19 @@ class RiderTripController extends Controller
     {
         return Rider::with('user')->where('user_id', $request->user()->id)->firstOrFail();
     }
+
+    public function issue(Request $request, int $trip): JsonResponse
+    {
+        $data = $request->validate(['kind' => ['required', 'in:delay,vehicle_issue,parcel_issue,other'],
+            'note' => ['required', 'string', 'min:10', 'max:1000']]);
+        $note = trim($data['note']);
+        abort_if(mb_strlen($note) < 10, 422, 'Describe the issue in at least 10 characters.');
+        $driver = $this->driver($request);
+        DB::transaction(function () use ($driver, $trip, $data, $note) {
+            $row = TruckTrip::where('driver_id', $driver->id)->lockForUpdate()->findOrFail($trip);
+            $this->trucks->reportIssue($row, $driver, $data['kind'], $note);
+        });
+
+        return response()->json(['message' => 'Issue recorded. Your courier and both hubs have been notified.']);
+    }
 }

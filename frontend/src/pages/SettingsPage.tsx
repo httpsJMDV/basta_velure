@@ -983,7 +983,7 @@ function OrdersPanel({ fixedTab, title = 'Orders', subtitle = 'Everything you bo
 function VouchersPanel() {
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'mine' | 'collect'>('mine');
+  const [tab, setTab] = useState<'mine' | 'collect'>(() => new URLSearchParams(window.location.search).get('tab') === 'collect' ? 'collect' : 'mine');
   const [wallet, setWallet] = useState<WalletVoucher[] | null>(null);
   const [collect, setCollect] = useState<WalletVoucher[] | null>(null);
   const [code, setCode] = useState('');

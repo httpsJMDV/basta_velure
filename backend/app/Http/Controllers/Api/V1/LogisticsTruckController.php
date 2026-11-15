@@ -40,7 +40,7 @@ class LogisticsTruckController extends Controller
         $ids = $drivers->pluck('id');
 
         $current = TruckTrip::whereIn('driver_id', $ids)->where('status', TruckTrip::STATUS_ON_THE_WAY)->get()->keyBy('driver_id');
-        $unpaid = TruckTrip::unpaid()->whereIn('driver_id', $ids)
+        $unpaid = TruckTrip::unpaid()->whereNull('rider_payment_request_id')->whereIn('driver_id', $ids)
             ->selectRaw('driver_id, COUNT(*) as trips, SUM(pay_amount) as amount')->groupBy('driver_id')->get()->keyBy('driver_id');
         $weekStart = now('Asia/Manila')->startOfWeek()->utc();
         $week = TruckTrip::whereIn('driver_id', $ids)->where('departed_at', '>=', $weekStart)

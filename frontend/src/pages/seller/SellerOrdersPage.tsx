@@ -799,6 +799,7 @@ export default function SellerOrdersPage() {
                   <div key={it.id} className="p-2.5 flex items-center justify-between gap-2">
                     <div>
                       <p className="font-bold text-gray-900">{it.product_name}</p>
+                      {it.warranty && <details className="mt-1 text-xs text-stone-600"><summary className="cursor-pointer">Warranty at purchase</summary><p className="mt-1 whitespace-pre-line">{it.warranty}</p></details>}
                       <p className="text-[10px] text-gray-400">
                         {it.variant_label ? `${it.variant_label} · ` : ''}Qty: {it.quantity} × ₱{Number(it.unit_price).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                         {it.price_source === 'flash' ? ' · flash price' : it.price_source === 'sale' ? ' · sale price' : ''}

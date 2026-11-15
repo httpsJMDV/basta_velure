@@ -1,3 +1,4 @@
+import RiderPaymentRequests from '../../components/payments/RiderPaymentRequests';
 import ShippingPayPolicy from '../../components/logistics/ShippingPayPolicy';
 import { useCallback, useState } from 'react';
 import { AlertCircle, CalendarDays, CalendarRange, Coins, PackageCheck, Wallet } from 'lucide-react';
@@ -45,6 +46,7 @@ export default function HubEarningsPage() {
         subtitle="Your handling branch earns 10% of the courier fee on delivered parcels. Actual amounts appear below."
        />
 
+      <RiderPaymentRequests role="hub" />
       <ShippingPayPolicy />
 
       {error && !data && (

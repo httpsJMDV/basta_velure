@@ -19,6 +19,7 @@ import {
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import HeroCarousel from '../components/HeroCarousel';
+import PlatformVoucherSection from '../components/vouchers/PlatformVoucherSection';
 import ProductCard from '../components/ui/ProductCard';
 import CategoryArt from '../components/storefront/CategoryArt';
 import { useStorefrontCategories } from '../hooks/useStorefrontCategories';
@@ -31,7 +32,7 @@ import type { Product, FeaturedShop } from '../types';
 // ─── 1. How buying here works: four facts that are true of every order, in one ruled band ─────────
 const BUYING_FACTS = [
   { icon: Truck, title: 'Shipping by route and weight', sub: 'Shown in full before you pay' },
-  { icon: Banknote, title: 'Cash on delivery', sub: 'Or GCash straight to the shop' },
+  { icon: Banknote, title: 'Cash on delivery', sub: 'Or GCash as shown at checkout' },
   { icon: RotateCcw, title: '7-day returns', sub: 'For items damaged or not as described' },
   { icon: BadgeCheck, title: 'Checked shops', sub: 'Every seller is verified before selling' },
 ];
@@ -496,6 +497,7 @@ export default function HomePage() {
       {/* ── Main Middle Content Area (Clean Pure White Background) ── */}
       <main className="flex-1 bg-white">
         <BuyingFactsBand />
+        <PlatformVoucherSection />
 
         {/* What this shopper opened last (signed in) */}
         <RecentlyViewedSection />

@@ -209,7 +209,7 @@ export default function BuyerReceiptConfirm({ order, onUpdated }: BuyerReceiptCo
               <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" aria-hidden="true" />
               <p>
                 The seller&apos;s payment is released after the protection period. Once you confirm, the order is
-                completed and you can no longer request a return or refund for it.
+                completed and the standard in-app return/refund request closes. Applicable warranty and consumer rights remain; contact the seller or Loved-IT support for help.
               </p>
             </div>
 

@@ -10,9 +10,9 @@ Make sure you have all of these installed before starting:
 
 | Tool | Version | Download |
 |------|---------|----------|
-| PHP | 8.2 or higher | https://www.php.net/downloads |
+| PHP | 8.3 or higher | https://www.php.net/downloads |
 | Composer | Latest | https://getcomposer.org |
-| Node.js | 18 or higher | https://nodejs.org |
+| Node.js | 22.12 or higher | https://nodejs.org |
 | MySQL | 8.0 or higher | https://dev.mysql.com/downloads/mysql |
 | Git | Latest | https://git-scm.com |
 
@@ -35,7 +35,7 @@ Make sure you have all of these installed before starting:
 5. Set **Default Target Schema** to `velure`
 6. Click **Start Import**
 
-> The SQL file already contains all tables, the admin account, and any seed data — no need to run migrations or seeders separately.
+> The SQL file is a historical snapshot. After importing it, run `php artisan migrate` from `backend/` to apply newer schema changes. Do not re-import it over an existing installation.
 
 ---
 
@@ -184,8 +184,8 @@ Password: Admin@1234
 
 Two things happen automatically, once an hour, through Laravel's scheduler:
 
-- `orders:auto-complete` completes a delivered order the buyer never confirmed (after 3 days).
-- `payouts:release-due` makes a seller's earnings available once the 7-day protection period after completion has ended.
+- `orders:auto-complete` completes a delivered order the buyer never confirmed (after 7 days by default).
+- `payouts:release-due` releases held platform earnings after the configured protection period. The default hold is 0 days; use `PAYOUT_ESCROW_HOLD_DAYS` to add a hold.
 
 **The scheduler must be running, or neither happens and sellers are never paid.**
 
@@ -220,7 +220,7 @@ php artisan orders:auto-complete
 php artisan payouts:release-due
 ```
 
-Remove the two lines (or set 7 and 3) for normal use. Emails use the queue as before; keep `php artisan queue:work` running if `QUEUE_CONNECTION=database`.
+Remove the two lines (or set hold 0 and auto-complete 7) for normal use. Emails use the queue as before; keep `php artisan queue:work` running if `QUEUE_CONNECTION=database`.
 
 ---
 ## PHP Upload Limits (needed for delivery proof photos)
@@ -303,3 +303,62 @@ php artisan test
 **Frontend loads but API calls fail**
 - Make sure the backend (`php artisan serve`) is still running in a separate terminal
 - Check that `VITE_API_URL` in `frontend/.env` points to `http://localhost:8000/api/v1`
+
+
+## Commerce workflows (November 16, 2026)
+
+After pulling updates, run `php artisan migrate` in `backend/`, rebuild the web frontend with `npm run build`, and rebuild the mobile app. The warranty update adds nullable `warranty` columns to products and order items through `2026_11_16_120000_add_product_warranty_terms`; existing orders stay unchanged. Payout receipt columns already exist in the platform GCash migration. Restart long-running queue workers after deployment (`php artisan queue:restart`).
+
+### Platform GCash collection and refunds
+
+Set `GCASH_COLLECTION_MODE=platform` in the backend environment and configure the Loved-IT collection name and number under Admin > Payments > Collection account before accepting platform GCash checkouts. The collection account snapshot on each order determines who handles its refund; changing the mode does not rewrite older direct-payment orders.
+
+An approved return opens a pending refund; it does not send money. The buyer supplies a GCash account. Admin > Disputes > Refunds > Needs you now includes platform refunds waiting to be sent and sent refunds waiting for confirmation. The admin sends the money manually, records the 13-digit reference and a receipt, and the buyer confirms receipt or reports a missing transfer. A reviewed missing transfer can be sent again with a new reference; earlier transfer details remain in the case history. Platform refunds are not automatically counted as received by the deadline job.
+
+Keep `php artisan schedule:work` running in development (or the production cron above). Return and refund deadlines are processed every 15 minutes. Keep the queue worker running for notifications by email.
+
+### Seller payouts and commission
+
+Platform-collected GCash order items use their saved category commission rate. The category commission and seller-funded shipping are deducted from the seller earnings before they become available; requesting a payout does not deduct commission again. Cancelled and returned orders do not earn a payout. Direct GCash and COD use direct settlement: the courier settles collected COD with the shop, and category commission is billed through monthly statements. These direct funds are not also available as platform payout balance.
+
+For a platform payout, the admin must record a 13-digit transfer reference and a JPG, PNG or WebP receipt (up to 8 MB), then complete the request after checking receipt of funds. Sellers and admins can open the private receipt from payout history. A payout already sent cannot be rejected back into available balance. The existing private `ids` storage disk must persist across deployments; do not expose receipt folders publicly. PHP upload limits must allow these uploads (see above).
+
+### Buyer risk review and reverse logistics
+
+High-value orders now enter the default buyer risk queue at `ORDER_HIGH_VALUE_MIN` (default PHP 50,000, shared with the checkout agreement). The review covers the last 30 days and excludes cancelled, returned, and deleted high-value orders. Value is a manual review signal, not proof of fraud and does not automatically cancel an order. No backfill command is needed because the queue reads existing order data.
+
+Approved item returns use the existing courier flow: local rider collection with proof; for different hubs, buyer-side hub to shop-side hub through the network; then a local rider delivers to the seller, who confirms receipt. Nearby same-hub returns can go straight to the shop. Keep original parcel hub-stop history intact so returns can identify the shop-side hub.
+
+Confirming delivery closes the standard in-app return/refund request. Applicable warranties and consumer remedies remain available through the seller or Loved-IT support. The web terms and mobile Policies screen explain this distinction.
+
+
+### Seller-defined warranties
+
+Sellers set warranty terms per product under Seller > Products > Add/Edit > Warranty and after-sales support on the web. In the mobile seller Products screen, tap a product and use Save warranty. Specify the provider, duration/start date, coverage/exclusions, and claim steps (up to 2,000 characters). The buyer sees these terms on the product and a saved copy on each newly purchased order item. Later listing changes do not rewrite purchased terms. Existing orders are not backfilled from today's listing; use the original receipt or agreement for older purchases. Warranty help goes through the shop and Loved-IT support and does not reopen the standard return window automatically.
+
+### Where admin vouchers appear
+
+Create a platform or shipping voucher in Admin > Vouchers and select Claimable. While its date window is active and the total use limit is not exhausted, it appears in the Loved-IT vouchers section on web and mobile Home and in the buyer voucher collection screen. Buyers save it and choose it at checkout. Code only intentionally stays private and must be shared by code. Scheduled, ended and exhausted offers are not advertised. Web Home lets signed-in buyers claim directly; guests are directed to sign in.
+
+### Truck-driver operations and rider payment
+
+Drivers see the current trip, manifest (including buyer returns and return-to-sender parcels), receiving-hub address/phone, dispatch ETA when set, expected trip pay, arrival confirmation and hub scan progress. Drivers can report a delay, vehicle issue, parcel/handover issue or other problem. Reports notify courier staff and both hubs and appear in their activity feeds. A report never completes a trip or changes pay. Only the assigned driver can report on an ongoing trip; duplicate reports within five minutes are rejected. Finished trips continue to use receiving-hub scans or a courier decision to close a trip with missing parcels.
+
+The courier company pays earned rider shares and finished truck-trip pay manually to the staff member's saved GCash and records a transfer reference in its portal. Riders review their GCash under Account. Riders now request their available earned balance through the mobile app; their own hub or courier can record a manual GCash payment. No automatic GCash transfer is made. Any employment salary or cash payment arrangement is separate from the parcel/trip earnings tracked here. Contact the courier for payment timing.
+
+
+### Rider and truck-driver payment requests
+
+Run `php artisan migrate` to apply `2026_11_16_140000_create_rider_payment_requests`. It creates the request ledger and links reserved rider earnings and truck trips to each request. Rebuild the web frontend and mobile app after updating the API. The private `ids` disk must persist and PHP must accept receipt uploads up to 8 MB.
+
+**Rider mobile workflow:** open Earnings (delivery riders) or Trips (truck drivers), check the available balance and saved GCash, and tap Request payment. The confirmation shows the full available amount and account. Requests include earned pickup/delivery shares and finished unpaid truck trips in the rider's courier network; ongoing trips, already paid amounts and amounts reserved in another request are excluded. This is a request for tracked earnings, not a separately calculated employment salary. If the amount or account changes before submission, refresh and confirm again.
+
+**Hub or courier mobile workflow:** More > Rider payment requests opens a dedicated queue. Requests are also shown under the hub Earnings and courier Settlements and pay screens. Both parties see the same request; the hub sees its own branch's requests, and the courier sees its company's requests. Tap Take request first. This assigns the pending request to one staff member before transfer instructions open, so another hub or courier user cannot also process it. Check the saved account and earnings breakdown, send the amount manually in GCash, then attach the actual receipt, enter its 13-digit reference and confirm the transfer. The assignee can resume recording after an interrupted upload. Release assignment is available only to the assignee while the request is pending and requires confirmation that no funds were sent; assignments do not expire automatically. The app records proof; it does not move money itself.
+
+**Web workflow:** Rider Earnings / Trips > Request payment; Hub Earnings > Rider payment requests; Courier Settlements & pay > Payment requests. Web status dropdowns use CustomSelect.tsx.
+
+The request moves from Pending to Sent / awaiting rider confirmation to Received. The rider can open the private receipt and tap I received it after checking GCash, or report a missing payment. Reported payments remain open for the hub/courier to review; they are not automatically marked received or made available for another payment. The rider can confirm after the money arrives. Do not send a second transfer while reconciling a reported payment without verifying what actually happened.
+
+Only one open request is allowed per rider. It reserves exact earning/trip rows, so later earnings stay separate. A request declined before sending requires a reason and releases its unpaid rows for another request. Sent requests cannot be declined back into the balance. Hub and courier processing uses the same locked record, and the older bulk-pay tools skip reserved rows. GCash references cannot be reused across requests or existing rider/trip payment records within the same courier. Request, transfer, confirmation and issue events appear in activity logs and relevant actions notify the rider, home hub and courier.
+
+Existing paid earnings and trips are preserved. No backfill is needed; unpaid eligible earnings can be requested after the migration.

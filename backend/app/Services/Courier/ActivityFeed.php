@@ -7,6 +7,7 @@ use App\Models\LogisticsCompany;
 use App\Models\Parcel;
 use App\Models\ParcelHubStop;
 use App\Models\Rider;
+use App\Models\RiderPaymentRequest;
 use App\Models\SortingCenter;
 use App\Models\TruckTrip;
 use App\Models\User;
@@ -80,13 +81,20 @@ class ActivityFeed
         'rider.'                 => 'team',
         'truck_trip.departed'    => 'transfers',
         'truck_trip.closed'      => 'transfers',
+        'truck_trip.issue_reported' => 'transfers',
         'truck_trip.rate_changed' => 'money',
         'truck_driver.'          => 'money',
+        'rider_payment.'         => 'money',
         'cod.'                   => 'money',
         'shipping.'              => 'settings',
     ];
 
     private const AUDIT_TITLES = [
+        'rider_payment.requested' => 'Rider requested payment',
+        'rider_payment.sent' => 'Rider payment sent',
+        'rider_payment.received' => 'Rider confirmed payment received',
+        'rider_payment.rejected' => 'Rider payment request declined',
+        'rider_payment.reported' => 'Rider reported a missing payment',
         'dispatch.assigned'        => 'Pickup assigned by the courier',
         'dispatch.reassigned'      => 'Pickup reassigned by the courier',
         'rts.assigned'             => 'Return to sender assigned',
@@ -107,6 +115,7 @@ class ActivityFeed
         'rider.license_changed'    => 'License changed',
         'truck_trip.departed'      => 'Truck left with parcels',
         'truck_trip.closed'        => 'Truck trip closed with parcels missing',
+        'truck_trip.issue_reported' => 'Driver reported a trip issue',
         'truck_trip.rate_changed'  => 'Pay per truck trip changed',
         'truck_driver.paid'        => 'Truck driver paid',
         'cod.remittance_confirmed' => 'COD hand-over confirmed',
@@ -136,12 +145,14 @@ class ActivityFeed
             ->orWhereIn('id', ParcelHubStop::select('parcel_id')->where('sorting_center_id', $hub->id));
         $riderIds = Rider::withTrashed()->where('sorting_center_id', $hub->id)->select('id');
         $tripIds = TruckTrip::where('from_hub_id', $hub->id)->orWhere('to_hub_id', $hub->id)->select('id');
+        $paymentIds = RiderPaymentRequest::where('sorting_center_id', $hub->id)->select('id');
 
         $timeline = $this->timeline($filters)->whereIn('h.order_id', (clone $parcels)->select('order_id'));
         $audit = $this->audit($filters)->where(fn ($q) => $q
             ->where(fn ($w) => $w->where('a.subject_type', 'Parcel')->whereIn('a.subject_id', (clone $parcels)->select('id')))
             ->orWhere(fn ($w) => $w->where('a.subject_type', 'Rider')->whereIn('a.subject_id', $riderIds))
             ->orWhere(fn ($w) => $w->where('a.subject_type', 'TruckTrip')->whereIn('a.subject_id', $tripIds))
+            ->orWhere(fn ($w) => $w->where('a.subject_type', 'RiderPaymentRequest')->whereIn('a.subject_id', $paymentIds))
             ->orWhere('a.actor_user_id', $hub->user_id));
 
         return $this->page($timeline, $audit, $filters);
@@ -174,9 +185,11 @@ class ActivityFeed
     {
         $timeline = $this->timeline($filters)->where('h.actor_type', 'rider')->where('h.actor_id', $rider->user_id);
         $trips = TruckTrip::where('driver_id', $rider->id)->select('id');
+        $paymentIds = RiderPaymentRequest::where('rider_id', $rider->id)->select('id');
         $audit = $this->audit($filters)->where(fn ($q) => $q
             ->where(fn ($w) => $w->where('a.subject_type', 'Rider')->where('a.subject_id', $rider->id))
             ->orWhere(fn ($w) => $w->where('a.subject_type', 'TruckTrip')->whereIn('a.subject_id', $trips))
+            ->orWhere(fn ($w) => $w->where('a.subject_type', 'RiderPaymentRequest')->whereIn('a.subject_id', $paymentIds))
             ->orWhere('a.actor_user_id', $rider->user_id));
 
         return $this->page($timeline, $audit, $filters);

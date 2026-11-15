@@ -1,3 +1,4 @@
+import RiderPaymentRequests from '../../components/payments/RiderPaymentRequests';
 import PlatformCourierFunding from '../../components/payments/PlatformCourierFunding';
 import ShippingPayPolicy from '../../components/logistics/ShippingPayPolicy';
 import { useCallback, useEffect, useState } from 'react';
@@ -17,7 +18,7 @@ import { useToast } from '../../components/ui/Toast';
 import { HeroStats } from '../../components/logistics/CourierKit';
 import { apiErrorMessage } from '../../utils/apiError';
 
-type Tab = 'shops' | 'team' | 'account';
+type Tab = 'shops' | 'team' | 'account' | 'requests';
 type Payees = { riders: CourierPayoutRow[]; hubs: CourierPayoutRow[] };
 type PayingPerson = { kind: 'rider' | 'hub'; row: CourierPayoutRow };
 
@@ -31,7 +32,7 @@ const saveAccount = (p: { gcash_number: string | null; gcash_name: string | null
  */
 export default function LogisticsMoneyPage() {
   const [params, setParams] = useSearchParams();
-  const tab = (['shops', 'team', 'account'] as Tab[]).find((t) => t === params.get('tab')) ?? 'shops';
+  const tab = (['shops', 'team', 'account', 'requests'] as Tab[]).find((t) => t === params.get('tab')) ?? 'shops';
   const { showToast } = useToast();
 
   const [weeks, setWeeks] = useState<Weeks | null>(null);
@@ -72,6 +73,7 @@ export default function LogisticsMoneyPage() {
           options={[
             { value: 'shops', label: 'Shop statements', count: weeks ? weeks.weeks.reduce((n, w) => n + w.lines.filter((l) => (!l.settlement || l.settlement.state === 'pay_again') && l.direction !== 'none').length, 0) : null },
             { value: 'team', label: 'Rider & hub pay', count: payees ? [...payees.riders, ...payees.hubs].filter((r) => r.unpaid > 0).length : null },
+            { value: 'requests', label: 'Payment requests' },
             { value: 'account', label: 'Company GCash' },
           ]}
         />
@@ -79,7 +81,7 @@ export default function LogisticsMoneyPage() {
 
       <ShippingPayPolicy />
 
-      {failed ? <ListError message="The money records could not be loaded." onRetry={load} /> : tab === 'shops' ? (
+      {tab === 'requests' ? <RiderPaymentRequests role="logistics" /> : failed ? <ListError message="The money records could not be loaded." onRetry={load} /> : tab === 'shops' ? (
         !weeks ? <div className="h-64 rounded-2xl bg-gray-100 animate-pulse" /> : (
           <SettlementWeeks
             data={weeks}
