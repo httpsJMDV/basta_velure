@@ -13,7 +13,7 @@ import {
   ArrowRight, Activity, Minus,
   ShieldAlert,
   Gauge, PackageCheck, Wallet,
-  Coins, QrCode, Truck, Clock,
+  Coins, QrCode, Clock,
   CheckCircle2, Store, ShieldCheck
 } from 'lucide-react';
 import {
@@ -553,7 +553,7 @@ export function CommissionRevenueCard({ stats, data }: { stats: AdminStats; data
         </div>}
       </div>
 
-      <div className="mt-2 flex flex-col justify-between gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-end">
+      <div className="mt-2 flex flex-col justify-between gap-3 border-t border-gray-100 pt-3 sm:min-h-[84px] sm:flex-row sm:items-center">
         <div>
           <span className="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">Last 30 days</span>
           <p className="mt-0.5 text-2xl font-black tracking-tight text-gray-900">
@@ -583,7 +583,8 @@ export function CommissionRevenueCard({ stats, data }: { stats: AdminStats; data
 
 // ─── Compact Payment Split & Liquidity Card ───────────────────────────────────
 
-export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
+export function PaymentSplitCard({ stats, data }: { stats: AdminStats; data?: DashboardChartPoint[] }) {
+  const days = (data ?? []).filter(d => typeof d.gcash_volume === 'number' && typeof d.cod_volume === 'number' && Number.isFinite(d.gcash_volume) && Number.isFinite(d.cod_volume)).slice(-30);
   const split = stats.payment_split;
   const gcashVol   = split?.gcash.volume;
   const codVol     = split?.cod.volume;
@@ -594,8 +595,8 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
   const codPct   = totalVol ? 100 - gcashPct : 0;
 
   return (
-    <div className="flex flex-col justify-between h-full gap-3 p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+      <div className="flex flex-col justify-between gap-2.5 pb-3 border-b border-gray-100 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2.5">
           <div className="flex items-center justify-center font-bold text-blue-600 border border-blue-100 rounded-lg w-7 h-7 bg-blue-50 shrink-0">
             <QrCode className="w-3.5 h-3.5" />
@@ -605,29 +606,24 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
             <p className="text-[11px] text-gray-400">GCash vs Cash on Delivery, last 30 days</p>
           </div>
         </div>
-        <span className="px-2 py-0.5 text-[10px] font-bold text-gray-500 bg-gray-100 rounded-md">
-          {totalCount === null ? NA : `${whole(totalCount)} Total`}
-        </span>
+        <div className="flex items-center gap-3"><span className="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">{totalCount === null ? NA : `${whole(totalCount)} orders`}</span><Link to={reportsHref(stats.window, 'payments')} className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]">View in Reports <ArrowRight className="h-3 w-3" /></Link></div>
       </div>
 
-      <div className="space-y-3">
-        {/* Progress distribution bar */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px] font-bold">
-            <span className="flex items-center gap-1 text-blue-600"><QrCode className="w-3 h-3" /> GCash ({totalVol ? percent(gcashPct) : NA})</span>
-            <span className="flex items-center gap-1 text-emerald-700"><Truck className="w-3 h-3" /> COD ({totalVol ? percent(codPct) : NA})</span>
-          </div>
-          <div className="flex w-full h-2 overflow-hidden bg-gray-100 rounded-full">
-            <div className="h-full transition-all duration-700 bg-blue-600" style={{ width: `${gcashPct}%` }} />
-            <div className="h-full transition-all duration-700 bg-emerald-500" style={{ width: `${codPct}%` }} />
-          </div>
-        </div>
+      <div className="mt-3 flex-1" role="region" aria-label="Daily GCash and COD order value over the last 30 days">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] text-gray-400"><span>Daily order value</span><span>By order date · Manila time</span></div>
+        {days.some(d => d.gcash_volume || d.cod_volume) ? <div className="h-[92px] min-w-0"><ResponsiveContainer width="100%" height="100%"><BarChart data={days} margin={{ top: 6, right: 2, bottom: 0, left: 2 }} barCategoryGap="25%" accessibilityLayer>
+          <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3" /><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={chartDateLabel} interval="preserveStartEnd" minTickGap={32} height={20} /><YAxis hide />
+          <Tooltip labelFormatter={v => chartDateLabel(String(v))} formatter={(v, name) => [peso(Number(v)), name]} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 11 }} cursor={{ fill: '#f0f9ff' }} />
+          <Bar dataKey="gcash_volume" name="GCash order value" stackId="payments" fill="#2563eb" maxBarSize={18} isAnimationActive={false} /><Bar dataKey="cod_volume" name="COD order value" stackId="payments" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
+        </BarChart></ResponsiveContainer></div> : <div className="flex h-[92px] items-center justify-center rounded-lg bg-gray-50/80 px-4 text-center text-xs text-gray-400">{days.length ? 'No GCash or COD order value in this period.' : 'Daily payment breakdown is unavailable.'}</div>}
+      </div>
 
+      <div className="mt-2 grid content-center border-t border-gray-100 pt-3 sm:min-h-[84px]">
         {/* Breakdown Metric Pills */}
         <div className="grid grid-cols-2 gap-2.5">
           <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100">
             <div className="flex items-center justify-between mb-0.5 text-xs">
-              <span className="font-bold text-blue-700 text-[11px]">GCash</span>
+              <span className="font-bold text-blue-700 text-[11px]">GCash ({totalVol ? percent(gcashPct) : NA})</span>
               <span className="text-[10px] text-gray-500">{split ? `${whole(split.gcash.count)} orders` : NA}</span>
             </div>
             <p className="text-sm font-black text-gray-900 sm:text-base">{peso(gcashVol)}</p>
@@ -635,16 +631,14 @@ export function PaymentSplitCard({ stats }: { stats: AdminStats }) {
 
           <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
             <div className="flex items-center justify-between mb-0.5 text-xs">
-              <span className="font-bold text-emerald-700 text-[11px]">Cash on Delivery</span>
+              <span className="font-bold text-emerald-700 text-[11px]">COD ({totalVol ? percent(codPct) : NA})</span>
               <span className="text-[10px] text-gray-500">{split ? `${whole(split.cod.count)} orders` : NA}</span>
             </div>
             <p className="text-sm font-black text-gray-900 sm:text-base">{peso(codVol)}</p>
           </div>
         </div>
 
-        <Link to={reportsHref(stats.window, 'payments')} className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red hover:text-[#801f1f]">
-          View in Reports <ArrowRight className="w-3 h-3" />
-        </Link>
+
       </div>
     </div>
   );
@@ -954,7 +948,7 @@ export default function AdminDashboardPage() {
       ) : stats ? (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <CommissionRevenueCard stats={stats} data={feed?.chart_data} />
-          <PaymentSplitCard stats={stats} />
+          <PaymentSplitCard stats={stats} data={feed?.chart_data} />
         </div>
       ) : null}
 
