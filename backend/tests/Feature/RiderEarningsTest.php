@@ -150,9 +150,9 @@ class RiderEarningsTest extends TestCase
         app(\App\Services\RiderEarningsRecorder::class)->recordForParcel($parcel->fresh());
         $rows = RiderEarning::where('parcel_id', $parcel->id)->orderBy('kind')->get();
         $this->assertCount(2, $rows);
-        $this->assertSame(['10.00', '10.00'], $rows->pluck('amount')->all());
-        $this->assertSame('7.50', \App\Models\HubEarning::where('parcel_id', $parcel->id)->firstOrFail()->amount);
-        $this->assertSame(1250, $parcel->order->shipping_earnings['cents']['courier']);
+        $this->assertSame(['15.00', '15.00'], $rows->pluck('amount')->all());
+        $this->assertSame('5.00', \App\Models\HubEarning::where('parcel_id', $parcel->id)->firstOrFail()->amount);
+        $this->assertSame(750, $parcel->order->shipping_earnings['cents']['courier']);
     }
 
     public function test_percentage_budget_conserves_centavos_and_keeps_pickup_and_delivery_equal(): void
@@ -163,8 +163,8 @@ class RiderEarningsTest extends TestCase
             $this->assertSame($budget['cents']['pickup'], $budget['cents']['delivery']);
         }
         [$user] = $this->makeRider();
-        $this->summary($user)->assertOk()->assertJsonPath('data.rates.pickup_percent', 20)
-            ->assertJsonPath('data.rates.delivery_percent', 20)->assertJsonPath('data.rates.policy.courier', 25);
+        $this->summary($user)->assertOk()->assertJsonPath('data.rates.pickup_percent', 30)
+            ->assertJsonPath('data.rates.delivery_percent', 30)->assertJsonPath('data.rates.policy.courier', 15);
     }
 
     public function test_the_guide_in_the_app_is_told_the_pay_and_limits_in_force(): void

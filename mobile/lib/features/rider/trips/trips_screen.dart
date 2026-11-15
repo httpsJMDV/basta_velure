@@ -257,7 +257,7 @@ class _Pay extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.md),
           Text(
-            '${data.unpaidTrips} trip${data.unpaidTrips == 1 ? '' : 's'} · 20% transport pool shared across the route · '
+            '${data.unpaidTrips} trip${data.unpaidTrips == 1 ? '' : 's'} · 15% transport pool shared across the route · '
             '${data.tripsThisWeek} this week · ${formatPeso(data.paidTotal)} paid so far',
             style: const TextStyle(
               fontSize: 14,

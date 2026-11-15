@@ -141,20 +141,20 @@ class TruckTripTest extends TestCase
         $this->assertCount(2, $stops);
         $third = \App\Models\ParcelHubStop::create(['parcel_id' => $parcel->id, 'position' => 3,
             'sorting_center_id' => $this->first->id, 'mode' => 'truck', 'direction' => 'forward']);
-        $this->send([$parcel], $driver)->assertOk()->assertJsonPath('trip.pay_amount', 5);
+        $this->send([$parcel], $driver)->assertOk()->assertJsonPath('trip.pay_amount', 3.75);
         $trip = TruckTrip::firstOrFail();
         $allocator = app(\App\Services\ShippingAllocation::class);
         $this->assertSame(0, $allocator->claimTransport($stops[1], $trip));
-        $this->assertSame(500, $allocator->claimTransport($third, $trip));
+        $this->assertSame(375, $allocator->claimTransport($third, $trip));
         $this->assertSame(0, $allocator->claimTransport($third, $trip));
         $return = \App\Models\ParcelHubStop::create(['parcel_id' => $parcel->id, 'position' => 4,
             'sorting_center_id' => $this->second->id, 'mode' => 'truck', 'direction' => 'return']);
-        $this->assertSame(1000, $allocator->claimTransport($return, $trip));
+        $this->assertSame(500, $allocator->claimTransport($return, $trip));
         $this->assertSame(0, $allocator->claimTransport($return, $trip));
         $budget = $parcel->order->fresh()->shipping_earnings;
-        $this->assertSame(1000, array_sum(array_column($budget['transport_legs'], 'cents')));
-        $this->assertSame(1253, $budget['cents']['courier']);
-        $this->assertSame(1000, array_sum(array_column($budget['return_transport_legs'], 'cents')));
+        $this->assertSame(750, array_sum(array_column($budget['transport_legs'], 'cents')));
+        $this->assertSame(753, $budget['cents']['courier']);
+        $this->assertSame(500, array_sum(array_column($budget['return_transport_legs'], 'cents')));
         $this->assertSame(253, $budget['cents']['courier'] - $budget['return_reserve_cents']);
     }
 
@@ -169,11 +169,11 @@ class TruckTripTest extends TestCase
         $next = $pickup->stops()->create(['position' => 1, 'sorting_center_id' => $this->second->id]);
         $trucks = app(\App\Services\Courier\TruckTrips::class);
         $trip = $trucks->start($this->first, $this->second, $driver, 1, $this->firstUser, stops: [$next]);
-        $this->assertSame('10.00', $trip->pay_amount);
+        $this->assertSame('5.00', $trip->pay_amount);
         $this->assertSame(0, app(\App\Services\ShippingAllocation::class)->claimTransport($next, $trip));
         $budget = $parcel->order->fresh()->shipping_earnings;
-        $this->assertSame(1250, $budget['cents']['courier']);
-        $this->assertSame(1000, array_sum(array_column($budget['return_transport_legs'], 'cents')));
+        $this->assertSame(750, $budget['cents']['courier']);
+        $this->assertSame(500, array_sum(array_column($budget['return_transport_legs'], 'cents')));
         $this->assertSame(250, $budget['cents']['courier'] - $budget['return_reserve_cents']);
         $otherReturn = \App\Models\ParcelHubStop::create(['parcel_id' => $parcel->id, 'position' => 8,
             'sorting_center_id' => $this->first->id, 'direction' => 'return']);

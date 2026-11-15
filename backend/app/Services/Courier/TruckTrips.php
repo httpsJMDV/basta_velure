@@ -251,7 +251,7 @@ class TruckTrips
             'trips_this_week' => TruckTrip::where('driver_id', $driver->id)->where('departed_at', '>=', $weekStart)->count(),
             'rate'            => $this->rate($driver->company ?? ($driver->companyId() ? LogisticsCompany::find($driver->companyId()) : null)),
             'pay_model'       => 'shipping_percentage',
-            'transport_percent' => 20,
+            'transport_percent' => 15,
         ];
     }
 

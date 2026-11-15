@@ -127,7 +127,7 @@ export default function LogisticsTrucksPage() {
   return (
     <div className="w-full pb-8 space-y-4">
       <PageHero icon={Container} eyebrow="Network" title="Truck drivers"
-        subtitle="New orders reserve 20% of the courier fee for transport, shared across the planned route. Each trip shows its allocated pay.">
+        subtitle="New orders reserve 15% of the courier fee for transport, shared across the planned route. Each trip shows its allocated pay.">
         <div className="flex flex-wrap items-center gap-3">
           {s && (
             <HeroStats items={[
@@ -199,7 +199,7 @@ export default function LogisticsTrucksPage() {
                 <Input id="trip-rate" label="Pesos per trip" type="number" min={0} step="50" value={rate} onChange={(e) => setRate(e.target.value)} />
                 <button type="button" className={`${BUTTON.dark} w-full`} onClick={() => void saveRate()} disabled={rateBusy}>{rateBusy ? 'Saving…' : 'Save trip pay'}</button>
                 <p className="text-[12px] leading-relaxed text-stone-500">
-                  New orders use the 20% transport pool divided across their route, not this fixed rate. Return truck work uses a separate reserve of up to 20% of the shipping fee from the company’s 25% share. The courier covers other return work and external carrier costs from its operating funds. Trip pay is earned when the next hub receives the parcels, or the trip is closed.
+                  New orders use the 15% transport pool divided across their route, not this fixed rate. Return truck work uses a separate reserve of up to 10% of the shipping fee from the company’s 15% share. The courier covers other return work and external carrier costs from its operating funds. Trip pay is earned when the next hub receives the parcels, or the trip is closed.
                 </p>
               </div>
             </Panel>

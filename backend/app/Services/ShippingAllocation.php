@@ -11,7 +11,7 @@ use App\Support\Money;
 /** Immutable checkout budget; transport claims are serialized on the order row. */
 final class ShippingAllocation
 {
-    public const PERCENTAGES = ['pickup' => 20, 'delivery' => 20, 'hub' => 15, 'transport' => 20, 'courier' => 25];
+    public const PERCENTAGES = ['pickup' => 30, 'delivery' => 30, 'hub' => 10, 'transport' => 15, 'courier' => 15];
 
     public static function snapshot(string|float $fee): array
     {
@@ -24,7 +24,7 @@ final class ShippingAllocation
         $amounts['courier'] += $cents - array_sum($amounts);
 
         return ['version' => 1, 'fee_cents' => $cents, 'percentages' => self::PERCENTAGES, 'cents' => $amounts,
-            'return_reserve_cents' => min($amounts['transport'], $amounts['courier'])];
+            'return_reserve_cents' => min(intdiv($cents * 10, 100), $amounts['courier'])];
     }
 
     /** The full forward route shares ONE transport pool, including sea/air operating reserves. */

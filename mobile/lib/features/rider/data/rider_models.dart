@@ -677,8 +677,8 @@ enum EarningsPeriod {
 class RiderRates {
   const RiderRates({
     this.percentagePay = false,
-    this.pickupPercent = 20,
-    this.deliveryPercent = 20,
+    this.pickupPercent = 30,
+    this.deliveryPercent = 30,
     required this.pickup,
     required this.delivery,
     required this.maxDeliveryAttempts,

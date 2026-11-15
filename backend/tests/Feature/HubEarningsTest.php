@@ -91,7 +91,7 @@ class HubEarningsTest extends TestCase
             ->assertJsonPath('data.month', ['total' => '30.00', 'deliveries_count' => 4])
             ->assertJsonPath('data.lifetime', ['total' => '37.50', 'deliveries_count' => 5])
             ->assertJsonPath('data.delivery_fee', '50.00')
-            ->assertJsonPath('data.split', ['rider_percent' => 40, 'pickup_percent' => 20, 'delivery_percent' => 20, 'hub_percent' => 15]);
+            ->assertJsonPath('data.split', ['rider_percent' => 60, 'pickup_percent' => 30, 'delivery_percent' => 30, 'hub_percent' => 10]);
         $this->assertCount(5, $res->json('data.recent'));
         $this->assertSame('2026-10-14T01:00:00+00:00', $res->json('data.recent.0.earned_at'));
         $this->assertSame('50.00', $res->json('data.recent.0.delivery_fee'));

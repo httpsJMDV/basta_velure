@@ -82,11 +82,11 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                 ),
                 const SizedBox(height: AppSpace.md),
                 const Text(
-                  'New orders share the courier fee: 20% pickup, 20% delivery, '
-                  '15% handling branch, 20% transport pool and 25% courier company. '
-                  'On a ₱50 courier fee you earn ₱10 per leg, or ₱20 for both. '
+                  'New orders share the courier fee: 30% pickup, 30% delivery, '
+                  '10% handling branch, 15% transport pool and 15% courier company. '
+                  'On a ₱50 courier fee you earn ₱15 per leg, or ₱30 for both. '
                   'Previous orders keep their agreed pay; Earnings shows the actual amounts. '
-                  'A failed delivery attempt earns no delivery pay. Return transport reserves up to 20% from the company share, leaving at least 5% before other costs. Unused reserves stay with the company.',
+                  'A failed delivery attempt earns no delivery pay. Return transport reserves up to 10% from the company share, leaving at least 5% before other costs. Unused reserves stay with the company.',
                   style: _body,
                 ),
               ],

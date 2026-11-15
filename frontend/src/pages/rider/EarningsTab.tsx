@@ -290,7 +290,7 @@ export default function EarningsTab() {
               <StateCard
                 icon={Package}
                 title={`No earnings ${summary.period.is_current ? PERIOD_NOUN[type] : 'in this period'}`}
-                message="New orders earn 20% of the courier fee for pickup and 20% for successful delivery. Previous orders keep their original pay. A failed delivery attempt earns no delivery pay."
+                message="New orders earn 30% of the courier fee for pickup and 30% for successful delivery. Previous orders keep their original pay. A failed delivery attempt earns no delivery pay."
               />
             ) : (
               <ul className="space-y-2">

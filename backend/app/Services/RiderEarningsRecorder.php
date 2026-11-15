@@ -133,7 +133,7 @@ class RiderEarningsRecorder
                 'parcel_id'         => $parcel->id,
                 'amount'            => Money::fromCents($hubCents),
                 'earned_at'         => $earnedAt,
-                'notes'             => (100 - ShippingSplit::riderPercent()) . '% of the delivery fee',
+                'notes'             => ($parcel->order?->shipping_earnings['percentages']['hub'] ?? (100 - ShippingSplit::riderPercent())) . '% of the delivery fee',
             ]);
         } catch (QueryException $e) {
             if (($e->errorInfo[0] ?? null) !== '23000') {

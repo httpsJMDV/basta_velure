@@ -51,8 +51,8 @@ class RiderEarningsController extends Controller
                 // What the guide in the rider app tells them: the numbers that are actually in force.
                 'rates'                => [
                     'pay_model'             => 'shipping_percentage',
-                    'pickup_percent'        => 20,
-                    'delivery_percent'      => 20,
+                    'pickup_percent'        => 30,
+                    'delivery_percent'      => 30,
                     'policy'                => \App\Services\ShippingAllocation::PERCENTAGES,
                     'pickup'                => (string) config('shipping.rider_pay.pickup'),
                     'delivery'              => (string) config('shipping.rider_pay.delivery'),

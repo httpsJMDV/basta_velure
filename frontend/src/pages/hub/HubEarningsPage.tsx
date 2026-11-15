@@ -42,7 +42,7 @@ export default function HubEarningsPage() {
         updatedAt={lastUpdated}
         icon={Wallet}
         title="Earnings"
-        subtitle="Your handling branch earns 15% of the courier fee on delivered parcels. Actual amounts appear below."
+        subtitle="Your handling branch earns 10% of the courier fee on delivered parcels. Actual amounts appear below."
        />
 
       <ShippingPayPolicy />
