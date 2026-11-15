@@ -275,7 +275,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       showSnack(context, message);
       context.go(BuyerPaths.account);
       context.push(
-        BuyerPaths.ordersTab(_payment == 'gcash' ? 'to_pay' : 'to_ship'),
+        BuyerPaths.ordersTab('to_ship'),
       );
     } catch (error) {
       if (!mounted) return;

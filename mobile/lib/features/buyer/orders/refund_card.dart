@@ -178,7 +178,7 @@ class RefundCard extends ConsumerWidget {
                 TextButton.icon(
                   onPressed: () => _receipt(context, ref),
                   icon: const Icon(LucideIcons.receipt, size: 18),
-                  label: const Text('Shop\'s receipt'),
+                  label: const Text('Transfer receipt'),
                 ),
             ],
           ),
@@ -247,7 +247,7 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
             ),
             const SizedBox(height: AppSpace.xs),
             const Text(
-              'The shop sends it to this GCash account. You can change it until the shop has sent it.',
+              'The refund goes to this GCash account. You can change it until it has been sent.',
               style: TextStyle(color: AppColors.stone600),
             ),
             const SizedBox(height: AppSpace.md),
