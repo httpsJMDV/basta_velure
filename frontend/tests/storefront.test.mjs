@@ -23,6 +23,6 @@ test('Philippine peso labels preserve centavos without adding them to whole amou
 test('the delivered Loved-IT build exposes its classroom release output', async () => {
   const status = JSON.parse(await readFile(new URL('../public/ci-status.json', import.meta.url), 'utf8'));
   assert.equal(status.application, 'Loved-IT');
-  assert.equal(status.message, 'Loved-IT CI/CD pipeline is running!');
-  assert.equal(status.version, '1.0.0');
+  assert.equal(status.message, 'Welcome to Loved-IT - CI/CD Version 2.0!');
+  assert.equal(status.version, '2.0.0');
 });
