@@ -1,0 +1,15 @@
+# Allowlist the website and container configuration. Backend, SQL, Flutter and .git stay out.
+**
+!Dockerfile
+!frontend/
+!frontend/**
+!docker/
+!docker/**
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+frontend/**/*.log
+frontend/public/download/
+frontend/**/*.apk
+frontend/.git/
