@@ -121,6 +121,7 @@ class SellerRefund {
     required this.status,
     required this.amount,
     required this.canSend,
+    this.payerName = 'The shop',
     required this.overdue,
     this.gcashNumber,
     this.gcashName,
@@ -131,6 +132,7 @@ class SellerRefund {
   final String status;
   final double amount;
   final bool canSend;
+  final String payerName;
   final bool overdue;
   final String? gcashNumber;
   final String? gcashName;
@@ -139,7 +141,8 @@ class SellerRefund {
 
   String get statusLabel => switch (status) {
     'awaiting_account' => 'Waiting for the buyer\'s GCash number',
-    'awaiting_shop' => 'Send the refund',
+    'awaiting_shop' =>
+      payerName == 'Loved-IT' ? 'Loved-IT sends the refund' : 'Send the refund',
     'sent' => 'Sent, waiting for the buyer',
     'not_received' => 'Buyer says it did not arrive',
     'received' => 'Buyer received it',
@@ -153,6 +156,7 @@ class SellerRefund {
       status: asString(json['status']) ?? '',
       amount: asDouble(json['amount']),
       canSend: asBool(json['can_send']),
+      payerName: json['payer'] == 'platform' ? 'Loved-IT' : 'The shop',
       overdue: asBool(json['overdue']),
       gcashNumber: asString(json['gcash_number']),
       gcashName: asString(json['gcash_name']),
@@ -186,6 +190,7 @@ class SellerOrder {
     this.returnPickup,
     this.refund,
     this.notes,
+    this.platformCollection = false,
   });
 
   final int id;
@@ -215,9 +220,18 @@ class SellerOrder {
   final SellerRefund? refund;
   final String? notes;
 
+  final bool platformCollection;
+
   bool get isGcash => paymentMethod == 'gcash';
   bool get awaitingGcashCheck =>
-      isGcash && status == 'PLACED' && paymentStatus == 'pending_verification';
+      !platformCollection &&
+      isGcash &&
+      status == 'PLACED' &&
+      [
+        'pending',
+        'pending_verification',
+        'verification_failed',
+      ].contains(paymentStatus);
 
   String get statusLabel => switch (status) {
     'PLACED' => awaitingGcashCheck ? 'Check the GCash payment' : 'New order',
@@ -245,6 +259,7 @@ class SellerOrder {
       status: asString(json['status']) ?? '',
       paymentMethod: asString(json['payment_method']) ?? '',
       paymentStatus: asString(json['payment_status']) ?? '',
+      platformCollection: json['collection_payee'] is Map,
       total: asDouble(json['order_total']),
       earnings: asDouble(json['seller_earnings']),
       buyerName:

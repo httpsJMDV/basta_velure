@@ -73,7 +73,7 @@ export default function SellerPaymentsPage() {
           <div className="max-w-xl">
             <h1 className="text-[20px] font-bold tracking-tight text-gray-900">Payments</h1>
             <p className="mt-1 text-[13px] leading-relaxed text-gray-500">
-              Buyers pay you directly: by GCash to your own account, or in cash to the rider. Couriers settle the cash with you every week, and Loved-IT's commission is paid once a month.
+              New GCash orders are collected and verified by Loved-IT. Your net earnings become available after order completion, then you request a manual GCash payout. COD and older direct payments keep their courier settlements and monthly commission statements.
             </p>
           </div>
           <dl className="grid grid-cols-3 divide-x divide-gray-100 rounded-xl border border-gray-200 bg-gray-50/60 shrink-0">
@@ -287,12 +287,12 @@ function GcashSetup({ settings, onSaved }: { settings: SellerPaymentSettings; on
               <h2 className="text-[15px] font-semibold text-gray-900">Your GCash account</h2>
             </div>
             {settings.accepts_gcash
-              ? <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-emerald-700"><CheckCircle2 className="w-4 h-4" /> Taking GCash</span>
-              : <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700"><Clock className="w-4 h-4" /> Cash on delivery only</span>}
+              ? <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-emerald-700"><CheckCircle2 className="w-4 h-4" /> Settlement account saved</span>
+              : <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700"><Clock className="w-4 h-4" /> Add settlement account</span>}
           </header>
           <div className="px-5 sm:px-6 py-5 space-y-4">
             <p className="text-[13px] leading-relaxed text-gray-600">
-              Buyers who choose GCash send the money straight to this account and upload their receipt. You check the receipt in Orders before you pack.
+              This is your shop’s settlement account for COD and older direct payments. New buyer GCash payments go to Loved-IT. Request your available net earnings from Earnings & Payouts using your own GCash account.
             </p>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
@@ -308,7 +308,7 @@ function GcashSetup({ settings, onSaved }: { settings: SellerPaymentSettings; on
             </div>
             {turningOff && (
               <p className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-[12.5px] text-amber-900">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> Without a number, buyers can only pay you by cash on delivery.
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> Without an account, couriers cannot send your COD settlements to this shop account.
               </p>
             )}
 

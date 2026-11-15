@@ -1306,6 +1306,8 @@ export interface OrderItem {
 export type BuyerOrderTab = 'to_pay' | 'to_ship' | 'to_receive' | 'completed' | 'cancelled' | 'return_refund';
 
 export interface Order {
+  collection_payee?: GcashAccount | null;
+  collection?: GcashCollection | null;
   can_edit_delivery_address?: boolean;
   address_revision?: number;
   address_confirmed_at?: string | null;
@@ -1407,6 +1409,8 @@ export interface SellerOrderItem {
 }
 
 export interface SellerOrder {
+  collection_payee?: GcashAccount | null;
+  settlement?: string;
   id: number;
   /** The courier assigned to the order; only its riders collect the parcel. */
   courier?: CourierSummary | null;
@@ -1575,6 +1579,9 @@ export interface SellerOrderEarningsItem {
 }
 
 export interface PayoutRequest {
+  transfer_reference?: string | null;
+  sent_at?: string | null;
+  manual_reference_required?: boolean;
   id: number;
   reference_code: string;
   amount: number;
@@ -2680,6 +2687,7 @@ export interface CommissionSettings {
 }
 
 export interface AdminPaymentListItem {
+  collection?: GcashCollection | null;
   id: number;
   order_number: string;
   payment_method: 'gcash' | 'cod';
@@ -3263,7 +3271,12 @@ export interface GcashAccount {
 }
 
 /** How a shop in the cart gets paid (GET /checkout/shops). The GCash details only come to signed-in buyers. */
+export interface GcashCollection {
+  payee: GcashAccount; amount: string; order_count: number; order_ids: number[]; reference: string; can_review: boolean; has_cancelled_order: boolean;
+}
+
 export interface ShopPaymentInfo {
+  collection_mode?: 'platform' | 'direct';
   seller_id: number;
   shop_name: string;
   accepts_gcash: boolean;

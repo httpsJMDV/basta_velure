@@ -19,6 +19,7 @@ import '../data/orders.dart';
 import '../widgets/buyer_theme.dart';
 import '../widgets/buyer_widgets.dart';
 import 'refund_card.dart';
+import 'gcash_receipt_card.dart';
 import 'delivery_address_sheet.dart';
 
 final orderProvider = FutureProvider.autoDispose.family<Order, int>(
@@ -52,6 +53,12 @@ class OrderDetailScreen extends ConsumerWidget {
             ),
             children: [
               _StatusCard(order: order),
+              if (order.platformCollection &&
+                  order.paymentStatus == 'verification_failed')
+                GcashReceiptCard(
+                  order: order,
+                  onDone: () => ref.invalidate(orderProvider(orderId)),
+                ),
               if (order.canTrack) _TrackingCard(order: order),
               if (order.returnRequest != null) _ReturnCard(order: order),
               if (order.refund != null)
@@ -100,7 +107,11 @@ class _StatusCard extends StatelessWidget {
 
   String? get _note => switch (order.status) {
     OrderStatus.placed when order.paymentMethod == 'gcash' =>
-      'The shop is checking your GCash payment.',
+      order.platformCollection
+          ? (order.paymentStatus == 'paid'
+                ? 'Loved-IT verified payment. Waiting for the shop to accept.'
+                : 'Loved-IT is reviewing your GCash receipt. Do not send another payment while it is being checked.')
+          : 'The shop is checking your GCash payment.',
     OrderStatus.placed => 'Waiting for the shop to accept your order.',
     OrderStatus.confirmed ||
     OrderStatus.preparing => 'The shop is preparing your package.',

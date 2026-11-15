@@ -581,7 +581,7 @@ function Assurances({ product }: { product: ProductDetail }) {
       detail: <>{freeFrom !== null ? <>Free delivery on {peso(freeFrom)}+ from this shop. </> : null}Shipping is by route and weight, shown at checkout{from && <> · ships from {from}</>}</>,
       action: <Link to="/settings/addresses" className="text-[12px] font-semibold text-brand-red hover:underline shrink-0">{user?.default_address ? 'Change' : 'Set address'}</Link>,
     },
-    { icon: Banknote, title: 'Cash on delivery available', detail: shop && !shop.accepts_gcash ? 'Pay the rider in cash when your order arrives.' : 'Pay the rider when your order arrives, or pay the shop by GCash at checkout.' },
+    { icon: Banknote, title: 'Cash on delivery available', detail: shop && !shop.accepts_gcash ? 'Pay the rider in cash when your order arrives.' : 'Pay the rider when your order arrives, or choose GCash at checkout.' },
     { icon: RotateCcw, title: '7-day returns', detail: product.return_policy ?? 'Damaged, wrong or incomplete? Request a return within 7 days of delivery.' },
     { icon: ShieldCheck, title: 'Buyer protection', detail: 'Every shop is verified before it can sell, and our team reviews any return a shop will not settle.' },
   ];

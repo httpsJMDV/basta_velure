@@ -110,6 +110,8 @@ export default function CheckoutPage() {
   const stores = quote?.stores ?? [];
   const wallet = quote?.wallet ?? [];
   const shopInfo = useShopPaymentInfo(stores.map((s) => s.seller.id), method === 'gcash', user?.id);
+  const centralGcash = stores.length > 0 && shopInfo[stores[0].seller.id]?.collection_mode === 'platform';
+  const paymentStores = centralGcash && quote ? [{ ...stores[0], seller: { ...stores[0].seller, id: 0, shop_name: 'Loved-IT' }, total: quote.totals.total }] : stores;
   const gcashBlockers = stores.filter((s) => !s.seller.accepts_gcash);
   const isRemote = stores.some((s) => s.shipping.remote);
   const address = addresses.find((a) => a.id === addressId);
@@ -191,15 +193,15 @@ export default function CheckoutPage() {
 
     if (method === 'gcash') {
       const errors: Record<number, PayErrors> = {};
-      for (const s of stores) {
+      for (const s of paymentStores) {
         const ref = refs[s.seller.id] ?? '';
         const err: PayErrors = {};
         if (!ref) err.reference = 'Enter the reference number from your GCash receipt.';
         else if (ref.length !== 13) err.reference = `A GCash reference number has 13 digits; this one has ${ref.length}.`;
-        if (!proofs[s.seller.id]) err.receipt = 'Upload the screenshot of your GCash receipt so the shop can check your payment.';
+        if (!proofs[s.seller.id]) err.receipt = 'Upload the screenshot of your GCash receipt so the recipient can check your payment.';
         if (err.reference || err.receipt) errors[s.seller.id] = err;
       }
-      const first = stores.find((s) => errors[s.seller.id]);
+      const first = paymentStores.find((s) => errors[s.seller.id]);
       if (first) {
         setPayErrors(errors);
         shopRefs.current[first.seller.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -226,7 +228,7 @@ export default function CheckoutPage() {
       fd.append('expected_total', String(quote.totals.total));
       if (agreed) fd.append('high_value_agreed', '1');
       if (isRemote) fd.append('remote_delivery', remoteDelivery);
-      for (const s of stores) {
+      for (const s of paymentStores) {
         fd.append(`gcash[${s.seller.id}][reference]`, refs[s.seller.id] ?? '');
         const proof = proofs[s.seller.id];
         if (proof) fd.append(`gcash_proof[${s.seller.id}]`, proof);
@@ -250,7 +252,7 @@ export default function CheckoutPage() {
       } else {
         const fieldErrors = res?.data?.errors ?? {};
         const serverPay: Record<number, PayErrors> = {};
-        for (const s of stores) {
+        for (const s of paymentStores) {
           const single = stores.length === 1;
           const reference = fieldErrors[`gcash.${s.seller.id}.reference`]?.[0] ?? (single ? fieldErrors.payment_reference?.[0] : undefined);
           const receipt = fieldErrors[`gcash_proof.${s.seller.id}`]?.[0] ?? (single ? fieldErrors.payment_proof?.[0] : undefined);
@@ -368,16 +370,16 @@ export default function CheckoutPage() {
               {method === 'gcash' && stores.length > 0 && (
                 <section className="rounded-2xl bg-white border border-stone-200 p-4 sm:p-5" aria-label="GCash payment">
                   <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-900"><img src={gcashMark} alt="" className="w-5 h-5" /> Pay by GCash</h2>
-                  <p className="mt-0.5 text-[12.5px] text-stone-500">Send the amount to {stores.length > 1 ? 'each shop' : 'the shop'}, then enter the reference number and upload the receipt.</p>
+                  <p className="mt-0.5 text-[12.5px] text-stone-500">{centralGcash ? 'Send one payment for the full checkout to Loved-IT. An admin checks receipt before shops can accept your orders.' : 'Send each shop its order amount, then attach the receipt.'}</p>
                   <div className="mt-4 space-y-3">
-                    {stores.map((s, i) => {
-                      const info = shopInfo[s.seller.id];
+                    {paymentStores.map((s, i) => {
+                      const info = shopInfo[centralGcash ? stores[0].seller.id : s.seller.id];
                       const err = payErrors[s.seller.id] ?? {};
                       const preview = proofPreviews[s.seller.id];
                       return (
                         <section key={s.seller.id} ref={(el) => { shopRefs.current[s.seller.id] = el; }} className="rounded-xl border border-stone-200 p-4 space-y-4" aria-label={`GCash payment to ${s.seller.shop_name}`}>
                           <p className="flex items-center gap-2 text-[14px] font-semibold text-stone-900 min-w-0">
-                            {stores.length > 1 && <span className="w-6 h-6 rounded-full bg-stone-900 text-white text-[12px] flex items-center justify-center shrink-0">{i + 1}</span>}
+                            {paymentStores.length > 1 && <span className="w-6 h-6 rounded-full bg-stone-900 text-white text-[12px] flex items-center justify-center shrink-0">{i + 1}</span>}
                             <span className="truncate">{s.seller.shop_name}</span>
                           </p>
                           {info?.gcash ? <GcashPayee account={info.gcash} amount={s.total} /> : <div className="h-28 rounded-2xl bg-stone-100 animate-pulse" />}
@@ -417,7 +419,7 @@ export default function CheckoutPage() {
                 <div className="mt-2.5 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Payment method">
                   {([
                     { key: 'cod', title: 'Cash on delivery', text: quote?.limits?.cod_blocked ? 'Off for your account' : codOff && quote?.limits ? `Up to ${peso(quote.limits.cod_max)} per shop` : 'Pay the rider', icon: <Banknote className="w-5 h-5 text-amber-600" /> },
-                    { key: 'gcash', title: 'GCash', text: gcashBlockers.length ? 'Not every shop takes it' : 'Send to the shop', icon: <img src={gcashMark} alt="" className="w-5 h-5 object-contain" /> },
+                    { key: 'gcash', title: 'GCash', text: gcashBlockers.length ? 'Not every shop takes it' : 'Pay Loved-IT securely', icon: <img src={gcashMark} alt="" className="w-5 h-5 object-contain" /> },
                   ] as const).map((m) => {
                     const on = method === m.key;
                     const off = m.key === 'gcash' ? gcashBlockers.length > 0 : codOff;
@@ -740,13 +742,13 @@ function Placed({ orders, method }: { orders: Order[]; method: Method }) {
               </li>
             ))}
             <li className="flex items-center justify-between gap-3 px-4 py-3 bg-stone-50/70">
-              <span className="text-stone-600">{method === 'gcash' ? 'Paid to the shops by GCash' : 'Pay on delivery'}</span>
+              <span className="text-stone-600">{method === 'gcash' ? 'GCash payment submitted' : 'Pay on delivery'}</span>
               <span className="text-[16px] font-bold text-brand-red tabular-nums">{peso(total)}</span>
             </li>
           </ul>
           <p className={`mt-4 text-[13px] rounded-2xl px-4 py-3 text-left ${method === 'gcash' ? 'bg-amber-50 text-amber-900' : 'bg-sky-50 text-sky-900'}`}>
             {method === 'gcash'
-              ? 'The shop checks your GCash receipt first. Once it is confirmed, your order is packed and handed to the courier.'
+              ? 'Your GCash receipt is checked against the recipient’s transaction history. Once payment is verified, shops can accept and pack your orders. Do not pay again while a receipt is under review.'
               : `Prepare ${peso(total)} in cash for the rider${orders.length > 1 ? 's (each parcel is paid separately)' : ''}.`}
           </p>
           <p className="mt-2 text-[12.5px] text-stone-500 text-left px-1">The shop will message you in Messages to confirm your delivery address.</p>

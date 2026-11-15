@@ -6,6 +6,8 @@ import { getStatusLabel, getStatusBadgeClass, normalizeOrderStatus } from '../..
 import OrderStatusTimeline from './OrderStatusTimeline';
 import BuyerReceiptConfirm from './BuyerReceiptConfirm';
 import TrackPackageButton from '../tracking/TrackPackageButton';
+import BuyerGcashReceipt from '../payments/BuyerGcashReceipt';
+import { http } from '../../api/client';
 import BuyerRefundPanel from './BuyerRefundPanel';
 import ReturnPickupProgress from './ReturnPickupProgress';
 import OrderDeliveryAddress from './OrderDeliveryAddress';
@@ -20,7 +22,7 @@ import { pesoCompact as peso } from '../../utils/pricing';
 
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
-const METHOD: Record<string, string> = { cod: 'Cash on delivery', gcash: 'GCash to the shop', e_wallet: 'E-wallet', card: 'Card' };
+const METHOD: Record<string, string> = { cod: 'Cash on delivery', gcash: 'GCash', e_wallet: 'E-wallet', card: 'Card' };
 
 /**
  * One order as the buyer sees it (B10 to B12): where it stands, what it cost (vouchers included), and the actions
@@ -90,7 +92,7 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
               {order.payment_status === 'failed' ? 'Payment failed' : 'To pay'}
             </span>
           ) : gcashPending ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-50 text-amber-800"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Shop is checking your GCash</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-50 text-amber-800"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> {order.collection_payee ? 'Loved-IT is checking your GCash' : 'Shop is checking your GCash'}</span>
           ) : (
             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-semibold ${getStatusBadgeClass(status)}`}>{returnLabel(dispute?.status) ?? getStatusLabel(status)}</span>
           )}
@@ -153,7 +155,7 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
           </p>
         )}
         {order.payment_status === 'verification_failed' && order.rejection_reason && (
-          <p className="rounded-xl bg-red-50 px-3 py-2 text-[12.5px] text-red-800"><span className="font-semibold">From the shop: </span>{order.rejection_reason}</p>
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-[12.5px] text-red-800"><span className="font-semibold">Payment review: </span>{order.rejection_reason}</p>
         )}
         {status === 'CANCELLED' && (
           <p className="rounded-xl bg-stone-50 px-3 py-2 text-[12.5px] text-stone-700">
@@ -163,6 +165,7 @@ export default function BuyerOrderCard({ order, onUpdated, multiShop }: { order:
           </p>
         )}
         {dispute && <ReturnStatus order={order} onEscalate={escalate} escalating={busy === 'escalate'} />}
+        <BuyerGcashReceipt order={order} onDone={() => { void http.get<{ data: Order }>(`/buyer/orders/${order.id}`).then(r => onUpdated(r.data.data)); }} />
         {order.refund && <BuyerRefundPanel key={`${order.refund.id}-${order.refund.status}`} order={order} refund={order.refund} onUpdated={onUpdated} />}
         {multiShop && <p className="text-[12px] text-stone-500">Part of a checkout with several shops; each shop ships its own parcel.</p>}
         {status === 'DELIVERED' && <BuyerReceiptConfirm order={order} onUpdated={onUpdated} />}

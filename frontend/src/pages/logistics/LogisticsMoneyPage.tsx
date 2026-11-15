@@ -1,3 +1,4 @@
+import PlatformCourierFunding from '../../components/payments/PlatformCourierFunding';
 import ShippingPayPolicy from '../../components/logistics/ShippingPayPolicy';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -51,6 +52,7 @@ export default function LogisticsMoneyPage() {
 
   return (
     <div className="w-full pb-8 space-y-4">
+      <PlatformCourierFunding />
       <PageHero icon={Banknote} eyebrow="Money" title="Settlements & pay"
         subtitle="Settle the cash your riders collect with each shop every week, and share new-order shipping fees across riders, branches, transport and your company.">
         {weeks && (

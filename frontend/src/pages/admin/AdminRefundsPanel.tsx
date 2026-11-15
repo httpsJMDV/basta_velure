@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Wallet, Receipt, ChevronLeft, ChevronRight } from 'lucide-react';
+import SellerRefundBlock from '../../components/orders/SellerRefundBlock';
 import { getAdminRefundsApi, refundReceiptUrlApi, resolveRefundApi } from '../../api/commerce';
 import type { RefundRow, RefundStatus } from '../../api/commerce';
 import { ListCard, ListEmpty, ListError, Pill, SkeletonCards, StatusTabs, type PillTone } from '../../components/admin/listKit';
@@ -91,7 +92,7 @@ export default function AdminRefundsPanel() {
                     <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-bold text-gray-900">
-                          {peso(r.amount)} · {r.shop?.shop_name ?? 'Shop'} → {r.buyer?.name ?? 'Buyer'}
+                          {peso(r.amount)} · {r.payer === 'platform' ? 'Loved-IT' : r.shop?.shop_name ?? 'Shop'} → {r.buyer?.name ?? 'Buyer'}
                         </p>
                         <p className="text-[12px] text-gray-500">
                           {r.order && <Link to={`/admin/orders?search=${encodeURIComponent(r.order.order_number)}`} className="font-mono hover:text-brand-red">{r.order.order_number}</Link>}
@@ -108,6 +109,7 @@ export default function AdminRefundsPanel() {
                       {r.resolution_note && <p className="text-gray-500">Last decision: {r.resolution_note}</p>}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
+                      {r.can_send && r.order && <SellerRefundBlock admin orderId={r.order.id} refund={r} onChanged={() => load()} />}
                       {r.has_receipt && (
                         <button type="button" onClick={() => void openReceipt(r.id)} className="h-8 px-3 rounded-full border border-gray-300 text-[12px] font-semibold inline-flex items-center gap-1.5 hover:border-gray-900">
                           <Receipt className="w-3.5 h-3.5" /> Receipt

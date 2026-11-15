@@ -68,11 +68,11 @@ export default function BuyerRefundPanel({ order, refund, onUpdated }: { order: 
       </p>
 
       {refund.status === 'awaiting_account' && !editing && (
-        <p className="mt-1">You paid the shop directly, so the shop sends your refund to a GCash account.</p>
+        <p className="mt-1">{refund.payer === 'platform' ? 'Loved-IT sends your refund to your GCash account.' : 'The shop sends your refund to your GCash account.'}</p>
       )}
       {refund.status === 'awaiting_shop' && (
         <p className="mt-1">
-          The shop sends it to <span className="font-semibold">{refund.gcash_number}</span> ({refund.gcash_name})
+          {refund.payer === 'platform' ? 'Loved-IT' : 'The shop'} sends it to <span className="font-semibold">{refund.gcash_number}</span> ({refund.gcash_name})
           {refund.send_by ? ` by ${when(refund.send_by)}` : ''}.{refund.overdue ? ' It is late, and Loved-IT has been told.' : ''}
         </p>
       )}

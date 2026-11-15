@@ -34,19 +34,19 @@ class RefundCard extends ConsumerWidget {
 
   String get _explanation => switch (refund.status) {
     'awaiting_account' =>
-      'You paid the shop directly, so the shop sends your refund to a GCash account. Tell us which one.',
+      '${refund.payerName} sends your refund to a GCash account. Tell us which one.',
     'awaiting_shop' =>
-      'The shop sends it to ${refund.gcashNumber} (${refund.gcashName})'
+      '${refund.payerName} sends it to ${refund.gcashNumber} (${refund.gcashName})'
           '${refund.sendBy != null ? ' by ${Fmt.dateTime(refund.sendBy)}' : ''}.'
           '${refund.overdue ? ' It is late, and Loved-IT has been told.' : ''}',
     'sent' =>
-      'The shop sent it to ${refund.gcashNumber}, reference ${refund.reference}. Check your GCash. '
+      '${refund.payerName} sent it to ${refund.gcashNumber}, reference ${refund.reference}. Check your GCash. '
           'If you do not report a problem by ${Fmt.dateTime(refund.confirmBy)}, it counts as received.',
-    'not_received' =>
-      'You said it did not arrive. Loved-IT is checking the shop\'s receipt and will tell you what happens next.',
-    'received' => refund.autoConfirmed
-        ? 'Counted as received: no problem was reported in time.'
-        : 'Received ${Fmt.dateTime(refund.receivedAt)}.',
+    'not_received' => 'You said it did not arrive. Loved-IT is checking the shop\'s receipt and will tell you what happens next.',
+    'received' =>
+      refund.autoConfirmed
+          ? 'Counted as received: no problem was reported in time.'
+          : 'Received ${Fmt.dateTime(refund.receivedAt)}.',
     _ => '',
   };
 
@@ -67,7 +67,8 @@ class RefundCard extends ConsumerWidget {
     final ok = await confirmAction(
       context,
       title: 'Did the refund arrive?',
-      message: 'Only confirm once ${formatPeso(refund.amount)} is in your GCash.',
+      message:
+          'Only confirm once ${formatPeso(refund.amount)} is in your GCash.',
       confirmLabel: 'Yes, I received it',
     );
     if (!ok) return;
@@ -76,7 +77,9 @@ class RefundCard extends ConsumerWidget {
       onChanged();
       if (context.mounted) showSnack(context, message);
     } catch (error) {
-      if (context.mounted) showSnack(context, ApiFailure.from(error).message, error: true);
+      if (context.mounted) {
+        showSnack(context, ApiFailure.from(error).message, error: true);
+      }
     }
   }
 
@@ -105,8 +108,13 @@ class RefundCard extends ConsumerWidget {
             child: snapshot.hasError
                 ? const Text('The receipt could not be loaded.')
                 : !snapshot.hasData
-                ? const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()))
-                : InteractiveViewer(child: Image.memory(Uint8List.fromList(snapshot.data!))),
+                ? const SizedBox(
+                    height: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : InteractiveViewer(
+                    child: Image.memory(Uint8List.fromList(snapshot.data!)),
+                  ),
           ),
         ),
       ),
@@ -121,15 +129,23 @@ class RefundCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Expanded(child: BlockTitle('Refund ${formatPeso(refund.amount)}')),
+              Expanded(
+                child: BlockTitle('Refund ${formatPeso(refund.amount)}'),
+              ),
               StatusChip(label: refund.statusLabel, tone: _tone),
             ],
           ),
           const SizedBox(height: AppSpace.sm),
-          Text(_explanation, style: const TextStyle(color: AppColors.stone700, height: 1.45)),
+          Text(
+            _explanation,
+            style: const TextStyle(color: AppColors.stone700, height: 1.45),
+          ),
           if (refund.resolutionNote != null && !refund.done) ...[
             const SizedBox(height: AppSpace.sm),
-            MessageBanner(message: 'Loved-IT: ${refund.resolutionNote}', tone: StatusTone.blue),
+            MessageBanner(
+              message: 'Loved-IT: ${refund.resolutionNote}',
+              tone: StatusTone.blue,
+            ),
           ],
           const SizedBox(height: AppSpace.md),
           Wrap(
@@ -143,9 +159,15 @@ class RefundCard extends ConsumerWidget {
                   label: const Text('Add GCash account'),
                 ),
               if (refund.status == 'awaiting_shop' && refund.canSetAccount)
-                OutlinedButton(onPressed: () => _account(context), child: const Text('Change account')),
+                OutlinedButton(
+                  onPressed: () => _account(context),
+                  child: const Text('Change account'),
+                ),
               if (refund.canConfirm)
-                FilledButton(onPressed: () => _confirm(context, ref), child: const Text('I received it')),
+                FilledButton(
+                  onPressed: () => _confirm(context, ref),
+                  child: const Text('I received it'),
+                ),
               if (refund.canReport)
                 OutlinedButton.icon(
                   onPressed: () => _report(context),
@@ -177,8 +199,12 @@ class _AccountSheet extends ConsumerStatefulWidget {
 
 class _AccountSheetState extends ConsumerState<_AccountSheet> {
   final _form = GlobalKey<FormState>();
-  late final _number = TextEditingController(text: widget.order.refund?.gcashNumber ?? '');
-  late final _name = TextEditingController(text: widget.order.refund?.gcashName ?? '');
+  late final _number = TextEditingController(
+    text: widget.order.refund?.gcashNumber ?? '',
+  );
+  late final _name = TextEditingController(
+    text: widget.order.refund?.gcashName ?? '',
+  );
   ApiFailure? _failure;
 
   @override
@@ -192,11 +218,14 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
     if (!_form.currentState!.validate()) return;
     setState(() => _failure = null);
     try {
-      final message = await ref.read(buyerApiProvider).setRefundAccount(
-        widget.order.id,
-        gcashNumber: Rules.normalizeGcashNumber(_number.text) ?? _number.text.trim(),
-        gcashName: Rules.squish(_name.text),
-      );
+      final message = await ref
+          .read(buyerApiProvider)
+          .setRefundAccount(
+            widget.order.id,
+            gcashNumber:
+                Rules.normalizeGcashNumber(_number.text) ?? _number.text.trim(),
+            gcashName: Rules.squish(_name.text),
+          );
       if (mounted) Navigator.of(context).pop(message);
     } catch (error) {
       if (mounted) setState(() => _failure = ApiFailure.from(error));
@@ -212,14 +241,18 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Where should the refund go?', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Where should the refund go?',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpace.xs),
             const Text(
               'The shop sends it to this GCash account. You can change it until the shop has sent it.',
               style: TextStyle(color: AppColors.stone600),
             ),
             const SizedBox(height: AppSpace.md),
-            if (_failure != null && _failure!.fieldErrors.isEmpty) MessageBanner(message: _failure!.message),
+            if (_failure != null && _failure!.fieldErrors.isEmpty)
+              MessageBanner(message: _failure!.message),
             AppTextField(
               label: 'GCash number',
               controller: _number,
@@ -239,7 +272,11 @@ class _AccountSheetState extends ConsumerState<_AccountSheet> {
               serverError: _failure?.errorFor('gcash_name'),
             ),
             const SizedBox(height: AppSpace.lg),
-            SubmitButton(label: 'Save account', busyLabel: 'Saving…', onPressed: _save),
+            SubmitButton(
+              label: 'Save account',
+              busyLabel: 'Saving…',
+              onPressed: _save,
+            ),
           ],
         ),
       ),
@@ -271,7 +308,9 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
     if (!_form.currentState!.validate()) return;
     setState(() => _failure = null);
     try {
-      final message = await ref.read(buyerApiProvider).reportRefund(widget.order.id, _note.text.trim());
+      final message = await ref
+          .read(buyerApiProvider)
+          .reportRefund(widget.order.id, _note.text.trim());
       if (mounted) Navigator.of(context).pop(message);
     } catch (error) {
       if (mounted) setState(() => _failure = ApiFailure.from(error));
@@ -288,14 +327,18 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('The refund did not arrive', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'The refund did not arrive',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpace.xs),
             Text(
               'Loved-IT compares the shop\'s receipt (reference ${refund.reference}) with your GCash. Say what you see in your GCash history.',
               style: const TextStyle(color: AppColors.stone600),
             ),
             const SizedBox(height: AppSpace.md),
-            if (_failure != null && _failure!.fieldErrors.isEmpty) MessageBanner(message: _failure!.message),
+            if (_failure != null && _failure!.fieldErrors.isEmpty)
+              MessageBanner(message: _failure!.message),
             AppTextField(
               label: 'What happened?',
               controller: _note,
@@ -304,11 +347,16 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
               maxLength: 500,
               showCounter: true,
               textCapitalization: TextCapitalization.sentences,
-              validator: (value) => Rules.words(value, 'What happened', min: 10, max: 500),
+              validator: (value) =>
+                  Rules.words(value, 'What happened', min: 10, max: 500),
               serverError: _failure?.errorFor('note'),
             ),
             const SizedBox(height: AppSpace.lg),
-            SubmitButton(label: 'Send to Loved-IT', busyLabel: 'Sending…', onPressed: _send),
+            SubmitButton(
+              label: 'Send to Loved-IT',
+              busyLabel: 'Sending…',
+              onPressed: _send,
+            ),
           ],
         ),
       ),
@@ -328,7 +376,9 @@ class _SheetFrame extends StatelessWidget {
         AppSpace.lg,
         0,
         AppSpace.lg,
-        MediaQuery.viewInsetsOf(context).bottom + MediaQuery.paddingOf(context).bottom + AppSpace.lg,
+        MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom +
+            AppSpace.lg,
       ),
       child: SingleChildScrollView(child: child),
     );

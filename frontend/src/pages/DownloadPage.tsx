@@ -66,7 +66,7 @@ const JOURNEY: { kicker: string; title: string; text: string; points: string[]; 
   {
     kicker: 'Pay for it',
     title: 'Pay the way you already pay.',
-    text: 'One parcel per shop, each with its own delivery fee and the exact total before you place the order. Then pay the rider in cash, or send GCash straight to the shop.',
+    text: 'One parcel per shop, each with its own delivery fee and the exact total before you place the order. Then pay the rider in cash, or pay Loved-IT by GCash.',
     points: ['Add shop, Loved-IT and free delivery vouchers', 'Keep your addresses in one address book', 'Cash on delivery is always the exact amount shown'],
     shot: checkoutShot,
     alt: 'Checkout with the delivery address, order total and payment choice',
