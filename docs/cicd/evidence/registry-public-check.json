@@ -1,0 +1,23 @@
+{
+  "checked_at": "2026-11-15T06:21:36.637Z",
+  "checks": [
+    {
+      "anonymous_pull": true,
+      "manifest_http": 200,
+      "tag": "1.0.0-cicd-lab.1",
+      "digest": "sha256:4feb28760cfb9c1daad137b134ed4029eb595bf4bef190f045678e06fd87fb1e"
+    },
+    {
+      "anonymous_pull": true,
+      "manifest_http": 200,
+      "tag": "main",
+      "digest": "sha256:6e8ff4f3e198a7968a5add772062c62bdc8d9468233bce81991661d5dccc31be"
+    },
+    {
+      "anonymous_pull": false,
+      "manifest_http": 404,
+      "tag": "0.0.0-cicd-failure-demo.1",
+      "digest": null
+    }
+  ]
+}

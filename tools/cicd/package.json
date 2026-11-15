@@ -1,0 +1,27 @@
+{
+  "name": "@loved-it/cicd-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Project-local CI/CD evidence and PDF report tooling for Loved-IT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "check": "node check-tools.cjs",
+    "report": "node render-report.cjs && node verify-pdf.cjs",
+    "report:publish": "npm run report && node export-report.cjs",
+    "verify:pdf": "node verify-pdf.cjs",
+    "collect:evidence": "node collect-evidence.cjs",
+    "collect:registry": "node collect-registry.cjs",
+    "capture:evidence": "node capture-evidence.cjs",
+    "registry:verify": "node verify-registry.cjs",
+    "manifest": "node build-manifest.cjs",
+    "status": "node status.cjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "1.1.1",
+    "pdfjs-dist": "6.5.438",
+    "playwright": "1.64.1",
+    "yaml": "2.9.1"
+  }
+}

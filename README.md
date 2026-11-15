@@ -9,6 +9,12 @@ Loved-IT is a Philippine marketplace with a React/TypeScript website, Laravel RE
 - Classroom pipeline: [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml)
 - Full local development setup: [SETUP.md](SETUP.md)
 - Lab procedures and evidence: [docs/cicd/README.md](docs/cicd/README.md)
+- Project organization: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
+- Defense preparation: [docs/defense/DEFENSE_GUIDE.md](docs/defense/DEFENSE_GUIDE.md)
+- Submission PDF: [docs/cicd/submission/](docs/cicd/submission/)
+- Reusable report tools: [tools/cicd/README.md](tools/cicd/README.md)
+
+Open **Loved-IT.code-workspace** in VS Code for a clean project-only Explorer. Logs, backups, old release binaries and temporary utilities are preserved in the Git-ignored `.local/` directory.
 
 ## Local checks
 

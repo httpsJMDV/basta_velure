@@ -1,0 +1,16 @@
+# Local evidence, logs, database backups, release binaries, installers and private utilities.
+/.local/
+
+# Development dependencies belong on each developer's PC.
+**/node_modules/
+
+# Private environment and Android signing files; example templates remain shareable.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.jks
+**/*.keystore
+
+# OS/editor-generated files.
+.DS_Store
+Thumbs.db

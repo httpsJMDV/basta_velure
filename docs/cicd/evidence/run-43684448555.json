@@ -1,0 +1,311 @@
+{
+  "id": 43684448555,
+  "event": "push",
+  "head_branch": "main",
+  "display_title": "Merge pull request #64: Demonstrate updated Loved-IT container output…",
+  "head_sha": "b90e46906fc50947b076d7e8ee1c67891a91de0c",
+  "status": "completed",
+  "conclusion": "success",
+  "html_url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43684448555",
+  "created_at": "2026-11-15T06:13:22Z",
+  "jobs": [
+    {
+      "id": 132721854522,
+      "name": "Lint, test and build",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43684448555/job/132721854522",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-15T06:13:25Z",
+          "completed_at": "2026-11-15T06:13:26Z"
+        },
+        {
+          "name": "Initialize containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-15T06:13:26Z",
+          "completed_at": "2026-11-15T06:13:55Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-15T06:13:55Z",
+          "completed_at": "2026-11-15T06:13:57Z"
+        },
+        {
+          "name": "Set up Node.js 22",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-15T06:13:57Z",
+          "completed_at": "2026-11-15T06:13:59Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-15T06:13:59Z",
+          "completed_at": "2026-11-15T06:14:03Z"
+        },
+        {
+          "name": "Run frontend lint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-15T06:14:03Z",
+          "completed_at": "2026-11-15T06:14:04Z"
+        },
+        {
+          "name": "Run automated storefront tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-15T06:14:04Z",
+          "completed_at": "2026-11-15T06:14:05Z"
+        },
+        {
+          "name": "Verify demonstration secret configuration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-15T06:14:05Z",
+          "completed_at": "2026-11-15T06:14:05Z"
+        },
+        {
+          "name": "Set up PHP 8.4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-15T06:14:05Z",
+          "completed_at": "2026-11-15T06:14:07Z"
+        },
+        {
+          "name": "Install backend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-15T06:14:07Z",
+          "completed_at": "2026-11-15T06:14:18Z"
+        },
+        {
+          "name": "Check PHP syntax",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-15T06:14:18Z",
+          "completed_at": "2026-11-15T06:14:40Z"
+        },
+        {
+          "name": "Prepare isolated CI test database",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-11-15T06:14:40Z",
+          "completed_at": "2026-11-15T06:15:03Z"
+        },
+        {
+          "name": "Run full Laravel regression suite",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-11-15T06:15:03Z",
+          "completed_at": "2026-11-15T06:18:14Z"
+        },
+        {
+          "name": "Build application",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-11-15T06:18:14Z",
+          "completed_at": "2026-11-15T06:18:47Z"
+        },
+        {
+          "name": "Upload application build and test evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-11-15T06:18:47Z",
+          "completed_at": "2026-11-15T06:18:49Z"
+        },
+        {
+          "name": "Post Set up Node.js 22",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-11-15T06:18:49Z",
+          "completed_at": "2026-11-15T06:18:49Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-11-15T06:18:49Z",
+          "completed_at": "2026-11-15T06:18:50Z"
+        },
+        {
+          "name": "Stop containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-11-15T06:18:50Z",
+          "completed_at": "2026-11-15T06:18:50Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-11-15T06:18:50Z",
+          "completed_at": "2026-11-15T06:18:50Z"
+        }
+      ]
+    },
+    {
+      "id": 132723099593,
+      "name": "Docker build, publish and verify",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43684448555/job/132723099593",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-15T06:18:55Z",
+          "completed_at": "2026-11-15T06:18:57Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-15T06:18:57Z",
+          "completed_at": "2026-11-15T06:18:59Z"
+        },
+        {
+          "name": "Set up Docker Buildx",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-15T06:18:59Z",
+          "completed_at": "2026-11-15T06:19:06Z"
+        },
+        {
+          "name": "Generate image tags and labels",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-15T06:19:06Z",
+          "completed_at": "2026-11-15T06:19:07Z"
+        },
+        {
+          "name": "Build Docker image for runtime verification",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-15T06:19:07Z",
+          "completed_at": "2026-11-15T06:20:04Z"
+        },
+        {
+          "name": "Run container before publishing",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-15T06:20:04Z",
+          "completed_at": "2026-11-15T06:20:07Z"
+        },
+        {
+          "name": "Log in to GHCR",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-15T06:20:07Z",
+          "completed_at": "2026-11-15T06:20:08Z"
+        },
+        {
+          "name": "Publish verified image tags",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-15T06:20:08Z",
+          "completed_at": "2026-11-15T06:20:16Z"
+        },
+        {
+          "name": "Pull and run the published image",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-15T06:20:16Z",
+          "completed_at": "2026-11-15T06:20:19Z"
+        },
+        {
+          "name": "Record published package metadata",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-15T06:20:19Z",
+          "completed_at": "2026-11-15T06:20:21Z"
+        },
+        {
+          "name": "Upload registry evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-15T06:20:21Z",
+          "completed_at": "2026-11-15T06:20:22Z"
+        },
+        {
+          "name": "Post Log in to GHCR",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-11-15T06:20:22Z",
+          "completed_at": "2026-11-15T06:20:22Z"
+        },
+        {
+          "name": "Post Build Docker image for runtime verification",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-11-15T06:20:22Z",
+          "completed_at": "2026-11-15T06:20:23Z"
+        },
+        {
+          "name": "Post Set up Docker Buildx",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-11-15T06:20:23Z",
+          "completed_at": "2026-11-15T06:20:27Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-11-15T06:20:27Z",
+          "completed_at": "2026-11-15T06:20:27Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-11-15T06:20:27Z",
+          "completed_at": "2026-11-15T06:20:27Z"
+        }
+      ]
+    }
+  ]
+}
