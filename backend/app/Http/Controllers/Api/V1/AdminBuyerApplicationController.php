@@ -22,7 +22,7 @@ class AdminBuyerApplicationController extends Controller
         $sort   = $request->query('sort', 'newest');
         $now    = now();
 
-        $query = User::with('addresses')->where('role', 'buyer')
+        $query = User::with('addresses')->where('role', 'buyer')->withoutWorkAccounts()
             ->where('buyer_application_status', $status)
             ->whereNotNull('government_id_type')
             ->whereNotNull('government_id_image_path')
@@ -38,12 +38,12 @@ class AdminBuyerApplicationController extends Controller
         $users   = $query->paginate($perPage);
 
         // Summary counts (always for pending with complete application regardless of current filter)
-        $pendingTotal   = User::where('role', 'buyer')->where('buyer_application_status', 'pending')
+        $pendingTotal   = User::where('role', 'buyer')->withoutWorkAccounts()->where('buyer_application_status', 'pending')
                               ->whereNotNull('government_id_type')->whereNotNull('government_id_image_path')->count();
-        $todayCount     = User::where('role', 'buyer')->where('buyer_application_status', 'pending')
+        $todayCount     = User::where('role', 'buyer')->withoutWorkAccounts()->where('buyer_application_status', 'pending')
                               ->whereNotNull('government_id_type')->whereNotNull('government_id_image_path')
                               ->whereDate('created_at', $now->toDateString())->count();
-        $weekCount      = User::where('role', 'buyer')->where('buyer_application_status', 'pending')
+        $weekCount      = User::where('role', 'buyer')->withoutWorkAccounts()->where('buyer_application_status', 'pending')
                               ->whereNotNull('government_id_type')->whereNotNull('government_id_image_path')
                               ->whereBetween('created_at', [$now->copy()->startOfWeek(), $now])->count();
 
@@ -59,7 +59,7 @@ class AdminBuyerApplicationController extends Controller
 
     public function approve(Request $request, User $user): JsonResponse
     {
-        abort_if($user->role !== 'buyer', 422, 'User is not a buyer.');
+        abort_if($user->role !== 'buyer' || $user->isWorkAccount(), 422, 'User is not a shopper account.');
         abort_if($user->buyer_application_status !== 'pending', 422, 'Application is not pending.');
 
         DB::transaction(function () use ($user, $request) {
@@ -89,7 +89,7 @@ class AdminBuyerApplicationController extends Controller
 
     public function reject(Request $request, User $user): JsonResponse
     {
-        abort_if($user->role !== 'buyer', 422, 'User is not a buyer.');
+        abort_if($user->role !== 'buyer' || $user->isWorkAccount(), 422, 'User is not a shopper account.');
         abort_if($user->buyer_application_status !== 'pending', 422, 'Application is not pending.');
 
         $request->validate(['reason' => ['required', 'string', 'max:500']]);

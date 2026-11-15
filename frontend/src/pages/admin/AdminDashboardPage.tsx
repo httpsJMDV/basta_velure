@@ -19,6 +19,7 @@ import {
 import {
   ResponsiveContainer, XAxis, YAxis,
   CartesianGrid, Tooltip, Area, AreaChart,
+  Bar, BarChart,
 } from 'recharts';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -499,12 +500,14 @@ function AttentionFeedHub({ items }: { items: DashboardFeed['attention_items'] }
 }
 // ─── Compact Commission Revenue Breakdown Card ────────────────────────────────
 
-export function CommissionRevenueCard({ stats }: { stats: AdminStats }) {
+export function CommissionRevenueCard({ stats, data }: { stats: AdminStats; data?: DashboardChartPoint[] }) {
   const metrics = stats.metrics;
   const animated = useCountUp(metrics?.commission ?? 0);
+  const days = (data ?? []).filter((day) => typeof day.commission === 'number' && Number.isFinite(day.commission)).slice(-30);
+  const hasCommission = days.some((day) => day.commission !== 0);
 
   return (
-    <div className="flex flex-col justify-between h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
+    <div className="flex flex-col h-full p-4 bg-white border shadow-xs border-gray-200/80 rounded-2xl">
       <div className="flex flex-col justify-between gap-2.5 pb-3 border-b border-gray-100 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2.5">
           <div className="flex items-center justify-center font-bold border rounded-lg text-emerald-600 border-emerald-100 w-7 h-7 bg-emerald-50 shrink-0">
@@ -523,7 +526,34 @@ export function CommissionRevenueCard({ stats }: { stats: AdminStats }) {
         </Link>
       </div>
 
-      <div className="flex flex-col justify-between gap-3 pt-3 sm:flex-row sm:items-end">
+      <div className="mt-3 flex-1" role="region" aria-label="Daily platform net commission over the last 30 days">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] text-gray-400">
+          <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-brand-red" />Daily net commission</span>
+          <span>By order date · Manila time</span>
+        </div>
+        {days.length > 0 && hasCommission ? <div className="h-[92px] w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={days} margin={{ top: 6, right: 2, bottom: 0, left: 2 }} barCategoryGap="25%" accessibilityLayer>
+              <defs><linearGradient id="commission-daily-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e11d48" /><stop offset="100%" stopColor="#be123c" stopOpacity={0.65} /></linearGradient></defs>
+              <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3" />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={chartDateLabel} interval="preserveStartEnd" minTickGap={32} height={20} />
+              <YAxis hide domain={['auto', 'auto']} />
+              <Tooltip cursor={{ fill: '#fff1f2', radius: 4 }} content={({ active, payload, label }) => active && payload?.length ? (
+                <div className="rounded-xl border border-rose-100 bg-white px-3 py-2 shadow-lg">
+                  <p className="text-[10px] text-gray-500">{chartDateLabel(String(label))}</p>
+                  <p className="mt-0.5 text-xs font-bold text-brand-red">{peso(Number(payload[0].value))}</p>
+                  <p className="mt-0.5 text-[10px] text-gray-400">Net platform commission</p>
+                </div>
+              ) : null} />
+              <Bar dataKey="commission" name="Net commission" fill="url(#commission-daily-fill)" radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div> : <div className="flex h-[92px] items-center justify-center rounded-lg bg-gray-50/80 px-4 text-center text-xs text-gray-400">
+          {days.length ? 'No commission recorded in this period.' : 'Daily commission breakdown is unavailable.'}
+        </div>}
+      </div>
+
+      <div className="mt-2 flex flex-col justify-between gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-end">
         <div>
           <span className="block text-[10px] font-bold tracking-wider text-gray-400 uppercase">Last 30 days</span>
           <p className="mt-0.5 text-2xl font-black tracking-tight text-gray-900">
@@ -923,7 +953,7 @@ export default function AdminDashboardPage() {
         </div>
       ) : stats ? (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <CommissionRevenueCard stats={stats} />
+          <CommissionRevenueCard stats={stats} data={feed?.chart_data} />
           <PaymentSplitCard stats={stats} />
         </div>
       ) : null}

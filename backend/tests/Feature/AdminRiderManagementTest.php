@@ -24,6 +24,70 @@ class AdminRiderManagementTest extends TestCase
     private User $hubOwner;
     private SortingCenter $hub;
 
+    public function test_buyer_counts_and_directory_exclude_work_accounts_and_shops(): void
+    {
+        $marker = 'Category' . uniqid();
+        $before = User::buyerAccounts()->count();
+        $buyer = $this->makeUser('buyer', ['first_name' => $marker]);
+        $seller = $this->makeUser('buyer', ['first_name' => $marker]);
+        \App\Models\SellerProfile::forceCreate([
+            'user_id' => $seller->id, 'shop_name' => 'Shop '.uniqid(), 'application_status' => 'pending',
+            'date_of_birth' => '1990-01-01', 'government_id_type' => 'national_id',
+            'government_id_number' => 'TEST', 'government_id_number_hash' => hash('sha256', uniqid()),
+            'government_id_image_path' => 'fixture.jpg', 'payout_gcash_number' => '09171111111',
+        ]);
+        $rider = $this->makeRider(Rider::STATUS_ACTIVE);
+        $rider->user->forceFill(['role' => 'buyer', 'first_name' => $marker])->save();
+        $this->hubOwner->update(['first_name' => $marker]);
+        $courier = $this->makeUser('buyer', ['first_name' => $marker]);
+        \App\Models\LogisticsCompanyMember::create(['user_id' => $courier->id,
+            'logistics_company_id' => \App\Models\LogisticsCompany::defaultId(), 'role' => 'owner']);
+
+        Sanctum::actingAs($this->admin);
+        $rows = $this->getJson('/api/v1/admin/users?role=buyer&search='.$marker)->assertOk()->json('data');
+        $this->assertSame([$buyer->id], array_column($rows, 'id'));
+        $this->getJson('/api/v1/admin/stats')->assertOk()->assertJsonPath('data.total_buyers', $before + 1);
+        foreach ([$buyer, $seller, $rider->user, $this->hubOwner, $courier] as $account) {
+            $this->assertSame(! $account->fresh()->isWorkAccount(), User::withoutWorkAccounts()->whereKey($account->id)->exists());
+        }
+        // A stored buyer role on a rider does not bypass the shared web/Flutter checkout boundary.
+        Sanctum::actingAs($rider->user->fresh());
+        $this->postJson('/api/v1/checkout/quote', [])->assertForbidden()->assertJsonPath('code', 'work_account');
+    }
+
+    public function test_admin_status_controls_cannot_skip_email_or_rider_activation(): void
+    {
+        Mail::fake();
+        Sanctum::actingAs($this->admin);
+        foreach (['unverified', 'pending_activation'] as $status) {
+            $user = $this->makeUser($status === 'pending_activation' ? 'rider' : 'buyer');
+            $user->forceFill(['status' => $status])->save();
+            $token = $user->createToken('onboarding-test');
+            $this->patchJson('/api/v1/admin/users/'.$user->id.'/reactivate')->assertStatus(409);
+            $this->patchJson('/api/v1/admin/users/'.$user->id.'/suspend')->assertStatus(409);
+            $this->assertSame($status, $user->fresh()->status);
+            $this->assertTrue($user->tokens()->whereKey($token->accessToken->id)->exists());
+            $this->assertFalse(\App\Models\AdminActivityLog::where('target_type', 'user')->where('target_id', $user->id)->exists());
+        }
+        $this->patchJson('/api/v1/admin/users/'.$this->admin->id.'/reactivate')->assertForbidden();
+        Mail::assertNothingQueued();
+    }
+
+    public function test_work_accounts_never_enter_buyer_id_review_or_its_badge(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $baseline = $this->getJson('/api/v1/admin/nav-counts')->assertOk()->json('data.buyer_applications');
+        $rider = $this->makeRider(Rider::STATUS_ACTIVE);
+        $rider->user->forceFill(['role' => 'buyer', 'buyer_application_status' => 'pending',
+            'government_id_type' => 'national_id', 'government_id_image_path' => 'fixture.jpg'])->save();
+        $this->getJson('/api/v1/admin/nav-counts')->assertOk()->assertJsonPath('data.buyer_applications', $baseline);
+        $rows = $this->getJson('/api/v1/admin/buyer-applications?search='.$rider->user->email)->assertOk()->json('data');
+        $this->assertSame([], $rows);
+        $this->postJson('/api/v1/admin/buyer-applications/'.$rider->user_id.'/approve')->assertStatus(422);
+        $this->postJson('/api/v1/admin/buyer-applications/'.$rider->user_id.'/reject', ['reason' => 'Test'])->assertStatus(422);
+        $this->assertSame('pending', $rider->user->fresh()->buyer_application_status);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

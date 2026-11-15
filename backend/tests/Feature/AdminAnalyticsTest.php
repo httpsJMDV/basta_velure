@@ -354,9 +354,9 @@ class AdminAnalyticsTest extends TestCase
         $this->assertEquals(105.0, $stats['commission_today']);
         $this->assertSame(1, $stats['orders_yesterday']);
         $this->assertEquals(500.0, $stats['gmv_yesterday']);
-        // Sellers are counted by their approved shop (the role is "buyer"); buyers by role.
+        // Shops and buyer-only accounts are separate even when both store role "buyer".
         $this->assertSame(2, $stats['total_sellers']);
-        $this->assertSame(4, $stats['total_buyers']);
+        $this->assertSame(2, $stats['total_buyers']);
 
         $this->getJson('/api/v1/admin/reports/summary')->assertOk()->assertJsonStructure(['data' => [
             'total_gmv', 'total_commission', 'total_seller_earnings', 'total_orders', 'total_units_sold', 'avg_commission_rate',

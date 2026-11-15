@@ -390,8 +390,8 @@ class AdminAnalyticsService
     public function registeredAccounts(): array
     {
         return [
-            // Every buyer account, sellers included: a seller is a buyer whose shop was approved.
-            'buyers'  => User::where('role', 'buyer')->count(),
+            // Buyer-only accounts: staff and shops have separate directories.
+            'buyers'  => User::buyerAccounts()->count(),
             'sellers' => SellerProfile::where('application_status', 'approved')->count(),
             // Couriers: a buyer with a riders row, or an older role "rider" account.
             'riders'  => User::where(fn ($q) => $q->where('role', 'rider')->orWhereHas('rider'))->count(),

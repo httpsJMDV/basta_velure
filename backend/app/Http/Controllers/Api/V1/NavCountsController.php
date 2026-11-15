@@ -44,7 +44,7 @@ class NavCountsController extends Controller
 
         return response()->json(['data' => [
             'seller_applications'  => SellerProfile::where('application_status', 'pending')->count(),
-            'buyer_applications'   => User::where('buyer_application_status', 'pending')->count(),
+            'buyer_applications'   => User::where('role', 'buyer')->withoutWorkAccounts()->where('buyer_application_status', 'pending')->count(),
             'courier_applications' => LogisticsCompany::where('status', LogisticsCompany::STATUS_PENDING)->count(),
             'hub_applications'     => SortingCenter::where('status', SortingCenter::STATUS_PENDING)->count(),
             'products'             => Product::where('status', 'pending_review')->count(),
