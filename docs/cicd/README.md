@@ -34,6 +34,8 @@ The handout asks students to adapt the sample SIS pipeline to their ongoing proj
 
 ## Evidence and report
 
+The reviewed PDF is in [submission/](submission/). Sanitized run summaries and screenshots are in [evidence/](evidence/). Reusable generation/verification scripts are in [tools/cicd](../../tools/cicd/README.md); raw logs and generated previews stay in `.local/artifacts/cicd/`.
+
 The submission bundle contains the report, individual answer/reflection worksheets, screenshots, raw Actions results and an evidence manifest with run URLs and image digests. Failed test evidence must come from a real failed run; successful publication and version tags must be backed by actual GHCR records.
 
 Docker Desktop is not installed on the development PC. Container build, pull and HTTP execution are demonstrated on the GitHub-hosted Ubuntu runner; this limitation must be stated in the report. The live production hosting is not replaced by the classroom container.

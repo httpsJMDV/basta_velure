@@ -1,0 +1,20 @@
+{
+  "folders": [{ "name": "Loved-IT", "path": "." }],
+  "settings": {
+    "files.exclude": {
+      "**/.local": true,
+      "**/node_modules": true,
+      "backend/vendor": true,
+      "frontend/dist": true,
+      "mobile/build": true,
+      "mobile/.dart_tool": true
+    },
+    "search.exclude": {
+      "**/.local": true,
+      "**/node_modules": true,
+      "backend/vendor": true,
+      "frontend/dist": true,
+      "mobile/build": true
+    }
+  }
+}

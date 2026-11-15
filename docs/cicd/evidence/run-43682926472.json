@@ -1,0 +1,182 @@
+{
+  "id": 43682926472,
+  "event": "pull_request",
+  "head_branch": "jm/cicd-lab",
+  "display_title": "Add Loved-IT GitHub Actions CI/CD, tested Docker delivery and classroom lab evidence",
+  "head_sha": "2699ab0a62b55ec6d1ed38311391ee681a6e52f6",
+  "status": "completed",
+  "conclusion": "success",
+  "html_url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43682926472",
+  "created_at": "2026-11-15T05:52:23Z",
+  "jobs": [
+    {
+      "id": 132717230099,
+      "name": "Lint, test and build",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43682926472/job/132717230099",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-15T05:52:25Z",
+          "completed_at": "2026-11-15T05:52:27Z"
+        },
+        {
+          "name": "Initialize containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-15T05:52:27Z",
+          "completed_at": "2026-11-15T05:52:52Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-15T05:52:52Z",
+          "completed_at": "2026-11-15T05:52:58Z"
+        },
+        {
+          "name": "Set up Node.js 22",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-15T05:52:58Z",
+          "completed_at": "2026-11-15T05:53:03Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-15T05:53:03Z",
+          "completed_at": "2026-11-15T05:53:09Z"
+        },
+        {
+          "name": "Run frontend lint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-15T05:53:09Z",
+          "completed_at": "2026-11-15T05:53:10Z"
+        },
+        {
+          "name": "Run automated storefront tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-15T05:53:10Z",
+          "completed_at": "2026-11-15T05:53:11Z"
+        },
+        {
+          "name": "Verify demonstration secret configuration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-15T05:53:11Z",
+          "completed_at": "2026-11-15T05:53:11Z"
+        },
+        {
+          "name": "Set up PHP 8.4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-15T05:53:11Z",
+          "completed_at": "2026-11-15T05:53:14Z"
+        },
+        {
+          "name": "Install backend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-15T05:53:14Z",
+          "completed_at": "2026-11-15T05:53:19Z"
+        },
+        {
+          "name": "Check PHP syntax",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-15T05:53:19Z",
+          "completed_at": "2026-11-15T05:53:36Z"
+        },
+        {
+          "name": "Prepare isolated CI test database",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-11-15T05:53:36Z",
+          "completed_at": "2026-11-15T05:53:47Z"
+        },
+        {
+          "name": "Run full Laravel regression suite",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-11-15T05:53:47Z",
+          "completed_at": "2026-11-15T05:56:00Z"
+        },
+        {
+          "name": "Build application",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-11-15T05:56:00Z",
+          "completed_at": "2026-11-15T05:56:24Z"
+        },
+        {
+          "name": "Upload application build and test evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-11-15T05:56:24Z",
+          "completed_at": "2026-11-15T05:56:26Z"
+        },
+        {
+          "name": "Post Set up Node.js 22",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-11-15T05:56:26Z",
+          "completed_at": "2026-11-15T05:56:28Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-11-15T05:56:28Z",
+          "completed_at": "2026-11-15T05:56:28Z"
+        },
+        {
+          "name": "Stop containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-11-15T05:56:28Z",
+          "completed_at": "2026-11-15T05:56:28Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-11-15T05:56:28Z",
+          "completed_at": "2026-11-15T05:56:28Z"
+        }
+      ]
+    },
+    {
+      "id": 132718090038,
+      "name": "Docker build, publish and verify",
+      "status": "completed",
+      "conclusion": "skipped",
+      "html_url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43682926472/job/132718090038",
+      "steps": []
+    }
+  ]
+}

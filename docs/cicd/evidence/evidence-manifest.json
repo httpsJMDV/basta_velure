@@ -1,0 +1,87 @@
+{
+  "project": "Loved-IT",
+  "section": "BSIT 3C",
+  "subject": "ITEL 304",
+  "instructor": "Jeremy Reyes",
+  "submission_date": "2026-11-16",
+  "source_commit": "b90e46906fc50947b076d7e8ee1c67891a91de0c",
+  "generated_at": "2026-11-15T06:22:17.246Z",
+  "image": {
+    "name": "ghcr.io/httpsjmdv/basta_velure",
+    "visibility": "public",
+    "package_url": "https://github.com/users/httpsJMDV/packages/container/package/basta_velure",
+    "main_digest": "sha256:6e8ff4f3e198a7968a5add772062c62bdc8d9468233bce81991661d5dccc31be",
+    "version_tag": "1.0.0-cicd-lab.1",
+    "version_digest": "sha256:4feb28760cfb9c1daad137b134ed4029eb595bf4bef190f045678e06fd87fb1e"
+  },
+  "runs": [
+    {
+      "id": 43682170954,
+      "sha": "8a4f98dce68a13c9cba4220c563f3d4e690ae22a",
+      "event": "pull_request",
+      "result": "failure",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43682170954"
+    },
+    {
+      "id": 43682328192,
+      "sha": "51ddc80a6a709675eb65a268a36d025b3c425230",
+      "event": "pull_request",
+      "result": "failure",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43682328192"
+    },
+    {
+      "id": 43682926472,
+      "sha": "2699ab0a62b55ec6d1ed38311391ee681a6e52f6",
+      "event": "pull_request",
+      "result": "success",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43682926472"
+    },
+    {
+      "id": 43683241541,
+      "sha": "27e6fa8ff414333ec0acd6b9da4b5fda55ffe541",
+      "event": "push",
+      "result": "failure",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43683241541"
+    },
+    {
+      "id": 43683304045,
+      "sha": "42869d111c14894906915187745d21c20c286fa7",
+      "event": "pull_request",
+      "result": "success",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43683304045"
+    },
+    {
+      "id": 43683947104,
+      "sha": "db40b1c20fea746aa05848efd42a905030a2fe52",
+      "event": "push",
+      "result": "success",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43683947104"
+    },
+    {
+      "id": 43683955511,
+      "sha": "5238d8ad1f99a9749d6e551f4d8c673d12ebaeb5",
+      "event": "pull_request",
+      "result": "success",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43683955511"
+    },
+    {
+      "id": 43684380619,
+      "sha": "8a4f98dce68a13c9cba4220c563f3d4e690ae22a",
+      "event": "push",
+      "result": "failure",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43684380619"
+    },
+    {
+      "id": 43684448555,
+      "sha": "b90e46906fc50947b076d7e8ee1c67891a91de0c",
+      "event": "push",
+      "result": "success",
+      "url": "https://github.com/httpsJMDV/basta_velure/actions/runs/43684448555"
+    }
+  ],
+  "limitations": [
+    "Docker execution was verified on GitHub-hosted Ubuntu, not on the development PC.",
+    "Individual reflection drafts and actual contributions must be reviewed by their members.",
+    "Registry delivery does not deploy the container to the live marketplace."
+  ]
+}
