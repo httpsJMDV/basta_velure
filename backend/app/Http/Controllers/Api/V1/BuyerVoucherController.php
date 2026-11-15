@@ -67,6 +67,7 @@ class BuyerVoucherController extends Controller
     public function platform(Request $request): JsonResponse
     {
         $rows = Voucher::whereNull('seller_id')->whereIn('scope', [Voucher::SCOPE_PLATFORM, Voucher::SCOPE_SHIPPING])
+            ->where(fn ($q) => $q->whereNull('total_limit')->orWhereColumn('used_count', '<', 'total_limit'))
             ->where('claimable', true)->running()->orderBy('scope')->orderBy('min_spend')->get();
 
         return $this->listing($rows);

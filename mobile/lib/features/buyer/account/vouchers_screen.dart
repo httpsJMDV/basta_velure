@@ -38,12 +38,16 @@ class _VouchersScreenState extends ConsumerState<VouchersScreen> {
     final api = ref.read(buyerApiProvider);
     final results = await Future.wait([
       api.myVouchers(),
+      api.platformVouchers(),
       api.discoverVouchers().then((page) {
         if (version == _loadVersion) _hasMore = page.hasMore;
         return page.items;
       }),
     ]);
-    return (results[0], results[1]);
+    final offers = <int, Voucher>{
+      for (final v in [...results[1], ...results[2]]) v.id: v,
+    };
+    return (results[0], offers.values.toList());
   }
 
   Future<void> _loadMore() async {
@@ -62,7 +66,10 @@ class _VouchersScreenState extends ConsumerState<VouchersScreen> {
       setState(() {
         _page = next.currentPage;
         _hasMore = next.hasMore;
-        _data = Future.value((wallet, [...offers, ...next.items]));
+        final merged = <int, Voucher>{
+          for (final voucher in [...offers, ...next.items]) voucher.id: voucher,
+        };
+        _data = Future.value((wallet, merged.values.toList()));
       });
     } catch (error) {
       if (mounted && identical(_data, current)) {
@@ -93,6 +100,7 @@ class _VouchersScreenState extends ConsumerState<VouchersScreen> {
         _data = _load();
       });
       ref.invalidate(availableVouchersProvider);
+      ref.invalidate(platformOffersProvider);
     } catch (error) {
       if (!mounted) return;
       final failure = ApiFailure.from(error);

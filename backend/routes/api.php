@@ -166,6 +166,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\SettlementReceiptController::class, 'show'])->whereNumber('settlement');
         // The GCash receipt of a refund a shop sent (the buyer, the shop and admins)
         Route::get('/refunds/{refund}/receipt', [\App\Http\Controllers\Api\V1\RefundController::class, 'receipt'])->whereNumber('refund');
+        Route::get('/payouts/{payout}/receipt', [\App\Http\Controllers\Api\V1\AdminPayoutController::class, 'receipt'])->whereNumber('payout');
+        Route::get('/rider-payments/{payment}/receipt', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'receipt'])->whereNumber('payment');
         // Track package: timeline, route places and the courier's live position (buyer, seller, hub, rider, admin)
         Route::get('/parcels/{tracking}/tracking', [ParcelTrackingController::class, 'show']);
         Route::post('/parcels/{tracking}/rider-chat', [ConversationController::class, 'startRiderChat'])->middleware('throttle:20,1');
@@ -294,6 +296,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/platform-funding/{funding}/receipt', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'receipt'])->whereNumber('funding');
             Route::post('/platform-funding/{funding}/confirm', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'confirm'])->whereNumber('funding');
             Route::get('/payouts', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payouts']);
+            Route::get('/rider-payment-requests', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'queue']);
+            Route::post('/rider-payment-requests/{payment}/claim', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'claim'])->whereNumber('payment');
+            Route::post('/rider-payment-requests/{payment}/release', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'release'])->whereNumber('payment');
+            Route::post('/rider-payment-requests/{payment}/send', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'send'])->whereNumber('payment')->middleware('throttle:upload');
+            Route::post('/rider-payment-requests/{payment}/reject', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'reject'])->whereNumber('payment');
             Route::get('/payouts/riders/{rider}/history', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'riderHistory'])->whereNumber('rider');
             Route::get('/payouts/hubs/{hub}/history', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'hubHistory'])->whereNumber('hub');
             Route::post('/payouts/riders/{rider}', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payRider'])->whereNumber('rider');
@@ -605,6 +612,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/seller/products/{product}', [SellerProductController::class, 'update'])->middleware('throttle:upload');
             Route::post('/seller/products/{product}/duplicate', [SellerProductController::class, 'duplicate']);
             Route::patch('/seller/products/{product}/stock', [SellerProductController::class, 'updateStock']);
+            Route::patch('/seller/products/{product}/warranty', [SellerProductController::class, 'updateWarranty']);
             Route::patch('/seller/products/{product}/price', [SellerProductController::class, 'updatePrice']);
             Route::patch('/seller/products/{product}/status', [SellerProductController::class, 'updateStatus']);
             Route::delete('/seller/products/{product}', [SellerProductController::class, 'destroy']);
@@ -724,6 +732,11 @@ Route::prefix('v1')->group(function () {
 
         // Logistics / Sorting Center Hub (approved hubs only)
         Route::middleware('approved_sorting_center')->prefix('hub')->group(function () {
+            Route::get('/rider-payment-requests', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'queue']);
+            Route::post('/rider-payment-requests/{payment}/claim', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'claim'])->whereNumber('payment');
+            Route::post('/rider-payment-requests/{payment}/release', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'release'])->whereNumber('payment');
+            Route::post('/rider-payment-requests/{payment}/send', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'send'])->whereNumber('payment')->middleware('throttle:upload');
+            Route::post('/rider-payment-requests/{payment}/reject', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'reject'])->whereNumber('payment');
             Route::get('/dashboard/metrics', [SortingCenterDashboardController::class, 'metrics']);
             Route::get('/nav-counts', [\App\Http\Controllers\Api\V1\NavCountsController::class, 'hub']);
             Route::get('/profile', [SortingCenterDashboardController::class, 'profile']);
@@ -825,11 +838,16 @@ Route::prefix('v1')->group(function () {
 
         // Rider / Courier (approved riders only)
         Route::middleware('approved_rider')->prefix('rider')->group(function () {
+            Route::get('/payment-requests', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'index']);
+            Route::post('/payment-requests', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'store']);
+            Route::post('/payment-requests/{payment}/confirm', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'confirm'])->whereNumber('payment');
+            Route::post('/payment-requests/{payment}/report', [\App\Http\Controllers\Api\V1\RiderPaymentController::class, 'report'])->whereNumber('payment');
             Route::get('/me', [RiderController::class, 'me']);
             Route::get('/nav-counts', [\App\Http\Controllers\Api\V1\NavCountsController::class, 'rider']);
             // Truck drivers: trips between hubs and trip pay
             Route::get('/trips', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'index']);
             Route::post('/trips/{trip}/arrived', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'arrived'])->whereNumber('trip');
+            Route::post('/trips/{trip}/issue', [\App\Http\Controllers\Api\V1\RiderTripController::class, 'issue'])->whereNumber('trip');
             // Activity log: what this rider did and what was decided about their account
             Route::get('/activity', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'rider']);
             // Return pickups: collect from the buyer (photo), or a failed visit, then hand it to the shop

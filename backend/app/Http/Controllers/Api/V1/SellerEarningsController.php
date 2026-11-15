@@ -6,7 +6,10 @@ use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\OrderItem;
 use App\Models\PayoutRequest;
+use App\Models\User;
 use App\Services\SellerBalanceCalculator;
+use App\Support\Gcash;
+use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +28,7 @@ class SellerEarningsController extends Controller
             'data' => app(SellerBalanceCalculator::class)->forSeller($request->user()->id),
         ]);
     }
+
     /**
      * GET /api/v1/seller/earnings/orders
      */
@@ -46,29 +50,29 @@ class SellerEarningsController extends Controller
                     : (string) $item->order?->status;
 
                 return [
-                    'id'                => $item->id,
-                    'order_id'          => $item->order_id,
-                    'order_number'      => $item->order?->order_number,
-                    'order_status'      => $orderStatusStr,
-                    'payment_status'    => $item->order?->payment_status,
-                    'product_name'      => $item->product_name,
-                    'variant_label'     => $item->variant_label,
-                    'quantity'          => $item->quantity,
-                    'item_subtotal'     => (float) $item->subtotal,
+                    'id' => $item->id,
+                    'order_id' => $item->order_id,
+                    'order_number' => $item->order?->order_number,
+                    'order_status' => $orderStatusStr,
+                    'payment_status' => $item->order?->payment_status,
+                    'product_name' => $item->product_name,
+                    'variant_label' => $item->variant_label,
+                    'quantity' => $item->quantity,
+                    'item_subtotal' => (float) $item->subtotal,
                     // The shop's own discounts on the line (its voucher share and promotions) come off before commission.
-                    'seller_discounts'  => round((float) $item->store_voucher_share + (float) $item->promo_share, 2),
+                    'seller_discounts' => round((float) $item->store_voucher_share + (float) $item->promo_share, 2),
                     'gross_after_discounts' => round((float) $item->subtotal - (float) $item->store_voucher_share - (float) $item->promo_share, 2),
-                    'commission_rate'   => (float) $item->commission_rate,
-                    'commission_pct'    => round(((float) $item->commission_rate) * 100, 1),
+                    'commission_rate' => (float) $item->commission_rate,
+                    'commission_pct' => round(((float) $item->commission_rate) * 100, 1),
                     'commission_amount' => (float) $item->commission_amount,
-                    'seller_earnings'   => (float) $item->seller_earnings,
-                    'payout_status'     => $item->payout_status,
+                    'seller_earnings' => (float) $item->seller_earnings,
+                    'payout_status' => $item->payout_status,
                     // A15: Pending until the order is completed, then Available.
-                    'earning_status'    => $orderStatusStr === OrderStatus::COMPLETED->value ? 'available' : 'pending',
-                    'settlement'        => $item->order?->settlement,
-                    'payment_method'    => $item->order?->payment_method,
-                    'order_date'        => $item->created_at?->toIso8601String(),
-                    'delivered_date'    => $item->delivered_at?->toIso8601String(),
+                    'earning_status' => $orderStatusStr === OrderStatus::COMPLETED->value ? 'available' : 'pending',
+                    'settlement' => $item->order?->settlement,
+                    'payment_method' => $item->order?->payment_method,
+                    'order_date' => $item->created_at?->toIso8601String(),
+                    'delivered_date' => $item->delivered_at?->toIso8601String(),
                     // Feature 2.8 (added; no existing key changed): when this item's escrow releases.
                     // Null until the order is COMPLETED, and for items that are already available.
                     'escrow_release_at' => $item->escrow_release_at?->toIso8601String(),
@@ -76,8 +80,8 @@ class SellerEarningsController extends Controller
             }),
             'meta' => [
                 'current_page' => $items->currentPage(),
-                'last_page'    => $items->lastPage(),
-                'total'        => $items->total(),
+                'last_page' => $items->lastPage(),
+                'total' => $items->total(),
             ],
         ]);
     }
@@ -95,23 +99,24 @@ class SellerEarningsController extends Controller
 
         return response()->json([
             'data' => $payouts->map(fn (PayoutRequest $p) => [
-                'id'               => $p->id,
-                'reference_code'   => $p->reference_code,
-                'amount'           => (float) $p->amount,
-                'gcash_number'     => $p->gcash_number,
-                'gcash_name'       => $p->gcash_name,
-                'status'           => $p->status,
+                'id' => $p->id,
+                'reference_code' => $p->reference_code,
+                'amount' => (float) $p->amount,
+                'gcash_number' => $p->gcash_number,
+                'gcash_name' => $p->gcash_name,
+                'status' => $p->status,
                 'rejection_reason' => $p->rejection_reason,
                 'manual_reference_required' => $p->manual_reference_required,
                 'transfer_reference' => $p->transfer_reference,
+                'has_receipt' => (bool) $p->receipt_path,
                 'sent_at' => $p->sent_at?->toIso8601String(),
-                'processed_at'     => $p->processed_at?->toIso8601String(),
-                'created_at'       => $p->created_at?->toIso8601String(),
+                'processed_at' => $p->processed_at?->toIso8601String(),
+                'created_at' => $p->created_at?->toIso8601String(),
             ]),
             'meta' => [
                 'current_page' => $payouts->currentPage(),
-                'last_page'    => $payouts->lastPage(),
-                'total'        => $payouts->total(),
+                'last_page' => $payouts->lastPage(),
+                'total' => $payouts->total(),
             ],
         ]);
     }
@@ -124,22 +129,22 @@ class SellerEarningsController extends Controller
         $sellerId = $request->user()->id;
 
         $data = $request->validate([
-            'amount'       => ['required', 'numeric', 'decimal:0,2', 'min:100', 'max:1000000'],
-            'gcash_number' => ['required', ...\App\Support\Gcash::RULE],
-            'gcash_name'   => \App\Support\Validation::accountName(),
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:100', 'max:1000000'],
+            'gcash_number' => ['required', ...Gcash::RULE],
+            'gcash_name' => Validation::accountName(),
         ], [
-            'amount.min'          => 'Minimum payout request amount is ₱100.00.',
-            'amount.decimal'      => 'The amount can have at most 2 decimal places.',
-            'gcash_number.regex'  => 'Please enter a valid Philippine GCash mobile number (e.g. 09171234567).',
-        ] + \App\Support\Validation::accountNameMessages('gcash_name'));
+            'amount.min' => 'Minimum payout request amount is ₱100.00.',
+            'amount.decimal' => 'The amount can have at most 2 decimal places.',
+            'gcash_number.regex' => 'Please enter a valid Philippine GCash mobile number (e.g. 09171234567).',
+        ] + Validation::accountNameMessages('gcash_name'));
         // Stored the way GCash shows it to people (09XXXXXXXXX), whatever spacing or +63 the seller typed.
-        $data['gcash_number'] = \App\Support\Gcash::normalize($data['gcash_number'])
+        $data['gcash_number'] = Gcash::normalize($data['gcash_number'])
             ?? throw ValidationException::withMessages(['gcash_number' => 'Please enter a valid Philippine GCash mobile number (e.g. 09171234567).']);
         $data['gcash_name'] = preg_replace('/\s+/u', ' ', trim($data['gcash_name']));
 
         return DB::transaction(function () use ($sellerId, $data) {
             // One request at a time (A15, A37): the seller's row lock makes a double click wait, then see the first one.
-            \App\Models\User::whereKey($sellerId)->lockForUpdate()->first();
+            User::whereKey($sellerId)->lockForUpdate()->first();
             if (PayoutRequest::where('seller_id', $sellerId)->whereIn('status', ['pending', 'processing'])->exists()) {
                 abort(422, 'You already have a payout request waiting to be processed. You can request another once it is done.');
             }
@@ -157,34 +162,33 @@ class SellerEarningsController extends Controller
 
             $requestedAmount = (float) $data['amount'];
             if ($requestedAmount > $availableBalance) {
-                abort(422, "Requested amount (₱" . number_format($requestedAmount, 2) . ") exceeds your available balance of ₱" . number_format($availableBalance, 2) . ".");
+                abort(422, 'Requested amount (₱'.number_format($requestedAmount, 2).') exceeds your available balance of ₱'.number_format($availableBalance, 2).'.');
             }
 
-            $referenceCode = 'PO-' . date('Ymd') . '-' . strtoupper(Str::random(6));
+            $referenceCode = 'PO-'.date('Ymd').'-'.strtoupper(Str::random(6));
 
             $payout = PayoutRequest::create([
-                'seller_id'      => $sellerId,
+                'seller_id' => $sellerId,
                 'reference_code' => $referenceCode,
                 'manual_reference_required' => true,
-                'amount'         => $requestedAmount,
-                'gcash_number'   => $data['gcash_number'],
-                'gcash_name'     => $data['gcash_name'],
-                'status'         => 'pending',
+                'amount' => $requestedAmount,
+                'gcash_number' => $data['gcash_number'],
+                'gcash_name' => $data['gcash_name'],
+                'status' => 'pending',
             ]);
 
             return response()->json([
                 'message' => 'Payout request submitted successfully! It is now pending admin processing.',
-                'data'    => [
-                    'id'             => $payout->id,
+                'data' => [
+                    'id' => $payout->id,
                     'reference_code' => $payout->reference_code,
-                    'amount'         => (float) $payout->amount,
-                    'gcash_number'   => $payout->gcash_number,
-                    'gcash_name'     => $payout->gcash_name,
-                    'status'         => $payout->status,
-                    'created_at'     => $payout->created_at?->toIso8601String(),
+                    'amount' => (float) $payout->amount,
+                    'gcash_number' => $payout->gcash_number,
+                    'gcash_name' => $payout->gcash_name,
+                    'status' => $payout->status,
+                    'created_at' => $payout->created_at?->toIso8601String(),
                 ],
             ], 201);
         });
     }
 }
-

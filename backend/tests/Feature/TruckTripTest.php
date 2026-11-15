@@ -28,6 +28,33 @@ class TruckTripTest extends TestCase
 {
     use DatabaseTransactions;
 
+    public function test_driver_can_report_trip_issues_without_changing_completion_or_pay(): void
+    {
+        $driver = $this->driver();
+        $parcel = $this->parcel();
+        $this->send([$parcel], $driver)->assertOk();
+        $trip = TruckTrip::where('driver_id', $driver->id)->firstOrFail();
+        Sanctum::actingAs($driver->user->fresh());
+        $url = '/api/v1/rider/trips/'.$trip->id.'/issue';
+        $this->postJson($url, ['kind' => 'delay', 'note' => 'x'])->assertUnprocessable();
+        $input = ['kind' => 'vehicle_issue', 'note' => 'Flat tyre near the hub. Waiting for assistance.'];
+        $this->postJson($url, $input)->assertOk();
+        $this->postJson($url, $input)->assertConflict();
+        $this->assertSame(TruckTrip::STATUS_ON_THE_WAY, $trip->fresh()->status);
+        $this->assertNull($trip->fresh()->paid_at);
+        $this->getJson('/api/v1/rider/trips')->assertOk()->assertJsonPath('data.current.issues.0.kind', 'vehicle_issue')
+            ->assertJsonStructure(['data' => ['current' => ['to_hub' => ['address', 'phone']]]]);
+        foreach ([$this->ops, $this->firstUser, $this->secondUser] as $recipient) {
+            $this->assertSame(1, $recipient->notifications()->where('data->kind', 'truck_trip.issue_reported')->count());
+        }
+        $other = $this->driver();
+        Sanctum::actingAs($other->user->fresh());
+        $this->postJson($url, $input)->assertNotFound();
+        $trip->forceFill(['status' => TruckTrip::STATUS_COMPLETED, 'completed_at' => now()])->save();
+        Sanctum::actingAs($driver->user->fresh());
+        $this->postJson($url, ['kind' => 'delay', 'note' => 'Cannot change a completed trip.'])->assertConflict();
+    }
+
     private const SANTA_CRUZ = '0403424001';
 
     private const PILA = '0403424999';

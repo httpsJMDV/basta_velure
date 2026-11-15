@@ -560,6 +560,21 @@ class _ItemsCard extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (item.warranty != null)
+                            ExpansionTile(
+                              tilePadding: EdgeInsets.zero,
+                              title: const Text(
+                                'Warranty at purchase',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              children: [
+                                Text(item.warranty!),
+                                const Text(
+                                  'Contact this shop with your order number. Loved-IT support can help with unresolved concerns.',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
                           Text(
                             [
                               if (item.variantLabel != null) item.variantLabel!,
@@ -633,7 +648,7 @@ class _Actions extends ConsumerWidget {
     final confirmed = await confirmAction(
       context,
       title: 'Order received?',
-      message: 'Only tap this if you got every item and it is fine. Once you confirm, the shop gets paid.',
+      message: 'Inspect every item first. Confirmation completes the order and closes the standard in-app return/refund request. Applicable warranty and consumer rights remain; contact the seller or Loved-IT support for help.',
       confirmLabel: 'Yes, I received it',
     );
     if (!confirmed) return;

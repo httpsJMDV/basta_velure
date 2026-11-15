@@ -136,6 +136,7 @@ class BuyerOrderPresenter
                 'seller_id'     => $i->seller_id,
                 'shop_name'     => $i->seller?->sellerProfile?->shop_name ?? ($i->seller?->first_name . "'s Shop"),
                 'product_name'  => $i->product_name,
+                'warranty'      => $i->warranty,
                 'variant_label' => $i->variant_label,
                 'unit_price'    => (float) $i->unit_price,
                 'regular_unit_price' => $i->regular_unit_price !== null ? (float) $i->regular_unit_price : null,

@@ -483,6 +483,15 @@ class _SellerOrderScreenState extends ConsumerState<SellerOrderScreen> {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
+                                      if (item.warranty != null)
+                                        ExpansionTile(
+                                          tilePadding: EdgeInsets.zero,
+                                          title: const Text(
+                                            'Warranty at purchase',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                          children: [Text(item.warranty!)],
+                                        ),
                                       Text(
                                         '${item.variant == 'Default' ? '' : '${item.variant} · '}x${item.quantity}',
                                         style: const TextStyle(

@@ -4,6 +4,7 @@ export interface RiskBuyer {
   id: number; name: string; email: string; status: string;
   score: number; level: 'high' | 'medium' | 'low'; order_count: number;
   buyer_cancellations: number; failed_payments: number; refused_parcels: number; hourly_checkouts: number;
+  high_value_orders: number; largest_order_total: number;
   signals: { code: string; label: string; detail: string }[];
 }
 export interface RiskOrder {

@@ -18,6 +18,13 @@ final availableVouchersProvider = FutureProvider.autoDispose<List<Voucher>>((
   return (await ref.watch(buyerApiProvider).discoverVouchers()).items;
 }, retry: (_, _) => null);
 
+final platformOffersProvider = FutureProvider.autoDispose<List<Voucher>>((
+  ref,
+) async {
+  ref.watch(currentUserProvider);
+  return ref.watch(buyerApiProvider).platformVouchers();
+}, retry: (_, _) => null);
+
 final saleProductsProvider = FutureProvider.autoDispose<List<ProductSummary>>(
   (ref) async =>
       (await ref
@@ -33,27 +40,27 @@ class BuyerVoucherSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final offers = ref.watch(availableVouchersProvider);
+    final offers = ref.watch(platformOffersProvider);
     void open() => context.push(BuyerPaths.vouchers);
     return Column(
       children: [
-        SectionHeader(title: 'Vouchers for you', onAction: open),
+        SectionHeader(title: 'Loved-IT vouchers', onAction: open),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
           child: offers.when(
             loading: () => const LinearProgressIndicator(),
             error: (_, _) => TextButton(
-              onPressed: () => ref.invalidate(availableVouchersProvider),
+              onPressed: () => ref.invalidate(platformOffersProvider),
               child: const Text('Could not load vouchers. Try again'),
             ),
             data: (items) => items.isEmpty
                 ? const Text(
-                    'No vouchers available right now. New shop and Loved-IT offers will appear here.',
+                    'New Loved-IT platform and shipping offers will appear here when a promotion starts.',
                     style: TextStyle(fontSize: 12, color: AppColors.stone600),
                   )
                 : Column(
                     children: [
-                      for (final voucher in items.take(2))
+                      for (final voucher in items.take(3))
                         Card(
                           color: const Color(0xFFFFF8EC),
                           margin: const EdgeInsets.only(bottom: AppSpace.sm),

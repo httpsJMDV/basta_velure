@@ -200,6 +200,26 @@ class TruckTrips
         return $trip;
     }
 
+    public function reportIssue(TruckTrip $trip, Rider $driver, string $kind, string $note): void
+    {
+        abort_unless((int) $trip->driver_id === (int) $driver->id, 404);
+        abort_unless($trip->status === TruckTrip::STATUS_ON_THE_WAY, 409, 'Only an ongoing trip can be reported.');
+        $duplicate = AuditLog::where('subject_type', 'TruckTrip')->where('subject_id', $trip->id)
+            ->where('action', 'truck_trip.issue_reported')->where('created_at', '>=', now()->subMinutes(5))
+            ->where('reason', $note)->where('new_value->kind', $kind)->exists();
+        abort_if($duplicate, 409, 'This issue is already reported.');
+        AuditLog::record($driver->user, 'truck_trip.issue_reported', $trip, new: ['kind' => $kind, 'code' => $trip->code],
+            reason: $note, companyId: $trip->logistics_company_id, actorRole: 'rider');
+        $trip->loadMissing(['fromHub.user', 'toHub.user']);
+        $ids = \App\Models\LogisticsCompanyMember::where('logistics_company_id', $trip->logistics_company_id)->pluck('user_id')
+            ->merge([$trip->fromHub?->user_id, $trip->toHub?->user_id])->filter()->unique();
+        foreach (User::whereIn('id', $ids)->get() as $user) {
+            $this->notifier->send($user, 'truck_trip.issue_reported', 'Truck trip issue: '.$trip->code,
+                str_replace('_', ' ', $kind).': '.$note, $user->sortingCenter ? '/hub/activity' : '/logistics/activity',
+                ['truck_trip_id' => $trip->id]);
+        }
+    }
+
     /** The courier closes a trip whose parcels did not all arrive. The driver is still owed the trip. */
     public function close(TruckTrip $trip, User $by, string $reason): TruckTrip
     {
@@ -223,7 +243,14 @@ class TruckTrips
      */
     public function markPaid(Rider $driver, User $by, ?string $reference, ?int $companyId): array
     {
-        $trips = TruckTrip::unpaid()->where('driver_id', $driver->id)->lockForUpdate()->get();
+        Rider::withTrashed()->whereKey($driver->id)->lockForUpdate()->firstOrFail();
+        if ($companyId) {
+            LogisticsCompany::whereKey($companyId)->lockForUpdate()->firstOrFail();
+            if ($reference) {
+                abort_if(\App\Models\RiderPaymentRequest::where('logistics_company_id', $companyId)->where('transfer_reference', $reference)->exists(), 422, 'This reference is already recorded for a rider payment request.');
+            }
+        }
+        $trips = TruckTrip::unpaid()->where('driver_id', $driver->id)->whereNull('rider_payment_request_id')->lockForUpdate()->get();
         if ($trips->isEmpty()) {
             throw ValidationException::withMessages(['driver' => 'This driver has no unpaid trips.']);
         }
@@ -296,6 +323,9 @@ class TruckTrips
             'paid_reference'    => $trip->paid_reference,
         ];
         if ($withParcels) {
+            $row['issues'] = AuditLog::where('subject_type', 'TruckTrip')->where('subject_id', $trip->id)
+                ->where('action', 'truck_trip.issue_reported')->latest('id')->limit(10)->get()
+                ->map(fn ($entry) => ['kind' => $entry->new_value['kind'] ?? 'other', 'note' => $entry->reason, 'reported_at' => $entry->created_at->toIso8601String()])->all();
             $row['parcels'] = ParcelHubStop::with('parcel:id,tracking_number,status')
                 ->where('truck_trip_id', $trip->id)->orderBy('id')->get()
                 ->map(fn (ParcelHubStop $s) => [
@@ -327,7 +357,9 @@ class TruckTrips
     /** @return array{id: int, name: string, city: string}|null */
     private function hub(?SortingCenter $hub): ?array
     {
-        return $hub ? ['id' => $hub->id, 'name' => (string) $hub->hub_name, 'city' => (string) $hub->address_city] : null;
+        return $hub ? ['id' => $hub->id, 'name' => (string) $hub->hub_name, 'city' => (string) $hub->address_city,
+            'address' => implode(', ', array_filter([$hub->address_street, $hub->address_barangay, $hub->address_city, $hub->address_province])),
+            'phone' => \App\Support\PhMobile::local($hub->user?->phone)] : null;
     }
 
     private function code(string $mode = TruckTrip::MODE_TRUCK): string

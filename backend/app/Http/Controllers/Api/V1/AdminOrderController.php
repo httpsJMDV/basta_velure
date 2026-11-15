@@ -249,6 +249,7 @@ class AdminOrderController extends Controller
             'items' => $o->items->map(fn ($i) => [
                 'id'            => $i->id,
                 'product_name'  => $i->product_name,
+                'warranty'      => $i->warranty,
                 'variant_label' => $i->variant_label,
                 'quantity'      => $i->quantity,
                 'unit_price'    => (float) $i->unit_price,

@@ -14,7 +14,7 @@ class Product extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'seller_id', 'category_id', 'name', 'description', 'base_price', 'original_price', 'discount_percent',
+        'seller_id', 'category_id', 'name', 'description', 'warranty', 'base_price', 'original_price', 'discount_percent',
         'status', 'rejection_reason', 'archive_reason', 'archived_by', 'weight_kg',
         'dimension_l_cm', 'dimension_w_cm', 'dimension_h_cm', 'sku',
         'fda_lto_path', 'fda_cpr_path', 'net_weight_volume',

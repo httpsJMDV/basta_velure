@@ -54,6 +54,17 @@ class SellerProductController extends Controller
         return response()->json(['data' => $this->formatProduct($product, PriceBook::for([$product->id]))]);
     }
 
+    public function updateWarranty(Request $request, Product $product): JsonResponse
+    {
+        $this->authorizeProduct($product, $request);
+        $data = $request->validate(['warranty' => ['present', 'nullable', 'string', 'max:2000']]);
+        $product->update(['warranty' => trim((string) $data['warranty']) ?: null]);
+        $product->load(['variants', 'images', 'category', 'storeCategories']);
+
+        return response()->json(['message' => 'Warranty terms saved. Existing orders keep their original terms.',
+            'data' => $this->formatProduct($product, PriceBook::for([$product->id]))]);
+    }
+
     /** POST /seller/products: a draft (status draft) or a published product (status active). */
     public function store(Request $request): JsonResponse
     {
@@ -463,6 +474,7 @@ class SellerProductController extends Controller
             'id'                   => $product->id,
             'name'                 => $product->name,
             'description'          => $product->description,
+            'warranty'             => $product->warranty,
             'category_id'          => $product->category?->slug ?? '',
             'thumbnail_url'        => $primaryImage ? asset('storage/' . $primaryImage->path) : null,
             'base_price'           => (float) $product->base_price,

@@ -765,9 +765,10 @@ export interface HubTransfersResponse {
 // Truck trips between hubs (the courier's line-haul)
 export type TruckTripStatus = 'on_the_way' | 'completed' | 'closed';
 
-export interface TruckTripHub { id: number; name: string; city: string }
+export interface TruckTripHub { id: number; name: string; city: string; address?: string; phone?: string | null }
 
 export interface TruckTrip {
+  issues?: { kind: string; note: string; reported_at: string }[];
   id: number;
   code: string;
   /** truck (the courier's driver), sea or air (a cargo carrier with a reference, no driver). */
@@ -1282,6 +1283,7 @@ export type PaymentMethod = 'gcash' | 'cod' | 'e_wallet' | 'card';
 export type PaymentStatus = 'pending' | 'pending_verification' | 'paid' | 'failed' | 'cod' | 'verification_failed' | 'refunded';
 
 export interface OrderItem {
+  warranty?: string | null;
   /** The product the line was (null for lines from before this was recorded). */
   product_id?: number | null;
   id: number;
@@ -1390,6 +1392,7 @@ export interface Order {
 }
 
 export interface SellerOrderItem {
+  warranty?: string | null;
   id: number;
   product_name: string;
   variant_label: string | null;
@@ -1580,6 +1583,7 @@ export interface SellerOrderEarningsItem {
 
 export interface PayoutRequest {
   transfer_reference?: string | null;
+  has_receipt?: boolean;
   sent_at?: string | null;
   manual_reference_required?: boolean;
   id: number;
@@ -2289,6 +2293,7 @@ export interface SellerProductVariant {
 }
 
 export interface SellerProduct {
+  warranty?: string | null;
   id: number;
   name: string;
   description: string | null;
@@ -2380,6 +2385,7 @@ export interface ProductFormImage {
 }
 
 export interface AddProductFormState {
+  warranty: string;
   // Basic Info
   name: string;
   description: string;

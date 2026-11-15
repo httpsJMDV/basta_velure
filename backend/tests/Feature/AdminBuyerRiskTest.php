@@ -88,6 +88,29 @@ class AdminBuyerRiskTest extends TestCase
         $this->getJson('/api/v1/admin/buyer-risk?search='.urlencode($this->buyer->email))->assertJsonCount(0, 'data');
     }
 
+    public function test_high_value_order_appears_in_default_review_queue_without_other_signals(): void
+    {
+        $this->riskOrder(['total' => 253000]);
+        $this->getJson('/api/v1/admin/buyer-risk?search='.urlencode($this->buyer->email))
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.score', 40)
+            ->assertJsonPath('data.0.high_value_orders', 1)->assertJsonPath('data.0.level', 'high')
+            ->assertJsonPath('data.0.signals.0.code', 'high_value_order');
+        $this->getJson($this->url())->assertJsonPath('data.largest_order_total', 253000);
+    }
+
+    public function test_high_value_signal_uses_boundary_and_excludes_cancelled_returned_old_and_deleted_orders(): void
+    {
+        config(['orders.high_value_min' => 100000]);
+        $this->riskOrder(['total' => 99999.99]);
+        $this->riskOrder(['total' => 253000, 'status' => 'CANCELLED']);
+        $this->riskOrder(['total' => 253000, 'status' => 'RETURNED']);
+        $this->riskOrder(['total' => 253000, 'created_at' => now()->subDays(31)]);
+        $this->riskOrder(['total' => 253000])->delete();
+        $this->getJson($this->url())->assertJsonPath('data.high_value_orders', 0)->assertJsonPath('data.score', 0);
+        $this->riskOrder(['total' => 100000]);
+        $this->getJson($this->url())->assertJsonPath('data.high_value_orders', 1)->assertJsonPath('data.score', 40);
+    }
+
     public function test_refusals_count_distinct_parcels_and_honor_cod_restoration(): void
     {
         $rider = Rider::forceCreate(['user_id' => $this->makeUser('rider')->id, 'vehicle_type' => 'motorcycle', 'status' => 'ACTIVE']);

@@ -910,8 +910,20 @@ export const requestSellerPayoutApi = (payload: { amount: number; gcash_number: 
 export const getAdminPayoutsApi = (params?: { status?: string; search?: string; page?: number }) =>
   http.get<PaginatedResponse<PayoutRequest>>('/admin/payouts', { params }).then((r) => r.data);
 
-export const markAdminPayoutSentApi = (id: number, admin_notes?: string, transfer_reference?: string) =>
-  http.post<{ message: string }>(`/admin/payouts/${id}/mark-sent`, { admin_notes, transfer_reference }).then((r) => r.data);
+export const markAdminPayoutSentApi = (id: number, admin_notes: string, transfer_reference: string, receipt: File) => {
+  const form = new FormData();
+  form.append('admin_notes', admin_notes);
+  form.append('transfer_reference', transfer_reference);
+  form.append('receipt', receipt);
+  return http.post<{ message: string }>(`/admin/payouts/${id}/mark-sent`, form).then((r) => r.data);
+};
+
+export const openPayoutReceiptApi = async (id: number) => {
+  const response = await http.get<Blob>(`/payouts/${id}/receipt`, { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data);
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+};
 
 export const completeAdminPayoutApi = (id: number, admin_notes?: string) =>
   http.post<{ message: string }>(`/admin/payouts/${id}/complete`, { admin_notes }).then((r) => r.data);
@@ -1127,6 +1139,9 @@ export const getHubTruckTripsApi = (direction: 'out' | 'in') =>
 // ─── Truck trips: the driver and the courier ─────────────────────────────────
 
 export const getRiderTripsApi = () => http.get<RiderTripsResponse>('/rider/trips').then((r) => r.data.data);
+
+export const reportTripIssueApi = (tripId: number, kind: string, note: string) =>
+  http.post<{ message: string }>(`/rider/trips/${tripId}/issue`, { kind, note }).then(r => r.data);
 
 export const reportTripArrivalApi = (tripId: number) =>
   http.post<{ message: string; data: TruckTrip }>(`/rider/trips/${tripId}/arrived`).then((r) => r.data);

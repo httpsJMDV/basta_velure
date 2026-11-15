@@ -14,6 +14,7 @@ use App\Support\Validation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -36,20 +37,20 @@ class RefundController extends Controller
         $refund = $this->buyerRefund($request, $order);
         $data = $request->validate([
             'gcash_number' => ['required', ...Gcash::RULE],
-            'gcash_name'   => Validation::accountName(),
+            'gcash_name' => Validation::accountName(),
         ], [
             'gcash_number.required' => 'Enter the GCash number that gets the refund.',
-            'gcash_number.regex'    => 'Enter the 11-digit mobile number of the GCash account, like 0917 123 4567.',
-            'gcash_name.required'   => 'Enter the name on the GCash account.',
+            'gcash_number.regex' => 'Enter the 11-digit mobile number of the GCash account, like 0917 123 4567.',
+            'gcash_name.required' => 'Enter the name on the GCash account.',
         ] + Validation::accountNameMessages('gcash_name'));
 
         $number = Gcash::normalize($data['gcash_number']);
         if (! $number) {
             throw ValidationException::withMessages(['gcash_number' => 'Enter the 11-digit mobile number of the GCash account, like 0917 123 4567.']);
         }
-        $this->refunds->setAccount($refund, $request->user(), $number, \Illuminate\Support\Str::squish($data['gcash_name']));
+        $this->refunds->setAccount($refund, $request->user(), $number, Str::squish($data['gcash_name']));
 
-        return $this->buyerResponse($order, 'Saved. The refund will be sent to ' . Gcash::format($number) . '.');
+        return $this->buyerResponse($order, 'Saved. The refund will be sent to '.Gcash::format($number).'.');
     }
 
     /** POST /buyer/orders/{order}/refund/confirm: the money arrived. */
@@ -99,12 +100,12 @@ class RefundController extends Controller
         abort_unless($refund, 404, 'There is no refund to send for this order.');
         $data = $request->validate([
             'reference' => ['required', 'string', 'max:30'],
-            'receipt'   => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+            'receipt' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
         ], [
             'reference.required' => 'Enter the 13-digit reference number of the GCash transfer.',
-            'receipt.required'   => 'Add a screenshot of the GCash receipt.',
-            'receipt.mimes'      => 'The receipt must be a JPG, PNG or WebP picture.',
-            'receipt.max'        => 'The receipt picture must be 8 MB or smaller.',
+            'receipt.required' => 'Add a screenshot of the GCash receipt.',
+            'receipt.mimes' => 'The receipt must be a JPG, PNG or WebP picture.',
+            'receipt.max' => 'The receipt picture must be 8 MB or smaller.',
         ]);
         $reference = Gcash::reference($data['reference']);
         if (strlen($reference) !== 13) {
@@ -114,7 +115,7 @@ class RefundController extends Controller
 
         return response()->json([
             'message' => 'Refund recorded. The buyer is asked to confirm it arrived.',
-            'data'    => ManualRefunds::present($fresh, 'seller'),
+            'data' => ManualRefunds::present($fresh, 'seller'),
         ]);
     }
 
@@ -127,21 +128,23 @@ class RefundController extends Controller
         $query = Refund::with(['order:id,order_number,payment_method,total', 'buyer:id,first_name,last_name,email', 'seller.sellerProfile:id,user_id,shop_name']);
         match ($status) {
             'attention' => $query->where(fn ($q) => $q->where('status', Refund::STATUS_NOT_RECEIVED)
+                ->orWhere(fn ($w) => $w->where('payer', 'platform')->whereIn('status', [Refund::STATUS_AWAITING_SHOP, Refund::STATUS_SENT]))
                 ->orWhere(fn ($w) => $w->where('status', Refund::STATUS_AWAITING_SHOP)->where('send_by', '<', now())))->orderBy('updated_at'),
-            'open'      => $query->whereIn('status', Refund::OPEN)->orderBy('created_at'),
-            'done'      => $query->where('status', Refund::STATUS_RECEIVED)->orderByDesc('received_at'),
-            default     => in_array($status, [...Refund::OPEN, Refund::STATUS_RECEIVED], true) ? $query->where('status', $status)->latest() : $query->latest(),
+            'open' => $query->whereIn('status', Refund::OPEN)->orderBy('created_at'),
+            'done' => $query->where('status', Refund::STATUS_RECEIVED)->orderByDesc('received_at'),
+            default => in_array($status, [...Refund::OPEN, Refund::STATUS_RECEIVED], true) ? $query->where('status', $status)->latest() : $query->latest(),
         };
         $page = $query->paginate(20);
 
         return response()->json([
             'data' => $page->getCollection()->map(fn (Refund $r) => $this->withOrder($r, 'admin') + [
-                'buyer'  => $r->buyer ? ['id' => $r->buyer->id, 'name' => trim("{$r->buyer->first_name} {$r->buyer->last_name}"), 'email' => $r->buyer->email] : null,
-                'shop'   => $r->seller ? ['id' => $r->seller->id, 'shop_name' => $r->seller->sellerProfile?->shop_name] : null,
+                'buyer' => $r->buyer ? ['id' => $r->buyer->id, 'name' => trim("{$r->buyer->first_name} {$r->buyer->last_name}"), 'email' => $r->buyer->email] : null,
+                'shop' => $r->seller ? ['id' => $r->seller->id, 'shop_name' => $r->seller->sellerProfile?->shop_name] : null,
             ])->values(),
             'meta' => [
                 'current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total(),
                 'attention' => Refund::where('status', Refund::STATUS_NOT_RECEIVED)
+                    ->orWhere(fn ($w) => $w->where('payer', 'platform')->whereIn('status', [Refund::STATUS_AWAITING_SHOP, Refund::STATUS_SENT]))
                     ->orWhere(fn ($w) => $w->where('status', Refund::STATUS_AWAITING_SHOP)->where('send_by', '<', now()))->count(),
             ],
         ]);
@@ -154,6 +157,7 @@ class RefundController extends Controller
         $v = $request->validate(['reference' => ['required', 'regex:/^\d{13}$/'],
             'receipt' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192']]);
         $fresh = $this->refunds->markSent($refund, $request->user(), $v['reference'], $request->file('receipt'));
+
         return response()->json(['message' => 'Loved-IT refund recorded. The buyer can confirm receipt.', 'data' => $this->withOrder($fresh, 'admin')]);
     }
 
@@ -161,7 +165,7 @@ class RefundController extends Controller
     {
         $data = $request->validate([
             'decision' => ['required', Rule::in(['received', 'send_again'])],
-            'note'     => Validation::sentence(true, 10, 1000),
+            'note' => Validation::sentence(true, 10, 1000),
         ], Validation::sentenceMessages('note', 'The note', 10, 1000) + ['decision.in' => 'Choose received or send again.']);
         $note = trim(strip_tags($data['note']));
         $fresh = $this->refunds->resolve($refund, $request->user(), $data['decision'], $note);
@@ -186,7 +190,7 @@ class RefundController extends Controller
         abort_unless($allowed && $path && Storage::disk(Refund::RECEIPT_DISK)->exists($path), 404, 'Receipt not found.');
 
         return Storage::disk(Refund::RECEIPT_DISK)->response($path, null, [
-            'Cache-Control'          => 'private, no-store',
+            'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
@@ -206,7 +210,7 @@ class RefundController extends Controller
     {
         return response()->json([
             'message' => $message,
-            'data'    => BuyerOrderPresenter::present($order->fresh(self::BUYER_WITH), detail: true),
+            'data' => BuyerOrderPresenter::present($order->fresh(self::BUYER_WITH), detail: true),
         ]);
     }
 

@@ -63,6 +63,20 @@ class SellerProductDescriptionTest extends TestCase
         $this->assertSame($html, Product::where('seller_id', $this->seller->id)->latest('id')->value('description'));
     }
 
+    public function test_product_editor_saves_warranty_and_preserves_it_when_older_forms_omit_it(): void
+    {
+        $terms = '12-month seller warranty. Contact the shop with your order number.';
+        $response = $this->postJson('/api/v1/seller/products', $this->payload('A comfortable everyday cotton shirt.') + ['warranty' => $terms])
+            ->assertCreated()->assertJsonPath('data.warranty', $terms);
+        $id = $response->json('data.id');
+        $this->postJson('/api/v1/seller/products/'.$id, $this->payload('Updated description for this cotton shirt.'))
+            ->assertOk()->assertJsonPath('data.warranty', $terms);
+        $this->postJson('/api/v1/seller/products/'.$id, $this->payload('Updated description for this cotton shirt.') + ['warranty' => null])
+            ->assertOk()->assertJsonPath('data.warranty', null);
+        $this->postJson('/api/v1/seller/products', $this->payload('A comfortable everyday cotton shirt.') + ['warranty' => str_repeat('x', 2001)])
+            ->assertUnprocessable()->assertJsonValidationErrors('warranty');
+    }
+
     public function test_visible_text_over_3000_characters_is_rejected_on_create_and_update(): void
     {
         $tooLong = '<p>' . str_repeat('x', 3001) . '</p>';

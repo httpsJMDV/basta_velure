@@ -583,7 +583,7 @@ function Assurances({ product }: { product: ProductDetail }) {
     },
     { icon: Banknote, title: 'Cash on delivery available', detail: shop && !shop.accepts_gcash ? 'Pay the rider in cash when your order arrives.' : 'Pay the rider when your order arrives, or choose GCash at checkout.' },
     { icon: RotateCcw, title: '7-day returns', detail: product.return_policy ?? 'Damaged, wrong or incomplete? Request a return within 7 days of delivery.' },
-    { icon: ShieldCheck, title: 'Buyer protection', detail: 'Every shop is verified before it can sell, and our team reviews any return a shop will not settle.' },
+    { icon: ShieldCheck, title: 'Seller warranty', detail: product.warranty ?? 'No additional warranty terms listed. Contact this shop about coverage. Applicable consumer rights remain.' },
   ];
 
   return (
@@ -593,7 +593,7 @@ function Assurances({ product }: { product: ProductDetail }) {
           <Icon className="w-[18px] h-[18px] mt-0.5 text-stone-500 shrink-0" strokeWidth={1.8} />
           <div className="flex-1 min-w-0">
             <p className="text-[13px] text-stone-700">{title}</p>
-            <p className="text-[12px] text-stone-500 mt-0.5 line-clamp-2">{detail}</p>
+            <p className="text-[12px] text-stone-500 mt-0.5 whitespace-pre-line">{detail}</p>
           </div>
           {action}
         </li>

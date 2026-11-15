@@ -15,7 +15,7 @@ class PlatformSetting extends Model
     public static function get(string $key, mixed $default = null): mixed
     {
         $setting = static::where('key', $key)->first();
-        if (!$setting || $setting->value === null) {
+        if (! $setting || $setting->value === null) {
             return $default;
         }
 
@@ -59,16 +59,20 @@ class PlatformSetting extends Model
     // ── Returns (A31) ────────────────────────────────────────────────────────
 
     public const RETURN_DEFAULTS = [
-        'return_window_days'   => 7,
+        'return_window_days' => 7,
         'seller_response_days' => 3,
-        'escalation_days'      => 3,
-        'summary'              => 'Return an item within 7 days of delivery with photos of the problem. The shop has 3 days to answer; a request it does not answer is approved and refunded.',
+        'escalation_days' => 3,
+        'completion_terms' => 'Confirm delivery only after inspecting your items. Confirmation completes the order and closes the standard in-app return/refund request. For an existing return, continue through that case. Warranty and applicable consumer rights remain available through the seller or Loved-IT support.',
+        'warranty_terms' => 'A completed order does not cancel an applicable seller or manufacturer warranty, or statutory remedies for defective goods. Keep your order number, receipt, warranty details and evidence. Contact the seller for assessment, repair, replacement or refund as applicable; contact Loved-IT support if unresolved. Coverage depends on the product and warranty terms.',
+        'refund_terms' => 'Return approval opens a refund case; it does not mean money has been transferred. Loved-IT refunds platform-collected GCash payments. Sellers refund direct payments and COD. Provide a GCash account, wait for the transfer reference and receipt, then confirm receipt or report a missing transfer. Loved-IT can require another transfer with a new reference after review.',
+        'return_shipping_terms' => 'When collection is required, a courier rider collects the packed item with proof. Nearby returns can go directly to the shop. Cross-hub returns go from the buyer-side hub through the courier network to the shop-side hub, then a local rider delivers to the shop and the shop confirms receipt.',
+        'summary' => 'Return an item within 7 days of delivery with photos of the problem. The shop has 3 days to answer; a request it does not answer is approved and refunded.',
         'non_returnable_categories' => [
             'Food & Grocery' => 'Perishable food and grocery items cannot be returned once delivered for health and safety reasons, except for damaged, expired, or incorrect deliveries.',
             'Personalized & Custom Items' => 'Custom-made, engraved, or customized orders are non-returnable unless defective or incorrect.',
             'Personal Care & Undergarments' => 'Hygiene, cosmetics, intimate apparel, and personal care products with opened protective seals.',
         ],
-        'mediation_terms'      => 'If the shop rejects your return, you can escalate it to Loved-IT within 3 days. Loved-IT then decides: a full refund, or the return is closed and the order completes.',
+        'mediation_terms' => 'If the shop rejects your return, you can escalate it to Loved-IT within 3 days. Loved-IT then decides: a full refund, or the return is closed and the order completes.',
     ];
 
     /** The return policy, with every key present (a policy saved before a key existed gets its default). */

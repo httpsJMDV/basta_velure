@@ -277,15 +277,42 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
     for (final v in widget.product.variants)
       v.id: TextEditingController(text: v.price.toStringAsFixed(2)),
   };
+  late final _warranty = TextEditingController(
+    text: widget.product.warranty ?? '',
+  );
+  bool _savingWarranty = false;
   int? _saving;
   String? _error;
 
   @override
   void dispose() {
+    _warranty.dispose();
     for (final c in [..._stock.values, ..._price.values]) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _saveWarranty() async {
+    setState(() {
+      _savingWarranty = true;
+      _error = null;
+    });
+    try {
+      final product = await ref
+          .read(sellerApiProvider)
+          .setWarranty(_product.id, _warranty.text.trim());
+      if (!mounted) return;
+      setState(() => _product = product);
+      showSnack(
+        context,
+        'Warranty saved. Existing orders keep their original terms.',
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = ApiFailure.from(error).message);
+    } finally {
+      if (mounted) setState(() => _savingWarranty = false);
+    }
   }
 
   Future<void> _save(SellerVariant v) async {
@@ -359,6 +386,31 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
               child: ListView(
                 shrinkWrap: true,
                 children: [
+                  const Text(
+                    'Warranty and after-sales support',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  const Text(
+                    'State the provider, duration, coverage and claim steps. Buyers keep these terms with their order. Applicable consumer rights remain.',
+                    style: TextStyle(fontSize: 12, color: AppColors.stone600),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  TextField(
+                    controller: _warranty,
+                    maxLength: 2000,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Warranty terms',
+                      hintText: 'Example: 12-month seller warranty from delivery for manufacturing defects…',
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: _savingWarranty ? null : _saveWarranty,
+                    child: Text(_savingWarranty ? 'Saving…' : 'Save warranty'),
+                  ),
+                  const SizedBox(height: AppSpace.lg),
                   for (final v in _product.variants)
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppSpace.md),

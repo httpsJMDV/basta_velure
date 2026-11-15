@@ -610,7 +610,7 @@ function VoucherForm({ admin, editing, products, onClose, onSaved }: {
 
         <Section n={5} title={admin ? 'Visibility' : 'Visibility and products'}>
           <Choice value={claimable ? 'claim' : 'code'} onChange={(v) => setClaimable(v === 'claim')} disabled={locked} options={[
-            { value: 'claim', title: 'Claimable', text: admin ? 'Listed on the vouchers page for buyers to claim.' : 'Shown on your shop and product pages for buyers to claim.', icon: Eye },
+            { value: 'claim', title: 'Claimable', text: admin ? 'Shown on Home and in Loved-IT vouchers while active and available.' : 'Shown on your shop and product pages for buyers to claim.', icon: Eye },
             { value: 'code', title: 'Code only', text: 'Never listed. Works when a buyer types the code.', icon: KeyRound },
           ]} />
           {!admin && (

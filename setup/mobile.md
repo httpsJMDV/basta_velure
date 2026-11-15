@@ -2,7 +2,7 @@
 
 Everything you need, in order. No need to look anything up elsewhere.
 
-> **Cloud hosting note (November 13, 2026):** the API is now deployed on Laravel Cloud. The local-terminal instructions below describe the earlier tunnel setup. A backend deployment does not rebuild or publish the Android APK. `setup/publish-apk.ps1` builds and copies the APK and `version.json` locally; upload both to the active download host separately, then verify the live metadata and APK hash. Its local success message is not proof that the public download was updated.
+> **Cloud hosting:** the live website is hosted on Cloudflare, the API on Laravel Cloud, and Android downloads in the public Laravel Cloud bucket. Phones use these hosted services; they do not require the developer's PC or the old tunnel to stay running. A backend deployment does not rebuild or publish the Android APK. `setup/publish-apk.ps1` prepares a signed APK and metadata locally; upload and verify them separately before publishing the updated website redirects.
 
 ## Put the app on a phone (the easy way)
 
@@ -15,11 +15,11 @@ On the phone, open this in Chrome:
 3. Tap **Install**. If Google Play Protect warns you, tap **More details**, then **Install anyway**. It warns because the app isn't from the Play Store.
 4. Tap **Open** and sign in.
 
-The page only opens while the website is running (see the next section). The app needs the website running too.
+The download page and app use the hosted production services. No laptop is needed for a rider's daily work.
 
 An older version gets replaced by the new one, so you don't lose your sign-in. If the phone says **App not installed**, uninstall the old Loved-IT first. That happens once, if it was built with a different key.
 
-## Turn the website on
+## Run the earlier local tunnel setup (development only)
 
 Open 6 terminals and run one line in each. Keep them all open, and don't let the PC sleep.
 
@@ -43,6 +43,8 @@ powershell -ExecutionPolicy Bypass -File C:\Projects\basta_velure\setup\publish-
 ```
 
 After uploading both files, verify `https://loved-it.shop/download/version.json` and the APK's SHA-256 against the prepared files. Then install from https://loved-it.shop/download again.
+
+For a controlled release, pass `-BuildNumber 26111602` (replace with a new number higher than the live build). Reusing a build number can prevent installed apps from updating or leave a cached APK link pointing at older bytes. The script's default is based on the current hour, so use an explicit unused number for multiple releases within an hour. Verify the existing release signing certificate before publishing; an update must use the same key as the installed app.
 
 ## If the download page won't open
 
@@ -79,7 +81,7 @@ flutter run --dart-define-from-file=dart_defines/dev.json
    flutter run --dart-define-from-file=dart_defines/prod.json
    ```
 
-`dev.json` only works on the emulator. `prod.json` talks to the live site, so the 6 terminals must be on. Both files are ignored by git, so a new PC has to make them from `dart_defines/example.json`.
+`dev.json` uses the local development API. `prod.json` talks to the hosted production services and does not need the development terminals. Both files are ignored by git, so a new PC has to make them from `dart_defines/example.json`.
 
 Close the emulator when you're done, because it uses a lot of memory on the PC that runs the website.
 

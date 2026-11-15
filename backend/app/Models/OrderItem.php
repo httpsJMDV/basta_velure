@@ -9,7 +9,7 @@ class OrderItem extends Model
 {
     protected $fillable = [
         'order_id', 'seller_id', 'product_id', 'product_variant_id', 'category_id', 'product_name', 'variant_label',
-        'unit_price', 'quantity', 'subtotal', 'image_url',
+        'unit_price', 'quantity', 'subtotal', 'image_url', 'warranty',
         'commission_rate', 'commission_amount', 'seller_earnings',
         'payout_status', 'delivered_at', 'escrow_release_at',
         // What the line was priced at (A5: a flash line and the units beyond the flash quantity are separate lines).

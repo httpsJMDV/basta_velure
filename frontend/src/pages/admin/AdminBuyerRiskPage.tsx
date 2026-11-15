@@ -87,7 +87,7 @@ export default function AdminBuyerRiskPage() {
     <div className="rounded-2xl border border-stone-200 bg-white p-4 flex gap-3 items-start text-xs text-stone-600 leading-relaxed">
       <ShieldCheck className="w-5 h-5 text-brand-red shrink-0" />
       <div><p className="font-semibold text-stone-900">Signals guide review; they do not prove abuse.</p>
-        <p>Scores use recorded order activity over 30 days and checkout activity in the last hour. AI helps explain the evidence. An admin decides every cancellation.</p></div>
+        <p>Scores use recorded order activity over 30 days, high-value orders at the checkout review threshold, and checkout activity in the last hour. AI helps explain the evidence. An admin decides every cancellation.</p></div>
     </div>
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 p-3 text-sm flex justify-between gap-3">{notice}<button aria-label="Dismiss notification" onClick={() => setNotice('')}><X className="w-4 h-4" /></button></div>}
 

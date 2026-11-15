@@ -48,6 +48,12 @@ class CourierMoreScreen extends ConsumerWidget {
           StatGrid(
             children: [
               CourierWorkTile(
+                icon: LucideIcons.banknote,
+                title: 'Rider payment requests',
+                subtitle: 'Pay earned pickup, delivery and truck-trip requests',
+                onTap: () => context.push(LogisticsPaths.courierRiderPayments),
+              ),
+              CourierWorkTile(
                 icon: LucideIcons.scale,
                 title: 'Cargo allowance',
                 subtitle: 'Review vehicle ratings and package measurements',

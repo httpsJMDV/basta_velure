@@ -877,7 +877,9 @@ class MailNotifier
             'title' => ($refund->payer === 'platform' ? 'Loved-IT' : 'The shop') . ' sent ' . $this->peso($refund->amount) . ' to your GCash.',
             'paragraphs' => [
                 'Check your GCash, then confirm it arrived from the order page.',
-                'If nothing came, tell us within ' . \App\Services\Commerce\ManualRefunds::confirmDays() . ' days and Loved-IT will check the shop\'s receipt. After that it counts as received.',
+                $refund->payer === 'platform'
+                    ? 'If nothing came, report the missing transfer from the order page. This case stays open until you confirm receipt or Loved-IT reviews the transfer.'
+                    : 'If nothing came, tell us within ' . \App\Services\Commerce\ManualRefunds::confirmDays() . ' days and Loved-IT will check the shop\'s receipt. After that it counts as received.',
             ],
             'details' => [
                 'Order' => $order->order_number,

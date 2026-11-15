@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\OrderStatus;
+use App\Models\Dispute;
 use App\Models\LogisticsCompany;
 use App\Models\LogisticsCompanyMember;
 use App\Models\Order;
@@ -12,12 +13,17 @@ use App\Models\ReturnPickup;
 use App\Models\Rider;
 use App\Models\SortingCenter;
 use App\Models\User;
+use App\Services\Courier\PickupPolicy;
+use App\Services\Courier\ReturnPickups;
+use App\Services\RiderWorkload;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
+use Tests\Support\BuildsCommerce;
 use Tests\TestCase;
 
 /**
@@ -26,7 +32,7 @@ use Tests\TestCase;
  */
 class ReturnPickupTest extends TestCase
 {
-    use \Tests\Support\BuildsCommerce;
+    use BuildsCommerce;
     use DatabaseTransactions;
 
     private LogisticsCompany $company;
@@ -40,19 +46,19 @@ class ReturnPickupTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+        $this->withoutMiddleware(ThrottleRequests::class);
         Storage::fake('ids');
         Storage::fake('public');
 
         $code = strtoupper(Str::random(6));
         $this->company = LogisticsCompany::create([
-            'name' => 'Balik Express ' . $code, 'code' => $code, 'slug' => strtolower($code), 'status' => LogisticsCompany::STATUS_APPROVED, 'submitted_at' => now(),
+            'name' => 'Balik Express '.$code, 'code' => $code, 'slug' => strtolower($code), 'status' => LogisticsCompany::STATUS_APPROVED, 'submitted_at' => now(),
         ]);
         $this->ops = $this->user('ops');
         LogisticsCompanyMember::create(['logistics_company_id' => $this->company->id, 'user_id' => $this->ops->id, 'role' => 'owner']);
         $this->hubUser = $this->user('hub');
         $this->hub = SortingCenter::forceCreate([
-            'user_id' => $this->hubUser->id, 'hub_name' => 'Pila Hub ' . $code, 'address_province' => 'Laguna', 'address_city' => 'Pila',
+            'user_id' => $this->hubUser->id, 'hub_name' => 'Pila Hub '.$code, 'address_province' => 'Laguna', 'address_city' => 'Pila',
             'address_barangay' => 'Santa Clara', 'address_street' => '1 Hub St', 'status' => SortingCenter::STATUS_APPROVED,
             'coverage_barangays' => ['043424015'], 'logistics_company_id' => $this->company->id,
         ]);
@@ -61,8 +67,8 @@ class ReturnPickupTest extends TestCase
     private function user(string $tag, string $role = 'buyer'): User
     {
         return User::forceCreate([
-            'first_name' => ucfirst($tag), 'last_name' => 'Santos', 'email' => $tag . '.' . Str::lower(Str::random(10)) . '@example.com',
-            'phone' => '+63917' . random_int(1000000, 9999999), 'password' => Hash::make('Password123!'), 'role' => $role, 'status' => 'active',
+            'first_name' => ucfirst($tag), 'last_name' => 'Santos', 'email' => $tag.'.'.Str::lower(Str::random(10)).'@example.com',
+            'phone' => '+63917'.random_int(1000000, 9999999), 'password' => Hash::make('Password123!'), 'role' => $role, 'status' => 'active',
             'buyer_application_status' => 'approved',
         ]);
     }
@@ -71,18 +77,18 @@ class ReturnPickupTest extends TestCase
     {
         return Rider::forceCreate([
             'user_id' => $this->user('rider', 'rider')->id, 'logistics_company_id' => $this->company->id, 'sorting_center_id' => $this->hub->id,
-            'vehicle_type' => 'Motorcycle', 'duty' => $duty, 'plate_number' => 'RTN' . random_int(1000, 9999), 'status' => Rider::STATUS_ACTIVE,
+            'vehicle_type' => 'Motorcycle', 'duty' => $duty, 'plate_number' => 'RTN'.random_int(1000, 9999), 'status' => Rider::STATUS_ACTIVE,
             'activated_at' => now(),
         ])->fresh(['user']);
     }
 
     /** @return array{0: Order, 1: User, 2: User} the order, its buyer and its shop, with an approved return */
-    private function approvedReturn(bool $returnItem = true, string $reason = 'Damaged item'): array
+    private function approvedReturn(bool $returnItem = true, string $reason = 'Damaged item', ?SortingCenter $shopHub = null): array
     {
         $buyer = $this->user('buyer');
-        $seller = $this->seller('Maria Clara Handicrafts ' . Str::random(4), $this->qc);
+        $seller = $this->seller('Maria Clara Handicrafts '.Str::random(4), $this->qc);
         $order = Order::forceCreate([
-            'order_number' => 'VEL-' . strtoupper(uniqid()), 'buyer_id' => $buyer->id, 'status' => OrderStatus::DELIVERED->value,
+            'order_number' => 'VEL-'.strtoupper(uniqid()), 'buyer_id' => $buyer->id, 'status' => OrderStatus::DELIVERED->value,
             'subtotal' => 450.00, 'shipping_fee' => 50.00, 'total' => 500.00, 'payment_method' => 'cod', 'payment_status' => 'paid',
             'settlement' => Order::SETTLEMENT_DIRECT, 'shipping_name' => 'Ana Buyer', 'shipping_phone' => '09998887777',
             'shipping_address' => '12 Sampaguita St', 'shipping_province' => 'Laguna', 'shipping_city' => 'Pila', 'shipping_barangay' => 'Santa Clara',
@@ -94,7 +100,7 @@ class ReturnPickupTest extends TestCase
             'seller_earnings' => 427.50, 'payout_status' => 'pending_release',
         ]);
         Parcel::create([
-            'order_id' => $order->id, 'seller_id' => $seller->id, 'tracking_number' => 'LIT-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -6)),
+            'order_id' => $order->id, 'seller_id' => $seller->id, 'tracking_number' => 'LIT-'.date('ymd').'-'.strtoupper(substr(uniqid(), -6)),
             'status' => Parcel::STATUS_DELIVERED, 'logistics_company_id' => $this->company->id, 'sorting_center_id' => $this->hub->id,
             'destination_barangay' => 'Santa Clara', 'destination_barangay_code' => '043424015', 'pickup_barangay' => 'Bubukal',
             'delivered_at' => now()->subHour(), 'delivery_proof_path' => 'delivery-proofs/a.jpg', 'received_by' => 'Ana',
@@ -102,11 +108,15 @@ class ReturnPickupTest extends TestCase
             'recipient_snapshot' => ['name' => 'Ana Buyer', 'phone' => '09998887777', 'full_address' => '12 Sampaguita St, Santa Clara, Pila', 'barangay' => 'Santa Clara', 'city' => 'Pila', 'barangay_code' => '043424015'],
         ]);
 
+        if ($shopHub) {
+            $order->parcel->hubStops()->create(['position' => 0, 'sorting_center_id' => $shopHub->id, 'arrived_at' => now()->subDays(2)]);
+            $order->parcel->hubStops()->create(['position' => 1, 'sorting_center_id' => $this->hub->id, 'arrived_at' => now()->subDay()]);
+        }
         Sanctum::actingAs($buyer);
         $this->post("/api/v1/buyer/orders/{$order->id}/request-return",
             ['reason' => $reason, 'description' => 'The basket arrived with a broken rim.', 'photos' => [$this->png('a.png')]],
             ['Accept' => 'application/json'])->assertOk();
-        if ($reason !== \App\Models\Dispute::REASON_NOT_RECEIVED) {
+        if ($reason !== Dispute::REASON_NOT_RECEIVED) {
             Sanctum::actingAs($seller);
             $this->postJson("/api/v1/seller/orders/{$order->id}/respond-return", ['action' => 'approve', 'return_item' => $returnItem])->assertOk();
         }
@@ -124,14 +134,14 @@ class ReturnPickupTest extends TestCase
         [$order] = $this->approvedReturn();
         $pickup = ReturnPickup::where('order_id', $order->id)->firstOrFail();
         $rider = $this->rider();
-        $policy = app(\App\Services\Courier\PickupPolicy::class);
+        $policy = app(PickupPolicy::class);
         $this->assertSame(0, $policy->assignReturns($this->company->id));
         $this->company->forceFill(['auto_return_pickups' => true])->save();
         $this->assertSame(0, $policy->assignReturns($this->company->id));
         $rider->forceFill(['is_online' => true, 'online_at' => now(), 'last_seen_at' => now()])->save();
         $this->assertSame(1, $policy->assignReturns($this->company->id));
         $this->assertSame($rider->id, $pickup->fresh()->rider_id);
-        $this->assertSame(1, app(\App\Services\RiderWorkload::class)->activeJobs($rider));
+        $this->assertSame(1, app(RiderWorkload::class)->activeJobs($rider));
         $this->assertSame(0, $policy->assignReturns($this->company->id));
         $this->hub->forceFill(['auto_return_pickups' => false])->save();
         [$other] = $this->approvedReturn();
@@ -149,9 +159,9 @@ class ReturnPickupTest extends TestCase
         for ($i = 0; $i < 4; $i++) {
             [$orders[]] = $this->approvedReturn();
         }
-        $policy = app(\App\Services\Courier\PickupPolicy::class);
+        $policy = app(PickupPolicy::class);
         $this->assertSame(3, $policy->assignReturns($this->company->id));
-        $this->assertSame(3, app(\App\Services\RiderWorkload::class)->activeJobs($rider));
+        $this->assertSame(3, app(RiderWorkload::class)->activeJobs($rider));
         $last = ReturnPickup::where('order_id', $orders[3]->id)->firstOrFail();
         $this->assertNull($last->rider_id);
         $other = LogisticsCompany::findOrFail(LogisticsCompany::defaultId());
@@ -187,7 +197,7 @@ class ReturnPickupTest extends TestCase
         [$kept] = $this->approvedReturn(false);
         $this->assertFalse(ReturnPickup::where('order_id', $kept->id)->exists());
 
-        [$missing] = $this->approvedReturn(true, \App\Models\Dispute::REASON_NOT_RECEIVED);
+        [$missing] = $this->approvedReturn(true, Dispute::REASON_NOT_RECEIVED);
         $this->assertFalse(ReturnPickup::where('order_id', $missing->id)->exists());
     }
 
@@ -251,6 +261,39 @@ class ReturnPickupTest extends TestCase
         $this->assertSame(1, $buyer->notifications()->where('data->kind', 'return.pickup_failed')->where('data->title', 'Return pickup cancelled')->count());
     }
 
+    public function test_cross_hub_return_travels_back_before_a_local_rider_delivers_to_shop(): void
+    {
+        $shopHub = SortingCenter::forceCreate([
+            'user_id' => $this->user('shopHub')->id, 'hub_name' => 'Shop-side hub '.Str::random(6),
+            'address_province' => 'Laguna', 'address_city' => 'Santa Cruz', 'address_barangay' => 'Bubukal',
+            'address_street' => '2 Hub St', 'status' => SortingCenter::STATUS_APPROVED,
+            'logistics_company_id' => $this->company->id,
+        ]);
+        [$order, , $seller] = $this->approvedReturn(shopHub: $shopHub);
+        $pickup = ReturnPickup::where('order_id', $order->id)->firstOrFail();
+        $this->assertTrue($pickup->goesThroughHubs());
+        $this->assertEquals($shopHub->id, $pickup->destination_hub_id);
+        $service = app(ReturnPickups::class);
+        $collector = $this->rider();
+        $service->assign($pickup->fresh(), $collector, $this->ops, 'logistics');
+        $service->collected($pickup->fresh(), $collector, $this->png());
+        $service->dropped($pickup->fresh(), $collector);
+        $this->assertFalse($service->readyForShopRider($pickup->fresh()));
+        while ($service->nextStop($pickup->fresh())) {
+            $next = $service->send($pickup->fresh(), $this->ops);
+            $this->assertNotNull($pickup->fresh()->transit_since);
+            $service->arrive($pickup->fresh(), $next, $this->ops);
+        }
+        $this->assertTrue($service->readyForShopRider($pickup->fresh()));
+        $shopRider = $this->rider();
+        $shopRider->forceFill(['sorting_center_id' => $shopHub->id])->save();
+        $service->assign($pickup->fresh(), $shopRider, $this->ops, 'logistics');
+        $service->delivered($pickup->fresh(), $shopRider);
+        $service->received($pickup->fresh(), $seller);
+        $this->assertSame(ReturnPickup::STATUS_RECEIVED, $pickup->fresh()->status);
+        $this->assertSame('pending', $order->fresh()->refund_status);
+    }
+
     public function test_truck_drivers_other_riders_and_other_hubs_cannot_touch_it(): void
     {
         [$order] = $this->approvedReturn();
@@ -267,7 +310,7 @@ class ReturnPickupTest extends TestCase
         $this->postJson("/api/v1/rider/return-pickups/{$pickup->id}/failed", ['reason' => 'Nobody was home.'])->assertNotFound();
 
         $elsewhere = SortingCenter::forceCreate([
-            'user_id' => ($otherHubUser = $this->user('otherhub'))->id, 'hub_name' => 'Far Hub ' . uniqid(), 'address_province' => 'Laguna',
+            'user_id' => ($otherHubUser = $this->user('otherhub'))->id, 'hub_name' => 'Far Hub '.uniqid(), 'address_province' => 'Laguna',
             'address_city' => 'Bay', 'address_barangay' => 'X', 'address_street' => '1', 'status' => SortingCenter::STATUS_APPROVED,
             'coverage_barangays' => ['0434099999'], 'logistics_company_id' => $this->company->id,
         ]);

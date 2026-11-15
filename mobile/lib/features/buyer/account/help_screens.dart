@@ -173,6 +173,29 @@ class PoliciesScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
+              for (final entry in const {
+                'completion_terms': 'Before confirming delivery',
+                'warranty_terms': 'Warranty after completion',
+                'refund_terms': 'Refund transfers and confirmation',
+                'return_shipping_terms': 'How returned items travel',
+              }.entries)
+                if (asString(returns[entry.key]) != null)
+                  BlockCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.value,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: AppSpace.sm),
+                        Text(
+                          asString(returns[entry.key])!,
+                          style: const TextStyle(height: 1.5),
+                        ),
+                      ],
+                    ),
+                  ),
               if (asString(returns['mediation_terms']) != null)
                 BlockCard(
                   child: Column(

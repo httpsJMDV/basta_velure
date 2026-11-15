@@ -13,6 +13,26 @@ class VoucherDiscoveryTest extends TestCase
     use BuildsCommerce;
     use DatabaseTransactions;
 
+    public function test_platform_offers_are_public_but_private_scheduled_and_exhausted_codes_are_not_listed(): void
+    {
+        $offer = $this->voucher($this->code('PUBLIC'), Voucher::SCOPE_PLATFORM, null, 'fixed', 10, 50);
+        $shipping = $this->voucher($this->code('SHIPPING'), Voucher::SCOPE_SHIPPING, null, 'fixed', 10, 50);
+        $excluded = [];
+        foreach ([['claimable' => false], ['starts_at' => now()->addDay()], ['ends_at' => now()->subDay()],
+            ['total_limit' => 1, 'used_count' => 1], ['ended_at' => now()]] as $extra) {
+            $excluded[] = $this->voucher($this->code('HIDDEN'), Voucher::SCOPE_PLATFORM, null, 'fixed', 10, 50, $extra)->id;
+        }
+        $ids = $this->getJson('/api/v1/vouchers/platform')->assertOk()->json('data.*.id');
+        $this->assertContains($offer->id, $ids);
+        $this->assertContains($shipping->id, $ids);
+        foreach ($excluded as $id) $this->assertNotContains($id, $ids);
+        $buyer = $this->buyer();
+        Sanctum::actingAs($buyer);
+        $this->postJson('/api/v1/buyer/vouchers/claim', ['voucher_id' => $offer->id])->assertCreated();
+        $rows = $this->getJson('/api/v1/vouchers/platform')->assertOk()->json('data');
+        $this->assertTrue(collect($rows)->firstWhere('id', $offer->id)['claimed']);
+    }
+
     public function test_discovery_includes_unsaved_shop_and_platform_offers_but_not_private_or_unavailable_ones(): void
     {
         $seller = $this->seller('Discoverable shop', $this->qc);

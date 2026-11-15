@@ -137,7 +137,7 @@ class LogisticsSettlementController extends Controller
         $totals = fn ($query, string $key) => $query->selectRaw("{$key} as k, SUM(CASE WHEN paid_at IS NULL THEN amount ELSE 0 END) as unpaid,
                 SUM(CASE WHEN paid_at IS NULL THEN 1 ELSE 0 END) as unpaid_count, MAX(paid_at) as last_paid_at")
             ->groupBy($key)->get()->keyBy('k');
-        $riderTotals = $totals(RiderEarning::query()->whereIn('rider_id', Rider::whereIn('sorting_center_id', $hubIds)->select('id')), 'rider_id');
+        $riderTotals = $totals(RiderEarning::query()->whereNull('rider_payment_request_id')->whereIn('rider_id', Rider::whereIn('sorting_center_id', $hubIds)->select('id')), 'rider_id');
         $hubTotals = $totals(HubEarning::query()->whereIn('sorting_center_id', $hubIds), 'sorting_center_id');
         $row = fn ($t) => [
             'unpaid'       => (float) Money::fromCents(Money::toCents((string) ($t->unpaid ?? '0'))),
@@ -202,7 +202,13 @@ class LogisticsSettlementController extends Controller
         abort_unless($hubIds->contains($rider->sorting_center_id), 404);
         $reference = SellerSettlementController::reference((string) $request->input('reference', ''));
 
-        $count = RiderEarning::where('rider_id', $rider->id)->whereNull('paid_at')->update(['paid_at' => now(), 'paid_reference' => $reference]);
+        $companyId = $this->company($request)->id;
+        $count = \Illuminate\Support\Facades\DB::transaction(function () use ($rider, $reference, $companyId) {
+            Rider::whereKey($rider->id)->lockForUpdate()->firstOrFail();
+            LogisticsCompany::whereKey($companyId)->lockForUpdate()->firstOrFail();
+            abort_if(\App\Models\RiderPaymentRequest::where('logistics_company_id', $companyId)->where('transfer_reference', $reference)->exists(), 422, 'This reference is already recorded for a rider payment request.');
+            return RiderEarning::where('rider_id', $rider->id)->whereNull('paid_at')->whereNull('rider_payment_request_id')->update(['paid_at' => now(), 'paid_reference' => $reference]);
+        });
         abort_if($count === 0, 422, 'This rider has nothing unpaid.');
 
         return response()->json(['data' => ['paid_count' => $count]]);

@@ -712,7 +712,7 @@ class PublicProductController extends Controller
             'estimated_delivery_days_max'   => 7,
             'return_policy'                 => $profile?->return_policy ?? null,
             'shipping_policy'               => $profile?->shipping_policy ?? null,
-            'warranty'                      => null,
+            'warranty'                      => $product->warranty,
             'is_wishlisted'                 => false,
         ]);
     }

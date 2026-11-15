@@ -34,11 +34,11 @@ void main() {
   }
 
   testWidgets(
-    'Home renders actual shop offers and sale products with the sale filter',
+    'Home renders Loved-IT offers and sale products with the sale filter',
     (tester) async {
       final api = FakeApi({
-        'GET /vouchers/discover': (_) => jsonBody(200, {
-          'data': [offer()],
+        'GET /vouchers/platform': (_) => jsonBody(200, {
+          'data': [offer(id: 2)],
         }),
         'GET /products': (request) {
           expect(request.queryParameters['on_sale'], 1);
@@ -65,9 +65,9 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Vouchers for you'), findsOneWidget);
-      expect(find.text('50% off'), findsOneWidget);
-      expect(find.textContaining('Craft Shop'), findsOneWidget);
+      expect(find.text('Loved-IT vouchers'), findsOneWidget);
+      expect(find.textContaining('Shipping up to'), findsOneWidget);
+      expect(find.textContaining('Loved-IT'), findsWidgets);
       expect(find.text('On sale now'), findsOneWidget);
       expect(find.text('Sale basket'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -79,6 +79,7 @@ void main() {
     (tester) async {
       var saved = false;
       final api = FakeApi({
+        'GET /vouchers/platform': (_) => jsonBody(200, {'data': []}),
         'GET /buyer/vouchers': (_) => jsonBody(200, {
           'data': saved ? [offer(claimed: true)] : [],
         }),
@@ -99,7 +100,7 @@ void main() {
       expect(saved, isTrue);
       expect(find.text('SHOP50'), findsOneWidget);
       expect(find.text('Saved'), findsWidgets);
-      expect(api.requests.any((r) => r.path == '/vouchers/platform'), isFalse);
+      expect(api.requests.any((r) => r.path == '/vouchers/platform'), isTrue);
       expect(tester.takeException(), isNull);
     },
   );
@@ -108,6 +109,7 @@ void main() {
     tester,
   ) async {
     final api = FakeApi({
+      'GET /vouchers/platform': (_) => jsonBody(200, {'data': []}),
       'GET /buyer/vouchers': (_) => jsonBody(200, {'data': []}),
       'GET /vouchers/discover': (request) {
         final page = request.queryParameters['page'] as int;
@@ -129,7 +131,7 @@ void main() {
   testWidgets('an offers outage shows a retry and recovers', (tester) async {
     var fails = true;
     final api = FakeApi({
-      'GET /vouchers/discover': (_) => fails
+      'GET /vouchers/platform': (_) => fails
           ? jsonBody(503, {'message': 'Offers unavailable'})
           : jsonBody(200, {
               'data': [offer()],

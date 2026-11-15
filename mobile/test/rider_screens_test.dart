@@ -473,8 +473,10 @@ void main() {
     await tester.tap(find.byTooltip('Earnings'));
     await tester.pumpAndSettle();
     expect(find.text('₱93.50'), findsWidgets);
+    await tester.scrollUntilVisible(find.text('Pickup'), 160, scrollable: find.byType(Scrollable).first);
     expect(find.text('Pickup'), findsOneWidget);
     expect(find.text('Unpaid'), findsOneWidget);
+    await tester.scrollUntilVisible(find.textContaining('₱1,250.00 to hand over'), -160, scrollable: find.byType(Scrollable).first);
     expect(find.textContaining('₱1,250.00 to hand over'), findsOneWidget);
 
     await tester.tap(find.text('History'));

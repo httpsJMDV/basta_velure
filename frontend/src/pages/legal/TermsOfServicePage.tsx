@@ -23,8 +23,10 @@ const SECTIONS: { id: string; title: string; points: { title: string; text: stri
     title: 'Buying on Loved-IT',
     points: [
       { title: 'Orders', text: 'Placing an order is an offer to buy at the listed price. The sale is between you and the shop; Loved-IT runs the marketplace and is not a party to that sale.' },
-      { title: 'Prices and payment', text: 'Prices are in Philippine pesos. You pay the shop directly: by GCash to the shop\'s own account shown at checkout, or in cash to the rider when the parcel arrives. A GCash order is processed once the shop confirms your payment against the receipt you upload. Loved-IT does not hold your money.' },
-      { title: 'Cancellations and returns', text: 'You can cancel an order before the shop packs it. If an order arrives damaged, wrong or not as described, request a return from My Orders within 7 days of delivery. Because you paid the shop, the shop refunds you. Our team reviews claims the shop and buyer cannot settle.' },
+      { title: 'Prices and payment', text: 'Prices are in Philippine pesos. For platform GCash orders, pay the Loved-IT collection account shown at checkout and upload the receipt; an admin verifies the actual transfer. Older direct GCash orders are verified by the shop. For COD, pay the courier rider at delivery. Always use the account and instructions recorded on your order.' },
+      { title: 'Cancellations and returns', text: 'Cancel while the order still offers cancellation in My Orders. For damaged, wrong or misdescribed items, request a return during the published return window and before confirming delivery. Confirmation completes the order and closes the standard in-app return/refund request. Existing cases continue through their case workflow. Loved-IT reviews escalated cases.' },
+      { title: 'Refund transfers', text: 'Approval opens a refund case and does not mean a transfer has been sent. Loved-IT refunds platform-collected GCash; the seller refunds direct GCash and COD. Give your GCash account, check the recorded receipt and reference, then confirm receipt or report a missing transfer. Following review, a missing transfer can be sent again with a new reference; earlier transfers stay in the history.' },
+      { title: 'Warranty after completion', text: 'Order completion does not cancel an applicable seller or manufacturer warranty or statutory remedies for defective goods. Keep your order number, receipt, evidence and warranty details. Contact the seller for assessment, repair, replacement or refund as applicable. Contact Loved-IT support if unresolved. Coverage depends on the product and warranty terms; confirmation is not a waiver of applicable consumer rights.' },
     ],
   },
   {
@@ -32,6 +34,7 @@ const SECTIONS: { id: string; title: string; points: { title: string; text: stri
     title: 'Delivery',
     points: [
       { title: 'Delivery fee', text: 'Each shop in your cart ships its own parcel. Its fee comes from the courier\'s rate for the route between the shop and your address, for the parcel\'s weight rounded up to the next whole kilogram, and is shown before you place the order. A shop may deliver free when your order from it reaches a minimum the shop sets; it then pays the courier itself.' },
+      { title: 'Return collection', text: 'If the item must be collected, a local courier rider collects it with proof. Nearby returns may go directly to the shop. Cross-hub returns travel through the courier network from the buyer-side hub to the shop-side hub, then a local rider delivers to the shop and the shop confirms receipt.' },
       { title: 'Couriers', text: 'Parcels are carried by partner couriers. Loved-IT assigns each parcel to the courier whose hubs cover the shop and your address; you can follow it with its tracking number.' },
     ],
   },
@@ -42,7 +45,7 @@ const SECTIONS: { id: string; title: string; points: { title: string; text: stri
       { title: 'Seller verification', text: 'To sell, you apply from your buyer account with your ID and business documents. Loved-IT reviews every application and may decline one.' },
       { title: 'Seller responsibilities', text: 'Sellers keep listings accurate, keep stock up to date, ship on time and follow Philippine law, including consumer protection rules. Misrepresenting a product can lead to suspension.' },
       { title: 'Prohibited items', text: 'You may not list counterfeit goods, items that infringe someone\'s intellectual property, hazardous materials or anything Philippine law prohibits. We may remove such listings and suspend the shop.' },
-      { title: 'Payments and commission', text: 'Buyers pay the shop directly. For cash-on-delivery orders the courier collects the money and settles it with the shop every week, less its delivery fees. Each month the shop pays Loved-IT a commission on its completed orders; the rate is set per category and shown in the Seller Center.' },
+      { title: 'Payments and commission', text: 'Platform-collected GCash earnings use the category commission rate recorded on each order item. Commission and any seller-funded shipping charge are deducted before net earnings become available for a payout after completion and any configured hold. Admins send the requested GCash payout manually and record its reference and receipt before completing it. Direct payments and COD remain with the shop or courier; COD is settled by the courier and direct-order commissions use monthly statements. Those funds cannot also be withdrawn as platform payouts.' },
     ],
   },
   {
@@ -88,7 +91,7 @@ export default function TermsOfServicePage() {
     <LegalLayout
       doc="terms"
       title="Terms of use"
-      updated="October 17, 2026"
+      updated="November 16, 2026"
       intro={<p>These terms cover how you can use Loved-IT, whether you shop, sell, deliver or run a hub. They are written to be read, so please take a few minutes.</p>}
       sections={sections}
     />
