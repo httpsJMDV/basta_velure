@@ -24,18 +24,21 @@ class ShopPaymentController extends Controller
             ->map(fn ($id) => (int) trim($id))->filter()->unique()->take(50)->values();
         $signedIn = (bool) auth('sanctum')->user();
 
+        $platform = \App\Services\Payments\PlatformGcash::enabled();
+        $collection = $platform ? \App\Services\Payments\PlatformGcash::account() : null;
         $profiles = SellerProfile::whereIn('user_id', $ids)->get();
 
         return response()->json(['data' => $profiles->map(fn (SellerProfile $p) => [
             'seller_id'         => (int) $p->user_id,
             'shop_name'         => $p->shop_name,
-            'accepts_gcash'     => (bool) $p->gcash_number,
+            'collection_mode'   => $platform ? 'platform' : 'direct',
+            'accepts_gcash'     => $platform ? (bool) $collection : (bool) $p->gcash_number,
             'free_delivery_min' => $p->free_delivery_min !== null ? (float) $p->free_delivery_min : null,
-            'gcash'             => $signedIn && $p->gcash_number ? [
+            'gcash'             => $platform ? ($signedIn ? $collection : null) : ($signedIn && $p->gcash_number ? [
                 'name'   => $p->gcash_account_name,
                 'number' => Gcash::format($p->gcash_number),
                 'qr_url' => $p->gcash_qr_path ? asset('storage/' . $p->gcash_qr_path) : null,
-            ] : null,
+            ] : null),
         ])->values()]);
     }
 

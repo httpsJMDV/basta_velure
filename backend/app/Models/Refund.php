@@ -31,6 +31,7 @@ class Refund extends Model
     public const RECEIPT_DIR = 'refund-receipts';
 
     protected $fillable = [
+        'payer',
         'order_id', 'buyer_id', 'seller_id', 'amount', 'cause', 'status', 'gcash_number', 'gcash_name', 'send_by',
         'overdue_notified_at', 'reference', 'receipt_path', 'sent_at', 'confirm_by', 'received_at', 'auto_confirmed',
         'reported_at', 'report_note', 'resolved_by', 'resolved_at', 'resolution_note', 'attempts',

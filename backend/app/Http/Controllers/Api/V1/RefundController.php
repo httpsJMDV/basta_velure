@@ -49,7 +49,7 @@ class RefundController extends Controller
         }
         $this->refunds->setAccount($refund, $request->user(), $number, \Illuminate\Support\Str::squish($data['gcash_name']));
 
-        return $this->buyerResponse($order, 'Saved. The shop sends the refund to ' . Gcash::format($number) . '.');
+        return $this->buyerResponse($order, 'Saved. The refund will be sent to ' . Gcash::format($number) . '.');
     }
 
     /** POST /buyer/orders/{order}/refund/confirm: the money arrived. */
@@ -148,6 +148,15 @@ class RefundController extends Controller
     }
 
     /** POST /admin/refunds/{refund}/resolve {decision: received|send_again, note}. */
+    public function adminSent(Request $request, Refund $refund): JsonResponse
+    {
+        abort_unless($refund->payer === 'platform', 403, 'This refund is paid by the shop.');
+        $v = $request->validate(['reference' => ['required', 'regex:/^\d{13}$/'],
+            'receipt' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:8192']]);
+        $fresh = $this->refunds->markSent($refund, $request->user(), $v['reference'], $request->file('receipt'));
+        return response()->json(['message' => 'Loved-IT refund recorded. The buyer can confirm receipt.', 'data' => $this->withOrder($fresh, 'admin')]);
+    }
+
     public function adminResolve(Request $request, Refund $refund): JsonResponse
     {
         $data = $request->validate([

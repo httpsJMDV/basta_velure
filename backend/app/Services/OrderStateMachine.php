@@ -144,6 +144,9 @@ class OrderStateMachine
                 abort(403, "Actor '{$actorType}' is not authorized to transition order to '{$toStatus}'.");
             }
 
+            if ($lockedOrder->isPlatformGcash() && ! in_array($toStatus, ['CANCELLED', 'RETURNED', 'DISPUTED'], true)) {
+                abort_unless($lockedOrder->payment_status === 'paid', 422, 'Loved-IT must verify the GCash receipt before fulfillment.');
+            }
             // 3. Apply state update
             $lockedOrder->status = OrderStatus::from($toStatus);
             $lockedOrder->save();

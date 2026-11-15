@@ -546,7 +546,7 @@ class MailNotifier
                     : 'We sent your order to the shop. You will get an email when it is confirmed and on its way.',
                 $cod
                     ? 'You chose cash on delivery: please prepare ' . $this->peso($total) . ' for the courier.'
-                    : 'You paid with GCash. The shop checks your payment before preparing the order.',
+                    : ($first->isPlatformGcash() ? 'Loved-IT checks receipt of your GCash transfer before shops can accept your orders. Do not pay again while your receipt is under review.' : 'You paid with GCash. The shop checks your payment before preparing the order.'),
             ],
             'items' => $items,
             'totals' => ['Items' => $this->peso($subtotal), 'Delivery' => $this->peso($shipping), 'Total' => $this->peso($total)],
@@ -650,7 +650,7 @@ class MailNotifier
 
         $buyerNotice = $acceptedReturn ? null : match ($to) {
             OrderStatus::CONFIRMED->value => ['tone' => 'success', 'label' => 'Order confirmed', 'title' => 'Your order is confirmed.',
-                'paragraphs' => [$order->payment_method === 'gcash'
+                'paragraphs' => [$order->payment_method === 'gcash' && ! $order->isPlatformGcash()
                     ? $shop . ' received your GCash payment and confirmed your order. They will start preparing it.'
                     : $shop . ' confirmed your order and will start preparing it.']],
             OrderStatus::PICKED_UP->value => ['tone' => 'info', 'label' => 'Order shipped', 'title' => 'Your order is on its way.',
@@ -711,7 +711,7 @@ class MailNotifier
             'tone' => 'success',
             'label' => 'Payment confirmed',
             'title' => 'We received your payment.',
-            'paragraphs' => ['The shop confirmed your GCash payment. Your order is now being prepared.'],
+            'paragraphs' => [$order->isPlatformGcash() ? 'Loved-IT verified receipt of your GCash payment. Open the order to see its current fulfillment or refund status.' : 'The shop confirmed your GCash payment. Your order is now being prepared.'],
             'details' => ['Order' => $order->order_number, 'Amount' => $this->peso($order->total), 'Reference' => (string) ($order->payment_reference ?? '—')],
             'actionUrl' => $this->url('/settings/orders'),
             'actionLabel' => 'View your order',
@@ -726,8 +726,8 @@ class MailNotifier
             'tone' => 'danger',
             'label' => 'Payment not accepted',
             'title' => 'Please check your payment.',
-            'paragraphs' => ['The shop could not verify your GCash payment for this order. Upload a clear receipt or contact the shop.'],
-            'highlight' => ['title' => 'Reason from the shop', 'body' => $reason],
+            'paragraphs' => [$order->isPlatformGcash() ? 'Loved-IT could not verify this receipt. Correct the reference and original receipt, or contact Loved-IT. Check before sending any further payment.' : 'The shop could not verify your GCash payment for this order. Upload a clear receipt or contact the shop.'],
+            'highlight' => ['title' => 'Payment review reason', 'body' => $reason],
             'details' => ['Order' => $order->order_number, 'Amount' => $this->peso($order->total), 'Reference' => (string) ($order->payment_reference ?? '—')],
             'actionUrl' => $this->url('/settings/orders'),
             'actionLabel' => 'Fix payment',
@@ -764,7 +764,7 @@ class MailNotifier
         [$tone, $label, $title, $line] = match ($outcome) {
             'accepted' => ['success', 'Return accepted', 'Your return was accepted.',
                 'Your return request for order ' . $order->order_number . ' was accepted and ' . $this->peso($order->total) . ' is refunded'
-                . ($instant ? ' to your original payment method.' : '. The shop sends it to your GCash: open the order to tell us which account, then confirm when it arrives.')
+                . ($instant ? ' to your original payment method.' : ($order->isPlatformGcash() ? '. Loved-IT sends it to your GCash: open the order to provide your account and confirm receipt.' : '. The shop sends it to your GCash: open the order to tell us which account, then confirm when it arrives.'))
                 . ' The shop will message you if it needs the item back.'],
             'partial' => ['info', 'Partial refund offered', 'The shop offered a partial refund.',
                 'The shop offered a partial refund of ' . $this->peso($partialAmount) . ' for order ' . $order->order_number . '. Loved-IT will mediate the request.'],
@@ -832,8 +832,8 @@ class MailNotifier
             'label' => 'Refund',
             'title' => 'Tell us where to send ' . $this->peso($refund->amount) . '.',
             'paragraphs' => [
-                'You paid the shop directly for order ' . $order->order_number . ', so the shop sends your refund to a GCash account.',
-                'Open the order and enter the GCash number and the name on the account. The shop then has ' . \App\Services\Commerce\ManualRefunds::sendDays() . ' days to send it.',
+                ($refund->payer === 'platform' ? 'Loved-IT' : 'The shop') . ' will send the refund for order ' . $order->order_number . ' to your GCash account.',
+                'Open the order and enter the GCash number and the name on the account. The refund payer then has ' . \App\Services\Commerce\ManualRefunds::sendDays() . ' days to send it.',
             ],
             'details' => ['Order' => $order->order_number, 'Refund' => $this->peso($refund->amount)],
             'actionUrl' => $this->url('/settings/orders?order=' . $order->id),
@@ -874,7 +874,7 @@ class MailNotifier
         $this->send($refund->buyer, 'Refund sent: ' . $order->order_number, 'refund_sent', [
             'tone' => 'success',
             'label' => 'Refund sent',
-            'title' => 'The shop sent ' . $this->peso($refund->amount) . ' to your GCash.',
+            'title' => ($refund->payer === 'platform' ? 'Loved-IT' : 'The shop') . ' sent ' . $this->peso($refund->amount) . ' to your GCash.',
             'paragraphs' => [
                 'Check your GCash, then confirm it arrived from the order page.',
                 'If nothing came, tell us within ' . \App\Services\Commerce\ManualRefunds::confirmDays() . ' days and Loved-IT will check the shop\'s receipt. After that it counts as received.',
@@ -893,6 +893,7 @@ class MailNotifier
 
     public function refundReported(\App\Models\Refund $refund): void
     {
+        if ($refund->payer === 'platform') return;
         $order = $refund->order;
         $this->send($refund->seller, 'Refund not received: ' . $order->order_number, 'refund_reported', array_filter([
             'tone' => 'danger',

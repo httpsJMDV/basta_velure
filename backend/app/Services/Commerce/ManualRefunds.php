@@ -59,6 +59,7 @@ class ManualRefunds
         $ready = $number && $name;
 
         $refund = Refund::create([
+            'payer'        => $order->isPlatformGcash() ? 'platform' : 'seller',
             'order_id'     => $order->id,
             'buyer_id'     => $order->buyer_id,
             'seller_id'    => $order->items()->value('seller_id'),
@@ -74,7 +75,7 @@ class ManualRefunds
         if ($ready) {
             $this->tellShopToSend($refund);
             $this->notifier->toUserId($order->buyer_id, 'refund.pending', 'Refund on its way',
-                "The shop will send {$this->peso($refund->amount)} for order {$order->order_number} to your GCash within " . self::sendDays() . ' days.',
+                "The refund payer will send {$this->peso($refund->amount)} for order {$order->order_number} to your GCash within " . self::sendDays() . ' days.',
                 $this->buyerLink($order), ['order_id' => $order->id]);
         } else {
             $this->notifier->toUserId($order->buyer_id, 'refund.account_needed', 'Where should we send your refund?',
@@ -104,6 +105,8 @@ class ManualRefunds
             ]);
             if ($first) {
                 $this->tellShopToSend($locked);
+            } elseif ($locked->payer === 'platform') {
+                $this->tellShopToSend($locked);
             } else {
                 $this->notifier->toSeller($locked->seller_id, 'returns', 'refund.account_changed', 'Refund account changed',
                     "The buyer of order {$locked->order->order_number} changed the GCash account for the refund. Send it to " . Gcash::format($number) . '.',
@@ -114,14 +117,18 @@ class ManualRefunds
         });
     }
 
-    /** The shop sent the money: the 13-digit GCash reference and a screenshot of the receipt. */
+    /** The refund payer sent the money: the 13-digit GCash reference and a screenshot of the receipt. */
     public function markSent(Refund $refund, User $seller, string $reference, UploadedFile $receipt): Refund
     {
         $path = null;
         try {
             return DB::transaction(function () use ($refund, $seller, $reference, $receipt, &$path) {
                 $locked = $this->lock($refund);
-                abort_unless((int) $locked->seller_id === (int) $seller->id, 404, 'Refund not found.');
+                abort_unless($locked->payer === 'platform' ? $seller->role === 'admin' : (int) $locked->seller_id === (int) $seller->id, 404, 'Refund not found.');
+                if ($locked->payer === 'platform') {
+                    abort_if(collect($locked->attempts ?? [])->contains(fn ($a) => ($a['reference'] ?? null) === $reference), 422, 'A new refund attempt needs the new transfer reference.');
+                    \App\Services\Payments\PlatformGcash::claim('outgoing', $reference, 'refund', $locked->id);
+                }
                 if ($locked->status === Refund::STATUS_AWAITING_ACCOUNT) {
                     abort(409, 'The buyer has not said which GCash account gets the refund yet. You will be told when they do.');
                 }
@@ -138,7 +145,7 @@ class ManualRefunds
 
                 $order = $locked->order;
                 $this->notifier->toUserId($locked->buyer_id, 'refund.sent', 'Refund sent: please check your GCash',
-                    "The shop sent {$this->peso($locked->amount)} for order {$order->order_number} to " . Gcash::format($locked->gcash_number) . ". Confirm it arrived, or tell us within " . self::confirmDays() . ' days if it did not.',
+                    "The refund payer sent {$this->peso($locked->amount)} for order {$order->order_number} to " . Gcash::format($locked->gcash_number) . ". Confirm it arrived, or tell us within " . self::confirmDays() . ' days if it did not.',
                     $this->buyerLink($order), ['order_id' => $order->id]);
                 DB::afterCommit(fn () => $this->mail->refundSent($locked->fresh(['order', 'buyer'])));
 
@@ -160,7 +167,7 @@ class ManualRefunds
             abort_unless((int) $locked->buyer_id === (int) $buyer->id, 404, 'Refund not found.');
             abort_if($locked->status === Refund::STATUS_RECEIVED, 409, 'You already confirmed this refund.');
             abort_unless(in_array($locked->status, [Refund::STATUS_SENT, Refund::STATUS_NOT_RECEIVED], true), 409,
-                'The shop has not sent this refund yet.');
+                'The refund has not been sent yet.');
 
             return $this->finish($locked, auto: false);
         });
@@ -175,14 +182,14 @@ class ManualRefunds
             abort_if($locked->status === Refund::STATUS_NOT_RECEIVED, 409, 'You already reported this refund. Loved-IT is looking into it.');
             abort_unless($locked->status === Refund::STATUS_SENT, 409, $locked->status === Refund::STATUS_RECEIVED
                 ? 'This refund is already confirmed as received.'
-                : 'The shop has not sent this refund yet.');
+                : 'The refund has not been sent yet.');
 
             $locked->update(['status' => Refund::STATUS_NOT_RECEIVED, 'reported_at' => now(), 'report_note' => $note]);
             $order = $locked->order;
             $this->notifier->toAdmins('refund.not_received', 'Refund reported as not received',
                 "Order {$order->order_number}: the buyer says the shop's {$this->peso($locked->amount)} refund did not arrive. Check the receipt and decide.",
                 '/admin/disputes?tab=refunds', ['order_id' => $order->id, 'refund_id' => $locked->id]);
-            $this->notifier->toSeller($locked->seller_id, 'returns', 'refund.not_received', 'Buyer did not receive your refund',
+            if ($locked->payer !== 'platform') $this->notifier->toSeller($locked->seller_id, 'returns', 'refund.not_received', 'Buyer did not receive your refund',
                 "The buyer of order {$order->order_number} says the refund did not arrive. Loved-IT will check your receipt.",
                 $this->sellerLink($order), ['order_id' => $order->id]);
             DB::afterCommit(fn () => $this->mail->refundReported($locked->fresh(['order', 'seller'])));
@@ -214,7 +221,7 @@ class ManualRefunds
                     'resolved_by' => $admin->id, 'resolved_at' => now(), 'resolution_note' => $note,
                 ]);
                 $order = $locked->order;
-                $this->notifier->toUserId($locked->buyer_id, 'refund.send_again', 'The shop will send your refund again',
+                $this->notifier->toUserId($locked->buyer_id, 'refund.send_again', 'The refund payer will send your refund again',
                     "Order {$order->order_number}: Loved-IT checked your report. The shop has to send {$this->peso($locked->amount)} again within " . self::sendDays() . ' days.',
                     $this->buyerLink($order), ['order_id' => $order->id]);
                 $this->tellShopToSend($locked, again: true, note: $note);
@@ -223,6 +230,7 @@ class ManualRefunds
             }
 
             abort_if($locked->status === Refund::STATUS_AWAITING_ACCOUNT, 409, 'The buyer has not given a GCash account yet, so nothing was sent.');
+            abort_if($locked->payer === 'platform' && !in_array($locked->status, [Refund::STATUS_SENT, Refund::STATUS_NOT_RECEIVED], true), 409, 'Record the actual Loved-IT refund transfer before closing it.');
             $locked->forceFill(['resolved_by' => $admin->id, 'resolved_at' => now(), 'resolution_note' => $note])->save();
 
             return $this->finish($locked, auto: false, byAdmin: true);
@@ -256,6 +264,7 @@ class ManualRefunds
                 $this->notifier->toAdmins('refund.overdue', 'A shop is late with a refund',
                     "Order {$order->order_number}: the shop has not sent the {$this->peso($refund->amount)} refund it owes the buyer.",
                     '/admin/disputes?tab=refunds', ['order_id' => $order->id, 'refund_id' => $refund->id]);
+                if ($refund->payer === 'platform') return;
                 $this->notifier->send(User::find($refund->seller_id), 'refund.overdue', 'Your refund is late',
                     "Order {$order->order_number}: send the buyer's {$this->peso($refund->amount)} refund now. Loved-IT has been told.",
                     $this->sellerLink($order), ['order_id' => $order->id]);
@@ -279,6 +288,8 @@ class ManualRefunds
         }
 
         return [
+            'payer'           => $r->payer ?? 'seller',
+            'payer_name'      => $r->payer === 'platform' ? 'Loved-IT' : 'the shop',
             'id'              => $r->id,
             'status'          => $r->status,
             'cause'           => $r->cause,
@@ -301,7 +312,7 @@ class ManualRefunds
             'can_set_account' => $viewer === 'buyer' && in_array($r->status, [Refund::STATUS_AWAITING_ACCOUNT, Refund::STATUS_AWAITING_SHOP], true),
             'can_confirm'     => $viewer === 'buyer' && in_array($r->status, [Refund::STATUS_SENT, Refund::STATUS_NOT_RECEIVED], true),
             'can_report'      => $viewer === 'buyer' && $r->status === Refund::STATUS_SENT,
-            'can_send'        => $viewer === 'seller' && $r->status === Refund::STATUS_AWAITING_SHOP,
+            'can_send'        => ($r->payer === 'platform' ? $viewer === 'admin' : $viewer === 'seller') && $r->status === Refund::STATUS_AWAITING_SHOP,
             'can_decide'      => $viewer === 'admin' && in_array($r->status, [Refund::STATUS_SENT, Refund::STATUS_NOT_RECEIVED, Refund::STATUS_AWAITING_SHOP], true),
             'created_at'      => $r->created_at?->toIso8601String(),
         ];
@@ -330,6 +341,13 @@ class ManualRefunds
 
     private function tellShopToSend(Refund $refund, bool $again = false, ?string $note = null): void
     {
+        if ($refund->payer === 'platform') {
+            foreach (User::where('role', 'admin')->where('status', 'active')->get() as $admin) {
+                $this->notifier->send($admin, 'refund.platform_to_send', 'Loved-IT refund to send',
+                    'Send '.$this->peso($refund->amount).' to the buyer’s GCash and record the receipt.', '/admin/disputes?tab=refunds', ['refund_id' => $refund->id]);
+            }
+            return;
+        }
         $order = $refund->order ?? Order::find($refund->order_id);
         $this->notifier->send(User::find($refund->seller_id), 'refund.to_send', $again ? 'Send the refund again' : 'Refund to send',
             "Order {$order->order_number}: send {$this->peso($refund->amount)} to " . Gcash::format($refund->gcash_number) . " ({$refund->gcash_name}) within " . self::sendDays() . ' days, then record the reference.',

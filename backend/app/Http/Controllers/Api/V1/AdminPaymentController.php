@@ -51,6 +51,7 @@ class AdminPaymentController extends Controller
                 'order_number'      => $o->order_number,
                 'payment_method'    => $o->payment_method,
                 'payment_status'    => $o->payment_status,
+                'collection' => app(\App\Services\Payments\GcashReview::class)->present($o),
                 'payment_reference' => $o->payment_reference,
                 'payment_proof_url' => $o->paymentProofUrl(),
                 'amount'            => (float) $o->total,
@@ -98,6 +99,7 @@ class AdminPaymentController extends Controller
 
     public function markPaid(Request $request, Payment $payment): JsonResponse
     {
+        abort_if($payment->order?->isPlatformGcash(), 422, 'Use the Loved-IT GCash receipt review with the full received amount.');
         $request->validate([
             'reference_number' => ['nullable', 'string', 'max:100'],
         ]);

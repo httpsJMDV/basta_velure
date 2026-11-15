@@ -48,7 +48,7 @@ class ReleaseDuePayouts extends Command
         OrderItem::where('payout_status', 'pending_release')
             ->whereNotNull('escrow_release_at')
             ->where('escrow_release_at', '<=', $now)
-            ->whereHas('order', fn ($q) => $q->where('status', OrderStatus::COMPLETED->value))
+            ->whereHas('order', fn ($q) => $q->where('status', OrderStatus::COMPLETED->value)->where(fn ($funds) => $funds->whereNull('collection_payee')->orWhere('payment_status', 'paid')))
             ->chunkById(200, function (Collection $items) use (&$released, $tally) {
                 // The status guard is repeated in the update so a concurrent run cannot release twice
                 // or overwrite an item that changed state in the meantime.
@@ -67,7 +67,7 @@ class ReleaseDuePayouts extends Command
             ->where('payout_status', 'pending_release')
             ->whereNull('escrow_release_at')
             ->whereHas('order', fn ($q) => $q
-                ->where('status', OrderStatus::COMPLETED->value)
+                ->where('status', OrderStatus::COMPLETED->value)->where(fn ($funds) => $funds->whereNull('collection_payee')->orWhere('payment_status', 'paid'))
                 ->whereNotNull('completed_at')
                 ->where('completed_at', '<=', $now->copy()->subDays($holdDays)))
             ->chunkById(200, function (Collection $items) use (&$released, &$repaired, $holdDays, $tally) {
@@ -91,7 +91,7 @@ class ReleaseDuePayouts extends Command
         $undatable = OrderItem::where('payout_status', 'pending_release')
             ->whereNull('escrow_release_at')
             ->whereHas('order', fn ($q) => $q
-                ->where('status', OrderStatus::COMPLETED->value)
+                ->where('status', OrderStatus::COMPLETED->value)->where(fn ($funds) => $funds->whereNull('collection_payee')->orWhere('payment_status', 'paid'))
                 ->whereNull('completed_at'))
             ->count();
 

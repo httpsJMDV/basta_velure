@@ -17,14 +17,14 @@ class PayoutRequest extends Model
         'rejection_reason',
         'processed_by',
         'processed_at',
-        'admin_notes',
+        'admin_notes', 'manual_reference_required', 'transfer_reference', 'receipt_path', 'sent_at',
     ];
 
     protected function casts(): array
     {
         return [
             'amount'       => 'decimal:2',
-            'processed_at' => 'datetime',
+            'processed_at' => 'datetime', 'sent_at' => 'datetime', 'manual_reference_required' => 'boolean',
         ];
     }
 
