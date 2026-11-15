@@ -928,6 +928,12 @@ export const getAdminPaymentListApi = (params?: { status?: string; method?: stri
 export const getAdminReportSummaryApi = (params?: ReportRangeParams) =>
   http.get<{ data: AdminReportSummary }>('/admin/reports/summary', { params }).then((r) => r.data.data);
 
+export const getAdminReportOutlookApi = (params?: ReportRangeParams) =>
+  http.get<{ data: import('../types').AdminReportOutlook }>('/admin/reports/outlook', { params }).then((r) => r.data.data);
+
+export const downloadAdminReportApi = (format: 'pdf' | 'xlsx', params: ReportRangeParams & { interval?: string }) =>
+  downloadReportFile('/admin/reports/export', { ...params, format }, `loved-it-admin-report-${params.from ?? 'selected'}_to_${params.to ?? 'period'}.${format}`);
+
 export const getAdminRevenueChartApi = (params?: ReportRangeParams & { interval?: string }) =>
   http.get<{ data: AdminRevenueChartPoint[] }>('/admin/reports/revenue-chart', { params }).then((r) => r.data.data);
 

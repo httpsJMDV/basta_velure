@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useSearchParams, Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -17,6 +17,7 @@ import {
   ClipboardList,
   CalendarDays,
   AlertCircle,
+  FileText, FileSpreadsheet, LoaderCircle, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -34,9 +35,11 @@ import {
   getAdminCategoryBreakdownApi,
   getAdminTopSellersApi,
   getAdminPaymentSplitApi,
+  getAdminReportOutlookApi, downloadAdminReportApi,
 } from '../../api/client';
 import type {
   AdminReportSummary,
+  AdminReportOutlook,
   AdminRevenueChartPoint,
   CategoryBreakdownItem,
   TopSellerItem,
@@ -47,6 +50,9 @@ import { useCountUp, useMountAnim } from '../../hooks/useDashboardAnimations';
 import { NA, peso, whole, percent, manilaToday } from '../../utils/adminReports';
 import { PageHero } from '../../components/admin/dashboardKit';
 import DateRangeBar from '../../components/admin/DateRangeBar';
+
+import ReportVisuals from '../../components/admin/ReportVisuals';
+import { useToast } from '../../components/ui/Toast';
 
 const TIMEFRAMES = [
   { label: '7 days', value: '7d' },
@@ -90,6 +96,13 @@ export default function AdminReportsPage() {
     [customRange, fromParam, toParam, preset],
   );
 
+  const autoMonthly = (!customRange && ['12m', 'all'].includes(preset)) || (customRange && (Date.parse(toParam) - Date.parse(fromParam)) / 86400000 + 1 > 366);
+  const requestVersion = useRef(0);
+  const { showToast } = useToast();
+  const [outlook, setOutlook] = useState<AdminReportOutlook | null>(null);
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  const [exporting, setExporting] = useState<'pdf' | 'xlsx' | null>(null);
+  const [exportError, setExportError] = useState('');
   const [interval, setIntervalMode] = useState<'daily' | 'monthly'>('daily');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<boolean>(false);
@@ -104,31 +117,36 @@ export default function AdminReportsPage() {
   const today = manilaToday();
 
   const loadData = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(false);
+    setSummary(null); setChartData([]); setCategories([]); setSellers([]); setPaymentSplit(null); setOutlook(null); setCategoriesExpanded(false); setExportError('');
     try {
-      const monthly = interval === 'monthly' || (!customRange && (preset === '12m' || preset === 'all'));
-      const [sum, chart, cats, topSell, split] = await Promise.all([
+      const monthly = interval === 'monthly' || autoMonthly;
+      const [sum, chart, cats, topSell, split, projection] = await Promise.all([
         getAdminReportSummaryApi(rangeParams),
         getAdminRevenueChartApi({ ...rangeParams, interval: monthly ? 'monthly' : 'daily' }),
         getAdminCategoryBreakdownApi(rangeParams),
         getAdminTopSellersApi(rangeParams),
         getAdminPaymentSplitApi(rangeParams),
+        getAdminReportOutlookApi(rangeParams),
       ]);
-      setSummary(sum);
+      if (version !== requestVersion.current) return;
+      setSummary(sum); setOutlook(projection);
       setChartData(chart);
       setCategories(cats);
       setSellers(topSell);
       setPaymentSplit(split);
     } catch {
-      setError(true);
+      if (version === requestVersion.current) setError(true);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  }, [rangeParams, interval, customRange, preset]);
+  }, [rangeParams, interval, autoMonthly]);
 
   useEffect(() => {
     loadData();
+    return () => { requestVersion.current++; };
   }, [loadData]);
 
   // Open on the section the dashboard linked to (#sales, #commission, ...), once the figures are on screen.
@@ -156,6 +174,14 @@ export default function AdminReportsPage() {
   const animatedOrders     = useCountUp(summary?.total_orders ?? 0);
 
   const sectionClass = 'scroll-mt-4';
+  const chartInterval = interval === 'monthly' || autoMonthly ? 'monthly' : 'daily';
+  async function exportReport(format: 'pdf' | 'xlsx') {
+    if (loading || error || exporting || !summary) return;
+    setExporting(format); setExportError('');
+    try { await downloadAdminReportApi(format, { ...rangeParams, from: summary.range?.from ?? rangeParams.from, to: summary.range?.to ?? rangeParams.to, interval: chartInterval }); showToast(`${format === 'pdf' ? 'PDF' : 'Excel'} report downloaded`); }
+    catch (e) { setExportError(e instanceof Error ? e.message : 'The report could not be exported. Please retry.'); }
+    finally { setExporting(null); }
+  }
 
   return (
     <div ref={pageRef} className="pb-8 space-y-4">
@@ -170,6 +196,7 @@ export default function AdminReportsPage() {
           <CalendarDays className="w-3 h-3" aria-hidden="true" />
           {loading ? 'Loading…' : range ? `${range.days} ${range.days === 1 ? 'day' : 'days'}` : NA}
         </span>
+        <div className="flex flex-wrap gap-2">{(['pdf', 'xlsx'] as const).map(format => <button key={format} type="button" disabled={loading || error || !summary || exporting !== null} onClick={() => void exportReport(format)} className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40">{exporting === format ? <LoaderCircle className="h-4 w-4 animate-spin" /> : format === 'pdf' ? <FileText className="h-4 w-4" /> : <FileSpreadsheet className="h-4 w-4" />}{exporting === format ? 'Preparing…' : format === 'pdf' ? 'Export PDF' : 'Export Excel'}</button>)}</div>
       </PageHero>
 
       <DateRangeBar
@@ -183,6 +210,7 @@ export default function AdminReportsPage() {
         onPreset={choosePreset}
         onRange={applyDates}
       />
+      {exportError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{exportError}</p>}
       {error && (
         <div role="alert" className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-red-800 border border-red-200 bg-red-50 rounded-xl">
           <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4" aria-hidden="true" /> The reports could not be loaded.</span>
@@ -359,9 +387,11 @@ export default function AdminReportsPage() {
 
             <div className="flex items-center gap-1 bg-gray-100/80 p-0.5 rounded-lg text-[11px] font-bold border border-gray-200/50">
               <button
+                disabled={autoMonthly}
+                title={autoMonthly ? 'Monthly buckets keep this long period readable' : undefined}
                 onClick={() => setIntervalMode('daily')}
                 className={`px-2.5 py-1 rounded-md transition-all ${
-                  interval === 'daily' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+                  chartInterval === 'daily' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 Daily
@@ -369,7 +399,7 @@ export default function AdminReportsPage() {
               <button
                 onClick={() => setIntervalMode('monthly')}
                 className={`px-2.5 py-1 rounded-md transition-all ${
-                  interval === 'monthly' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+                  chartInterval === 'monthly' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 Monthly
@@ -421,6 +451,8 @@ export default function AdminReportsPage() {
           )}
         </div>
       )}
+
+      <ReportVisuals series={chartData} categories={categories} outlook={outlook} loading={loading} />
 
       {/* ── 4. Pipeline & Payment Channels (2-Column) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -504,7 +536,7 @@ export default function AdminReportsPage() {
           </div>
 
           <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-bold text-gray-700">
-            <span>Total Captured:</span>
+            <span>Counted order value:</span>
             <span>{peso(paymentSplit?.total_volume)}</span>
           </div>
         </div>
@@ -524,9 +556,10 @@ export default function AdminReportsPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-100">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-stone-500"><span>{loading ? 'Loading categories…' : `Showing ${categoriesExpanded ? categories.length : Math.min(6, categories.length)} of ${categories.length} categories · exports include every row`}</span>{categories.length > 6 && <button type="button" aria-expanded={categoriesExpanded} aria-controls="category-detail-table" onClick={() => setCategoriesExpanded(v => !v)} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 font-semibold text-stone-700 hover:bg-stone-100">{categoriesExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}{categoriesExpanded ? 'Show fewer categories' : `View all ${categories.length} categories`}</button>}</div>
+        <div id="category-detail-table" className="max-h-[26rem] overflow-auto rounded-xl border border-gray-100">
           <table className="w-full text-left text-xs">
-            <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px]">
+            <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px]">
               <tr>
                 <th className="px-3.5 py-2.5">Category</th>
                 <th className="px-3.5 py-2.5">Rate</th>
@@ -543,7 +576,7 @@ export default function AdminReportsPage() {
                   </td>
                 </tr>
               ) : (
-                categories.map((cat, i) => (
+                (categoriesExpanded ? categories : categories.slice(0, 6)).map((cat, i) => (
                   <tr key={cat.category} className="hover:bg-gray-50/70 transition-colors">
                     <td className="px-3.5 py-2.5 font-bold text-gray-900">
                       <span className="inline-flex items-center gap-2">

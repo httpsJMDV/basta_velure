@@ -226,6 +226,8 @@ class AdminController extends Controller
             'orders_placed' => $p['orders_placed'],
             'gmv'           => $p['gmv'],
             'commission'    => $p['commission'],
+            'gcash_volume'  => $p['gcash_volume'],
+            'cod_volume'    => $p['cod_volume'],
         ]);
 
         return response()->json([

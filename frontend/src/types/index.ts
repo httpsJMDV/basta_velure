@@ -101,6 +101,8 @@ export interface DashboardAttentionItem {
 }
 
 export interface DashboardChartPoint {
+  gcash_volume?: number;
+  cod_volume?: number;
   date: string;
   new_sellers: number;
   /** Orders that count toward GMV (not cancelled or returned). */
@@ -2566,6 +2568,8 @@ export interface ReportRangeParams {
 }
 
 export interface AdminRevenueChartPoint {
+  gcash_volume?: number;
+  cod_volume?: number;
   date: string;
   iso_date?: string;
   gmv: number;
@@ -2573,6 +2577,18 @@ export interface AdminRevenueChartPoint {
   /** Orders that count toward GMV (not cancelled or returned). */
   orders_count: number;
   orders_placed?: number;
+}
+
+export interface AdminReportOutlook {
+  available: boolean;
+  reason?: string;
+  method: string;
+  basis_from?: string;
+  basis_to?: string;
+  today?: string;
+  history?: { date: string; gmv: number }[];
+  points: { date: string; gmv: number; orders: number }[];
+  estimated_gmv?: number;
 }
 
 export interface CategoryBreakdownItem {

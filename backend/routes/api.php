@@ -515,6 +515,8 @@ Route::prefix('v1')->group(function () {
 
             // Reports & Analytics (admin)
             Route::get('/reports/summary', [AdminReportController::class, 'summary']);
+            Route::get('/reports/export', [AdminReportController::class, 'export'])->middleware('throttle:20,1');
+            Route::get('/reports/outlook', [AdminReportController::class, 'outlook']);
             Route::get('/reports/revenue-chart', [AdminReportController::class, 'revenueChart']);
             Route::get('/reports/category-breakdown', [AdminReportController::class, 'categoryBreakdown']);
             Route::get('/reports/top-sellers', [AdminReportController::class, 'topSellers']);

@@ -39,6 +39,7 @@ final class ReportDocument
         public readonly string $title,
         public readonly string $owner,
         public readonly array $range,
+        private readonly int $kpiColumns = 4,
     ) {
     }
 
@@ -265,7 +266,7 @@ final class ReportDocument
         $y = 146.0;
 
         // Key figures, four to a row.
-        $cols = 4;
+        $cols = max(1, min(4, $this->kpiColumns));
         $gap = 8.0;
         $boxW = ($width - $gap * ($cols - 1)) / $cols;
         foreach (array_chunk($this->kpis, $cols) as $chunk) {

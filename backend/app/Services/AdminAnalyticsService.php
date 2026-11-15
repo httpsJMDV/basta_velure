@@ -182,7 +182,7 @@ class AdminAnalyticsService
         $day = $this->dayExpression('o.created_at');
 
         $placed = $this->orders($range)->selectRaw("{$day} as bucket, COUNT(*) as placed")->groupBy('bucket')->pluck('placed', 'bucket');
-        $counted = $this->countedOrders($range)->selectRaw("{$day} as bucket, COUNT(*) as orders, COALESCE(SUM(o.total), 0) as gmv")->groupBy('bucket')->get()->keyBy('bucket');
+        $counted = $this->countedOrders($range)->selectRaw("{$day} as bucket, COUNT(*) as orders, COALESCE(SUM(o.total), 0) as gmv, COALESCE(SUM(CASE WHEN o.payment_method = 'gcash' THEN o.total ELSE 0 END), 0) as gcash_volume, COALESCE(SUM(CASE WHEN o.payment_method = 'cod' THEN o.total ELSE 0 END), 0) as cod_volume")->groupBy('bucket')->get()->keyBy('bucket');
         $commission = $this->countedItems($range)->selectRaw("{$day} as bucket, COALESCE(SUM(i.commission_amount), 0) as commission")->groupBy('bucket')->pluck('commission', 'bucket');
 
         $rows = [];
@@ -192,6 +192,8 @@ class AdminAnalyticsService
             $rows[] = [
                 'date'          => $date,
                 'gmv'           => round((float) ($counted[$date]->gmv ?? 0), 2),
+                'gcash_volume' => round((float) ($counted[$date]->gcash_volume ?? 0), 2),
+                'cod_volume' => round((float) ($counted[$date]->cod_volume ?? 0), 2),
                 'commission'    => round((float) ($commission[$date] ?? 0), 2),
                 'orders'        => (int) ($counted[$date]->orders ?? 0),
                 'orders_placed' => (int) ($placed[$date] ?? 0),
@@ -211,7 +213,7 @@ class AdminAnalyticsService
         $month = $this->monthExpression('o.created_at');
 
         $placed = $this->orders($range)->selectRaw("{$month} as bucket, COUNT(*) as placed")->groupBy('bucket')->pluck('placed', 'bucket');
-        $counted = $this->countedOrders($range)->selectRaw("{$month} as bucket, COUNT(*) as orders, COALESCE(SUM(o.total), 0) as gmv")->groupBy('bucket')->get()->keyBy('bucket');
+        $counted = $this->countedOrders($range)->selectRaw("{$month} as bucket, COUNT(*) as orders, COALESCE(SUM(o.total), 0) as gmv, COALESCE(SUM(CASE WHEN o.payment_method = 'gcash' THEN o.total ELSE 0 END), 0) as gcash_volume, COALESCE(SUM(CASE WHEN o.payment_method = 'cod' THEN o.total ELSE 0 END), 0) as cod_volume")->groupBy('bucket')->get()->keyBy('bucket');
         $commission = $this->countedItems($range)->selectRaw("{$month} as bucket, COALESCE(SUM(i.commission_amount), 0) as commission")->groupBy('bucket')->pluck('commission', 'bucket');
 
         $rows = [];
@@ -222,6 +224,8 @@ class AdminAnalyticsService
             $rows[] = [
                 'date'          => $key . '-01',
                 'gmv'           => round((float) ($counted[$key]->gmv ?? 0), 2),
+                'gcash_volume' => round((float) ($counted[$key]->gcash_volume ?? 0), 2),
+                'cod_volume' => round((float) ($counted[$key]->cod_volume ?? 0), 2),
                 'commission'    => round((float) ($commission[$key] ?? 0), 2),
                 'orders'        => (int) ($counted[$key]->orders ?? 0),
                 'orders_placed' => (int) ($placed[$key] ?? 0),

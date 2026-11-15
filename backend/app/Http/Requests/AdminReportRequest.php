@@ -21,6 +21,7 @@ class AdminReportRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'format'   => ['nullable', Rule::in(['pdf', 'xlsx'])],
             'range'    => ['nullable', 'string', Rule::in(AdminAnalyticsService::PRESETS)],
             'interval' => ['nullable', 'string', Rule::in(['daily', 'monthly'])],
             'from'     => ['nullable', 'string', 'date_format:Y-m-d', 'required_with:to'],
