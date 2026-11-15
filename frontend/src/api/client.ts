@@ -367,6 +367,25 @@ export const getSellerApplicationsApi = (params?: { status?: string; search?: st
 export const approveSellerApi = (id: number) =>
   http.post(`/admin/seller-applications/${id}/approve`);
 
+export interface SellerAiReview {
+  summary: string;
+  checks: string[];
+  generated_at: string;
+  provider: string;
+  facts: {
+    government_id_provided: boolean;
+    business_registration_required: boolean;
+    business_registration_provided: boolean;
+    bir_2303_required: boolean;
+    bir_2303_provided: boolean;
+    address_provided: boolean;
+    tax_number_provided: boolean;
+  };
+}
+
+export const reviewSellerApplicationAiApi = (id: number) =>
+  http.post<{ data: SellerAiReview }>(`/admin/seller-applications/${id}/ai-review`).then((r) => r.data.data);
+
 export const rejectSellerApi = (id: number, reason: string) =>
   http.post(`/admin/seller-applications/${id}/reject`, { reason });
 

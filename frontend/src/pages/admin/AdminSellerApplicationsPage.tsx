@@ -15,6 +15,7 @@ import type { ApplicationStatus, SellerApplication } from '../../types';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import CustomSelect from '../../components/ui/CustomSelect';
+import SellerAiReviewPanel from '../../components/admin/SellerAiReviewPanel';
 import { X, ZoomIn, Clock, Store, CheckCircle, XCircle, IdCard, Camera, FileText, ArrowRight } from 'lucide-react';
 import { PageHero, StatCard, StatCardSkeleton } from '../../components/admin/dashboardKit';
 import {
@@ -353,6 +354,7 @@ function ReviewModal({
 
           {/* Body — two columns */}
           <div className="overflow-y-auto flex-1 px-6 py-5">
+            {isPending && <SellerAiReviewPanel key={app.id} applicationId={app.id} />}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
               {/* LEFT — Shop + Personal */}
