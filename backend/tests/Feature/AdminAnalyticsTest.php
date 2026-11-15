@@ -204,6 +204,62 @@ class AdminAnalyticsTest extends TestCase
 
     // ── Dashboard = reports = recount ───────────────────────────────────────
 
+    public function test_payment_daily_and_monthly_bars_sum_to_the_same_filtered_payment_totals(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $analytics = app(AdminAnalyticsService::class);
+        $range = $analytics->dashboardRange();
+        $split = $analytics->paymentSplit($range);
+        foreach ([$analytics->daily($range), $analytics->monthly($range)] as $points) {
+            $this->assertEqualsWithDelta($split['gcash']['volume'], array_sum(array_column($points, 'gcash_volume')), 0.001);
+            $this->assertEqualsWithDelta($split['cod']['volume'], array_sum(array_column($points, 'cod_volume')), 0.001);
+        }
+        $feed = $this->getJson('/api/v1/admin/dashboard-feed')->assertOk()->json('data.chart_data');
+        $this->assertEqualsWithDelta($split['gcash']['volume'], array_sum(array_column($feed, 'gcash_volume')), 0.001);
+        $this->assertEqualsWithDelta($split['cod']['volume'], array_sum(array_column($feed, 'cod_volume')), 0.001);
+    }
+
+    public function test_admin_downloads_real_pdf_and_excel_with_selected_dates_and_matching_recorded_summary(): void
+    {
+        $this->getJson('/api/v1/admin/reports/export?format=pdf')->assertUnauthorized();
+        Sanctum::actingAs($this->admin);
+        $pdf = $this->get('/api/v1/admin/reports/export?from=2026-10-15&to=2026-10-16&format=pdf')->assertOk();
+        $pdf->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
+        $this->assertStringContainsString('2026-10-15_to_2026-10-16.pdf', $pdf->headers->get('Content-Disposition'));
+        $xlsx = $this->get('/api/v1/admin/reports/export?from=2026-10-15&to=2026-10-16&format=xlsx')->assertOk();
+        $this->assertStringStartsWith('PK', $xlsx->getContent());
+        $file = tempnam(sys_get_temp_dir(), 'admin-report-');
+        try {
+            file_put_contents($file, $xlsx->getContent());
+            $zip = new \ZipArchive;
+            $this->assertTrue($zip->open($file));
+            $workbook = $zip->getFromName('xl/workbook.xml');
+            $this->assertStringContainsString('Category breakdown', $workbook);
+            $this->assertStringContainsString('Seven-day outlook', $workbook);
+            $summary = $zip->getFromName('xl/worksheets/sheet1.xml');
+            $expected = $this->recount('2026-10-15', '2026-10-16');
+            $this->assertStringContainsString('<v>'.$expected['gmv'].'</v>', $summary);
+            $this->assertStringContainsString('<v>'.$expected['commission'].'</v>', $summary);
+            $zip->close();
+        } finally {
+            @unlink($file);
+        }
+        $this->getJson('/api/v1/admin/reports/export?format=csv')->assertUnprocessable();
+        $this->getJson('/api/v1/admin/reports/export?from=2026-10-16&to=2026-10-15&format=pdf')->assertUnprocessable();
+        Sanctum::actingAs($this->buyer1);
+        $this->getJson('/api/v1/admin/reports/export?format=pdf')->assertForbidden();
+        $this->getJson('/api/v1/admin/reports/outlook')->assertForbidden();
+    }
+
+    public function test_outlook_is_unavailable_for_historical_short_or_sparse_windows(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/v1/admin/reports/outlook?range=7d')->assertOk()->assertJsonPath('data.available', false);
+        $this->getJson('/api/v1/admin/reports/outlook?from=2026-09-01&to=2026-09-30')->assertOk()->assertJsonPath('data.available', false);
+        $this->getJson('/api/v1/admin/reports/outlook?range=30d')->assertOk()->assertJsonPath('data.available', false)->assertJsonPath('data.points', []);
+    }
+
     public function test_every_dashboard_figure_equals_the_reports_figure_and_the_raw_recount_for_the_same_range(): void
     {
         Sanctum::actingAs($this->admin);

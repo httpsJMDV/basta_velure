@@ -17,6 +17,24 @@ use Illuminate\Http\JsonResponse;
  */
 class AdminReportController extends Controller
 {
+    public function outlook(AdminReportRequest $request): JsonResponse
+    {
+        return response()->json(['data' => app(\App\Services\Reports\AdminReportOutlook::class)->build($this->analytics, $request->analyticsRange())]);
+    }
+
+    public function export(AdminReportRequest $request): \Illuminate\Http\Response
+    {
+        $range = $request->analyticsRange();
+        $format = (string) ($request->input('format') ?: 'xlsx');
+        $doc = \Illuminate\Support\Facades\DB::transaction(fn () => app(\App\Services\Reports\AdminReportDocument::class)->build($this->analytics, $range, $request->chartInterval($range)));
+        return response($format === 'pdf' ? $doc->pdf() : $doc->xlsx(), 200, [
+            'Content-Type' => $format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$doc->filename($format).'"',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function __construct(private AdminAnalyticsService $analytics)
     {
     }
@@ -69,6 +87,8 @@ class AdminReportController extends Controller
                 'iso_date'      => $p['date'],
                 'gmv'           => $p['gmv'],
                 'commission'    => $p['commission'],
+                'gcash_volume'  => $p['gcash_volume'],
+                'cod_volume'    => $p['cod_volume'],
                 'orders_count'  => $p['orders'],
                 'orders_placed' => $p['orders_placed'],
             ])
