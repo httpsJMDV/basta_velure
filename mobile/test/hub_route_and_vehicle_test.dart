@@ -420,6 +420,25 @@ void main() {
         'GET /hub/sorting/groups': (r) => base['GET /hub/sorting/groups']!(r),
         'GET /hub/transfers': (r) =>
             (sent ? after : base)['GET /hub/transfers']!(r),
+        'GET /hub/truck-drivers': (_) => jsonBody(200, {
+          'data': [
+            {
+              'id': 7,
+              'name': 'Ana Driver',
+              'vehicle_type': 'Truck',
+              'plate_number': 'ABC123',
+              'busy': false,
+            },
+            {
+              'id': 8,
+              'name': 'Ben Driver',
+              'vehicle_type': 'Truck',
+              'plate_number': 'XYZ789',
+              'busy': true,
+              'on_trip_to': 'Bay Hub',
+            },
+          ],
+        }),
         'POST /hub/transfers/send': (r) {
           sent = true;
           body = r.data;
@@ -450,18 +469,70 @@ void main() {
 
       await tester.tap(find.widgetWithText(FilledButton, 'Send'));
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('Send to Pila Hub?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Send').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Load on a truck to Pila Hub'), findsOneWidget);
+      expect(find.text('Ana Driver'), findsOneWidget);
+      expect(
+        tester
+            .widget<ListTile>(find.widgetWithText(ListTile, 'Ben Driver'))
+            .enabled,
+        false,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Send 2 parcels'));
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
       expect(body, {
         'tracking_numbers': ['LIT-1', 'LIT-2'],
+        'driver_id': 7,
       });
       expect(find.text('Pila Hub'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 4));
     });
+
+    for (final unavailable in [false, true]) {
+      testWidgets(
+        unavailable
+            ? 'driver lookup failure does not send an anonymous truck'
+            : 'a hub without assigned drivers cannot send an anonymous truck',
+        (tester) async {
+          var sends = 0;
+          final api = FakeApi({
+            ...routes(sent: false),
+            'GET /hub/truck-drivers': (_) => unavailable
+                ? jsonBody(503, {'message': 'Unavailable'})
+                : jsonBody(200, {'data': <Object>[]}),
+            'POST /hub/transfers/send': (_) {
+              sends++;
+              return jsonBody(200, {'message': 'Unexpected send'});
+            },
+          });
+          final container = containerWith(api, MemoryTokenStore('t'));
+          addTearDown(container.dispose);
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: const MaterialApp(home: HubSortingScreen()),
+            ),
+          );
+          await tester.pump(const Duration(seconds: 1));
+          await tester.tap(find.widgetWithText(FilledButton, 'Send'));
+          await tester.pump(const Duration(seconds: 1));
+          expect(sends, 0);
+          expect(
+            find.textContaining(
+              unavailable
+                  ? 'Could not load this hub'
+                  : 'No active truck drivers are assigned',
+            ),
+            findsOneWidget,
+          );
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(seconds: 4));
+        },
+      );
+    }
 
     testWidgets('sorting still works when the server has no transfers yet', (
       tester,

@@ -202,7 +202,11 @@ class _HubSortingScreenState extends ConsumerState<HubSortingScreen> {
                           note: 'Another hub of your courier delivers to these barangays.',
                         ),
                         for (final group in transfers.groups) ...[
-                          _TransferCard(group: group, transfers: transfers, onSent: _reload),
+                          _TransferCard(
+                            group: group,
+                            transfers: transfers,
+                            onSent: _reload,
+                          ),
                           const SizedBox(height: AppSpace.sm),
                         ],
                         const SizedBox(height: AppSpace.md),
@@ -249,7 +253,11 @@ class _Cargo {
 }
 
 class _TransferCard extends ConsumerStatefulWidget {
-  const _TransferCard({required this.group, required this.transfers, required this.onSent});
+  const _TransferCard({
+    required this.group,
+    required this.transfers,
+    required this.onSent,
+  });
 
   final HubTransferGroup group;
   final HubTransfers transfers;
@@ -270,6 +278,17 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
     try {
       drivers = await api.truckDrivers();
     } catch (_) {
+      if (!group.crossesSea) {
+        if (mounted) {
+          setState(() => _sending = false);
+          showRiderMessage(
+            context,
+            'Could not load this hub’s truck drivers. Try again before dispatching.',
+            error: true,
+          );
+        }
+        return;
+      }
       drivers = const [];
     }
     if (!mounted) return;
@@ -281,19 +300,16 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
       // An island gateway: this group crosses to another island group on a ship or a plane.
       cargo = await _pickCargo(group);
       if (cargo == null || !mounted) return;
-    } else if (drivers.isNotEmpty) {
+    } else if (drivers.isEmpty) {
+      showRiderMessage(
+        context,
+        'No active truck drivers are assigned to this hub. Ask your courier to assign a home-hub driver first.',
+        error: true,
+      );
+      return;
+    } else {
       driverId = await _pickDriver(drivers, group);
       if (driverId == null || !mounted) return;
-    } else {
-      final confirmed = await confirmAction(
-        context,
-        title: 'Send to ${group.hubName}?',
-        message:
-            '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'} will leave this hub. '
-            '${group.hubName} scans them in when they arrive.',
-        confirmLabel: 'Send',
-      );
-      if (!confirmed || !mounted) return;
     }
     setState(() => _sending = true);
     try {
@@ -322,16 +338,25 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
     var mode = 'sea';
     final carrier = TextEditingController();
     final reference = TextEditingController();
-    String dueIn(int days) => DateTime.now().add(Duration(days: days)).toIso8601String().substring(0, 10);
+    String dueIn(int days) => DateTime.now()
+        .add(Duration(days: days))
+        .toIso8601String()
+        .substring(0, 10);
     var eta = dueIn(transfers.seaDays);
-    final word = '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'}';
+    final word =
+        '${group.parcelCount} parcel${group.parcelCount == 1 ? '' : 's'}';
     return showModalBottomSheet<_Cargo>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheet) => StatefulBuilder(
         builder: (sheet, setSheet) => Padding(
-          padding: EdgeInsets.fromLTRB(AppSpace.lg, 0, AppSpace.lg, AppSpace.lg + MediaQuery.of(sheet).viewInsets.bottom),
+          padding: EdgeInsets.fromLTRB(
+            AppSpace.lg,
+            0,
+            AppSpace.lg,
+            AppSpace.lg + MediaQuery.of(sheet).viewInsets.bottom,
+          ),
           child: SafeArea(
             child: SingleChildScrollView(
               child: Column(
@@ -340,20 +365,37 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
                 children: [
                   Text(
                     'Across to ${group.hubName}',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.gray900),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.gray900,
+                    ),
                   ),
                   const SizedBox(height: 4),
-                  Text('$word cross to another island group. ${group.hubName} receives them when they land.', style: HubText.small),
+                  Text(
+                    '$word cross to another island group. ${group.hubName} receives them when they land.',
+                    style: HubText.small,
+                  ),
                   const SizedBox(height: AppSpace.md),
                   SegmentedButton<String>(
                     segments: [
-                      ButtonSegment(value: 'sea', icon: const Icon(LucideIcons.ship), label: Text('Ship · ${transfers.seaDays} d')),
-                      ButtonSegment(value: 'air', icon: const Icon(LucideIcons.plane), label: Text('Plane · ${transfers.airDays} d')),
+                      ButtonSegment(
+                        value: 'sea',
+                        icon: const Icon(LucideIcons.ship),
+                        label: Text('Ship · ${transfers.seaDays} d'),
+                      ),
+                      ButtonSegment(
+                        value: 'air',
+                        icon: const Icon(LucideIcons.plane),
+                        label: Text('Plane · ${transfers.airDays} d'),
+                      ),
                     ],
                     selected: {mode},
                     onSelectionChanged: (s) => setSheet(() {
                       mode = s.first;
-                      eta = dueIn(mode == 'sea' ? transfers.seaDays : transfers.airDays);
+                      eta = dueIn(
+                        mode == 'sea' ? transfers.seaDays : transfers.airDays,
+                      );
                     }),
                   ),
                   const SizedBox(height: AppSpace.md),
@@ -361,29 +403,54 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
                     controller: carrier,
                     maxLength: 80,
                     decoration: InputDecoration(
-                      labelText: mode == 'sea' ? 'Ship or sailing' : 'Flight or cargo service',
-                      hintText: mode == 'sea' ? 'Roll-on/roll-off ferry, 6 PM sailing' : 'Domestic air cargo, morning flight',
+                      labelText: mode == 'sea'
+                          ? 'Ship or sailing'
+                          : 'Flight or cargo service',
+                      hintText: mode == 'sea'
+                          ? 'Roll-on/roll-off ferry, 6 PM sailing'
+                          : 'Domestic air cargo, morning flight',
                     ),
                   ),
                   TextField(
                     controller: reference,
                     maxLength: 40,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(labelText: mode == 'sea' ? 'Bill of lading no.' : 'Air waybill no.'),
+                    decoration: InputDecoration(
+                      labelText: mode == 'sea'
+                          ? 'Bill of lading no.'
+                          : 'Air waybill no.',
+                    ),
                   ),
                   const SizedBox(height: AppSpace.xs),
                   Text('Due at the other gateway: $eta', style: HubText.small),
                   const SizedBox(height: AppSpace.md),
                   FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: LogisticsLook.hubAction, minimumSize: const Size.fromHeight(48)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: LogisticsLook.hubAction,
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                     onPressed: () {
-                      if (carrier.text.trim().isEmpty || reference.text.trim().isEmpty) {
-                        showRiderMessage(sheet, 'Enter the ${mode == 'sea' ? 'ship' : 'flight'} and its reference number.', error: true);
+                      if (carrier.text.trim().isEmpty ||
+                          reference.text.trim().isEmpty) {
+                        showRiderMessage(
+                          sheet,
+                          'Enter the ${mode == 'sea' ? 'ship' : 'flight'} and its reference number.',
+                          error: true,
+                        );
                         return;
                       }
-                      Navigator.of(sheet).pop(_Cargo(mode, carrier.text.trim(), reference.text.trim().toUpperCase(), eta));
+                      Navigator.of(sheet).pop(
+                        _Cargo(
+                          mode,
+                          carrier.text.trim(),
+                          reference.text.trim().toUpperCase(),
+                          eta,
+                        ),
+                      );
                     },
-                    child: Text('Send $word by ${mode == 'sea' ? 'ship' : 'plane'}'),
+                    child: Text(
+                      'Send $word by ${mode == 'sea' ? 'ship' : 'plane'}',
+                    ),
                   ),
                 ],
               ),
@@ -429,7 +496,7 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$word. Choose the driver taking them. ${group.hubName} scans them in when the truck arrives.',
+                  '$word. Choose one of your hub’s assigned drivers. ${drivers.where((d) => !d.busy).length} of ${drivers.length} available. ${group.hubName} scans them in on arrival.',
                   style: HubText.small,
                 ),
                 const SizedBox(height: AppSpace.md),
@@ -494,8 +561,12 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
         children: [
           RiderIconTile(
             icon: group.crossesSea ? LucideIcons.ship : LucideIcons.truck,
-            color: group.crossesSea ? const Color(0xFF0369A1) : AppColors.gray900,
-            background: group.crossesSea ? const Color(0xFFE0F2FE) : AppColors.gray100,
+            color: group.crossesSea
+                ? const Color(0xFF0369A1)
+                : AppColors.gray900,
+            background: group.crossesSea
+                ? const Color(0xFFE0F2FE)
+                : AppColors.gray100,
           ),
           const SizedBox(width: AppSpace.md),
           Expanded(

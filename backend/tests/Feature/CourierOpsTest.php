@@ -417,6 +417,14 @@ class CourierOpsTest extends TestCase
         $this->as($this->ops)->postJson('/api/v1/logistics/dispatch/assign', ['parcel_ids' => [$parcel->id], 'rider_id' => $b->id])->assertOk();
         $this->as($aUser)->postJson("/api/v1/rider/offers/{$offer->id}/accept")->assertStatus(409);
         $this->assertSame($b->id, $parcel->fresh()->pickup_rider_id);
+        foreach ([$this->customer, $this->shop] as $party) {
+            $n = $party->notifications()->where('data->kind', 'order.pickup_assigned')->where('data->meta->order_id', $parcel->order_id)->firstOrFail();
+            $this->assertSame($b->id, $n->data['meta']['rider_id']);
+            $this->assertSame('Ben Garcia', $n->data['meta']['rider_name']);
+            $this->assertStringContainsString('Ben Garcia', $n->data['body']);
+        }
+        $this->as($this->ops)->postJson('/api/v1/logistics/dispatch/assign', ['parcel_ids' => [$parcel->id], 'rider_id' => $b->id])->assertConflict();
+        $this->assertSame(1, $this->customer->notifications()->where('data->kind', 'order.pickup_assigned')->where('data->meta->order_id', $parcel->order_id)->count());
 
         // The buyer's timeline shows the assignment.
         $history = OrderStatusHistory::where('order_id', $parcel->order_id)->get()->filter(fn ($h) => ($h->meta['event'] ?? null) === 'pickup_assigned');

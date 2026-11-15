@@ -171,7 +171,7 @@ class OrderStateMachine
             app(MailNotifier::class)->orderStatusChanged($lockedOrder, $currentStatus, $toStatus);
 
             // 7. One in-app notification per change for each role involved (A23), written after commit.
-            app(Notifier::class)->orderStatusChanged($lockedOrder, $currentStatus, $toStatus, $actorType, $note);
+            app(Notifier::class)->orderStatusChanged($lockedOrder, $currentStatus, $toStatus, $actorType, $note, $meta);
 
             return $lockedOrder->fresh(['items', 'statusHistories']);
         });
