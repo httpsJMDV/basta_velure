@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Sanctum;
@@ -77,6 +78,9 @@ class MalformedInputTest extends TestCase
         ini_set('memory_limit', '1G');
         $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
         Mail::fake();
+        // Exercise malformed credentials, not this PC's OAuth setup or Google's network availability.
+        config(['services.google.client_ids' => ['fuzz-test.apps.googleusercontent.com']]);
+        Http::fake(['https://oauth2.googleapis.com/tokeninfo*' => Http::response(['error' => 'invalid_token'], 400)]);
     }
 
     public function test_reading_with_strange_values_never_crashes_for_a_visitor(): void

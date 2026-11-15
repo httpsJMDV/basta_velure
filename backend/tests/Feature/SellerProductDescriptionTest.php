@@ -24,6 +24,8 @@ class SellerProductDescriptionTest extends TestCase
     {
         parent::setUp();
         $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+        // The image fixture below is owned by this explicit test origin, independent of the developer's .env.
+        config(['app.url' => 'https://api.loved-it.shop']);
 
         $this->seller = User::forceCreate([
             'first_name' => 'Marco', 'last_name' => 'Santos', 'email' => 'seller.' . uniqid() . '@example.com',
