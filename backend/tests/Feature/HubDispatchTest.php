@@ -389,6 +389,26 @@ class HubDispatchTest extends TestCase
         }
     }
 
+    public function test_assignment_notifies_buyer_and_seller_with_the_selected_riders_identity_before_parcel_update(): void
+    {
+        Mail::fake();
+        [$user, $rider] = $this->eligibleRider();
+        $p = $this->createParcel($this->hub, self::CODE_A);
+        \App\Models\OrderItem::create(['order_id' => $p->order_id, 'seller_id' => $p->seller_id,
+            'product_name' => 'Test parcel', 'unit_price' => 1500, 'quantity' => 1, 'subtotal' => 1500,
+            'commission_rate' => 0, 'commission_amount' => 0, 'seller_earnings' => 1500, 'payout_status' => 'direct']);
+        $this->dispatchTo($rider, [$p->tracking_number])->assertOk();
+        foreach ([$p->order->buyer_id, $p->seller_id] as $id) {
+            $n = User::findOrFail($id)->notifications()->where('data->kind', 'order.status')->where('data->meta->order_id', $p->order_id)->firstOrFail();
+            $this->assertSame($rider->id, $n->data['meta']['rider_id']);
+            $this->assertSame(trim($user->first_name.' '.$user->last_name), $n->data['meta']['rider_name']);
+            $this->assertSame($rider->plate_number, $n->data['meta']['plate_number']);
+            $this->assertStringContainsString($n->data['meta']['rider_name'], $n->data['body']);
+        }
+        $this->dispatchTo($rider, [$p->tracking_number])->assertUnprocessable();
+        $this->assertSame(1, User::findOrFail($p->order->buyer_id)->notifications()->where('data->kind', 'order.status')->where('data->meta->order_id', $p->order_id)->count());
+    }
+
     public function test_assign_rejects_a_rider_whose_area_does_not_cover_the_barangay(): void
     {
         Mail::fake();

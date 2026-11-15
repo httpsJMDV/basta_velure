@@ -409,11 +409,16 @@ class Dispatcher
         }
 
         // The shop learns who is coming, by the bell and by email (its order-update settings apply).
-        $riderName = self::name($rider);
+        $riderName = Notifier::riderIdentity($rider, 'pickup')['rider_name'];
         $vehicle = trim(ucfirst((string) $rider->vehicle_type) . ($rider->plate_number ? ' · ' . $rider->plate_number : '')) ?: null;
         $notifier->toSeller($parcel->seller_id, 'order_updates', 'order.pickup_assigned', $previous ? 'New pickup rider' : 'A rider is coming',
             "{$riderName} will collect parcel {$parcel->tracking_number}" . ($vehicle ? " ({$vehicle})" : '') . '. You can message the rider from the order.',
-            "/seller/orders?order={$parcel->order_id}", ['order_id' => $parcel->order_id, 'tracking_number' => $parcel->tracking_number]);
+            "/seller/orders?order={$parcel->order_id}", ['order_id' => $parcel->order_id, 'tracking_number' => $parcel->tracking_number] + Notifier::riderIdentity($rider, 'pickup'));
+        if ($parcel->order) {
+            $notifier->toUserId($parcel->order->buyer_id, 'order.pickup_assigned', $previous ? 'Pickup rider changed' : 'Pickup rider assigned',
+                "Order {$parcel->order->order_number}: {$riderName} will collect your parcel from the shop" . ($vehicle ? " ({$vehicle})" : '') . '.',
+                "/settings/orders?order={$parcel->order_id}", ['order_id' => $parcel->order_id, 'tracking_number' => $parcel->tracking_number] + Notifier::riderIdentity($rider, 'pickup'));
+        }
         app(\App\Services\MailNotifier::class)->sellerPickupAssigned($parcel, $riderName, $vehicle);
     }
 

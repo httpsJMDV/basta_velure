@@ -45,7 +45,7 @@ class TruckTrips
     }
 
     /**
-     * The courier's truck drivers a hub can hand parcels to: active, of the same courier.
+     * Active truck drivers assigned to this sending hub, within the same courier.
      *
      * @return Collection<int, Rider>
      */
@@ -60,9 +60,18 @@ class TruckTrips
             ->with(['user', 'sortingCenter'])
             ->where('duty', Rider::DUTY_TRUCK)
             ->where('status', Rider::STATUS_ACTIVE)
+            ->where('sorting_center_id', $hub->id)
+            ->whereHas('user', fn ($q) => $q->where('status', 'active'))
             ->get()
             ->sortBy(fn (Rider $r) => [$r->sorting_center_id === $hub->id ? 0 : 1, (string) $r->user?->first_name])
             ->values();
+    }
+
+    /** Preserve driverless legacy transfers only for couriers that have never set up a truck fleet. */
+    public function hasFleet(SortingCenter $hub): bool
+    {
+        $company = $this->companyOf($hub);
+        return $company && \App\Http\Controllers\Api\V1\LogisticsRiderController::companyRiders($company)->where('duty', Rider::DUTY_TRUCK)->exists();
     }
 
     /** The trip a driver is on now, if any. A driver takes one trip at a time. */
@@ -78,7 +87,7 @@ class TruckTrips
     {
         $driver = $this->driversFor($hub)->firstWhere('id', $driverId);
         if (! $driver) {
-            throw ValidationException::withMessages(['driver_id' => 'Choose one of your courier\'s active truck drivers.']);
+            throw ValidationException::withMessages(['driver_id' => 'Choose an active truck driver assigned to this hub. Ask your courier to update the driver’s home hub if needed.']);
         }
         if ($this->currentTrip($driver)) {
             throw ValidationException::withMessages(['driver_id' => 'This driver is still on another trip. Choose another driver.']);

@@ -172,12 +172,16 @@ class HubTransferController extends Controller
 
         // Once the courier has truck drivers, every truck leg goes on a trip with one of them.
         $driverId = $cargo ? null : ($validated['driver_id'] ?? null);
-        if (! $cargo && $driverId === null && $this->trucks->driversFor($hub)->isNotEmpty()) {
-            return $this->fail('driver_id', 'Choose the truck driver taking these parcels.');
+        if (! $cargo && $driverId === null && $this->trucks->hasFleet($hub)) {
+            return $this->fail('driver_id', 'Choose a truck driver assigned to this hub. If none is available, ask your courier to assign one before dispatch.');
         }
         $driver = $driverId !== null ? $this->trucks->assertCanDrive($hub, (int) $driverId) : null;
 
         return DB::transaction(function () use ($request, $hub, $numbers, $codes, $driver, $mode, $cargo, $validated) {
+            if ($driver) {
+                Rider::whereKey($driver->id)->lockForUpdate()->firstOrFail();
+                $driver = $this->trucks->assertCanDrive($hub, $driver->id);
+            }
             $parcels = Parcel::with('order')
                 ->where('sorting_center_id', $hub->id)
                 ->whereIn('tracking_number', $numbers)
@@ -324,7 +328,7 @@ class HubTransferController extends Controller
         return response()->json(['message' => $message, 'errors' => [$field => [$message]]], 422);
     }
 
-    /** GET /api/v1/hub/truck-drivers: the courier's active truck drivers, and whether each is free to drive now. */
+    /** GET /api/v1/hub/truck-drivers: this hub's assigned drivers and current availability. */
     public function drivers(Request $request): JsonResponse
     {
         $hub = $this->hub($request);

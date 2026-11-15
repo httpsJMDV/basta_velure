@@ -185,12 +185,34 @@ class TruckTripTest extends TestCase
         $truck = $this->driver();
         $this->driver(Rider::DUTY_DELIVERY);
         $this->driver(Rider::DUTY_TRUCK, Rider::STATUS_SUSPENDED);
+        $away = $this->driver();
+        $away->update(['sorting_center_id' => $this->second->id]);
 
         Sanctum::actingAs($this->firstUser->fresh());
         $this->getJson('/api/v1/hub/truck-drivers')->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $truck->id)
             ->assertJsonPath('data.0.busy', false);
+    }
+
+    public function test_another_home_hubs_driver_cannot_be_selected_or_bypassed_without_a_driver(): void
+    {
+        $away = $this->driver();
+        $away->update(['sorting_center_id' => $this->second->id]);
+        $parcel = $this->parcel();
+        $this->send([$parcel], $away)->assertUnprocessable()->assertJsonValidationErrors('driver_id');
+        $this->send([$parcel], null)->assertUnprocessable()->assertJsonValidationErrors('driver_id');
+        $this->assertNull($parcel->fresh()->transit_since);
+        $this->assertSame(0, TruckTrip::count());
+    }
+
+    public function test_a_suspended_user_is_not_a_dispatchable_truck_driver_even_when_staff_status_is_active(): void
+    {
+        $driver = $this->driver();
+        $driver->user->forceFill(['status' => 'suspended'])->save();
+        Sanctum::actingAs($this->firstUser->fresh());
+        $this->getJson('/api/v1/hub/truck-drivers')->assertOk()->assertJsonCount(0, 'data');
+        $this->send([$this->parcel()], $driver)->assertUnprocessable()->assertJsonValidationErrors('driver_id');
     }
 
     public function test_once_the_courier_has_truck_drivers_a_transfer_needs_one(): void

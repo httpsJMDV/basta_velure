@@ -157,24 +157,34 @@ class Notifier
         'DELIVERED', 'DELIVERY_FAILED', 'RETURN_TO_SENDER', 'RETURNED', 'LOST', 'DAMAGED',
     ];
 
-    public function orderStatusChanged(Order $order, string $from, string $to, string $actorType, ?string $note = null): void
+    public function orderStatusChanged(Order $order, string $from, string $to, string $actorType, ?string $note = null, array $transitionMeta = []): void
     {
         $label = self::BUYER_LABELS[$to] ?? ucwords(strtolower(str_replace('_', ' ', $to)));
         $meta = ['order_id' => $order->id, 'order_number' => $order->order_number, 'from' => $from, 'to' => $to];
         $reason = $note && in_array($to, ['CANCELLED', 'DELIVERY_FAILED', 'RETURN_TO_SENDER', 'LOST', 'DAMAGED'], true) ? " Reason: {$note}" : '';
+        $delivery = null;
+        if (in_array($to, ['ASSIGNED_TO_RIDER', 'OUT_FOR_DELIVERY'], true)) {
+            $riderId = $transitionMeta['rider_id'] ?? Parcel::where('order_id', $order->id)->value('assigned_rider_id');
+            $delivery = $riderId ? Rider::with('user')->find($riderId) : null;
+        }
+        $identity = $delivery ? self::riderIdentity($delivery, 'delivery') : [];
+        $namedBody = $delivery ? "Order {$order->order_number}: {$identity['rider_name']} "
+            . ($to === 'OUT_FOR_DELIVERY' ? 'is bringing your parcel' : 'is your assigned delivery rider')
+            . ($identity['vehicle_label'] ? " ({$identity['vehicle_label']})" : '') . '. Open the order to track or message the rider.' : null;
+        $meta += $identity;
 
         if ($actorType !== 'buyer') {
             // Out for delivery names the rider: "Juan is bringing your parcel".
             $rider = $to === 'OUT_FOR_DELIVERY' ? Parcel::deliveryRiderFirstName($order->id) : null;
             $this->send(User::find($order->buyer_id), 'order.status', $rider ? "{$rider} is bringing your parcel" : $label,
-                $rider ? "Order {$order->order_number} is out for delivery. Keep your phone nearby." : "Order {$order->order_number}: {$label}.{$reason}",
+                $namedBody ?? ($rider ? "Order {$order->order_number} is out for delivery. Keep your phone nearby." : "Order {$order->order_number}: {$label}.{$reason}"),
                 "/settings/orders?order={$order->id}", $meta + ($rider ? ['rider_first_name' => $rider] : []));
         }
 
         $sellerId = $order->seller_id ?? $order->items()->value('seller_id');
         if ($actorType !== 'seller' && $sellerId) {
             $this->toSeller($sellerId, in_array($to, ['DISPUTED', 'RETURNED'], true) ? 'returns' : 'order_updates', 'order.status', $label,
-                "Order {$order->order_number}: {$label}.{$reason}", "/seller/orders?order={$order->id}", $meta);
+                $namedBody ?? "Order {$order->order_number}: {$label}.{$reason}", "/seller/orders?order={$order->id}", $meta);
         }
 
         if (in_array($to, self::SHIPMENT_STATUSES, true) && ! in_array($actorType, ['logistics'], true)) {
@@ -183,6 +193,16 @@ class Notifier
                 ($tracking ? "Parcel {$tracking}" : "Order {$order->order_number}") . ": {$label}.{$reason}",
                 '/logistics/parcels' . ($tracking ? '?search=' . urlencode($tracking) : ''), $meta + ['tracking_number' => $tracking]);
         }
+    }
+
+    /** Rider identity for order parties; no private documents, location or unrelated staff details. */
+    public static function riderIdentity(Rider $rider, string $leg): array
+    {
+        $rider->loadMissing('user');
+        $name = trim(($rider->user?->first_name ?? '').' '.($rider->user?->last_name ?? '')) ?: 'Your courier rider';
+        return ['rider_id' => $rider->id, 'rider_name' => $name, 'rider_first_name' => $rider->user?->first_name,
+            'vehicle_type' => $rider->vehicle_type, 'plate_number' => $rider->plate_number, 'leg' => $leg,
+            'vehicle_label' => trim((string) $rider->vehicle_type.($rider->plate_number ? ' · '.$rider->plate_number : ''))];
     }
 
     /** @return iterable<User> */
