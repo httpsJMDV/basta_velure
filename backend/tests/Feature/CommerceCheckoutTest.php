@@ -73,6 +73,11 @@ class CommerceCheckoutTest extends TestCase
             ->assertCreated();
         $orders = Order::whereIn('id', collect($res->json('orders'))->pluck('id'))->get()->keyBy(fn ($o) => $o->items()->value('seller_id'));
         $this->assertCount(2, $orders);
+        foreach ($orders as $order) {
+            $this->assertSame(1, $order->shipping_earnings['version']);
+            $this->assertSame(\App\Support\Money::toCents($order->courierFeeAmount()), array_sum($order->shipping_earnings['cents']));
+            $this->assertSame($order->shipping_earnings['cents']['pickup'], $order->shipping_earnings['cents']['delivery']);
+        }
         $this->assertEqualsWithDelta(1083.00, $orders->sum(fn ($o) => (float) $o->total), 0.001);
         $one = $orders[$w['s1']->id];
         $this->assertSame('Paki-wrap po as gift', $one->notes);

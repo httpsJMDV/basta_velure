@@ -138,6 +138,35 @@ class RiderEarningsTest extends TestCase
 
     // ─── earnings creation ────────────────────────────────────────────────────
 
+    public function test_percentage_orders_pay_equal_rider_shares_and_preserve_the_snapshot(): void
+    {
+        [, $rider] = $this->makeRider();
+        $parcel = $this->makeParcel($rider, parcelOverrides: ['pickup_rider_id' => $rider->id]);
+        $parcel->order->update(['courier_fee' => '50.00', 'shipping_fee' => '0.00',
+            'shipping_earnings' => \App\Services\ShippingAllocation::snapshot('50.00')]);
+        config(['shipping.rider_pay.pickup' => '900.00', 'shipping.rider_pay.delivery' => '900.00']);
+
+        $this->deliverVia($parcel);
+        app(\App\Services\RiderEarningsRecorder::class)->recordForParcel($parcel->fresh());
+        $rows = RiderEarning::where('parcel_id', $parcel->id)->orderBy('kind')->get();
+        $this->assertCount(2, $rows);
+        $this->assertSame(['10.00', '10.00'], $rows->pluck('amount')->all());
+        $this->assertSame('7.50', \App\Models\HubEarning::where('parcel_id', $parcel->id)->firstOrFail()->amount);
+        $this->assertSame(1250, $parcel->order->shipping_earnings['cents']['courier']);
+    }
+
+    public function test_percentage_budget_conserves_centavos_and_keeps_pickup_and_delivery_equal(): void
+    {
+        foreach (['0.00', '0.01', '0.03', '0.99', '50.00', '190.00', '9999.99'] as $fee) {
+            $budget = \App\Services\ShippingAllocation::snapshot($fee);
+            $this->assertSame(Money::toCents($fee), array_sum($budget['cents']));
+            $this->assertSame($budget['cents']['pickup'], $budget['cents']['delivery']);
+        }
+        [$user] = $this->makeRider();
+        $this->summary($user)->assertOk()->assertJsonPath('data.rates.pickup_percent', 20)
+            ->assertJsonPath('data.rates.delivery_percent', 20)->assertJsonPath('data.rates.policy.courier', 25);
+    }
+
     public function test_the_guide_in_the_app_is_told_the_pay_and_limits_in_force(): void
     {
         [$user] = $this->makeRider();

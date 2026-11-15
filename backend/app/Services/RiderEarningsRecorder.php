@@ -56,7 +56,7 @@ class RiderEarningsRecorder
             return null;
         }
 
-        $cents = ShippingSplit::pickupPayCents();
+        $cents = $parcel->order?->shipping_earnings['cents']['pickup'] ?? ShippingSplit::pickupPayCents();
 
         return $this->recordRider($parcel, $parcel->pickup_rider_id, RiderEarning::KIND_PICKUP, $cents, $earnedAt ?? now(),
             'Pickup pay (₱' . Money::fromCents($cents) . ')');
@@ -72,7 +72,7 @@ class RiderEarningsRecorder
         $earnedAt ??= now();
         $shares = ShippingSplit::split(Money::toCents($parcel->order?->courierFeeAmount() ?? '0'));
 
-        $this->recordHub($parcel, $shares['hub'], $earnedAt);
+        $this->recordHub($parcel, $parcel->order?->shipping_earnings['cents']['hub'] ?? $shares['hub'], $earnedAt);
 
         // A parcel with no assigned rider earns the rider nobody anything.
         if (! $parcel->assigned_rider_id) {
@@ -86,7 +86,7 @@ class RiderEarningsRecorder
 
         // The pickup rider is paid at pickup; this catches a parcel picked up before that rule. Idempotent.
         $this->recordPickup($parcel, $earnedAt);
-        $cents = ShippingSplit::deliveryPayCents();
+        $cents = $parcel->order?->shipping_earnings['cents']['delivery'] ?? ShippingSplit::deliveryPayCents();
 
         return $this->recordRider($parcel, $parcel->assigned_rider_id, RiderEarning::KIND_DELIVERY, $cents, $earnedAt,
             'Delivery pay (₱' . Money::fromCents($cents) . ')');

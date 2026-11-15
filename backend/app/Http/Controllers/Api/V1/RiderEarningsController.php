@@ -50,6 +50,10 @@ class RiderEarningsController extends Controller
                 'unpaid_total'         => Money::fromCents(Money::toCents($unpaid)),
                 // What the guide in the rider app tells them: the numbers that are actually in force.
                 'rates'                => [
+                    'pay_model'             => 'shipping_percentage',
+                    'pickup_percent'        => 20,
+                    'delivery_percent'      => 20,
+                    'policy'                => \App\Services\ShippingAllocation::PERCENTAGES,
                     'pickup'                => (string) config('shipping.rider_pay.pickup'),
                     'delivery'              => (string) config('shipping.rider_pay.delivery'),
                     'max_delivery_attempts' => (int) config('logistics.max_delivery_attempts'),

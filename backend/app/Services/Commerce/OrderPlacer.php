@@ -114,6 +114,7 @@ class OrderPlacer
                     'shipping_voucher_discount' => $store['shipping_discount'],
                     'shipping_fee'              => $store['shipping']['fee'],
                     'courier_fee'               => $store['shipping']['courier_fee'],
+                    'shipping_earnings'         => \App\Services\ShippingAllocation::snapshot($store['shipping']['courier_fee']),
                     'free_delivery'             => $store['shipping']['free_delivery'],
                     'total_weight_grams'        => $store['shipping']['weight_grams'],
                     'chargeable_weight_kg'      => $store['shipping']['chargeable_kg'],

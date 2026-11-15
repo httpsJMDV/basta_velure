@@ -91,7 +91,7 @@ class TruckTrips
      * Opens the trip for parcels the hub is about to send to one hub. The caller then sends each parcel with it.
      */
     public function start(SortingCenter $from, SortingCenter $to, ?Rider $driver, int $parcelCount, User $by, string $mode = TruckTrip::MODE_TRUCK,
-        ?string $carrier = null, ?string $reference = null, ?\DateTimeInterface $eta = null): TruckTrip
+        ?string $carrier = null, ?string $reference = null, ?\DateTimeInterface $eta = null, array $stops = []): TruckTrip
     {
         $company = $this->companyOf($from);
         $trip = TruckTrip::create([
@@ -113,6 +113,21 @@ class TruckTrips
             // A ship or a plane is paid to the carrier outside Loved-IT; only the courier's own drivers are paid per trip here.
             'pay_amount'           => $driver ? $this->rate($company) : 0,
         ]);
+
+        if ($driver && $stops !== []) {
+            $cents = 0;
+            $legacy = false;
+            foreach (collect($stops)->sortBy(fn ($s) => $s instanceof ParcelHubStop ? $s->parcel->order_id : $s->returnPickup->order_id) as $stop) {
+                $order = $stop instanceof ParcelHubStop ? $stop->parcel->order : $stop->returnPickup->order;
+                if (! $order->shipping_earnings) {
+                    $legacy = true;
+                } else {
+                    $cents += app(\App\Services\ShippingAllocation::class)->claimTransport($stop, $trip);
+                }
+            }
+            // Existing orders keep their original trip-rate agreement; new parcels add only their reserved leg share.
+            $trip->update(['pay_amount' => \App\Support\Money::fromCents($cents + ($legacy ? \App\Support\Money::toCents((string) $this->rate($company)) : 0))]);
+        }
 
         AuditLog::record($by, 'truck_trip.departed', $trip, null, array_filter([
             'code' => $trip->code, 'mode' => $mode, 'from' => $from->hub_name, 'to' => $to->hub_name, 'parcels' => $parcelCount,
@@ -235,6 +250,8 @@ class TruckTrips
             'paid_total'      => round((float) TruckTrip::where('driver_id', $driver->id)->whereNotNull('paid_at')->sum('pay_amount'), 2),
             'trips_this_week' => TruckTrip::where('driver_id', $driver->id)->where('departed_at', '>=', $weekStart)->count(),
             'rate'            => $this->rate($driver->company ?? ($driver->companyId() ? LogisticsCompany::find($driver->companyId()) : null)),
+            'pay_model'       => 'shipping_percentage',
+            'transport_percent' => 20,
         ];
     }
 
