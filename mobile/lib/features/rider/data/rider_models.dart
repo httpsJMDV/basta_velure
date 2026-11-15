@@ -676,6 +676,9 @@ enum EarningsPeriod {
 /// The pay and limits in force, for the guide.
 class RiderRates {
   const RiderRates({
+    this.percentagePay = false,
+    this.pickupPercent = 20,
+    this.deliveryPercent = 20,
     required this.pickup,
     required this.delivery,
     required this.maxDeliveryAttempts,
@@ -683,6 +686,9 @@ class RiderRates {
     required this.codMax,
   });
 
+  final bool percentagePay;
+  final int pickupPercent;
+  final int deliveryPercent;
   final double pickup;
   final double delivery;
   final int maxDeliveryAttempts;
@@ -693,6 +699,9 @@ class RiderRates {
     if (json is! Map) return null;
     final rates = asJson(json);
     return RiderRates(
+      percentagePay: rates['pay_model'] == 'shipping_percentage',
+      pickupPercent: asInt(rates['pickup_percent']),
+      deliveryPercent: asInt(rates['delivery_percent']),
       pickup: asDouble(rates['pickup']).toDouble(),
       delivery: asDouble(rates['delivery']).toDouble(),
       maxDeliveryAttempts: asInt(rates['max_delivery_attempts']),

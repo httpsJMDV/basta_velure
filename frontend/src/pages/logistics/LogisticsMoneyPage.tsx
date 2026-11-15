@@ -1,3 +1,4 @@
+import ShippingPayPolicy from '../../components/logistics/ShippingPayPolicy';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Banknote, Bike, Warehouse } from 'lucide-react';
@@ -51,7 +52,7 @@ export default function LogisticsMoneyPage() {
   return (
     <div className="w-full pb-8 space-y-4">
       <PageHero icon={Banknote} eyebrow="Money" title="Settlements & pay"
-        subtitle="Settle the cash your riders collect with each shop every week, and pay your riders (₱30 per pickup, ₱50 per delivery) and your hubs (15% of the fee).">
+        subtitle="Settle the cash your riders collect with each shop every week, and share new-order shipping fees across riders, branches, transport and your company.">
         {weeks && (
           <HeroStats items={[
             { label: 'Shops owe you', value: peso(weeks.totals.to_receive), tone: weeks.totals.to_receive > 0 ? 'good' : 'default' },
@@ -73,6 +74,8 @@ export default function LogisticsMoneyPage() {
           ]}
         />
       </div>
+
+      <ShippingPayPolicy />
 
       {failed ? <ListError message="The money records could not be loaded." onRetry={load} /> : tab === 'shops' ? (
         !weeks ? <div className="h-64 rounded-2xl bg-gray-100 animate-pulse" /> : (

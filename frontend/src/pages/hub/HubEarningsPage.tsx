@@ -1,3 +1,4 @@
+import ShippingPayPolicy from '../../components/logistics/ShippingPayPolicy';
 import { useCallback, useState } from 'react';
 import { AlertCircle, CalendarDays, CalendarRange, Coins, PackageCheck, Wallet } from 'lucide-react';
 import { getHubEarningsApi, getPayoutAccountApi, updatePayoutAccountApi } from '../../api/client';
@@ -41,12 +42,10 @@ export default function HubEarningsPage() {
         updatedAt={lastUpdated}
         icon={Wallet}
         title="Earnings"
-        subtitle={
-          data
-            ? `Your hub keeps ${data.split.hub_percent}% of the ${peso(data.delivery_fee)} delivery fee on every parcel it handles that is delivered. The riders get ${data.split.rider_percent}%: ${data.split.pickup_percent}% to the pickup rider, ${data.split.delivery_percent}% to the delivery rider.`
-            : 'Your hub’s share of the delivery fee on delivered parcels.'
-        }
+        subtitle="Your handling branch earns 15% of the courier fee on delivered parcels. Actual amounts appear below."
        />
+
+      <ShippingPayPolicy />
 
       {error && !data && (
         <div role="alert" className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

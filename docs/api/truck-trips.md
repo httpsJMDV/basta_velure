@@ -1,3 +1,5 @@
+> November 15, 2026: new orders use the [20/20/15/20/25 shipping policy](shipping-percentage-earnings.md), including the capped company-funded return transport reserve. Compensation descriptions below are historical; existing orders retain their original agreement.
+
 # Truck trips between hubs (line-haul)
 
 Parcels that one hub receives for another hub's barangays travel on the courier's truck. The **courier company** hires
