@@ -1,3 +1,5 @@
+> November 15, 2026: new orders use the [30/30/10/15/15 shipping policy](shipping-percentage-earnings.md), including the capped company-funded return transport reserve. Compensation descriptions below are historical; existing orders retain their original agreement.
+
 # Delivery fee and what riders and hubs earn (pickup ₱30, delivery ₱50, hub 15%)
 
 ## What the buyer pays

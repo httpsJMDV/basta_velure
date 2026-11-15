@@ -40,6 +40,32 @@ class _CourierMoneyScreenState extends ConsumerState<CourierMoneyScreen> {
               subtitle: 'Review team earnings and weekly shop statements. Record a transfer only after it has been sent.',
               icon: Icons.account_balance_wallet_outlined,
             ),
+            const PortalCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Shipping earnings · new orders',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 12),
+                  InfoRow('Pickup rider', '30%'),
+                  InfoRow('Delivery rider', '30%'),
+                  InfoRow('Handling branch', '10%'),
+                  InfoRow('Transport pool', '15%'),
+                  InfoRow('Courier company', '15%'),
+                  SizedBox(height: 12),
+                  Text(
+                    'For ₱50 shipping: ₱15 pickup, ₱15 delivery, ₱5 branch, ₱7.50 transport and ₱7.50 company. Transport is shared across the planned route. Return transport reserves up to ₱5 from the company’s ₱7.50, leaving at least ₱2.50 before other costs. Unused reserves stay with the company; its share is not guaranteed profit. Previous orders keep their agreed earnings.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: AppColors.stone500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             PortalCard(
               child: Column(
                 children: [

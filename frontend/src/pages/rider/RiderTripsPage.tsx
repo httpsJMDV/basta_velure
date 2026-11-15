@@ -115,7 +115,7 @@ export default function RiderTripsPage() {
             <KpiTile icon={Wallet} label="Not paid yet" value={peso(data.pay.unpaid_total)} hint={`${data.pay.unpaid_trips} trip${data.pay.unpaid_trips === 1 ? '' : 's'}`} />
             <KpiTile icon={Check} tone="emerald" label="Paid so far" value={peso(data.pay.paid_total)} />
             <KpiTile icon={Container} tone="gray" label="Trips this week" value={String(data.pay.trips_this_week)} />
-            <KpiTile icon={Wallet} tone="amber" label="Pay per trip" value={peso(data.pay.rate)} hint="Set by your courier" />
+            <KpiTile icon={Wallet} tone="amber" label="Transport pool" value="15%" hint="Shared across the planned route" />
           </div>
 
           {data.current ? (

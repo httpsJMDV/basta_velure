@@ -27,6 +27,7 @@ class Order extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'shipping_earnings',
         'settlement',
         'courier_fee',
         'free_delivery',
@@ -65,6 +66,7 @@ class Order extends Model
     protected function casts(): array
     {
         return [
+            'shipping_earnings' => 'array',
             'address_confirmed_at' => 'datetime',
             'address_revision' => 'integer',
             'courier_fee' => 'decimal:2',

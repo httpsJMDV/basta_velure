@@ -27,8 +27,6 @@ class HubEarningsController extends Controller
         /** @var SortingCenter $hub */
         $hub = $request->user()->sortingCenter;
 
-        $riderPercent = ShippingSplit::riderPercent();
-
         $recent = HubEarning::with(['parcel.order:id,order_number,shipping_fee,courier_fee', 'parcel.assignedRider.user:id,first_name,last_name'])
             ->where('sorting_center_id', $hub->id)
             ->orderByDesc('earned_at')
@@ -38,7 +36,8 @@ class HubEarningsController extends Controller
 
         return response()->json(['data' => [
             'delivery_fee' => ShippingSplit::fee(),
-            'split'        => ['rider_percent' => $riderPercent, 'pickup_percent' => ShippingSplit::pickupPercent(), 'delivery_percent' => ShippingSplit::deliveryPercent(), 'hub_percent' => 100 - $riderPercent],
+            'shipping_policy' => \App\Services\ShippingAllocation::PERCENTAGES,
+            'split'        => ['rider_percent' => 60, 'pickup_percent' => 30, 'delivery_percent' => 30, 'hub_percent' => 10],
             'today'        => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::DAY)),
             'week'         => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::WEEK)),
             'month'        => $this->totals($hub, ManilaPeriod::containing(ManilaPeriod::MONTH)),

@@ -234,7 +234,7 @@ class HubTransferController extends Controller
                 }
                 $eta = isset($validated['eta']) ? Carbon::parse($validated['eta'], 'Asia/Manila')->endOfDay() : null;
                 $trip = $this->trucks->start($hub, SortingCenter::findOrFail($destinations->first()), $driver, count($nextStops), $request->user(), $mode,
-                    $cargo ? trim((string) $validated['carrier_name']) : null, $cargo ? trim((string) $validated['carrier_reference']) : null, $eta);
+                    $cargo ? trim((string) $validated['carrier_name']) : null, $cargo ? trim((string) $validated['carrier_reference']) : null, $eta, $nextStops);
             }
 
             $going = [];

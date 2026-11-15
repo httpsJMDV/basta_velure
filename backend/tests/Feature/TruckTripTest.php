@@ -132,6 +132,54 @@ class TruckTripTest extends TestCase
         ]));
     }
 
+    public function test_percentage_parcels_fund_one_transport_pool_across_multiple_hops_without_repeat_claims(): void
+    {
+        $driver = $this->driver();
+        $parcel = $this->parcel();
+        $parcel->order->update(['shipping_earnings' => \App\Services\ShippingAllocation::snapshot('50.03')]);
+        $stops = $parcel->hubStops()->orderBy('position')->get();
+        $this->assertCount(2, $stops);
+        $third = \App\Models\ParcelHubStop::create(['parcel_id' => $parcel->id, 'position' => 3,
+            'sorting_center_id' => $this->first->id, 'mode' => 'truck', 'direction' => 'forward']);
+        $this->send([$parcel], $driver)->assertOk()->assertJsonPath('trip.pay_amount', 3.75);
+        $trip = TruckTrip::firstOrFail();
+        $allocator = app(\App\Services\ShippingAllocation::class);
+        $this->assertSame(0, $allocator->claimTransport($stops[1], $trip));
+        $this->assertSame(375, $allocator->claimTransport($third, $trip));
+        $this->assertSame(0, $allocator->claimTransport($third, $trip));
+        $return = \App\Models\ParcelHubStop::create(['parcel_id' => $parcel->id, 'position' => 4,
+            'sorting_center_id' => $this->second->id, 'mode' => 'truck', 'direction' => 'return']);
+        $this->assertSame(500, $allocator->claimTransport($return, $trip));
+        $this->assertSame(0, $allocator->claimTransport($return, $trip));
+        $budget = $parcel->order->fresh()->shipping_earnings;
+        $this->assertSame(750, array_sum(array_column($budget['transport_legs'], 'cents')));
+        $this->assertSame(753, $budget['cents']['courier']);
+        $this->assertSame(500, array_sum(array_column($budget['return_transport_legs'], 'cents')));
+        $this->assertSame(253, $budget['cents']['courier'] - $budget['return_reserve_cents']);
+    }
+
+    public function test_buyer_return_truck_pay_uses_the_company_reserve_once_instead_of_the_fixed_rate(): void
+    {
+        $driver = $this->driver();
+        $parcel = $this->parcel();
+        $parcel->order->update(['shipping_earnings' => \App\Services\ShippingAllocation::snapshot('50.00')]);
+        $pickup = \App\Models\ReturnPickup::create(['code' => 'RET-'.uniqid(), 'order_id' => $parcel->order_id,
+            'parcel_id' => $parcel->id, 'status' => 'at_hub']);
+        $pickup->stops()->create(['position' => 0, 'sorting_center_id' => $this->first->id]);
+        $next = $pickup->stops()->create(['position' => 1, 'sorting_center_id' => $this->second->id]);
+        $trucks = app(\App\Services\Courier\TruckTrips::class);
+        $trip = $trucks->start($this->first, $this->second, $driver, 1, $this->firstUser, stops: [$next]);
+        $this->assertSame('5.00', $trip->pay_amount);
+        $this->assertSame(0, app(\App\Services\ShippingAllocation::class)->claimTransport($next, $trip));
+        $budget = $parcel->order->fresh()->shipping_earnings;
+        $this->assertSame(750, $budget['cents']['courier']);
+        $this->assertSame(500, array_sum(array_column($budget['return_transport_legs'], 'cents')));
+        $this->assertSame(250, $budget['cents']['courier'] - $budget['return_reserve_cents']);
+        $otherReturn = \App\Models\ParcelHubStop::create(['parcel_id' => $parcel->id, 'position' => 8,
+            'sorting_center_id' => $this->first->id, 'direction' => 'return']);
+        $this->assertSame(0, app(\App\Services\ShippingAllocation::class)->claimTransport($otherReturn, $trip));
+    }
+
     public function test_the_hub_lists_its_couriers_truck_drivers_and_not_delivery_riders(): void
     {
         $truck = $this->driver();

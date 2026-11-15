@@ -1,3 +1,5 @@
+> November 15, 2026: new orders use the [30/30/10/15/15 shipping policy](shipping-percentage-earnings.md), including the capped company-funded return transport reserve. Compensation descriptions below are historical; existing orders retain their original agreement.
+
 # Rider Earnings and Delivery History API (`/api/v1/rider/...`) — Feature 2.9
 
 ## Overview

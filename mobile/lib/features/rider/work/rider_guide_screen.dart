@@ -60,7 +60,11 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                   children: [
                     Expanded(
                       child: _PayFigure(
-                        amount: rates == null ? '—' : formatPeso(rates.pickup),
+                        amount: rates == null
+                            ? '—'
+                            : rates.percentagePay
+                            ? '${rates.pickupPercent}%'
+                            : formatPeso(rates.pickup),
                         label: 'each pickup',
                       ),
                     ),
@@ -68,6 +72,8 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                       child: _PayFigure(
                         amount: rates == null
                             ? '—'
+                            : rates.percentagePay
+                            ? '${rates.deliveryPercent}%'
                             : formatPeso(rates.delivery),
                         label: 'each delivery',
                       ),
@@ -76,9 +82,11 @@ class _RiderGuideScreenState extends ConsumerState<RiderGuideScreen> {
                 ),
                 const SizedBox(height: AppSpace.md),
                 const Text(
-                  'You earn a set amount for each job, whatever the distance. '
-                  'The rate is the same for every rider. Each job shows under '
-                  'Earnings once it is done.',
+                  'New orders share the courier fee: 30% pickup, 30% delivery, '
+                  '10% handling branch, 15% transport pool and 15% courier company. '
+                  'On a ₱50 courier fee you earn ₱15 per leg, or ₱30 for both. '
+                  'Previous orders keep their agreed pay; Earnings shows the actual amounts. '
+                  'A failed delivery attempt earns no delivery pay. Return transport reserves up to 10% from the company share, leaving at least 5% before other costs. Unused reserves stay with the company.',
                   style: _body,
                 ),
               ],

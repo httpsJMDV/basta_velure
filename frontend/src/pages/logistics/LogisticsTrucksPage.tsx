@@ -127,7 +127,7 @@ export default function LogisticsTrucksPage() {
   return (
     <div className="w-full pb-8 space-y-4">
       <PageHero icon={Container} eyebrow="Network" title="Truck drivers"
-        subtitle="Your drivers carry parcels between your hubs. You pay each one per trip; it does not come out of the riders' or hubs' share.">
+        subtitle="New orders reserve 15% of the courier fee for transport, shared across the planned route. Each trip shows its allocated pay.">
         <div className="flex flex-wrap items-center gap-3">
           {s && (
             <HeroStats items={[
@@ -194,12 +194,12 @@ export default function LogisticsTrucksPage() {
               </div>
             </Panel>
 
-            <Panel icon={Wallet} title="Pay per trip" subtitle="New trips use this amount. Trips on the road keep theirs.">
+            <Panel icon={Wallet} title="Previous-order trip rate" subtitle="Only orders placed before percentage sharing use this agreement.">
               <div className="p-4 space-y-3">
                 <Input id="trip-rate" label="Pesos per trip" type="number" min={0} step="50" value={rate} onChange={(e) => setRate(e.target.value)} />
                 <button type="button" className={`${BUTTON.dark} w-full`} onClick={() => void saveRate()} disabled={rateBusy}>{rateBusy ? 'Saving…' : 'Save trip pay'}</button>
                 <p className="text-[12px] leading-relaxed text-stone-500">
-                  A trip is one truck from one hub to another. It counts when the other hub has scanned in every parcel, or when you close it.
+                  New orders use the 15% transport pool divided across their route, not this fixed rate. Return truck work uses a separate reserve of up to 10% of the shipping fee from the company’s 15% share. The courier covers other return work and external carrier costs from its operating funds. Trip pay is earned when the next hub receives the parcels, or the trip is closed.
                 </p>
               </div>
             </Panel>

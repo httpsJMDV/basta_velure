@@ -1,3 +1,4 @@
+import ShippingPayPolicy from '../../components/logistics/ShippingPayPolicy';
 import { useState } from 'react';
 import { Wallet } from 'lucide-react';
 import EarningsTab from './EarningsTab';
@@ -20,8 +21,9 @@ export default function RiderEarningsPage() {
 
   return (
     <div className="pb-4 space-y-4">
-      <PageHero icon={Wallet} title="Earnings" subtitle="₱30 per pickup and ₱50 per delivery; a failed attempt pays nothing." />
+      <PageHero icon={Wallet} title="Earnings" subtitle="New orders: 30% for pickup and 30% for delivery. Previous orders keep their agreed pay." />
 
+      <ShippingPayPolicy />
       <CodRemittanceCard />
 
       <TabBar
