@@ -75,7 +75,7 @@ class SupportChat
         try {
             $result = $this->assistant->reply($conversation);
         } catch (\Throwable $e) {
-            Log::warning('Support assistant failed; handing the chat to a person.', ['conversation_id' => $conversation->id, 'error' => $e->getMessage()]);
+            Log::warning('Support assistant failed; handing the chat to a person.', ['conversation_id' => $conversation->id, 'exception' => $e::class]);
             $this->handOff($conversation->fresh(), 'The assistant could not answer.', self::UNAVAILABLE);
 
             return;
