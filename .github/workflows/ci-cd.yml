@@ -157,8 +157,9 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Run container before publishing
         run: |
+          trap 'docker logs loved-it-built || true' ERR
           docker run -d --name loved-it-built -p 3000:8080 loved-it-ci:tested
-          curl --fail --retry 15 --retry-connrefused --retry-delay 2 http://localhost:3000/healthz
+          curl --fail --retry 15 --retry-all-errors --retry-delay 2 http://localhost:3000/healthz
           curl --fail http://localhost:3000/ci-status.json | tee /tmp/loved-it-status.json
           node -e 'const a=require("node:assert/strict"),s=require("/tmp/loved-it-status.json");a.equal(s.application,"Loved-IT");a.ok(s.message);'
           curl --fail http://localhost:3000/products/133 | grep -q 'id="root"'
@@ -182,11 +183,12 @@ jobs:
         env:
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
+          trap 'docker logs loved-it-published || true' ERR
           image=$(printf '%s\n' "$IMAGE_TAGS" | head -n1)
           docker image rm "$image"
           docker pull "$image"
           docker run -d --name loved-it-published -p 3001:8080 "$image"
-          curl --fail --retry 15 --retry-connrefused --retry-delay 2 http://localhost:3001/healthz
+          curl --fail --retry 15 --retry-all-errors --retry-delay 2 http://localhost:3001/healthz
           curl --fail http://localhost:3001/ci-status.json
           curl --fail http://localhost:3001/settings/profile | grep -q 'id="root"'
           docker rm -f loved-it-published
@@ -196,3 +198,27 @@ jobs:
             echo 'It was then pulled from GHCR and run again on port 3001.'
             printf '\n```text\n%s\n```\n' "$IMAGE_TAGS"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Record published package metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/users/httpsJMDV/packages/container/basta_velure \
+            > /tmp/loved-it-package.json
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            'https://api.github.com/users/httpsJMDV/packages/container/basta_velure/versions?per_page=10' \
+            > /tmp/loved-it-package-versions.json
+          jq '{name, package_type, visibility, html_url, version_count}' /tmp/loved-it-package.json
+          jq '[.[] | {digest: .name, tags: .metadata.container.tags}]' /tmp/loved-it-package-versions.json
+      - name: Upload registry evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: loved-it-ghcr-evidence-${{ github.run_id }}
+          path: |
+            /tmp/loved-it-package.json
+            /tmp/loved-it-package-versions.json
+          retention-days: 7
