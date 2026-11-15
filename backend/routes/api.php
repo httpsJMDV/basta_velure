@@ -455,6 +455,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/seller-applications', [AdminSellerApplicationController::class, 'index']);
             Route::get('/seller-applications/{sellerProfile}', [AdminSellerApplicationController::class, 'show']);
             Route::post('/seller-applications/{sellerProfile}/approve', [AdminSellerApplicationController::class, 'approve']);
+            Route::post('/seller-applications/{sellerProfile}/ai-review', [AdminSellerApplicationController::class, 'aiReview'])->middleware('throttle:10,1');
             Route::post('/seller-applications/{sellerProfile}/reject', [AdminSellerApplicationController::class, 'reject']);
             Route::get('/seller-applications/{sellerProfile}/id-image', [AdminSellerApplicationController::class, 'idImage'])
                 ->name('admin.seller-applications.id-image');

@@ -58,6 +58,26 @@ class AdminSellerApplicationController extends Controller
         return response()->json(['message' => 'Application approved.']);
     }
 
+    public function aiReview(SellerProfile $sellerProfile, Request $request, \App\Services\Ai\SellerApplicationReviewer $reviewer): JsonResponse
+    {
+        abort_unless($sellerProfile->application_status === 'pending', 409, 'Only pending applications can be reviewed.');
+        abort_if($sellerProfile->user?->status === 'unverified', 409, 'The applicant must verify their email first.');
+        $facts = $reviewer->facts($sellerProfile);
+        try {
+            $result = $reviewer->review($facts);
+        } catch (\Throwable) {
+            return response()->json(['message' => 'AI review is unavailable. You can still inspect documents and make your own decision. Try again shortly.'], 503);
+        }
+        $sellerProfile->refresh();
+        abort_unless($sellerProfile->application_status === 'pending' && $facts === $reviewer->facts($sellerProfile),
+            409, 'The application changed. Refresh it before reviewing.');
+        \App\Models\AdminActivityLog::log($request->user()->id, 'seller_application.ai_reviewed',
+            'Requested advisory seller application review; no decision taken.', 'seller_profile', $sellerProfile->id,
+            ['provider' => $result['provider'], 'generated_at' => $result['generated_at']]);
+
+        return response()->json(['data' => $result]);
+    }
+
     public function reject(SellerProfile $sellerProfile, Request $request): JsonResponse
     {
         $request->validate(['reason' => ['required', 'string', 'max:500']]);
