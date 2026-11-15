@@ -216,6 +216,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
+  bool get _centralGcash =>
+      _gcashShops.isNotEmpty && _gcashShops.first.collectionMode == 'platform';
+
   Future<void> _place() async {
     final quote = _quote;
     final address = _address;
@@ -223,7 +226,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (_payment == 'gcash') {
       final formOk = _gcashForm.currentState?.validateAndReveal() ?? false;
       final missing = quote.stores.where(
-        (store) => !_receipts.containsKey(store.seller.id),
+        (store) => !_receipts.containsKey(_centralGcash ? 0 : store.seller.id),
       );
       if (!formOk || missing.isNotEmpty) {
         if (missing.isNotEmpty) {
@@ -272,7 +275,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       showSnack(context, message);
       context.go(BuyerPaths.account);
       context.push(
-        BuyerPaths.ordersTab(_payment == 'gcash' ? 'to_pay' : 'to_ship'),
+        BuyerPaths.ordersTab('to_ship'),
       );
     } catch (error) {
       if (!mounted) return;
@@ -566,15 +569,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
             ),
           InfoRow('Order total', formatPeso(store.total), strong: true),
-          if (_payment == 'gcash') _gcashFor(store),
+          if (_payment == 'gcash' &&
+              (!_centralGcash || store == quote.stores.first))
+            _gcashFor(store),
         ],
       ),
     );
   }
 
   Widget _gcashFor(QuoteStore store) {
-    final sellerId = store.seller.id;
-    final shop = _gcashShops.where((s) => s.sellerId == sellerId).firstOrNull;
+    final sellerId = _centralGcash ? 0 : store.seller.id;
+    final shop = _gcashShops
+        .where((s) => s.sellerId == store.seller.id)
+        .firstOrNull;
     final reference = _references.putIfAbsent(
       sellerId,
       TextEditingController.new,
@@ -592,7 +599,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Pay ${formatPeso(store.total)} to ${store.seller.shopName} in GCash',
+            _centralGcash
+                ? 'Pay ${formatPeso(_quote!.total)} to Loved-IT in GCash'
+                : 'Pay ${formatPeso(store.total)} to ${store.seller.shopName} in GCash',
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: StatusTone.blue.foreground,
@@ -631,7 +640,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             inputFormatters: [Only.digits, Only.max(13)],
             validator: Rules.gcashReference,
             serverError: _placeFailure?.errorFor('gcash.$sellerId.reference'),
-            helper: '13 digits, from your GCash receipt',
+            helper: _centralGcash
+                ? 'One transfer for your whole checkout. Loved-IT verifies receipt before shops accept.'
+                : '13 digits, from your GCash receipt',
           ),
           const SizedBox(height: AppSpace.sm),
           OutlinedButton.icon(

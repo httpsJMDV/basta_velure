@@ -910,8 +910,8 @@ export const requestSellerPayoutApi = (payload: { amount: number; gcash_number: 
 export const getAdminPayoutsApi = (params?: { status?: string; search?: string; page?: number }) =>
   http.get<PaginatedResponse<PayoutRequest>>('/admin/payouts', { params }).then((r) => r.data);
 
-export const markAdminPayoutSentApi = (id: number, admin_notes?: string) =>
-  http.post<{ message: string }>(`/admin/payouts/${id}/mark-sent`, { admin_notes }).then((r) => r.data);
+export const markAdminPayoutSentApi = (id: number, admin_notes?: string, transfer_reference?: string) =>
+  http.post<{ message: string }>(`/admin/payouts/${id}/mark-sent`, { admin_notes, transfer_reference }).then((r) => r.data);
 
 export const completeAdminPayoutApi = (id: number, admin_notes?: string) =>
   http.post<{ message: string }>(`/admin/payouts/${id}/complete`, { admin_notes }).then((r) => r.data);

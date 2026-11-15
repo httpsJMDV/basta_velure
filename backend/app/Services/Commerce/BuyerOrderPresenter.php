@@ -75,6 +75,8 @@ class BuyerOrderPresenter
             'tab'                 => self::tab($o),
             'payment_method'      => $o->payment_method,
             'payment_status'      => $o->payment_status,
+            'collection_payee' => $o->collection_payee,
+            'collection' => app(\App\Services\Payments\GcashReview::class)->present($o),
             'payment_reference'   => $o->payment_reference,
             'payment_proof_url'   => $o->paymentProofUrl(),
             'payment_verified_at' => $o->payment_verified_at?->toIso8601String(),

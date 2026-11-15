@@ -85,6 +85,8 @@ class OrderPlacer
 
             $method = $input['payment_method'];
             $gateway = in_array($method, Order::GATEWAY_METHODS, true);
+            $centralGcash = $method === 'gcash' && ! empty($gcash) && ! empty(reset($gcash)['collection_payee']);
+            $platformHeld = $gateway || $centralGcash;
             $groupId = (string) Str::uuid();
             $stamp = date('ymdHis');
             $random = strtoupper(Str::random(4));
@@ -126,7 +128,9 @@ class OrderPlacer
                     'payment_method'            => $method,
                     'payment_status'            => $method === 'gcash' ? 'pending_verification' : 'pending',
                     'payment_due_at'            => $dueAt,
-                    'settlement'                => $gateway ? Order::SETTLEMENT_PLATFORM : Order::SETTLEMENT_DIRECT,
+                    'settlement'                => $platformHeld ? Order::SETTLEMENT_PLATFORM : Order::SETTLEMENT_DIRECT,
+                    'collection_payee'          => $centralGcash ? $pay['collection_payee'] : null,
+                    'seller_shipping_charge'    => $centralGcash && $store['shipping']['free_delivery'] ? $store['shipping']['courier_fee'] : 0,
                     'status'                    => OrderStatus::PLACED->value,
                     'payment_reference'         => $pay['reference'] ?? null,
                     'payment_proof_path'        => $pay['proof_path'] ?? null,
@@ -139,7 +143,7 @@ class OrderPlacer
                     'actor_type' => 'buyer', 'actor_id' => $buyer->id, 'note' => 'Order placed by customer', 'created_at' => now(),
                 ]);
 
-                foreach ($this->itemRows($store, $gateway) as $row) {
+                foreach ($this->itemRows($store, $platformHeld, $centralGcash && $store['shipping']['free_delivery'] ? (float) $store['shipping']['courier_fee'] : 0) as $row) {
                     $order->items()->create($row);
                 }
                 foreach ($store['lines'] as $line) {
@@ -210,7 +214,7 @@ class OrderPlacer
     }
 
     /** The order items of one store, with commission (A9) worked out per order and rounded once. */
-    private function itemRows(array $store, bool $gateway): array
+    private function itemRows(array $store, bool $gateway, float $sellerShippingCharge = 0): array
     {
         $rows = [];
         $grossTotal = 0.0;
@@ -258,6 +262,11 @@ class OrderPlacer
             unset($r['_gross']);
         }
 
+        unset($r);
+        if ($sellerShippingCharge > 0 && $rows !== []) {
+            $largest = array_keys(array_column($rows, 'seller_earnings'), max(array_column($rows, 'seller_earnings')))[0];
+            $rows[$largest]['seller_earnings'] = round($rows[$largest]['seller_earnings'] - $sellerShippingCharge, 2);
+        }
         return $rows;
     }
 

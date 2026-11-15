@@ -402,6 +402,8 @@ export interface ReturnRequestView {
 export type RefundStatus = 'awaiting_account' | 'awaiting_shop' | 'sent' | 'not_received' | 'received';
 
 export interface RefundView {
+  payer?: 'platform' | 'seller';
+  payer_name?: string;
   id: number;
   status: RefundStatus;
   cause: 'return' | 'cancelled';

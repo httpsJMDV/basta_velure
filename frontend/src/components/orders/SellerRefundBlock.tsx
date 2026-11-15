@@ -1,3 +1,4 @@
+import { http } from '../../api/client';
 import { useState } from 'react';
 import { Wallet, Copy, Check, Receipt, ImagePlus } from 'lucide-react';
 import type { RefundView } from '../../api/commerce';
@@ -14,7 +15,7 @@ const RECEIPT_MAX = 8 * 1024 * 1024;
  * The refund a shop owes the buyer of a GCash or cash-on-delivery order (docs/api/refunds.md): where to send it, then
  * the 13-digit GCash reference and a screenshot of the receipt. The buyer confirms it arrived, or reports it.
  */
-export default function SellerRefundBlock({ orderId, refund, onChanged }: { orderId: number; refund: RefundView; onChanged: (r: RefundView) => void }) {
+export default function SellerRefundBlock({ orderId, refund, onChanged, admin = false }: { orderId: number; refund: RefundView; onChanged: (r: RefundView) => void; admin?: boolean }) {
   const { showToast } = useToast();
   const [reference, setReference] = useState('');
   const [receipt, setReceipt] = useState<File | null>(null);
@@ -32,7 +33,8 @@ export default function SellerRefundBlock({ orderId, refund, onChanged }: { orde
     if (Object.keys(e).length || !receipt) return;
     setBusy('send');
     try {
-      const res = await sendRefundApi(orderId, digits, receipt);
+      const form = new FormData(); form.append('reference', digits); form.append('receipt', receipt);
+      const res = admin ? await http.post<{ data: RefundView; message: string }>(`/admin/refunds/${refund.id}/sent`, form).then(r => r.data) : await sendRefundApi(orderId, digits, receipt);
       onChanged(res.data);
       showToast(res.message);
       setReference('');
@@ -73,6 +75,8 @@ export default function SellerRefundBlock({ orderId, refund, onChanged }: { orde
   const tone = refund.status === 'received' ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
     : refund.status === 'awaiting_shop' && refund.overdue ? 'bg-red-50 border-red-200 text-red-900'
       : 'bg-amber-50 border-amber-200 text-amber-900';
+
+  if (refund.payer === 'platform' && !admin) return <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-900"><strong>Loved-IT handles this refund · {peso(refund.amount)}</strong><p className="mt-1">The buyer paid Loved-IT. The platform sends the refund and records its receipt. Status: {refund.status.replaceAll('_', ' ')}.</p></section>;
 
   return (
     <section aria-label="Refund to send" className={`p-3 border rounded-xl text-xs space-y-2 ${tone}`}>

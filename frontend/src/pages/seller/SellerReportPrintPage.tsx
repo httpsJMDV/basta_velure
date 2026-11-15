@@ -136,7 +136,7 @@ export default function SellerReportPrintPage() {
   const payments = data?.payments;
   const paid = [
     { label: 'Cash on delivery', row: payments?.cod },
-    { label: 'GCash to your shop', row: payments?.gcash },
+    { label: 'GCash orders', row: payments?.gcash },
     { label: 'E-wallet and card (via Loved-IT)', row: payments?.e_wallet_card },
   ];
   const volume = Math.max(0.0001, payments?.total_volume ?? 0);

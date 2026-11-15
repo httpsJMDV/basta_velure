@@ -27,6 +27,7 @@ class Order extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'collection_payee', 'seller_shipping_charge',
         'shipping_earnings',
         'settlement',
         'courier_fee',
@@ -66,6 +67,8 @@ class Order extends Model
     protected function casts(): array
     {
         return [
+            'collection_payee' => 'array',
+            'seller_shipping_charge' => 'decimal:2',
             'shipping_earnings' => 'array',
             'address_confirmed_at' => 'datetime',
             'address_revision' => 'integer',
@@ -95,6 +98,11 @@ class Order extends Model
     public const SETTLEMENT_PLATFORM = 'platform';
     /** Buyers pay the shop's GCash or the rider; couriers and shops settle between themselves. */
     public const SETTLEMENT_DIRECT = 'direct';
+
+    public function isPlatformGcash(): bool
+    {
+        return $this->payment_method === 'gcash' && $this->settlement === self::SETTLEMENT_PLATFORM && ! empty($this->collection_payee);
+    }
 
     /** What the courier earns for this order: the flat fee, even when the shop gave free delivery. */
     public function courierFeeAmount(): string

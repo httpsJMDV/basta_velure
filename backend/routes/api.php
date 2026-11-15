@@ -290,6 +290,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/settlements/{settlement}/confirm', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'confirm'])->whereNumber('settlement');
             Route::post('/settlements/{settlement}/dispute', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'dispute'])->whereNumber('settlement');
             Route::post('/settlements/{settlement}/receipt', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'receipt'])->whereNumber('settlement');
+            Route::get('/platform-funding', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'index']);
+            Route::get('/platform-funding/{funding}/receipt', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'receipt'])->whereNumber('funding');
+            Route::post('/platform-funding/{funding}/confirm', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'confirm'])->whereNumber('funding');
             Route::get('/payouts', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'payouts']);
             Route::get('/payouts/riders/{rider}/history', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'riderHistory'])->whereNumber('rider');
             Route::get('/payouts/hubs/{hub}/history', [\App\Http\Controllers\Api\V1\LogisticsSettlementController::class, 'hubHistory'])->whereNumber('hub');
@@ -383,6 +386,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/buyer/orders/{order}/request-return', [BuyerOrderController::class, 'requestReturn'])->middleware('throttle:upload');
         Route::post('/buyer/orders/{order}/escalate-return', [BuyerOrderController::class, 'escalateReturn']);
         // A refund the shop sends by hand: where to send it, then "it arrived" or "it did not"
+        Route::post('/buyer/orders/{order}/gcash-receipt', [\App\Http\Controllers\Api\V1\PlatformGcashController::class, 'resubmit'])->middleware('throttle:10,1');
         Route::put('/buyer/orders/{order}/refund/account', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerAccount'])->middleware('throttle:20,1');
         Route::post('/buyer/orders/{order}/refund/confirm', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerConfirm']);
         Route::post('/buyer/orders/{order}/refund/report', [\App\Http\Controllers\Api\V1\RefundController::class, 'buyerReport'])->middleware('throttle:10,1');
@@ -506,7 +510,13 @@ Route::prefix('v1')->group(function () {
 
             // Payments & Payouts (admin)
             Route::get('/payments', [AdminPaymentController::class, 'index']);
+            Route::get('/platform-funding', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'index']);
+            Route::get('/platform-funding/{funding}/receipt', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'receipt'])->whereNumber('funding');
+            Route::post('/platform-funding/companies/{company}', [\App\Http\Controllers\Api\V1\PlatformCourierFundingController::class, 'send'])->whereNumber('company');
             Route::get('/payments/stats', [AdminPaymentController::class, 'stats']);
+            Route::get('/payments/collection', [\App\Http\Controllers\Api\V1\PlatformGcashController::class, 'settings']);
+            Route::post('/payments/orders/{order}/confirm-gcash', [\App\Http\Controllers\Api\V1\PlatformGcashController::class, 'confirm'])->whereNumber('order');
+            Route::post('/payments/orders/{order}/reject-gcash', [\App\Http\Controllers\Api\V1\PlatformGcashController::class, 'reject'])->whereNumber('order');
             Route::patch('/payments/{payment}/mark-paid', [AdminPaymentController::class, 'markPaid']);
             Route::get('/payouts', [AdminPayoutController::class, 'index']);
             Route::post('/payouts/{payout}/mark-sent', [AdminPayoutController::class, 'markSent']);
@@ -552,6 +562,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('/disputes/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
             // Refunds shops send by hand: reported as not received, late, or any by status
             Route::get('/refunds', [\App\Http\Controllers\Api\V1\RefundController::class, 'adminIndex']);
+            Route::post('/refunds/{refund}/sent', [\App\Http\Controllers\Api\V1\RefundController::class, 'adminSent'])->whereNumber('refund');
             Route::post('/refunds/{refund}/resolve', [\App\Http\Controllers\Api\V1\RefundController::class, 'adminResolve'])->whereNumber('refund');
             // Cash on delivery after refused parcels: turn it back on for a buyer
             Route::post('/users/{user}/restore-cod', [AdminController::class, 'restoreCod'])->whereNumber('user');

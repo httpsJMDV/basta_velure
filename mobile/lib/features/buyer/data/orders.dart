@@ -128,6 +128,7 @@ class ReturnRequest {
     this.escalateBy,
     this.refundAmount,
     this.resolutionNote,
+    this.payerName = 'The shop',
   });
 
   final String reason;
@@ -142,6 +143,7 @@ class ReturnRequest {
   final DateTime? escalateBy;
   final num? refundAmount;
   final String? resolutionNote;
+  final String payerName;
 
   String get statusLabel => switch (status) {
     'pending' => 'Waiting for the shop',
@@ -191,6 +193,7 @@ class Refund {
     this.confirmBy,
     this.receivedAt,
     this.resolutionNote,
+    this.payerName = 'The shop',
   });
 
   final int id;
@@ -212,12 +215,13 @@ class Refund {
   final DateTime? confirmBy;
   final DateTime? receivedAt;
   final String? resolutionNote;
+  final String payerName;
 
   bool get done => status == 'received';
 
   String get statusLabel => switch (status) {
     'awaiting_account' => 'Add your GCash',
-    'awaiting_shop' => 'The shop is sending it',
+    'awaiting_shop' => '$payerName is sending it',
     'sent' => 'Sent, please check',
     'not_received' => 'Loved-IT is checking',
     'received' => 'Done',
@@ -230,6 +234,7 @@ class Refund {
     return Refund(
       id: asInt(json['id']),
       status: asString(json['status']) ?? 'awaiting_account',
+      payerName: json['payer'] == 'platform' ? 'Loved-IT' : 'The shop',
       amount: asDouble(json['amount']),
       overdue: asBool(json['overdue']),
       hasReceipt: asBool(json['has_receipt']),
@@ -296,6 +301,7 @@ class Order {
     this.addressRevision = 1,
     this.discount = 0,
     this.paymentReference,
+    this.platformCollection = false,
     this.rejectionReason,
     this.cancelReason,
     this.refundStatus,
@@ -320,6 +326,7 @@ class Order {
 
   /// `pending`, `paid` or `failed`.
   final String paymentStatus;
+  final bool platformCollection;
   final num subtotal;
   final num shippingFee;
 
@@ -397,6 +404,7 @@ class Order {
       status: OrderStatus.from(json['status']),
       paymentMethod: asString(json['payment_method']) ?? 'cod',
       paymentStatus: asString(json['payment_status']) ?? 'pending',
+      platformCollection: json['collection_payee'] is Map,
       subtotal: asDouble(json['subtotal']),
       shippingFee: asDouble(json['shipping_fee']),
       discount: discount,

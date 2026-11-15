@@ -142,7 +142,7 @@ export const Footer: React.FC = () => {
               <LovedItLogo variant="dark" type="full" size="custom" imgClassName="h-10 sm:h-11 object-contain" />
             </Link>
             <p className="mt-4 text-[13px] leading-relaxed text-white/55">
-              A marketplace for Philippine shops. Pay each shop directly by GCash, or in cash when your parcel arrives.
+              A marketplace for Philippine shops. Pay through Loved-IT by GCash, or in cash when your parcel arrives.
             </p>
             <div className="flex flex-wrap gap-2 mt-5">
               <button type="button" onClick={chat} className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-brand-red hover:bg-brand-red-dark text-[13px] font-semibold transition-colors">

@@ -1,6 +1,8 @@
 <?php
 
 return [
+    // New GCash orders are held by Loved-IT. Tests explicitly exercise legacy/direct mode separately.
+    'gcash_collection_mode' => env('GCASH_COLLECTION_MODE', 'platform'),
 
     /*
     |--------------------------------------------------------------------------

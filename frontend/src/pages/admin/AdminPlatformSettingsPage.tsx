@@ -446,7 +446,7 @@ export default function AdminPlatformSettingsPage() {
               </div>
               {[
                 [Truck, 'Cash on delivery', 'The rider collects it; the courier settles with the shop each week.', 'text-blue-700'],
-                [QrCode, 'GCash', 'Paid straight to the shop\'s own GCash; the shop confirms the receipt.', 'text-[#007DFE]'],
+                [QrCode, 'GCash', 'New payments go to Loved-IT. Admin verifies receipt, then shops accept orders and request net payouts.', 'text-[#007DFE]'],
                 [CreditCard, 'E-wallet and card', 'Through Loved-IT\'s sandbox gateway (test mode, no real money); paid out from Earnings.', 'text-violet-700'],
               ].map(([Icon, name, text, color]) => {
                 const I = Icon as typeof Truck;

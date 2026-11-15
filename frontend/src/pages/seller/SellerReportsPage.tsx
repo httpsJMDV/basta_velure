@@ -436,7 +436,7 @@ export default function SellerReportsPage() {
             {(() => {
               const channels = [
                 { key: 'cod', label: 'Cash on Delivery', icon: Truck, text: 'text-emerald-700', bar: 'bg-emerald-600', row: paymentSplit?.cod },
-                { key: 'gcash', label: 'GCash to your shop', icon: QrCode, text: 'text-[#007DFE]', bar: 'bg-[#007DFE]', row: paymentSplit?.gcash },
+                { key: 'gcash', label: 'GCash orders', icon: QrCode, text: 'text-[#007DFE]', bar: 'bg-[#007DFE]', row: paymentSplit?.gcash },
                 { key: 'e_wallet_card', label: 'E-wallet & card (via Loved-IT)', icon: CreditCard, text: 'text-violet-700', bar: 'bg-violet-600', row: paymentSplit?.e_wallet_card },
               ];
               const total = channels.reduce((s, c) => s + (c.row?.volume ?? 0), 0);

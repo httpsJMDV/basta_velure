@@ -248,36 +248,30 @@ class CheckoutController extends Controller
             ->whereIn('id', ProductVariant::withTrashed()->whereIn('id', array_column($items, 'variant_id'))->pluck('product_id'))
             ->distinct()->pluck('seller_id')->map(fn ($id) => (int) $id)->all();
         $profiles = \App\Models\SellerProfile::whereIn('user_id', $sellerIds)->get(['id', 'user_id', 'shop_name', 'gcash_number'])->keyBy('user_id');
+        $platform = \App\Services\Payments\PlatformGcash::enabled();
+        $account = $platform ? \App\Services\Payments\PlatformGcash::account() : null;
+        if ($platform && ! $account) throw ValidationException::withMessages(['gcash' => 'Loved-IT GCash collection is not configured yet. Choose cash on delivery for now.']);
+        $shared = $platform && ($request->has('gcash.0.reference') || $request->hasFile('gcash_proof.0'));
         $single = count($sellerIds) === 1;
-        $errors = [];
-        $found = [];
-
+        $found = $errors = [];
         foreach ($sellerIds as $sellerId) {
             $profile = $profiles[$sellerId] ?? null;
-            if (! $profile || ! $profile->gcash_number) {
-                $errors['gcash'][] = ($profile->shop_name ?? 'A shop in your cart') . ' does not take GCash yet. Pay by cash on delivery, or check out its items separately.';
+            if (! $platform && (! $profile || ! $profile->gcash_number)) {
+                $errors['gcash'][] = ($profile->shop_name ?? 'A shop in your cart').' does not take GCash yet.';
                 continue;
             }
-            $refKey = $single && ! $request->has("gcash.{$sellerId}.reference") ? 'payment_reference' : "gcash.{$sellerId}.reference";
-            $proofKey = $single && ! $request->hasFile("gcash_proof.{$sellerId}") ? 'payment_proof' : "gcash_proof.{$sellerId}";
+            $key = $shared ? 0 : $sellerId;
+            $refKey = $single && ! $shared && ! $request->has("gcash.{$key}.reference") ? 'payment_reference' : "gcash.{$key}.reference";
+            $proofKey = $single && ! $shared && ! $request->hasFile("gcash_proof.{$key}") ? 'payment_proof' : "gcash_proof.{$key}";
             $reference = \App\Support\Gcash::reference($request->input($refKey));
             $proof = $request->file($proofKey);
-            if ($reference === '') {
-                $errors[$refKey][] = "Enter the 13-digit reference number from your GCash receipt for {$profile->shop_name}.";
-            } elseif (strlen($reference) !== 13) {
-                $errors[$refKey][] = 'A GCash reference number has exactly 13 digits.';
-            }
-            if (! $proof) {
-                $errors[$proofKey][] = "Upload a screenshot of your GCash receipt for {$profile->shop_name}.";
-            } elseif (! in_array((string) $proof->getMimeType(), ['image/jpeg', 'image/png'], true) || $proof->getSize() > 5 * 1024 * 1024) {
-                $errors[$proofKey][] = 'The receipt must be a JPG or PNG image up to 5 MB.';
-            }
+            if (strlen($reference) !== 13) $errors[$refKey][] = 'Enter the 13-digit reference number from your GCash receipt.';
+            if (! $proof) $errors[$proofKey][] = 'Upload the GCash receipt screenshot.';
+            elseif (! in_array((string) $proof->getMimeType(), ['image/jpeg', 'image/png'], true) || $proof->getSize() > 5 * 1024 * 1024) $errors[$proofKey][] = 'The receipt must be a JPG or PNG image up to 5 MB.';
             $found[$sellerId] = ['reference' => $reference, 'proof' => $proof];
         }
-        if ($errors) {
-            throw ValidationException::withMessages($errors);
-        }
-
-        return array_map(fn ($p) => ['reference' => $p['reference'], 'proof_path' => $p['proof']->store('orders/payment-proofs', 'ids')], $found);
+        if ($errors) throw ValidationException::withMessages($errors);
+        $sharedPath = $shared ? reset($found)['proof']->store('orders/payment-proofs', 'ids') : null;
+        return array_map(fn ($p) => array_filter(['reference' => $p['reference'], 'proof_path' => $sharedPath ?? $p['proof']->store('orders/payment-proofs', 'ids'), 'collection_payee' => $account], fn ($v) => $v !== null), $found);
     }
 }

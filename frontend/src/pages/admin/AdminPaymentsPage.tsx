@@ -8,10 +8,13 @@ import { PageHero } from '../../components/admin/dashboardKit';
 import { SearchField, ListError, Pill, type PillTone, TH, TD, ROW, rowKeys, relativeTime, RowAction } from '../../components/admin/listKit';
 import { getStatusLabel } from '../../utils/orderStatus';
 import { peso, whole } from '../../utils/adminReports';
+import PlatformCourierFunding from '../../components/payments/PlatformCourierFunding';
+import PlatformCollectionSettings from '../../components/payments/PlatformCollectionSettings';
+import PlatformGcashReview from '../../components/payments/PlatformGcashReview';
 import AdminCommissionPanel from './AdminCommissionPanel';
 import AdminSettlementsPanel from './AdminSettlementsPanel';
 
-type Tab = 'payments' | 'payouts' | 'commission' | 'settlements';
+type Tab = 'payments' | 'payouts' | 'commission' | 'settlements' | 'funding' | 'collection';
 type PageMeta = { current_page: number; last_page: number; total: number };
 const PAGE_SIZE = 20; // both endpoints paginate by 20
 const EMPTY_PAGE: PageMeta = { current_page: 1, last_page: 1, total: 0 };
@@ -123,7 +126,7 @@ function Strip({ cells, footer }: { cells: { label: string; value: string; note:
 
 // ─── Payment sheet ────────────────────────────────────────────────────────────
 
-function PaymentSheet({ payment, onClose }: { payment: AdminPaymentListItem; onClose: () => void }) {
+function PaymentSheet({ payment, onClose, onDone }: { payment: AdminPaymentListItem; onClose: () => void; onDone: () => void }) {
   const [zoom, setZoom] = useState(false);
   const state = paymentState(payment);
   useEffect(() => {
@@ -150,10 +153,11 @@ function PaymentSheet({ payment, onClose }: { payment: AdminPaymentListItem; onC
         </header>
 
         <div className="flex-1 overflow-y-auto">
+          <PlatformGcashReview payment={payment} onDone={onDone} />
           <section className="px-6 py-5 border-b border-gray-100">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold text-gray-400">{payment.payment_method === 'gcash' ? 'Paid by GCash' : 'Cash on delivery'}</p>
+                <p className="text-[11px] font-semibold text-gray-400">{payment.collection ? 'This order’s share of the transfer' : payment.payment_method === 'gcash' ? 'GCash payment' : 'Cash on delivery'}</p>
                 <p className="text-[28px] font-bold tracking-tight text-gray-900 tabular-nums">{peso(payment.amount)}</p>
               </div>
               <Pill tone={state.tone}>{state.label}</Pill>
@@ -174,7 +178,7 @@ function PaymentSheet({ payment, onClose }: { payment: AdminPaymentListItem; onC
               ) : (
                 <p className="flex items-center gap-2 px-3 py-6 justify-center rounded-xl bg-gray-50 text-[12.5px] text-gray-500"><ImageOff className="w-4 h-4" /> No receipt was attached.</p>
               )}
-              <p className="mt-2 text-[11.5px] text-gray-400">The shop checks this receipt against its GCash history. It is shown here for audits.</p>
+              <p className="mt-2 text-[11.5px] text-gray-400">{payment.collection ? 'Compare with the actual Loved-IT GCash transaction before confirming receipt.' : 'Legacy direct payment: the shop verifies receipt in its GCash account.'}</p>
             </section>
           )}
 
@@ -234,11 +238,11 @@ function PayoutDialog({ action, busy, error, onConfirm, onCancel }: { action: Pa
   }, [onCancel]);
 
   const copy = {
-    send: { title: 'Mark the payout as sent', confirm: 'Mark as sent', field: 'GCash reference of your transfer (optional)', placeholder: 'For example 9012 345 678901', intro: <>Send <b>{peso(payout.amount)}</b> to <b>{payout.gcash_name}</b> ({payout.gcash_number}) in GCash first, then record it here.</> },
+    send: { title: 'Mark the payout as sent', confirm: 'Mark as sent', field: 'GCash transfer reference (13 digits)', placeholder: 'For example 9012 345 678901', intro: <>Send <b>{peso(payout.amount)}</b> to <b>{payout.gcash_name}</b> ({payout.gcash_number}) in GCash first, then record it here.</> },
     complete: { title: 'Complete the payout', confirm: 'Complete payout', field: 'Note (optional)', placeholder: 'For example: seller confirmed receipt', intro: <>Confirm that <b>{payout.seller?.shop_name || payout.seller?.name}</b> received <b>{peso(payout.amount)}</b>. This closes the request.</> },
     reject: { title: 'Reject the payout', confirm: 'Reject payout', field: 'Reason the seller will see', placeholder: 'For example: the GCash name does not match the account', intro: <>The <b>{peso(payout.amount)}</b> goes back to the seller&apos;s balance, and they can request again.</> },
   }[kind];
-  const needsText = kind === 'reject';
+  const needsText = kind === 'reject' || kind === 'send';
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={copy.title}>
@@ -281,7 +285,7 @@ function PayoutDialog({ action, busy, error, onConfirm, onCancel }: { action: Pa
 
 export default function AdminPaymentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab: Tab = (['payouts', 'commission', 'settlements'] as const).find((t) => t === searchParams.get('tab')) ?? 'payments';
+  const tab: Tab = (['payouts', 'commission', 'settlements', 'funding', 'collection'] as const).find((t) => t === searchParams.get('tab')) ?? 'payments';
   const setTab = (t: Tab) => setSearchParams({ tab: t });
 
   // Payments
@@ -359,7 +363,7 @@ export default function AdminPaymentsPage() {
     setActionError('');
     const { kind, payout } = action;
     try {
-      if (kind === 'send') await markAdminPayoutSentApi(payout.id, text ? `GCash ref ${text}` : 'GCash funds sent by Admin');
+      if (kind === 'send') await markAdminPayoutSentApi(payout.id, 'Manual GCash transfer recorded', text.replace(/\D/g, ''));
       else if (kind === 'complete') await completeAdminPayoutApi(payout.id, text || 'Completed via GCash transfer');
       else await rejectAdminPayoutApi(payout.id, text);
       setAction(null);
@@ -379,10 +383,10 @@ export default function AdminPaymentsPage() {
   return (
     <div className="pb-8 space-y-3">
       <PageHero icon={Wallet} eyebrow="Admin / Money" title="Payments & Payouts"
-        subtitle="Buyers pay shops directly. Check GCash receipts, settle older payouts, confirm the commission shops send each month, and review courier and shop payments that went wrong." />
+        subtitle="Verify Loved-IT GCash collections, record seller payouts, and reconcile courier funding. Bank transfers are sent manually; earnings are calculated automatically." />
 
-      <div role="tablist" aria-label="Section" className="flex gap-6 px-1 border-b border-gray-200">
-        {([['payments', 'Buyer payments', ReceiptText, stats?.pending_verification], ['payouts', 'Seller payouts', ArrowUpRight, queue?.waiting], ['commission', 'Commission', Percent, 0], ['settlements', 'Settlements', Scale, settlementIssues]] as const).map(([key, label, Icon, badge]) => (
+      <div role="tablist" aria-label="Section" className="flex gap-6 px-1 border-b border-gray-200 overflow-x-auto">
+        {([['payments', 'Buyer payments', ReceiptText, stats?.pending_verification], ['payouts', 'Seller payouts', ArrowUpRight, queue?.waiting], ['commission', 'Commission', Percent, 0], ['settlements', 'Settlements', Scale, settlementIssues], ['funding', 'Courier funding', Wallet, 0], ['collection', 'Collection account', Wallet, 0]] as const).map(([key, label, Icon, badge]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
             className={`relative inline-flex items-center gap-2 pb-2.5 text-[13px] font-semibold transition-colors ${tab === key ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}>
             <Icon className="w-4 h-4" aria-hidden="true" />
@@ -465,7 +469,7 @@ export default function AdminPaymentsPage() {
             )}
           </div>
         </>
-      ) : tab === 'commission' ? (
+      ) : tab === 'collection' ? <PlatformCollectionSettings /> : tab === 'funding' ? <PlatformCourierFunding admin /> : tab === 'commission' ? (
         <AdminCommissionPanel />
       ) : tab === 'settlements' ? (
         <AdminSettlementsPanel onCounts={setSettlementIssues} />
@@ -553,7 +557,7 @@ export default function AdminPaymentsPage() {
         </>
       )}
 
-      {openPayment && <PaymentSheet payment={openPayment} onClose={() => setOpenPayment(null)} />}
+      {openPayment && <PaymentSheet payment={openPayment} onClose={() => setOpenPayment(null)} onDone={() => { setOpenPayment(null); loadPayments(); }} />}
       {action && <PayoutDialog key={`${action.kind}-${action.payout.id}`} action={action} busy={actionBusy} error={actionError} onConfirm={runAction} onCancel={() => setAction(null)} />}
     </div>
   );

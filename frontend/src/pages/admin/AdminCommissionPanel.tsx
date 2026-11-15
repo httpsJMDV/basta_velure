@@ -143,7 +143,7 @@ export default function AdminCommissionPanel() {
       <aside className="space-y-2">
         <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Loved-IT's GCash</p>
         <PayoutAccountForm load={loadPlatformGcash} save={savePlatformGcash} who="shops" tone="gray"
-          intro="Shops send their monthly commission here. It shows on every shop's Payments page." />
+          intro="Buyers send new GCash payments to this Loved-IT account. Enter the verified account name and number to enable GCash checkout. Legacy shops also send commission here." />
         <p className="px-1 text-[12px] leading-relaxed text-gray-500">
           Before you confirm, find the transfer in this GCash by its reference and check the amount.
         </p>

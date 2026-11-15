@@ -36,6 +36,9 @@ class AdminPayoutController extends Controller
                 'gcash_name'       => $p->gcash_name,
                 'status'           => $p->status,
                 'rejection_reason' => $p->rejection_reason,
+                'manual_reference_required' => $p->manual_reference_required,
+                'transfer_reference' => $p->transfer_reference,
+                'sent_at' => $p->sent_at?->toIso8601String(),
                 'admin_notes'      => $p->admin_notes,
                 'processed_at'     => $p->processed_at?->toIso8601String(),
                 'created_at'       => $p->created_at?->toIso8601String(),
@@ -63,11 +66,21 @@ class AdminPayoutController extends Controller
      */
     public function markSent(Request $request, PayoutRequest $payout): JsonResponse
     {
-        $payout->update([
-            'status'       => 'processing',
-            'processed_by' => $request->user()->id,
-            'admin_notes'  => $request->admin_notes ?? 'GCash transfer initiated / sent',
-        ]);
+        $v = $request->validate(['transfer_reference' => [$payout->manual_reference_required ? 'required' : 'nullable', 'regex:/^\d{13}$/'], 'admin_notes' => ['nullable', 'string', 'max:500']]);
+        $changed = \Illuminate\Support\Facades\DB::transaction(function () use ($payout, $request, $v) {
+            $p = PayoutRequest::whereKey($payout->id)->lockForUpdate()->firstOrFail();
+            if (in_array($p->status, ['processing', 'completed'], true)) {
+                abort_if(isset($v['transfer_reference']) && $p->transfer_reference !== $v['transfer_reference'], 409, 'This payout already has a different transfer.');
+                return false;
+            }
+            abort_unless($p->status === 'pending', 409, 'Only waiting payouts can be sent.');
+            if (! empty($v['transfer_reference'])) \App\Services\Payments\PlatformGcash::claim('outgoing', $v['transfer_reference'], 'payout', $p->id);
+            $p->update(['status' => 'processing', 'processed_by' => $request->user()->id, 'admin_notes' => $v['admin_notes'] ?? 'Manual GCash transfer recorded',
+                'transfer_reference' => $v['transfer_reference'] ?? null, 'sent_at' => now()]);
+            return true;
+        });
+        if (! $changed) return response()->json(['message' => 'This transfer is already recorded.']);
+        $payout->refresh();
         app(\App\Services\MailNotifier::class)->payoutUpdated($payout, 'processing');
         app(\App\Services\Notifier::class)->payout($payout->seller_id, 'Payout sent', '₱' . number_format((float) $payout->amount, 2) . ' is on its way to your GCash.');
 
@@ -79,12 +92,15 @@ class AdminPayoutController extends Controller
      */
     public function complete(Request $request, PayoutRequest $payout): JsonResponse
     {
-        $payout->update([
-            'status'       => 'completed',
-            'processed_by' => $request->user()->id,
-            'processed_at' => now(),
-            'admin_notes'  => $request->admin_notes ?? 'Sent via GCash',
-        ]);
+        $changed = \Illuminate\Support\Facades\DB::transaction(function () use ($payout, $request) {
+            $p = PayoutRequest::whereKey($payout->id)->lockForUpdate()->firstOrFail();
+            if ($p->status === 'completed') return false;
+            abort_unless($p->status === 'processing' || (! $p->manual_reference_required && $p->status === 'pending'), 409, 'Record the actual transfer before completing this payout.');
+            $p->update(['status' => 'completed', 'processed_by' => $request->user()->id, 'processed_at' => now(), 'admin_notes' => $request->admin_notes ?? $p->admin_notes]);
+            return true;
+        });
+        if (! $changed) return response()->json(['message' => 'This payout is already completed.']);
+        $payout->refresh();
         app(\App\Services\MailNotifier::class)->payoutUpdated($payout, 'completed');
         app(\App\Services\Notifier::class)->payout($payout->seller_id, 'Payout completed', '₱' . number_format((float) $payout->amount, 2) . ' was transferred to your GCash.');
 
@@ -100,12 +116,15 @@ class AdminPayoutController extends Controller
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
-        $payout->update([
-            'status'           => 'rejected',
-            'rejection_reason' => $data['reason'],
-            'processed_by'     => $request->user()->id,
-            'processed_at'     => now(),
-        ]);
+        $changed = \Illuminate\Support\Facades\DB::transaction(function () use ($payout, $request, $data) {
+            $p = PayoutRequest::whereKey($payout->id)->lockForUpdate()->firstOrFail();
+            if ($p->status === 'rejected') return false;
+            abort_unless($p->status === 'pending' && ! $p->sent_at, 409, 'A sent payout cannot be rejected or returned to the balance.');
+            $p->update(['status' => 'rejected', 'rejection_reason' => $data['reason'], 'processed_by' => $request->user()->id, 'processed_at' => now()]);
+            return true;
+        });
+        if (! $changed) return response()->json(['message' => 'This payout is already rejected.']);
+        $payout->refresh();
         app(\App\Services\MailNotifier::class)->payoutUpdated($payout, 'rejected', $data['reason']);
         app(\App\Services\Notifier::class)->payout($payout->seller_id, 'Payout not processed', 'Your payout of ' . '₱' . number_format((float) $payout->amount, 2) . " was returned to your balance: {$data['reason']}");
 

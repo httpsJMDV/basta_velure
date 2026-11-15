@@ -1,10 +1,11 @@
+import SellerGcashReview from '../../components/payments/SellerGcashReview';
+import { canReviewGcashPayment } from '../../utils/sellerPayments';
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Search,
   CheckCircle2,
-  XCircle,
   Eye,
   Copy,
   Check,
@@ -188,6 +189,7 @@ export default function SellerOrdersPage() {
       void fetchOrders(true);
     } catch (err) {
       showToast(apiErrorMessage(err, 'The payment could not be confirmed.'), 'error');
+      if (apiProblem(err, '').status === 409) { setSelectedOrder(null); void fetchOrders(true); }
     } finally {
       setActionLoading(false);
     }
@@ -486,7 +488,7 @@ export default function SellerOrdersPage() {
               ) : (
                 orders.map((o) => {
                   const isGcash = o.payment_method === 'gcash';
-                  const needsVerification = o.payment_status === 'pending' && isGcash;
+                  const needsVerification = canReviewGcashPayment(o);
 
                   return (
                     <tr key={o.id} className="hover:bg-gray-50/70 transition-colors group">
@@ -602,7 +604,7 @@ export default function SellerOrdersPage() {
                               onClick={() => setSelectedOrder(o)}
                               className="py-1 px-2.5 text-[11px] font-bold bg-amber-600 hover:bg-amber-700"
                             >
-                              Verify Slip
+                              Review payment
                             </Button>
                           )}
 
@@ -610,7 +612,7 @@ export default function SellerOrdersPage() {
                             <span className="text-[10px] font-semibold text-amber-700">Waiting for payment</span>
                           )}
 
-                          {normalizeOrderStatus(o.status) === 'PLACED' && !isGcash && !o.awaiting_payment && (
+                          {normalizeOrderStatus(o.status) === 'PLACED' && (!isGcash || o.payment_status === 'paid') && !o.awaiting_payment && (
                             <Button
                               variant="primary"
                               onClick={() => handleUpdateStatus(o.id, 'CONFIRMED')}
@@ -778,67 +780,14 @@ export default function SellerOrdersPage() {
               )}
             </div>
 
-            {/* GCash Verification Section (If GCash) */}
-            {selectedOrder.payment_method === 'gcash' && (
-              <div className="p-3 bg-blue-50/50 border border-blue-200 rounded-xl space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#007DFE] flex items-center gap-1">
-                    <QrCode className="w-3.5 h-3.5" /> GCash Transfer Verification
-                  </span>
-                  <span className="font-mono font-bold text-gray-800">
-                    Ref: {selectedOrder.payment_reference || 'Pending upload'}
-                  </span>
-                </div>
-
-                {selectedOrder.checkout_orders_count && selectedOrder.checkout_orders_count > 1 && (
-                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] leading-relaxed">
-                    This payment proof covers a combined checkout of ₱{Number(selectedOrder.checkout_group_total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} across {selectedOrder.checkout_orders_count} orders. Your order total is ₱{Number(selectedOrder.order_total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}.
-                  </div>
-                )}
-
-                {selectedOrder.payment_proof_url ? (
-                  <div className="pt-1">
-                    <span className="text-[10px] font-bold text-gray-500 block mb-1">Customer Receipt Slip:</span>
-                    <div
-                      onClick={() => setZoomImage(selectedOrder.payment_proof_url!)}
-                      className="cursor-pointer rounded-lg overflow-hidden border border-blue-200 bg-white max-h-48 flex items-center justify-center relative group"
-                    >
-                      <img
-                        src={selectedOrder.payment_proof_url}
-                        alt="Receipt"
-                        className="max-h-48 w-auto object-contain"
-                      />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
-                        Click to enlarge
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-gray-500 italic">No receipt slip image was uploaded by buyer.</p>
-                )}
-
-                {selectedOrder.payment_status === 'pending' && (
-                  <div className="flex items-center gap-2 pt-2 border-t border-blue-200">
-                    <Button
-                      variant="primary"
-                      onClick={() => handleConfirmPayment(selectedOrder.id)}
-                      disabled={actionLoading}
-                      className="flex-1 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      <Check className="w-3.5 h-3.5 mr-1 inline" /> Approve Payment
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowRejectModal(true)}
-                      disabled={actionLoading}
-                      className="py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border-red-200"
-                    >
-                      <XCircle className="w-3.5 h-3.5 mr-1 inline" /> Reject
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
+            {selectedOrder.payment_method === 'gcash' && <SellerGcashReview
+              key={`${selectedOrder.id}:${selectedOrder.payment_status}:${selectedOrder.status}:${selectedOrder.payment_reference}`}
+              order={selectedOrder} busy={actionLoading}
+              onConfirm={() => void handleConfirmPayment(selectedOrder.id)}
+              onReject={() => setShowRejectModal(true)}
+              onViewProof={() => setZoomImage(selectedOrder.payment_proof_url!)}
+              onCopy={() => handleCopyRef(selectedOrder.payment_reference!, `gcash-${selectedOrder.id}`)}
+            />}
 
             {/* Items Summary Table */}
             <div className="space-y-1.5 text-xs">
@@ -948,7 +897,7 @@ export default function SellerOrdersPage() {
             )}
 
             {/* Merchant Fulfillment Actions */}
-            {normalizeOrderStatus(selectedOrder.status) === 'PLACED' && (selectedOrder.payment_method === 'cod' || ((selectedOrder.payment_method === 'e_wallet' || selectedOrder.payment_method === 'card') && selectedOrder.payment_status === 'paid')) && (
+            {normalizeOrderStatus(selectedOrder.status) === 'PLACED' && (selectedOrder.payment_method === 'cod' || (selectedOrder.payment_method === 'gcash' && selectedOrder.payment_status === 'paid') || ((selectedOrder.payment_method === 'e_wallet' || selectedOrder.payment_method === 'card') && selectedOrder.payment_status === 'paid')) && (
               <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
                 <span className="font-bold text-emerald-900 block">Fulfillment Next Step:</span>
                 <p className="text-[11px] text-emerald-700">{selectedOrder.payment_method === 'cod' ? 'Cash on delivery: the rider collects the total.' : 'Paid online.'} Accept the order to start packing.</p>
@@ -963,6 +912,7 @@ export default function SellerOrdersPage() {
               </div>
             )}
 
+            {selectedOrder.collection_payee && selectedOrder.payment_status !== 'paid' && <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900"><strong>Loved-IT is reviewing this payment</strong><p className="mt-1 text-xs">The buyer paid the platform. You can accept the order after an admin verifies receipt.</p></div>}
             {normalizeOrderStatus(selectedOrder.status) === 'CONFIRMED' && (
               <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-1.5 text-xs">
                 <span className="font-bold text-indigo-900 block">Fulfillment Next Step:</span>
@@ -1127,7 +1077,7 @@ export default function SellerOrdersPage() {
               Reject GCash Payment
             </h3>
             <p className="text-xs text-gray-600">
-              Please specify the reason for rejection so the customer can upload a valid transfer slip or retry.
+              Explain why the transfer could not be verified. The buyer will receive this reason; check your GCash account before deciding.
             </p>
 
             <textarea

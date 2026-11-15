@@ -27,6 +27,7 @@ class _CourierMoneyScreenState extends ConsumerState<CourierMoneyScreen> {
       load: () => Future.wait([
         ref.read(portalApiProvider).get('/logistics/payouts'),
         ref.read(portalApiProvider).get('/logistics/settlements'),
+        ref.read(portalApiProvider).get('/logistics/platform-funding'),
       ]),
       builder: (_, results) {
         final payees = asJson(results[0]['data']),
@@ -80,6 +81,92 @@ class _CourierMoneyScreenState extends ConsumerState<CourierMoneyScreen> {
                 ],
               ),
             ),
+            for (final company in asJsonList(results[2]['data']))
+              PortalCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Loved-IT shipping funding',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    InfoRow(
+                      'Awaiting funding',
+                      formatPeso(asDouble(company['due'])),
+                    ),
+                    const Text(
+                      'Loved-IT sends shipping funds for delivered GCash orders. Your company pays its staff using the agreed shares. Confirm only after checking the actual GCash receipt.',
+                      style: TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                    for (final transfer in asJsonList(company['history']))
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(formatPeso(asDouble(transfer['amount']))),
+                        subtitle: Text(
+                          '${transfer['reference']} · ${transfer['confirmed_at'] == null ? 'Awaiting your confirmation' : 'Receipt confirmed'}',
+                        ),
+                        trailing: transfer['confirmed_at'] != null
+                            ? const Icon(
+                                Icons.check_circle_outline,
+                                color: Colors.green,
+                              )
+                            : null,
+                        onTap: transfer['confirmed_at'] != null
+                            ? null
+                            : () async {
+                                final yes = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Confirm GCash received'),
+                                    content: Text(
+                                      'I checked my GCash account and received ${formatPeso(asDouble(transfer['amount']))} with reference ${transfer['reference']}.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        child: const Text('Received'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (yes == true) {
+                                  try {
+                                    await ref
+                                        .read(portalApiProvider)
+                                        .call(
+                                          'POST',
+                                          '/logistics/platform-funding/${transfer['id']}/confirm',
+                                          data: {'received_in_gcash': true},
+                                        );
+                                    await _view.currentState?.reload();
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Unable to confirm receipt. Try again.',
+                                              ),
+                                            ),
+                                          );
+                                    }
+                                  }
+                                }
+                              },
+                      ),
+                  ],
+                ),
+              ),
             for (final kind in ['riders', 'hubs']) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),

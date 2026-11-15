@@ -591,6 +591,23 @@ class _SellerOrderScreenState extends ConsumerState<SellerOrderScreen> {
           ),
         ),
       );
+    } else if (order.status == 'PLACED' &&
+        order.platformCollection &&
+        order.paymentStatus != 'paid') {
+      add(
+        const BlockCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              BlockTitle('Loved-IT payment review'),
+              SizedBox(height: 8),
+              Text(
+                'An admin checks the buyer’s transfer to Loved-IT. You can accept this order once payment is verified.',
+              ),
+            ],
+          ),
+        ),
+      );
     } else if (order.status == 'PLACED') {
       add(
         button(
@@ -747,7 +764,13 @@ class _SellerOrderScreenState extends ConsumerState<SellerOrderScreen> {
             children: [
               Row(
                 children: [
-                  const Expanded(child: BlockTitle('Refund')),
+                  Expanded(
+                    child: BlockTitle(
+                      refund.payerName == 'Loved-IT'
+                          ? 'Loved-IT refund'
+                          : 'Refund',
+                    ),
+                  ),
                   StatusChip(
                     label: refund.statusLabel,
                     tone: refund.overdue ? StatusTone.rose : StatusTone.amber,

@@ -102,6 +102,9 @@ class SellerEarningsController extends Controller
                 'gcash_name'       => $p->gcash_name,
                 'status'           => $p->status,
                 'rejection_reason' => $p->rejection_reason,
+                'manual_reference_required' => $p->manual_reference_required,
+                'transfer_reference' => $p->transfer_reference,
+                'sent_at' => $p->sent_at?->toIso8601String(),
                 'processed_at'     => $p->processed_at?->toIso8601String(),
                 'created_at'       => $p->created_at?->toIso8601String(),
             ]),
@@ -162,6 +165,7 @@ class SellerEarningsController extends Controller
             $payout = PayoutRequest::create([
                 'seller_id'      => $sellerId,
                 'reference_code' => $referenceCode,
+                'manual_reference_required' => true,
                 'amount'         => $requestedAmount,
                 'gcash_number'   => $data['gcash_number'],
                 'gcash_name'     => $data['gcash_name'],

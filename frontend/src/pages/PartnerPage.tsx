@@ -34,7 +34,7 @@ const OPTIONS: PartnerOption[] = [
     icon: Store,
     title: 'Sell on Loved-IT',
     short: 'Open a shop and list your products',
-    pitch: 'Open a shop, list your products and reach shoppers across the Philippines. Buyers pay you directly by GCash, and the courier hands over cash-on-delivery money every week.',
+    pitch: 'Open a shop, list your products and reach shoppers across the Philippines. Loved-IT collects new GCash payments and releases your net earnings for payout. Couriers settle cash-on-delivery money each week.',
     earn: { value: 'Your price', label: 'minus a commission set per category, shown before you list' },
     requirements: [
       'Shop name (3 to 30 characters), category and TIN',

@@ -267,6 +267,7 @@ class ShopGcash {
     required this.sellerId,
     required this.shopName,
     required this.acceptsGcash,
+    this.collectionMode = 'direct',
     this.number,
     this.accountName,
     this.qrUrl,
@@ -278,6 +279,7 @@ class ShopGcash {
   final int sellerId;
   final String shopName;
   final bool acceptsGcash;
+  final String collectionMode;
   final String? number;
   final String? accountName;
 
@@ -291,6 +293,7 @@ class ShopGcash {
       sellerId: asInt(json['seller_id']),
       shopName: asString(json['shop_name']) ?? 'Shop',
       acceptsGcash: asBool(json['accepts_gcash']),
+      collectionMode: asString(json['collection_mode']) ?? 'direct',
       number: asString(gcash['number']),
       accountName: asString(gcash['name']),
       qrUrl: asString(gcash['qr_url']),

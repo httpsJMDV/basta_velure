@@ -18,6 +18,7 @@
         </include>
     </source>
     <php>
+        <env name="GCASH_COLLECTION_MODE" value="direct" force="true"/>
         <!-- The whole suite (880+ tests in one process) outgrows PHP's 128 MB default partway through the demo
              seeder test, which then ends the process. -->
         <ini name="memory_limit" value="512M"/>

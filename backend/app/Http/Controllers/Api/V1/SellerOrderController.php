@@ -234,40 +234,20 @@ class SellerOrderController extends Controller
     {
         $sellerId = $request->user()->id;
         abort_unless($order->items()->where('seller_id', $sellerId)->exists(), 403);
-        if (in_array($order->payment_method, Order::GATEWAY_METHODS, true) && $order->payment_status !== 'paid') {
-            abort(422, 'This order is not paid yet. You can accept it once the buyer pays.');
-        }
-
-        if ($order->payment_method === 'gcash') {
-            $order->update([
-                'payment_status'      => 'paid',
-                'payment_verified_at' => now(),
-                'payment_verified_by' => $sellerId,
-            ]);
-
-            if ($order->payment) {
-                $order->payment->update([
-                    'status'  => 'paid',
-                    'paid_at' => now(),
-                ]);
+        DB::transaction(function () use ($order, $sellerId) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status === OrderStatus::CONFIRMED) return;
+            abort_unless($locked->status === OrderStatus::PLACED, 409, 'This order can no longer be accepted. Refresh the order.');
+            if ($locked->isPlatformGcash() || in_array($locked->payment_method, Order::GATEWAY_METHODS, true)) {
+                abort_unless($locked->payment_status === 'paid', 422, 'Loved-IT must verify receipt before the shop accepts this order.');
+            } elseif ($locked->payment_method === 'gcash' && $locked->payment_status !== 'paid') {
+                abort_unless(in_array($locked->payment_status, ['pending', 'pending_verification', 'verification_failed'], true), 409);
+                $locked->update(['payment_status' => 'paid', 'paid_at' => now(), 'payment_verified_at' => now(),
+                    'payment_verified_by' => $sellerId, 'verification_rejection_reason' => null]);
+                $locked->payment?->update(['status' => 'paid', 'paid_at' => now()]);
             }
-        }
-
-        $currentStatus = $order->status instanceof OrderStatus ? $order->status->value : (string) $order->status;
-        if ($currentStatus === OrderStatus::PLACED->value) {
-            // The "Order confirmed" email from the transition already tells a GCash buyer the payment was received.
-            $this->stateMachine->transition(
-                $order,
-                OrderStatus::CONFIRMED,
-                'seller',
-                $sellerId,
-                $order->payment_method === 'cod'
-                    ? 'COD order confirmed by merchant'
-                    : 'Payment verified and confirmed by merchant'
-            );
-        } elseif ($order->payment_method === 'gcash') {
-            app(\App\Services\MailNotifier::class)->gcashPaymentConfirmed($order);
-        }
+            $this->stateMachine->transition($locked, OrderStatus::CONFIRMED, 'seller', $sellerId, 'Order accepted by shop');
+        });
 
         return response()->json([
             'message' => $order->payment_method === 'cod'
@@ -290,18 +270,16 @@ class SellerOrderController extends Controller
             'reason' => Validation::sentence(true, 10, 500),
         ], Validation::sentenceMessages('reason', 'The reason', 10, 500));
 
-        $order->update([
-            'payment_status'                => 'verification_failed',
-            'verification_rejection_reason' => $data['reason'],
-        ]);
-
-        if ($order->payment) {
-            $order->payment->update([
-                'status' => 'failed',
-            ]);
-        }
-
-        app(\App\Services\MailNotifier::class)->gcashPaymentRejected($order, $data['reason']);
+        DB::transaction(function () use ($order, $data) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->isPlatformGcash(), 403, 'Loved-IT reviews this payment.');
+            abort_unless($locked->payment_method === 'gcash' && $locked->status === OrderStatus::PLACED
+                && in_array($locked->payment_status, ['pending', 'pending_verification', 'verification_failed'], true), 409,
+                'A received payment or closed order cannot be rejected.');
+            $locked->update(['payment_status' => 'verification_failed', 'verification_rejection_reason' => $data['reason']]);
+            $locked->payment?->update(['status' => 'failed']);
+            DB::afterCommit(fn () => app(\App\Services\MailNotifier::class)->gcashPaymentRejected($locked, $data['reason']));
+        });
 
         return response()->json([
             'message' => 'Payment marked as not received / verification failed.',
@@ -610,6 +588,8 @@ class SellerOrderController extends Controller
             'status'                => $statusStr,
             'payment_method'        => $o->payment_method,
             'payment_status'        => $o->payment_status,
+            'settlement' => $o->settlement,
+            'collection_payee' => $o->collection_payee,
             'payment_reference'     => $o->payment_reference,
             'payment_proof_url'     => $o->paymentProofUrl(),
             'payment_verified_at'   => $o->payment_verified_at?->toIso8601String(),

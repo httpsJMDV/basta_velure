@@ -415,6 +415,7 @@ export default function SellerEarningsPage() {
                         </td>
 
                         <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          {p.transfer_reference && <p className="font-mono text-xs text-gray-700">GCash {p.transfer_reference}</p>}
                           {p.admin_notes ? (
                             <span className="text-[11px] text-gray-600 font-medium truncate max-w-xs inline-block" title={p.admin_notes}>
                               {p.admin_notes}

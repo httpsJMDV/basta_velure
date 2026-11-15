@@ -168,7 +168,7 @@ class CheckoutCalculator
                     'id'            => (int) $sellerId,
                     'shop_name'     => $profile?->shop_name ?? trim(($s['seller']?->first_name ?? '') . ' ' . ($s['seller']?->last_name ?? '')),
                     'shop_slug'     => $profile?->shop_name ? Str::slug($profile->shop_name) : null,
-                    'accepts_gcash' => (bool) ($profile?->gcash_number),
+                    'accepts_gcash' => \App\Services\Payments\PlatformGcash::enabled() ? (bool) \App\Services\Payments\PlatformGcash::account() : (bool) ($profile?->gcash_number),
                     'on_vacation'   => (bool) ($profile?->on_vacation),
                 ],
                 'lines'             => $lines,
