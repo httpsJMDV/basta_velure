@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -157,6 +158,22 @@ class User extends Authenticatable
         $company = $this->logisticsMembership?->company;
 
         return $company !== null && $company->status !== LogisticsCompany::STATUS_REJECTED;
+    }
+
+    /** Query equivalent of isWorkAccount(); a stored buyer role alone does not grant shopping access. */
+    public function scopeWithoutWorkAccounts(Builder $query): Builder
+    {
+        return $query->where('role', '!=', 'rider')
+            ->whereDoesntHave('rider', fn ($q) => $q->where('status', '!=', Rider::STATUS_DISAPPROVED))
+            ->whereDoesntHave('sortingCenter', fn ($q) => $q->where('status', '!=', SortingCenter::STATUS_REJECTED))
+            ->whereDoesntHave('logisticsMembership.company', fn ($q) => $q->where('status', '!=', LogisticsCompany::STATUS_REJECTED));
+    }
+
+    /** Buyer directory/statistic: staff and pending/approved shops are listed separately. */
+    public function scopeBuyerAccounts(Builder $query): Builder
+    {
+        return $query->where('role', 'buyer')->withoutWorkAccounts()
+            ->whereDoesntHave('sellerProfile', fn ($q) => $q->whereIn('application_status', ['pending', 'approved']));
     }
 
     /** What a work account is told when it tries to buy, open a shop or apply for another role. */

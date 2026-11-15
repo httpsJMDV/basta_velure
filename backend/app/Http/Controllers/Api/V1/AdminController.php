@@ -58,11 +58,11 @@ class AdminController extends Controller
         $yesterdaySummary = $a->summary($yesterday);
 
         $pendingSellers = SellerProfile::where('application_status', 'pending')->count();
-        $newBuyers = fn (array $range) => User::where('role', 'buyer')->where('created_at', '>=', $range['start'])->where('created_at', '<', $range['end'])->count();
+        $newBuyers = fn (array $range) => User::buyerAccounts()->where('created_at', '>=', $range['start'])->where('created_at', '<', $range['end'])->count();
         $pendingSellersIn = fn (array $range) => SellerProfile::where('application_status', 'pending')->where('submitted_at', '>=', $range['start'])->where('submitted_at', '<', $range['end'])->count();
 
         // Pending counts
-        $pendingBuyers         = User::where('buyer_application_status', 'pending')->count();
+        $pendingBuyers         = User::where('role', 'buyer')->withoutWorkAccounts()->where('buyer_application_status', 'pending')->count();
         $openDisputes          = Dispute::whereIn('status', ['open', 'in_progress'])->count();
         $pendingProducts       = Product::where('status', 'pending_review')->count();
         $pendingVerifications  = Order::where('payment_method', 'gcash')
@@ -136,7 +136,7 @@ class AdminController extends Controller
             ]);
 
         // 2. Pending buyer verifications
-        $pendingBuyerApps = User::where('buyer_application_status', 'pending')
+        $pendingBuyerApps = User::where('role', 'buyer')->withoutWorkAccounts()->where('buyer_application_status', 'pending')
             ->latest('updated_at')
             ->take(6)
             ->get()
@@ -245,7 +245,8 @@ class AdminController extends Controller
             ->when($request->role === 'seller', fn ($q) => $q
                 ->whereHas('sellerProfile', fn ($sp) => $sp->where('application_status', 'approved'))
             )
-            ->when($request->role && ! in_array($request->role, ['seller', 'rider'], true), fn ($q) => $q->where('role', $request->role))
+            ->when($request->role === 'buyer', fn ($q) => $q->buyerAccounts())
+            ->when($request->role && ! in_array($request->role, ['buyer', 'seller', 'rider'], true), fn ($q) => $q->where('role', $request->role))
             // A courier is a buyer with a riders row (older courier accounts carry role "rider").
             ->when($request->role === 'rider', fn ($q) => $q->where(fn ($r) => $r->where('role', 'rider')->orWhereHas('rider')))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
@@ -274,6 +275,9 @@ class AdminController extends Controller
         abort_if($user->role === 'admin', 403, 'Cannot suspend the admin account.');
 
         DB::transaction(function () use ($user, $request) {
+            $current = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($current->status, ['active', 'suspended'], true), 409,
+                'This account has not finished registration. Complete its email or activation flow first.');
             $user->tokens()->delete();
             $user->status = 'suspended';
             $user->save();
@@ -295,7 +299,11 @@ class AdminController extends Controller
 
     public function reactivate(Request $request, User $user): JsonResponse
     {
+        abort_if($user->role === 'admin', 403, 'Cannot change the admin account through reactivation.');
         DB::transaction(function () use ($user, $request) {
+            $current = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($current->status, ['active', 'suspended'], true), 409,
+                'Only an account that completed registration can be reactivated. Complete its email or activation flow first.');
             $user->status = 'active';
             $user->save();
 
