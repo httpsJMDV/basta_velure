@@ -1,3 +1,5 @@
+import HubTruckTeam from '../../components/logistics/HubTruckTeam';
+import CustomSelect from '../../components/ui/CustomSelect';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -250,7 +252,7 @@ export default function HubTransfersPanel() {
 
   const send = async (group: HubTransferGroup) => {
     const cargo = isCargo(group.mode);
-    if (!cargo && drivers.length > 0 && driverId === '') {
+    if (!cargo && driverId === '') {
       showToast('Choose the truck driver taking these parcels.', 'error');
       return;
     }
@@ -296,6 +298,7 @@ export default function HubTransfersPanel() {
         </div>
       )}
 
+      <HubTruckTeam drivers={drivers} />
       {incoming.length > 0 && (
         <div className="border-b border-gray-100">
           <div className="flex items-center justify-between gap-3 px-4 pt-4">
@@ -321,7 +324,7 @@ export default function HubTransfersPanel() {
               {crossing
                 ? 'This is an island gateway: the ones marked by sea cross to another island group. Put them on a ship, or a plane when they are urgent and light.'
                 : 'Another hub of your courier is next on their way. Load them on a truck instead of sorting them here.'}
-              {drivers.length === 0 && !crossing && ' Your courier has no truck drivers yet, so they go without one.'}
+              {drivers.length === 0 && !crossing && ' Assign a home-hub truck driver before dispatching these parcels.'}
             </p>
           </div>
           <ul className="p-3 space-y-2">
@@ -373,7 +376,7 @@ export default function HubTransfersPanel() {
                         Parcels
                       </button>
                       {confirming !== key && (
-                        <button type="button" onClick={() => startConfirm(group)} className="px-4 text-sm font-semibold text-white rounded-xl min-h-11 bg-brand-red hover:bg-brand-red-dark">
+                        <button type="button" disabled={!cargo && freeDrivers.length === 0} onClick={() => startConfirm(group)} className="px-4 text-sm font-semibold text-white rounded-xl min-h-11 bg-brand-red hover:bg-brand-red-dark disabled:opacity-40">
                           {cargo ? 'Load on a ship or plane' : drivers.length > 0 ? 'Load on a truck' : 'Send'}
                         </button>
                       )}
@@ -388,23 +391,17 @@ export default function HubTransfersPanel() {
                       ) : drivers.length > 0 && (
                         <label className="flex-1 min-w-0 text-xs font-semibold text-gray-700">
                           Truck driver
-                          <select value={driverId} onChange={(e) => setDriverId(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="block w-full px-3 mt-1 text-sm font-normal text-gray-900 bg-white border border-gray-300 rounded-xl min-h-11 focus:border-gray-900 focus:outline-none">
-                            {freeDrivers.length === 0 && <option value="">Every driver is on a trip</option>}
-                            {drivers.map((d) => (
-                              <option key={d.id} value={d.id} disabled={d.busy}>
-                                {d.name} · {d.vehicle_type}{d.plate_number ? ` ${d.plate_number}` : ''}
-                                {d.busy ? ` · on a trip to ${d.on_trip_to ?? 'another hub'}` : ''}
-                              </option>
-                            ))}
-                          </select>
+                          <CustomSelect value={String(driverId)} onChange={value => setDriverId(value ? Number(value) : '')}
+                            options={freeDrivers.map(d => ({ value: String(d.id), label: `${d.name} · ${d.vehicle_type}${d.plate_number ? ` ${d.plate_number}` : ''}` }))}
+                            placeholder={freeDrivers.length ? 'Choose your hub’s driver' : 'Your hub’s drivers are on trips'}
+                            disabled={freeDrivers.length === 0} className="mt-1" />
                         </label>
                       )}
                       <div className="flex items-center gap-2 sm:justify-end">
                         <button type="button" disabled={sending} onClick={() => setConfirming(null)} className="px-3 text-xs font-semibold text-gray-700 rounded-lg min-h-11 hover:bg-gray-100 disabled:opacity-50">
                           Cancel
                         </button>
-                        <button type="button" disabled={sending || (!cargo && drivers.length > 0 && driverId === '')} onClick={() => void send(group)}
+                        <button type="button" disabled={sending || (!cargo && driverId === '')} onClick={() => void send(group)}
                           className="inline-flex items-center gap-1.5 px-4 text-sm font-semibold text-white rounded-xl min-h-11 bg-brand-red hover:bg-brand-red-dark disabled:opacity-60 whitespace-nowrap">
                           {sending && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />}
                           Yes, send {word}
